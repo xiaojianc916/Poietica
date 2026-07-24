@@ -12,7 +12,7 @@ const sourceRoots = ['apps', 'editor', 'features', 'foundations', 'platforms'].m
 )
 
 const tldrawCssBoundary = normalize(
-  path.join(repositoryRoot, 'apps/desktop/src/styles/tldraw-overrides.css'),
+  path.join(repositoryRoot, 'editor/core/src/styles/tldraw-adapter.css'),
 )
 
 const designSystemRoot = normalize(path.join(repositoryRoot, 'foundations/design-system'))

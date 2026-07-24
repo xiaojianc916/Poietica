@@ -1,7 +1,7 @@
 /*
  * tldraw 5.2.5 UI adapter boundary.
  *
- * This is the only CSS file allowed to target .tl-* or .tlui-* selectors.
+ * This package-owned adapter is the only CSS authority for tldraw selectors.
  * Revalidate every selector whenever the pinned tldraw version changes.
  * Preserve tldraw official interaction behavior and visual language unless
  * a product requirement explicitly replaces a documented tldraw slot.

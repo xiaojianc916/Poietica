@@ -1,7 +1,7 @@
 @import "tldraw/tldraw.css";
 @import "@hybrid-canvas/design-system/styles.css";
 @import "tailwindcss" source("../../../");
-@import "./styles/tldraw-overrides.css";
+@import "@hybrid-canvas/canvas/tldraw-adapter.css";
 
 /*
  * Desktop platform tokens.

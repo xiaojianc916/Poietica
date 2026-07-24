@@ -22,7 +22,8 @@
     "./react": {
       "types": "./src/react/public-api.ts",
       "default": "./src/react/public-api.ts"
-    }
+    },
+    "./tldraw-adapter.css": "./src/styles/tldraw-adapter.css"
   },
   "scripts": {
     "check": "tsc --project tsconfig.json --noEmit",
