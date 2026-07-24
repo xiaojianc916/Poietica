@@ -682,3 +682,206 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Settings refinement: compact, quiet and task-focused. */
+
+.settings-dialog {
+  height: min(680px, calc(100dvh - 32px));
+}
+
+/* Compact the shared Dialog header only for Settings. */
+.settings-dialog > header {
+  min-height: 44px;
+  align-items: center;
+  padding: 8px 14px 8px 16px;
+}
+
+.settings-dialog > header > div {
+  display: flex;
+  align-items: center;
+}
+
+.settings-dialog > header h2,
+.settings-dialog > header [role="heading"] {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+/* The content still scrolls, but no scrollbar track or thumb is shown. */
+.settings-content {
+  position: relative;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.settings-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Remove the unnecessary brand/header space in the sidebar. */
+.settings-navigation {
+  padding: 10px 8px;
+}
+
+.settings-navigation__items {
+  gap: 2px;
+}
+
+.settings-navigation__item {
+  min-height: 42px;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.settings-navigation__copy strong {
+  font-size: 14px;
+}
+
+.settings-navigation__icon {
+  width: 17px;
+  height: 17px;
+}
+
+/* Compact Save / Cancel controls without creating another toolbar. */
+.settings-content-actions {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Leave room for the compact actions without creating a toolbar. */
+.settings-page {
+  padding-top: 32px;
+}
+
+.settings-page__header {
+  min-height: 66px;
+  padding-right: 170px;
+  margin-bottom: 22px;
+}
+
+.settings-page__header h2 {
+  font-size: 22px;
+}
+
+.settings-page__header p {
+  margin-top: 7px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* Do not use tiny explanatory text. */
+.settings-group__header h3 {
+  font-size: 15px;
+}
+
+.settings-group__header p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-row {
+  min-height: 68px;
+  padding: 13px 16px;
+}
+
+.settings-row__copy strong {
+  font-size: 14px;
+}
+
+.settings-row__copy p {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-select {
+  font-size: 13px;
+}
+
+.settings-segmented button {
+  min-width: 68px;
+  font-size: 13px;
+}
+
+.settings-range output,
+.settings-privacy-note p,
+.settings-about-card__copy span,
+.settings-about-card__copy p,
+.settings-principle p,
+.settings-about-details dt,
+.settings-about-details dd,
+.settings-error p {
+  font-size: 13px;
+}
+
+.settings-privacy-note strong,
+.settings-principle strong,
+.settings-error strong {
+  font-size: 14px;
+}
+
+/* Old footer/status styles are intentionally disabled. */
+.settings-footer,
+.settings-footer__status,
+.settings-navigation__brand,
+.settings-navigation__local {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .settings-dialog {
+    height: 100dvh;
+  }
+
+  .settings-dialog > header {
+    min-height: 42px;
+    padding: 6px 10px 6px 14px;
+  }
+
+  .settings-content-actions {
+    top: 14px;
+    right: 16px;
+  }
+
+  .settings-page {
+    padding: 68px 18px 36px;
+  }
+
+  .settings-page__header {
+    min-height: 0;
+    padding-right: 0;
+    margin-bottom: 22px;
+  }
+
+  .settings-navigation {
+    padding: 6px 8px;
+  }
+
+  .settings-navigation__item {
+    min-height: 38px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 440px) {
+  .settings-content-actions {
+    position: static;
+    justify-content: flex-end;
+    padding: 10px 14px 0;
+  }
+
+  .settings-page {
+    padding: 22px 14px 32px;
+  }
+
+  .settings-content-actions button {
+    min-width: 64px;
+  }
+}

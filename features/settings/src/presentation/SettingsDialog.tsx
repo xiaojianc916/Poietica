@@ -14,34 +14,28 @@ type SettingsSection = 'general' | 'canvas' | 'export' | 'privacy' | 'about'
 interface SectionDefinition {
   readonly id: SettingsSection
   readonly label: string
-  readonly description: string
 }
 
 const SECTIONS: readonly SectionDefinition[] = [
   {
     id: 'general',
     label: '常规',
-    description: '外观与保存',
   },
   {
     id: 'canvas',
     label: '画布',
-    description: '网格与视图',
   },
   {
     id: 'export',
     label: '导出',
-    description: '格式与质量',
   },
   {
     id: 'privacy',
     label: '隐私',
-    description: '诊断与更新',
   },
   {
     id: 'about',
     label: '关于',
-    description: '应用与架构',
   },
 ]
 
@@ -70,8 +64,6 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
       className="settings-dialog"
       closeOnOverlayClick={!controller.saving}
       contentClassName="settings-dialog__viewport"
-      description="为本地优先的画布工作流调整体验"
-      footer={<SettingsFooter controller={controller} />}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
           controller.requestClose()
@@ -106,6 +98,8 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
                 />
               ) : null}
 
+              <SettingsActions controller={controller} />
+
               <SettingsSectionContent
                 controller={controller}
                 section={section}
@@ -130,17 +124,6 @@ const SettingsNavigation = memo(function SettingsNavigation({
 }: SettingsNavigationProps) {
   return (
     <aside aria-label="设置分类" className="settings-navigation">
-      <div className="settings-navigation__brand">
-        <span aria-hidden="true" className="settings-navigation__mark">
-          HC
-        </span>
-
-        <div>
-          <strong>Hybrid Canvas</strong>
-          <span>本地画布设置</span>
-        </div>
-      </div>
-
       <nav className="settings-navigation__items">
         {SECTIONS.map((item) => {
           const active = item.id === activeSection
@@ -160,17 +143,11 @@ const SettingsNavigation = memo(function SettingsNavigation({
 
               <span className="settings-navigation__copy">
                 <strong>{item.label}</strong>
-                <small>{item.description}</small>
               </span>
             </button>
           )
         })}
       </nav>
-
-      <div className="settings-navigation__local">
-        <span aria-hidden="true" className="settings-navigation__status" />
-        设置保存在当前设备
-      </div>
     </aside>
   )
 })
@@ -285,6 +262,17 @@ const GeneralSettings = memo(function GeneralSettings({
             />
           </SettingRow>
         ) : null}
+
+        <SettingRow description="将应用、画布、导出和隐私选项恢复为初始值。" label="恢复默认设置">
+          <Button
+            disabled={controller.saving}
+            onClick={controller.reset}
+            type="button"
+            variant="outline"
+          >
+            {controller.saving && controller.operation === 'reset' ? '正在恢复…' : '恢复默认'}
+          </Button>
+        </SettingRow>
       </SettingsGroup>
     </SettingsPage>
   )
@@ -645,11 +633,10 @@ interface SettingsPageProps {
   readonly children: ReactNode
 }
 
-function SettingsPage({ eyebrow, title, description, children }: SettingsPageProps) {
+function SettingsPage({ title, description, children }: SettingsPageProps) {
   return (
     <section className="settings-page">
       <header className="settings-page__header">
-        <span>{eyebrow}</span>
         <h2>{title}</h2>
         <p>{description}</p>
       </header>
@@ -814,46 +801,29 @@ function RangeControl({ ariaLabel, value, onChange }: RangeControlProps) {
   )
 }
 
-interface SettingsFooterProps {
+interface SettingsActionsProps {
   readonly controller: SettingsController
 }
 
-function SettingsFooter({ controller }: SettingsFooterProps) {
+function SettingsActions({ controller }: SettingsActionsProps) {
   return (
-    <div className="settings-footer">
-      <div className="settings-footer__status">
-        <span aria-hidden="true" data-dirty={controller.dirty ? 'true' : 'false'} />
+    <div className="settings-content-actions">
+      <Button
+        disabled={controller.saving}
+        onClick={controller.requestClose}
+        type="button"
+        variant="ghost"
+      >
+        取消
+      </Button>
 
-        {controller.dirty ? '有未保存的更改' : '所有设置均已保存'}
-      </div>
-
-      <div className="settings-footer__actions">
-        <Button
-          disabled={controller.saving || !controller.settings}
-          onClick={controller.reset}
-          type="button"
-          variant="ghost"
-        >
-          {controller.saving && controller.operation === 'reset' ? '正在重置…' : '恢复默认'}
-        </Button>
-
-        <Button
-          disabled={controller.saving}
-          onClick={controller.requestClose}
-          type="button"
-          variant="ghost"
-        >
-          取消
-        </Button>
-
-        <Button
-          disabled={controller.saving || !controller.settings || !controller.dirty}
-          onClick={controller.save}
-          type="button"
-        >
-          {controller.saving && controller.operation === 'save' ? '正在保存…' : '保存更改'}
-        </Button>
-      </div>
+      <Button
+        disabled={controller.saving || !controller.settings || !controller.dirty}
+        onClick={controller.save}
+        type="button"
+      >
+        {controller.saving && controller.operation === 'save' ? '正在保存…' : '保存'}
+      </Button>
     </div>
   )
 }
