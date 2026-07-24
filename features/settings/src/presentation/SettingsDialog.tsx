@@ -1,112 +1,47 @@
+import { Button, Dialog, ErrorState, LoadingState, Switch } from '@hybrid-canvas/design-system'
+import { type ChangeEvent, memo, type ReactNode, useCallback, useId, useState } from 'react'
+import type { AppSettings, ThemeMode } from '../domain/settings'
+import type { SettingsStore } from '../ports/settings-store'
 import {
-  applyThemePreference,
-  Button,
-  Dialog,
-  ErrorState,
-  Field,
-  Label,
-  LoadingState,
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
-  type SelectOption,
-  SelectTrigger,
-  Switch,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@hybrid-canvas/design-system'
-import type { AppSettings, SettingsStore, ThemeMode } from '@hybrid-canvas/settings'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+  type SettingsController,
+  type SettingsOperation,
+  useSettingsController,
+} from './useSettingsController'
+import './settings-dialog.css'
 
-type SettingsSection = 'general' | 'canvas' | 'about'
+type SettingsSection = 'general' | 'canvas' | 'export' | 'privacy' | 'about'
 
-type SettingsOperation = 'load' | 'save' | 'reset'
-
-type SettingsViewState =
-  | {
-      readonly status: 'idle'
-    }
-  | {
-      readonly status: 'loading'
-    }
-  | {
-      readonly status: 'ready'
-      readonly draft: AppSettings
-    }
-  | {
-      readonly status: 'saving'
-      readonly operation: 'save' | 'reset'
-      readonly draft: AppSettings
-    }
-  | {
-      readonly status: 'error'
-      readonly operation: SettingsOperation
-      readonly message: string
-      readonly draft?: AppSettings
-    }
-
-interface SettingsSectionItem {
+interface SectionDefinition {
   readonly id: SettingsSection
   readonly label: string
+  readonly description: string
 }
 
-const SECTIONS: readonly SettingsSectionItem[] = [
+const SECTIONS: readonly SectionDefinition[] = [
   {
     id: 'general',
     label: '常规',
+    description: '外观与保存',
   },
   {
     id: 'canvas',
     label: '画布',
+    description: '网格与视图',
+  },
+  {
+    id: 'export',
+    label: '导出',
+    description: '格式与质量',
+  },
+  {
+    id: 'privacy',
+    label: '隐私',
+    description: '诊断与更新',
   },
   {
     id: 'about',
     label: '关于',
-  },
-]
-
-const THEME_OPTIONS: readonly SelectOption[] = [
-  {
-    value: 'light',
-    label: '浅色',
-  },
-  {
-    value: 'dark',
-    label: '深色',
-  },
-  {
-    value: 'system',
-    label: '跟随系统',
-  },
-]
-
-const LANGUAGE_OPTIONS: readonly SelectOption[] = [
-  {
-    value: 'zh-CN',
-    label: '简体中文',
-  },
-  {
-    value: 'en',
-    label: 'English',
-  },
-]
-
-const ZOOM_OPTIONS: readonly SelectOption[] = [
-  {
-    value: '1',
-    label: '100%',
-  },
-  {
-    value: '0.75',
-    label: '75%',
-  },
-  {
-    value: '0.5',
-    label: '50%',
+    description: '应用与架构',
   },
 ]
 
@@ -119,580 +54,804 @@ export interface SettingsDialogProps {
 export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProps) {
   const [section, setSection] = useState<SettingsSection>('general')
 
-  const [state, setState] = useState<SettingsViewState>({
-    status: 'idle',
+  const controller = useSettingsController({
+    open,
+    store,
+    onOpenChange,
   })
 
-  const initialSettingsRef = useRef<AppSettings | null>(null)
-
-  const requestIdRef = useRef(0)
-
-  const loadSettings = useCallback(() => {
-    const requestId = requestIdRef.current + 1
-
-    requestIdRef.current = requestId
-
-    setState({
-      status: 'loading',
-    })
-
-    void store.load().then(
-      (settings) => {
-        if (requestIdRef.current !== requestId) {
-          return
-        }
-
-        initialSettingsRef.current = settings
-
-        applyThemePreference(settings.theme)
-
-        setState({
-          status: 'ready',
-          draft: settings,
-        })
-      },
-      (cause: unknown) => {
-        if (requestIdRef.current !== requestId) {
-          return
-        }
-
-        setState({
-          status: 'error',
-          operation: 'load',
-          message: getErrorMessage(cause),
-        })
-      },
-    )
-  }, [store])
-
-  useEffect(() => {
-    if (!open) {
-      requestIdRef.current += 1
-      return
-    }
-
-    setSection('general')
-    loadSettings()
-
-    return () => {
-      requestIdRef.current += 1
-    }
-  }, [loadSettings, open])
-
-  const draft = getDraft(state)
-
-  const busy = state.status === 'saving'
-
-  const updateDraft = (nextSettings: AppSettings) => {
-    if (busy) {
-      return
-    }
-
-    applyThemePreference(nextSettings.theme)
-
-    setState({
-      status: 'ready',
-      draft: nextSettings,
-    })
-  }
-
-  const closeDialog = () => {
-    if (busy) {
-      return
-    }
-
-    const initialSettings = initialSettingsRef.current
-
-    if (initialSettings) {
-      applyThemePreference(initialSettings.theme)
-    }
-
-    onOpenChange(false)
-  }
-
-  const saveSettings = () => {
-    if (!draft || busy) {
-      return
-    }
-
-    const settingsToSave = draft
-
-    setState({
-      status: 'saving',
-      operation: 'save',
-      draft: settingsToSave,
-    })
-
-    void store.save(settingsToSave).then(
-      () => {
-        initialSettingsRef.current = settingsToSave
-
-        applyThemePreference(settingsToSave.theme)
-
-        setState({
-          status: 'ready',
-          draft: settingsToSave,
-        })
-
-        onOpenChange(false)
-      },
-      (cause: unknown) => {
-        setState({
-          status: 'error',
-          operation: 'save',
-          message: getErrorMessage(cause),
-          draft: settingsToSave,
-        })
-      },
-    )
-  }
-
-  const resetSettings = () => {
-    if (!draft || busy) {
-      return
-    }
-
-    const currentDraft = draft
-
-    setState({
-      status: 'saving',
-      operation: 'reset',
-      draft: currentDraft,
-    })
-
-    void store.reset().then(
-      (resetSettingsValue) => {
-        initialSettingsRef.current = resetSettingsValue
-
-        applyThemePreference(resetSettingsValue.theme)
-
-        setState({
-          status: 'ready',
-          draft: resetSettingsValue,
-        })
-      },
-      (cause: unknown) => {
-        setState({
-          status: 'error',
-          operation: 'reset',
-          message: getErrorMessage(cause),
-          draft: currentDraft,
-        })
-      },
-    )
-  }
-
-  const retryLastOperation = () => {
-    if (state.status !== 'error') {
-      return
-    }
-
-    if (state.operation === 'load') {
-      loadSettings()
-      return
-    }
-
-    if (state.operation === 'save') {
-      saveSettings()
-      return
-    }
-
-    resetSettings()
-  }
+  const selectSection = useCallback((nextSection: SettingsSection) => {
+    setSection(nextSection)
+  }, [])
 
   return (
     <Dialog
-      busy={busy}
-      className={[
-        'h-[min(680px,calc(100dvh-2rem))]',
-        'max-w-[920px]',
-        'max-sm:h-dvh',
-        'max-sm:max-h-dvh',
-        'max-sm:rounded-none',
-      ].join(' ')}
-      closeOnOverlayClick={!busy}
-      description="调整 Hybrid Canvas 的使用体验"
-      footer={
-        <SettingsFooter
-          busy={busy}
-          canReset={Boolean(draft)}
-          canSave={Boolean(draft)}
-          onCancel={closeDialog}
-          onReset={resetSettings}
-          onSave={saveSettings}
-          operation={state.status === 'saving' ? state.operation : undefined}
-        />
-      }
+      busy={controller.saving}
+      className="settings-dialog"
+      closeOnOverlayClick={!controller.saving}
+      contentClassName="settings-dialog__viewport"
+      description="为本地优先的画布工作流调整体验"
+      footer={<SettingsFooter controller={controller} />}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) {
-          closeDialog()
+          controller.requestClose()
         }
       }}
       open={open}
       title="设置"
     >
-      <Tabs
-        className={[
-          'grid h-full min-h-0',
-          'grid-cols-[224px_minmax(0,1fr)]',
-          'max-sm:grid-cols-1',
-          'max-sm:grid-rows-[auto_minmax(0,1fr)]',
-        ].join(' ')}
-        onValueChange={(nextSection) => {
-          setSection(nextSection as SettingsSection)
-        }}
-        value={section}
-      >
-        <SettingsNavigation />
+      <div className="settings-shell">
+        <SettingsNavigation activeSection={section} onSelect={selectSection} />
 
-        <main className={['min-h-0 overflow-y-auto', 'p-6 max-sm:p-4'].join(' ')}>
-          {state.status === 'idle' || state.status === 'loading' ? (
-            <LoadingState label="正在读取设置…" />
+        <main aria-live="polite" className="settings-content">
+          {controller.loading ? (
+            <div className="settings-state">
+              <LoadingState label="正在读取本地设置…" />
+            </div>
           ) : null}
 
-          {state.status === 'error' && !state.draft ? (
-            <ErrorState message={state.message} onRetry={retryLastOperation} />
+          {!controller.loading && controller.error && !controller.settings ? (
+            <div className="settings-state">
+              <ErrorState message={controller.error} onRetry={controller.retry} />
+            </div>
           ) : null}
 
-          {state.status === 'error' && state.draft ? (
-            <SettingsErrorBanner
-              message={state.message}
-              onRetry={retryLastOperation}
-              operation={state.operation}
-            />
-          ) : null}
+          {controller.settings ? (
+            <>
+              {controller.error ? (
+                <SettingsErrorBanner
+                  message={controller.error}
+                  onRetry={controller.retry}
+                  operation={controller.operation}
+                />
+              ) : null}
 
-          {draft ? (
-            <TabsContent className="m-0 outline-none focus-visible:ring-0" value="general">
-              <GeneralSettingsPanel onChange={updateDraft} settings={draft} />
-            </TabsContent>
+              <SettingsSectionContent
+                controller={controller}
+                section={section}
+                settings={controller.settings}
+              />
+            </>
           ) : null}
-
-          {draft ? (
-            <TabsContent className="m-0 outline-none focus-visible:ring-0" value="canvas">
-              <CanvasSettingsPanel onChange={updateDraft} settings={draft} />
-            </TabsContent>
-          ) : null}
-
-          <TabsContent className="m-0 outline-none focus-visible:ring-0" value="about">
-            <AboutSettingsPanel />
-          </TabsContent>
         </main>
-      </Tabs>
+      </div>
     </Dialog>
   )
 }
 
-function SettingsNavigation() {
+interface SettingsNavigationProps {
+  readonly activeSection: SettingsSection
+  readonly onSelect: (section: SettingsSection) => void
+}
+
+const SettingsNavigation = memo(function SettingsNavigation({
+  activeSection,
+  onSelect,
+}: SettingsNavigationProps) {
   return (
-    <TabsList
-      aria-label="设置分类"
-      className={[
-        'h-auto min-h-0',
-        'w-full',
-        'flex-col items-stretch',
-        'justify-start',
-        'gap-1 rounded-none',
-        'border-r border-divider',
-        'bg-muted/30 p-4',
-        'max-sm:flex-row',
-        'max-sm:overflow-x-auto',
-        'max-sm:border-b',
-        'max-sm:border-r-0',
-        'max-sm:p-2',
-      ].join(' ')}
-    >
-      {SECTIONS.map((item) => (
-        <TabsTrigger
-          className={[
-            'w-full justify-start',
-            'px-3 py-2',
-            'text-left text-sm',
-            'shadow-none',
-            'data-[active]:bg-accent',
-            'data-[active]:text-accent-foreground',
-            'data-[active]:shadow-none',
-            'max-sm:w-auto',
-            'max-sm:shrink-0',
-          ].join(' ')}
-          key={item.id}
-          value={item.id}
-        >
-          {item.label}
-        </TabsTrigger>
-      ))}
-    </TabsList>
+    <aside aria-label="设置分类" className="settings-navigation">
+      <div className="settings-navigation__brand">
+        <span aria-hidden="true" className="settings-navigation__mark">
+          HC
+        </span>
+
+        <div>
+          <strong>Hybrid Canvas</strong>
+          <span>本地画布设置</span>
+        </div>
+      </div>
+
+      <nav className="settings-navigation__items">
+        {SECTIONS.map((item) => {
+          const active = item.id === activeSection
+
+          return (
+            <button
+              aria-current={active ? 'page' : undefined}
+              className="settings-navigation__item"
+              data-active={active ? 'true' : 'false'}
+              key={item.id}
+              onClick={() => {
+                onSelect(item.id)
+              }}
+              type="button"
+            >
+              <SectionIcon section={item.id} />
+
+              <span className="settings-navigation__copy">
+                <strong>{item.label}</strong>
+                <small>{item.description}</small>
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="settings-navigation__local">
+        <span aria-hidden="true" className="settings-navigation__status" />
+        设置保存在当前设备
+      </div>
+    </aside>
   )
+})
+
+interface SettingsSectionContentProps {
+  readonly section: SettingsSection
+  readonly settings: AppSettings
+  readonly controller: SettingsController
+}
+
+function SettingsSectionContent({ section, settings, controller }: SettingsSectionContentProps) {
+  switch (section) {
+    case 'general':
+      return <GeneralSettings controller={controller} settings={settings} />
+
+    case 'canvas':
+      return <CanvasSettings controller={controller} settings={settings} />
+
+    case 'export':
+      return <ExportSettings controller={controller} settings={settings} />
+
+    case 'privacy':
+      return <PrivacySettings controller={controller} settings={settings} />
+
+    case 'about':
+      return <AboutSettings />
+  }
 }
 
 interface SettingsPanelProps {
   readonly settings: AppSettings
-  readonly onChange: (settings: AppSettings) => void
+  readonly controller: SettingsController
 }
 
-function GeneralSettingsPanel({ settings, onChange }: SettingsPanelProps) {
+const GeneralSettings = memo(function GeneralSettings({
+  settings,
+  controller,
+}: SettingsPanelProps) {
   return (
-    <section aria-labelledby="general-settings-title" className="grid max-w-xl gap-8">
-      <header>
-        <h3 className="text-base font-semibold" id="general-settings-title">
-          常规
-        </h3>
-
-        <p className={['mt-1 text-sm', 'text-muted-foreground'].join(' ')}>
-          调整应用外观、语言和保存行为。
-        </p>
-      </header>
-
-      <Field description="选择应用界面的颜色模式。" label="外观">
-        {({ inputId, describedBy }) => (
-          <SettingsSelect
-            ariaDescribedBy={describedBy}
-            data={THEME_OPTIONS}
-            id={inputId}
-            onValueChange={(value) => {
-              onChange({
-                ...settings,
-                theme: value as ThemeMode,
-              })
+    <SettingsPage
+      description="控制应用外观、界面语言和文档保存方式。"
+      eyebrow="Application"
+      title="常规"
+    >
+      <SettingsGroup description="界面会立即预览颜色模式，取消时恢复原来的主题。" title="外观">
+        <SettingRow description="选择适合当前环境的应用颜色模式。" label="颜色模式">
+          <SegmentedControl
+            ariaLabel="颜色模式"
+            onChange={(theme) => {
+              controller.update((current) => ({
+                ...current,
+                theme,
+              }))
             }}
-            type="外观"
+            options={[
+              ['light', '浅色'],
+              ['dark', '深色'],
+              ['system', '跟随系统'],
+            ]}
             value={settings.theme}
           />
-        )}
-      </Field>
+        </SettingRow>
 
-      <Field description="控制应用界面使用的语言。" label="语言">
-        {({ inputId, describedBy }) => (
-          <SettingsSelect
-            ariaDescribedBy={describedBy}
-            data={LANGUAGE_OPTIONS}
-            id={inputId}
-            onValueChange={(value) => {
-              onChange({
-                ...settings,
-                language: value as AppSettings['language'],
-              })
+        <SettingRow description="更改应用菜单与设置界面的显示语言。" label="界面语言">
+          <NativeSelect
+            ariaLabel="界面语言"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                language: value,
+              }))
             }}
-            type="语言"
+            options={[
+              ['zh-CN', '简体中文'],
+              ['en', 'English'],
+            ]}
             value={settings.language}
           />
-        )}
-      </Field>
+        </SettingRow>
+      </SettingsGroup>
 
-      <SettingsToggle
-        checked={settings.autoSave}
-        description="编辑画布时自动保存到当前文件。"
-        label="自动保存"
-        onChange={(checked) => {
-          onChange({
-            ...settings,
-            autoSave: checked,
-          })
-        }}
-      />
-    </section>
+      <SettingsGroup description="自动保存只写入当前文档，不会创建第二套画布状态。" title="保存">
+        <ToggleRow
+          checked={settings.autoSave}
+          description="编辑时定期将 TLStore 文档快照安全写入当前文件。"
+          label="自动保存"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              autoSave: checked,
+            }))
+          }}
+        />
+
+        {settings.autoSave ? (
+          <SettingRow description="频繁保存更安全，较长间隔可以减少磁盘写入。" label="保存间隔">
+            <NativeSelect
+              ariaLabel="自动保存间隔"
+              onChange={(value) => {
+                controller.update((current) => ({
+                  ...current,
+                  autoSaveIntervalMs: Number(value),
+                }))
+              }}
+              options={[
+                ['10000', '10 秒'],
+                ['30000', '30 秒'],
+                ['60000', '1 分钟'],
+                ['300000', '5 分钟'],
+              ]}
+              value={String(settings.autoSaveIntervalMs)}
+            />
+          </SettingRow>
+        ) : null}
+      </SettingsGroup>
+    </SettingsPage>
   )
-}
+})
 
-function CanvasSettingsPanel({ settings, onChange }: SettingsPanelProps) {
+const CanvasSettings = memo(function CanvasSettings({ settings, controller }: SettingsPanelProps) {
   return (
-    <section aria-labelledby="canvas-settings-title" className="grid max-w-xl gap-6">
-      <header>
-        <h3 className="text-base font-semibold" id="canvas-settings-title">
-          画布
-        </h3>
+    <SettingsPage
+      description="调整 tldraw 画布的视图辅助功能和默认行为。"
+      eyebrow="Canvas"
+      title="画布"
+    >
+      <SettingsGroup description="这些选项只改变画布交互和显示，不复制文档状态。" title="视图">
+        <ToggleRow
+          checked={settings.canvas.infiniteCanvas}
+          description="允许在所有方向持续扩展工作区域。"
+          label="无限画布"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              canvas: {
+                ...current.canvas,
+                infiniteCanvas: checked,
+              },
+            }))
+          }}
+        />
 
-        <p className={['mt-1 text-sm', 'text-muted-foreground'].join(' ')}>
-          调整网格、吸附和默认缩放。
-        </p>
-      </header>
+        <ToggleRow
+          checked={settings.canvas.showRulers}
+          description="在画布边缘显示位置和尺寸参考。"
+          label="显示标尺"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              canvas: {
+                ...current.canvas,
+                showRulers: checked,
+              },
+            }))
+          }}
+        />
 
-      <SettingsToggle
-        checked={settings.canvas.showGrid}
-        description="在画布背景中显示辅助网格。"
-        label="显示网格"
-        onChange={(checked) => {
-          onChange({
-            ...settings,
-            canvas: {
-              ...settings.canvas,
-              showGrid: checked,
-            },
-          })
-        }}
-      />
-
-      <SettingsToggle
-        checked={settings.canvas.snapToGrid}
-        description="移动图形时自动吸附到网格。"
-        label="吸附到网格"
-        onChange={(checked) => {
-          onChange({
-            ...settings,
-            canvas: {
-              ...settings.canvas,
-              snapToGrid: checked,
-            },
-          })
-        }}
-      />
-
-      <Field description="新建画布时使用的默认缩放比例。" label="默认缩放">
-        {({ inputId, describedBy }) => (
-          <SettingsSelect
-            ariaDescribedBy={describedBy}
-            data={ZOOM_OPTIONS}
-            id={inputId}
-            onValueChange={(value) => {
-              onChange({
-                ...settings,
+        <SettingRow description="新建或首次打开画布时使用的缩放比例。" label="默认缩放">
+          <NativeSelect
+            ariaLabel="默认画布缩放"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
                 canvas: {
-                  ...settings.canvas,
+                  ...current.canvas,
                   defaultZoom: Number(value),
                 },
-              })
+              }))
             }}
-            type="缩放比例"
+            options={[
+              ['0.5', '50%'],
+              ['0.75', '75%'],
+              ['1', '100%'],
+              ['1.25', '125%'],
+            ]}
             value={String(settings.canvas.defaultZoom)}
           />
-        )}
-      </Field>
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup description="网格提供视觉参考，吸附用于更精确地排列图形。" title="网格与吸附">
+        <ToggleRow
+          checked={settings.canvas.showGrid}
+          description="在画布背景中显示轻量辅助网格。"
+          label="显示网格"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              canvas: {
+                ...current.canvas,
+                showGrid: checked,
+              },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.canvas.snapToGrid}
+          description="移动和创建图形时自动对齐到网格。"
+          label="吸附到网格"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              canvas: {
+                ...current.canvas,
+                snapToGrid: checked,
+              },
+            }))
+          }}
+        />
+
+        <SettingRow description="控制网格线和吸附点之间的距离。" label="网格尺寸">
+          <NativeSelect
+            ariaLabel="画布网格尺寸"
+            disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                canvas: {
+                  ...current.canvas,
+                  gridSize: Number(value),
+                },
+              }))
+            }}
+            options={[
+              ['8', '8 px'],
+              ['12', '12 px'],
+              ['16', '16 px'],
+              ['20', '20 px'],
+              ['24', '24 px'],
+              ['32', '32 px'],
+            ]}
+            value={String(settings.canvas.gridSize)}
+          />
+        </SettingRow>
+      </SettingsGroup>
+    </SettingsPage>
+  )
+})
+
+const ExportSettings = memo(function ExportSettings({ settings, controller }: SettingsPanelProps) {
+  return (
+    <SettingsPage
+      description="设置画布导出的默认格式、清晰度和文档信息。"
+      eyebrow="Export"
+      title="导出"
+    >
+      <SettingsGroup description="导出不会修改画布中的原始 TLStore 文档记录。" title="默认输出">
+        <SettingRow description="执行快速导出时优先使用的文件格式。" label="文件格式">
+          <NativeSelect
+            ariaLabel="默认导出格式"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                export: {
+                  ...current.export,
+                  defaultFormat: value,
+                },
+              }))
+            }}
+            options={[
+              ['svg', 'SVG · 矢量'],
+              ['png', 'PNG · 图片'],
+              ['pdf', 'PDF · 文档'],
+            ]}
+            value={settings.export.defaultFormat}
+          />
+        </SettingRow>
+
+        <SettingRow description="用于 PNG 导出的像素密度。" label="PNG 清晰度">
+          <NativeSelect
+            ariaLabel="PNG 导出清晰度"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                export: {
+                  ...current.export,
+                  pngDpi: Number(value),
+                },
+              }))
+            }}
+            options={[
+              ['72', '72 DPI'],
+              ['144', '144 DPI'],
+              ['300', '300 DPI'],
+              ['600', '600 DPI'],
+            ]}
+            value={String(settings.export.pngDpi)}
+          />
+        </SettingRow>
+
+        <SettingRow description="较高质量会生成更大的 PDF 文件。" label="PDF 质量">
+          <RangeControl
+            ariaLabel="PDF 导出质量"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                export: {
+                  ...current.export,
+                  pdfQuality: value,
+                },
+              }))
+            }}
+            value={settings.export.pdfQuality}
+          />
+        </SettingRow>
+
+        <ToggleRow
+          checked={settings.export.includeMetadata}
+          description="在支持的格式中保留应用版本和画布元数据。"
+          label="包含元数据"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              export: {
+                ...current.export,
+                includeMetadata: checked,
+              },
+            }))
+          }}
+        />
+      </SettingsGroup>
+    </SettingsPage>
+  )
+})
+
+const PrivacySettings = memo(function PrivacySettings({
+  settings,
+  controller,
+}: SettingsPanelProps) {
+  return (
+    <SettingsPage
+      description="Hybrid Canvas 默认以本地优先方式处理文档和设置。"
+      eyebrow="Privacy"
+      title="隐私"
+    >
+      <div className="settings-privacy-note">
+        <span aria-hidden="true" className="settings-privacy-note__icon">
+          ✓
+        </span>
+
+        <div>
+          <strong>你的画布默认保留在设备上</strong>
+          <p>文档内容不会因为启用诊断或更新检查而自动上传。</p>
+        </div>
+      </div>
+
+      <SettingsGroup description="你可以独立控制每一种联网或诊断行为。" title="诊断与更新">
+        <ToggleRow
+          checked={settings.privacy.telemetry}
+          description="发送不包含画布内容的匿名功能使用统计。"
+          label="匿名使用数据"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: {
+                ...current.privacy,
+                telemetry: checked,
+              },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.privacy.crashReporting}
+          description="发生崩溃时发送诊断信息，不包含画布文档。"
+          label="崩溃报告"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: {
+                ...current.privacy,
+                crashReporting: checked,
+              },
+            }))
+          }}
+        />
+
+        <ToggleRow
+          checked={settings.privacy.updateCheck}
+          description="启动后检查是否存在新的稳定版本。"
+          label="自动检查更新"
+          onChange={(checked) => {
+            controller.update((current) => ({
+              ...current,
+              privacy: {
+                ...current.privacy,
+                updateCheck: checked,
+              },
+            }))
+          }}
+        />
+      </SettingsGroup>
+    </SettingsPage>
+  )
+})
+
+const AboutSettings = memo(function AboutSettings() {
+  return (
+    <SettingsPage
+      description="一个以 tldraw 为核心的本地优先桌面画布应用。"
+      eyebrow="About"
+      title="Hybrid Canvas"
+    >
+      <div className="settings-about-card">
+        <div aria-hidden="true" className="settings-about-card__logo">
+          HC
+        </div>
+
+        <div className="settings-about-card__copy">
+          <strong>Hybrid Canvas</strong>
+          <span>Version 0.1.0</span>
+          <p>使用 React、Tauri、Rust 和 tldraw 构建。</p>
+        </div>
+      </div>
+
+      <div className="settings-principles">
+        <ArchitecturePrinciple
+          description="Editor 与 TLStore 是画布文档唯一事实来源。"
+          index="01"
+          title="tldraw-first"
+        />
+
+        <ArchitecturePrinciple
+          description="文档和设置优先安全保存在当前设备。"
+          index="02"
+          title="本地优先"
+        />
+
+        <ArchitecturePrinciple
+          description="原子文件写入、明确边界和可恢复流程。"
+          index="03"
+          title="安全可靠"
+        />
+
+        <ArchitecturePrinciple
+          description="界面保持轻量，长任务不阻塞主线程。"
+          index="04"
+          title="高性能"
+        />
+      </div>
+
+      <dl className="settings-about-details">
+        <div>
+          <dt>画布内核</dt>
+          <dd>tldraw Editor / TLStore</dd>
+        </div>
+
+        <div>
+          <dt>桌面运行时</dt>
+          <dd>Tauri</dd>
+        </div>
+
+        <div>
+          <dt>设置存储</dt>
+          <dd>Tauri Store</dd>
+        </div>
+
+        <div>
+          <dt>文档格式</dt>
+          <dd>.draw</dd>
+        </div>
+      </dl>
+    </SettingsPage>
+  )
+})
+
+interface SettingsPageProps {
+  readonly eyebrow: string
+  readonly title: string
+  readonly description: string
+  readonly children: ReactNode
+}
+
+function SettingsPage({ eyebrow, title, description, children }: SettingsPageProps) {
+  return (
+    <section className="settings-page">
+      <header className="settings-page__header">
+        <span>{eyebrow}</span>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </header>
+
+      <div className="settings-page__body">{children}</div>
     </section>
   )
 }
 
-interface SettingsSelectProps {
-  readonly id: string
-  readonly ariaDescribedBy: string | undefined
-  readonly data: readonly SelectOption[]
-  readonly type: string
-  readonly value: string
-  readonly onValueChange: (value: string) => void
+interface SettingsGroupProps {
+  readonly title: string
+  readonly description?: string
+  readonly children: ReactNode
 }
 
-function SettingsSelect({
-  id,
-  ariaDescribedBy,
-  data,
-  type,
-  value,
-  onValueChange,
-}: SettingsSelectProps) {
-  const [open, setOpen] = useState(false)
-
+function SettingsGroup({ title, description, children }: SettingsGroupProps) {
   return (
-    <Select
-      data={data}
-      onOpenChange={setOpen}
-      onValueChange={onValueChange}
-      open={open}
-      type={type}
-      value={value}
-    >
-      <SelectTrigger aria-describedby={ariaDescribedBy} id={id} />
+    <section className="settings-group">
+      <header className="settings-group__header">
+        <h3>{title}</h3>
+        {description ? <p>{description}</p> : null}
+      </header>
 
-      <SelectContent>
-        <SelectList>
-          <SelectGroup>
-            {data.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectList>
-      </SelectContent>
-    </Select>
+      <div className="settings-group__surface">{children}</div>
+    </section>
   )
 }
 
-interface SettingsToggleProps {
+interface SettingRowProps {
+  readonly label: string
+  readonly description: string
+  readonly children: ReactNode
+}
+
+function SettingRow({ label, description, children }: SettingRowProps) {
+  return (
+    <div className="settings-row">
+      <div className="settings-row__copy">
+        <strong>{label}</strong>
+        <p>{description}</p>
+      </div>
+
+      <div className="settings-row__control">{children}</div>
+    </div>
+  )
+}
+
+interface ToggleRowProps {
   readonly checked: boolean
   readonly label: string
   readonly description: string
   readonly onChange: (checked: boolean) => void
 }
 
-function SettingsToggle({ checked, label, description, onChange }: SettingsToggleProps) {
+function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
   const descriptionId = useId()
 
   return (
-    <div className={['grid min-h-14 gap-2', 'border-b border-divider', 'py-3'].join(' ')}>
-      <Label className="flex w-fit cursor-pointer items-center gap-2">
-        <Switch aria-describedby={descriptionId} checked={checked} onCheckedChange={onChange} />
+    <div className="settings-row">
+      <div className="settings-row__copy">
+        <strong>{label}</strong>
+        <p id={descriptionId}>{description}</p>
+      </div>
 
-        <span>{label}</span>
-      </Label>
-
-      <p
-        className={['pl-11 text-xs leading-5', 'text-muted-foreground'].join(' ')}
-        id={descriptionId}
-      >
-        {description}
-      </p>
+      <div className="settings-row__control">
+        <Switch
+          aria-describedby={descriptionId}
+          aria-label={label}
+          checked={checked}
+          onCheckedChange={onChange}
+        />
+      </div>
     </div>
   )
 }
 
-function AboutSettingsPanel() {
+interface NativeSelectProps {
+  readonly ariaLabel: string
+  readonly value: string
+  readonly options: readonly (readonly [string, string])[]
+  readonly disabled?: boolean
+  readonly onChange: (value: string) => void
+}
+
+function NativeSelect({
+  ariaLabel,
+  value,
+  options,
+  disabled = false,
+  onChange,
+}: NativeSelectProps) {
   return (
-    <section
-      aria-labelledby="about-settings-title"
-      className={['max-w-xl rounded-lg', 'border border-divider', 'p-5'].join(' ')}
+    <select
+      aria-label={ariaLabel}
+      className="settings-select"
+      disabled={disabled}
+      onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+        onChange(event.target.value)
+      }}
+      value={value}
     >
-      <h3 className="text-base font-semibold" id="about-settings-title">
-        Hybrid Canvas
-      </h3>
+      {options.map(([optionValue, label]) => (
+        <option key={optionValue} value={optionValue}>
+          {label}
+        </option>
+      ))}
+    </select>
+  )
+}
 
-      <p className={['mt-2 text-sm', 'text-muted-foreground'].join(' ')}>
-        基于 tldraw 的本地优先画布应用。
-      </p>
+interface SegmentedControlProps {
+  readonly ariaLabel: string
+  readonly value: ThemeMode
+  readonly options: readonly (readonly [ThemeMode, string])[]
+  readonly onChange: (value: ThemeMode) => void
+}
 
-      <dl className={['mt-5 grid', 'grid-cols-[100px_1fr]', 'gap-y-2 text-sm'].join(' ')}>
-        <dt className="text-muted-foreground">版本</dt>
+function SegmentedControl({ ariaLabel, value, options, onChange }: SegmentedControlProps) {
+  return (
+    <div aria-label={ariaLabel} className="settings-segmented" role="radiogroup">
+      {options.map(([optionValue, label]) => (
+        <button
+          aria-checked={value === optionValue}
+          data-active={value === optionValue ? 'true' : 'false'}
+          key={optionValue}
+          onClick={() => {
+            onChange(optionValue)
+          }}
+          role="radio"
+          type="button"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
-        <dd>0.1.0</dd>
+interface RangeControlProps {
+  readonly ariaLabel: string
+  readonly value: number
+  readonly onChange: (value: number) => void
+}
 
-        <dt className="text-muted-foreground">设置存储</dt>
+function RangeControl({ ariaLabel, value, onChange }: RangeControlProps) {
+  return (
+    <div className="settings-range">
+      <input
+        aria-label={ariaLabel}
+        max="100"
+        min="50"
+        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          onChange(Number(event.target.value))
+        }}
+        step="5"
+        type="range"
+        value={value}
+      />
 
-        <dd>Tauri Store</dd>
-      </dl>
-    </section>
+      <output>{value}%</output>
+    </div>
   )
 }
 
 interface SettingsFooterProps {
-  readonly busy: boolean
-  readonly canSave: boolean
-  readonly canReset: boolean
-  readonly operation: 'save' | 'reset' | undefined
-  readonly onSave: () => void
-  readonly onReset: () => void
-  readonly onCancel: () => void
+  readonly controller: SettingsController
 }
 
-function SettingsFooter({
-  busy,
-  canSave,
-  canReset,
-  operation,
-  onSave,
-  onReset,
-  onCancel,
-}: SettingsFooterProps) {
+function SettingsFooter({ controller }: SettingsFooterProps) {
   return (
-    <div className={['flex flex-wrap', 'items-center', 'justify-between', 'gap-3'].join(' ')}>
-      <Button disabled={busy || !canReset} onClick={onReset} type="button" variant="ghost">
-        {busy && operation === 'reset' ? '正在重置…' : '恢复默认'}
-      </Button>
+    <div className="settings-footer">
+      <div className="settings-footer__status">
+        <span aria-hidden="true" data-dirty={controller.dirty ? 'true' : 'false'} />
 
-      <div className="flex gap-2">
-        <Button disabled={busy} onClick={onCancel} type="button" variant="ghost">
+        {controller.dirty ? '有未保存的更改' : '所有设置均已保存'}
+      </div>
+
+      <div className="settings-footer__actions">
+        <Button
+          disabled={controller.saving || !controller.settings}
+          onClick={controller.reset}
+          type="button"
+          variant="ghost"
+        >
+          {controller.saving && controller.operation === 'reset' ? '正在重置…' : '恢复默认'}
+        </Button>
+
+        <Button
+          disabled={controller.saving}
+          onClick={controller.requestClose}
+          type="button"
+          variant="ghost"
+        >
           取消
         </Button>
 
-        <Button disabled={busy || !canSave} onClick={onSave} type="button">
-          {busy && operation === 'save' ? '正在保存…' : '保存'}
+        <Button
+          disabled={controller.saving || !controller.settings || !controller.dirty}
+          onClick={controller.save}
+          type="button"
+        >
+          {controller.saving && controller.operation === 'save' ? '正在保存…' : '保存更改'}
         </Button>
       </div>
     </div>
@@ -700,58 +859,92 @@ function SettingsFooter({
 }
 
 interface SettingsErrorBannerProps {
-  readonly operation: SettingsOperation
+  readonly operation: SettingsOperation | undefined
   readonly message: string
   readonly onRetry: () => void
 }
 
 function SettingsErrorBanner({ operation, message, onRetry }: SettingsErrorBannerProps) {
-  return (
-    <div
-      className={[
-        'mb-5 rounded-md',
-        'border',
-        'border-destructive/30',
-        'bg-destructive/10',
-        'p-3',
-      ].join(' ')}
-      role="alert"
-    >
-      <p className={['text-sm', 'text-destructive'].join(' ')}>
-        {getOperationLabel(operation)}：{message}
-      </p>
+  const operationLabel =
+    operation === 'reset' ? '重置设置失败' : operation === 'save' ? '保存设置失败' : '读取设置失败'
 
-      <Button className="mt-3" onClick={onRetry} size="sm" type="button" variant="outline">
+  return (
+    <div className="settings-error" role="alert">
+      <div>
+        <strong>{operationLabel}</strong>
+        <p>{message}</p>
+      </div>
+
+      <Button onClick={onRetry} size="sm" type="button" variant="outline">
         重试
       </Button>
     </div>
   )
 }
 
-function getDraft(state: SettingsViewState): AppSettings | undefined {
-  if ('draft' in state) {
-    return state.draft
-  }
-
-  return undefined
+interface ArchitecturePrincipleProps {
+  readonly index: string
+  readonly title: string
+  readonly description: string
 }
 
-function getOperationLabel(operation: SettingsOperation): string {
-  if (operation === 'load') {
-    return '读取设置失败'
-  }
-
-  if (operation === 'save') {
-    return '保存设置失败'
-  }
-
-  return '重置设置失败'
+function ArchitecturePrinciple({ index, title, description }: ArchitecturePrincipleProps) {
+  return (
+    <article className="settings-principle">
+      <span>{index}</span>
+      <strong>{title}</strong>
+      <p>{description}</p>
+    </article>
+  )
 }
 
-function getErrorMessage(cause: unknown): string {
-  if (cause instanceof Error && cause.message.trim().length > 0) {
-    return cause.message
+function SectionIcon({ section }: { readonly section: SettingsSection }) {
+  const paths: Record<SettingsSection, ReactNode> = {
+    general: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+      </>
+    ),
+    canvas: (
+      <>
+        <rect height="16" rx="2" width="16" x="4" y="4" />
+        <path d="M4 9h16M9 4v16" />
+      </>
+    ),
+    export: (
+      <>
+        <path d="M12 3v12" />
+        <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+        <path d="M5 19h14" />
+      </>
+    ),
+    privacy: (
+      <>
+        <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    about: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8h.01" />
+      </>
+    ),
   }
 
-  return '设置操作失败，请重试。'
+  return (
+    <svg
+      aria-hidden="true"
+      className="settings-navigation__icon"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+      viewBox="0 0 24 24"
+    >
+      {paths[section]}
+    </svg>
+  )
 }
