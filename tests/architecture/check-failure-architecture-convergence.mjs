@@ -22,13 +22,13 @@ const forbidden = [
 
 for (const file of required) {
   if (!existsSync(path.join(ROOT, file))) {
-    failures.push('Missing unified failure file: ' + file)
+    failures.push(`Missing unified failure file: ${file}`)
   }
 }
 
 for (const file of forbidden) {
   if (existsSync(path.join(ROOT, file))) {
-    failures.push('Legacy parallel failure system remains: ' + file)
+    failures.push(`Legacy parallel failure system remains: ${file}`)
   }
 }
 
@@ -58,13 +58,13 @@ if (failures.length > 0) {
   console.error(
     [
       'Failure architecture convergence checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 
   process.exitCode = 1
 } else {
-  console.log('Failure architecture convergence checks passed.')
+  process.stdout.write('Failure architecture convergence checks passed.\n')
 }
 
 function scanProductionSources() {
@@ -82,7 +82,7 @@ function scanProductionSources() {
       'failureRuntime',
     ]) {
       if (source.includes(forbiddenText)) {
-        failures.push('Legacy failure symbol ' + forbiddenText + ' remains in ' + file + '.')
+        failures.push(`Legacy failure symbol ${forbiddenText} remains in ${file}.`)
       }
     }
   }

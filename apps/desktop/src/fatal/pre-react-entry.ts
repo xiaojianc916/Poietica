@@ -73,7 +73,7 @@ function createFatalSurface(incident: FailureIncident, diagnostic: string): HTML
 
   summary.className = 'fatal-summary'
 
-  summary.textContent = incident.code + ' · ' + incident.id
+  summary.textContent = `${incident.code} · ${incident.id}`
 
   const details = document.createElement('details')
 

@@ -145,42 +145,42 @@ export function formatFailureDiagnostic(incident: {
   return [
     'Hybrid Canvas Failure Incident',
     '',
-    'Incident ID: ' + incident.id,
+    `Incident ID: ${incident.id}`,
 
-    '时间: ' + incident.occurredAt,
+    `时间: ${incident.occurredAt}`,
 
-    '错误码: ' + incident.code,
+    `错误码: ${incident.code}`,
 
-    '影响等级: ' + incident.impact,
+    `影响等级: ${incident.impact}`,
 
-    '影响范围: ' + incident.scope.kind,
+    `影响范围: ${incident.scope.kind}`,
 
-    '错误类型: ' + diagnostic.errorName,
+    `错误类型: ${diagnostic.errorName}`,
 
-    '错误信息: ' + incident.technicalMessage,
+    `错误信息: ${incident.technicalMessage}`,
 
-    diagnostic.source ? '来源: ' + diagnostic.source : undefined,
+    diagnostic.source ? `来源: ${diagnostic.source}` : undefined,
 
-    typeof diagnostic.line === 'number' ? '行: ' + String(diagnostic.line) : undefined,
+    typeof diagnostic.line === 'number' ? `行: ${String(diagnostic.line)}` : undefined,
 
-    typeof diagnostic.column === 'number' ? '列: ' + String(diagnostic.column) : undefined,
+    typeof diagnostic.column === 'number' ? `列: ${String(diagnostic.column)}` : undefined,
 
-    '页面: ' + diagnostic.pageUrl,
+    `页面: ${diagnostic.pageUrl}`,
 
-    'User Agent: ' + diagnostic.userAgent,
+    `User Agent: ${diagnostic.userAgent}`,
 
     contextEntries.length > 0
-      ? '\n上下文:\n' + contextEntries.map(([key, value]) => key + ': ' + String(value)).join('\n')
+      ? `\n上下文:\n${contextEntries.map(([key, value]) => `${key}: ${String(value)}`).join('\n')}`
       : undefined,
 
-    diagnostic.stack ? '\nJavaScript Stack:\n' + diagnostic.stack : undefined,
+    diagnostic.stack ? `\nJavaScript Stack:\n${diagnostic.stack}` : undefined,
 
     diagnostic.componentStack
-      ? '\nReact Component Stack:\n' + diagnostic.componentStack
+      ? `\nReact Component Stack:\n${diagnostic.componentStack}`
       : undefined,
 
     diagnostic.recentLogs.length > 0
-      ? '\n最近的结构化日志:\n' + formatDiagnosticLogs(diagnostic.recentLogs)
+      ? `\n最近的结构化日志:\n${formatDiagnosticLogs(diagnostic.recentLogs)}`
       : undefined,
   ]
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
@@ -258,14 +258,14 @@ function normalizeText(value: string, maximumLength: number): string {
     return redacted
   }
 
-  return redacted.slice(0, maximumLength) + '\n[Diagnostic value truncated]'
+  return `${redacted.slice(0, maximumLength)}\n[Diagnostic value truncated]`
 }
 
 function redactText(value: string): string {
   return value
-    .replace(BEARER_PATTERN, 'Bearer ' + REDACTED)
-    .replace(WINDOWS_USER_PATH_PATTERN, 'C:\\Users\\' + REDACTED)
-    .replace(UNIX_USER_PATH_PATTERN, '/Users/' + REDACTED)
+    .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
+    .replace(WINDOWS_USER_PATH_PATTERN, `C:\\Users\\${REDACTED}`)
+    .replace(UNIX_USER_PATH_PATTERN, `/Users/${REDACTED}`)
 }
 
 function optionalProperty<Key extends string, Value>(
