@@ -1,5 +1,5 @@
-import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
-import { Check, ChevronsUpDown, Search } from '@mynaui/icons-react'
+import { Select as BaseSelect } from '@base-ui/react/select'
+import { Check, ChevronsUpDown } from '@mynaui/icons-react'
 import {
   type ComponentPropsWithoutRef,
   createContext,
@@ -42,18 +42,27 @@ export interface SelectProps {
   readonly data: readonly SelectOption[]
   readonly type: string
   readonly value: string
-  readonly open: boolean
+  readonly open?: boolean
+  readonly defaultOpen?: boolean
   readonly disabled?: boolean
   readonly onValueChange: (value: string) => void
-  readonly onOpenChange: (open: boolean) => void
+  readonly onOpenChange?: (open: boolean) => void
 }
 
+/**
+ * Select is intended for finite,
+ * non-searchable option sets.
+ *
+ * Use Combobox when the option set is large
+ * enough to require filtering.
+ */
 export function Select({
   children,
   data,
   type,
   value,
   open,
+  defaultOpen,
   disabled = false,
   onValueChange,
   onOpenChange,
@@ -70,10 +79,11 @@ export function Select({
         setWidth,
       }}
     >
-      <BaseCombobox.Root<string>
+      <BaseSelect.Root<string>
+        defaultOpen={defaultOpen}
         disabled={disabled}
         onOpenChange={(nextOpen) => {
-          onOpenChange(nextOpen)
+          onOpenChange?.(nextOpen)
         }}
         onValueChange={(nextValue) => {
           if (nextValue !== null) {
@@ -84,16 +94,17 @@ export function Select({
         value={value || null}
       >
         {children}
-      </BaseCombobox.Root>
+      </BaseSelect.Root>
     </SelectContext.Provider>
   )
 }
 
-export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseCombobox.Trigger>
+export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trigger>
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   function SelectTrigger({ children, className, ...props }, forwardedRef) {
     const { data, type, value, setWidth } = useSelectContext()
+
     const localRef = useRef<HTMLButtonElement | null>(null)
 
     useEffect(() => {
@@ -112,6 +123,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
       updateWidth()
 
       const resizeObserver = new ResizeObserver(updateWidth)
+
       resizeObserver.observe(element)
 
       return () => {
@@ -122,17 +134,21 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
     const selectedItem = data.find((item) => item.value === value)
 
     return (
-      <BaseCombobox.Trigger
+      <BaseSelect.Trigger
         className={cn(
-          'flex h-10 w-full items-center justify-between gap-2',
+          'flex h-10 w-full',
+          'items-center justify-between gap-2',
           'rounded-md border border-input',
-          'bg-background px-3 text-left text-sm text-foreground',
+          'bg-background px-3',
+          'text-left text-sm text-foreground',
           'shadow-sm outline-none',
           'transition-[border-color,box-shadow,background-color]',
           'hover:bg-muted/40',
-          'focus-visible:ring-2 focus-visible:ring-ring',
+          'focus-visible:ring-2',
+          'focus-visible:ring-ring',
           'data-[popup-open]:border-ring',
-          'disabled:cursor-not-allowed disabled:opacity-50',
+          'disabled:cursor-not-allowed',
+          'disabled:opacity-50',
           className,
         )}
         ref={(element) => {
@@ -149,17 +165,24 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
       >
         {children ?? (
           <>
-            <span className="min-w-0 flex-1 truncate">{selectedItem?.label ?? `选择${type}…`}</span>
+            <span className={cn('min-w-0 flex-1', 'truncate')}>
+              {selectedItem?.label ?? `选择${type}…`}
+            </span>
 
-            <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            <BaseSelect.Icon>
+              <ChevronsUpDown
+                aria-hidden="true"
+                className={cn('size-4 shrink-0', 'text-muted-foreground')}
+              />
+            </BaseSelect.Icon>
           </>
         )}
-      </BaseCombobox.Trigger>
+      </BaseSelect.Trigger>
     )
   },
 )
 
-export type SelectContentProps = ComponentPropsWithoutRef<typeof BaseCombobox.Popup>
+export type SelectContentProps = ComponentPropsWithoutRef<typeof BaseSelect.Popup>
 
 export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(function SelectContent(
   { className, style, ...props },
@@ -168,27 +191,29 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
   const { width } = useSelectContext()
 
   return (
-    <BaseCombobox.Portal>
-      <BaseCombobox.Positioner
+    <BaseSelect.Portal>
+      <BaseSelect.Positioner
         align="start"
-        className="outline-none"
+        alignItemWithTrigger={false}
+        className={cn('z-[calc(var(--ui-z-dialog)+1)]', 'outline-none')}
         sideOffset={4}
-        style={{
-          zIndex: 'calc(var(--ui-z-dialog) + 1)',
-        }}
       >
-        <BaseCombobox.Popup
+        <BaseSelect.Popup
           className={cn(
-            'overflow-hidden rounded-md',
-            'border border-divider',
-            'bg-popover text-popover-foreground',
+            'overflow-hidden',
+            'rounded-md border',
+            'border-divider',
+            'bg-popover',
+            'text-popover-foreground',
             'shadow-xl outline-none',
             'origin-[var(--transform-origin)]',
             'transition-[transform,scale,opacity]',
-            'data-[ending-style]:scale-95',
-            'data-[ending-style]:opacity-0',
+            'duration-[var(--ui-duration-fast)]',
+            'ease-[var(--ui-ease-standard)]',
             'data-[starting-style]:scale-95',
             'data-[starting-style]:opacity-0',
+            'data-[ending-style]:scale-95',
+            'data-[ending-style]:opacity-0',
             className,
           )}
           ref={ref}
@@ -198,84 +223,42 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
           }}
           {...props}
         />
-      </BaseCombobox.Positioner>
-    </BaseCombobox.Portal>
+      </BaseSelect.Positioner>
+    </BaseSelect.Portal>
   )
 })
 
-export type ComboboxInputProps = ComponentPropsWithoutRef<typeof BaseCombobox.Input>
-
-export const ComboboxInput = forwardRef<HTMLInputElement, ComboboxInputProps>(
-  function ComboboxInput({ className, placeholder, ...props }, ref) {
-    const { type } = useSelectContext()
-
-    return (
-      <div className="flex items-center gap-2 border-b border-divider px-3">
-        <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-
-        <BaseCombobox.Input
-          aria-label={props['aria-label'] ?? `搜索${type}`}
-          className={cn(
-            'h-10 min-w-0 flex-1',
-            'bg-transparent text-sm text-foreground',
-            'outline-none',
-            'placeholder:text-muted-foreground',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            className,
-          )}
-          placeholder={placeholder ?? `搜索${type}…`}
-          ref={ref}
-          {...props}
-        />
-      </div>
-    )
-  },
-)
-
-export type ComboboxEmptyProps = ComponentPropsWithoutRef<typeof BaseCombobox.Empty>
-
-export const ComboboxEmpty = forwardRef<HTMLDivElement, ComboboxEmptyProps>(function ComboboxEmpty(
-  { children, className, ...props },
-  ref,
-) {
-  const { type } = useSelectContext()
-
-  return (
-    <BaseCombobox.Empty
-      className={cn('px-3 py-6 text-center text-sm text-muted-foreground', className)}
-      ref={ref}
-      {...props}
-    >
-      {children ?? `没有找到匹配的${type}。`}
-    </BaseCombobox.Empty>
-  )
-})
-
-export type SelectListProps = ComponentPropsWithoutRef<typeof BaseCombobox.List>
+export type SelectListProps = ComponentPropsWithoutRef<typeof BaseSelect.List>
 
 export const SelectList = forwardRef<HTMLDivElement, SelectListProps>(function SelectList(
   { className, ...props },
   ref,
 ) {
   return (
-    <BaseCombobox.List
-      className={cn('max-h-64 overflow-y-auto overscroll-contain p-1', 'outline-none', className)}
+    <BaseSelect.List
+      className={cn(
+        'max-h-64',
+        'overflow-y-auto',
+        'overscroll-contain',
+        'p-1 outline-none',
+        className,
+      )}
       ref={ref}
       {...props}
     />
   )
 })
 
-export type SelectGroupProps = ComponentPropsWithoutRef<typeof BaseCombobox.Group>
+export type SelectGroupProps = ComponentPropsWithoutRef<typeof BaseSelect.Group>
 
 export const SelectGroup = forwardRef<HTMLDivElement, SelectGroupProps>(function SelectGroup(
   { className, ...props },
   ref,
 ) {
-  return <BaseCombobox.Group className={cn('grid gap-0.5', className)} ref={ref} {...props} />
+  return <BaseSelect.Group className={cn('grid gap-0.5', className)} ref={ref} {...props} />
 })
 
-export type SelectItemProps = Omit<ComponentPropsWithoutRef<typeof BaseCombobox.Item>, 'value'> & {
+export type SelectItemProps = Omit<ComponentPropsWithoutRef<typeof BaseSelect.Item>, 'value'> & {
   readonly value: string
 }
 
@@ -284,12 +267,15 @@ export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function S
   ref,
 ) {
   return (
-    <BaseCombobox.Item
+    <BaseSelect.Item
       className={cn(
-        'group relative flex min-h-9',
-        'cursor-default select-none items-center gap-2',
-        'rounded-sm px-2 py-1.5 text-sm',
-        'outline-none transition-colors',
+        'group relative flex',
+        'min-h-9',
+        'cursor-default select-none',
+        'items-center gap-2',
+        'rounded-sm px-2 py-1.5',
+        'text-sm outline-none',
+        'transition-colors',
         'data-[highlighted]:bg-accent',
         'data-[highlighted]:text-accent-foreground',
         'data-[disabled]:pointer-events-none',
@@ -300,22 +286,24 @@ export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function S
       value={value}
       {...props}
     >
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <BaseSelect.ItemText className={cn('min-w-0 flex-1', 'truncate')}>
+        {children}
+      </BaseSelect.ItemText>
 
-      <BaseCombobox.ItemIndicator className="ml-auto shrink-0">
+      <BaseSelect.ItemIndicator className="ml-auto shrink-0">
         <Check aria-hidden="true" className="size-4" />
-      </BaseCombobox.ItemIndicator>
-    </BaseCombobox.Item>
+      </BaseSelect.ItemIndicator>
+    </BaseSelect.Item>
   )
 })
 
-export type SelectSeparatorProps = ComponentPropsWithoutRef<typeof BaseCombobox.Separator>
+export type SelectSeparatorProps = ComponentPropsWithoutRef<typeof BaseSelect.Separator>
 
 export const SelectSeparator = forwardRef<HTMLDivElement, SelectSeparatorProps>(
   function SelectSeparator({ className, ...props }, ref) {
     return (
-      <BaseCombobox.Separator
-        className={cn('-mx-1 my-1 h-px bg-divider', className)}
+      <BaseSelect.Separator
+        className={cn('-mx-1 my-1 h-px', 'bg-divider', className)}
         ref={ref}
         {...props}
       />

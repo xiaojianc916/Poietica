@@ -24,10 +24,27 @@ export { Input, type InputProps } from './components/ui/input'
 export { Label, type LabelProps } from './components/ui/label'
 export { ScrollArea, ScrollBar } from './components/ui/scroll-area'
 export {
+  Combobox,
+  ComboboxContent,
+  type ComboboxContentProps,
   ComboboxEmpty,
   type ComboboxEmptyProps,
+  ComboboxGroup,
+  type ComboboxGroupProps,
   ComboboxInput,
   type ComboboxInputProps,
+  ComboboxItem,
+  type ComboboxItemProps,
+  ComboboxList,
+  type ComboboxListProps,
+  type ComboboxOption,
+  type ComboboxProps,
+  ComboboxSeparator,
+  type ComboboxSeparatorProps,
+  ComboboxTrigger,
+  type ComboboxTriggerProps,
+} from './components/ui/combobox'
+export {
   Select,
   SelectContent,
   type SelectContentProps,
