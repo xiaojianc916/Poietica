@@ -10,6 +10,8 @@ const failures = []
 const required = [
   'apps/desktop/src/application/failures/failure-coordinator.ts',
   'apps/desktop/src/application/failures/failure-diagnostic.ts',
+  'apps/desktop/src/fatal/terminal-failure-view-model.ts',
+  'apps/desktop/src/fatal/terminal-failure-view-model.test.ts',
   'apps/desktop/src/application/failures/failure-policy.ts',
   'apps/desktop/src/application/failures/failure-coordinator.test.ts',
   'apps/desktop/src/fatal/fatal-runtime.ts',
@@ -55,6 +57,46 @@ if (failures.length === 0) {
     'readonly quarantinedDocuments:',
     'Coordinator does not own document quarantine.',
   )
+
+  const terminalViewModel = read('apps/desktop/src/fatal/terminal-failure-view-model.ts')
+
+  const reactRenderer = read('apps/desktop/src/fatal/FatalErrorScreen.tsx')
+
+  const preReactRenderer = read('apps/desktop/src/fatal/pre-react-entry.ts')
+
+  requireText(
+    terminalViewModel,
+    'createTerminalFailureViewModel',
+    'Terminal Failure ViewModel factory is missing.',
+  )
+
+  requireText(
+    reactRenderer,
+    'createTerminalFailureViewModel',
+    'React Fatal renderer does not consume the canonical ViewModel.',
+  )
+
+  requireText(
+    preReactRenderer,
+    'createTerminalFailureViewModel',
+    'Pre-React Fatal renderer does not consume the canonical ViewModel.',
+  )
+
+  for (const [rendererName, renderer] of [
+    ['React', reactRenderer],
+    ['Pre-React', preReactRenderer],
+  ]) {
+    if (renderer.includes('incident.impact') || renderer.includes('formatFailureDiagnostic')) {
+      failures.push(rendererName + ' Terminal renderer bypasses the canonical ViewModel.')
+    }
+  }
+
+  if (
+    !reactRenderer.includes('createTerminalFailureViewModel') ||
+    !preReactRenderer.includes('createTerminalFailureViewModel')
+  ) {
+    failures.push('Terminal renderers do not share the canonical ViewModel.')
+  }
 
   scanProductionSources()
 }

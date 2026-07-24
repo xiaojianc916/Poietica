@@ -1,72 +1,38 @@
-import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 const ROOT = process.cwd()
-
-const CURRENT_SCRIPT = path.resolve(fileURLToPath(import.meta.url))
 
 const FILES = Object.freeze({
   packageJson: 'package.json',
 
-  gitignore: '.gitignore',
+  viewModel: 'apps/desktop/src/fatal/terminal-failure-view-model.ts',
 
-  appShell: 'apps/desktop/src/presentation/AppShell.tsx',
+  viewModelTest: 'apps/desktop/src/fatal/terminal-failure-view-model.test.ts',
 
-  policy: 'apps/desktop/src/application/failures/failure-policy.ts',
+  reactScreen: 'apps/desktop/src/fatal/FatalErrorScreen.tsx',
 
-  uiFeedback: 'apps/desktop/src/presentation/ui/ui-feedback.tsx',
+  preReact: 'apps/desktop/src/fatal/pre-react-entry.ts',
 
-  featureAvailability: 'apps/desktop/src/application/failures/feature-availability.ts',
+  architectureCheck: 'tests/architecture/check-failure-architecture-convergence.mjs',
 
-  featureCheck: 'tests/architecture/check-feature-degradation-enforcement.mjs',
-
-  convergenceCheck: 'tests/architecture/check-failure-architecture-convergence.mjs',
+  adr: 'docs/adr/ADR-011-unified-failure-coordinator.md',
 })
-
-const DEAD_FILES = [
-  FILES.featureAvailability,
-
-  'tests/architecture/check-failure-severity-architecture.mjs',
-
-  'tests/architecture/check-fatal-escalation-policy.mjs',
-]
-
-const SUPERSEDED_ADRS = [
-  'docs/adr/ADR-005-unified-fatal-incident.md',
-
-  'docs/adr/ADR-006-fatal-escalation-policy.md',
-
-  'docs/adr/ADR-007-application-failure-severity.md',
-]
-
-const ROOT_MIGRATION_PATTERNS = [
-  /^refactor.*\.mjs$/i,
-  /^repair-.*\.mjs$/i,
-  /^converge-.*\.mjs$/i,
-  /^apply-.*\.mjs$/i,
-]
 
 async function main() {
   await assertRepository()
 
-  await removeDeadFiles()
-  await removeRootMigrationScripts()
-
-  await centralizeFeatureIds()
-  await simplifyAppShell()
-  await narrowToastProjection()
-
-  await rewriteFeatureCheck()
-  await rewriteConvergenceCheck()
-
-  await markSupersededAdrs()
-  await updateGitignore()
-  await verifyCleanup()
+  await writeTerminalViewModel()
+  await writeTerminalViewModelTests()
+  await writeReactFatalScreen()
+  await writePreReactEntry()
+  await strengthenArchitectureCheck()
+  await updateArchitectureDecision()
+  await verifyConvergence()
 
   console.log('')
-  console.log('Failure architecture cleanup completed.')
+  console.log('Terminal Failure ViewModel unified.')
 }
 
 async function assertRepository() {
@@ -77,880 +43,1083 @@ async function assertRepository() {
   }
 }
 
-async function removeDeadFiles() {
-  for (const relativePath of DEAD_FILES) {
-    await rm(resolvePath(relativePath), {
-      force: true,
-    })
-
-    console.log(relativePath + ': removed.')
-  }
-}
-
-async function removeRootMigrationScripts() {
-  const entries = await readdir(ROOT, {
-    withFileTypes: true,
-  })
-
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue
-    }
-
-    if (!ROOT_MIGRATION_PATTERNS.some((pattern) => pattern.test(entry.name))) {
-      continue
-    }
-
-    const absolutePath = path.resolve(ROOT, entry.name)
-
-    if (absolutePath === CURRENT_SCRIPT) {
-      console.log(entry.name + ': current script retained locally.')
-
-      continue
-    }
-
-    await rm(absolutePath, {
-      force: true,
-    })
-
-    console.log(entry.name + ': removed.')
-  }
-}
-
-async function centralizeFeatureIds() {
-  const file = resolvePath(FILES.policy)
-
-  let source = await readFile(file, 'utf8')
-
-  if (source.includes('export const DEGRADABLE_FEATURE_IDS')) {
-    return
-  }
-
-  const marker = 'export const APPLICATION_FAILURE_CODES = ['
-
-  const featureIds = `export const DEGRADABLE_FEATURE_IDS = [
-  'settings',
-  'developer-tools',
-  'window-controls',
-  'window-dragging',
-  'window-state-sync',
-  'window-close-coordination',
-] as const
-
-export type DegradableFeatureId =
-  (typeof DEGRADABLE_FEATURE_IDS)[number]
-
-`
-
-  source = replaceRequired(source, marker, featureIds + marker, FILES.policy)
-
-  await writeFile(file, normalizeText(source), 'utf8')
-
-  console.log(FILES.policy + ': feature IDs centralized.')
-}
-
-async function simplifyAppShell() {
-  const file = resolvePath(FILES.appShell)
-
-  let source = await readFile(file, 'utf8')
-
-  source = source.replace(
-    "import { createFeatureAvailability } from '../application/failures/feature-availability'\n",
-    '',
-  )
-
-  const oldProjection = `  const featureAvailability = useMemo(
-    () => createFeatureAvailability([...failureSnapshot.degradedFeatures.keys()]),
-    [failureSnapshot.degradedFeatures],
-  )
-
-`
-
-  const directSelectors = `  const settingsUnavailable =
-    failureSnapshot.degradedFeatures.has(
-      'settings',
-    )
-
-  const developerToolsUnavailable =
-    failureSnapshot.degradedFeatures.has(
-      'developer-tools',
-    )
-
-  const windowControlsUnavailable =
-    failureSnapshot.degradedFeatures.has(
-      'window-controls',
-    )
-
-  const windowDraggingUnavailable =
-    failureSnapshot.degradedFeatures.has(
-      'window-dragging',
-    )
-
-`
-
-  source = replaceRequired(source, oldProjection, directSelectors, FILES.appShell)
-
-  source = source.replaceAll("!featureAvailability.isAvailable('settings')", 'settingsUnavailable')
-
-  source = source.replaceAll(
-    "!featureAvailability.isAvailable('developer-tools')",
-    'developerToolsUnavailable',
-  )
-
-  source = source.replaceAll(
-    "!featureAvailability.isAvailable('window-controls')",
-    'windowControlsUnavailable',
-  )
-
-  source = source.replaceAll(
-    "!featureAvailability.isAvailable('window-dragging')",
-    'windowDraggingUnavailable',
-  )
-
-  source = source.replaceAll("featureAvailability.isAvailable('settings')", '!settingsUnavailable')
-
-  source = source.replace(/\[\s*featureAvailability\s*\]/g, '[settingsUnavailable]')
-
-  source = replaceCallbackDependency(
-    source,
-    '  const minimizeWindow =',
-    '  const maximizeWindow =',
-    'windowControlsUnavailable',
-    FILES.appShell,
-  )
-
-  source = replaceCallbackDependency(
-    source,
-    '  const maximizeWindow =',
-    '  const openDeveloperTools =',
-    'windowControlsUnavailable',
-    FILES.appShell,
-  )
-
-  source = replaceCallbackDependency(
-    source,
-    '  const openDeveloperTools =',
-    '  const startWindowDragging =',
-    'developerToolsUnavailable',
-    FILES.appShell,
-  )
-
-  source = replaceCallbackDependency(
-    source,
-    '  const startWindowDragging =',
-    '  useApplicationCommands(',
-    'windowDraggingUnavailable',
-    FILES.appShell,
-  )
-
-  if (source.includes('featureAvailability')) {
-    throw new Error('featureAvailability remains in AppShell.')
-  }
-
-  await writeFile(file, normalizeText(source), 'utf8')
-
-  console.log(FILES.appShell + ': redundant feature projection removed.')
-}
-
-async function narrowToastProjection() {
+async function writeTerminalViewModel() {
   const source = `import type {
-  FailureImpact,
-} from '@hybrid-canvas/foundations-kernel'
-import {
-  DangerCircle,
-  X,
-} from '@mynaui/icons-react'
-import {
-  useEffect,
-  useSyncExternalStore,
-} from 'react'
-import {
-  failureCoordinator,
-  type NonTerminalFailureIncident,
-  type PresentedFailure,
-} from '../../application/failures/failure-coordinator'
+  TerminalFailureIncident,
+} from '../application/failures/failure-coordinator'
+import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
 
-type ToastFailureImpact =
-  Extract<
-    FailureImpact,
-    | 'recoverable'
-    | 'feature-degraded'
-  >
+export interface TerminalFailurePrimaryAction {
+  readonly kind: 'reload'
+  readonly label: string
+}
 
-type ToastIncident =
-  NonTerminalFailureIncident & {
-    readonly impact:
-      ToastFailureImpact
+export interface TerminalFailureViewModel {
+  readonly title: string
+  readonly description: string
+  readonly summary: string
+
+  readonly additionalIncidentMessage?:
+    string
+
+  readonly primaryAction:
+    TerminalFailurePrimaryAction | null
+
+  readonly copyActionLabel: string
+  readonly copySuccessLabel: string
+  readonly copyFailureLabel: string
+  readonly detailsLabel: string
+  readonly diagnostic: string
+}
+
+export function createTerminalFailureViewModel(
+  incident:
+    TerminalFailureIncident,
+
+  additionalIncidentCount = 0,
+): TerminalFailureViewModel {
+  return Object.freeze({
+    title:
+      resolvePresentationTitle(
+        incident,
+      ),
+
+    description:
+      incident.userMessage,
+
+    summary:
+      incident.code +
+      ' · ' +
+      incident.id,
+
+    ...optionalProperty(
+      'additionalIncidentMessage',
+      createAdditionalIncidentMessage(
+        additionalIncidentCount,
+      ),
+    ),
+
+    primaryAction:
+      createPrimaryAction(
+        incident,
+      ),
+
+    copyActionLabel:
+      '复制诊断信息',
+
+    copySuccessLabel:
+      '已复制',
+
+    copyFailureLabel:
+      '复制失败，请手动选择',
+
+    detailsLabel:
+      '查看诊断信息',
+
+    diagnostic:
+      formatFailureDiagnostic(
+        incident,
+      ),
+  })
+}
+
+function resolvePresentationTitle(
+  incident:
+    TerminalFailureIncident,
+): string {
+  const configuredTitle =
+    incident.context[
+      'presentationTitle'
+    ]
+
+  if (
+    typeof configuredTitle ===
+      'string' &&
+    configuredTitle.trim().length >
+      0
+  ) {
+    return configuredTitle
   }
 
-type ToastFailure =
-  Omit<
-    PresentedFailure,
-    'incident'
-  > & {
-    readonly incident:
-      ToastIncident
-  }
+  return incident.impact ===
+    'native-fatal'
+    ? '应用上次异常终止'
+    : '应用遇到严重错误'
+}
 
-export function UiFeedbackRegion() {
-  const snapshot =
-    useSyncExternalStore(
-      failureCoordinator.subscribe,
-      failureCoordinator.getSnapshot,
-      failureCoordinator.getSnapshot,
-    )
-
-  const visible =
-    selectVisibleFailures([
-      ...snapshot.operations,
-
-      ...snapshot
-        .degradedFeatures
-        .values(),
-    ]).slice(-3)
-
-  useEffect(() => {
-    const timers =
-      visible.map((entry) => {
-        const duration =
-          entry.incident.impact ===
-          'feature-degraded'
-            ? 9_000
-            : 5_500
-
-        return window.setTimeout(
-          () => {
-            failureCoordinator.dismiss(
-              entry.incident.id,
-            )
-          },
-          duration,
-        )
+function createPrimaryAction(
+  incident:
+    TerminalFailureIncident,
+): TerminalFailurePrimaryAction | null {
+  switch (incident.recovery) {
+    case 'reload':
+      return Object.freeze({
+        kind: 'reload',
+        label: '重新加载',
       })
 
-    return () => {
-      for (const timer of timers) {
-        window.clearTimeout(timer)
-      }
-    }
-  }, [visible])
+    case 'restart':
+      return Object.freeze({
+        kind: 'reload',
+        label: '重新加载应用',
+      })
+
+    case 'exit':
+    case 'none':
+      return null
+
+    case 'retry':
+    case 'dismiss':
+    case 'disable-feature':
+    case 'close-document':
+      return null
+  }
+}
+
+function createAdditionalIncidentMessage(
+  count: number,
+): string | undefined {
+  if (
+    !Number.isInteger(count) ||
+    count <= 0
+  ) {
+    return undefined
+  }
 
   return (
-    <div
-      aria-live="polite"
-      aria-relevant="additions"
-      className={[
-        'pointer-events-none',
-        'fixed bottom-4 right-4',
-        'z-[var(--ui-z-toast)]',
-        'grid gap-2',
-        'w-[min(380px,calc(100vw-32px))]',
-      ].join(' ')}
+    '此后还捕获到 ' +
+    String(count) +
+    ' 个相关异常。'
+  )
+}
+
+function optionalProperty<
+  Key extends string,
+  Value,
+>(
+  key: Key,
+  value: Value | undefined,
+): Partial<Record<Key, Value>> {
+  if (value === undefined) {
+    return {}
+  }
+
+  return {
+    [key]: value,
+  } as Record<Key, Value>
+}
+`
+
+  await writeText(FILES.viewModel, source)
+}
+
+async function writeTerminalViewModelTests() {
+  const source = `import {
+  describe,
+  expect,
+  it,
+} from 'vitest'
+import {
+  FailureCoordinator,
+  type TerminalFailureIncident,
+} from '../application/failures/failure-coordinator'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+
+describe(
+  'createTerminalFailureViewModel',
+  () => {
+    it('projects application fatal state', () => {
+      const incident =
+        createTerminalIncident({
+          impact:
+            'application-fatal',
+
+          code:
+            'APPLICATION_FATAL',
+
+          userMessage:
+            '应用无法继续运行。',
+
+          recovery: 'reload',
+
+          scope: {
+            kind: 'application',
+          },
+
+          cause:
+            new Error(
+              'render failed',
+            ),
+        })
+
+      const model =
+        createTerminalFailureViewModel(
+          incident,
+        )
+
+      expect(model.title).toBe(
+        '应用遇到严重错误',
+      )
+
+      expect(
+        model.description,
+      ).toBe(
+        '应用无法继续运行。',
+      )
+
+      expect(
+        model.primaryAction,
+      ).toEqual({
+        kind: 'reload',
+        label: '重新加载',
+      })
+
+      expect(model.summary).toContain(
+        'APPLICATION_FATAL',
+      )
+
+      expect(
+        model.diagnostic,
+      ).toContain(
+        'render failed',
+      )
+    })
+
+    it('projects native fatal state', () => {
+      const incident =
+        createTerminalIncident({
+          impact: 'native-fatal',
+
+          code:
+            'NATIVE_PROCESS_FATAL',
+
+          userMessage:
+            '应用上次运行时异常终止。',
+
+          recovery: 'reload',
+
+          scope: {
+            kind:
+              'native-process',
+          },
+
+          cause:
+            new Error(
+              'native panic',
+            ),
+        })
+
+      const model =
+        createTerminalFailureViewModel(
+          incident,
+        )
+
+      expect(model.title).toBe(
+        '应用上次异常终止',
+      )
+    })
+
+    it('uses an explicit presentation title', () => {
+      const incident =
+        createTerminalIncident({
+          impact:
+            'application-fatal',
+
+          code:
+            'CUSTOM_FATAL',
+
+          userMessage:
+            '应用无法继续运行。',
+
+          recovery: 'reload',
+
+          scope: {
+            kind: 'application',
+          },
+
+          cause:
+            new Error('failure'),
+
+          context: {
+            presentationTitle:
+              '无法完成应用启动',
+          },
+        })
+
+      const model =
+        createTerminalFailureViewModel(
+          incident,
+        )
+
+      expect(model.title).toBe(
+        '无法完成应用启动',
+      )
+    })
+
+    it('projects additional incident count', () => {
+      const incident =
+        createTerminalIncident({
+          impact:
+            'application-fatal',
+
+          code:
+            'PRIMARY_FATAL',
+
+          userMessage:
+            '应用无法继续运行。',
+
+          recovery: 'reload',
+
+          scope: {
+            kind: 'application',
+          },
+
+          cause:
+            new Error('failure'),
+        })
+
+      const model =
+        createTerminalFailureViewModel(
+          incident,
+          3,
+        )
+
+      expect(
+        model.additionalIncidentMessage,
+      ).toBe(
+        '此后还捕获到 3 个相关异常。',
+      )
+    })
+
+    it('does not invent unsupported actions', () => {
+      const incident =
+        createTerminalIncident({
+          impact:
+            'application-fatal',
+
+          code:
+            'NO_RECOVERY_FATAL',
+
+          userMessage:
+            '应用无法继续运行。',
+
+          recovery: 'none',
+
+          scope: {
+            kind: 'application',
+          },
+
+          cause:
+            new Error('failure'),
+        })
+
+      const model =
+        createTerminalFailureViewModel(
+          incident,
+        )
+
+      expect(
+        model.primaryAction,
+      ).toBeNull()
+    })
+  },
+)
+
+function createTerminalIncident(
+  signal: Parameters<
+    FailureCoordinator['report']
+  >[0],
+): TerminalFailureIncident {
+  const coordinator =
+    new FailureCoordinator()
+
+  coordinator.report(signal)
+
+  const terminal =
+    coordinator.getSnapshot()
+      .terminal
+
+  if (!terminal) {
+    throw new Error(
+      'Expected terminal failure state.',
+    )
+  }
+
+  return terminal.incident
+}
+`
+
+  await writeText(FILES.viewModelTest, source)
+}
+
+async function writeReactFatalScreen() {
+  const source = `import {
+  useMemo,
+  useState,
+} from 'react'
+import type {
+  TerminalFailureIncident,
+} from '../application/failures/failure-coordinator'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+
+export interface FatalErrorScreenProps {
+  readonly incident:
+    TerminalFailureIncident
+
+  readonly additionalIncidentCount?:
+    number
+}
+
+export function FatalErrorScreen({
+  incident,
+  additionalIncidentCount = 0,
+}: FatalErrorScreenProps) {
+  const [copyState, setCopyState] =
+    useState<
+      'idle' | 'copied' | 'failed'
+    >('idle')
+
+  const model = useMemo(
+    () =>
+      createTerminalFailureViewModel(
+        incident,
+        additionalIncidentCount,
+      ),
+
+    [
+      additionalIncidentCount,
+      incident,
+    ],
+  )
+
+  const copyDiagnostic =
+    async (): Promise<void> => {
+      try {
+        await navigator.clipboard.writeText(
+          model.diagnostic,
+        )
+
+        setCopyState('copied')
+      } catch {
+        setCopyState('failed')
+      }
+    }
+
+  return (
+    <main
+      aria-live="assertive"
+      className="fatal-surface"
+      role="alert"
     >
-      {visible.map((entry) => {
-        const incident =
-          entry.incident
+      <section className="fatal-content">
+        <div
+          aria-hidden="true"
+          className="fatal-icon"
+        >
+          <WarningIcon />
+        </div>
 
-        return (
-          <div
-            className={[
-              'pointer-events-auto',
-              'flex items-start gap-3',
-              'rounded-lg border',
-              incident.impact ===
-                'feature-degraded'
-                ? 'border-warning/40'
-                : 'border-destructive/30',
-              'bg-background p-3',
-              'text-sm shadow-xl',
-            ].join(' ')}
-            key={incident.id}
-            role="alert"
-          >
-            <DangerCircle
-              aria-hidden="true"
-              className={[
-                'mt-0.5 size-4',
-                'shrink-0',
-                incident.impact ===
-                  'feature-degraded'
-                  ? 'text-warning'
-                  : 'text-destructive',
-              ].join(' ')}
-            />
+        <h1 className="fatal-title">
+          {model.title}
+        </h1>
 
-            <div className="grid min-w-0 flex-1 gap-1">
-              <span className="leading-5">
-                {
-                  incident.userMessage
-                }
-              </span>
+        <p className="fatal-description">
+          {model.description}
+        </p>
 
-              <span className="text-xs text-muted-foreground">
-                {incident.impact ===
-                'feature-degraded'
-                  ? '功能受限'
-                  : '操作失败'}
+        <p className="fatal-summary">
+          {model.summary}
+        </p>
 
-                {' · '}
-                {incident.code}
+        {model.additionalIncidentMessage ? (
+          <p className="fatal-secondary">
+            {
+              model.additionalIncidentMessage
+            }
+          </p>
+        ) : null}
 
-                {entry.occurrences > 1
-                  ? ' · ' +
-                    String(
-                      entry.occurrences,
-                    ) +
-                    ' 次'
-                  : ''}
-              </span>
-            </div>
-
+        <div className="fatal-actions">
+          {model.primaryAction ? (
             <button
-              aria-label="关闭提示"
-              className={[
-                'grid size-7',
-                'place-items-center',
-                'rounded-md',
-                'text-muted-foreground',
-                'hover:bg-accent',
-                'focus-visible:outline-none',
-                'focus-visible:ring-2',
-                'focus-visible:ring-ring',
-              ].join(' ')}
+              className="fatal-button fatal-button-primary"
               onClick={() => {
-                failureCoordinator.dismiss(
-                  incident.id,
+                executePrimaryAction(
+                  model.primaryAction,
                 )
               }}
               type="button"
             >
-              <X
-                aria-hidden="true"
-                className="size-3.5"
-              />
+              {
+                model.primaryAction
+                  .label
+              }
             </button>
-          </div>
-        )
-      })}
-    </div>
+          ) : null}
+
+          <button
+            className="fatal-button"
+            onClick={() => {
+              void copyDiagnostic()
+            }}
+            type="button"
+          >
+            {copyState === 'copied'
+              ? model.copySuccessLabel
+              : copyState ===
+                  'failed'
+                ? model.copyFailureLabel
+                : model.copyActionLabel}
+          </button>
+        </div>
+
+        <details
+          className="fatal-details"
+          open={
+            copyState === 'failed'
+          }
+        >
+          <summary>
+            {model.detailsLabel}
+          </summary>
+
+          <pre className="fatal-diagnostic">
+            {model.diagnostic}
+          </pre>
+        </details>
+      </section>
+    </main>
   )
 }
 
-function selectVisibleFailures(
-  failures:
-    readonly PresentedFailure[],
-): ToastFailure[] {
-  return failures.filter(
-    (
-      entry,
-    ): entry is ToastFailure => {
-      if (!entry.noticeVisible) {
-        return false
-      }
+function executePrimaryAction(
+  action: {
+    readonly kind: 'reload'
+  },
+): void {
+  switch (action.kind) {
+    case 'reload':
+      window.location.reload()
+  }
+}
 
-      return (
-        entry.incident.impact ===
-          'recoverable' ||
-        entry.incident.impact ===
-          'feature-degraded'
-      )
-    },
+function WarningIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 8.5v4.25" />
+      <path d="M12 16.25h.01" />
+
+      <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
+    </svg>
   )
 }
 `
 
-  await writeFile(resolvePath(FILES.uiFeedback), normalizeText(source), 'utf8')
-
-  console.log(FILES.uiFeedback + ': unreachable branches removed.')
+  await writeText(FILES.reactScreen, source)
 }
 
-async function rewriteFeatureCheck() {
-  const source = `#!/usr/bin/env node
+async function writePreReactEntry() {
+  const source = `import { failureCoordinator } from '../application/failures/failure-coordinator'
+import type {
+  TerminalFailureViewModel,
+} from './terminal-failure-view-model'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+import { installFatalCollectors } from './fatal-collectors'
+import { isReactFatalHostMounted } from './fatal-runtime'
 
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs'
-import path from 'node:path'
-import process from 'node:process'
+installFatalCollectors()
 
-const ROOT = process.cwd()
-const failures = []
-
-const files = {
-  policy:
-    'apps/desktop/src/application/failures/failure-policy.ts',
-
-  coordinator:
-    'apps/desktop/src/application/failures/failure-coordinator.ts',
-
-  titleBar:
-    'apps/desktop/src/presentation/chrome/DesktopTitleBar.tsx',
-
-  appShell:
-    'apps/desktop/src/presentation/AppShell.tsx',
-
-  workspace:
-    'apps/desktop/src/presentation/workspace/WorkspaceContainer.tsx',
-}
-
-for (
-  const relativePath of
-  Object.values(files)
-) {
-  if (
-    !existsSync(
-      path.join(
-        ROOT,
-        relativePath,
-      ),
-    )
-  ) {
-    failures.push(
-      'Missing feature degradation file: ' +
-        relativePath,
-    )
-  }
-}
-
-if (failures.length === 0) {
-  const policy =
-    read(files.policy)
-
-  const coordinator =
-    read(files.coordinator)
-
-  const titleBar =
-    read(files.titleBar)
-
-  const appShell =
-    read(files.appShell)
-
-  const workspace =
-    read(files.workspace)
-
-  requireText(
-    policy,
-    'DEGRADABLE_FEATURE_IDS',
-    'Feature IDs are not centrally defined.',
-  )
-
-  requireText(
-    coordinator,
-    'degradedFeatures:',
-    'Coordinator does not own degraded feature incidents.',
-  )
-
-  requireText(
-    appShell,
-    'failureSnapshot.degradedFeatures.has(',
-    'AppShell does not query coordinator feature state directly.',
-  )
-
-  forbidText(
-    appShell,
-    'createFeatureAvailability',
-    'Redundant feature availability projection remains.',
-  )
-
-  requireText(
-    workspace,
-    'windowControlsDisabled',
-    'Window controls degradation is not enforced.',
-  )
-
-  requireText(
-    workspace,
-    'windowDraggingDisabled',
-    'Window dragging degradation is not enforced.',
-  )
-
-  requireText(
-    titleBar,
-    'disabled={',
-    'Window buttons are not disabled.',
-  )
-
-  requireText(
-    titleBar,
-    'windowDraggingDisabled',
-    'Title bar does not reject degraded dragging.',
-  )
-}
-
-if (failures.length > 0) {
-  console.error(
-    [
-      'Feature degradation checks failed:',
-      ...failures.map(
-        (failure) =>
-          '- ' + failure,
-      ),
-    ].join('\\n'),
-  )
-
-  process.exitCode = 1
-} else {
-  process.stdout.write(
-    'Feature degradation checks passed.\\n',
-  )
-}
-
-function read(relativePath) {
-  return readFileSync(
-    path.join(
-      ROOT,
-      relativePath,
-    ),
-    'utf8',
-  )
-}
-
-function requireText(
-  source,
-  expected,
-  failure,
-) {
-  if (!source.includes(expected)) {
-    failures.push(failure)
-  }
-}
-
-function forbidText(
-  source,
-  forbidden,
-  failure,
-) {
-  if (source.includes(forbidden)) {
-    failures.push(failure)
-  }
-}
-`
-
-  await writeFile(resolvePath(FILES.featureCheck), normalizeText(source), 'utf8')
-}
-
-async function rewriteConvergenceCheck() {
-  const source = `#!/usr/bin/env node
-
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-} from 'node:fs'
-import path from 'node:path'
-import process from 'node:process'
-
-const ROOT = process.cwd()
-const failures = []
-
-const required = [
-  'apps/desktop/src/application/failures/failure-coordinator.ts',
-  'apps/desktop/src/application/failures/failure-diagnostic.ts',
-  'apps/desktop/src/application/failures/failure-policy.ts',
-  'apps/desktop/src/application/failures/failure-coordinator.test.ts',
-  'apps/desktop/src/fatal/fatal-runtime.ts',
-]
-
-const forbiddenFiles = [
-  'apps/desktop/src/application/failures/failure-runtime.ts',
-  'apps/desktop/src/application/failures/feature-availability.ts',
-  'apps/desktop/src/fatal/fatal-controller.ts',
-  'apps/desktop/src/fatal/fatal-incident.ts',
-  'tests/architecture/check-failure-severity-architecture.mjs',
-  'tests/architecture/check-fatal-escalation-policy.mjs',
-  'refactor.mjs',
-]
-
-for (const file of required) {
-  if (
-    !existsSync(
-      path.join(ROOT, file),
-    )
-  ) {
-    failures.push(
-      'Missing unified failure file: ' +
-        file,
-    )
-  }
-}
-
-for (const file of forbiddenFiles) {
-  if (
-    existsSync(
-      path.join(ROOT, file),
-    )
-  ) {
-    failures.push(
-      'Obsolete failure artifact remains: ' +
-        file,
-    )
-  }
-}
-
-if (failures.length === 0) {
-  const coordinator =
-    read(required[0])
-
-  requireText(
-    coordinator,
-    'readonly terminal:',
-    'Coordinator does not own terminal state.',
-  )
-
-  requireText(
-    coordinator,
-    'readonly operations:',
-    'Coordinator does not own operation failures.',
-  )
-
-  requireText(
-    coordinator,
-    'readonly degradedFeatures:',
-    'Coordinator does not own feature degradation.',
-  )
-
-  requireText(
-    coordinator,
-    'readonly quarantinedDocuments:',
-    'Coordinator does not own document quarantine.',
-  )
-
-  scanProductionSources()
-}
-
-if (failures.length > 0) {
-  console.error(
-    [
-      'Failure architecture convergence checks failed:',
-      ...failures.map(
-        (failure) =>
-          '- ' + failure,
-      ),
-    ].join('\\n'),
-  )
-
-  process.exitCode = 1
-} else {
-  process.stdout.write(
-    'Failure architecture convergence checks passed.\\n',
-  )
-}
-
-function scanProductionSources() {
-  for (
-    const file of walk(
-      'apps/desktop/src',
-    )
-  ) {
+failureCoordinator.subscribe(
+  () => {
     if (
-      !file.endsWith('.ts') &&
-      !file.endsWith('.tsx')
+      isReactFatalHostMounted()
     ) {
-      continue
+      return
     }
 
-    const source = read(file)
+    const terminal =
+      failureCoordinator
+        .getSnapshot()
+        .terminal
 
-    for (
-      const forbiddenText of [
-        'FatalIncidentController',
-        'fatalIncidentController',
-        'FailureRuntime',
-        'failureRuntime',
-        'UI_FAILURE_POLICIES',
-        'reportUiFailure',
-        'createFeatureAvailability',
-      ]
-    ) {
-      if (
-        source.includes(
-          forbiddenText,
-        )
-      ) {
-        failures.push(
-          'Legacy failure symbol ' +
-            forbiddenText +
-            ' remains in ' +
-            file +
-            '.',
-        )
-      }
+    if (!terminal) {
+      return
     }
-  }
-}
 
-function walk(relativeDirectory) {
-  const result = []
+    const model =
+      createTerminalFailureViewModel(
+        terminal.incident,
 
-  for (
-    const entry of
-    readdirSync(
-      path.join(
-        ROOT,
-        relativeDirectory,
-      ),
-      {
-        withFileTypes: true,
-      },
+        terminal
+          .additionalIncidentCount,
+      )
+
+    renderPreReactFatalScreen(
+      model,
     )
-  ) {
-    const relativePath =
-      path.posix.join(
-        relativeDirectory,
-        entry.name,
-      )
+  },
+)
 
-    if (entry.isDirectory()) {
-      result.push(
-        ...walk(relativePath),
+function renderPreReactFatalScreen(
+  model:
+    TerminalFailureViewModel,
+): void {
+  const root =
+    document.getElementById(
+      'root',
+    )
+
+  if (!root) {
+    try {
+      console.error(
+        '[Hybrid Canvas] Root element unavailable',
+        model.summary,
       )
-    } else {
-      result.push(
-        relativePath,
-      )
+    } catch {
+      // No further safe fallback.
     }
+
+    return
   }
 
-  return result
-}
-
-function read(relativePath) {
-  return readFileSync(
-    path.join(
-      ROOT,
-      relativePath,
-    ),
-    'utf8',
+  root.replaceChildren(
+    createFatalSurface(model),
   )
 }
 
-function requireText(
-  source,
-  expected,
-  failure,
-) {
-  if (!source.includes(expected)) {
-    failures.push(failure)
+function createFatalSurface(
+  model:
+    TerminalFailureViewModel,
+): HTMLElement {
+  const main =
+    createElement(
+      'main',
+      'fatal-surface',
+    )
+
+  main.setAttribute(
+    'role',
+    'alert',
+  )
+
+  main.setAttribute(
+    'aria-live',
+    'assertive',
+  )
+
+  const content =
+    createElement(
+      'section',
+      'fatal-content',
+    )
+
+  const icon =
+    createElement(
+      'div',
+      'fatal-icon',
+    )
+
+  icon.setAttribute(
+    'aria-hidden',
+    'true',
+  )
+
+  icon.innerHTML =
+    createWarningIcon()
+
+  const title =
+    createTextElement(
+      'h1',
+      'fatal-title',
+      model.title,
+    )
+
+  const description =
+    createTextElement(
+      'p',
+      'fatal-description',
+      model.description,
+    )
+
+  const summary =
+    createTextElement(
+      'p',
+      'fatal-summary',
+      model.summary,
+    )
+
+  const details =
+    createElement(
+      'details',
+      'fatal-details',
+    )
+
+  const detailsSummary =
+    createTextElement(
+      'summary',
+      undefined,
+      model.detailsLabel,
+    )
+
+  const diagnostic =
+    createTextElement(
+      'pre',
+      'fatal-diagnostic',
+      model.diagnostic,
+    )
+
+  details.append(
+    detailsSummary,
+    diagnostic,
+  )
+
+  const actions =
+    createElement(
+      'div',
+      'fatal-actions',
+    )
+
+  if (model.primaryAction) {
+    const primaryButton =
+      createTextElement(
+        'button',
+        'fatal-button fatal-button-primary',
+
+        model.primaryAction.label,
+      )
+
+    primaryButton.setAttribute(
+      'type',
+      'button',
+    )
+
+    primaryButton.onclick =
+      () => {
+        executePrimaryAction(
+          model.primaryAction,
+        )
+      }
+
+    actions.append(
+      primaryButton,
+    )
   }
+
+  const copyButton =
+    createTextElement(
+      'button',
+      'fatal-button',
+      model.copyActionLabel,
+    )
+
+  copyButton.setAttribute(
+    'type',
+    'button',
+  )
+
+  copyButton.onclick =
+    async () => {
+      try {
+        await navigator.clipboard.writeText(
+          model.diagnostic,
+        )
+
+        copyButton.textContent =
+          model.copySuccessLabel
+      } catch {
+        copyButton.textContent =
+          model.copyFailureLabel
+
+        details.open = true
+      }
+    }
+
+  actions.append(copyButton)
+
+  content.append(
+    icon,
+    title,
+    description,
+    summary,
+  )
+
+  if (
+    model.additionalIncidentMessage
+  ) {
+    content.append(
+      createTextElement(
+        'p',
+        'fatal-secondary',
+
+        model
+          .additionalIncidentMessage,
+      ),
+    )
+  }
+
+  content.append(
+    actions,
+    details,
+  )
+
+  main.append(content)
+
+  return main
+}
+
+function executePrimaryAction(
+  action: {
+    readonly kind: 'reload'
+  },
+): void {
+  switch (action.kind) {
+    case 'reload':
+      window.location.reload()
+  }
+}
+
+function createElement<
+  TagName extends keyof HTMLElementTagNameMap,
+>(
+  tagName: TagName,
+  className?: string,
+): HTMLElementTagNameMap[TagName] {
+  const element =
+    document.createElement(
+      tagName,
+    )
+
+  if (className) {
+    element.className =
+      className
+  }
+
+  return element
+}
+
+function createTextElement<
+  TagName extends keyof HTMLElementTagNameMap,
+>(
+  tagName: TagName,
+  className: string | undefined,
+  text: string,
+): HTMLElementTagNameMap[TagName] {
+  const element =
+    createElement(
+      tagName,
+      className,
+    )
+
+  element.textContent = text
+
+  return element
+}
+
+function createWarningIcon(): string {
+  return [
+    '<svg',
+    ' viewBox="0 0 24 24"',
+    ' fill="none"',
+    ' stroke="currentColor"',
+    ' stroke-width="1.7"',
+    ' stroke-linecap="round"',
+    ' stroke-linejoin="round"',
+    ' aria-hidden="true"',
+    '>',
+    '<path d="M12 8.5v4.25" />',
+    '<path d="M12 16.25h.01" />',
+    '<path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />',
+    '</svg>',
+  ].join('')
 }
 `
 
-  await writeFile(resolvePath(FILES.convergenceCheck), normalizeText(source), 'utf8')
+  await writeText(FILES.preReact, source)
 }
 
-async function markSupersededAdrs() {
-  for (const relativePath of SUPERSEDED_ADRS) {
-    const file = resolvePath(relativePath)
-
-    let source = await readFile(file, 'utf8')
-
-    if (source.includes('\\n')) {
-      source = source.replaceAll('\\n', '\n')
-    }
-
-    source = source.replace('- Status: Accepted', '- Status: Superseded')
-
-    if (!source.includes('- Superseded by: ADR-011')) {
-      source = source.replace(
-        '- Status: Superseded',
-        ['- Status: Superseded', '- Superseded by: ADR-011'].join('\n'),
-      )
-    }
-
-    await writeFile(file, normalizeText(source), 'utf8')
-
-    console.log(relativePath + ': marked superseded.')
-  }
-}
-
-async function updateGitignore() {
-  const file = resolvePath(FILES.gitignore)
+async function strengthenArchitectureCheck() {
+  const file = resolvePath(FILES.architectureCheck)
 
   let source = await readFile(file, 'utf8')
 
-  const block = `# One-off repository migration scripts
-/refactor*.mjs
-/repair-*.mjs
-/converge-*.mjs
-/apply-*.mjs
-/cleanup-*.mjs
+  if (!source.includes(FILES.viewModel)) {
+    source = source.replace(
+      `  'apps/desktop/src/application/failures/failure-diagnostic.ts',`,
+      `  'apps/desktop/src/application/failures/failure-diagnostic.ts',
+  'apps/desktop/src/fatal/terminal-failure-view-model.ts',
+  'apps/desktop/src/fatal/terminal-failure-view-model.test.ts',`,
+    )
+  }
+
+  if (!source.includes('Terminal renderers do not share the canonical ViewModel.')) {
+    const marker = '  scanProductionSources()'
+
+    const validation = `  const terminalViewModel = read(
+    'apps/desktop/src/fatal/terminal-failure-view-model.ts',
+  )
+
+  const reactRenderer = read(
+    'apps/desktop/src/fatal/FatalErrorScreen.tsx',
+  )
+
+  const preReactRenderer = read(
+    'apps/desktop/src/fatal/pre-react-entry.ts',
+  )
+
+  requireText(
+    terminalViewModel,
+    'createTerminalFailureViewModel',
+    'Terminal Failure ViewModel factory is missing.',
+  )
+
+  requireText(
+    reactRenderer,
+    'createTerminalFailureViewModel',
+    'React Fatal renderer does not consume the canonical ViewModel.',
+  )
+
+  requireText(
+    preReactRenderer,
+    'createTerminalFailureViewModel',
+    'Pre-React Fatal renderer does not consume the canonical ViewModel.',
+  )
+
+  for (
+    const [
+      rendererName,
+      renderer,
+    ] of [
+      [
+        'React',
+        reactRenderer,
+      ],
+      [
+        'Pre-React',
+        preReactRenderer,
+      ],
+    ]
+  ) {
+    if (
+      renderer.includes(
+        'incident.impact',
+      ) ||
+      renderer.includes(
+        'formatFailureDiagnostic',
+      )
+    ) {
+      failures.push(
+        rendererName +
+          ' Terminal renderer bypasses the canonical ViewModel.',
+      )
+    }
+  }
+
+  if (
+    !reactRenderer.includes(
+      'createTerminalFailureViewModel',
+    ) ||
+    !preReactRenderer.includes(
+      'createTerminalFailureViewModel',
+    )
+  ) {
+    failures.push(
+      'Terminal renderers do not share the canonical ViewModel.',
+    )
+  }
+
+  scanProductionSources()`
+
+    source = replaceRequired(source, marker, validation, FILES.architectureCheck)
+  }
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.architectureCheck + ': strengthened.')
+}
+
+async function updateArchitectureDecision() {
+  const file = resolvePath(FILES.adr)
+
+  let source = await readFile(file, 'utf8')
+
+  if (source.includes('## Terminal presentation')) {
+    return
+  }
+
+  const section = `
+
+## Terminal presentation
+
+React and pre-React terminal renderers consume one pure
+TerminalFailureViewModel.
+
+The ViewModel owns title, description, summary, recovery presentation,
+additional-incident text and formatted diagnostics.
+
+Renderers own only platform-specific element creation, clipboard state and
+execution of the selected primary action.
+
+Neither renderer may classify failure impact or format diagnostics directly.
 `
 
-  if (!source.includes('# One-off repository migration scripts')) {
-    source = source.trimEnd() + '\n\n' + block
-  }
+  source = source.trimEnd() + section
 
   await writeFile(file, normalizeText(source), 'utf8')
 }
 
-async function verifyCleanup() {
+async function verifyConvergence() {
+  const viewModel = await readFile(resolvePath(FILES.viewModel), 'utf8')
+
+  const reactRenderer = await readFile(resolvePath(FILES.reactScreen), 'utf8')
+
+  const preReactRenderer = await readFile(resolvePath(FILES.preReact), 'utf8')
+
   const violations = []
 
-  for (const relativePath of DEAD_FILES) {
-    if (await fileExists(resolvePath(relativePath))) {
-      violations.push(relativePath + ': still exists')
-    }
+  if (!viewModel.includes('createTerminalFailureViewModel')) {
+    violations.push('Terminal ViewModel factory is missing.')
   }
 
-  const appShell = await readFile(resolvePath(FILES.appShell), 'utf8')
+  for (const [name, source] of [
+    [FILES.reactScreen, reactRenderer],
 
-  for (const forbidden of ['createFeatureAvailability', 'featureAvailability']) {
-    if (appShell.includes(forbidden)) {
-      violations.push(FILES.appShell + ': ' + forbidden)
-    }
-  }
-
-  const feedback = await readFile(resolvePath(FILES.uiFeedback), 'utf8')
-
-  for (const forbidden of [
-    "case 'document-fatal'",
-    "case 'application-fatal'",
-    "case 'native-fatal'",
+    [FILES.preReact, preReactRenderer],
   ]) {
-    if (feedback.includes(forbidden)) {
-      violations.push(FILES.uiFeedback + ': ' + forbidden)
+    if (!source.includes('createTerminalFailureViewModel')) {
+      violations.push(name + ': ViewModel is not consumed.')
+    }
+
+    if (source.includes('incident.impact')) {
+      violations.push(name + ': renderer still classifies impact.')
+    }
+
+    if (source.includes('formatFailureDiagnostic')) {
+      violations.push(name + ': renderer still formats diagnostics.')
     }
   }
 
   if (violations.length > 0) {
     throw new Error(
-      ['Cleanup verification failed:', ...violations.map((violation) => '- ' + violation)].join(
-        '\n',
-      ),
+      [
+        'Terminal ViewModel verification failed:',
+        ...violations.map((violation) => '- ' + violation),
+      ].join('\n'),
     )
   }
 }
 
-function replaceCallbackDependency(source, startMarker, endMarker, dependency, file) {
-  const startIndex = source.indexOf(startMarker)
+async function writeText(relativePath, source) {
+  await writeFile(resolvePath(relativePath), normalizeText(source), 'utf8')
 
-  const endIndex = source.indexOf(endMarker, startIndex)
-
-  if (startIndex === -1 || endIndex === -1) {
-    throw new Error(['Could not locate callback section in', file + ':', startMarker].join(' '))
-  }
-
-  const section = source.slice(startIndex, endIndex)
-
-  const dependencyPattern =
-    /\[\s*(?:featureAvailability|windowControlsUnavailable|developerToolsUnavailable|windowDraggingUnavailable),\s*runtime\.mainWindow\s*\]/
-
-  const expected = '[' + dependency + ', runtime.mainWindow]'
-
-  if (!dependencyPattern.test(section)) {
-    if (section.includes(expected)) {
-      return source
-    }
-
-    throw new Error(
-      ['Could not locate main-window dependency array in', file + ':', startMarker].join(' '),
-    )
-  }
-
-  const updatedSection = section.replace(dependencyPattern, expected)
-
-  return source.slice(0, startIndex) + updatedSection + source.slice(endIndex)
+  console.log(relativePath + ': written.')
 }
 
 function replaceRequired(source, oldText, newText, file) {
@@ -965,39 +1134,6 @@ function replaceRequired(source, oldText, newText, file) {
   return source.replace(oldText, newText)
 }
 
-function replaceNthRequired(source, oldText, newText, occurrence, file) {
-  let searchFrom = 0
-  let index = -1
-
-  for (let count = 0; count < occurrence; count += 1) {
-    index = source.indexOf(oldText, searchFrom)
-
-    if (index === -1) {
-      throw new Error(
-        'Could not find occurrence ' + String(occurrence) + ' in ' + file + ': ' + oldText,
-      )
-    }
-
-    searchFrom = index + oldText.length
-  }
-
-  return source.slice(0, index) + newText + source.slice(index + oldText.length)
-}
-
-async function fileExists(absolutePath) {
-  try {
-    await readFile(absolutePath, 'utf8')
-
-    return true
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      return false
-    }
-
-    throw error
-  }
-}
-
 function normalizeText(source) {
   return source.replace(/\r\n/g, '\n').trimEnd() + '\n'
 }
@@ -1008,7 +1144,7 @@ function resolvePath(relativePath) {
 
 main().catch((error) => {
   console.error('')
-  console.error('Failure architecture cleanup failed.')
+  console.error('Terminal Failure ViewModel convergence failed.')
 
   console.error(error instanceof Error ? (error.stack ?? error.message) : error)
 

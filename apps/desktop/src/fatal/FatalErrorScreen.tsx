@@ -1,33 +1,31 @@
 import { useMemo, useState } from 'react'
-import type { FailureIncident } from '../application/failures/failure-coordinator'
-import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
+import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
 export interface FatalErrorScreenProps {
-  readonly incident: FailureIncident
+  readonly incident: TerminalFailureIncident
 
   readonly additionalIncidentCount?: number
 }
 
 export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: FatalErrorScreenProps) {
-  const [copied, setCopied] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
-  const [copyFailed, setCopyFailed] = useState(false)
+  const model = useMemo(
+    () => createTerminalFailureViewModel(incident, additionalIncidentCount),
 
-  const diagnostic = useMemo(() => formatFailureDiagnostic(incident), [incident])
+    [additionalIncidentCount, incident],
+  )
 
   const copyDiagnostic = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(diagnostic)
+      await navigator.clipboard.writeText(model.diagnostic)
 
-      setCopied(true)
-      setCopyFailed(false)
+      setCopyState('copied')
     } catch {
-      setCopied(false)
-      setCopyFailed(true)
+      setCopyState('failed')
     }
   }
-
-  const title = incident.impact === 'native-fatal' ? '应用上次异常终止' : '应用遇到严重错误'
 
   return (
     <main aria-live="assertive" className="fatal-surface" role="alert">
@@ -36,28 +34,28 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
           <WarningIcon />
         </div>
 
-        <h1 className="fatal-title">{title}</h1>
+        <h1 className="fatal-title">{model.title}</h1>
 
-        <p className="fatal-description">{incident.userMessage}</p>
+        <p className="fatal-description">{model.description}</p>
 
-        <p className="fatal-summary">
-          {incident.code}
-          {' · '}
-          {incident.id}
-        </p>
+        <p className="fatal-summary">{model.summary}</p>
 
-        {additionalIncidentCount > 0 ? (
-          <p className="fatal-secondary">此后还捕获到 {additionalIncidentCount} 个相关异常。</p>
+        {model.additionalIncidentMessage ? (
+          <p className="fatal-secondary">{model.additionalIncidentMessage}</p>
         ) : null}
 
         <div className="fatal-actions">
-          <button
-            className="fatal-button fatal-button-primary"
-            onClick={() => window.location.reload()}
-            type="button"
-          >
-            重新加载
-          </button>
+          {model.primaryAction ? (
+            <button
+              className="fatal-button fatal-button-primary"
+              onClick={() => {
+                executePrimaryAction(model.primaryAction)
+              }}
+              type="button"
+            >
+              {model.primaryAction.label}
+            </button>
+          ) : null}
 
           <button
             className="fatal-button"
@@ -66,18 +64,29 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             }}
             type="button"
           >
-            {copied ? '已复制' : copyFailed ? '复制失败' : '复制诊断信息'}
+            {copyState === 'copied'
+              ? model.copySuccessLabel
+              : copyState === 'failed'
+                ? model.copyFailureLabel
+                : model.copyActionLabel}
           </button>
         </div>
 
-        <details className="fatal-details" open={copyFailed}>
-          <summary>查看诊断信息</summary>
+        <details className="fatal-details" open={copyState === 'failed'}>
+          <summary>{model.detailsLabel}</summary>
 
-          <pre className="fatal-diagnostic">{diagnostic}</pre>
+          <pre className="fatal-diagnostic">{model.diagnostic}</pre>
         </details>
       </section>
     </main>
   )
+}
+
+function executePrimaryAction(action: { readonly kind: 'reload' }): void {
+  switch (action.kind) {
+    case 'reload':
+      window.location.reload()
+  }
 }
 
 function WarningIcon() {
@@ -93,6 +102,7 @@ function WarningIcon() {
     >
       <path d="M12 8.5v4.25" />
       <path d="M12 16.25h.01" />
+
       <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
     </svg>
   )

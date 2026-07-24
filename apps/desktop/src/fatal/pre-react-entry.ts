@@ -1,8 +1,6 @@
-import {
-  failureCoordinator,
-  type FailureIncident,
-} from '../application/failures/failure-coordinator'
-import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
+import { failureCoordinator } from '../application/failures/failure-coordinator'
+import type { TerminalFailureViewModel } from './terminal-failure-view-model'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 import { installFatalCollectors } from './fatal-collectors'
 import { isReactFatalHostMounted } from './fatal-runtime'
 
@@ -13,127 +11,153 @@ failureCoordinator.subscribe(() => {
     return
   }
 
-  const snapshot = failureCoordinator.getSnapshot()
+  const terminal = failureCoordinator.getSnapshot().terminal
 
-  if (!snapshot.terminal) {
+  if (!terminal) {
     return
   }
 
-  renderPreReactFatalScreen(snapshot.terminal.incident)
+  const model = createTerminalFailureViewModel(
+    terminal.incident,
+
+    terminal.additionalIncidentCount,
+  )
+
+  renderPreReactFatalScreen(model)
 })
 
-function renderPreReactFatalScreen(incident: FailureIncident): void {
+function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
   const root = document.getElementById('root')
 
   if (!root) {
-    console.error('[Hybrid Canvas] Root element unavailable', incident)
+    try {
+      console.error('[Hybrid Canvas] Root element unavailable', model.summary)
+    } catch {
+      // No further safe fallback.
+    }
 
     return
   }
 
-  const diagnostic = formatFailureDiagnostic(incident)
-
-  root.replaceChildren(createFatalSurface(incident, diagnostic))
+  root.replaceChildren(createFatalSurface(model))
 }
 
-function createFatalSurface(incident: FailureIncident, diagnostic: string): HTMLElement {
-  const main = document.createElement('main')
-
-  main.className = 'fatal-surface'
+function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
+  const main = createElement('main', 'fatal-surface')
 
   main.setAttribute('role', 'alert')
 
   main.setAttribute('aria-live', 'assertive')
 
-  const content = document.createElement('section')
+  const content = createElement('section', 'fatal-content')
 
-  content.className = 'fatal-content'
-
-  const icon = document.createElement('div')
-
-  icon.className = 'fatal-icon'
+  const icon = createElement('div', 'fatal-icon')
 
   icon.setAttribute('aria-hidden', 'true')
 
   icon.innerHTML = createWarningIcon()
 
-  const title = document.createElement('h1')
+  const title = createTextElement('h1', 'fatal-title', model.title)
 
-  title.className = 'fatal-title'
+  const description = createTextElement('p', 'fatal-description', model.description)
 
-  title.textContent = incident.impact === 'native-fatal' ? '应用上次异常终止' : '应用遇到严重错误'
+  const summary = createTextElement('p', 'fatal-summary', model.summary)
 
-  const description = document.createElement('p')
+  const details = createElement('details', 'fatal-details')
 
-  description.className = 'fatal-description'
+  const detailsSummary = createTextElement('summary', undefined, model.detailsLabel)
 
-  description.textContent = incident.userMessage
+  const diagnostic = createTextElement('pre', 'fatal-diagnostic', model.diagnostic)
 
-  const summary = document.createElement('p')
+  details.append(detailsSummary, diagnostic)
 
-  summary.className = 'fatal-summary'
+  const actions = createElement('div', 'fatal-actions')
 
-  summary.textContent = `${incident.code} · ${incident.id}`
+  if (model.primaryAction) {
+    const primaryButton = createTextElement(
+      'button',
+      'fatal-button fatal-button-primary',
 
-  const details = document.createElement('details')
+      model.primaryAction.label,
+    )
 
-  details.className = 'fatal-details'
+    primaryButton.setAttribute('type', 'button')
 
-  const detailsSummary = document.createElement('summary')
+    primaryButton.onclick = () => {
+      executePrimaryAction(model.primaryAction)
+    }
 
-  detailsSummary.textContent = '查看诊断信息'
-
-  const pre = document.createElement('pre')
-
-  pre.className = 'fatal-diagnostic'
-
-  pre.textContent = diagnostic
-
-  details.append(detailsSummary, pre)
-
-  const actions = document.createElement('div')
-
-  actions.className = 'fatal-actions'
-
-  const reloadButton = document.createElement('button')
-
-  reloadButton.className = 'fatal-button fatal-button-primary'
-
-  reloadButton.type = 'button'
-
-  reloadButton.textContent = '重新加载'
-
-  reloadButton.onclick = () => {
-    window.location.reload()
+    actions.append(primaryButton)
   }
 
-  const copyButton = document.createElement('button')
+  const copyButton = createTextElement('button', 'fatal-button', model.copyActionLabel)
 
-  copyButton.className = 'fatal-button'
-
-  copyButton.type = 'button'
-
-  copyButton.textContent = '复制诊断信息'
+  copyButton.setAttribute('type', 'button')
 
   copyButton.onclick = async () => {
     try {
-      await navigator.clipboard.writeText(diagnostic)
+      await navigator.clipboard.writeText(model.diagnostic)
 
-      copyButton.textContent = '已复制'
+      copyButton.textContent = model.copySuccessLabel
     } catch {
-      copyButton.textContent = '复制失败，请手动选择'
+      copyButton.textContent = model.copyFailureLabel
 
       details.open = true
     }
   }
 
-  actions.append(reloadButton, copyButton)
+  actions.append(copyButton)
 
-  content.append(icon, title, description, summary, actions, details)
+  content.append(icon, title, description, summary)
+
+  if (model.additionalIncidentMessage) {
+    content.append(
+      createTextElement(
+        'p',
+        'fatal-secondary',
+
+        model.additionalIncidentMessage,
+      ),
+    )
+  }
+
+  content.append(actions, details)
 
   main.append(content)
 
   return main
+}
+
+function executePrimaryAction(action: { readonly kind: 'reload' }): void {
+  switch (action.kind) {
+    case 'reload':
+      window.location.reload()
+  }
+}
+
+function createElement<TagName extends keyof HTMLElementTagNameMap>(
+  tagName: TagName,
+  className?: string,
+): HTMLElementTagNameMap[TagName] {
+  const element = document.createElement(tagName)
+
+  if (className) {
+    element.className = className
+  }
+
+  return element
+}
+
+function createTextElement<TagName extends keyof HTMLElementTagNameMap>(
+  tagName: TagName,
+  className: string | undefined,
+  text: string,
+): HTMLElementTagNameMap[TagName] {
+  const element = createElement(tagName, className)
+
+  element.textContent = text
+
+  return element
 }
 
 function createWarningIcon(): string {

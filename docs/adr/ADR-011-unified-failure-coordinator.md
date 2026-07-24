@@ -46,3 +46,16 @@ Document failures are isolated to their document scope.
 Feature degradation remains after notification dismissal.
 
 Native and renderer fatal failures use the same incident and diagnostic model.
+
+## Terminal presentation
+
+React and pre-React terminal renderers consume one pure
+TerminalFailureViewModel.
+
+The ViewModel owns title, description, summary, recovery presentation,
+additional-incident text and formatted diagnostics.
+
+Renderers own only platform-specific element creation, clipboard state and
+execution of the selected primary action.
+
+Neither renderer may classify failure impact or format diagnostics directly.
