@@ -79,3 +79,15 @@ if (violations.length > 0) {
 } else {
   console.log('Desktop token consumption is valid.')
 }
+
+// DESKTOP_CLOSE_ACTIVE_TOKEN_GUARD
+if (!titleBar.includes('--desktop-window-close-active')) {
+  console.error('')
+  console.error('Desktop token consumption violation:')
+  console.error('')
+  console.error('- apps/desktop/src/presentation/chrome/DesktopTitleBar.tsx')
+  console.error('  Close button must consume --desktop-window-close-active.')
+  console.error('')
+
+  process.exitCode = 1
+}

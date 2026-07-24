@@ -199,6 +199,7 @@ function WindowControlButton({
         close
           ? [
               'hover:bg-[var(--desktop-window-close-hover)]',
+              'enabled:active:bg-[var(--desktop-window-close-active)]',
               'hover:text-[var(--desktop-window-close-foreground)]',
               'focus-visible:bg-[var(--desktop-window-close-hover)]',
               'focus-visible:text-[var(--desktop-window-close-foreground)]',

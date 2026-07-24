@@ -1,3 +1,4 @@
+import './properties-inspector.css'
 import { ScrollArea } from '@hybrid-canvas/design-system'
 import type { ReactNode } from 'react'
 
