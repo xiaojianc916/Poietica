@@ -1,3 +1,4 @@
+import { Button, cn } from '@hybrid-canvas/design-system'
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
 import type { MouseEvent, ReactNode } from 'react'
 
@@ -20,18 +21,22 @@ export interface DesktopTitleBarProps {
   readonly onMaximize: () => void
   readonly onClose: () => void
   readonly onStartDragging: () => void
-
   readonly onSidebarToggle: () => void
-
   readonly isSidebarOpen: boolean
   readonly isMaximized: boolean
   readonly sidebarWidth: number
-
   readonly windowControlsDisabled?: boolean
-
   readonly windowDraggingDisabled?: boolean
 }
 
+/**
+ * Desktop platform chrome.
+ *
+ * Window semantics and platform-specific visuals
+ * remain local to the desktop application. Generic
+ * button, focus and disabled behavior come from the
+ * shared design system.
+ */
 export function DesktopTitleBar({
   children,
   onMinimize,
@@ -68,101 +73,146 @@ export function DesktopTitleBar({
     onStartDragging()
   }
 
-  const disabledClass = windowControlsDisabled ? 'cursor-not-allowed opacity-40' : ''
-
   return (
-    <div className="flex h-full min-h-0 min-w-0 bg-chrome">
+    <div className={cn('flex h-full', 'min-h-0 min-w-0', 'bg-chrome')}>
       <div
         aria-label="窗口标题栏"
-        className="flex h-full min-h-0 w-full items-stretch"
+        className={cn('flex h-full', 'min-h-0 w-full', 'items-stretch')}
         onMouseDownCapture={handleDragMouseDown}
         role="toolbar"
       >
-        <div className="flex w-(--activity-rail-width) shrink-0 items-center justify-center border-b border-divider">
-          <button
+        <div
+          className={cn(
+            'flex',
+            'w-(--activity-rail-width)',
+            'shrink-0 items-center',
+            'justify-center',
+            'border-b border-divider',
+          )}
+        >
+          <Button
             aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-            className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            className={cn(
+              'size-8',
+              'text-muted-foreground',
+              'hover:bg-sidebar-accent',
+              'hover:text-foreground',
+            )}
             onClick={onSidebarToggle}
+            size="icon"
             type="button"
+            variant="ghost"
           >
             {isSidebarOpen ? (
-              <PanelLeftClose className="size-4" />
+              <PanelLeftClose aria-hidden="true" className="size-4" />
             ) : (
-              <PanelLeftOpen className="size-4" />
+              <PanelLeftOpen aria-hidden="true" className="size-4" />
             )}
-          </button>
+          </Button>
         </div>
 
         <div
-          className="shrink-0 border-b border-divider"
+          className={cn('shrink-0', 'border-b border-divider')}
           style={{
             borderRightStyle: 'solid',
-
             borderRightWidth: isSidebarOpen ? 1 : 0,
-
             width: 'var(--workspace-sidebar-column-width, 0px)',
           }}
         />
 
-        <div className="flex min-w-0 flex-1 items-stretch">{children}</div>
+        <div className={cn('flex min-w-0', 'flex-1 items-stretch')}>{children}</div>
 
-        <div className="flex shrink-0 items-stretch border-b border-divider">
-          <button
-            aria-label="最小化"
-            className={[
-              'grid w-11',
-              'place-items-center',
-              'text-muted-foreground',
-              'enabled:hover:bg-black/5',
-              'enabled:hover:text-foreground',
-              disabledClass,
-            ].join(' ')}
+        <div className={cn('flex shrink-0', 'items-stretch', 'border-b border-divider')}>
+          <WindowControlButton
+            ariaLabel="最小化"
             disabled={windowControlsDisabled}
+            disabledTitle="窗口控制暂时不可用"
             onClick={onMinimize}
-            title={windowControlsDisabled ? '窗口控制暂时不可用' : '最小化'}
-            type="button"
+            title="最小化"
+            widthClassName="w-11"
           >
-            <Minus className="size-3.5" />
-          </button>
+            <Minus aria-hidden="true" className="size-3.5" />
+          </WindowControlButton>
 
-          <button
-            aria-label={isMaximized ? '还原窗口' : '最大化窗口'}
-            className={[
-              'grid w-11',
-              'place-items-center',
-              'text-muted-foreground',
-              'enabled:hover:bg-black/5',
-              'enabled:hover:text-foreground',
-              disabledClass,
-            ].join(' ')}
+          <WindowControlButton
+            ariaLabel={isMaximized ? '还原窗口' : '最大化窗口'}
             disabled={windowControlsDisabled}
+            disabledTitle="窗口控制暂时不可用"
             onClick={onMaximize}
-            title={
-              windowControlsDisabled
-                ? '窗口控制暂时不可用'
-                : isMaximized
-                  ? '还原窗口'
-                  : '最大化窗口'
-            }
-            type="button"
+            title={isMaximized ? '还原窗口' : '最大化窗口'}
+            widthClassName="w-11"
           >
             {isMaximized ? (
               <Copy aria-hidden="true" className="size-3.5" />
             ) : (
               <Square aria-hidden="true" className="size-3" />
             )}
-          </button>
+          </WindowControlButton>
 
-          <button
-            aria-label="关闭"
-            className="grid w-12 place-items-center text-muted-foreground hover:bg-[#c42b1c] hover:text-white"
+          <WindowControlButton
+            ariaLabel="关闭"
+            close
             onClick={onClose}
-            type="button"
+            title="关闭"
+            widthClassName="w-12"
           >
-            <X className="size-4" />
-          </button>
+            <X aria-hidden="true" className="size-4" />
+          </WindowControlButton>
         </div>
       </div>
     </div>
+  )
+}
+
+interface WindowControlButtonProps {
+  readonly ariaLabel: string
+  readonly children: ReactNode
+  readonly onClick: () => void
+  readonly title: string
+  readonly widthClassName: string
+  readonly disabled?: boolean
+  readonly disabledTitle?: string
+  readonly close?: boolean
+}
+
+function WindowControlButton({
+  ariaLabel,
+  children,
+  onClick,
+  title,
+  widthClassName,
+  disabled = false,
+  disabledTitle,
+  close = false,
+}: WindowControlButtonProps) {
+  return (
+    <Button
+      aria-label={ariaLabel}
+      className={cn(
+        'h-full rounded-none',
+        'px-0 shadow-none',
+        'text-muted-foreground',
+        'focus-visible:relative',
+        'focus-visible:z-10',
+        'focus-visible:ring-inset',
+        widthClassName,
+        close
+          ? [
+              'hover:bg-[#c42b1c]',
+              'hover:text-white',
+              'focus-visible:bg-[#c42b1c]',
+              'focus-visible:text-white',
+            ]
+          : ['enabled:hover:bg-black/5', 'enabled:hover:text-foreground'],
+        disabled && 'cursor-not-allowed opacity-40',
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      title={disabled ? disabledTitle : title}
+      type="button"
+      variant="ghost"
+    >
+      {children}
+    </Button>
   )
 }
