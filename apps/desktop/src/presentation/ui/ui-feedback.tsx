@@ -209,7 +209,9 @@ export function UiFeedbackRegion() {
     }
   }, [snapshot.failures])
 
-  const visible = snapshot.failures.slice(-3)
+  const visible = snapshot.failures
+    .filter((entry) => entry.failure.impact !== 'document-fatal')
+    .slice(-3)
 
   return (
     <div

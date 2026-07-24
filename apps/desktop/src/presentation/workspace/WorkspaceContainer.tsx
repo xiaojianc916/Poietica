@@ -24,7 +24,7 @@ import {
   WorkspaceShell,
   WorkspaceSurface,
 } from '@hybrid-canvas/workspace/react'
-import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 
 import { failureRuntime } from '../../application/failures/failure-runtime'
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
@@ -87,6 +87,23 @@ export function WorkspaceContainer({
     failureRuntime.getSnapshot,
     failureRuntime.getSnapshot,
   )
+
+  useEffect(() => {
+    const openSessionIds = new Set(
+      workbench.tabs.flatMap((tab) => (tab.kind === 'canvas' ? [tab.sessionId] : [])),
+    )
+
+    for (const sessionId of failureSnapshot.quarantinedDocuments) {
+      if (openSessionIds.has(sessionId)) {
+        continue
+      }
+
+      failureRuntime.resolveScope({
+        kind: 'document',
+        documentId: sessionId,
+      })
+    }
+  }, [failureSnapshot.quarantinedDocuments, workbench.tabs])
 
   const workbench = useSyncExternalStore(
     port.workspace.subscribe,
@@ -289,6 +306,7 @@ export function WorkspaceContainer({
     onSessionFailure: handleSessionFailure,
     renderSessionFailure: (sessionId) => (
       <DocumentQuarantineSurface
+        sessionId={sessionId}
         onClose={() => {
           handleCloseCanvas(sessionId)
         }}

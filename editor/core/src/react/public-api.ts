@@ -19,6 +19,7 @@ export {
 export { EditorCanvas, type EditorCanvasProps } from './EditorCanvas'
 export {
   EditorSessionHost,
+  type EditorSessionFailure,
   type EditorSessionHostEntry,
   type EditorSessionHostProps,
 } from './EditorSessionHost'
