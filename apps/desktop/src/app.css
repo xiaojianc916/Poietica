@@ -3,8 +3,24 @@
 @import "tailwindcss" source("../../../");
 @import "./styles/tldraw-overrides.css";
 
+/*
+ * Desktop platform tokens.
+ *
+ * Platform-specific tokens may derive from the shared
+ * design system, but they are not part of the shared
+ * design-system API.
+ */
 :root {
-  --window-backing-surface: #f3f3f3;
+  --window-backing-surface: var(--color-chrome);
+
+  --desktop-window-control-hover: color-mix(in srgb, var(--color-foreground) 5%, transparent);
+
+  --desktop-window-control-active: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+
+  /* Native Windows destructive window-control color. */
+  --desktop-window-close-hover: #c42b1c;
+  --desktop-window-close-active: #b3251a;
+  --desktop-window-close-foreground: #ffffff;
 }
 
 * {
@@ -35,8 +51,8 @@ body {
   display: grid;
   min-height: 100%;
   place-content: center;
-  gap: 12px;
-  padding: 32px;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-8);
   text-align: center;
 }
 
@@ -48,17 +64,23 @@ body {
 .bootstrap-error p {
   max-width: 560px;
   color: color-mix(in oklab, var(--color-foreground) 60%, transparent);
-  font-size: 13px;
+  font-size: var(--ui-font-size-sm);
 }
 
 .bootstrap-error button {
   justify-self: center;
-  border: 1px solid color-mix(in oklab, var(--color-foreground) 18%, transparent);
-  border-radius: 8px;
-  padding: 8px 14px;
+  border: var(--ui-region-divider-width) solid var(--color-divider);
+  border-radius: var(--ui-radius-md);
+  min-height: var(--ui-control-height-md);
+  padding: var(--ui-space-2) var(--ui-space-4);
   background: var(--color-surface);
+  box-shadow: var(--ui-shadow-sm);
   color: inherit;
   cursor: pointer;
+  transition:
+    color var(--ui-duration-fast) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    border-color var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
 [role="tablist"] {

@@ -93,7 +93,7 @@ export function DesktopTitleBar({
           <Button
             aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
             className={cn(
-              'size-8',
+              'size-[var(--ui-control-height-sm)]',
               'text-muted-foreground',
               'hover:bg-sidebar-accent',
               'hover:text-foreground',
@@ -115,7 +115,7 @@ export function DesktopTitleBar({
           className={cn('shrink-0', 'border-b border-divider')}
           style={{
             borderRightStyle: 'solid',
-            borderRightWidth: isSidebarOpen ? 1 : 0,
+            borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,
             width: 'var(--workspace-sidebar-column-width, 0px)',
           }}
         />
@@ -198,12 +198,16 @@ function WindowControlButton({
         widthClassName,
         close
           ? [
-              'hover:bg-[#c42b1c]',
-              'hover:text-white',
-              'focus-visible:bg-[#c42b1c]',
-              'focus-visible:text-white',
+              'hover:bg-[var(--desktop-window-close-hover)]',
+              'hover:text-[var(--desktop-window-close-foreground)]',
+              'focus-visible:bg-[var(--desktop-window-close-hover)]',
+              'focus-visible:text-[var(--desktop-window-close-foreground)]',
             ]
-          : ['enabled:hover:bg-black/5', 'enabled:hover:text-foreground'],
+          : [
+              'enabled:hover:bg-[var(--desktop-window-control-hover)]',
+              'enabled:active:bg-[var(--desktop-window-control-active)]',
+              'enabled:hover:text-foreground',
+            ],
         disabled && 'cursor-not-allowed opacity-40',
       )}
       disabled={disabled}
