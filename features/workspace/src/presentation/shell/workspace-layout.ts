@@ -28,6 +28,17 @@ export const WORKSPACE_LAYOUT = {
   statusBar: {
     height: 30,
   },
+  /*
+   * Runtime layout animation contract.
+   *
+   * Motion uses seconds and numeric cubic-bezier tuples,
+   * so these values intentionally remain TypeScript
+   * product tokens instead of CSS duration strings.
+   */
+  motion: {
+    layoutDurationSeconds: 0.22,
+    layoutEase: [0.2, 0, 0, 1],
+  },
 } as const
 
 export type WorkspaceLayout = typeof WORKSPACE_LAYOUT
