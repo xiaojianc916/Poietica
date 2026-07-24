@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -23,10 +20,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push(
-      'Missing native crash recovery file: ' +
-        relativePath,
-    )
+    failures.push('Missing native crash recovery file: ' + relativePath)
   }
 }
 
@@ -52,23 +46,11 @@ if (failures.length === 0) {
     'Native crash IPC command is not registered with Tauri.',
   )
 
-  requireText(
-    diagnostics,
-    'std::panic::set_hook',
-    'Native panic hook is missing.',
-  )
+  requireText(diagnostics, 'std::panic::set_hook', 'Native panic hook is missing.')
 
-  requireText(
-    diagnostics,
-    'Uuid::now_v7()',
-    'Native crash incident IDs must use UUID v7.',
-  )
+  requireText(diagnostics, 'Uuid::now_v7()', 'Native crash incident IDs must use UUID v7.')
 
-  forbidText(
-    diagnostics,
-    'Uuid::new_v4()',
-    'Native crash diagnostics still use UUID v4.',
-  )
+  forbidText(diagnostics, 'Uuid::new_v4()', 'Native crash diagnostics still use UUID v4.')
 
   requireText(
     diagnostics,
@@ -76,11 +58,7 @@ if (failures.length === 0) {
     'Native crash report is not written atomically.',
   )
 
-  requireText(
-    diagnostics,
-    'file.sync_all()',
-    'Native crash report is not flushed to disk.',
-  )
+  requireText(diagnostics, 'file.sync_all()', 'Native crash report is not flushed to disk.')
 
   requireText(
     command,
@@ -132,7 +110,7 @@ if (failures.length === 0) {
 
   requireText(
     adapter,
-    "commands.diagnosticsTakePreviousCrash()",
+    'commands.diagnosticsTakePreviousCrash()',
     'Desktop runtime adapter does not invoke the generated crash command.',
   )
 
@@ -154,11 +132,7 @@ if (failures.length === 0) {
     'Desktop runtime adapter does not expose IpcInvocationError.',
   )
 
-  forbidText(
-    adapter,
-    'return null',
-    'Native crash adapter has regressed to a permanent null stub.',
-  )
+  forbidText(adapter, 'return null', 'Native crash adapter has regressed to a permanent null stub.')
 
   requireText(
     renderer,
@@ -172,52 +146,33 @@ if (failures.length === 0) {
     'Previous native crashes are not mapped to the fatal controller.',
   )
 
-  requireText(
-    fatalIncident,
-    "'native-crash'",
-    'FatalIncidentKind does not include native-crash.',
-  )
+  requireText(fatalIncident, "'native-crash'", 'FatalIncidentKind does not include native-crash.')
 }
 
 if (failures.length > 0) {
   console.error(
     [
       'Native crash recovery architecture checks failed:',
-      ...failures.map(
-        (failure) => '- ' + failure,
-      ),
+      ...failures.map((failure) => '- ' + failure),
     ].join('\n'),
   )
 
   process.exitCode = 1
 } else {
-  console.log(
-    'Native crash recovery architecture checks passed.',
-  )
+  console.log('Native crash recovery architecture checks passed.')
 }
 
 function read(relativePath) {
-  return readFileSync(
-    path.join(ROOT, relativePath),
-    'utf8',
-  )
+  return readFileSync(path.join(ROOT, relativePath), 'utf8')
 }
 
-function requireText(
-  source,
-  expected,
-  failure,
-) {
+function requireText(source, expected, failure) {
   if (!source.includes(expected)) {
     failures.push(failure)
   }
 }
 
-function forbidText(
-  source,
-  forbidden,
-  failure,
-) {
+function forbidText(source, forbidden, failure) {
   if (source.includes(forbidden)) {
     failures.push(failure)
   }

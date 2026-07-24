@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+
+set -eu
+
+# 自动暂存格式化结果前，禁止存在未暂存的已跟踪文件改动。
+# 这样 git add -u 不会把用户不准备提交的改动混入本次 commit。
+if ! git diff --quiet; then
+  echo ""
+  echo "提交已中止：存在未暂存的已跟踪文件改动。"
+  echo "请先暂存、还原或 stash 这些改动，再执行 git commit。"
+  echo ""
+  git status --short
+  exit 1
+fi
+
+echo "==> 自动格式化代码"
+pnpm format
+
+# pnpm format 的结果必须进入当前正在创建的 commit。
+git add -u
+
+echo "==> 格式化完成，格式化结果已自动暂存"

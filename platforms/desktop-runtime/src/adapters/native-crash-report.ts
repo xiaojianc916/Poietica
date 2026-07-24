@@ -1,7 +1,4 @@
-import {
-  IpcInvocationError,
-  isIpcError,
-} from '@hybrid-canvas/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@hybrid-canvas/desktop-ipc'
 import {
   commands,
   type NativeCrashReport as GeneratedNativeCrashReport,
@@ -13,8 +10,7 @@ import {
  * The renderer must not redefine this DTO manually. Rust and
  * tauri-specta remain the source of truth for the boundary.
  */
-export type NativeCrashReport =
-  GeneratedNativeCrashReport
+export type NativeCrashReport = GeneratedNativeCrashReport
 
 /**
  * Reads and consumes the previous native process crash report.
@@ -22,9 +18,7 @@ export type NativeCrashReport =
  * The Native command removes a valid report after reading it, so a
  * renderer reload cannot repeatedly present the same historical crash.
  */
-export async function takePreviousNativeCrashReport(): Promise<
-  NativeCrashReport | null
-> {
+export async function takePreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
   try {
     return await commands.diagnosticsTakePreviousCrash()
   } catch (error: unknown) {

@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+set -eu
+
+echo "==> 检查代码格式"
+pnpm format:check
+
+echo "==> 静态检查"
+pnpm lint
+
+echo "==> TypeScript 类型检查"
+pnpm typecheck
+
+echo "==> 架构检查"
+pnpm test:architecture
+
+echo ""
+echo "==> pre-push 检查通过"
