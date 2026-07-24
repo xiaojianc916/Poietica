@@ -18,7 +18,7 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
     <BaseSwitch.Root
       className={cn(
         'group relative inline-flex',
-        'h-6 w-10 shrink-0',
+        'h-[22px] w-[38px] shrink-0',
         'cursor-pointer items-center',
         'rounded-full border',
         'border-transparent',
@@ -51,7 +51,7 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
       <BaseSwitch.Thumb
         className={cn(
           'pointer-events-none block',
-          'size-[18px]',
+          'size-4',
           'translate-x-[3px]',
           'rounded-full',
           'bg-background',
