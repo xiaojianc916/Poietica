@@ -3,6 +3,7 @@ import {
   CanvasInspectorRightSidebar,
   CanvasTransformStatus,
   EditorSessionHost,
+  type EditorSessionFailure,
   useCanvasInspectorAvailability,
 } from '@hybrid-canvas/canvas/react'
 import { ConfirmationDialog } from '@hybrid-canvas/design-system'
@@ -23,9 +24,12 @@ import {
   WorkspaceShell,
   WorkspaceSurface,
 } from '@hybrid-canvas/workspace/react'
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from 'react'
 
+import { failureRuntime } from '../../application/failures/failure-runtime'
+import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
+import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 import { reportUiFailure as reportFailure } from '../ui/ui-feedback'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
@@ -77,6 +81,12 @@ export function WorkspaceContainer({
   onWindowStartDragging,
 }: WorkspaceContainerProps) {
   const inspectorAvailable = useCanvasInspectorAvailability()
+
+  const failureSnapshot = useSyncExternalStore(
+    failureRuntime.subscribe,
+    failureRuntime.getSnapshot,
+    failureRuntime.getSnapshot,
+  )
 
   const workbench = useSyncExternalStore(
     port.workspace.subscribe,
@@ -140,6 +150,10 @@ export function WorkspaceContainer({
     },
     [port.canvases],
   )
+
+  const handleSessionFailure = useCallback((failure: EditorSessionFailure) => {
+    reportDocumentFatal(failure)
+  }, [])
 
   const handleCloseTab = useCallback(
     (tabId: WorkbenchTabId) => {
@@ -268,9 +282,18 @@ export function WorkspaceContainer({
     activeSurface: workbench.activeSurface,
     activeSessionId,
     hostedSessions,
+    quarantinedSessionIds: failureSnapshot.quarantinedDocuments,
     onCreateCanvas: actions.createCanvas,
     onOpenCanvas: actions.openCanvas,
     onSave: handleSave,
+    onSessionFailure: handleSessionFailure,
+    renderSessionFailure: (sessionId) => (
+      <DocumentQuarantineSurface
+        onClose={() => {
+          handleCloseCanvas(sessionId)
+        }}
+      />
+    ),
   })
 
   return (
@@ -361,18 +384,24 @@ interface ActiveSurfaceRendererProps {
     readonly sessionId: CanvasSessionId
     readonly session: EditorSession
   }[]
+  readonly quarantinedSessionIds: readonly string[]
   readonly onCreateCanvas: () => void
   readonly onOpenCanvas: () => void
   readonly onSave: (sessionId: CanvasSessionId) => void
+  readonly onSessionFailure: (failure: EditorSessionFailure) => void
+  readonly renderSessionFailure: (sessionId: string) => ReactNode
 }
 
 function renderActiveSurface({
   activeSurface,
   activeSessionId,
   hostedSessions,
+  quarantinedSessionIds,
   onCreateCanvas,
   onOpenCanvas,
   onSave,
+  onSessionFailure,
+  renderSessionFailure,
 }: ActiveSurfaceRendererProps) {
   switch (activeSurface.kind) {
     case 'start':
@@ -386,6 +415,9 @@ function renderActiveSurface({
         <EditorSessionHost
           activeSessionId={activeSessionId}
           onSave={onSave}
+          onSessionFailure={onSessionFailure}
+          quarantinedSessionIds={quarantinedSessionIds}
+          renderSessionFailure={renderSessionFailure}
           sessions={hostedSessions}
         />
       )

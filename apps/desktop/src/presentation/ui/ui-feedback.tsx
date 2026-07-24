@@ -298,7 +298,7 @@ function documentScope(context: Readonly<Record<string, unknown>>): FailureScope
   }
 }
 
-function impactLabel(impact: NonTerminalFailureInput['impact']): string {
+function impactLabel(impact: FailureImpact): string {
   switch (impact) {
     case 'recoverable':
       return '操作失败'
@@ -308,6 +308,12 @@ function impactLabel(impact: NonTerminalFailureInput['impact']): string {
 
     case 'document-fatal':
       return '文档已隔离'
+
+    case 'application-fatal':
+      return '应用错误'
+
+    case 'native-fatal':
+      return '原生错误'
   }
 }
 

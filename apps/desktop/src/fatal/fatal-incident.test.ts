@@ -102,13 +102,13 @@ describe('fatal incident contract', () => {
       },
     })
 
-    expect(incident.context.accessToken).toBe('[REDACTED]')
+    expect(incident.context['accessToken']).toBe('[REDACTED]')
 
-    expect(incident.context.password).toBe('[REDACTED]')
+    expect(incident.context['password']).toBe('[REDACTED]')
 
-    expect(incident.context.authorization).toBe('[REDACTED]')
+    expect(incident.context['authorization']).toBe('[REDACTED]')
 
-    expect(incident.context.operation).toBe('connect')
+    expect(incident.context['operation']).toBe('connect')
   })
 
   it('redacts bearer values and Windows user directories', () => {

@@ -11,10 +11,10 @@ export function isIpcError(value: unknown): value is IpcError {
   }
   const candidate = value as Record<string, unknown>
   return (
-    typeof candidate.code === 'string' &&
-    typeof candidate.message === 'string' &&
-    typeof candidate.operation === 'string' &&
-    typeof candidate.recoverable === 'boolean'
+    typeof candidate['code'] === 'string' &&
+    typeof candidate['message'] === 'string' &&
+    typeof candidate['operation'] === 'string' &&
+    typeof candidate['recoverable'] === 'boolean'
   )
 }
 

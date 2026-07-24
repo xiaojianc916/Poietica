@@ -401,8 +401,8 @@ export function createCanvasDocumentService({
       error.details !== null
     ) {
       const details = error.details as Record<string, unknown>
-      const code = details.code
-      const recoverable = details.recoverable
+      const code = details['code']
+      const recoverable = details['recoverable']
 
       if (
         (code === 'permission-denied' ||

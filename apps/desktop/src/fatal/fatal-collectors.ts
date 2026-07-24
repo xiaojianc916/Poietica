@@ -131,11 +131,11 @@ function parseViteError(payload: unknown): ParsedViteError {
     }
   }
 
-  const payloadError = payload.error
+  const payloadError = payload['error']
 
   const rawError = isRecord(payloadError) ? payloadError : payload
 
-  const locationValue = rawError.location
+  const locationValue = rawError['location']
 
   const rawLocation = isRecord(locationValue) ? locationValue : undefined
 

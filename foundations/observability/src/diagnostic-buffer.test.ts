@@ -69,11 +69,11 @@ describe('diagnostic buffer', () => {
 
     const [entry] = getRecentLogEntries()
 
-    expect(entry?.context.accessToken).toBe('[REDACTED]')
+    expect(entry?.context['accessToken']).toBe('[REDACTED]')
 
-    expect(entry?.context.authorization).toBe('[REDACTED]')
+    expect(entry?.context['authorization']).toBe('[REDACTED]')
 
-    expect(entry?.context.endpoint).not.toContain('password')
+    expect(entry?.context['endpoint']).not.toContain('password')
   })
 
   it('serializes Error and circular values safely', () => {
@@ -95,9 +95,9 @@ describe('diagnostic buffer', () => {
 
     const [entry] = getRecentLogEntries()
 
-    expect(entry?.context.cause).toContain('broken')
+    expect(entry?.context['cause']).toContain('broken')
 
-    expect(entry?.context.circular).toContain('[Circular]')
+    expect(entry?.context['circular']).toContain('[Circular]')
   })
 
   it('returns cloned immutable snapshots', () => {
