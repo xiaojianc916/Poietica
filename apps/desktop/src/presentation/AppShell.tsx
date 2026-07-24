@@ -9,7 +9,6 @@ import { CommandPalette } from '@hybrid-canvas/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
-import { createFeatureAvailability } from '../application/failures/feature-availability'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
 import { UiFeedbackRegion } from './ui/ui-feedback'
@@ -60,10 +59,13 @@ export function AppShell({ runtime }: AppShellProps) {
     failureCoordinator.getSnapshot,
   )
 
-  const featureAvailability = useMemo(
-    () => createFeatureAvailability([...failureSnapshot.degradedFeatures.keys()]),
-    [failureSnapshot.degradedFeatures],
-  )
+  const settingsUnavailable = failureSnapshot.degradedFeatures.has('settings')
+
+  const developerToolsUnavailable = failureSnapshot.degradedFeatures.has('developer-tools')
+
+  const windowControlsUnavailable = failureSnapshot.degradedFeatures.has('window-controls')
+
+  const windowDraggingUnavailable = failureSnapshot.degradedFeatures.has('window-dragging')
 
   const termination = useSyncExternalStore(
     runtime.termination.subscribe,
@@ -78,12 +80,12 @@ export function AppShell({ runtime }: AppShellProps) {
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
 
   const openSettings = useCallback(() => {
-    if (!featureAvailability.isAvailable('settings')) {
+    if (settingsUnavailable) {
       return
     }
 
     setSettingsOpen(true)
-  }, [featureAvailability])
+  }, [settingsUnavailable])
 
   const createCanvasWithFeedback = useCallback(
     async (title: string): Promise<void> => {
@@ -105,7 +107,7 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.termination])
 
   const minimizeWindow = useCallback(() => {
-    if (!featureAvailability.isAvailable('window-controls')) {
+    if (windowControlsUnavailable) {
       return
     }
 
@@ -116,10 +118,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [featureAvailability, runtime.mainWindow])
+  }, [windowControlsUnavailable, runtime.mainWindow])
 
   const maximizeWindow = useCallback(() => {
-    if (!featureAvailability.isAvailable('window-controls')) {
+    if (windowControlsUnavailable) {
       return
     }
 
@@ -130,10 +132,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [featureAvailability, runtime.mainWindow])
+  }, [windowControlsUnavailable, runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
-    if (!featureAvailability.isAvailable('developer-tools')) {
+    if (developerToolsUnavailable) {
       return
     }
 
@@ -144,10 +146,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [featureAvailability, runtime.mainWindow])
+  }, [developerToolsUnavailable, runtime.mainWindow])
 
   const startWindowDragging = useCallback(() => {
-    if (!featureAvailability.isAvailable('window-dragging')) {
+    if (windowDraggingUnavailable) {
       return
     }
 
@@ -158,7 +160,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [featureAvailability, runtime.mainWindow])
+  }, [windowDraggingUnavailable, runtime.mainWindow])
 
   useApplicationCommands(runtime, toggleCommandPalette, createCanvasWithFeedback)
 
@@ -229,7 +231,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
       <SettingsDialog
         onOpenChange={setSettingsOpen}
-        open={isSettingsOpen && featureAvailability.isAvailable('settings')}
+        open={isSettingsOpen && !settingsUnavailable}
         store={runtime.settings}
       />
 

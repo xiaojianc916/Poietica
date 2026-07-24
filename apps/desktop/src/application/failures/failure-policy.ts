@@ -5,6 +5,17 @@ import type {
 } from '@hybrid-canvas/foundations-kernel'
 import { failureCoordinator, type FailureIncident, type FailureSignal } from './failure-coordinator'
 
+export const DEGRADABLE_FEATURE_IDS = [
+  'settings',
+  'developer-tools',
+  'window-controls',
+  'window-dragging',
+  'window-state-sync',
+  'window-close-coordination',
+] as const
+
+export type DegradableFeatureId = (typeof DEGRADABLE_FEATURE_IDS)[number]
+
 export const APPLICATION_FAILURE_CODES = [
   'CANVAS_CREATE_FAILED',
   'CANVAS_OPEN_FAILED',

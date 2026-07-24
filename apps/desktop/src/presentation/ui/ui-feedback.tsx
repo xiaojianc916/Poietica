@@ -3,8 +3,19 @@ import { DangerCircle, X } from '@mynaui/icons-react'
 import { useEffect, useSyncExternalStore } from 'react'
 import {
   failureCoordinator,
+  type NonTerminalFailureIncident,
   type PresentedFailure,
 } from '../../application/failures/failure-coordinator'
+
+type ToastFailureImpact = Extract<FailureImpact, 'recoverable' | 'feature-degraded'>
+
+type ToastIncident = NonTerminalFailureIncident & {
+  readonly impact: ToastFailureImpact
+}
+
+type ToastFailure = Omit<PresentedFailure, 'incident'> & {
+  readonly incident: ToastIncident
+}
 
 export function UiFeedbackRegion() {
   const snapshot = useSyncExternalStore(
@@ -13,11 +24,11 @@ export function UiFeedbackRegion() {
     failureCoordinator.getSnapshot,
   )
 
-  const visible = selectVisibleFailures(
-    snapshot.operations,
+  const visible = selectVisibleFailures([
+    ...snapshot.operations,
 
-    snapshot.degradedFeatures,
-  ).slice(-3)
+    ...snapshot.degradedFeatures.values(),
+  ]).slice(-3)
 
   useEffect(() => {
     const timers = visible.map((entry) => {
@@ -56,7 +67,9 @@ export function UiFeedbackRegion() {
               'pointer-events-auto',
               'flex items-start gap-3',
               'rounded-lg border',
-              borderClass(incident.impact),
+              incident.impact === 'feature-degraded'
+                ? 'border-warning/40'
+                : 'border-destructive/30',
               'bg-background p-3',
               'text-sm shadow-xl',
             ].join(' ')}
@@ -65,14 +78,19 @@ export function UiFeedbackRegion() {
           >
             <DangerCircle
               aria-hidden="true"
-              className={['mt-0.5 size-4', 'shrink-0', iconClass(incident.impact)].join(' ')}
+              className={[
+                'mt-0.5 size-4',
+                'shrink-0',
+                incident.impact === 'feature-degraded' ? 'text-warning' : 'text-destructive',
+              ].join(' ')}
             />
 
             <div className="grid min-w-0 flex-1 gap-1">
               <span className="leading-5">{incident.userMessage}</span>
 
               <span className="text-xs text-muted-foreground">
-                {impactLabel(incident.impact)}
+                {incident.impact === 'feature-degraded' ? '功能受限' : '操作失败'}
+
                 {' · '}
                 {incident.code}
 
@@ -106,41 +124,12 @@ export function UiFeedbackRegion() {
   )
 }
 
-function selectVisibleFailures(
-  operations: readonly PresentedFailure[],
+function selectVisibleFailures(failures: readonly PresentedFailure[]): ToastFailure[] {
+  return failures.filter((entry): entry is ToastFailure => {
+    if (!entry.noticeVisible) {
+      return false
+    }
 
-  degradedFeatures: ReadonlyMap<string, PresentedFailure>,
-): PresentedFailure[] {
-  return [
-    ...operations,
-
-    ...[...degradedFeatures.values()].filter((entry) => entry.noticeVisible),
-  ]
-}
-
-function impactLabel(impact: FailureImpact): string {
-  switch (impact) {
-    case 'recoverable':
-      return '操作失败'
-
-    case 'feature-degraded':
-      return '功能受限'
-
-    case 'document-fatal':
-      return '文档已隔离'
-
-    case 'application-fatal':
-      return '应用错误'
-
-    case 'native-fatal':
-      return '原生错误'
-  }
-}
-
-function borderClass(impact: FailureImpact): string {
-  return impact === 'feature-degraded' ? 'border-warning/40' : 'border-destructive/30'
-}
-
-function iconClass(impact: FailureImpact): string {
-  return impact === 'feature-degraded' ? 'text-warning' : 'text-destructive'
+    return entry.incident.impact === 'recoverable' || entry.incident.impact === 'feature-degraded'
+  })
 }

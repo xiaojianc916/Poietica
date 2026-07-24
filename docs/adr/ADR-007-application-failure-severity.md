@@ -1,6 +1,7 @@
 # ADR-007: Application failure severity architecture
 
-- Status: Accepted
+- Status: Superseded
+- Superseded by: ADR-011
 - Date: 2026-07-24
 - Scope: Application, presentation, renderer fatal runtime and native recovery
 

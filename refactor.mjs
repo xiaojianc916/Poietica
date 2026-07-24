@@ -1,71 +1,72 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 const ROOT = process.cwd()
+
+const CURRENT_SCRIPT = path.resolve(fileURLToPath(import.meta.url))
 
 const FILES = Object.freeze({
   packageJson: 'package.json',
 
-  coordinator: 'apps/desktop/src/application/failures/failure-coordinator.ts',
+  gitignore: '.gitignore',
+
+  appShell: 'apps/desktop/src/presentation/AppShell.tsx',
 
   policy: 'apps/desktop/src/application/failures/failure-policy.ts',
 
   uiFeedback: 'apps/desktop/src/presentation/ui/ui-feedback.tsx',
 
-  appShell: 'apps/desktop/src/presentation/AppShell.tsx',
+  featureAvailability: 'apps/desktop/src/application/failures/feature-availability.ts',
 
-  workspace: 'apps/desktop/src/presentation/workspace/WorkspaceContainer.tsx',
+  featureCheck: 'tests/architecture/check-feature-degradation-enforcement.mjs',
 
-  documentReporter: 'apps/desktop/src/application/failures/document-failure-reporter.ts',
-
-  documentSurface: 'apps/desktop/src/presentation/workspace/DocumentQuarantineSurface.tsx',
-
-  architectureCheck: 'tests/architecture/check-failure-architecture-convergence.mjs',
+  convergenceCheck: 'tests/architecture/check-failure-architecture-convergence.mjs',
 })
 
-const FAILURE_CODE_REPLACEMENTS = Object.freeze({
-  'canvas create failed': 'CANVAS_CREATE_FAILED',
+const DEAD_FILES = [
+  FILES.featureAvailability,
 
-  'canvas open failed': 'CANVAS_OPEN_FAILED',
+  'tests/architecture/check-failure-severity-architecture.mjs',
 
-  'canvas save failed': 'CANVAS_SAVE_FAILED',
+  'tests/architecture/check-fatal-escalation-policy.mjs',
+]
 
-  'canvas close transaction failed': 'CANVAS_CLOSE_FAILED',
+const SUPERSEDED_ADRS = [
+  'docs/adr/ADR-005-unified-fatal-incident.md',
 
-  'main window minimize failed': 'WINDOW_MINIMIZE_UNAVAILABLE',
+  'docs/adr/ADR-006-fatal-escalation-policy.md',
 
-  'main window maximize failed': 'WINDOW_MAXIMIZE_UNAVAILABLE',
+  'docs/adr/ADR-007-application-failure-severity.md',
+]
 
-  'main window drag failed': 'WINDOW_DRAG_UNAVAILABLE',
-
-  'open developer tools failed': 'DEVELOPER_TOOLS_UNAVAILABLE',
-
-  'settings load failed': 'SETTINGS_LOAD_FAILED',
-
-  'window maximize state query failed': 'WINDOW_STATE_QUERY_UNAVAILABLE',
-
-  'window resize listener registration failed': 'WINDOW_RESIZE_SYNC_UNAVAILABLE',
-
-  'main window close listener registration failed': 'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
-})
+const ROOT_MIGRATION_PATTERNS = [
+  /^refactor.*\.mjs$/i,
+  /^repair-.*\.mjs$/i,
+  /^converge-.*\.mjs$/i,
+  /^apply-.*\.mjs$/i,
+]
 
 async function main() {
   await assertRepository()
 
-  await writeFailurePolicy()
-  await writeFailureCoordinator()
-  await writeUiFeedback()
-  await writeDocumentReporter()
-  await writeDocumentSurface()
+  await removeDeadFiles()
+  await removeRootMigrationScripts()
 
-  await migrateAppShell()
-  await migrateWorkspace()
-  await strengthenArchitectureCheck()
-  await verifyConvergence()
+  await centralizeFeatureIds()
+  await simplifyAppShell()
+  await narrowToastProjection()
+
+  await rewriteFeatureCheck()
+  await rewriteConvergenceCheck()
+
+  await markSupersededAdrs()
+  await updateGitignore()
+  await verifyCleanup()
 
   console.log('')
-  console.log('Failure policy convergence completed.')
+  console.log('Failure architecture cleanup completed.')
 }
 
 async function assertRepository() {
@@ -76,1089 +77,182 @@ async function assertRepository() {
   }
 }
 
-async function writeFailurePolicy() {
-  const source = `import type {
-  FailureImpact,
-  FailureRecovery,
-  FailureScope,
-} from '@hybrid-canvas/foundations-kernel'
-import {
-  failureCoordinator,
-  type FailureIncident,
-  type FailureSignal,
-} from './failure-coordinator'
-
-export const APPLICATION_FAILURE_CODES = [
-  'CANVAS_CREATE_FAILED',
-  'CANVAS_OPEN_FAILED',
-  'CANVAS_SAVE_FAILED',
-  'CANVAS_CLOSE_FAILED',
-  'WINDOW_MINIMIZE_UNAVAILABLE',
-  'WINDOW_MAXIMIZE_UNAVAILABLE',
-  'WINDOW_DRAG_UNAVAILABLE',
-  'DEVELOPER_TOOLS_UNAVAILABLE',
-  'SETTINGS_LOAD_FAILED',
-  'WINDOW_STATE_QUERY_UNAVAILABLE',
-  'WINDOW_RESIZE_SYNC_UNAVAILABLE',
-  'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
-  'DOCUMENT_EDITOR_SESSION_FATAL',
-] as const
-
-export type ApplicationFailureCode =
-  (typeof APPLICATION_FAILURE_CODES)[number]
-
-export type FailureReportContext =
-  Readonly<Record<string, unknown>>
-
-interface ApplicationFailurePolicy {
-  readonly impact:
-    FailureImpact
-
-  readonly userMessage:
-    string
-
-  readonly recovery:
-    FailureRecovery
-
-  readonly scope: (
-    context:
-      FailureReportContext,
-  ) => FailureScope
-}
-
-const APPLICATION_FAILURE_POLICIES = {
-  CANVAS_CREATE_FAILED: {
-    impact: 'recoverable',
-    userMessage:
-      '无法新建画布，请重试。',
-
-    recovery: 'retry',
-
-    scope: () => ({
-      kind: 'operation',
-      operation: 'create-canvas',
-    }),
-  },
-
-  CANVAS_OPEN_FAILED: {
-    impact: 'recoverable',
-    userMessage:
-      '无法打开画布，请检查文件后重试。',
-
-    recovery: 'retry',
-
-    scope: () => ({
-      kind: 'operation',
-      operation: 'open-canvas',
-    }),
-  },
-
-  CANVAS_SAVE_FAILED: {
-    impact: 'recoverable',
-    userMessage:
-      '画布保存失败，请重试。',
-
-    recovery: 'retry',
-    scope: documentOrOperationScope(
-      'save-canvas',
-    ),
-  },
-
-  CANVAS_CLOSE_FAILED: {
-    impact: 'recoverable',
-    userMessage:
-      '无法关闭画布，请重试。',
-
-    recovery: 'retry',
-    scope: documentOrOperationScope(
-      'close-canvas',
-    ),
-  },
-
-  WINDOW_MINIMIZE_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '窗口最小化暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-controls',
-    }),
-  },
-
-  WINDOW_MAXIMIZE_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '窗口最大化或还原暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-controls',
-    }),
-  },
-
-  WINDOW_DRAG_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '窗口拖动暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-dragging',
-    }),
-  },
-
-  DEVELOPER_TOOLS_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '开发者工具暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'developer-tools',
-    }),
-  },
-
-  SETTINGS_LOAD_FAILED: {
-    impact: 'feature-degraded',
-    userMessage:
-      '设置读取失败，当前会话将使用默认设置。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'settings',
-    }),
-  },
-
-  WINDOW_STATE_QUERY_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '无法同步窗口状态。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-state-sync',
-    }),
-  },
-
-  WINDOW_RESIZE_SYNC_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '窗口尺寸状态同步暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-state-sync',
-    }),
-  },
-
-  WINDOW_CLOSE_LISTENER_UNAVAILABLE: {
-    impact: 'feature-degraded',
-    userMessage:
-      '窗口关闭协调暂时不可用。',
-
-    recovery:
-      'disable-feature',
-
-    scope: () => ({
-      kind: 'feature',
-      featureId:
-        'window-close-coordination',
-    }),
-  },
-
-  DOCUMENT_EDITOR_SESSION_FATAL: {
-    impact: 'document-fatal',
-    userMessage:
-      '当前画布遇到严重错误，已被隔离。其他画布仍可继续使用。',
-
-    recovery:
-      'close-document',
-
-    scope: requireDocumentScope,
-  },
-} as const satisfies Readonly<
-  Record<
-    ApplicationFailureCode,
-    ApplicationFailurePolicy
-  >
->
-
-export function reportFailure(
-  code:
-    ApplicationFailureCode,
-
-  context:
-    FailureReportContext,
-): FailureIncident {
-  const policy =
-    APPLICATION_FAILURE_POLICIES[
-      code
-    ]
-
-  const cause =
-    context['cause']
-
-  const componentStack =
-    readOptionalString(
-      context,
-      'componentStack',
-    )
-
-  const source =
-    readOptionalString(
-      context,
-      'source',
-    )
-
-  const line =
-    readOptionalNumber(
-      context,
-      'line',
-    )
-
-  const column =
-    readOptionalNumber(
-      context,
-      'column',
-    )
-
-  const signal: FailureSignal = {
-    impact: policy.impact,
-    code,
-    userMessage:
-      policy.userMessage,
-
-    scope:
-      policy.scope(context),
-
-    recovery:
-      policy.recovery,
-
-    ...optionalProperty(
-      'cause',
-      cause,
-    ),
-
-    context:
-      removeCause(context),
-
-    diagnostic: {
-      ...optionalProperty(
-        'componentStack',
-        componentStack,
-      ),
-
-      ...optionalProperty(
-        'source',
-        source,
-      ),
-
-      ...optionalProperty(
-        'line',
-        line,
-      ),
-
-      ...optionalProperty(
-        'column',
-        column,
-      ),
-    },
-  }
-
-  return failureCoordinator.report(
-    signal,
-  )
-}
-
-function documentOrOperationScope(
-  operation: string,
-): (
-  context:
-    FailureReportContext,
-) => FailureScope {
-  return (context) => {
-    const documentId =
-      readDocumentId(context)
-
-    if (documentId) {
-      return {
-        kind: 'document',
-        documentId,
-      }
-    }
-
-    return {
-      kind: 'operation',
-      operation,
-    }
+async function removeDeadFiles() {
+  for (const relativePath of DEAD_FILES) {
+    await rm(resolvePath(relativePath), {
+      force: true,
+    })
+
+    console.log(relativePath + ': removed.')
   }
 }
 
-function requireDocumentScope(
-  context:
-    FailureReportContext,
-): FailureScope {
-  const documentId =
-    readDocumentId(context)
-
-  if (!documentId) {
-    throw new Error(
-      'DOCUMENT_EDITOR_SESSION_FATAL requires sessionId.',
-    )
-  }
-
-  return {
-    kind: 'document',
-    documentId,
-  }
-}
-
-function readDocumentId(
-  context:
-    FailureReportContext,
-): string | undefined {
-  const sessionId =
-    context['sessionId']
-
-  return (
-    typeof sessionId ===
-      'string' &&
-    sessionId.length > 0
-      ? sessionId
-      : undefined
-  )
-}
-
-function removeCause(
-  context:
-    FailureReportContext,
-): Readonly<
-  Record<string, unknown>
-> {
-  const entries =
-    Object.entries(
-      context,
-    ).filter(
-      ([key]) =>
-        key !== 'cause',
-    )
-
-  return Object.fromEntries(
-    entries,
-  )
-}
-
-function readOptionalString(
-  context:
-    FailureReportContext,
-
-  key: string,
-): string | undefined {
-  const value = context[key]
-
-  return typeof value ===
-    'string' &&
-    value.length > 0
-    ? value
-    : undefined
-}
-
-function readOptionalNumber(
-  context:
-    FailureReportContext,
-
-  key: string,
-): number | undefined {
-  const value = context[key]
-
-  return typeof value ===
-    'number'
-    ? value
-    : undefined
-}
-
-function optionalProperty<
-  Key extends string,
-  Value,
->(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
-}
-`
-
-  await writeText(FILES.policy, source)
-}
-
-async function writeFailureCoordinator() {
-  const source = `import {
-  createClassifiedFailure,
-  createFailureScopeKey,
-  isTerminalFailureImpact,
-  type ClassifiedFailure,
-  type ClassifiedFailureInput,
-  type FailureScope,
-  type NonTerminalFailureImpact,
-  type TerminalFailureImpact,
-} from '@hybrid-canvas/foundations-kernel'
-import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'
-import {
-  createFailureDiagnostic,
-  normalizeFailureCause,
-  sanitizeFailureContext,
-  type FailureDiagnostic,
-  type FailureDiagnosticHint,
-} from './failure-diagnostic'
-
-export interface FailureIncident
-  extends ClassifiedFailure {
-  readonly diagnostic:
-    FailureDiagnostic
-}
-
-export type TerminalFailureIncident =
-  FailureIncident & {
-    readonly impact:
-      TerminalFailureImpact
-  }
-
-export type NonTerminalFailureIncident =
-  FailureIncident & {
-    readonly impact:
-      NonTerminalFailureImpact
-  }
-
-export interface PresentedFailure {
-  readonly incident:
-    NonTerminalFailureIncident
-
-  readonly occurrences: number
-  readonly noticeVisible: boolean
-}
-
-export interface TerminalFailureState {
-  readonly incident:
-    TerminalFailureIncident
-
-  readonly additionalIncidentCount:
-    number
-}
-
-export interface FailureSnapshot {
-  readonly terminal:
-    TerminalFailureState | null
-
-  readonly operations:
-    readonly PresentedFailure[]
-
-  readonly degradedFeatures:
-    ReadonlyMap<
-      string,
-      PresentedFailure
-    >
-
-  readonly quarantinedDocuments:
-    ReadonlyMap<
-      string,
-      PresentedFailure
-    >
-}
-
-export interface FailureSignal
-  extends Omit<
-    ClassifiedFailureInput,
-    'technicalMessage'
-  > {
-  readonly technicalMessage?:
-    string
-
-  readonly diagnostic?:
-    FailureDiagnosticHint
-}
-
-export type FailureListener =
-  () => void
-
-const EMPTY_SNAPSHOT:
-  FailureSnapshot =
-  Object.freeze({
-    terminal: null,
-
-    operations:
-      Object.freeze([]),
-
-    degradedFeatures:
-      new Map(),
-
-    quarantinedDocuments:
-      new Map(),
+async function removeRootMigrationScripts() {
+  const entries = await readdir(ROOT, {
+    withFileTypes: true,
   })
 
-const MAX_OPERATION_FAILURES = 20
-
-export class FailureCoordinator {
-  private snapshot:
-    FailureSnapshot =
-    EMPTY_SNAPSHOT
-
-  private readonly listeners =
-    new Set<FailureListener>()
-
-  private readonly operations:
-    PresentedFailure[] = []
-
-  private readonly degradedFeatures =
-    new Map<
-      string,
-      PresentedFailure
-    >()
-
-  private readonly quarantinedDocuments =
-    new Map<
-      string,
-      PresentedFailure
-    >()
-
-  private readonly terminalFingerprints =
-    new Set<string>()
-
-  readonly getSnapshot =
-    (): FailureSnapshot => {
-      return this.snapshot
-    }
-
-  readonly subscribe = (
-    listener: FailureListener,
-  ): (() => void) => {
-    this.listeners.add(listener)
-
-    return () => {
-      this.listeners.delete(listener)
-    }
-  }
-
-  report(
-    signal: FailureSignal,
-  ): FailureIncident {
-    const incident =
-      this.createIncident(signal)
-
-    this.recordDiagnostic(
-      incident,
-    )
-
-    if (
-      isTerminalFailureImpact(
-        incident.impact,
-      )
-    ) {
-      return this.reportTerminal(
-        incident as
-          TerminalFailureIncident,
-      )
-    }
-
-    return this.reportNonTerminal(
-      incident as
-        NonTerminalFailureIncident,
-    )
-  }
-
-  dismiss(
-    incidentId: string,
-  ): void {
-    const operationIndex =
-      this.operations.findIndex(
-        (entry) =>
-          entry.incident.id ===
-          incidentId,
-      )
-
-    if (operationIndex >= 0) {
-      this.operations.splice(
-        operationIndex,
-        1,
-      )
-
-      this.publish()
-      return
-    }
-
-    if (
-      hideScopedNotice(
-        this.degradedFeatures,
-        incidentId,
-      )
-    ) {
-      this.publish()
-    }
-  }
-
-  resolveScope(
-    scope: FailureScope,
-  ): void {
-    const scopeKey =
-      createFailureScopeKey(scope)
-
-    if (scope.kind === 'feature') {
-      this.degradedFeatures.delete(
-        scope.featureId,
-      )
-    }
-
-    if (scope.kind === 'document') {
-      this.quarantinedDocuments.delete(
-        scope.documentId,
-      )
-    }
-
-    for (
-      let index =
-        this.operations.length - 1;
-      index >= 0;
-      index -= 1
-    ) {
-      const entry =
-        this.operations[index]
-
-      if (
-        entry &&
-        createFailureScopeKey(
-          entry.incident.scope,
-        ) === scopeKey
-      ) {
-        this.operations.splice(
-          index,
-          1,
-        )
-      }
-    }
-
-    this.publish()
-  }
-
-  private createIncident(
-    signal: FailureSignal,
-  ): FailureIncident {
-    const normalized =
-      normalizeFailureCause(
-        signal.cause,
-      )
-
-    const technicalMessage =
-      signal.technicalMessage ??
-      normalized.message
-
-    const context =
-      sanitizeFailureContext(
-        signal.context,
-      )
-
-    const classified =
-      createClassifiedFailure({
-        impact: signal.impact,
-        code: signal.code,
-
-        userMessage:
-          signal.userMessage,
-
-        technicalMessage,
-        scope: signal.scope,
-        recovery: signal.recovery,
-
-        ...optionalProperty(
-          'cause',
-          signal.cause,
-        ),
-
-        context,
-      })
-
-    return Object.freeze({
-      ...classified,
-
-      diagnostic:
-        createFailureDiagnostic(
-          signal.cause,
-          signal.diagnostic,
-        ),
-    })
-  }
-
-  private reportTerminal(
-    incident:
-      TerminalFailureIncident,
-  ): TerminalFailureIncident {
-    const current =
-      this.snapshot.terminal
-
-    if (
-      this.terminalFingerprints.has(
-        incident.fingerprint,
-      )
-    ) {
-      return (
-        current?.incident ??
-        incident
-      )
-    }
-
-    this.terminalFingerprints.add(
-      incident.fingerprint,
-    )
-
-    if (current) {
-      this.snapshot =
-        Object.freeze({
-          ...this.snapshot,
-
-          terminal:
-            Object.freeze({
-              incident:
-                current.incident,
-
-              additionalIncidentCount:
-                current
-                  .additionalIncidentCount +
-                1,
-            }),
-        })
-
-      this.emit()
-      return current.incident
-    }
-
-    this.snapshot =
-      Object.freeze({
-        ...this.snapshot,
-
-        terminal:
-          Object.freeze({
-            incident,
-            additionalIncidentCount:
-              0,
-          }),
-      })
-
-    this.emit()
-    return incident
-  }
-
-  private reportNonTerminal(
-    incident:
-      NonTerminalFailureIncident,
-  ): NonTerminalFailureIncident {
-    switch (incident.impact) {
-      case 'recoverable':
-        this.recordOperation(
-          incident,
-        )
-
-        break
-
-      case 'feature-degraded':
-        if (
-          incident.scope.kind !==
-          'feature'
-        ) {
-          throw new Error(
-            'Feature failure requires feature scope.',
-          )
-        }
-
-        this.recordScoped(
-          this.degradedFeatures,
-          incident.scope.featureId,
-          incident,
-          true,
-        )
-
-        break
-
-      case 'document-fatal':
-        if (
-          incident.scope.kind !==
-          'document'
-        ) {
-          throw new Error(
-            'Document failure requires document scope.',
-          )
-        }
-
-        this.recordScoped(
-          this.quarantinedDocuments,
-          incident.scope.documentId,
-          incident,
-          false,
-        )
-
-        break
-    }
-
-    this.publish()
-    return incident
-  }
-
-  private recordOperation(
-    incident:
-      NonTerminalFailureIncident,
-  ): void {
-    const existingIndex =
-      this.operations.findIndex(
-        (entry) =>
-          entry.incident
-            .fingerprint ===
-          incident.fingerprint,
-      )
-
-    const existing =
-      existingIndex >= 0
-        ? this.operations[
-            existingIndex
-          ]
-        : undefined
-
-    if (existingIndex >= 0) {
-      this.operations.splice(
-        existingIndex,
-        1,
-      )
-    }
-
-    this.operations.push(
-      Object.freeze({
-        incident,
-        occurrences:
-          (existing?.occurrences ??
-            0) + 1,
-
-        noticeVisible: true,
-      }),
-    )
-
-    if (
-      this.operations.length >
-      MAX_OPERATION_FAILURES
-    ) {
-      this.operations.splice(
-        0,
-        this.operations.length -
-          MAX_OPERATION_FAILURES,
-      )
-    }
-  }
-
-  private recordScoped(
-    target: Map<
-      string,
-      PresentedFailure
-    >,
-
-    key: string,
-
-    incident:
-      NonTerminalFailureIncident,
-
-    noticeVisible: boolean,
-  ): void {
-    const existing =
-      target.get(key)
-
-    target.set(
-      key,
-      Object.freeze({
-        incident,
-        occurrences:
-          (existing?.occurrences ??
-            0) + 1,
-
-        noticeVisible,
-      }),
-    )
-  }
-
-  private publish(): void {
-    this.snapshot =
-      Object.freeze({
-        terminal:
-          this.snapshot.terminal,
-
-        operations:
-          Object.freeze([
-            ...this.operations,
-          ]),
-
-        degradedFeatures:
-          new Map(
-            this.degradedFeatures,
-          ),
-
-        quarantinedDocuments:
-          new Map(
-            this
-              .quarantinedDocuments,
-          ),
-      })
-
-    this.emit()
-  }
-
-  private recordDiagnostic(
-    incident:
-      FailureIncident,
-  ): void {
-    try {
-      reportDiagnosticError(
-        incident.technicalMessage,
-        {
-          ...incident.context,
-
-          failureId:
-            incident.id,
-
-          failureCode:
-            incident.code,
-
-          failureImpact:
-            incident.impact,
-
-          failureRecovery:
-            incident.recovery,
-
-          failureScope:
-            createFailureScopeKey(
-              incident.scope,
-            ),
-        },
-      )
-    } catch (error: unknown) {
-      try {
-        console.error(
-          '[Hybrid Canvas] Failure diagnostic reporting failed',
-          error,
-        )
-      } catch {
-        // No further safe fallback.
-      }
-    }
-  }
-
-  private emit(): void {
-    for (
-      const listener of [
-        ...this.listeners,
-      ]
-    ) {
-      try {
-        listener()
-      } catch (error: unknown) {
-        try {
-          console.error(
-            '[Hybrid Canvas] Failure coordinator listener failed',
-            error,
-          )
-        } catch {
-          // No further safe fallback.
-        }
-      }
-    }
-  }
-}
-
-export const failureCoordinator =
-  new FailureCoordinator()
-
-function hideScopedNotice(
-  failures: Map<
-    string,
-    PresentedFailure
-  >,
-
-  incidentId: string,
-): boolean {
-  for (
-    const [
-      key,
-      entry,
-    ] of failures
-  ) {
-    if (
-      entry.incident.id !==
-      incidentId
-    ) {
+  for (const entry of entries) {
+    if (!entry.isFile()) {
       continue
     }
 
-    failures.set(
-      key,
-      Object.freeze({
-        ...entry,
-        noticeVisible: false,
-      }),
-    )
+    if (!ROOT_MIGRATION_PATTERNS.some((pattern) => pattern.test(entry.name))) {
+      continue
+    }
 
-    return true
+    const absolutePath = path.resolve(ROOT, entry.name)
+
+    if (absolutePath === CURRENT_SCRIPT) {
+      console.log(entry.name + ': current script retained locally.')
+
+      continue
+    }
+
+    await rm(absolutePath, {
+      force: true,
+    })
+
+    console.log(entry.name + ': removed.')
   }
-
-  return false
 }
 
-function optionalProperty<
-  Key extends string,
-  Value,
->(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
+async function centralizeFeatureIds() {
+  const file = resolvePath(FILES.policy)
+
+  let source = await readFile(file, 'utf8')
+
+  if (source.includes('export const DEGRADABLE_FEATURE_IDS')) {
+    return
   }
 
-  return {
-    [key]: value,
-  } as Record<Key, Value>
-}
+  const marker = 'export const APPLICATION_FAILURE_CODES = ['
+
+  const featureIds = `export const DEGRADABLE_FEATURE_IDS = [
+  'settings',
+  'developer-tools',
+  'window-controls',
+  'window-dragging',
+  'window-state-sync',
+  'window-close-coordination',
+] as const
+
+export type DegradableFeatureId =
+  (typeof DEGRADABLE_FEATURE_IDS)[number]
+
 `
 
-  await writeText(FILES.coordinator, source)
+  source = replaceRequired(source, marker, featureIds + marker, FILES.policy)
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.policy + ': feature IDs centralized.')
 }
 
-async function writeUiFeedback() {
+async function simplifyAppShell() {
+  const file = resolvePath(FILES.appShell)
+
+  let source = await readFile(file, 'utf8')
+
+  source = source.replace(
+    "import { createFeatureAvailability } from '../application/failures/feature-availability'\n",
+    '',
+  )
+
+  const oldProjection = `  const featureAvailability = useMemo(
+    () => createFeatureAvailability([...failureSnapshot.degradedFeatures.keys()]),
+    [failureSnapshot.degradedFeatures],
+  )
+
+`
+
+  const directSelectors = `  const settingsUnavailable =
+    failureSnapshot.degradedFeatures.has(
+      'settings',
+    )
+
+  const developerToolsUnavailable =
+    failureSnapshot.degradedFeatures.has(
+      'developer-tools',
+    )
+
+  const windowControlsUnavailable =
+    failureSnapshot.degradedFeatures.has(
+      'window-controls',
+    )
+
+  const windowDraggingUnavailable =
+    failureSnapshot.degradedFeatures.has(
+      'window-dragging',
+    )
+
+`
+
+  source = replaceRequired(source, oldProjection, directSelectors, FILES.appShell)
+
+  source = source.replaceAll("!featureAvailability.isAvailable('settings')", 'settingsUnavailable')
+
+  source = source.replaceAll(
+    "!featureAvailability.isAvailable('developer-tools')",
+    'developerToolsUnavailable',
+  )
+
+  source = source.replaceAll(
+    "!featureAvailability.isAvailable('window-controls')",
+    'windowControlsUnavailable',
+  )
+
+  source = source.replaceAll(
+    "!featureAvailability.isAvailable('window-dragging')",
+    'windowDraggingUnavailable',
+  )
+
+  source = source.replaceAll("featureAvailability.isAvailable('settings')", '!settingsUnavailable')
+
+  source = source.replace(/\[\s*featureAvailability\s*\]/g, '[settingsUnavailable]')
+
+  source = replaceCallbackDependency(
+    source,
+    '  const minimizeWindow =',
+    '  const maximizeWindow =',
+    'windowControlsUnavailable',
+    FILES.appShell,
+  )
+
+  source = replaceCallbackDependency(
+    source,
+    '  const maximizeWindow =',
+    '  const openDeveloperTools =',
+    'windowControlsUnavailable',
+    FILES.appShell,
+  )
+
+  source = replaceCallbackDependency(
+    source,
+    '  const openDeveloperTools =',
+    '  const startWindowDragging =',
+    'developerToolsUnavailable',
+    FILES.appShell,
+  )
+
+  source = replaceCallbackDependency(
+    source,
+    '  const startWindowDragging =',
+    '  useApplicationCommands(',
+    'windowDraggingUnavailable',
+    FILES.appShell,
+  )
+
+  if (source.includes('featureAvailability')) {
+    throw new Error('featureAvailability remains in AppShell.')
+  }
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.appShell + ': redundant feature projection removed.')
+}
+
+async function narrowToastProjection() {
   const source = `import type {
   FailureImpact,
 } from '@hybrid-canvas/foundations-kernel'
@@ -1172,8 +266,31 @@ import {
 } from 'react'
 import {
   failureCoordinator,
+  type NonTerminalFailureIncident,
   type PresentedFailure,
 } from '../../application/failures/failure-coordinator'
+
+type ToastFailureImpact =
+  Extract<
+    FailureImpact,
+    | 'recoverable'
+    | 'feature-degraded'
+  >
+
+type ToastIncident =
+  NonTerminalFailureIncident & {
+    readonly impact:
+      ToastFailureImpact
+  }
+
+type ToastFailure =
+  Omit<
+    PresentedFailure,
+    'incident'
+  > & {
+    readonly incident:
+      ToastIncident
+  }
 
 export function UiFeedbackRegion() {
   const snapshot =
@@ -1184,11 +301,13 @@ export function UiFeedbackRegion() {
     )
 
   const visible =
-    selectVisibleFailures(
-      snapshot.operations,
+    selectVisibleFailures([
+      ...snapshot.operations,
 
-      snapshot.degradedFeatures,
-    ).slice(-3)
+      ...snapshot
+        .degradedFeatures
+        .values(),
+    ]).slice(-3)
 
   useEffect(() => {
     const timers =
@@ -1238,9 +357,10 @@ export function UiFeedbackRegion() {
               'pointer-events-auto',
               'flex items-start gap-3',
               'rounded-lg border',
-              borderClass(
-                incident.impact,
-              ),
+              incident.impact ===
+                'feature-degraded'
+                ? 'border-warning/40'
+                : 'border-destructive/30',
               'bg-background p-3',
               'text-sm shadow-xl',
             ].join(' ')}
@@ -1252,9 +372,10 @@ export function UiFeedbackRegion() {
               className={[
                 'mt-0.5 size-4',
                 'shrink-0',
-                iconClass(
-                  incident.impact,
-                ),
+                incident.impact ===
+                  'feature-degraded'
+                  ? 'text-warning'
+                  : 'text-destructive',
               ].join(' ')}
             />
 
@@ -1266,9 +387,11 @@ export function UiFeedbackRegion() {
               </span>
 
               <span className="text-xs text-muted-foreground">
-                {impactLabel(
-                  incident.impact,
-                )}
+                {incident.impact ===
+                'feature-degraded'
+                  ? '功能受限'
+                  : '操作失败'}
+
                 {' · '}
                 {incident.code}
 
@@ -1314,444 +437,565 @@ export function UiFeedbackRegion() {
 }
 
 function selectVisibleFailures(
-  operations:
+  failures:
     readonly PresentedFailure[],
+): ToastFailure[] {
+  return failures.filter(
+    (
+      entry,
+    ): entry is ToastFailure => {
+      if (!entry.noticeVisible) {
+        return false
+      }
 
-  degradedFeatures:
-    ReadonlyMap<
-      string,
-      PresentedFailure
-    >,
-): PresentedFailure[] {
-  return [
-    ...operations,
-
-    ...[
-      ...degradedFeatures.values(),
-    ].filter(
-      (entry) =>
-        entry.noticeVisible,
-    ),
-  ]
-}
-
-function impactLabel(
-  impact: FailureImpact,
-): string {
-  switch (impact) {
-    case 'recoverable':
-      return '操作失败'
-
-    case 'feature-degraded':
-      return '功能受限'
-
-    case 'document-fatal':
-      return '文档已隔离'
-
-    case 'application-fatal':
-      return '应用错误'
-
-    case 'native-fatal':
-      return '原生错误'
-  }
-}
-
-function borderClass(
-  impact: FailureImpact,
-): string {
-  return impact ===
-    'feature-degraded'
-    ? 'border-warning/40'
-    : 'border-destructive/30'
-}
-
-function iconClass(
-  impact: FailureImpact,
-): string {
-  return impact ===
-    'feature-degraded'
-    ? 'text-warning'
-    : 'text-destructive'
-}
-`
-
-  await writeText(FILES.uiFeedback, source)
-}
-
-async function writeDocumentReporter() {
-  const source = `import type { EditorSessionFailure } from '@hybrid-canvas/canvas/react'
-import { reportFailure } from './failure-policy'
-
-export function reportDocumentFatal(
-  failure: EditorSessionFailure,
-): void {
-  reportFailure(
-    'DOCUMENT_EDITOR_SESSION_FATAL',
-    {
-      cause: failure.error,
-
-      sessionId:
-        failure.sessionId,
-
-      errorName:
-        failure.error.name,
-
-      ...optionalProperty(
-        'stack',
-        failure.error.stack,
-      ),
-
-      ...optionalProperty(
-        'componentStack',
-        failure.componentStack,
-      ),
-
-      collector:
-        'editor-session-boundary',
-
-      operation:
-        'render-editor-session',
+      return (
+        entry.incident.impact ===
+          'recoverable' ||
+        entry.incident.impact ===
+          'feature-degraded'
+      )
     },
   )
 }
-
-function optionalProperty<
-  Key extends string,
-  Value,
->(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
-}
 `
 
-  await writeText(FILES.documentReporter, source)
+  await writeFile(resolvePath(FILES.uiFeedback), normalizeText(source), 'utf8')
+
+  console.log(FILES.uiFeedback + ': unreachable branches removed.')
 }
 
-async function writeDocumentSurface() {
-  const source = `import { DangerTriangle } from '@mynaui/icons-react'
+async function rewriteFeatureCheck() {
+  const source = `#!/usr/bin/env node
+
 import {
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from 'react'
-import { failureCoordinator } from '../../application/failures/failure-coordinator'
-import { formatFailureDiagnostic } from '../../application/failures/failure-diagnostic'
+  existsSync,
+  readFileSync,
+} from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
 
-export interface DocumentQuarantineSurfaceProps {
-  readonly sessionId: string
-  readonly onClose: () => void
+const ROOT = process.cwd()
+const failures = []
+
+const files = {
+  policy:
+    'apps/desktop/src/application/failures/failure-policy.ts',
+
+  coordinator:
+    'apps/desktop/src/application/failures/failure-coordinator.ts',
+
+  titleBar:
+    'apps/desktop/src/presentation/chrome/DesktopTitleBar.tsx',
+
+  appShell:
+    'apps/desktop/src/presentation/AppShell.tsx',
+
+  workspace:
+    'apps/desktop/src/presentation/workspace/WorkspaceContainer.tsx',
 }
 
-export function DocumentQuarantineSurface({
-  sessionId,
-  onClose,
-}: DocumentQuarantineSurfaceProps) {
-  const snapshot =
-    useSyncExternalStore(
-      failureCoordinator.subscribe,
-      failureCoordinator.getSnapshot,
-      failureCoordinator.getSnapshot,
+for (
+  const relativePath of
+  Object.values(files)
+) {
+  if (
+    !existsSync(
+      path.join(
+        ROOT,
+        relativePath,
+      ),
     )
+  ) {
+    failures.push(
+      'Missing feature degradation file: ' +
+        relativePath,
+    )
+  }
+}
 
-  const [
-    copyState,
-    setCopyState,
-  ] = useState<
-    'idle' | 'copied' | 'failed'
-  >('idle')
+if (failures.length === 0) {
+  const policy =
+    read(files.policy)
 
-  const failure =
-    snapshot.quarantinedDocuments.get(
-      sessionId,
-    )?.incident
+  const coordinator =
+    read(files.coordinator)
 
-  const diagnostic = useMemo(
-    () =>
-      failure
-        ? formatFailureDiagnostic(
-            failure,
-          )
-        : [
-            'Hybrid Canvas Document Failure',
-            '',
-            'Session ID: ' +
-              sessionId,
+  const titleBar =
+    read(files.titleBar)
 
-            '错误码: DOCUMENT_EDITOR_SESSION_FATAL',
-          ].join('\\n'),
+  const appShell =
+    read(files.appShell)
 
-    [failure, sessionId],
+  const workspace =
+    read(files.workspace)
+
+  requireText(
+    policy,
+    'DEGRADABLE_FEATURE_IDS',
+    'Feature IDs are not centrally defined.',
   )
 
-  const copyDiagnostic =
-    async (): Promise<void> => {
-      try {
-        await navigator.clipboard.writeText(
-          diagnostic,
-        )
-
-        setCopyState('copied')
-      } catch {
-        setCopyState('failed')
-      }
-    }
-
-  return (
-    <section
-      aria-label="当前画布不可用"
-      aria-live="assertive"
-      className="grid size-full place-items-center px-6 py-10"
-      role="alert"
-    >
-      <div className="flex w-full max-w-md items-start gap-3">
-        <DangerTriangle
-          aria-hidden="true"
-          className="mt-0.5 size-5 shrink-0 text-destructive"
-        />
-
-        <div className="grid min-w-0 flex-1 gap-3">
-          <div className="grid gap-1">
-            <h1 className="text-base font-medium tracking-tight">
-              此画布暂时无法继续
-            </h1>
-
-            <p className="text-sm leading-6 text-muted-foreground">
-              为保护其他画布，当前画布已停止运行。其他画布不受影响。
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <button
-              className="text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={onClose}
-              type="button"
-            >
-              关闭画布
-            </button>
-
-            <button
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => {
-                void copyDiagnostic()
-              }}
-              type="button"
-            >
-              {copyState ===
-              'copied'
-                ? '已复制诊断信息'
-                : copyState ===
-                    'failed'
-                  ? '复制失败'
-                  : '复制诊断信息'}
-            </button>
-          </div>
-
-          <p className="text-xs text-muted-foreground/70">
-            {failure?.code ??
-              'DOCUMENT_EDITOR_SESSION_FATAL'}
-          </p>
-        </div>
-      </div>
-    </section>
+  requireText(
+    coordinator,
+    'degradedFeatures:',
+    'Coordinator does not own degraded feature incidents.',
   )
+
+  requireText(
+    appShell,
+    'failureSnapshot.degradedFeatures.has(',
+    'AppShell does not query coordinator feature state directly.',
+  )
+
+  forbidText(
+    appShell,
+    'createFeatureAvailability',
+    'Redundant feature availability projection remains.',
+  )
+
+  requireText(
+    workspace,
+    'windowControlsDisabled',
+    'Window controls degradation is not enforced.',
+  )
+
+  requireText(
+    workspace,
+    'windowDraggingDisabled',
+    'Window dragging degradation is not enforced.',
+  )
+
+  requireText(
+    titleBar,
+    'disabled={',
+    'Window buttons are not disabled.',
+  )
+
+  requireText(
+    titleBar,
+    'windowDraggingDisabled',
+    'Title bar does not reject degraded dragging.',
+  )
+}
+
+if (failures.length > 0) {
+  console.error(
+    [
+      'Feature degradation checks failed:',
+      ...failures.map(
+        (failure) =>
+          '- ' + failure,
+      ),
+    ].join('\\n'),
+  )
+
+  process.exitCode = 1
+} else {
+  process.stdout.write(
+    'Feature degradation checks passed.\\n',
+  )
+}
+
+function read(relativePath) {
+  return readFileSync(
+    path.join(
+      ROOT,
+      relativePath,
+    ),
+    'utf8',
+  )
+}
+
+function requireText(
+  source,
+  expected,
+  failure,
+) {
+  if (!source.includes(expected)) {
+    failures.push(failure)
+  }
+}
+
+function forbidText(
+  source,
+  forbidden,
+  failure,
+) {
+  if (source.includes(forbidden)) {
+    failures.push(failure)
+  }
 }
 `
 
-  await writeText(FILES.documentSurface, source)
+  await writeFile(resolvePath(FILES.featureCheck), normalizeText(source), 'utf8')
 }
 
-async function migrateAppShell() {
-  const file = resolvePath(FILES.appShell)
+async function rewriteConvergenceCheck() {
+  const source = `#!/usr/bin/env node
 
-  let source = await readFile(file, 'utf8')
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
 
-  source = source.replace(
-    "import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'\n",
-    '',
-  )
+const ROOT = process.cwd()
+const failures = []
 
-  source = source.replace(
-    "import { failureCoordinator } from '../application/failures/failure-coordinator'",
-    [
-      "import { failureCoordinator } from '../application/failures/failure-coordinator'",
-      "import { reportFailure } from '../application/failures/failure-policy'",
-    ].join('\n'),
-  )
+const required = [
+  'apps/desktop/src/application/failures/failure-coordinator.ts',
+  'apps/desktop/src/application/failures/failure-diagnostic.ts',
+  'apps/desktop/src/application/failures/failure-policy.ts',
+  'apps/desktop/src/application/failures/failure-coordinator.test.ts',
+  'apps/desktop/src/fatal/fatal-runtime.ts',
+]
 
-  source = source.replace(
-    "import { reportUiFailure as reportFailure, UiFeedbackRegion } from './ui/ui-feedback'",
-    "import { UiFeedbackRegion } from './ui/ui-feedback'",
-  )
+const forbiddenFiles = [
+  'apps/desktop/src/application/failures/failure-runtime.ts',
+  'apps/desktop/src/application/failures/feature-availability.ts',
+  'apps/desktop/src/fatal/fatal-controller.ts',
+  'apps/desktop/src/fatal/fatal-incident.ts',
+  'tests/architecture/check-failure-severity-architecture.mjs',
+  'tests/architecture/check-fatal-escalation-policy.mjs',
+  'refactor.mjs',
+]
 
-  source = source.replaceAll('reportDiagnosticError(', 'reportFailure(')
-
-  source = replaceFailureCodes(source)
-
-  source = source.replace(
-    `  const [failedCanvasTitle, setFailedCanvasTitle] = useState<string | null>(null)
-
-`,
-    '',
-  )
-
-  source = source.replaceAll('        setFailedCanvasTitle(null)\n', '')
-
-  source = source.replaceAll('        setFailedCanvasTitle(title)\n', '')
-
-  source = source.replace(
-    'createFeatureAvailability(failureSnapshot.degradedFeatures)',
-    'createFeatureAvailability([...failureSnapshot.degradedFeatures.keys()])',
-  )
-
-  source = source.replace(
-    'degradedFeatures={failureSnapshot.degradedFeatures}',
-    'degradedFeatures={[...failureSnapshot.degradedFeatures.keys()]}',
-  )
-
-  source = removeCreateFailureDialog(source)
-
-  await writeFile(file, normalizeText(source), 'utf8')
-
-  console.log(FILES.appShell + ': migrated.')
-}
-
-async function migrateWorkspace() {
-  const file = resolvePath(FILES.workspace)
-
-  let source = await readFile(file, 'utf8')
-
-  source = source.replace(
-    "import { reportUiFailure as reportFailure } from '../ui/ui-feedback'",
-    "import { reportFailure } from '../../application/failures/failure-policy'",
-  )
-
-  source = replaceFailureCodes(source)
-
-  source = source.replace(
-    'for (const sessionId of failureSnapshot.quarantinedDocuments) {',
-    'for (const sessionId of failureSnapshot.quarantinedDocuments.keys()) {',
-  )
-
-  source = source.replace(
-    'quarantinedSessionIds: failureSnapshot.quarantinedDocuments,',
-    'quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],',
-  )
-
-  await writeFile(file, normalizeText(source), 'utf8')
-
-  console.log(FILES.workspace + ': migrated.')
-}
-
-async function strengthenArchitectureCheck() {
-  const file = resolvePath(FILES.architectureCheck)
-
-  let source = await readFile(file, 'utf8')
-
-  source = source.replace(
-    `  'apps/desktop/src/application/failures/failure-diagnostic.ts',`,
-    `  'apps/desktop/src/application/failures/failure-diagnostic.ts',
-  'apps/desktop/src/application/failures/failure-policy.ts',`,
-  )
-
-  source = source.replace(
-    `      'failureRuntime',`,
-    `      'failureRuntime',
-      'UI_FAILURE_POLICIES',
-      'reportUiFailure',`,
-  )
-
-  await writeFile(file, normalizeText(source), 'utf8')
-}
-
-async function verifyConvergence() {
-  const files = [FILES.appShell, FILES.workspace, FILES.uiFeedback, FILES.documentReporter]
-
-  const violations = []
-
-  for (const relativePath of files) {
-    const source = await readFile(resolvePath(relativePath), 'utf8')
-
-    for (const forbidden of [
-      'reportUiFailure',
-      'UI_FAILURE_POLICIES',
-      'reportDiagnosticError',
-      'snapshot.failures',
-    ]) {
-      if (source.includes(forbidden)) {
-        violations.push(relativePath + ': ' + forbidden)
-      }
-    }
-  }
-
-  const coordinator = await readFile(resolvePath(FILES.coordinator), 'utf8')
-
-  for (const required of [
-    'readonly operations:',
-    'readonly degradedFeatures:',
-    'readonly quarantinedDocuments:',
-    'reportDiagnosticError(',
-  ]) {
-    if (!coordinator.includes(required)) {
-      violations.push(FILES.coordinator + ': missing ' + required)
-    }
-  }
-
-  if (violations.length > 0) {
-    throw new Error(
-      [
-        'Failure policy convergence verification failed:',
-        ...violations.map((violation) => '- ' + violation),
-      ].join('\n'),
+for (const file of required) {
+  if (
+    !existsSync(
+      path.join(ROOT, file),
+    )
+  ) {
+    failures.push(
+      'Missing unified failure file: ' +
+        file,
     )
   }
 }
 
-function replaceFailureCodes(source) {
-  let result = source
+for (const file of forbiddenFiles) {
+  if (
+    existsSync(
+      path.join(ROOT, file),
+    )
+  ) {
+    failures.push(
+      'Obsolete failure artifact remains: ' +
+        file,
+    )
+  }
+}
 
-  for (const [oldName, code] of Object.entries(FAILURE_CODE_REPLACEMENTS)) {
-    result = result.replaceAll("'" + oldName + "'", "'" + code + "'")
+if (failures.length === 0) {
+  const coordinator =
+    read(required[0])
+
+  requireText(
+    coordinator,
+    'readonly terminal:',
+    'Coordinator does not own terminal state.',
+  )
+
+  requireText(
+    coordinator,
+    'readonly operations:',
+    'Coordinator does not own operation failures.',
+  )
+
+  requireText(
+    coordinator,
+    'readonly degradedFeatures:',
+    'Coordinator does not own feature degradation.',
+  )
+
+  requireText(
+    coordinator,
+    'readonly quarantinedDocuments:',
+    'Coordinator does not own document quarantine.',
+  )
+
+  scanProductionSources()
+}
+
+if (failures.length > 0) {
+  console.error(
+    [
+      'Failure architecture convergence checks failed:',
+      ...failures.map(
+        (failure) =>
+          '- ' + failure,
+      ),
+    ].join('\\n'),
+  )
+
+  process.exitCode = 1
+} else {
+  process.stdout.write(
+    'Failure architecture convergence checks passed.\\n',
+  )
+}
+
+function scanProductionSources() {
+  for (
+    const file of walk(
+      'apps/desktop/src',
+    )
+  ) {
+    if (
+      !file.endsWith('.ts') &&
+      !file.endsWith('.tsx')
+    ) {
+      continue
+    }
+
+    const source = read(file)
+
+    for (
+      const forbiddenText of [
+        'FatalIncidentController',
+        'fatalIncidentController',
+        'FailureRuntime',
+        'failureRuntime',
+        'UI_FAILURE_POLICIES',
+        'reportUiFailure',
+        'createFeatureAvailability',
+      ]
+    ) {
+      if (
+        source.includes(
+          forbiddenText,
+        )
+      ) {
+        failures.push(
+          'Legacy failure symbol ' +
+            forbiddenText +
+            ' remains in ' +
+            file +
+            '.',
+        )
+      }
+    }
+  }
+}
+
+function walk(relativeDirectory) {
+  const result = []
+
+  for (
+    const entry of
+    readdirSync(
+      path.join(
+        ROOT,
+        relativeDirectory,
+      ),
+      {
+        withFileTypes: true,
+      },
+    )
+  ) {
+    const relativePath =
+      path.posix.join(
+        relativeDirectory,
+        entry.name,
+      )
+
+    if (entry.isDirectory()) {
+      result.push(
+        ...walk(relativePath),
+      )
+    } else {
+      result.push(
+        relativePath,
+      )
+    }
   }
 
   return result
 }
 
-function removeCreateFailureDialog(source) {
-  const start = source.indexOf(
-    `      <ConfirmationDialog
-        cancelLabel="取消"
-        confirmLabel="重试"`,
+function read(relativePath) {
+  return readFileSync(
+    path.join(
+      ROOT,
+      relativePath,
+    ),
+    'utf8',
   )
+}
 
-  if (start === -1) {
+function requireText(
+  source,
+  expected,
+  failure,
+) {
+  if (!source.includes(expected)) {
+    failures.push(failure)
+  }
+}
+`
+
+  await writeFile(resolvePath(FILES.convergenceCheck), normalizeText(source), 'utf8')
+}
+
+async function markSupersededAdrs() {
+  for (const relativePath of SUPERSEDED_ADRS) {
+    const file = resolvePath(relativePath)
+
+    let source = await readFile(file, 'utf8')
+
+    if (source.includes('\\n')) {
+      source = source.replaceAll('\\n', '\n')
+    }
+
+    source = source.replace('- Status: Accepted', '- Status: Superseded')
+
+    if (!source.includes('- Superseded by: ADR-011')) {
+      source = source.replace(
+        '- Status: Superseded',
+        ['- Status: Superseded', '- Superseded by: ADR-011'].join('\n'),
+      )
+    }
+
+    await writeFile(file, normalizeText(source), 'utf8')
+
+    console.log(relativePath + ': marked superseded.')
+  }
+}
+
+async function updateGitignore() {
+  const file = resolvePath(FILES.gitignore)
+
+  let source = await readFile(file, 'utf8')
+
+  const block = `# One-off repository migration scripts
+/refactor*.mjs
+/repair-*.mjs
+/converge-*.mjs
+/apply-*.mjs
+/cleanup-*.mjs
+`
+
+  if (!source.includes('# One-off repository migration scripts')) {
+    source = source.trimEnd() + '\n\n' + block
+  }
+
+  await writeFile(file, normalizeText(source), 'utf8')
+}
+
+async function verifyCleanup() {
+  const violations = []
+
+  for (const relativePath of DEAD_FILES) {
+    if (await fileExists(resolvePath(relativePath))) {
+      violations.push(relativePath + ': still exists')
+    }
+  }
+
+  const appShell = await readFile(resolvePath(FILES.appShell), 'utf8')
+
+  for (const forbidden of ['createFeatureAvailability', 'featureAvailability']) {
+    if (appShell.includes(forbidden)) {
+      violations.push(FILES.appShell + ': ' + forbidden)
+    }
+  }
+
+  const feedback = await readFile(resolvePath(FILES.uiFeedback), 'utf8')
+
+  for (const forbidden of [
+    "case 'document-fatal'",
+    "case 'application-fatal'",
+    "case 'native-fatal'",
+  ]) {
+    if (feedback.includes(forbidden)) {
+      violations.push(FILES.uiFeedback + ': ' + forbidden)
+    }
+  }
+
+  if (violations.length > 0) {
+    throw new Error(
+      ['Cleanup verification failed:', ...violations.map((violation) => '- ' + violation)].join(
+        '\n',
+      ),
+    )
+  }
+}
+
+function replaceCallbackDependency(source, startMarker, endMarker, dependency, file) {
+  const startIndex = source.indexOf(startMarker)
+
+  const endIndex = source.indexOf(endMarker, startIndex)
+
+  if (startIndex === -1 || endIndex === -1) {
+    throw new Error(['Could not locate callback section in', file + ':', startMarker].join(' '))
+  }
+
+  const section = source.slice(startIndex, endIndex)
+
+  const dependencyPattern =
+    /\[\s*(?:featureAvailability|windowControlsUnavailable|developerToolsUnavailable|windowDraggingUnavailable),\s*runtime\.mainWindow\s*\]/
+
+  const expected = '[' + dependency + ', runtime.mainWindow]'
+
+  if (!dependencyPattern.test(section)) {
+    if (section.includes(expected)) {
+      return source
+    }
+
+    throw new Error(
+      ['Could not locate main-window dependency array in', file + ':', startMarker].join(' '),
+    )
+  }
+
+  const updatedSection = section.replace(dependencyPattern, expected)
+
+  return source.slice(0, startIndex) + updatedSection + source.slice(endIndex)
+}
+
+function replaceRequired(source, oldText, newText, file) {
+  if (source.includes(newText)) {
     return source
   }
 
-  const next = source.indexOf(
-    `      <ConfirmationDialog
-        confirmLabel="放弃全部并退出"`,
-    start,
-  )
-
-  if (next === -1) {
-    throw new Error('Could not locate termination confirmation dialog.')
+  if (!source.includes(oldText)) {
+    throw new Error('Could not find expected text in ' + file + ': ' + oldText)
   }
 
-  return source.slice(0, start) + source.slice(next)
+  return source.replace(oldText, newText)
 }
 
-async function writeText(relativePath, source) {
-  await writeFile(resolvePath(relativePath), normalizeText(source), 'utf8')
+function replaceNthRequired(source, oldText, newText, occurrence, file) {
+  let searchFrom = 0
+  let index = -1
 
-  console.log(relativePath + ': written.')
+  for (let count = 0; count < occurrence; count += 1) {
+    index = source.indexOf(oldText, searchFrom)
+
+    if (index === -1) {
+      throw new Error(
+        'Could not find occurrence ' + String(occurrence) + ' in ' + file + ': ' + oldText,
+      )
+    }
+
+    searchFrom = index + oldText.length
+  }
+
+  return source.slice(0, index) + newText + source.slice(index + oldText.length)
+}
+
+async function fileExists(absolutePath) {
+  try {
+    await readFile(absolutePath, 'utf8')
+
+    return true
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return false
+    }
+
+    throw error
+  }
 }
 
 function normalizeText(source) {
@@ -1764,7 +1008,7 @@ function resolvePath(relativePath) {
 
 main().catch((error) => {
   console.error('')
-  console.error('Failure policy convergence failed.')
+  console.error('Failure architecture cleanup failed.')
 
   console.error(error instanceof Error ? (error.stack ?? error.message) : error)
 

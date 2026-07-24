@@ -8,7 +8,9 @@ const ROOT = process.cwd()
 const failures = []
 
 const files = {
-  policy: 'apps/desktop/src/application/failures/feature-availability.ts',
+  policy: 'apps/desktop/src/application/failures/failure-policy.ts',
+
+  coordinator: 'apps/desktop/src/application/failures/failure-coordinator.ts',
 
   titleBar: 'apps/desktop/src/presentation/chrome/DesktopTitleBar.tsx',
 
@@ -19,12 +21,14 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push(`Missing feature degradation file: ${relativePath}`)
+    failures.push('Missing feature degradation file: ' + relativePath)
   }
 }
 
 if (failures.length === 0) {
   const policy = read(files.policy)
+
+  const coordinator = read(files.coordinator)
 
   const titleBar = read(files.titleBar)
 
@@ -32,49 +36,43 @@ if (failures.length === 0) {
 
   const workspace = read(files.workspace)
 
-  requireText(policy, 'createFeatureAvailability', 'Feature availability policy is missing.')
+  requireText(policy, 'DEGRADABLE_FEATURE_IDS', 'Feature IDs are not centrally defined.')
+
+  requireText(
+    coordinator,
+    'degradedFeatures:',
+    'Coordinator does not own degraded feature incidents.',
+  )
 
   requireText(
     appShell,
-    'failureSnapshot.degradedFeatures',
-    'AppShell does not consume degraded feature state.',
+    'failureSnapshot.degradedFeatures.has(',
+    'AppShell does not query coordinator feature state directly.',
   )
 
-  requireText(appShell, "'settings'", 'Settings degradation is not enforced.')
-
-  requireText(appShell, "'developer-tools'", 'Developer tools degradation is not enforced.')
-
-  requireText(
-    workspace,
-    'windowControlsDisabled',
-    'Workspace does not enforce degraded window controls.',
+  forbidText(
+    appShell,
+    'createFeatureAvailability',
+    'Redundant feature availability projection remains.',
   )
 
-  requireText(
-    workspace,
-    'windowDraggingDisabled',
-    'Workspace does not enforce degraded window dragging.',
-  )
+  requireText(workspace, 'windowControlsDisabled', 'Window controls degradation is not enforced.')
 
-  requireText(titleBar, 'disabled={', 'Window buttons are not actually disabled.')
+  requireText(workspace, 'windowDraggingDisabled', 'Window dragging degradation is not enforced.')
+
+  requireText(titleBar, 'disabled={', 'Window buttons are not disabled.')
 
   requireText(titleBar, 'windowDraggingDisabled', 'Title bar does not reject degraded dragging.')
-
-  requireOrdering(
-    workspace,
-    'const workbench = useSyncExternalStore(',
-    'useEffect(() => {',
-    'Workspace workbench must be declared before the quarantine cleanup effect.',
-  )
 }
 
 if (failures.length > 0) {
   console.error(
-    ['Feature degradation checks failed:', ...failures.map((failure) => `- ${failure}`)].join('\n'),
+    ['Feature degradation checks failed:', ...failures.map((failure) => '- ' + failure)].join('\n'),
   )
 
   process.exitCode = 1
 } else {
+  process.stdout.write('Feature degradation checks passed.\n')
 }
 
 function read(relativePath) {
@@ -87,12 +85,8 @@ function requireText(source, expected, failure) {
   }
 }
 
-function requireOrdering(source, first, second, failure) {
-  const firstIndex = source.indexOf(first)
-
-  const secondIndex = source.indexOf(second)
-
-  if (firstIndex === -1 || secondIndex === -1 || firstIndex > secondIndex) {
+function forbidText(source, forbidden, failure) {
+  if (source.includes(forbidden)) {
     failures.push(failure)
   }
 }

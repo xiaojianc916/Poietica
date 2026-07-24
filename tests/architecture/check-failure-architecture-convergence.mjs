@@ -15,21 +15,25 @@ const required = [
   'apps/desktop/src/fatal/fatal-runtime.ts',
 ]
 
-const forbidden = [
+const forbiddenFiles = [
   'apps/desktop/src/application/failures/failure-runtime.ts',
+  'apps/desktop/src/application/failures/feature-availability.ts',
   'apps/desktop/src/fatal/fatal-controller.ts',
   'apps/desktop/src/fatal/fatal-incident.ts',
+  'tests/architecture/check-failure-severity-architecture.mjs',
+  'tests/architecture/check-fatal-escalation-policy.mjs',
+  'refactor.mjs',
 ]
 
 for (const file of required) {
   if (!existsSync(path.join(ROOT, file))) {
-    failures.push(`Missing unified failure file: ${file}`)
+    failures.push('Missing unified failure file: ' + file)
   }
 }
 
-for (const file of forbidden) {
+for (const file of forbiddenFiles) {
   if (existsSync(path.join(ROOT, file))) {
-    failures.push(`Legacy parallel failure system remains: ${file}`)
+    failures.push('Obsolete failure artifact remains: ' + file)
   }
 }
 
@@ -38,7 +42,7 @@ if (failures.length === 0) {
 
   requireText(coordinator, 'readonly terminal:', 'Coordinator does not own terminal state.')
 
-  requireText(coordinator, 'readonly failures:', 'Coordinator does not own recoverable state.')
+  requireText(coordinator, 'readonly operations:', 'Coordinator does not own operation failures.')
 
   requireText(
     coordinator,
@@ -49,7 +53,7 @@ if (failures.length === 0) {
   requireText(
     coordinator,
     'readonly quarantinedDocuments:',
-    'Coordinator does not own document isolation.',
+    'Coordinator does not own document quarantine.',
   )
 
   scanProductionSources()
@@ -59,7 +63,7 @@ if (failures.length > 0) {
   console.error(
     [
       'Failure architecture convergence checks failed:',
-      ...failures.map((failure) => `- ${failure}`),
+      ...failures.map((failure) => '- ' + failure),
     ].join('\n'),
   )
 
@@ -83,9 +87,10 @@ function scanProductionSources() {
       'failureRuntime',
       'UI_FAILURE_POLICIES',
       'reportUiFailure',
+      'createFeatureAvailability',
     ]) {
       if (source.includes(forbiddenText)) {
-        failures.push(`Legacy failure symbol ${forbiddenText} remains in ${file}.`)
+        failures.push('Legacy failure symbol ' + forbiddenText + ' remains in ' + file + '.')
       }
     }
   }

@@ -204,3 +204,7 @@ dev-output.txt
 # Tauri 应用图标是源码资产，必须纳入版本控制。
 !apps/desktop/src-tauri/icons/
 !apps/desktop/src-tauri/icons/**
+
+# One-off repository migration scripts
+/refactor.mjs
+

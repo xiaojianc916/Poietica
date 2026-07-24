@@ -1,6 +1,7 @@
 # ADR-006: Explicit fatal escalation policy
 
-- Status: Accepted
+- Status: Superseded
+- Superseded by: ADR-011
 - Date: 2026-07-24
 - Scope: Desktop renderer and native crash recovery
 
