@@ -1,5 +1,6 @@
 import type { FailurePhase, TerminalFailureInput } from './fatal-runtime'
 import { isReactFatalHostMounted, reportFatalIncident } from './fatal-runtime'
+import { isBenignWindowError } from './window-error-policy'
 
 interface ViteHotContext {
   readonly on: (event: string, listener: (payload: unknown) => void) => void
@@ -43,6 +44,21 @@ export function installFatalCollectors(): void {
 
 function handleWindowError(event: Event): void {
   if (!(event instanceof ErrorEvent)) {
+    return
+  }
+
+  if (isBenignWindowError(event)) {
+    /*
+     * Chromium and WebKit may dispatch ResizeObserver loop
+     * scheduling notifications through window.error when
+     * an animated layout invalidates observed bounds during
+     * the same frame.
+     *
+     * This does not indicate lost application state or an
+     * unsafe runtime, so it must not enter the terminal
+     * failure path.
+     */
+    event.preventDefault()
     return
   }
 
