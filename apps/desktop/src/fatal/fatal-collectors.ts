@@ -1,4 +1,4 @@
-import type { CreateFatalIncidentInput, FatalIncidentPhase } from './fatal-incident'
+import type { FailurePhase, TerminalFailureInput } from './fatal-runtime'
 import { isReactFatalHostMounted, reportFatalIncident } from './fatal-runtime'
 
 interface ViteHotContext {
@@ -50,7 +50,7 @@ function handleWindowError(event: Event): void {
 
   const capturedError = event.error ?? event.message ?? 'Unhandled window error'
 
-  const input: CreateFatalIncidentInput = {
+  const input: TerminalFailureInput = {
     error: capturedError,
     kind: reactMounted ? 'async' : 'bootstrap',
     phase: currentPhase(),
@@ -75,7 +75,7 @@ function handleWindowError(event: Event): void {
 function handleUnhandledRejection(event: PromiseRejectionEvent): void {
   const reactMounted = isReactFatalHostMounted()
 
-  const input: CreateFatalIncidentInput = {
+  const input: TerminalFailureInput = {
     error: event.reason,
     kind: reactMounted ? 'async' : 'bootstrap',
     phase: currentPhase(),
@@ -97,7 +97,7 @@ function handleUnhandledRejection(event: PromiseRejectionEvent): void {
 function handleViteDiagnostic(payload: unknown): void {
   const viteError = parseViteError(payload)
 
-  const input: CreateFatalIncidentInput = {
+  const input: TerminalFailureInput = {
     error: viteError.error,
     kind: 'vite',
     phase: currentPhase(),
@@ -116,7 +116,7 @@ function handleViteDiagnostic(payload: unknown): void {
   emergencyLogIncident(incident)
 }
 
-function currentPhase(): FatalIncidentPhase {
+function currentPhase(): FailurePhase {
   return isReactFatalHostMounted() ? 'running' : 'react-mount'
 }
 

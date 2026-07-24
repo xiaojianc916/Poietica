@@ -26,7 +26,7 @@ import {
 } from '@hybrid-canvas/workspace/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
-import { failureRuntime } from '../../application/failures/failure-runtime'
+import { failureCoordinator } from '../../application/failures/failure-coordinator'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { reportUiFailure as reportFailure } from '../ui/ui-feedback'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
@@ -98,9 +98,9 @@ export function WorkspaceContainer({
   )
 
   const failureSnapshot = useSyncExternalStore(
-    failureRuntime.subscribe,
-    failureRuntime.getSnapshot,
-    failureRuntime.getSnapshot,
+    failureCoordinator.subscribe,
+    failureCoordinator.getSnapshot,
+    failureCoordinator.getSnapshot,
   )
 
   useEffect(() => {
@@ -113,7 +113,7 @@ export function WorkspaceContainer({
         continue
       }
 
-      failureRuntime.resolveScope({
+      failureCoordinator.resolveScope({
         kind: 'document',
         documentId: sessionId,
       })

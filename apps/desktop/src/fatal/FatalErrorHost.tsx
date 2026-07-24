@@ -1,7 +1,7 @@
 import { type ReactNode, useSyncExternalStore } from 'react'
+import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { FatalErrorBoundary } from './FatalErrorBoundary'
 import { FatalErrorScreen } from './FatalErrorScreen'
-import { fatalIncidentController } from './fatal-runtime'
 
 export interface FatalErrorHostProps {
   readonly children: ReactNode
@@ -9,16 +9,16 @@ export interface FatalErrorHostProps {
 
 export function FatalErrorHost({ children }: FatalErrorHostProps) {
   const snapshot = useSyncExternalStore(
-    fatalIncidentController.subscribe,
-    fatalIncidentController.getSnapshot,
-    fatalIncidentController.getSnapshot,
+    failureCoordinator.subscribe,
+    failureCoordinator.getSnapshot,
+    failureCoordinator.getSnapshot,
   )
 
-  if (snapshot.status === 'fatal') {
+  if (snapshot.terminal) {
     return (
       <FatalErrorScreen
-        additionalIncidentCount={snapshot.additionalIncidentCount}
-        incident={snapshot.incident}
+        additionalIncidentCount={snapshot.terminal.additionalIncidentCount}
+        incident={snapshot.terminal.incident}
       />
     )
   }

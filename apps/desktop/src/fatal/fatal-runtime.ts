@@ -1,32 +1,89 @@
-import type { FailureImpact } from '@hybrid-canvas/foundations-kernel'
-import { FatalIncidentController } from './fatal-controller'
-import type { CreateFatalIncidentInput, FatalIncident } from './fatal-incident'
+import type { FailureRecovery, TerminalFailureImpact } from '@hybrid-canvas/foundations-kernel'
+import {
+  failureCoordinator,
+  type FailureIncident,
+} from '../application/failures/failure-coordinator'
 
-/**
- * Fatal escalation is deliberately restricted to process-wide failure.
- *
- * Recoverable, feature-degraded and document-scoped failures must not
- * enter the global fatal state machine.
- */
-export type FatalEscalationImpact = Extract<FailureImpact, 'application-fatal' | 'native-fatal'>
+export type FailureKind =
+  | 'bootstrap'
+  | 'render'
+  | 'async'
+  | 'invariant'
+  | 'vite'
+  | 'webview'
+  | 'native-crash'
 
-export interface FatalEscalationInput extends CreateFatalIncidentInput {
-  readonly impact: FatalEscalationImpact
+export type FailurePhase =
+  | 'preflight'
+  | 'runtime-construction'
+  | 'react-mount'
+  | 'running'
+  | 'shutdown'
+
+export interface TerminalFailureInput {
+  readonly error: unknown
+  readonly impact: TerminalFailureImpact
+
+  readonly kind: FailureKind
+  readonly phase: FailurePhase
+  readonly code?: string
+  readonly title?: string
+
+  readonly componentStack?: string | null
+
+  readonly source?: string
+  readonly line?: number
+  readonly column?: number
+
+  readonly recovery?: Extract<FailureRecovery, 'reload' | 'restart' | 'exit' | 'none'>
+
+  readonly context?: Readonly<Record<string, unknown>>
 }
 
-export const fatalIncidentController = new FatalIncidentController()
+export function reportFatalIncident(input: TerminalFailureInput): FailureIncident {
+  const code = input.code ?? createDefaultCode(input.kind, input.phase)
 
-/**
- * The only production gateway allowed to enter terminal fatal state.
- */
-export function reportFatalIncident(input: FatalEscalationInput): FatalIncident {
-  const { impact, ...incidentInput } = input
+  return failureCoordinator.report({
+    impact: input.impact,
 
-  return fatalIncidentController.report({
-    ...incidentInput,
+    code,
+
+    userMessage:
+      input.impact === 'native-fatal'
+        ? 'Hybrid Canvas 上次运行时异常终止。请复制诊断信息后继续启动。'
+        : 'Hybrid Canvas 无法安全地继续当前运行。请复制诊断信息后重新加载应用。',
+
+    cause: input.error,
+
+    scope:
+      input.impact === 'native-fatal'
+        ? {
+            kind: 'native-process',
+          }
+        : {
+            kind: 'application',
+          },
+
+    recovery: input.recovery ?? (input.impact === 'native-fatal' ? 'reload' : 'reload'),
+
     context: {
-      ...(incidentInput.context ?? {}),
-      failureImpact: impact,
+      ...(input.context ?? {}),
+      failureKind: input.kind,
+      failurePhase: input.phase,
+      ...optionalProperty('presentationTitle', input.title),
+    },
+
+    diagnostic: {
+      kind: input.kind,
+      phase: input.phase,
+
+      ...optionalProperty('componentStack', input.componentStack ?? undefined),
+
+      ...optionalProperty('source', input.source),
+
+      ...optionalProperty('line', input.line),
+
+      ...optionalProperty('column', input.column),
     },
   })
 }
@@ -39,4 +96,26 @@ export function markReactFatalHostMounted(): void {
 
 export function isReactFatalHostMounted(): boolean {
   return reactFatalHostMounted
+}
+
+function createDefaultCode(kind: FailureKind, phase: FailurePhase): string {
+  return (
+    'FATAL_' +
+    kind.replaceAll('-', '_').toUpperCase() +
+    '_' +
+    phase.replaceAll('-', '_').toUpperCase()
+  )
+}
+
+function optionalProperty<Key extends string, Value>(
+  key: Key,
+  value: Value | undefined,
+): Partial<Record<Key, Value>> {
+  if (value === undefined) {
+    return {}
+  }
+
+  return {
+    [key]: value,
+  } as Record<Key, Value>
 }

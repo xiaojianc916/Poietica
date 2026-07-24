@@ -79,7 +79,7 @@ const RECOVERY_BY_IMPACT = {
 
   'application-fatal': new Set<FailureRecovery>(['reload', 'restart', 'exit', 'none']),
 
-  'native-fatal': new Set<FailureRecovery>(['restart', 'exit', 'none']),
+  'native-fatal': new Set<FailureRecovery>(['reload', 'restart', 'exit', 'none']),
 } satisfies Record<FailureImpact, ReadonlySet<FailureRecovery>>
 
 let failureSequence = 0

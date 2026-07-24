@@ -8,7 +8,7 @@ import type { CommandRegistry } from '@hybrid-canvas/workspace/application'
 import type { WorkbenchSessionStore } from '@hybrid-canvas/workspace/contracts'
 import { CommandPalette } from '@hybrid-canvas/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { failureRuntime } from '../application/failures/failure-runtime'
+import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { createFeatureAvailability } from '../application/failures/feature-availability'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
@@ -57,9 +57,9 @@ export function AppShell({ runtime }: AppShellProps) {
   const [failedCanvasTitle, setFailedCanvasTitle] = useState<string | null>(null)
 
   const failureSnapshot = useSyncExternalStore(
-    failureRuntime.subscribe,
-    failureRuntime.getSnapshot,
-    failureRuntime.getSnapshot,
+    failureCoordinator.subscribe,
+    failureCoordinator.getSnapshot,
+    failureCoordinator.getSnapshot,
   )
 
   const featureAvailability = useMemo(

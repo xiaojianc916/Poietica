@@ -1,6 +1,6 @@
 import type { EditorSessionFailure } from '@hybrid-canvas/canvas/react'
 import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'
-import { failureRuntime } from './failure-runtime'
+import { failureCoordinator } from './failure-coordinator'
 
 export function reportDocumentFatal(failure: EditorSessionFailure): void {
   const technicalMessage = failure.error.message || 'Editor session render failed.'
@@ -16,7 +16,7 @@ export function reportDocumentFatal(failure: EditorSessionFailure): void {
     failureImpact: 'document-fatal',
   })
 
-  failureRuntime.report({
+  failureCoordinator.report({
     impact: 'document-fatal',
     code: 'DOCUMENT_EDITOR_SESSION_FATAL',
     userMessage: '当前画布遇到严重错误，已被隔离。其他画布仍可继续使用。',

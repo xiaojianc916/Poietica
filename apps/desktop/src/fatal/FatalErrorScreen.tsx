@@ -1,20 +1,24 @@
 import { useMemo, useState } from 'react'
-import { type FatalIncident, formatFatalDiagnostic } from './fatal-incident'
+import { type FailureIncident } from '../application/failures/failure-coordinator'
+import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
 
 export interface FatalErrorScreenProps {
-  readonly incident: FatalIncident
+  readonly incident: FailureIncident
+
   readonly additionalIncidentCount?: number
 }
 
 export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: FatalErrorScreenProps) {
   const [copied, setCopied] = useState(false)
+
   const [copyFailed, setCopyFailed] = useState(false)
 
-  const diagnostic = useMemo(() => formatFatalDiagnostic(incident), [incident])
+  const diagnostic = useMemo(() => formatFailureDiagnostic(incident), [incident])
 
   const copyDiagnostic = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(diagnostic)
+
       setCopied(true)
       setCopyFailed(false)
     } catch {
@@ -23,6 +27,8 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
     }
   }
 
+  const title = incident.impact === 'native-fatal' ? '应用上次异常终止' : '应用遇到严重错误'
+
   return (
     <main aria-live="assertive" className="fatal-surface" role="alert">
       <section className="fatal-content">
@@ -30,9 +36,9 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
           <WarningIcon />
         </div>
 
-        <h1 className="fatal-title">{incident.title}</h1>
+        <h1 className="fatal-title">{title}</h1>
 
-        <p className="fatal-description">{incident.message}</p>
+        <p className="fatal-description">{incident.userMessage}</p>
 
         <p className="fatal-summary">
           {incident.code}
@@ -50,7 +56,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             onClick={() => window.location.reload()}
             type="button"
           >
-            <ReloadIcon />
             重新加载
           </button>
 
@@ -61,7 +66,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             }}
             type="button"
           >
-            <CopyIcon />
             {copied ? '已复制' : copyFailed ? '复制失败' : '复制诊断信息'}
           </button>
         </div>
@@ -90,42 +94,6 @@ function WarningIcon() {
       <path d="M12 8.5v4.25" />
       <path d="M12 16.25h.01" />
       <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
-    </svg>
-  )
-}
-
-function ReloadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="fatal-button-icon"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 6v5h-5" />
-      <path d="M19 11a7.5 7.5 0 1 0 .4 4" />
-    </svg>
-  )
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="fatal-button-icon"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <rect height="13" rx="2" width="13" x="8" y="8" />
-      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
     </svg>
   )
 }

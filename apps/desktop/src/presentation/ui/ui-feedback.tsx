@@ -7,9 +7,9 @@ import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-obser
 import { DangerCircle, X } from '@mynaui/icons-react'
 import { useEffect, useSyncExternalStore } from 'react'
 import {
-  failureRuntime,
+  failureCoordinator,
   type NonTerminalFailureInput,
-} from '../../application/failures/failure-runtime'
+} from '../../application/failures/failure-coordinator'
 
 interface UiFailurePolicy {
   readonly impact: NonTerminalFailureInput['impact']
@@ -175,29 +175,29 @@ export function reportUiFailure(
     failureRecovery: policy.recovery,
   })
 
-  failureRuntime.report(input)
+  failureCoordinator.report(input)
 }
 
 export function UiFeedbackRegion() {
   const snapshot = useSyncExternalStore(
-    failureRuntime.subscribe,
-    failureRuntime.getSnapshot,
-    failureRuntime.getSnapshot,
+    failureCoordinator.subscribe,
+    failureCoordinator.getSnapshot,
+    failureCoordinator.getSnapshot,
   )
 
   useEffect(() => {
     const timers: number[] = []
 
-    for (const entry of snapshot.failures) {
-      if (entry.failure.impact === 'document-fatal') {
+    for (const entry of snapshot.incidents) {
+      if (entry.incident.impact === 'document-fatal') {
         continue
       }
 
-      const timeout = entry.failure.impact === 'feature-degraded' ? 9_000 : 5_500
+      const timeout = entry.incident.impact === 'feature-degraded' ? 9_000 : 5_500
 
       timers.push(
         window.setTimeout(() => {
-          failureRuntime.dismiss(entry.failure.id)
+          failureCoordinator.dismiss(entry.incident.id)
         }, timeout),
       )
     }
@@ -207,10 +207,10 @@ export function UiFeedbackRegion() {
         window.clearTimeout(timer)
       }
     }
-  }, [snapshot.failures])
+  }, [snapshot.incidents])
 
-  const visible = snapshot.failures
-    .filter((entry) => entry.failure.impact !== 'document-fatal')
+  const visible = snapshot.incidents
+    .filter((entry) => entry.incident.impact !== 'document-fatal')
     .slice(-3)
 
   return (
@@ -226,7 +226,7 @@ export function UiFeedbackRegion() {
       ].join(' ')}
     >
       {visible.map((entry) => {
-        const failure = entry.failure
+        const failure = entry.incident
 
         return (
           <div
@@ -271,7 +271,7 @@ export function UiFeedbackRegion() {
                 'focus-visible:ring-ring',
               ].join(' ')}
               onClick={() => {
-                failureRuntime.dismiss(failure.id)
+                failureCoordinator.dismiss(failure.id)
               }}
               type="button"
             >

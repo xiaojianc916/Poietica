@@ -1,6 +1,6 @@
 import { DangerTriangle } from '@mynaui/icons-react'
 import { useMemo, useState, useSyncExternalStore } from 'react'
-import { failureRuntime } from '../../application/failures/failure-runtime'
+import { failureCoordinator } from '../../application/failures/failure-coordinator'
 
 export interface DocumentQuarantineSurfaceProps {
   readonly sessionId: string
@@ -9,23 +9,23 @@ export interface DocumentQuarantineSurfaceProps {
 
 export function DocumentQuarantineSurface({ sessionId, onClose }: DocumentQuarantineSurfaceProps) {
   const snapshot = useSyncExternalStore(
-    failureRuntime.subscribe,
-    failureRuntime.getSnapshot,
-    failureRuntime.getSnapshot,
+    failureCoordinator.subscribe,
+    failureCoordinator.getSnapshot,
+    failureCoordinator.getSnapshot,
   )
 
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
-  const failureEntry = snapshot.failures.find(
+  const failureEntry = snapshot.incidents.find(
     (entry) =>
-      entry.failure.impact === 'document-fatal' &&
-      entry.failure.scope.kind === 'document' &&
-      entry.failure.scope.documentId === sessionId,
+      entry.incident.impact === 'document-fatal' &&
+      entry.incident.scope.kind === 'document' &&
+      entry.incident.scope.documentId === sessionId,
   )
 
   const diagnostic = useMemo(
-    () => formatDocumentDiagnostic(sessionId, failureEntry?.failure),
-    [failureEntry?.failure, sessionId],
+    () => formatDocumentDiagnostic(sessionId, failureEntry?.incident),
+    [failureEntry?.incident, sessionId],
   )
 
   const copyDiagnostic = async (): Promise<void> => {
@@ -104,7 +104,7 @@ export function DocumentQuarantineSurface({ sessionId, onClose }: DocumentQuaran
           </div>
 
           <p className={['text-xs', 'text-muted-foreground/70'].join(' ')}>
-            {failureEntry?.failure.code ?? 'DOCUMENT_EDITOR_SESSION_FATAL'}
+            {failureEntry?.incident.code ?? 'DOCUMENT_EDITOR_SESSION_FATAL'}
           </p>
         </div>
       </div>

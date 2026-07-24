@@ -1,24 +1,29 @@
 import { installFatalCollectors } from './fatal-collectors'
-import { type FatalIncident, formatFatalDiagnostic } from './fatal-incident'
-import { fatalIncidentController, isReactFatalHostMounted } from './fatal-runtime'
+import { type FailureIncident, formatFailureDiagnostic } from './fatal-incident'
+import {
+  failureCoordinator,
+  type FailureIncident,
+} from '../application/failures/failure-coordinator'
+import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
+import { isReactFatalHostMounted } from './fatal-runtime'
 
 installFatalCollectors()
 
-fatalIncidentController.subscribe(() => {
+failureCoordinator.subscribe(() => {
   if (isReactFatalHostMounted()) {
     return
   }
 
-  const snapshot = fatalIncidentController.getSnapshot()
+  const snapshot = failureCoordinator.getSnapshot()
 
-  if (snapshot.status !== 'fatal') {
+  if (!snapshot.terminal) {
     return
   }
 
-  renderPreReactFatalScreen(snapshot.incident)
+  renderPreReactFatalScreen(snapshot.terminal.incident)
 })
 
-function renderPreReactFatalScreen(incident: FatalIncident): void {
+function renderPreReactFatalScreen(incident: FailureIncident): void {
   const root = document.getElementById('root')
 
   if (!root) {
@@ -26,12 +31,12 @@ function renderPreReactFatalScreen(incident: FatalIncident): void {
     return
   }
 
-  const diagnostic = formatFatalDiagnostic(incident)
+  const diagnostic = formatFailureDiagnostic(incident)
 
   root.replaceChildren(createFatalSurface(incident, diagnostic))
 }
 
-function createFatalSurface(incident: FatalIncident, diagnostic: string): HTMLElement {
+function createFatalSurface(incident: FailureIncident, diagnostic: string): HTMLElement {
   const main = document.createElement('main')
   main.className = 'fatal-surface'
   main.setAttribute('role', 'alert')
