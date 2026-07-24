@@ -1,4 +1,5 @@
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
+import type { MouseEvent, ReactNode } from 'react'
 
 const WINDOW_DRAG_EXCLUSION_SELECTOR = [
   'button',
@@ -14,15 +15,21 @@ const WINDOW_DRAG_EXCLUSION_SELECTOR = [
 ].join(',')
 
 export interface DesktopTitleBarProps {
-  readonly children: React.ReactNode
+  readonly children: ReactNode
   readonly onMinimize: () => void
   readonly onMaximize: () => void
   readonly onClose: () => void
   readonly onStartDragging: () => void
+
   readonly onSidebarToggle: () => void
+
   readonly isSidebarOpen: boolean
   readonly isMaximized: boolean
   readonly sidebarWidth: number
+
+  readonly windowControlsDisabled?: boolean
+
+  readonly windowDraggingDisabled?: boolean
 }
 
 export function DesktopTitleBar({
@@ -34,9 +41,11 @@ export function DesktopTitleBar({
   onSidebarToggle,
   isSidebarOpen,
   isMaximized,
+  windowControlsDisabled = false,
+  windowDraggingDisabled = false,
 }: DesktopTitleBarProps) {
-  function handleDragMouseDown(event: React.MouseEvent<HTMLElement>) {
-    if (event.button !== 0) {
+  function handleDragMouseDown(event: MouseEvent<HTMLElement>) {
+    if (windowDraggingDisabled || event.button !== 0) {
       return
     }
 
@@ -49,12 +58,17 @@ export function DesktopTitleBar({
     event.preventDefault()
 
     if (event.detail === 2) {
-      onMaximize()
+      if (!windowControlsDisabled) {
+        onMaximize()
+      }
+
       return
     }
 
     onStartDragging()
   }
+
+  const disabledClass = windowControlsDisabled ? 'cursor-not-allowed opacity-40' : ''
 
   return (
     <div className="flex h-full min-h-0 min-w-0 bg-chrome">
@@ -83,7 +97,9 @@ export function DesktopTitleBar({
           className="shrink-0 border-b border-divider"
           style={{
             borderRightStyle: 'solid',
+
             borderRightWidth: isSidebarOpen ? 1 : 0,
+
             width: 'var(--workspace-sidebar-column-width, 0px)',
           }}
         />
@@ -93,17 +109,41 @@ export function DesktopTitleBar({
         <div className="flex shrink-0 items-stretch border-b border-divider">
           <button
             aria-label="最小化"
-            className="grid w-11 place-items-center text-muted-foreground hover:bg-black/5 hover:text-foreground"
+            className={[
+              'grid w-11',
+              'place-items-center',
+              'text-muted-foreground',
+              'enabled:hover:bg-black/5',
+              'enabled:hover:text-foreground',
+              disabledClass,
+            ].join(' ')}
+            disabled={windowControlsDisabled}
             onClick={onMinimize}
+            title={windowControlsDisabled ? '窗口控制暂时不可用' : '最小化'}
             type="button"
           >
             <Minus className="size-3.5" />
           </button>
+
           <button
             aria-label={isMaximized ? '还原窗口' : '最大化窗口'}
-            className="grid w-11 place-items-center text-muted-foreground hover:bg-black/5 hover:text-foreground"
+            className={[
+              'grid w-11',
+              'place-items-center',
+              'text-muted-foreground',
+              'enabled:hover:bg-black/5',
+              'enabled:hover:text-foreground',
+              disabledClass,
+            ].join(' ')}
+            disabled={windowControlsDisabled}
             onClick={onMaximize}
-            title={isMaximized ? '还原窗口' : '最大化窗口'}
+            title={
+              windowControlsDisabled
+                ? '窗口控制暂时不可用'
+                : isMaximized
+                  ? '还原窗口'
+                  : '最大化窗口'
+            }
             type="button"
           >
             {isMaximized ? (
@@ -112,6 +152,7 @@ export function DesktopTitleBar({
               <Square aria-hidden="true" className="size-3" />
             )}
           </button>
+
           <button
             aria-label="关闭"
             className="grid w-12 place-items-center text-muted-foreground hover:bg-[#c42b1c] hover:text-white"

@@ -8,6 +8,8 @@ import type { CommandRegistry } from '@hybrid-canvas/workspace/application'
 import type { WorkbenchSessionStore } from '@hybrid-canvas/workspace/contracts'
 import { CommandPalette } from '@hybrid-canvas/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { failureRuntime } from '../application/failures/failure-runtime'
+import { createFeatureAvailability } from '../application/failures/feature-availability'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
 import { reportUiFailure as reportFailure, UiFeedbackRegion } from './ui/ui-feedback'
@@ -54,6 +56,17 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const [failedCanvasTitle, setFailedCanvasTitle] = useState<string | null>(null)
 
+  const failureSnapshot = useSyncExternalStore(
+    failureRuntime.subscribe,
+    failureRuntime.getSnapshot,
+    failureRuntime.getSnapshot,
+  )
+
+  const featureAvailability = useMemo(
+    () => createFeatureAvailability(failureSnapshot.degradedFeatures),
+    [failureSnapshot.degradedFeatures],
+  )
+
   const termination = useSyncExternalStore(
     runtime.termination.subscribe,
     runtime.termination.getSnapshot,
@@ -66,7 +79,13 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
 
-  const openSettings = useCallback(() => setSettingsOpen(true), [])
+  const openSettings = useCallback(() => {
+    if (!featureAvailability.isAvailable('settings')) {
+      return
+    }
+
+    setSettingsOpen(true)
+  }, [featureAvailability])
 
   const createCanvasWithFeedback = useCallback(
     async (title: string): Promise<void> => {
@@ -91,6 +110,10 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.termination])
 
   const minimizeWindow = useCallback(() => {
+    if (!featureAvailability.isAvailable('window-controls')) {
+      return
+    }
+
     void runtime.mainWindow.minimize().catch((cause: unknown) => {
       reportFailure('main window minimize failed', {
         scope: 'app-shell',
@@ -98,9 +121,13 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [runtime.mainWindow])
+  }, [featureAvailability, runtime.mainWindow])
 
   const maximizeWindow = useCallback(() => {
+    if (!featureAvailability.isAvailable('window-controls')) {
+      return
+    }
+
     void runtime.mainWindow.toggleMaximize().catch((cause: unknown) => {
       reportFailure('main window maximize failed', {
         scope: 'app-shell',
@@ -108,9 +135,13 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [runtime.mainWindow])
+  }, [featureAvailability, runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
+    if (!featureAvailability.isAvailable('developer-tools')) {
+      return
+    }
+
     void runtime.mainWindow.openDeveloperTools().catch((cause: unknown) => {
       reportFailure('open developer tools failed', {
         scope: 'app-shell',
@@ -118,9 +149,13 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [runtime.mainWindow])
+  }, [featureAvailability, runtime.mainWindow])
 
   const startWindowDragging = useCallback(() => {
+    if (!featureAvailability.isAvailable('window-dragging')) {
+      return
+    }
+
     void runtime.mainWindow.startDragging().catch((cause: unknown) => {
       reportFailure('main window drag failed', {
         scope: 'app-shell',
@@ -128,7 +163,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [runtime.mainWindow])
+  }, [featureAvailability, runtime.mainWindow])
 
   useApplicationCommands(runtime, toggleCommandPalette, createCanvasWithFeedback)
 
@@ -179,6 +214,7 @@ export function AppShell({ runtime }: AppShellProps) {
   return (
     <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
       <WorkspaceContainer
+        degradedFeatures={failureSnapshot.degradedFeatures}
         isWindowMaximized={isWindowMaximized}
         onCommandPaletteOpen={openCommandPalette}
         onDeveloperToolsOpen={openDeveloperTools}
@@ -198,7 +234,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
       <SettingsDialog
         onOpenChange={setSettingsOpen}
-        open={isSettingsOpen}
+        open={isSettingsOpen && featureAvailability.isAvailable('settings')}
         store={runtime.settings}
       />
 

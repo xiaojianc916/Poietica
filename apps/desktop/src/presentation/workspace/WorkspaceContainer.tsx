@@ -59,6 +59,7 @@ export interface WorkspaceUIPort {
 
 export interface WorkspaceContainerProps {
   readonly port: WorkspaceUIPort
+  readonly degradedFeatures: readonly string[]
   readonly isWindowMaximized: boolean
   readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -71,6 +72,7 @@ export interface WorkspaceContainerProps {
 
 export function WorkspaceContainer({
   port,
+  degradedFeatures,
   isWindowMaximized,
   onCommandPaletteOpen,
   onDeveloperToolsOpen,
@@ -81,6 +83,20 @@ export function WorkspaceContainer({
   onWindowStartDragging,
 }: WorkspaceContainerProps) {
   const inspectorAvailable = useCanvasInspectorAvailability()
+
+  const windowControlsDisabled = degradedFeatures.includes('window-controls')
+
+  const windowDraggingDisabled = degradedFeatures.includes('window-dragging')
+
+  const developerToolsDisabled = degradedFeatures.includes('developer-tools')
+
+  const settingsDisabled = degradedFeatures.includes('settings')
+
+  const workbench = useSyncExternalStore(
+    port.workspace.subscribe,
+    port.workspace.getSnapshot,
+    port.workspace.getSnapshot,
+  )
 
   const failureSnapshot = useSyncExternalStore(
     failureRuntime.subscribe,
@@ -104,12 +120,6 @@ export function WorkspaceContainer({
       })
     }
   }, [failureSnapshot.quarantinedDocuments, workbench.tabs])
-
-  const workbench = useSyncExternalStore(
-    port.workspace.subscribe,
-    port.workspace.getSnapshot,
-    port.workspace.getSnapshot,
-  )
 
   useSyncExternalStore(port.canvases.subscribe, port.canvases.getVersion, port.canvases.getVersion)
 
@@ -244,11 +254,14 @@ export function WorkspaceContainer({
       },
 
       openCommandPalette: onCommandPaletteOpen,
-      openDeveloperTools: onDeveloperToolsOpen,
-      openSettingsWindow: onSettingsOpen,
+
+      openDeveloperTools: developerToolsDisabled ? () => {} : onDeveloperToolsOpen,
+
+      openSettingsWindow: settingsDisabled ? () => {} : onSettingsOpen,
     }),
     [
       activeEditorSession,
+      developerToolsDisabled,
       handleCloseTab,
       onCommandPaletteOpen,
       onDeveloperToolsOpen,
@@ -256,6 +269,7 @@ export function WorkspaceContainer({
       pages.length,
       port.canvases,
       port.workspace,
+      settingsDisabled,
       workbench.tabs,
     ],
   )
@@ -373,6 +387,8 @@ export function WorkspaceContainer({
       }) => (
         <DesktopTitleBar
           isMaximized={isWindowMaximized}
+          windowControlsDisabled={windowControlsDisabled}
+          windowDraggingDisabled={windowDraggingDisabled}
           isSidebarOpen={isSidebarOpen}
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
