@@ -79,3 +79,9 @@ export {
   ToastRegion,
   type ToastTone,
 } from './components/ui/toast'
+
+export {
+  CommandMenu,
+  type CommandMenuItem,
+  type CommandMenuProps,
+} from './components/ui/command-menu'

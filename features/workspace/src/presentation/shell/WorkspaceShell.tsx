@@ -42,7 +42,7 @@ export function WorkspaceShell({
 
   const [isSidebarOpen, setSidebarOpen] = useState(true)
   const [isInspectorOpen, setInspectorOpen] = useState(true)
-  const [sidebarWidth, setSidebarWidth] = useState(WORKSPACE_LAYOUT.sidebar.defaultWidth)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(WORKSPACE_LAYOUT.sidebar.defaultWidth)
   const [isResizing, setResizing] = useState(false)
 
   const activeNavigationItem: WorkspaceSurfaceId =
