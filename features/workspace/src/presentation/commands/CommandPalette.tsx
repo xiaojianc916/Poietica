@@ -26,8 +26,16 @@ export function CommandPalette({ open, registry, onOpenChange }: CommandPaletteP
       filteredCommands.map((command) => ({
         value: command.id,
         label: command.label,
-        category: command.category,
-        shortcut: command.shortcut,
+        ...(command.category !== undefined
+          ? {
+              category: command.category,
+            }
+          : {}),
+        ...(command.shortcut !== undefined
+          ? {
+              shortcut: command.shortcut,
+            }
+          : {}),
         leading: <Command aria-hidden="true" className="size-4" />,
       })),
     [filteredCommands],

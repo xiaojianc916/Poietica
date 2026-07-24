@@ -14,6 +14,10 @@ import {
   type SelectOption,
   SelectTrigger,
   Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from '@hybrid-canvas/design-system'
 import type { AppSettings, SettingsStore, ThemeMode } from '@hybrid-canvas/settings'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
@@ -327,15 +331,19 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
       open={open}
       title="设置"
     >
-      <div
+      <Tabs
         className={[
           'grid h-full min-h-0',
           'grid-cols-[224px_minmax(0,1fr)]',
           'max-sm:grid-cols-1',
           'max-sm:grid-rows-[auto_minmax(0,1fr)]',
         ].join(' ')}
+        onValueChange={(nextSection) => {
+          setSection(nextSection as SettingsSection)
+        }}
+        value={section}
       >
-        <SettingsNavigation activeSection={section} onSectionChange={setSection} />
+        <SettingsNavigation />
 
         <main className={['min-h-0 overflow-y-auto', 'p-6 max-sm:p-4'].join(' ')}>
           {state.status === 'idle' || state.status === 'loading' ? (
@@ -354,71 +362,66 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
             />
           ) : null}
 
-          {draft && section === 'general' ? (
-            <GeneralSettingsPanel onChange={updateDraft} settings={draft} />
+          {draft ? (
+            <TabsContent className="m-0 outline-none focus-visible:ring-0" value="general">
+              <GeneralSettingsPanel onChange={updateDraft} settings={draft} />
+            </TabsContent>
           ) : null}
 
-          {draft && section === 'canvas' ? (
-            <CanvasSettingsPanel onChange={updateDraft} settings={draft} />
+          {draft ? (
+            <TabsContent className="m-0 outline-none focus-visible:ring-0" value="canvas">
+              <CanvasSettingsPanel onChange={updateDraft} settings={draft} />
+            </TabsContent>
           ) : null}
 
-          {section === 'about' ? <AboutSettingsPanel /> : null}
+          <TabsContent className="m-0 outline-none focus-visible:ring-0" value="about">
+            <AboutSettingsPanel />
+          </TabsContent>
         </main>
-      </div>
+      </Tabs>
     </Dialog>
   )
 }
 
-interface SettingsNavigationProps {
-  readonly activeSection: SettingsSection
-  readonly onSectionChange: (section: SettingsSection) => void
-}
-
-function SettingsNavigation({ activeSection, onSectionChange }: SettingsNavigationProps) {
+function SettingsNavigation() {
   return (
-    <nav
+    <TabsList
       aria-label="设置分类"
       className={[
+        'h-auto min-h-0',
+        'w-full',
+        'flex-col items-stretch',
+        'justify-start',
+        'gap-1 rounded-none',
         'border-r border-divider',
         'bg-muted/30 p-4',
-        'max-sm:flex',
-        'max-sm:gap-1',
+        'max-sm:flex-row',
         'max-sm:overflow-x-auto',
         'max-sm:border-b',
         'max-sm:border-r-0',
         'max-sm:p-2',
       ].join(' ')}
     >
-      {SECTIONS.map((item) => {
-        const active = activeSection === item.id
-
-        return (
-          <button
-            aria-current={active ? 'page' : undefined}
-            className={[
-              'w-full rounded-md',
-              'px-3 py-2',
-              'text-left text-sm',
-              'outline-none',
-              'focus-visible:ring-2',
-              'focus-visible:ring-ring',
-              'max-sm:w-auto',
-              'max-sm:shrink-0',
-              active
-                ? 'bg-accent font-medium text-accent-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            ].join(' ')}
-            key={item.id}
-            onClick={() => {
-              onSectionChange(item.id)
-            }}
-            type="button"
-          >
-            {item.label}
-          </button>
-        )
-      })}
-    </nav>
+      {SECTIONS.map((item) => (
+        <TabsTrigger
+          className={[
+            'w-full justify-start',
+            'px-3 py-2',
+            'text-left text-sm',
+            'shadow-none',
+            'data-[active]:bg-accent',
+            'data-[active]:text-accent-foreground',
+            'data-[active]:shadow-none',
+            'max-sm:w-auto',
+            'max-sm:shrink-0',
+          ].join(' ')}
+          key={item.id}
+          value={item.id}
+        >
+          {item.label}
+        </TabsTrigger>
+      ))}
+    </TabsList>
   )
 }
 
