@@ -1,22 +1,43 @@
 import type { WorkbenchTabId } from '../../../contracts/workbench-contract'
 
-export interface WorkbenchTabNavigationItem {
+export interface WorkbenchTabModelItem {
   readonly id: WorkbenchTabId
+
   readonly canClose: boolean
+
+  readonly isActive: boolean
 }
 
 export type WorkbenchTabKeyboardAction =
   | {
       readonly type: 'activate'
+
       readonly tabId: WorkbenchTabId
     }
   | {
       readonly type: 'close'
+
       readonly tabId: WorkbenchTabId
     }
 
+export interface WorkbenchTabDropInput {
+  readonly sessionTabId: WorkbenchTabId | null
+
+  readonly transferredTabId: string
+
+  readonly targetIndex: number
+
+  readonly tabCount: number
+}
+
+export interface WorkbenchTabDrop {
+  readonly tabId: WorkbenchTabId
+
+  readonly targetIndex: number
+}
+
 export function resolveWorkbenchTabKeyboardAction(
-  tabs: readonly WorkbenchTabNavigationItem[],
+  tabs: readonly WorkbenchTabModelItem[],
   currentTabId: WorkbenchTabId,
   key: string,
 ): WorkbenchTabKeyboardAction | null {
@@ -57,6 +78,41 @@ export function resolveWorkbenchTabKeyboardAction(
   }
 }
 
+export function resolveWorkbenchTabCloseTarget(
+  tabs: readonly WorkbenchTabModelItem[],
+  closingTabId: WorkbenchTabId,
+): WorkbenchTabId | null {
+  const closingIndex = tabs.findIndex((tab) => tab.id === closingTabId)
+
+  if (closingIndex < 0 || tabs.length <= 1) {
+    return null
+  }
+
+  return tabs[closingIndex + 1]?.id ?? tabs[closingIndex - 1]?.id ?? null
+}
+
+export function resolveWorkbenchTabDrop({
+  sessionTabId,
+  transferredTabId,
+  targetIndex,
+  tabCount,
+}: WorkbenchTabDropInput): WorkbenchTabDrop | null {
+  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= tabCount) {
+    return null
+  }
+
+  const tabId = sessionTabId ?? normalizeTransferredTabId(transferredTabId)
+
+  if (!tabId) {
+    return null
+  }
+
+  return {
+    tabId,
+    targetIndex,
+  }
+}
+
 export function encodeWorkbenchTabDomId(value: string): string {
   return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-')
 }
@@ -78,4 +134,14 @@ function resolveTargetIndex(key: string, currentIndex: number, tabCount: number)
     default:
       return null
   }
+}
+
+function normalizeTransferredTabId(value: string): WorkbenchTabId | null {
+  const normalized = value.trim()
+
+  if (normalized.length === 0) {
+    return null
+  }
+
+  return normalized as WorkbenchTabId
 }

@@ -12,6 +12,8 @@ const VIEWPORT_PADDING = 4
 
 export interface UseWorkbenchTabsViewportOptions {
   readonly activeTabId: WorkbenchTabId | undefined
+
+  readonly layoutKey: string
 }
 
 export interface WorkbenchTabsViewport {
@@ -28,6 +30,7 @@ export interface WorkbenchTabsViewport {
 
 export function useWorkbenchTabsViewport({
   activeTabId,
+  layoutKey,
 }: UseWorkbenchTabsViewportOptions): WorkbenchTabsViewport {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
@@ -67,9 +70,9 @@ export function useWorkbenchTabsViewport({
     if (activeTabId) {
       const activeActivation = tabRefs.current.get(activeTabId)
 
-      const activeTab = activeActivation?.closest<HTMLElement>('.chrome-workbench-tab')
-
-      activeTab?.removeAttribute('data-suppress-hover')
+      activeActivation
+        ?.closest<HTMLElement>('.chrome-workbench-tab')
+        ?.removeAttribute('data-suppress-hover')
     }
 
     previousActiveTabIdRef.current = activeTabId
@@ -106,15 +109,13 @@ export function useWorkbenchTabsViewport({
       nextScrollLeft = tabEnd - scroller.clientWidth + VIEWPORT_PADDING
     }
 
-    if (nextScrollLeft === viewportStart) {
-      return
+    if (nextScrollLeft !== viewportStart) {
+      scroller.scrollTo({
+        left: nextScrollLeft,
+        behavior: 'auto',
+      })
     }
-
-    scroller.scrollTo({
-      left: nextScrollLeft,
-      behavior: 'auto',
-    })
-  }, [activeTabId])
+  }, [activeTabId, layoutKey])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -152,9 +153,9 @@ export function useWorkbenchTabsViewport({
 
       viewport.dataset['hasActiveTab'] = 'true'
 
-      viewport.style.setProperty('--chrome-active-tab-left', `${left}px`)
+      viewport.style.setProperty('--chrome-active-tab-left', String(left) + 'px')
 
-      viewport.style.setProperty('--chrome-active-tab-right', `${right}px`)
+      viewport.style.setProperty('--chrome-active-tab-right', String(right) + 'px')
     }
 
     syncBaselineGap()
@@ -170,7 +171,7 @@ export function useWorkbenchTabsViewport({
 
       window.removeEventListener('resize', syncBaselineGap)
     }
-  }, [activeTabId])
+  }, [activeTabId, layoutKey])
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const scroller = scrollerRef.current
