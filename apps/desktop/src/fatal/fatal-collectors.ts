@@ -51,6 +51,7 @@ function handleWindowError(event: Event): void {
   const capturedError = event.error ?? event.message ?? 'Unhandled window error'
 
   const input: TerminalFailureInput = {
+    impact: 'application-fatal',
     error: capturedError,
     kind: reactMounted ? 'async' : 'bootstrap',
     phase: currentPhase(),
@@ -64,10 +65,7 @@ function handleWindowError(event: Event): void {
     },
   }
 
-  const incident = reportFatalIncident({
-    ...input,
-    impact: 'application-fatal',
-  })
+  const incident = reportFatalIncident(input)
 
   emergencyLogIncident(incident)
 }
@@ -76,6 +74,7 @@ function handleUnhandledRejection(event: PromiseRejectionEvent): void {
   const reactMounted = isReactFatalHostMounted()
 
   const input: TerminalFailureInput = {
+    impact: 'application-fatal',
     error: event.reason,
     kind: reactMounted ? 'async' : 'bootstrap',
     phase: currentPhase(),
@@ -86,10 +85,7 @@ function handleUnhandledRejection(event: PromiseRejectionEvent): void {
     },
   }
 
-  const incident = reportFatalIncident({
-    ...input,
-    impact: 'application-fatal',
-  })
+  const incident = reportFatalIncident(input)
 
   emergencyLogIncident(incident)
 }
@@ -98,6 +94,7 @@ function handleViteDiagnostic(payload: unknown): void {
   const viteError = parseViteError(payload)
 
   const input: TerminalFailureInput = {
+    impact: 'application-fatal',
     error: viteError.error,
     kind: 'vite',
     phase: currentPhase(),
@@ -108,10 +105,7 @@ function handleViteDiagnostic(payload: unknown): void {
     context: viteError.context,
   }
 
-  const incident = reportFatalIncident({
-    ...input,
-    impact: 'application-fatal',
-  })
+  const incident = reportFatalIncident(input)
 
   emergencyLogIncident(incident)
 }

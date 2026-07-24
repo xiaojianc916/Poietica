@@ -178,7 +178,7 @@ export function createCanvasWorkflow(
         setCloseState(sessionId, {
           state: 'release-failed',
           intent,
-          failure: result.incident,
+          failure: result.failure,
         })
         return
 

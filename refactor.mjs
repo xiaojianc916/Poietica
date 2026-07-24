@@ -3,11 +3,20 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const rootDirectory = process.cwd()
-const packageJsonPath = resolve(rootDirectory, 'package.json')
-const architectureCheckPath = resolve(
-  rootDirectory,
-  'tests/architecture/check-failure-architecture-convergence.mjs',
-)
+
+const paths = {
+  packageJson: resolve(rootDirectory, 'package.json'),
+  architectureCheck: resolve(
+    rootDirectory,
+    'tests/architecture/check-failure-architecture-convergence.mjs',
+  ),
+  canvasWorkflow: resolve(rootDirectory, 'apps/desktop/src/application/canvas/canvas-workflow.ts'),
+  failureCoordinatorTest: resolve(
+    rootDirectory,
+    'apps/desktop/src/application/failures/failure-coordinator.test.ts',
+  ),
+  fatalCollectors: resolve(rootDirectory, 'apps/desktop/src/fatal/fatal-collectors.ts'),
+}
 
 function writeMessage(message) {
   process.stdout.write(`${message}\n`)
@@ -18,8 +27,42 @@ function writeError(message) {
 }
 
 function exitWithError(message) {
-  writeError(message)
+  writeError(`错误：${message}`)
   process.exit(1)
+}
+
+function assertFileExists(filePath, displayName) {
+  if (!existsSync(filePath)) {
+    exitWithError(`未找到 ${displayName}：${filePath}`)
+  }
+}
+
+function countOccurrences(content, searchText) {
+  return content.split(searchText).length - 1
+}
+
+function replaceInFile({ filePath, displayName, oldText, newText, expectedCount = 1 }) {
+  assertFileExists(filePath, displayName)
+
+  const originalContent = readFileSync(filePath, 'utf8')
+  const oldCount = countOccurrences(originalContent, oldText)
+  const newCount = countOccurrences(originalContent, newText)
+
+  if (oldCount === 0 && newCount >= expectedCount) {
+    writeMessage(`已跳过：${displayName} 已经修复。`)
+    return
+  }
+
+  if (oldCount !== expectedCount) {
+    exitWithError(
+      `${displayName} 预期找到 ${expectedCount} 处待修改内容，实际找到 ${oldCount} 处。`,
+    )
+  }
+
+  const updatedContent = originalContent.replaceAll(oldText, newText)
+
+  writeFileSync(filePath, updatedContent, 'utf8')
+  writeMessage(`已修复：${displayName}`)
 }
 
 function run(commandLine) {
@@ -41,48 +84,96 @@ function run(commandLine) {
   }
 }
 
-function fixArchitectureCheckOutput() {
-  if (!existsSync(architectureCheckPath)) {
-    exitWithError('未找到 tests/architecture/check-failure-architecture-convergence.mjs')
-  }
+function fixArchitectureCheck() {
+  const oldText = `  console.log('Failure architecture convergence checks passed.')`
 
-  const originalContent = readFileSync(architectureCheckPath, 'utf8')
+  const newText = `  process.stdout.write('Failure architecture convergence checks passed.\\n')`
 
-  const oldSuccessOutput = String.raw`  console.log('Failure architecture convergence checks passed.')`
-  const newSuccessOutput = String.raw`  process.stdout.write('Failure architecture convergence checks passed.\n')`
-
-  if (originalContent.includes(oldSuccessOutput)) {
-    const updatedContent = originalContent.replace(oldSuccessOutput, newSuccessOutput)
-
-    writeFileSync(architectureCheckPath, updatedContent, 'utf8')
-    writeMessage('已修复架构检查脚本中的 console.log。')
-    return
-  }
-
-  if (originalContent.includes(newSuccessOutput)) {
-    writeMessage('架构检查脚本已经修复，无需重复修改。')
-    return
-  }
-
-  exitWithError('架构检查脚本内容与预期不符，请检查该文件是否已经被手动修改。')
+  replaceInFile({
+    filePath: paths.architectureCheck,
+    displayName: '架构收敛检查输出',
+    oldText,
+    newText,
+  })
 }
 
-if (!existsSync(packageJsonPath)) {
-  exitWithError('请在 Canvas 仓库根目录运行此脚本。')
+function fixCanvasReleaseFailure() {
+  replaceInFile({
+    filePath: paths.canvasWorkflow,
+    displayName: 'Canvas release failure 属性',
+    oldText: '          failure: result.incident,',
+    newText: '          failure: result.failure,',
+  })
 }
 
-writeMessage('开始修复 Biome lint 错误……')
+function fixFailureCoordinatorTest() {
+  replaceInFile({
+    filePath: paths.failureCoordinatorTest,
+    displayName: 'FailureCoordinator 测试快照属性',
+    oldText: '    expect(coordinator.getSnapshot().incidents).toHaveLength(1)',
+    newText: '    expect(coordinator.getSnapshot().failures).toHaveLength(1)',
+  })
+}
 
-fixArchitectureCheckOutput()
+function fixFatalCollectors() {
+  const oldInputStart = `  const input: TerminalFailureInput = {
+    error:`
 
-writeMessage('正在将字符串拼接修改为模板字符串……')
+  const newInputStart = `  const input: TerminalFailureInput = {
+    impact: 'application-fatal',
+    error:`
+
+  replaceInFile({
+    filePath: paths.fatalCollectors,
+    displayName: 'Fatal collector impact 属性',
+    oldText: oldInputStart,
+    newText: newInputStart,
+    expectedCount: 3,
+  })
+
+  const oldReportCall = `  const incident = reportFatalIncident({
+    ...input,
+    impact: 'application-fatal',
+  })`
+
+  const newReportCall = '  const incident = reportFatalIncident(input)'
+
+  replaceInFile({
+    filePath: paths.fatalCollectors,
+    displayName: 'Fatal collector 上报调用',
+    oldText: oldReportCall,
+    newText: newReportCall,
+    expectedCount: 3,
+  })
+}
+
+assertFileExists(paths.packageJson, 'package.json')
+
+writeMessage('开始修复 Biome 和 TypeScript 错误……')
+
+fixArchitectureCheck()
+fixCanvasReleaseFailure()
+fixFailureCoordinatorTest()
+fixFatalCollectors()
+
+writeMessage('\n正在修复模板字符串……')
 
 run('pnpm exec biome lint --write --unsafe --only=lint/style/useTemplate .')
 
-writeMessage('正在格式化本次修改……')
+writeMessage('正在格式化修改的文件……')
 
 run(
-  'pnpm exec biome format --write refactor.mjs tests/architecture/check-failure-architecture-convergence.mjs apps/desktop/src/application/failures/failure-diagnostic.ts apps/desktop/src/fatal/pre-react-entry.ts',
+  [
+    'pnpm exec biome format --write',
+    'refactor.mjs',
+    'tests/architecture/check-failure-architecture-convergence.mjs',
+    'apps/desktop/src/application/canvas/canvas-workflow.ts',
+    'apps/desktop/src/application/failures/failure-coordinator.test.ts',
+    'apps/desktop/src/application/failures/failure-diagnostic.ts',
+    'apps/desktop/src/fatal/fatal-collectors.ts',
+    'apps/desktop/src/fatal/fatal-runtime.ts',
+    'apps/desktop/src/fatal/pre-react-entry.ts',
+  ].join(' '),
 )
 
 writeMessage('正在执行完整 lint 验证……')

@@ -17,7 +17,7 @@ describe('FailureCoordinator', () => {
       recovery: 'retry',
     })
 
-    expect(coordinator.getSnapshot().incidents).toHaveLength(1)
+    expect(coordinator.getSnapshot().failures).toHaveLength(1)
 
     expect(coordinator.getSnapshot().terminal).toBeNull()
   })
