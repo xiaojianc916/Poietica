@@ -53,9 +53,7 @@ export function ConfirmationDialog({
       }}
       open={open}
       title={title}
-    >
-      <div className="sr-only">{description}</div>
-    </Dialog>
+    />
   )
 }
 

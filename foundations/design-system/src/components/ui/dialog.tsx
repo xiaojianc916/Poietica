@@ -1,29 +1,14 @@
+import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { X } from '@mynaui/icons-react'
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-} from 'react'
-import { createPortal } from 'react-dom'
+import { type ReactNode, useRef } from 'react'
 import { cn } from '../../lib/utils'
 import { Button } from './button'
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
 
 export interface DialogProps {
   readonly open: boolean
   readonly title: string
   readonly description?: string
-  readonly children: ReactNode
+  readonly children?: ReactNode
   readonly footer?: ReactNode
   readonly className?: string
   readonly contentClassName?: string
@@ -33,6 +18,23 @@ export interface DialogProps {
   readonly onOpenChange: (open: boolean) => void
 }
 
+/**
+ * Project dialog composition built on Base UI.
+ *
+ * Base UI owns:
+ * - portal lifecycle
+ * - focus trapping
+ * - initial and final focus
+ * - Escape handling
+ * - outside-press handling
+ * - modal accessibility semantics
+ *
+ * Hybrid Canvas owns:
+ * - visual tokens
+ * - layout
+ * - busy policy
+ * - product-facing labels
+ */
 export function Dialog({
   open,
   title,
@@ -46,169 +48,124 @@ export function Dialog({
   closeOnOverlayClick = true,
   onOpenChange,
 }: DialogProps) {
-  const titleId = useId()
-  const descriptionId = useId()
-
-  const panelRef = useRef<HTMLDivElement>(null)
-
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    if (!open) {
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && busy) {
       return
     }
 
-    const previouslyFocused = document.activeElement
-
-    const animationFrame = window.requestAnimationFrame(() => {
-      closeButtonRef.current?.focus()
-    })
-
-    const handleDocumentKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !busy) {
-        event.preventDefault()
-        onOpenChange(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleDocumentKeyDown)
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame)
-
-      document.removeEventListener('keydown', handleDocumentKeyDown)
-
-      if (previouslyFocused instanceof HTMLElement) {
-        previouslyFocused.focus()
-      }
-    }
-  }, [busy, onOpenChange, open])
-
-  if (!open) {
-    return null
+    onOpenChange(nextOpen)
   }
 
-  const handlePanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Tab') {
-      return
-    }
-
-    const focusableElements = Array.from(
-      panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [],
-    )
-
-    const firstElement = focusableElements[0]
-
-    const lastElement = focusableElements[focusableElements.length - 1]
-
-    if (!firstElement || !lastElement) {
-      event.preventDefault()
-      panelRef.current?.focus()
-      return
-    }
-
-    if (event.shiftKey && document.activeElement === firstElement) {
-      event.preventDefault()
-      lastElement.focus()
-      return
-    }
-
-    if (!event.shiftKey && document.activeElement === lastElement) {
-      event.preventDefault()
-      firstElement.focus()
-    }
-  }
-
-  return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: 对话框遮罩仅检测背景点击，不是独立交互控件
-    <div
-      className={cn(
-        'fixed inset-0',
-        'z-[var(--ui-z-dialog)]',
-        'grid place-items-center',
-        'bg-black/40 p-4',
-        'backdrop-blur-[2px]',
-      )}
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && closeOnOverlayClick && !busy) {
-          onOpenChange(false)
-        }
+  return (
+    <BaseDialog.Root
+      disablePointerDismissal={busy || !closeOnOverlayClick}
+      onOpenChange={(nextOpen) => {
+        requestOpenChange(nextOpen)
       }}
-      role="presentation"
+      open={open}
     >
-      <div
-        aria-busy={busy || undefined}
-        aria-describedby={description ? descriptionId : undefined}
-        aria-labelledby={titleId}
-        aria-modal="true"
-        className={cn(
-          'flex w-full max-w-lg',
-          'max-h-[calc(100dvh-2rem)]',
-          'flex-col overflow-hidden',
-          'rounded-xl border',
-          'border-divider',
-          'bg-background',
-          'text-foreground',
-          'shadow-2xl outline-none',
-          'max-sm:max-h-dvh',
-          'max-sm:h-dvh',
-          'max-sm:max-w-none',
-          'max-sm:rounded-none',
-          className,
-        )}
-        onKeyDown={handlePanelKeyDown}
-        ref={panelRef}
-        role="dialog"
-        tabIndex={-1}
-      >
-        <header
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop
           className={cn(
-            'flex min-h-14',
-            'shrink-0 items-start',
-            'justify-between gap-4',
-            'border-b border-divider',
-            'px-5 py-4',
+            'fixed inset-0',
+            'z-[var(--ui-z-dialog)]',
+            'bg-black/40',
+            'backdrop-blur-[2px]',
+            'transition-opacity',
+            'duration-[var(--ui-duration-normal)]',
+            'ease-[var(--ui-ease-standard)]',
+            'data-[starting-style]:opacity-0',
+            'data-[ending-style]:opacity-0',
+          )}
+        />
+
+        <BaseDialog.Viewport
+          className={cn(
+            'fixed inset-0',
+            'z-[var(--ui-z-dialog)]',
+            'grid place-items-center',
+            'overflow-y-auto p-4',
+            'max-sm:p-0',
           )}
         >
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold" id={titleId}>
-              {title}
-            </h2>
-
-            {description ? (
-              <p
-                className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}
-                id={descriptionId}
-              >
-                {description}
-              </p>
-            ) : null}
-          </div>
-
-          <Button
-            aria-label={closeLabel}
-            disabled={busy}
-            onClick={() => {
-              onOpenChange(false)
-            }}
-            ref={closeButtonRef}
-            size="icon"
-            type="button"
-            variant="ghost"
+          <BaseDialog.Popup
+            aria-busy={busy || undefined}
+            className={cn(
+              'flex w-full max-w-lg',
+              'max-h-[calc(100dvh-2rem)]',
+              'flex-col overflow-hidden',
+              'rounded-xl border',
+              'border-divider',
+              'bg-background',
+              'text-foreground',
+              'shadow-2xl outline-none',
+              'transition-[transform,scale,opacity]',
+              'duration-[var(--ui-duration-normal)]',
+              'ease-[var(--ui-ease-standard)]',
+              'data-[starting-style]:scale-95',
+              'data-[starting-style]:opacity-0',
+              'data-[ending-style]:scale-95',
+              'data-[ending-style]:opacity-0',
+              'max-sm:h-dvh',
+              'max-sm:max-h-dvh',
+              'max-sm:max-w-none',
+              'max-sm:rounded-none',
+              className,
+            )}
+            initialFocus={closeButtonRef}
           >
-            <X aria-hidden="true" className="size-4" />
-          </Button>
-        </header>
+            <header
+              className={cn(
+                'flex min-h-14',
+                'shrink-0 items-start',
+                'justify-between gap-4',
+                'border-b border-divider',
+                'px-5 py-4',
+              )}
+            >
+              <div className="min-w-0">
+                <BaseDialog.Title className="text-base font-semibold">{title}</BaseDialog.Title>
 
-        <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>{children}</div>
+                {description ? (
+                  <BaseDialog.Description
+                    className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}
+                  >
+                    {description}
+                  </BaseDialog.Description>
+                ) : null}
+              </div>
 
-        {footer ? (
-          <footer className={cn('shrink-0', 'border-t border-divider', 'px-5 py-3')}>
-            {footer}
-          </footer>
-        ) : null}
-      </div>
-    </div>,
-    document.body,
+              <Button
+                aria-label={closeLabel}
+                disabled={busy}
+                onClick={() => {
+                  requestOpenChange(false)
+                }}
+                ref={closeButtonRef}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X aria-hidden="true" className="size-4" />
+              </Button>
+            </header>
+
+            {children !== undefined && children !== null ? (
+              <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>
+                {children}
+              </div>
+            ) : null}
+
+            {footer ? (
+              <footer className={cn('shrink-0', 'border-t border-divider', 'px-5 py-3')}>
+                {footer}
+              </footer>
+            ) : null}
+          </BaseDialog.Popup>
+        </BaseDialog.Viewport>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   )
 }
