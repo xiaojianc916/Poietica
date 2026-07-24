@@ -64,6 +64,7 @@ export function WorkspaceFrame({
         '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
         '--workspace-inspector-column-width': `${inspectorColumnWidth}px`,
       }}
+      data-canvas-host="workspace"
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       initial={false}
       ref={rootRef}
