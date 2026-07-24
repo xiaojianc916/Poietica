@@ -1,8 +1,10 @@
-import { motion, useReducedMotion } from 'motion/react'
-import type { CSSProperties, ReactNode, Ref } from 'react'
+import { motion, type MotionStyle, useReducedMotion } from 'motion/react'
+import type { ReactNode, Ref } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
-const WORKSPACE_LAYOUT_STYLE = {
+type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
+
+const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
   '--activity-rail-width': `${WORKSPACE_LAYOUT.activityRail.width}px`,
   '--workspace-sidebar-min': `${WORKSPACE_LAYOUT.sidebar.minWidth}px`,
   '--workspace-sidebar-max': `${WORKSPACE_LAYOUT.sidebar.maxWidth}px`,
@@ -10,7 +12,7 @@ const WORKSPACE_LAYOUT_STYLE = {
   '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,
-} as CSSProperties
+}
 
 export interface WorkspaceFrameProps {
   readonly rootRef?: Ref<HTMLDivElement>
