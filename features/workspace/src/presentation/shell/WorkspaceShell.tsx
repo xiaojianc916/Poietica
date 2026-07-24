@@ -11,13 +11,7 @@ import { SidebarSplitter } from './SidebarSplitter'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
-
-import './workspace-shell.css'
-
-const SIDEBAR_MIN = 220
-const SIDEBAR_MAX = 420
-const SIDEBAR_DEFAULT = 280
-const INSPECTOR_WIDTH = 276
+import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 const SURFACE_TITLES: Record<WorkspaceSurfaceId, string> = {
   pages: '画布',
@@ -48,7 +42,7 @@ export function WorkspaceShell({
 
   const [isSidebarOpen, setSidebarOpen] = useState(true)
   const [isInspectorOpen, setInspectorOpen] = useState(true)
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
+  const [sidebarWidth, setSidebarWidth] = useState(WORKSPACE_LAYOUT.sidebar.defaultWidth)
   const [isResizing, setResizing] = useState(false)
 
   const activeNavigationItem: WorkspaceSurfaceId =
@@ -81,7 +75,7 @@ export function WorkspaceShell({
   }
 
   const sidebarColumnWidth = dockSidebar ? sidebarWidth : 0
-  const inspectorColumnWidth = dockInspector ? INSPECTOR_WIDTH : 0
+  const inspectorColumnWidth = dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0
 
   const columns = useMemo(
     () =>
@@ -166,8 +160,8 @@ export function WorkspaceShell({
 
         {dockSidebar ? (
           <SidebarSplitter
-            max={SIDEBAR_MAX}
-            min={SIDEBAR_MIN}
+            max={WORKSPACE_LAYOUT.sidebar.maxWidth}
+            min={WORKSPACE_LAYOUT.sidebar.minWidth}
             onCollapse={() => setSidebarOpen(false)}
             onResize={setSidebarWidth}
             onResizeEnd={() => setResizing(false)}
@@ -247,7 +241,7 @@ export function WorkspaceShell({
           {dockInspector ? (
             <div
               className="absolute inset-y-0 right-0 overflow-visible"
-              style={{ width: INSPECTOR_WIDTH }}
+              style={{ width: WORKSPACE_LAYOUT.inspector.width }}
             >
               <div className="relative h-full">
                 <Button
