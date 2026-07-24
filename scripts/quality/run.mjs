@@ -26,11 +26,7 @@ function createTask(label, command, args) {
 }
 
 function turboTask(name) {
-  return createTask(
-    `Turbo ${name}`,
-    process.execPath,
-    [turboCli, 'run', name, '--continue=always'],
-  )
+  return createTask(`Turbo ${name}`, process.execPath, [turboCli, 'run', name, '--continue=always'])
 }
 
 const modes = {

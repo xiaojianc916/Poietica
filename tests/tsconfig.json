@@ -3,13 +3,6 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/tests.tsbuildinfo"
   },
-  "include": [
-    "unit/**/*.ts",
-    "integration/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "coverage",
-    "dist"
-  ]
+  "include": ["unit/**/*.ts", "integration/**/*.ts"],
+  "exclude": ["node_modules", "coverage", "dist"]
 }
