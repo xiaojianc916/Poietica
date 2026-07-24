@@ -10,7 +10,7 @@ import {
 
 describe('Workbench Tabs model', () => {
   const tabs: readonly WorkbenchTabModelItem[] = [
-    createTab('first', true, true),
+    createTab('first', true),
 
     createTab('second'),
 
@@ -59,7 +59,7 @@ describe('Workbench Tabs model', () => {
   })
 
   it('returns no close target when the last remaining tab closes', () => {
-    expect(resolveWorkbenchTabCloseTarget([createTab('only', true, true)], id('only'))).toBeNull()
+    expect(resolveWorkbenchTabCloseTarget([createTab('only', true)], id('only'))).toBeNull()
   })
 
   it('resolves a local drag session', () => {
@@ -112,11 +112,10 @@ describe('Workbench Tabs model', () => {
   })
 })
 
-function createTab(value: string, canClose = true, isActive = false): WorkbenchTabModelItem {
+function createTab(value: string, canClose = true): WorkbenchTabModelItem {
   return {
     id: id(value),
     canClose,
-    isActive,
   }
 }
 

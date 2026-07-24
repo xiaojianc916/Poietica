@@ -4,8 +4,6 @@ export interface WorkbenchTabModelItem {
   readonly id: WorkbenchTabId
 
   readonly canClose: boolean
-
-  readonly isActive: boolean
 }
 
 export type WorkbenchTabKeyboardAction =

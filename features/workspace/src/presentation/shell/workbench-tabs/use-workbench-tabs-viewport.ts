@@ -10,13 +10,13 @@ import type { WorkbenchTabId } from '../../../contracts/workbench-contract'
 
 const VIEWPORT_PADDING = 4
 
-export interface UseWorkbenchTabsViewportOptions {
+interface UseWorkbenchTabsViewportOptions {
   readonly activeTabId: WorkbenchTabId | undefined
 
   readonly layoutKey: string
 }
 
-export interface WorkbenchTabsViewport {
+interface WorkbenchTabsViewport {
   readonly scrollerRef: RefObject<HTMLDivElement | null>
 
   readonly viewportRef: RefObject<HTMLDivElement | null>

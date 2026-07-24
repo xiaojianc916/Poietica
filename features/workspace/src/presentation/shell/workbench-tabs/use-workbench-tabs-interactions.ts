@@ -24,7 +24,7 @@ export interface WorkbenchTabDragBindings {
   readonly onDrop: (event: DragEvent<HTMLElement>, targetIndex: number) => void
 }
 
-export interface UseWorkbenchTabsInteractionsOptions {
+interface UseWorkbenchTabsInteractionsOptions {
   readonly tabs: readonly WorkbenchTabViewModel[]
 
   readonly onActivate: (tabId: WorkbenchTabId) => void

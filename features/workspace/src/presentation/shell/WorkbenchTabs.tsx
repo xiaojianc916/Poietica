@@ -25,10 +25,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
 
   const layoutKey = useMemo(
-    () =>
-      tabs
-        .map((tab) => [tab.id, tab.title, tab.isActive ? 'active' : 'inactive'].join(':'))
-        .join('|'),
+    () => tabs.map((tab) => [tab.id, tab.title].join(':')).join('|'),
     [tabs],
   )
 

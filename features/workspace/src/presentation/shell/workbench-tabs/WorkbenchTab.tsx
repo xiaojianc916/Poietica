@@ -22,7 +22,7 @@ type TabIcon = ComponentType<{
   readonly 'aria-hidden'?: boolean | 'true' | 'false'
 }>
 
-export interface WorkbenchTabProps {
+interface WorkbenchTabProps {
   readonly model: WorkbenchTabViewModel
 
   readonly targetIndex: number
@@ -81,7 +81,6 @@ export function WorkbenchTab({
 
       <div className="chrome-workbench-tab__content">
         <button
-          aria-controls={'workbench-panel-' + encodedId}
           aria-selected={model.isActive}
           className="chrome-workbench-tab__activation"
           id={'workbench-tab-' + encodedId}
