@@ -16,7 +16,7 @@ export function DocumentQuarantineSurface({ sessionId, onClose }: DocumentQuaran
 
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
-  const failureEntry = snapshot.incidents.find(
+  const failureEntry = snapshot.failures.find(
     (entry) =>
       entry.incident.impact === 'document-fatal' &&
       entry.incident.scope.kind === 'document' &&

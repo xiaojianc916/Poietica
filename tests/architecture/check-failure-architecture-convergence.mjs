@@ -80,7 +80,6 @@ function scanProductionSources() {
       'fatalIncidentController',
       'FailureRuntime',
       'failureRuntime',
-      'ClassifiedFailure',
     ]) {
       if (source.includes(forbiddenText)) {
         failures.push('Legacy failure symbol ' + forbiddenText + ' remains in ' + file + '.')

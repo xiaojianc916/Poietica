@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { type FailureIncident } from '../application/failures/failure-coordinator'
+import type { FailureIncident } from '../application/failures/failure-coordinator'
 import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
 
 export interface FatalErrorScreenProps {

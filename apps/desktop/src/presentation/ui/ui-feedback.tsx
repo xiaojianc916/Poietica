@@ -188,7 +188,7 @@ export function UiFeedbackRegion() {
   useEffect(() => {
     const timers: number[] = []
 
-    for (const entry of snapshot.incidents) {
+    for (const entry of snapshot.failures) {
       if (entry.incident.impact === 'document-fatal') {
         continue
       }
@@ -207,9 +207,9 @@ export function UiFeedbackRegion() {
         window.clearTimeout(timer)
       }
     }
-  }, [snapshot.incidents])
+  }, [snapshot.failures])
 
-  const visible = snapshot.incidents
+  const visible = snapshot.failures
     .filter((entry) => entry.incident.impact !== 'document-fatal')
     .slice(-3)
 

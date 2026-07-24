@@ -4,7 +4,6 @@ import {
   isTerminalFailureImpact,
   type ClassifiedFailure,
   type ClassifiedFailureInput,
-  type FailureImpact,
   type FailureScope,
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
@@ -112,9 +111,9 @@ export class FailureCoordinator {
   }
 
   dismiss(incidentId: string): void {
-    const failures = this.snapshot.incidents.filter((entry) => entry.incident.id !== incidentId)
+    const failures = this.snapshot.failures.filter((entry) => entry.incident.id !== incidentId)
 
-    if (failures.length === this.snapshot.incidents.length) {
+    if (failures.length === this.snapshot.failures.length) {
       return
     }
 
@@ -138,7 +137,7 @@ export class FailureCoordinator {
     this.publish({
       ...this.snapshot,
 
-      failures: this.snapshot.incidents.filter(
+      failures: this.snapshot.failures.filter(
         (entry) => createFailureScopeKey(entry.incident.scope) !== scopeKey,
       ),
 
@@ -220,11 +219,11 @@ export class FailureCoordinator {
       this.quarantinedDocuments.add(incident.scope.documentId)
     }
 
-    const existing = this.snapshot.incidents.find(
+    const existing = this.snapshot.failures.find(
       (entry) => entry.incident.fingerprint === incident.fingerprint,
     )
 
-    const retained = this.snapshot.incidents.filter(
+    const retained = this.snapshot.failures.filter(
       (entry) => entry.incident.fingerprint !== incident.fingerprint,
     )
 
@@ -250,7 +249,7 @@ export class FailureCoordinator {
     this.snapshot = Object.freeze({
       terminal: snapshot.terminal,
 
-      failures: Object.freeze([...snapshot.incidents]),
+      failures: Object.freeze([...snapshot.failures]),
 
       degradedFeatures: Object.freeze([...snapshot.degradedFeatures]),
 
