@@ -20,6 +20,7 @@
     "@hybrid-canvas/canvas": "workspace:*",
     "@hybrid-canvas/design-system": "workspace:*",
     "@hybrid-canvas/document": "workspace:*",
+    "@hybrid-canvas/foundations-kernel": "workspace:*",
     "@hybrid-canvas/foundations-observability": "workspace:*",
     "@hybrid-canvas/platforms-desktop-runtime": "workspace:*",
     "@hybrid-canvas/settings": "workspace:*",

@@ -11,7 +11,8 @@
     "./id": "./src/id.ts",
     "./clock": "./src/clock.ts",
     "./cancellation": "./src/cancellation.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./failure-policy": "./src/failure-policy.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

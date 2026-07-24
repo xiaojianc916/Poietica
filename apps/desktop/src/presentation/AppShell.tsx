@@ -10,7 +10,7 @@ import { CommandPalette } from '@hybrid-canvas/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
-import { reportUiError as reportError, UiFeedbackRegion } from './ui/ui-feedback'
+import { reportUiFailure as reportFailure, UiFeedbackRegion } from './ui/ui-feedback'
 import { type WorkspaceCanvasUIPort, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 export interface AppShellRuntime {
@@ -92,7 +92,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const minimizeWindow = useCallback(() => {
     void runtime.mainWindow.minimize().catch((cause: unknown) => {
-      reportError('main window minimize failed', {
+      reportFailure('main window minimize failed', {
         scope: 'app-shell',
         operation: 'minimize-window',
         cause,
@@ -102,7 +102,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const maximizeWindow = useCallback(() => {
     void runtime.mainWindow.toggleMaximize().catch((cause: unknown) => {
-      reportError('main window maximize failed', {
+      reportFailure('main window maximize failed', {
         scope: 'app-shell',
         operation: 'toggle-maximize-window',
         cause,
@@ -112,7 +112,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const openDeveloperTools = useCallback(() => {
     void runtime.mainWindow.openDeveloperTools().catch((cause: unknown) => {
-      reportError('open developer tools failed', {
+      reportFailure('open developer tools failed', {
         scope: 'app-shell',
         operation: 'open-developer-tools',
         cause,
@@ -122,7 +122,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const startWindowDragging = useCallback(() => {
     void runtime.mainWindow.startDragging().catch((cause: unknown) => {
-      reportError('main window drag failed', {
+      reportFailure('main window drag failed', {
         scope: 'app-shell',
         operation: 'start-window-dragging',
         cause,
@@ -148,7 +148,7 @@ export function AppShell({ runtime }: AppShellProps) {
           return
         }
 
-        reportError('settings load failed', {
+        reportFailure('settings load failed', {
           scope: 'app-shell',
           operation: 'load-settings',
           cause,
@@ -263,7 +263,7 @@ function useWindowMaximizedState(mainWindow: MainWindowController): boolean {
             return
           }
 
-          reportError('window maximize state query failed', {
+          reportFailure('window maximize state query failed', {
             scope: 'app-shell',
             operation: 'query-window-maximized',
             cause,
@@ -288,7 +288,7 @@ function useWindowMaximizedState(mainWindow: MainWindowController): boolean {
           return
         }
 
-        reportError('window resize listener registration failed', {
+        reportFailure('window resize listener registration failed', {
           scope: 'app-shell',
           operation: 'register-window-resize-listener',
           cause,
@@ -325,7 +325,7 @@ function useMainWindowCloseRequest(
       },
       (cause: unknown) => {
         if (!disposed) {
-          reportError('main window close listener registration failed', {
+          reportFailure('main window close listener registration failed', {
             scope: 'app-shell',
             operation: 'register-close-listener',
             cause,

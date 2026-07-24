@@ -88,3 +88,19 @@ export {
   unwrap,
   unwrapErr,
 } from './result'
+
+export {
+  createClassifiedFailure,
+  createFailureScopeKey,
+  FAILURE_IMPACTS,
+  isNonTerminalFailureImpact,
+  isTerminalFailureImpact,
+  validateFailurePolicy,
+  type ClassifiedFailure,
+  type ClassifiedFailureInput,
+  type FailureImpact,
+  type FailureRecovery,
+  type FailureScope,
+  type NonTerminalFailureImpact,
+  type TerminalFailureImpact,
+} from './failure-policy'

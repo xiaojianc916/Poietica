@@ -1,3 +1,4 @@
+import type { FailureImpact } from '@hybrid-canvas/foundations-kernel'
 import { FatalIncidentController } from './fatal-controller'
 import type { CreateFatalIncidentInput, FatalIncident } from './fatal-incident'
 
@@ -7,7 +8,7 @@ import type { CreateFatalIncidentInput, FatalIncident } from './fatal-incident'
  * Recoverable, feature-degraded and document-scoped failures must not
  * enter the global fatal state machine.
  */
-export type FatalEscalationImpact = 'application-fatal' | 'native-fatal'
+export type FatalEscalationImpact = Extract<FailureImpact, 'application-fatal' | 'native-fatal'>
 
 export interface FatalEscalationInput extends CreateFatalIncidentInput {
   readonly impact: FatalEscalationImpact

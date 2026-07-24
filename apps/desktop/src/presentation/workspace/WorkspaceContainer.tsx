@@ -26,7 +26,7 @@ import {
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
-import { reportUiError as reportError } from '../ui/ui-feedback'
+import { reportUiFailure as reportFailure } from '../ui/ui-feedback'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
   pages: Object.freeze([]),
@@ -116,7 +116,7 @@ export function WorkspaceContainer({
   const handleSave = useCallback(
     (sessionId: CanvasSessionId) => {
       void port.canvases.save(sessionId).catch((cause: unknown) => {
-        reportError('canvas save failed', {
+        reportFailure('canvas save failed', {
           scope: 'workspace',
           operation: 'save-canvas',
           sessionId,
@@ -130,7 +130,7 @@ export function WorkspaceContainer({
   const handleCloseCanvas = useCallback(
     (sessionId: CanvasSessionId, intent: CanvasCloseIntent = 'normal') => {
       void port.canvases.closeCanvas(sessionId, intent).catch((cause: unknown) => {
-        reportError('canvas close transaction failed', {
+        reportFailure('canvas close transaction failed', {
           scope: 'workspace',
           operation: 'close-canvas',
           sessionId,
@@ -169,7 +169,7 @@ export function WorkspaceContainer({
         void port.canvases
           .create(createUntitledCanvasTitle(existingTitles))
           .catch((cause: unknown) => {
-            reportError('canvas create failed', {
+            reportFailure('canvas create failed', {
               scope: 'workspace',
               operation: 'create-canvas',
               cause,
@@ -179,7 +179,7 @@ export function WorkspaceContainer({
 
       openCanvas() {
         void port.canvases.open().catch((cause: unknown) => {
-          reportError('canvas open failed', {
+          reportFailure('canvas open failed', {
             scope: 'workspace',
             operation: 'open-canvas',
             cause,

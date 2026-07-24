@@ -105,6 +105,9 @@ importers:
       '@hybrid-canvas/document':
         specifier: workspace:*
         version: link:../../editor/document
+      '@hybrid-canvas/foundations-kernel':
+        specifier: workspace:*
+        version: link:../../foundations/kernel
       '@hybrid-canvas/foundations-observability':
         specifier: workspace:*
         version: link:../../foundations/observability
