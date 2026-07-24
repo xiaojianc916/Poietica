@@ -1,303 +1,601 @@
-#!/usr/bin/env node
-
-import { execFile } from 'node:child_process'
-import { access, chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { promisify } from 'node:util'
 
-const execFileAsync = promisify(execFile)
+const ROOT = process.cwd()
 
-const root = process.cwd()
+const FILES = Object.freeze({
+  packageJson: 'package.json',
 
-const packageJsonPath = path.join(root, 'package.json')
-const hooksDirectory = path.join(root, '.githooks')
-const preCommitPath = path.join(hooksDirectory, 'pre-commit')
-const prePushPath = path.join(hooksDirectory, 'pre-push')
-const installerPath = path.join(root, 'scripts', 'git-hooks', 'install.mjs')
+  runtime: 'apps/desktop/src/fatal/fatal-runtime.ts',
 
-const PREPARE_COMMAND = 'node scripts/git-hooks/install.mjs'
+  collectors: 'apps/desktop/src/fatal/fatal-collectors.ts',
 
-const preCommitHook = `#!/usr/bin/env sh
+  boundary: 'apps/desktop/src/fatal/FatalErrorBoundary.tsx',
 
-set -eu
+  reactRoot: 'apps/desktop/src/bootstrap/react-root.tsx',
 
-# 自动暂存格式化结果前，禁止存在未暂存的已跟踪文件改动。
-# 这样 git add -u 不会把用户不准备提交的改动混入本次 commit。
-if ! git diff --quiet; then
-  echo ""
-  echo "提交已中止：存在未暂存的已跟踪文件改动。"
-  echo "请先暂存、还原或 stash 这些改动，再执行 git commit。"
-  echo ""
-  git status --short
-  exit 1
-fi
+  main: 'apps/desktop/src/main.tsx',
 
-echo "==> 自动格式化代码"
-pnpm format
+  architectureCheck: 'tests/architecture/check-fatal-escalation-policy.mjs',
 
-# pnpm format 的结果必须进入当前正在创建的 commit。
-git add -u
-
-echo "==> 格式化完成，格式化结果已自动暂存"
-`
-
-const prePushHook = `#!/usr/bin/env sh
-
-set -eu
-
-echo "==> 检查代码格式"
-pnpm format:check
-
-echo "==> 静态检查"
-pnpm lint
-
-echo "==> TypeScript 类型检查"
-pnpm typecheck
-
-echo "==> 架构检查"
-pnpm test:architecture
-
-echo ""
-echo "==> pre-push 检查通过"
-`
-
-const installerScript = `#!/usr/bin/env node
-
-import { execFile } from 'node:child_process'
-import { access } from 'node:fs/promises'
-import path from 'node:path'
-import process from 'node:process'
-import { promisify } from 'node:util'
-
-const execFileAsync = promisify(execFile)
-
-const root = process.cwd()
-const hooksPath = '.githooks'
-
-async function exists(filePath) {
-  try {
-    await access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function git(args, allowFailure = false) {
-  try {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd: root,
-      windowsHide: true,
-    })
-
-    return { ok: true, stdout: stdout.trim() }
-  } catch (error) {
-    if (!allowFailure) {
-      throw error
-    }
-
-    return {
-      ok: false,
-      stdout: error.stdout?.trim() ?? '',
-    }
-  }
-}
+  adr: 'docs/adr/ADR-006-fatal-escalation-policy.md',
+})
 
 async function main() {
-  if (process.env.CI) {
-    console.log('跳过 Git hook 安装：当前为 CI 环境。')
-    return
+  await assertRepository()
+
+  await rewriteFatalRuntime()
+  await rewriteCollectors()
+  await rewriteReactBoundary()
+  await rewriteReactRoot()
+  await rewriteMainEntry()
+  await writeArchitectureCheck()
+  await writeArchitectureDecision()
+  await registerArchitectureCheck()
+
+  console.log('')
+  console.log('Fatal escalation policy refactor applied.')
+}
+
+async function assertRepository() {
+  const source = await readFile(resolvePath(FILES.packageJson), 'utf8')
+
+  const packageJson = JSON.parse(source)
+
+  if (packageJson.name !== 'hybrid-canvas') {
+    throw new Error('Run this script from the Hybrid Canvas repository root.')
   }
+}
 
-  if (!(await exists(path.join(root, 'package.json')))) {
-    throw new Error('请在仓库根目录执行 pnpm install。')
-  }
+async function rewriteFatalRuntime() {
+  const source = [
+    'import {',
+    '  FatalIncidentController,',
+    "} from './fatal-controller'",
+    'import type {',
+    '  CreateFatalIncidentInput,',
+    '  FatalIncident,',
+    "} from './fatal-incident'",
+    '',
+    '/**',
+    ' * Fatal escalation is deliberately restricted to process-wide failure.',
+    ' *',
+    ' * Recoverable, feature-degraded and document-scoped failures must not',
+    ' * enter the global fatal state machine.',
+    ' */',
+    'export type FatalEscalationImpact =',
+    "  | 'application-fatal'",
+    "  | 'native-fatal'",
+    '',
+    'export interface FatalEscalationInput',
+    '  extends CreateFatalIncidentInput {',
+    '  readonly impact: FatalEscalationImpact',
+    '}',
+    '',
+    'export const fatalIncidentController =',
+    '  new FatalIncidentController()',
+    '',
+    '/**',
+    ' * The only production gateway allowed to enter terminal fatal state.',
+    ' */',
+    'export function reportFatalIncident(',
+    '  input: FatalEscalationInput,',
+    '): FatalIncident {',
+    '  const {',
+    '    impact,',
+    '    ...incidentInput',
+    '  } = input',
+    '',
+    '  return fatalIncidentController.report({',
+    '    ...incidentInput,',
+    '    context: {',
+    '      ...(incidentInput.context ?? {}),',
+    '      failureImpact: impact,',
+    '    },',
+    '  })',
+    '}',
+    '',
+    'let reactFatalHostMounted = false',
+    '',
+    'export function markReactFatalHostMounted(): void {',
+    '  reactFatalHostMounted = true',
+    '}',
+    '',
+    'export function isReactFatalHostMounted(): boolean {',
+    '  return reactFatalHostMounted',
+    '}',
+    '',
+  ].join('\n')
 
-  if (!(await exists(path.join(root, hooksPath, 'pre-commit')))) {
-    throw new Error('缺少 .githooks/pre-commit。')
-  }
+  await writeText(FILES.runtime, source)
+}
 
-  if (!(await exists(path.join(root, hooksPath, 'pre-push')))) {
-    throw new Error('缺少 .githooks/pre-push。')
-  }
+async function rewriteCollectors() {
+  const file = resolvePath(FILES.collectors)
 
-  const gitRoot = await git(['rev-parse', '--show-toplevel'], true)
+  let source = await readFile(file, 'utf8')
 
-  if (!gitRoot.ok) {
-    console.log('跳过 Git hook 安装：当前目录不是 Git worktree。')
-    return
-  }
-
-  const currentHooksPath = await git(
-    ['config', '--get', 'core.hooksPath'],
-    true,
+  source = replaceRequired(
+    source,
+    "import { fatalIncidentController, isReactFatalHostMounted } from './fatal-runtime'",
+    [
+      'import {',
+      '  isReactFatalHostMounted,',
+      '  reportFatalIncident,',
+      "} from './fatal-runtime'",
+    ].join('\n'),
+    FILES.collectors,
   )
 
-  if (
-    currentHooksPath.ok &&
-    currentHooksPath.stdout &&
-    currentHooksPath.stdout !== hooksPath
-  ) {
-    console.warn(
-      [
-        '保留已有 core.hooksPath：' + currentHooksPath.stdout,
-        '如需使用本仓库 Hook，请手动执行：',
-        'git config core.hooksPath ' + hooksPath,
-      ].join('\\n'),
-    )
+  const oldCall = 'const incident = fatalIncidentController.report(input)'
+
+  const newCall = [
+    'const incident = reportFatalIncident({',
+    '    ...input,',
+    "    impact: 'application-fatal',",
+    '  })',
+  ].join('\n')
+
+  source = replaceAllRequired(source, oldCall, newCall, 3, FILES.collectors)
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.collectors + ': updated.')
+}
+
+async function rewriteReactBoundary() {
+  const file = resolvePath(FILES.boundary)
+
+  let source = await readFile(file, 'utf8')
+
+  source = replaceRequired(
+    source,
+    "import { fatalIncidentController } from './fatal-runtime'",
+    "import { reportFatalIncident } from './fatal-runtime'",
+    FILES.boundary,
+  )
+
+  source = replaceRequired(
+    source,
+    'fatalIncidentController.report({',
+    ['reportFatalIncident({', "      impact: 'application-fatal',"].join('\n'),
+    FILES.boundary,
+  )
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.boundary + ': updated.')
+}
+
+async function rewriteReactRoot() {
+  const file = resolvePath(FILES.reactRoot)
+
+  let source = await readFile(file, 'utf8')
+
+  source = replaceRequired(
+    source,
+    [
+      'import {',
+      '  fatalIncidentController,',
+      '  markReactFatalHostMounted,',
+      "} from '../fatal/fatal-runtime'",
+    ].join('\n'),
+    [
+      'import {',
+      '  markReactFatalHostMounted,',
+      '  reportFatalIncident,',
+      "} from '../fatal/fatal-runtime'",
+    ].join('\n'),
+    FILES.reactRoot,
+    ["import { fatalIncidentController, markReactFatalHostMounted } from '../fatal/fatal-runtime'"],
+  )
+
+  source = replaceRequired(
+    source,
+    'fatalIncidentController.report({',
+    ['reportFatalIncident({', "      impact: 'application-fatal',"].join('\n'),
+    FILES.reactRoot,
+  )
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.reactRoot + ': updated.')
+}
+
+async function rewriteMainEntry() {
+  const file = resolvePath(FILES.main)
+
+  let source = await readFile(file, 'utf8')
+
+  source = replaceRequired(
+    source,
+    "import { fatalIncidentController } from './fatal/fatal-runtime'",
+    "import { reportFatalIncident } from './fatal/fatal-runtime'",
+    FILES.main,
+  )
+
+  source = replaceRequired(
+    source,
+    'fatalIncidentController.report({',
+    ['reportFatalIncident({', "    impact: 'native-fatal',"].join('\n'),
+    FILES.main,
+  )
+
+  await writeFile(file, normalizeText(source), 'utf8')
+
+  console.log(FILES.main + ': updated.')
+}
+
+async function writeArchitectureCheck() {
+  const source = [
+    '#!/usr/bin/env node',
+    '',
+    'import {',
+    '  existsSync,',
+    '  readFileSync,',
+    '  readdirSync,',
+    "} from 'node:fs'",
+    "import path from 'node:path'",
+    "import process from 'node:process'",
+    '',
+    'const ROOT = process.cwd()',
+    'const failures = []',
+    '',
+    "const sourceRoot = 'apps/desktop/src'",
+    '',
+    'const files = {',
+    "  runtime: 'apps/desktop/src/fatal/fatal-runtime.ts',",
+    "  collectors: 'apps/desktop/src/fatal/fatal-collectors.ts',",
+    "  boundary: 'apps/desktop/src/fatal/FatalErrorBoundary.tsx',",
+    "  reactRoot: 'apps/desktop/src/bootstrap/react-root.tsx',",
+    "  main: 'apps/desktop/src/main.tsx',",
+    '}',
+    '',
+    'for (const relativePath of Object.values(files)) {',
+    '  if (!existsSync(path.join(ROOT, relativePath))) {',
+    '    failures.push(',
+    "      'Missing fatal escalation policy file: ' +",
+    '        relativePath,',
+    '    )',
+    '  }',
+    '}',
+    '',
+    'if (failures.length === 0) {',
+    '  const runtime = read(files.runtime)',
+    '  const collectors = read(files.collectors)',
+    '  const boundary = read(files.boundary)',
+    '  const reactRoot = read(files.reactRoot)',
+    '  const main = read(files.main)',
+    '',
+    '  requireText(',
+    '    runtime,',
+    '    "export type FatalEscalationImpact =",',
+    "    'Fatal escalation impact type is missing.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    runtime,',
+    '    "| \'application-fatal\'",',
+    "    'Application-fatal impact is missing.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    runtime,',
+    '    "| \'native-fatal\'",',
+    "    'Native-fatal impact is missing.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    runtime,',
+    "    'export function reportFatalIncident(',",
+    "    'Fatal escalation gateway is missing.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    runtime,',
+    "    'failureImpact: impact',",
+    "    'Fatal incidents do not preserve their escalation impact.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    collectors,',
+    '    "impact: \'application-fatal\'",',
+    "    'Global browser collectors do not declare application-fatal impact.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    boundary,',
+    '    "impact: \'application-fatal\'",',
+    "    'React root boundary does not declare application-fatal impact.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    reactRoot,',
+    '    "impact: \'application-fatal\'",',
+    "    'Runtime construction failure does not declare application-fatal impact.',",
+    '  )',
+    '',
+    '  requireText(',
+    '    main,',
+    '    "impact: \'native-fatal\'",',
+    "    'Previous native crash does not declare native-fatal impact.',",
+    '  )',
+    '',
+    '  findDirectControllerReports()',
+    '}',
+    '',
+    'if (failures.length > 0) {',
+    '  console.error(',
+    '    [',
+    "      'Fatal escalation policy checks failed:',",
+    '      ...failures.map(',
+    "        (failure) => '- ' + failure,",
+    '      ),',
+    "    ].join('\\n'),",
+    '  )',
+    '',
+    '  process.exitCode = 1',
+    '} else {',
+    '  console.log(',
+    "    'Fatal escalation policy checks passed.',",
+    '  )',
+    '}',
+    '',
+    'function findDirectControllerReports() {',
+    '  const allowed = new Set([',
+    "    'apps/desktop/src/fatal/fatal-runtime.ts',",
+    "    'apps/desktop/src/fatal/fatal-controller.ts',",
+    '  ])',
+    '',
+    '  for (const relativePath of walk(sourceRoot)) {',
+    '    if (',
+    "      !relativePath.endsWith('.ts') &&",
+    "      !relativePath.endsWith('.tsx')",
+    '    ) {',
+    '      continue',
+    '    }',
+    '',
+    '    if (',
+    "      relativePath.endsWith('.test.ts') ||",
+    "      relativePath.endsWith('.test.tsx') ||",
+    '      allowed.has(relativePath)',
+    '    ) {',
+    '      continue',
+    '    }',
+    '',
+    '    const source = read(relativePath)',
+    '',
+    '    if (',
+    '      source.includes(',
+    "        'fatalIncidentController.report(',",
+    '      )',
+    '    ) {',
+    '      failures.push(',
+    '        [',
+    "          'Direct fatal controller report is forbidden:',",
+    "          relativePath + '.',",
+    "          'Use reportFatalIncident with an explicit impact.',",
+    "        ].join(' '),",
+    '      )',
+    '    }',
+    '  }',
+    '}',
+    '',
+    'function walk(relativeDirectory) {',
+    '  const result = []',
+    '',
+    '  for (const entry of readdirSync(',
+    '    path.join(ROOT, relativeDirectory),',
+    '    { withFileTypes: true },',
+    '  )) {',
+    '    const relativePath = path.posix.join(',
+    '      relativeDirectory,',
+    '      entry.name,',
+    '    )',
+    '',
+    '    if (entry.isDirectory()) {',
+    '      result.push(...walk(relativePath))',
+    '      continue',
+    '    }',
+    '',
+    '    result.push(relativePath)',
+    '  }',
+    '',
+    '  return result',
+    '}',
+    '',
+    'function read(relativePath) {',
+    '  return readFileSync(',
+    '    path.join(ROOT, relativePath),',
+    "    'utf8',",
+    '  )',
+    '}',
+    '',
+    'function requireText(',
+    '  source,',
+    '  expected,',
+    '  failure,',
+    ') {',
+    '  if (!source.includes(expected)) {',
+    '    failures.push(failure)',
+    '  }',
+    '}',
+    '',
+  ].join('\n')
+
+  await writeText(FILES.architectureCheck, source)
+}
+
+async function writeArchitectureDecision() {
+  const source = [
+    '# ADR-006: Explicit fatal escalation policy',
+    '',
+    '- Status: Accepted',
+    '- Date: 2026-07-24',
+    '- Scope: Desktop renderer and native crash recovery',
+    '',
+    '## Context',
+    '',
+    'A unified fatal screen is not sufficient by itself. The application also',
+    'needs a strict policy controlling which failures may enter terminal fatal',
+    'state.',
+    '',
+    'Without an explicit escalation boundary, a recoverable document, settings,',
+    'resource or optional-feature failure can accidentally replace the entire',
+    'application with the global fatal UI.',
+    '',
+    '## Decision',
+    '',
+    'Production code must not call `FatalIncidentController.report` directly.',
+    '',
+    'All production escalation passes through `reportFatalIncident` and declares',
+    'one of these impacts:',
+    '',
+    '- `application-fatal`: the renderer cannot safely continue;',
+    '- `native-fatal`: the native process previously terminated unexpectedly.',
+    '',
+    'The gateway records the selected impact in fatal diagnostic context.',
+    '',
+    'The controller remains responsible only for terminal state, fingerprint',
+    'deduplication and listener notification. It does not infer severity from',
+    'arbitrary error messages.',
+    '',
+    '## Non-fatal failures',
+    '',
+    'The following failures must not use the fatal escalation gateway:',
+    '',
+    '- expected file open, save, cancel or conflict errors;',
+    '- settings read or write failures;',
+    '- recoverable IPC errors;',
+    '- image, font, media and other resource loading failures;',
+    '- optional feature and plugin failures;',
+    '- document-scoped validation and import errors.',
+    '',
+    'These failures must remain within their owning application or presentation',
+    'boundary.',
+    '',
+    '## Fatal sources',
+    '',
+    'Current approved fatal sources are:',
+    '',
+    '- bootstrap runtime construction failure;',
+    '- uncaught browser ErrorEvent;',
+    '- unhandled Promise rejection;',
+    '- root React render failure;',
+    '- Vite development compilation failure;',
+    '- previous native process panic.',
+    '',
+    'Adding another fatal source requires an explicit impact and an architecture',
+    'check update.',
+    '',
+    '## Consequences',
+    '',
+    '- accidental global escalation becomes harder;',
+    '- incident diagnostics show why a failure was promoted;',
+    '- the terminal state machine remains independent from browser and React;',
+    '- recoverable failures need their own local handling;',
+    '- architecture checks reject direct controller reports.',
+    '',
+  ].join('\n')
+
+  await writeText(FILES.adr, source)
+}
+
+async function registerArchitectureCheck() {
+  const file = resolvePath(FILES.packageJson)
+
+  const source = await readFile(file, 'utf8')
+
+  const packageJson = JSON.parse(source)
+
+  const command = 'node tests/architecture/check-fatal-escalation-policy.mjs'
+
+  const current = packageJson.scripts?.['test:architecture']
+
+  if (typeof current !== 'string') {
+    throw new Error('package.json is missing test:architecture.')
+  }
+
+  if (current.includes(command)) {
+    console.log('Fatal escalation architecture check is already registered.')
+
     return
   }
 
-  await git(['config', 'core.hooksPath', hooksPath])
+  packageJson.scripts['test:architecture'] = current + ' && ' + command
 
-  console.log('已启用仓库 Git hooks：' + hooksPath)
+  await writeFile(file, JSON.stringify(packageJson, null, 2) + '\n', 'utf8')
+
+  console.log('Registered fatal escalation architecture check.')
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
-`
-
-async function exists(filePath) {
-  try {
-    await access(filePath)
-    return true
-  } catch {
-    return false
+function replaceRequired(source, oldText, newText, file, alternatives = []) {
+  if (source.includes(newText)) {
+    return source
   }
+
+  if (source.includes(oldText)) {
+    return source.replace(oldText, newText)
+  }
+
+  for (const alternative of alternatives) {
+    if (source.includes(alternative)) {
+      return source.replace(alternative, newText)
+    }
+  }
+
+  throw new Error(['Could not find expected text in', file + ':', oldText].join(' '))
 }
 
-async function git(args, allowFailure = false) {
-  try {
-    const { stdout, stderr } = await execFileAsync('git', args, {
-      cwd: root,
-      windowsHide: true,
-    })
-
-    return {
-      ok: true,
-      stdout: stdout.trim(),
-      stderr: stderr.trim(),
-    }
-  } catch (error) {
-    if (!allowFailure) {
-      throw new Error(
-        [`git ${args.join(' ')} 执行失败`, error.stdout?.trim(), error.stderr?.trim()]
-          .filter(Boolean)
-          .join('\n'),
-      )
-    }
-
-    return {
-      ok: false,
-      stdout: error.stdout?.trim() ?? '',
-      stderr: error.stderr?.trim() ?? '',
-    }
-  }
-}
-
-async function ensureRepository() {
-  if (!(await exists(packageJsonPath))) {
-    throw new Error(`请在仓库根目录执行。未找到：${packageJsonPath}`)
+function replaceAllRequired(source, oldText, newText, expectedCount, file) {
+  if (!source.includes(oldText) && source.includes(newText)) {
+    return source
   }
 
-  const gitRoot = await git(['rev-parse', '--show-toplevel'], true)
+  const count = source.split(oldText).length - 1
 
-  if (!gitRoot.ok) {
-    throw new Error('当前目录不是 Git 仓库。')
-  }
-
-  if (path.resolve(gitRoot.stdout) !== path.resolve(root)) {
+  if (count !== expectedCount) {
     throw new Error(
       [
-        '请在 Git worktree 根目录执行脚本。',
-        `当前目录：${root}`,
-        `仓库根目录：${gitRoot.stdout}`,
-      ].join('\n'),
-    )
-  }
-}
-
-async function updatePackageJson() {
-  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'))
-
-  packageJson.scripts ??= {}
-
-  const currentPrepare = packageJson.scripts.prepare
-
-  if (!currentPrepare) {
-    packageJson.scripts.prepare = PREPARE_COMMAND
-    console.log(`已新增 package.json scripts.prepare：${PREPARE_COMMAND}`)
-  } else if (!currentPrepare.includes(PREPARE_COMMAND)) {
-    packageJson.scripts.prepare = `${currentPrepare} && ${PREPARE_COMMAND}`
-
-    console.log(`已保留原 prepare，并追加 Git Hook 安装：${packageJson.scripts.prepare}`)
-  } else {
-    console.log('跳过 package.json：prepare 已包含 Git Hook 安装。')
-  }
-
-  await writeFile(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, 'utf8')
-}
-
-async function writeHook(filePath, content) {
-  await writeFile(filePath, content, 'utf8')
-
-  /*
-   * Windows 上 Git Hook 通常可直接由 Git Bash 执行；
-   * Unix/macOS clone 后仍需要可执行权限。
-   */
-  try {
-    await chmod(filePath, 0o755)
-  } catch {
-    // Windows 文件系统不支持 Unix mode 时由 Git index 的 chmod 处理。
-  }
-}
-
-async function configureHooksPath() {
-  const current = await git(['config', '--get', 'core.hooksPath'], true)
-
-  /*
-   * 不破坏用户已有的其他 Hook 管理器配置。
-   */
-  if (current.ok && current.stdout && current.stdout !== '.githooks') {
-    throw new Error(
-      [
-        `检测到已有 core.hooksPath：${current.stdout}`,
-        '脚本不会覆盖已有 Hook 配置。',
-        '如确认要使用本仓库 Hook，请手动执行：',
-        'git config core.hooksPath .githooks',
-      ].join('\n'),
+        'Expected',
+        String(expectedCount),
+        'occurrences in',
+        file + ',',
+        'but found',
+        String(count) + '.',
+      ].join(' '),
     )
   }
 
-  await git(['config', 'core.hooksPath', '.githooks'])
+  return source.replaceAll(oldText, newText)
 }
 
-async function main() {
-  await ensureRepository()
+async function writeText(relativePath, content) {
+  const absolutePath = resolvePath(relativePath)
 
-  await mkdir(hooksDirectory, { recursive: true })
-  await mkdir(path.dirname(installerPath), { recursive: true })
+  await mkdir(path.dirname(absolutePath), {
+    recursive: true,
+  })
 
-  await writeHook(preCommitPath, preCommitHook)
-  await writeHook(prePushPath, prePushHook)
-  await writeFile(installerPath, installerScript, 'utf8')
+  await writeFile(absolutePath, normalizeText(content), 'utf8')
 
-  await updatePackageJson()
-  await configureHooksPath()
+  console.log(relativePath + ': written.')
+}
 
-  console.log('\nGit Hook 已配置完成。')
-  console.log('\n执行逻辑：')
-  console.log('  git commit → pnpm format → 自动暂存格式化结果 → 创建 commit')
-  console.log('  git push   → format:check → lint → typecheck → architecture → 推送')
-  console.log('\n请执行以下命令将 Hook 作为仓库文件提交：')
-  console.log('git update-index --add --chmod=+x .githooks/pre-commit')
-  console.log('git update-index --add --chmod=+x .githooks/pre-push')
+function normalizeText(source) {
+  return source.replace(/\r\n/g, '\n').trimEnd() + '\n'
+}
+
+function resolvePath(relativePath) {
+  return path.join(ROOT, relativePath)
 }
 
 main().catch((error) => {
-  console.error(`\n配置 Git Hook 失败：${error instanceof Error ? error.message : String(error)}`)
+  console.error('')
+  console.error('Fatal escalation policy refactor failed.')
+
+  console.error(error instanceof Error ? (error.stack ?? error.message) : error)
+
   process.exitCode = 1
 })

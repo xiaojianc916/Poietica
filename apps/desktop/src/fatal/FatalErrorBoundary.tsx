@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { fatalIncidentController } from './fatal-runtime'
+import { reportFatalIncident } from './fatal-runtime'
 
 export interface FatalErrorBoundaryProps {
   readonly children: ReactNode
@@ -26,7 +26,8 @@ export class FatalErrorBoundary extends Component<
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     const componentStack = info.componentStack ?? undefined
 
-    fatalIncidentController.report({
+    reportFatalIncident({
+      impact: 'application-fatal',
       error,
       kind: 'render',
       phase: 'running',

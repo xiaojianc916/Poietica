@@ -1,6 +1,6 @@
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
-import { fatalIncidentController, markReactFatalHostMounted } from '../fatal/fatal-runtime'
+import { markReactFatalHostMounted, reportFatalIncident } from '../fatal/fatal-runtime'
 import { FatalErrorHost } from '../fatal/FatalErrorHost'
 import { AppShell } from '../presentation/AppShell'
 import { createApplicationRuntime } from './application'
@@ -18,7 +18,8 @@ export function mountReactApplication(container: HTMLElement): MountedReactAppli
       tldrawLicenseKey: readTldrawLicenseKey(),
     })
   } catch (error: unknown) {
-    fatalIncidentController.report({
+    reportFatalIncident({
+      impact: 'application-fatal',
       error,
       kind: 'bootstrap',
       phase: 'runtime-construction',

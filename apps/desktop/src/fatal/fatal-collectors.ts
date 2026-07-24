@@ -1,5 +1,5 @@
 import type { CreateFatalIncidentInput, FatalIncidentPhase } from './fatal-incident'
-import { fatalIncidentController, isReactFatalHostMounted } from './fatal-runtime'
+import { isReactFatalHostMounted, reportFatalIncident } from './fatal-runtime'
 
 interface ViteHotContext {
   readonly on: (event: string, listener: (payload: unknown) => void) => void
@@ -64,7 +64,10 @@ function handleWindowError(event: Event): void {
     },
   }
 
-  const incident = fatalIncidentController.report(input)
+  const incident = reportFatalIncident({
+    ...input,
+    impact: 'application-fatal',
+  })
 
   emergencyLogIncident(incident)
 }
@@ -83,7 +86,10 @@ function handleUnhandledRejection(event: PromiseRejectionEvent): void {
     },
   }
 
-  const incident = fatalIncidentController.report(input)
+  const incident = reportFatalIncident({
+    ...input,
+    impact: 'application-fatal',
+  })
 
   emergencyLogIncident(incident)
 }
@@ -102,7 +108,10 @@ function handleViteDiagnostic(payload: unknown): void {
     context: viteError.context,
   }
 
-  const incident = fatalIncidentController.report(input)
+  const incident = reportFatalIncident({
+    ...input,
+    impact: 'application-fatal',
+  })
 
   emergencyLogIncident(incident)
 }

@@ -6,7 +6,7 @@ import {
 } from '@hybrid-canvas/platforms-desktop-runtime'
 import { installApplicationLifecycle } from './bootstrap/application-lifecycle'
 import { mountReactApplication } from './bootstrap/react-root'
-import { fatalIncidentController } from './fatal/fatal-runtime'
+import { reportFatalIncident } from './fatal/fatal-runtime'
 
 void bootstrapApplication()
 
@@ -41,7 +41,8 @@ function reportPreviousNativeCrash(report: NativeCrashReport): void {
   error.name = 'NativeProcessCrash'
   error.stack = [report.message, '', 'Native backtrace:', report.backtrace].join('\n')
 
-  fatalIncidentController.report({
+  reportFatalIncident({
+    impact: 'native-fatal',
     error,
     kind: 'native-crash',
     phase: 'preflight',
