@@ -6,8 +6,6 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
-  useEffect,
-  useRef,
   useState,
 } from 'react'
 import { cn } from '../../lib/utils'
@@ -104,33 +102,6 @@ export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trig
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   function SelectTrigger({ children, className, ...props }, forwardedRef) {
     const { data, type, value, setWidth } = useSelectContext()
-
-    const localRef = useRef<HTMLButtonElement | null>(null)
-
-    useEffect(() => {
-      const element = localRef.current
-
-      if (!element) {
-        return
-      }
-
-      const updateWidth = () => {
-        if (element.offsetWidth > 0) {
-          setWidth(element.offsetWidth)
-        }
-      }
-
-      updateWidth()
-
-      const resizeObserver = new ResizeObserver(updateWidth)
-
-      resizeObserver.observe(element)
-
-      return () => {
-        resizeObserver.disconnect()
-      }
-    }, [setWidth])
-
     const selectedItem = data.find((item) => item.value === value)
 
     return (
@@ -152,7 +123,9 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
           className,
         )}
         ref={(element) => {
-          localRef.current = element
+          if (element && element.offsetWidth > 0) {
+            setWidth(element.offsetWidth)
+          }
 
           if (typeof forwardedRef === 'function') {
             forwardedRef(element)

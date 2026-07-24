@@ -1,4 +1,17 @@
-import { Button, Dialog, ErrorState, LoadingState, Switch } from '@hybrid-canvas/design-system'
+import {
+  Button,
+  Dialog,
+  ErrorState,
+  LoadingState,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectList,
+  type SelectOption,
+  SelectTrigger,
+  Switch,
+} from '@hybrid-canvas/design-system'
 import { type ChangeEvent, memo, type ReactNode, useCallback, useId, useState } from 'react'
 import type { AppSettings, ThemeMode } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
@@ -70,6 +83,7 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
         }
       }}
       open={open}
+      showHeader={false}
       title="设置"
     >
       <div className="settings-shell">
@@ -192,7 +206,7 @@ const GeneralSettings = memo(function GeneralSettings({
     >
       <SettingsGroup description="界面会立即预览颜色模式，取消时恢复原来的主题。" title="外观">
         <SettingRow description="选择适合当前环境的应用颜色模式。" label="颜色模式">
-          <SegmentedControl
+          <SettingsSelect
             ariaLabel="颜色模式"
             onChange={(theme) => {
               controller.update((current) => ({
@@ -210,7 +224,7 @@ const GeneralSettings = memo(function GeneralSettings({
         </SettingRow>
 
         <SettingRow description="更改应用菜单与设置界面的显示语言。" label="界面语言">
-          <NativeSelect
+          <SettingsSelect
             ariaLabel="界面语言"
             onChange={(value) => {
               controller.update((current) => ({
@@ -242,7 +256,7 @@ const GeneralSettings = memo(function GeneralSettings({
 
         {settings.autoSave ? (
           <SettingRow description="频繁保存更安全，较长间隔可以减少磁盘写入。" label="保存间隔">
-            <NativeSelect
+            <SettingsSelect
               ariaLabel="自动保存间隔"
               onChange={(value) => {
                 controller.update((current) => ({
@@ -315,7 +329,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
         />
 
         <SettingRow description="新建或首次打开画布时使用的缩放比例。" label="默认缩放">
-          <NativeSelect
+          <SettingsSelect
             ariaLabel="默认画布缩放"
             onChange={(value) => {
               controller.update((current) => ({
@@ -369,7 +383,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
         />
 
         <SettingRow description="控制网格线和吸附点之间的距离。" label="网格尺寸">
-          <NativeSelect
+          <SettingsSelect
             ariaLabel="画布网格尺寸"
             disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}
             onChange={(value) => {
@@ -406,7 +420,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
     >
       <SettingsGroup description="导出不会修改画布中的原始 TLStore 文档记录。" title="默认输出">
         <SettingRow description="执行快速导出时优先使用的文件格式。" label="文件格式">
-          <NativeSelect
+          <SettingsSelect
             ariaLabel="默认导出格式"
             onChange={(value) => {
               controller.update((current) => ({
@@ -427,7 +441,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
         </SettingRow>
 
         <SettingRow description="用于 PNG 导出的像素密度。" label="PNG 清晰度">
-          <NativeSelect
+          <SettingsSelect
             ariaLabel="PNG 导出清晰度"
             onChange={(value) => {
               controller.update((current) => ({
@@ -449,18 +463,25 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
         </SettingRow>
 
         <SettingRow description="较高质量会生成更大的 PDF 文件。" label="PDF 质量">
-          <RangeControl
+          <SettingsSelect
             ariaLabel="PDF 导出质量"
             onChange={(value) => {
               controller.update((current) => ({
                 ...current,
                 export: {
                   ...current.export,
-                  pdfQuality: value,
+                  pdfQuality: Number(value),
                 },
               }))
             }}
-            value={settings.export.pdfQuality}
+            options={[
+              ['50', '50% · 较小文件'],
+              ['70', '70% · 标准'],
+              ['80', '80% · 清晰'],
+              ['90', '90% · 高质量'],
+              ['100', '100% · 最高质量'],
+            ]}
+            value={String(settings.export.pdfQuality)}
           />
         </SettingRow>
 
@@ -711,91 +732,50 @@ function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
   )
 }
 
-interface NativeSelectProps {
+interface SettingsSelectProps<TValue extends string> {
   readonly ariaLabel: string
-  readonly value: string
-  readonly options: readonly (readonly [string, string])[]
+  readonly value: TValue
+  readonly options: readonly (readonly [TValue, string])[]
   readonly disabled?: boolean
-  readonly onChange: (value: string) => void
+  readonly onChange: (value: TValue) => void
 }
 
-function NativeSelect({
+function SettingsSelect<TValue extends string>({
   ariaLabel,
   value,
   options,
   disabled = false,
   onChange,
-}: NativeSelectProps) {
+}: SettingsSelectProps<TValue>) {
+  const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
+    value: optionValue,
+    label,
+  }))
+
   return (
-    <select
-      aria-label={ariaLabel}
-      className="settings-select"
+    <Select
+      data={data}
       disabled={disabled}
-      onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-        onChange(event.target.value)
+      onValueChange={(nextValue) => {
+        onChange(nextValue as TValue)
       }}
+      type={ariaLabel}
       value={value}
     >
-      {options.map(([optionValue, label]) => (
-        <option key={optionValue} value={optionValue}>
-          {label}
-        </option>
-      ))}
-    </select>
-  )
-}
+      <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger" />
 
-interface SegmentedControlProps {
-  readonly ariaLabel: string
-  readonly value: ThemeMode
-  readonly options: readonly (readonly [ThemeMode, string])[]
-  readonly onChange: (value: ThemeMode) => void
-}
-
-function SegmentedControl({ ariaLabel, value, options, onChange }: SegmentedControlProps) {
-  return (
-    <div aria-label={ariaLabel} className="settings-segmented" role="radiogroup">
-      {options.map(([optionValue, label]) => (
-        <button
-          aria-checked={value === optionValue}
-          data-active={value === optionValue ? 'true' : 'false'}
-          key={optionValue}
-          onClick={() => {
-            onChange(optionValue)
-          }}
-          role="radio"
-          type="button"
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-interface RangeControlProps {
-  readonly ariaLabel: string
-  readonly value: number
-  readonly onChange: (value: number) => void
-}
-
-function RangeControl({ ariaLabel, value, onChange }: RangeControlProps) {
-  return (
-    <div className="settings-range">
-      <input
-        aria-label={ariaLabel}
-        max="100"
-        min="50"
-        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-          onChange(Number(event.target.value))
-        }}
-        step="5"
-        type="range"
-        value={value}
-      />
-
-      <output>{value}%</output>
-    </div>
+      <SelectContent>
+        <SelectList>
+          <SelectGroup>
+            {options.map(([optionValue, label]) => (
+              <SelectItem key={optionValue} value={optionValue}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectList>
+      </SelectContent>
+    </Select>
   )
 }
 

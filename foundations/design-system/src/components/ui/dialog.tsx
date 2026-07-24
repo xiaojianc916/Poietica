@@ -10,6 +10,7 @@ export interface DialogProps {
   readonly description?: string
   readonly children?: ReactNode
   readonly footer?: ReactNode
+  readonly showHeader?: boolean
   readonly className?: string
   readonly contentClassName?: string
   readonly busy?: boolean
@@ -41,6 +42,7 @@ export function Dialog({
   description,
   children,
   footer,
+  showHeader = true,
   className,
   contentClassName,
   busy = false,
@@ -114,43 +116,45 @@ export function Dialog({
               'max-sm:rounded-none',
               className,
             )}
-            initialFocus={closeButtonRef}
+            initialFocus={showHeader ? closeButtonRef : undefined}
           >
-            <header
-              className={cn(
-                'flex min-h-14',
-                'shrink-0 items-start',
-                'justify-between gap-4',
-                'border-b border-divider',
-                'px-5 py-4',
-              )}
-            >
-              <div className="min-w-0">
-                <BaseDialog.Title className="text-base font-semibold">{title}</BaseDialog.Title>
-
-                {description ? (
-                  <BaseDialog.Description
-                    className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}
-                  >
-                    {description}
-                  </BaseDialog.Description>
-                ) : null}
-              </div>
-
-              <Button
-                aria-label={closeLabel}
-                disabled={busy}
-                onClick={() => {
-                  requestOpenChange(false)
-                }}
-                ref={closeButtonRef}
-                size="icon"
-                type="button"
-                variant="ghost"
+            {showHeader ? (
+              <header
+                className={cn(
+                  'flex min-h-14',
+                  'shrink-0 items-start',
+                  'justify-between gap-4',
+                  'border-b border-divider',
+                  'px-5 py-4',
+                )}
               >
-                <X aria-hidden="true" className="size-4" />
-              </Button>
-            </header>
+                <div className="min-w-0">
+                  <BaseDialog.Title className="text-base font-semibold">{title}</BaseDialog.Title>
+
+                  {description ? (
+                    <BaseDialog.Description
+                      className={cn('mt-1 text-sm', 'leading-5', 'text-muted-foreground')}
+                    >
+                      {description}
+                    </BaseDialog.Description>
+                  ) : null}
+                </div>
+
+                <Button
+                  aria-label={closeLabel}
+                  disabled={busy}
+                  onClick={() => {
+                    requestOpenChange(false)
+                  }}
+                  ref={closeButtonRef}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  <X aria-hidden="true" className="size-4" />
+                </Button>
+              </header>
+            ) : null}
 
             {children !== undefined && children !== null ? (
               <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>

@@ -284,94 +284,6 @@
   justify-content: flex-end;
 }
 
-.settings-select {
-  width: 176px;
-  height: var(--ui-control-height-md);
-  padding: 0 34px 0 11px;
-  border: 1px solid var(--ui-input);
-  border-radius: var(--ui-radius-md);
-  color: var(--ui-foreground);
-  background-color: var(--ui-background);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-select:hover {
-  border-color: var(--ui-border);
-  background-color: var(--ui-muted);
-}
-
-.settings-select:focus-visible {
-  border-color: var(--ui-ring);
-  outline: 2px solid color-mix(in srgb, var(--ui-ring) 28%, transparent);
-  outline-offset: 1px;
-}
-
-.settings-select:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.settings-segmented {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--ui-divider);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-muted);
-}
-
-.settings-segmented button {
-  min-width: 62px;
-  height: 28px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: calc(var(--ui-radius-md) - 2px);
-  color: var(--ui-muted-foreground);
-  background: transparent;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 550;
-  cursor: pointer;
-}
-
-.settings-segmented button:hover {
-  color: var(--ui-foreground);
-}
-
-.settings-segmented button[data-active="true"] {
-  color: var(--ui-foreground);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-shadow-xs);
-}
-
-.settings-segmented button:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 0;
-}
-
-.settings-range {
-  display: grid;
-  width: 190px;
-  grid-template-columns: minmax(0, 1fr) 42px;
-  align-items: center;
-  gap: 10px;
-}
-
-.settings-range input {
-  width: 100%;
-  accent-color: var(--ui-primary);
-}
-
-.settings-range output {
-  color: var(--ui-foreground);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 .settings-privacy-note {
   display: flex;
   align-items: flex-start;
@@ -630,14 +542,6 @@
   }
 
   .settings-select,
-  .settings-range {
-    width: 100%;
-  }
-
-  .settings-segmented {
-    width: 100%;
-  }
-
   .settings-footer {
     align-items: flex-start;
     flex-direction: column;
@@ -690,17 +594,6 @@
 }
 
 /* Compact the shared Dialog header only for Settings. */
-.settings-dialog > header {
-  min-height: 44px;
-  align-items: center;
-  padding: 8px 14px 8px 16px;
-}
-
-.settings-dialog > header > div {
-  display: flex;
-  align-items: center;
-}
-
 .settings-dialog > header h2,
 .settings-dialog > header [role="heading"] {
   font-size: 15px;
@@ -801,15 +694,6 @@
   line-height: 1.5;
 }
 
-.settings-select {
-  font-size: 13px;
-}
-
-.settings-segmented button {
-  min-width: 68px;
-  font-size: 13px;
-}
-
 .settings-range output,
 .settings-privacy-note p,
 .settings-about-card__copy span,
@@ -838,11 +722,6 @@
 @media (max-width: 720px) {
   .settings-dialog {
     height: 100dvh;
-  }
-
-  .settings-dialog > header {
-    min-height: 42px;
-    padding: 6px 10px 6px 14px;
   }
 
   .settings-content-actions {
@@ -892,10 +771,6 @@
  * Keep the Base UI title in the accessibility tree through the Dialog
  * implementation, but remove the entire visual header region.
  */
-.settings-dialog > header {
-  display: none !important;
-}
-
 /* No Save, Cancel or status action regions. */
 .settings-content-actions,
 .settings-footer,
@@ -934,5 +809,22 @@
 @media (max-width: 720px) {
   .settings-page {
     padding-top: 24px;
+  }
+}
+
+/* Settings controls consume design-system public primitives. */
+
+.settings-select-trigger {
+  width: 190px;
+  min-width: 190px;
+  height: var(--ui-control-height-md);
+  font-size: 13px;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  .settings-select-trigger {
+    width: 100%;
+    min-width: 0;
   }
 }
