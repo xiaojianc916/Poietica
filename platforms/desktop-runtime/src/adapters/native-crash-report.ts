@@ -1,22 +1,37 @@
-/**
- * 原生诊断崩溃报告尚未注册为 Tauri IPC 命令。
- *
- * 保留与桌面端消费逻辑一致的数据模型；在 native 端实现
- * diagnostics_take_previous_crash 并重新生成 IPC 绑定前，此函数稳定返回 null。
- */
-export interface NativeCrashReport {
-  readonly incidentId: string
-  readonly occurredAt: string
-  readonly message: string
-  readonly backtrace: string
-  readonly location: string | null
-  readonly process: string
-  readonly thread: string
-  readonly appVersion: string
-  readonly targetOs: string
-  readonly targetArch: string
-}
+import {
+  IpcInvocationError,
+  isIpcError,
+} from '@hybrid-canvas/desktop-ipc'
+import {
+  commands,
+  type NativeCrashReport as GeneratedNativeCrashReport,
+} from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
 
-export async function takePreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
-  return null
+/**
+ * Native crash report generated from the Rust IPC contract.
+ *
+ * The renderer must not redefine this DTO manually. Rust and
+ * tauri-specta remain the source of truth for the boundary.
+ */
+export type NativeCrashReport =
+  GeneratedNativeCrashReport
+
+/**
+ * Reads and consumes the previous native process crash report.
+ *
+ * The Native command removes a valid report after reading it, so a
+ * renderer reload cannot repeatedly present the same historical crash.
+ */
+export async function takePreviousNativeCrashReport(): Promise<
+  NativeCrashReport | null
+> {
+  try {
+    return await commands.diagnosticsTakePreviousCrash()
+  } catch (error: unknown) {
+    if (isIpcError(error)) {
+      throw new IpcInvocationError(error)
+    }
+
+    throw error
+  }
 }
