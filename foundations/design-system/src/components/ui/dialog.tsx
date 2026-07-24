@@ -100,7 +100,7 @@ export function Dialog({
               'border-divider',
               'bg-background',
               'text-foreground',
-              'shadow-2xl outline-none',
+              'shadow-[var(--ui-shadow-xl)] outline-none',
               'transition-[transform,scale,opacity]',
               'duration-[var(--ui-duration-normal)]',
               'ease-[var(--ui-ease-standard)]',

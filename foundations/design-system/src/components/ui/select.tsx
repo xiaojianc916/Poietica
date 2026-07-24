@@ -136,7 +136,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
     return (
       <BaseSelect.Trigger
         className={cn(
-          'flex h-10 w-full',
+          'flex h-[var(--ui-control-height-lg)] w-full',
           'items-center justify-between gap-2',
           'rounded-md border border-input',
           'bg-background px-3',

@@ -8,7 +8,7 @@ const TabsList = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeo
   ({ className, ...props }, ref) => (
     <Tabs.List
       className={cn(
-        'inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
+        'inline-flex h-[var(--ui-control-height-md)] items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
         className,
       )}
       ref={ref}
