@@ -11,9 +11,9 @@ export interface SidebarResizeOptions {
   readonly width: number
   readonly min: number
   readonly max: number
-  readonly onResizeStart?: () => void
+  readonly onResizeStart: (() => void) | undefined
   readonly onResize: (width: number) => void
-  readonly onResizeEnd?: () => void
+  readonly onResizeEnd: (() => void) | undefined
   readonly onCollapse: () => void
 }
 
