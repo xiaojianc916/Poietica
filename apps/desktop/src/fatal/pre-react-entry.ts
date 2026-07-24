@@ -73,18 +73,20 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
 
   const actions = createElement('div', 'fatal-actions')
 
-  if (model.primaryAction) {
+  const primaryAction = model.primaryAction
+
+  if (primaryAction) {
     const primaryButton = createTextElement(
       'button',
       'fatal-button fatal-button-primary',
 
-      model.primaryAction.label,
+      primaryAction.label,
     )
 
     primaryButton.setAttribute('type', 'button')
 
     primaryButton.onclick = () => {
-      executePrimaryAction(model.primaryAction)
+      executePrimaryAction(primaryAction)
     }
 
     actions.append(primaryButton)

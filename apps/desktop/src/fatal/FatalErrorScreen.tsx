@@ -17,6 +17,8 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
     [additionalIncidentCount, incident],
   )
 
+  const primaryAction = model.primaryAction
+
   const copyDiagnostic = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(model.diagnostic)
@@ -45,15 +47,15 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
         ) : null}
 
         <div className="fatal-actions">
-          {model.primaryAction ? (
+          {primaryAction ? (
             <button
               className="fatal-button fatal-button-primary"
               onClick={() => {
-                executePrimaryAction(model.primaryAction)
+                executePrimaryAction(primaryAction)
               }}
               type="button"
             >
-              {model.primaryAction.label}
+              {primaryAction.label}
             </button>
           ) : null}
 

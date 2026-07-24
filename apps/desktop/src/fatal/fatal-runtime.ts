@@ -64,7 +64,7 @@ export function reportFatalIncident(input: TerminalFailureInput): FailureInciden
             kind: 'application',
           },
 
-    recovery: input.recovery ?? (input.impact === 'native-fatal' ? 'reload' : 'reload'),
+    recovery: input.recovery ?? 'reload',
 
     context: {
       ...(input.context ?? {}),
@@ -74,9 +74,6 @@ export function reportFatalIncident(input: TerminalFailureInput): FailureInciden
     },
 
     diagnostic: {
-      kind: input.kind,
-      phase: input.phase,
-
       ...optionalProperty('componentStack', input.componentStack ?? undefined),
 
       ...optionalProperty('source', input.source),

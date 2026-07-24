@@ -74,11 +74,6 @@ function createPrimaryAction(
       })
 
     case 'restart':
-      return Object.freeze({
-        kind: 'reload',
-        label: '重新加载应用',
-      })
-
     case 'exit':
     case 'none':
       return null

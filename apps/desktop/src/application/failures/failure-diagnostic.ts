@@ -5,8 +5,6 @@ import {
 } from '@hybrid-canvas/foundations-observability'
 
 export interface FailureDiagnosticHint {
-  readonly kind?: string
-  readonly phase?: string
   readonly componentStack?: string | null
 
   readonly source?: string

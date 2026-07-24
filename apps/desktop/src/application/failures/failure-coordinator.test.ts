@@ -17,7 +17,7 @@ describe('FailureCoordinator', () => {
       recovery: 'retry',
     })
 
-    expect(coordinator.getSnapshot().failures).toHaveLength(1)
+    expect(coordinator.getSnapshot().operations).toHaveLength(1)
 
     expect(coordinator.getSnapshot().terminal).toBeNull()
   })
@@ -37,7 +37,7 @@ describe('FailureCoordinator', () => {
       recovery: 'disable-feature',
     })
 
-    expect(coordinator.getSnapshot().degradedFeatures).toContain('settings')
+    expect(coordinator.getSnapshot().degradedFeatures.has('settings')).toBe(true)
   })
 
   it('owns document quarantine', () => {
@@ -55,7 +55,7 @@ describe('FailureCoordinator', () => {
       recovery: 'close-document',
     })
 
-    expect(coordinator.getSnapshot().quarantinedDocuments).toContain('document-1')
+    expect(coordinator.getSnapshot().quarantinedDocuments.has('document-1')).toBe(true)
   })
 
   it('locks the first terminal failure', () => {

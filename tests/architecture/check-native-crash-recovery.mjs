@@ -15,7 +15,7 @@ const files = {
   generated: 'platforms/desktop-ipc/src/generated/ipc-bindings.ts',
   adapter: 'platforms/desktop-runtime/src/adapters/native-crash-report.ts',
   renderer: 'apps/desktop/src/main.tsx',
-  fatalIncident: 'apps/desktop/src/fatal/fatal-incident.ts',
+  fatalRuntime: 'apps/desktop/src/fatal/fatal-runtime.ts',
 }
 
 for (const relativePath of Object.values(files)) {
@@ -32,7 +32,7 @@ if (failures.length === 0) {
   const generated = read(files.generated)
   const adapter = read(files.adapter)
   const renderer = read(files.renderer)
-  const fatalIncident = read(files.fatalIncident)
+  const fatalRuntime = read(files.fatalRuntime)
 
   requireText(
     app,
@@ -146,7 +146,11 @@ if (failures.length === 0) {
     'Previous native crashes are not mapped to the fatal controller.',
   )
 
-  requireText(fatalIncident, "'native-crash'", 'FatalIncidentKind does not include native-crash.')
+  requireText(
+    fatalRuntime,
+    "'native-crash'",
+    'Terminal failure source kinds do not include native-crash.',
+  )
 }
 
 if (failures.length > 0) {
