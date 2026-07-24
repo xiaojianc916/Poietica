@@ -8,6 +8,7 @@ import {
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
 } from '@hybrid-canvas/foundations-kernel'
+import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'
 import {
   createFailureDiagnostic,
   normalizeFailureCause,
@@ -32,6 +33,7 @@ export interface PresentedFailure {
   readonly incident: NonTerminalFailureIncident
 
   readonly occurrences: number
+  readonly noticeVisible: boolean
 }
 
 export interface TerminalFailureState {
@@ -43,11 +45,11 @@ export interface TerminalFailureState {
 export interface FailureSnapshot {
   readonly terminal: TerminalFailureState | null
 
-  readonly failures: readonly PresentedFailure[]
+  readonly operations: readonly PresentedFailure[]
 
-  readonly degradedFeatures: readonly string[]
+  readonly degradedFeatures: ReadonlyMap<string, PresentedFailure>
 
-  readonly quarantinedDocuments: readonly string[]
+  readonly quarantinedDocuments: ReadonlyMap<string, PresentedFailure>
 }
 
 export interface FailureSignal extends Omit<ClassifiedFailureInput, 'technicalMessage'> {
@@ -56,35 +58,30 @@ export interface FailureSignal extends Omit<ClassifiedFailureInput, 'technicalMe
   readonly diagnostic?: FailureDiagnosticHint
 }
 
-export type NonTerminalFailureInput = FailureSignal & {
-  readonly impact: NonTerminalFailureImpact
-}
-
-export type TerminalFailureInput = FailureSignal & {
-  readonly impact: TerminalFailureImpact
-}
-
 export type FailureListener = () => void
 
 const EMPTY_SNAPSHOT: FailureSnapshot = Object.freeze({
   terminal: null,
-  failures: Object.freeze([]),
 
-  degradedFeatures: Object.freeze([]),
+  operations: Object.freeze([]),
 
-  quarantinedDocuments: Object.freeze([]),
+  degradedFeatures: new Map(),
+
+  quarantinedDocuments: new Map(),
 })
 
-const MAX_PRESENTED_FAILURES = 20
+const MAX_OPERATION_FAILURES = 20
 
 export class FailureCoordinator {
   private snapshot: FailureSnapshot = EMPTY_SNAPSHOT
 
   private readonly listeners = new Set<FailureListener>()
 
-  private readonly degradedFeatures = new Set<string>()
+  private readonly operations: PresentedFailure[] = []
 
-  private readonly quarantinedDocuments = new Set<string>()
+  private readonly degradedFeatures = new Map<string, PresentedFailure>()
+
+  private readonly quarantinedDocuments = new Map<string, PresentedFailure>()
 
   private readonly terminalFingerprints = new Set<string>()
 
@@ -103,6 +100,8 @@ export class FailureCoordinator {
   report(signal: FailureSignal): FailureIncident {
     const incident = this.createIncident(signal)
 
+    this.recordDiagnostic(incident)
+
     if (isTerminalFailureImpact(incident.impact)) {
       return this.reportTerminal(incident as TerminalFailureIncident)
     }
@@ -111,16 +110,18 @@ export class FailureCoordinator {
   }
 
   dismiss(incidentId: string): void {
-    const failures = this.snapshot.failures.filter((entry) => entry.incident.id !== incidentId)
+    const operationIndex = this.operations.findIndex((entry) => entry.incident.id === incidentId)
 
-    if (failures.length === this.snapshot.failures.length) {
+    if (operationIndex >= 0) {
+      this.operations.splice(operationIndex, 1)
+
+      this.publish()
       return
     }
 
-    this.publish({
-      ...this.snapshot,
-      failures,
-    })
+    if (hideScopedNotice(this.degradedFeatures, incidentId)) {
+      this.publish()
+    }
   }
 
   resolveScope(scope: FailureScope): void {
@@ -134,17 +135,15 @@ export class FailureCoordinator {
       this.quarantinedDocuments.delete(scope.documentId)
     }
 
-    this.publish({
-      ...this.snapshot,
+    for (let index = this.operations.length - 1; index >= 0; index -= 1) {
+      const entry = this.operations[index]
 
-      failures: this.snapshot.failures.filter(
-        (entry) => createFailureScopeKey(entry.incident.scope) !== scopeKey,
-      ),
+      if (entry && createFailureScopeKey(entry.incident.scope) === scopeKey) {
+        this.operations.splice(index, 1)
+      }
+    }
 
-      degradedFeatures: [...this.degradedFeatures],
-
-      quarantinedDocuments: [...this.quarantinedDocuments],
-    })
+    this.publish()
   }
 
   private createIncident(signal: FailureSignal): FailureIncident {
@@ -157,6 +156,7 @@ export class FailureCoordinator {
     const classified = createClassifiedFailure({
       impact: signal.impact,
       code: signal.code,
+
       userMessage: signal.userMessage,
 
       technicalMessage,
@@ -185,7 +185,7 @@ export class FailureCoordinator {
     this.terminalFingerprints.add(incident.fingerprint)
 
     if (current) {
-      this.publish({
+      this.snapshot = Object.freeze({
         ...this.snapshot,
 
         terminal: Object.freeze({
@@ -195,10 +195,11 @@ export class FailureCoordinator {
         }),
       })
 
+      this.emit()
       return current.incident
     }
 
-    this.publish({
+    this.snapshot = Object.freeze({
       ...this.snapshot,
 
       terminal: Object.freeze({
@@ -207,55 +208,126 @@ export class FailureCoordinator {
       }),
     })
 
+    this.emit()
     return incident
   }
 
   private reportNonTerminal(incident: NonTerminalFailureIncident): NonTerminalFailureIncident {
-    if (incident.impact === 'feature-degraded' && incident.scope.kind === 'feature') {
-      this.degradedFeatures.add(incident.scope.featureId)
+    switch (incident.impact) {
+      case 'recoverable':
+        this.recordOperation(incident)
+
+        break
+
+      case 'feature-degraded':
+        if (incident.scope.kind !== 'feature') {
+          throw new Error('Feature failure requires feature scope.')
+        }
+
+        this.recordScoped(this.degradedFeatures, incident.scope.featureId, incident, true)
+
+        break
+
+      case 'document-fatal':
+        if (incident.scope.kind !== 'document') {
+          throw new Error('Document failure requires document scope.')
+        }
+
+        this.recordScoped(this.quarantinedDocuments, incident.scope.documentId, incident, false)
+
+        break
     }
 
-    if (incident.impact === 'document-fatal' && incident.scope.kind === 'document') {
-      this.quarantinedDocuments.add(incident.scope.documentId)
-    }
-
-    const existing = this.snapshot.failures.find(
-      (entry) => entry.incident.fingerprint === incident.fingerprint,
-    )
-
-    const retained = this.snapshot.failures.filter(
-      (entry) => entry.incident.fingerprint !== incident.fingerprint,
-    )
-
-    const presented: PresentedFailure = Object.freeze({
-      incident,
-      occurrences: (existing?.occurrences ?? 0) + 1,
-    })
-
-    this.publish({
-      ...this.snapshot,
-
-      failures: [...retained, presented].slice(-MAX_PRESENTED_FAILURES),
-
-      degradedFeatures: [...this.degradedFeatures],
-
-      quarantinedDocuments: [...this.quarantinedDocuments],
-    })
-
+    this.publish()
     return incident
   }
 
-  private publish(snapshot: FailureSnapshot): void {
+  private recordOperation(incident: NonTerminalFailureIncident): void {
+    const existingIndex = this.operations.findIndex(
+      (entry) => entry.incident.fingerprint === incident.fingerprint,
+    )
+
+    const existing = existingIndex >= 0 ? this.operations[existingIndex] : undefined
+
+    if (existingIndex >= 0) {
+      this.operations.splice(existingIndex, 1)
+    }
+
+    this.operations.push(
+      Object.freeze({
+        incident,
+        occurrences: (existing?.occurrences ?? 0) + 1,
+
+        noticeVisible: true,
+      }),
+    )
+
+    if (this.operations.length > MAX_OPERATION_FAILURES) {
+      this.operations.splice(0, this.operations.length - MAX_OPERATION_FAILURES)
+    }
+  }
+
+  private recordScoped(
+    target: Map<string, PresentedFailure>,
+
+    key: string,
+
+    incident: NonTerminalFailureIncident,
+
+    noticeVisible: boolean,
+  ): void {
+    const existing = target.get(key)
+
+    target.set(
+      key,
+      Object.freeze({
+        incident,
+        occurrences: (existing?.occurrences ?? 0) + 1,
+
+        noticeVisible,
+      }),
+    )
+  }
+
+  private publish(): void {
     this.snapshot = Object.freeze({
-      terminal: snapshot.terminal,
+      terminal: this.snapshot.terminal,
 
-      failures: Object.freeze([...snapshot.failures]),
+      operations: Object.freeze([...this.operations]),
 
-      degradedFeatures: Object.freeze([...snapshot.degradedFeatures]),
+      degradedFeatures: new Map(this.degradedFeatures),
 
-      quarantinedDocuments: Object.freeze([...snapshot.quarantinedDocuments]),
+      quarantinedDocuments: new Map(this.quarantinedDocuments),
     })
 
+    this.emit()
+  }
+
+  private recordDiagnostic(incident: FailureIncident): void {
+    try {
+      reportDiagnosticError(incident.technicalMessage, {
+        ...incident.context,
+
+        failureId: incident.id,
+
+        failureCode: incident.code,
+
+        failureImpact: incident.impact,
+
+        failureRecovery: incident.recovery,
+
+        failureScope: createFailureScopeKey(incident.scope),
+      })
+    } catch (error: unknown) {
+      try {
+        console.error('[Hybrid Canvas] Failure diagnostic reporting failed', error)
+      } catch {
+        // No further safe fallback.
+      }
+    }
+  }
+
+  private emit(): void {
     for (const listener of [...this.listeners]) {
       try {
         listener()
@@ -271,6 +343,30 @@ export class FailureCoordinator {
 }
 
 export const failureCoordinator = new FailureCoordinator()
+
+function hideScopedNotice(
+  failures: Map<string, PresentedFailure>,
+
+  incidentId: string,
+): boolean {
+  for (const [key, entry] of failures) {
+    if (entry.incident.id !== incidentId) {
+      continue
+    }
+
+    failures.set(
+      key,
+      Object.freeze({
+        ...entry,
+        noticeVisible: false,
+      }),
+    )
+
+    return true
+  }
+
+  return false
+}
 
 function optionalProperty<Key extends string, Value>(
   key: Key,

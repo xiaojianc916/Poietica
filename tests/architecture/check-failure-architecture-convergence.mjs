@@ -10,6 +10,7 @@ const failures = []
 const required = [
   'apps/desktop/src/application/failures/failure-coordinator.ts',
   'apps/desktop/src/application/failures/failure-diagnostic.ts',
+  'apps/desktop/src/application/failures/failure-policy.ts',
   'apps/desktop/src/application/failures/failure-coordinator.test.ts',
   'apps/desktop/src/fatal/fatal-runtime.ts',
 ]
@@ -80,6 +81,8 @@ function scanProductionSources() {
       'fatalIncidentController',
       'FailureRuntime',
       'failureRuntime',
+      'UI_FAILURE_POLICIES',
+      'reportUiFailure',
     ]) {
       if (source.includes(forbiddenText)) {
         failures.push(`Legacy failure symbol ${forbiddenText} remains in ${file}.`)

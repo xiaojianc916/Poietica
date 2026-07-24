@@ -1,6 +1,5 @@
 import { EditorProvider } from '@hybrid-canvas/canvas/react'
 import { applyThemePreference, ConfirmationDialog } from '@hybrid-canvas/design-system'
-import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'
 import type { MainWindowController } from '@hybrid-canvas/platforms-desktop-runtime'
 import type { SettingsStore } from '@hybrid-canvas/settings'
 import { SettingsDialog } from '@hybrid-canvas/settings/react'
@@ -9,10 +8,11 @@ import type { WorkbenchSessionStore } from '@hybrid-canvas/workspace/contracts'
 import { CommandPalette } from '@hybrid-canvas/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
+import { reportFailure } from '../application/failures/failure-policy'
 import { createFeatureAvailability } from '../application/failures/feature-availability'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
-import { reportUiFailure as reportFailure, UiFeedbackRegion } from './ui/ui-feedback'
+import { UiFeedbackRegion } from './ui/ui-feedback'
 import { type WorkspaceCanvasUIPort, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 export interface AppShellRuntime {
@@ -54,8 +54,6 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const isWindowMaximized = useWindowMaximizedState(runtime.mainWindow)
 
-  const [failedCanvasTitle, setFailedCanvasTitle] = useState<string | null>(null)
-
   const failureSnapshot = useSyncExternalStore(
     failureCoordinator.subscribe,
     failureCoordinator.getSnapshot,
@@ -63,7 +61,7 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   const featureAvailability = useMemo(
-    () => createFeatureAvailability(failureSnapshot.degradedFeatures),
+    () => createFeatureAvailability([...failureSnapshot.degradedFeatures.keys()]),
     [failureSnapshot.degradedFeatures],
   )
 
@@ -91,15 +89,12 @@ export function AppShell({ runtime }: AppShellProps) {
     async (title: string): Promise<void> => {
       try {
         await runtime.canvases.create(title)
-        setFailedCanvasTitle(null)
       } catch (cause) {
-        reportDiagnosticError('canvas create failed', {
+        reportFailure('CANVAS_CREATE_FAILED', {
           scope: 'app-shell',
           operation: 'create-canvas',
           cause,
         })
-
-        setFailedCanvasTitle(title)
       }
     },
     [runtime.canvases],
@@ -115,7 +110,7 @@ export function AppShell({ runtime }: AppShellProps) {
     }
 
     void runtime.mainWindow.minimize().catch((cause: unknown) => {
-      reportFailure('main window minimize failed', {
+      reportFailure('WINDOW_MINIMIZE_UNAVAILABLE', {
         scope: 'app-shell',
         operation: 'minimize-window',
         cause,
@@ -129,7 +124,7 @@ export function AppShell({ runtime }: AppShellProps) {
     }
 
     void runtime.mainWindow.toggleMaximize().catch((cause: unknown) => {
-      reportFailure('main window maximize failed', {
+      reportFailure('WINDOW_MAXIMIZE_UNAVAILABLE', {
         scope: 'app-shell',
         operation: 'toggle-maximize-window',
         cause,
@@ -143,7 +138,7 @@ export function AppShell({ runtime }: AppShellProps) {
     }
 
     void runtime.mainWindow.openDeveloperTools().catch((cause: unknown) => {
-      reportFailure('open developer tools failed', {
+      reportFailure('DEVELOPER_TOOLS_UNAVAILABLE', {
         scope: 'app-shell',
         operation: 'open-developer-tools',
         cause,
@@ -157,7 +152,7 @@ export function AppShell({ runtime }: AppShellProps) {
     }
 
     void runtime.mainWindow.startDragging().catch((cause: unknown) => {
-      reportFailure('main window drag failed', {
+      reportFailure('WINDOW_DRAG_UNAVAILABLE', {
         scope: 'app-shell',
         operation: 'start-window-dragging',
         cause,
@@ -183,7 +178,7 @@ export function AppShell({ runtime }: AppShellProps) {
           return
         }
 
-        reportFailure('settings load failed', {
+        reportFailure('SETTINGS_LOAD_FAILED', {
           scope: 'app-shell',
           operation: 'load-settings',
           cause,
@@ -214,7 +209,7 @@ export function AppShell({ runtime }: AppShellProps) {
   return (
     <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
       <WorkspaceContainer
-        degradedFeatures={failureSnapshot.degradedFeatures}
+        degradedFeatures={[...failureSnapshot.degradedFeatures.keys()]}
         isWindowMaximized={isWindowMaximized}
         onCommandPaletteOpen={openCommandPalette}
         onDeveloperToolsOpen={openDeveloperTools}
@@ -239,24 +234,6 @@ export function AppShell({ runtime }: AppShellProps) {
       />
 
       <UiFeedbackRegion />
-
-      <ConfirmationDialog
-        cancelLabel="取消"
-        confirmLabel="重试"
-        description="无法新建画布，请重试。"
-        onCancel={() => {
-          setFailedCanvasTitle(null)
-        }}
-        onConfirm={() => {
-          if (!failedCanvasTitle) {
-            return
-          }
-
-          createCanvasWithFeedback(failedCanvasTitle)
-        }}
-        open={failedCanvasTitle !== null}
-        title="新建画布失败"
-      />
 
       <ConfirmationDialog
         confirmLabel="放弃全部并退出"
@@ -299,7 +276,7 @@ function useWindowMaximizedState(mainWindow: MainWindowController): boolean {
             return
           }
 
-          reportFailure('window maximize state query failed', {
+          reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
             scope: 'app-shell',
             operation: 'query-window-maximized',
             cause,
@@ -324,7 +301,7 @@ function useWindowMaximizedState(mainWindow: MainWindowController): boolean {
           return
         }
 
-        reportFailure('window resize listener registration failed', {
+        reportFailure('WINDOW_RESIZE_SYNC_UNAVAILABLE', {
           scope: 'app-shell',
           operation: 'register-window-resize-listener',
           cause,
@@ -361,7 +338,7 @@ function useMainWindowCloseRequest(
       },
       (cause: unknown) => {
         if (!disposed) {
-          reportFailure('main window close listener registration failed', {
+          reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
             scope: 'app-shell',
             operation: 'register-close-listener',
             cause,

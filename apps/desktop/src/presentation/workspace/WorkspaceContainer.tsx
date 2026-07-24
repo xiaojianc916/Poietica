@@ -28,7 +28,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore }
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
-import { reportUiFailure as reportFailure } from '../ui/ui-feedback'
+import { reportFailure } from '../../application/failures/failure-policy'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
@@ -108,7 +108,7 @@ export function WorkspaceContainer({
       workbench.tabs.flatMap((tab) => (tab.kind === 'canvas' ? [tab.sessionId] : [])),
     )
 
-    for (const sessionId of failureSnapshot.quarantinedDocuments) {
+    for (const sessionId of failureSnapshot.quarantinedDocuments.keys()) {
       if (openSessionIds.has(sessionId)) {
         continue
       }
@@ -152,7 +152,7 @@ export function WorkspaceContainer({
   const handleSave = useCallback(
     (sessionId: CanvasSessionId) => {
       void port.canvases.save(sessionId).catch((cause: unknown) => {
-        reportFailure('canvas save failed', {
+        reportFailure('CANVAS_SAVE_FAILED', {
           scope: 'workspace',
           operation: 'save-canvas',
           sessionId,
@@ -166,7 +166,7 @@ export function WorkspaceContainer({
   const handleCloseCanvas = useCallback(
     (sessionId: CanvasSessionId, intent: CanvasCloseIntent = 'normal') => {
       void port.canvases.closeCanvas(sessionId, intent).catch((cause: unknown) => {
-        reportFailure('canvas close transaction failed', {
+        reportFailure('CANVAS_CLOSE_FAILED', {
           scope: 'workspace',
           operation: 'close-canvas',
           sessionId,
@@ -209,7 +209,7 @@ export function WorkspaceContainer({
         void port.canvases
           .create(createUntitledCanvasTitle(existingTitles))
           .catch((cause: unknown) => {
-            reportFailure('canvas create failed', {
+            reportFailure('CANVAS_CREATE_FAILED', {
               scope: 'workspace',
               operation: 'create-canvas',
               cause,
@@ -219,7 +219,7 @@ export function WorkspaceContainer({
 
       openCanvas() {
         void port.canvases.open().catch((cause: unknown) => {
-          reportFailure('canvas open failed', {
+          reportFailure('CANVAS_OPEN_FAILED', {
             scope: 'workspace',
             operation: 'open-canvas',
             cause,
@@ -312,7 +312,7 @@ export function WorkspaceContainer({
     activeSurface: workbench.activeSurface,
     activeSessionId,
     hostedSessions,
-    quarantinedSessionIds: failureSnapshot.quarantinedDocuments,
+    quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],
     onCreateCanvas: actions.createCanvas,
     onOpenCanvas: actions.openCanvas,
     onSave: handleSave,
