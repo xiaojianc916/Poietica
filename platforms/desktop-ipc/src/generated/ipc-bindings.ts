@@ -18,6 +18,15 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
 /**
+ * Returns and consumes the previous native process crash report.
+ * 
+ * The renderer receives a bounded DTO, not an arbitrary filesystem path or
+ * unrestricted native error object.
+ */
+async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
+    return await TAURI_INVOKE("diagnostics_take_previous_crash");
+},
+/**
  * Opens one .draw file selected by the native file dialog.
  * 
  * No caller-controlled path is accepted.
@@ -105,6 +114,7 @@ export type ExportSettings = { default_format: string; png_dpi: number; pdf_qual
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
+export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PrivacySettings = { telemetry: boolean; crash_reporting: boolean; update_check: boolean }
 
 /** tauri-specta globals **/
