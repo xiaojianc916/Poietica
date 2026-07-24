@@ -1,10 +1,10 @@
 import {
-  createClassifiedFailure,
-  createFailureScopeKey,
-  isTerminalFailureImpact,
   type ClassifiedFailure,
   type ClassifiedFailureInput,
+  createClassifiedFailure,
+  createFailureScopeKey,
   type FailureScope,
+  isTerminalFailureImpact,
   type NonTerminalFailureImpact,
 } from '@hybrid-canvas/foundations-kernel'
 

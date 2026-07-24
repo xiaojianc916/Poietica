@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -18,7 +18,7 @@ const requiredFiles = [
 
 for (const relativePath of requiredFiles) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing failure severity artifact: ' + relativePath)
+    failures.push(`Missing failure severity artifact: ${relativePath}`)
   }
 }
 
@@ -38,7 +38,7 @@ if (failures.length === 0) {
     'application-fatal',
     'native-fatal',
   ]) {
-    requireText(policy, "'" + impact + "'", 'Failure policy is missing impact ' + impact + '.')
+    requireText(policy, `'${impact}'`, `Failure policy is missing impact ${impact}.`)
   }
 
   requireText(runtime, 'degradedFeatures', 'Failure runtime does not own feature degradation.')
@@ -76,13 +76,12 @@ if (failures.length > 0) {
   console.error(
     [
       'Failure severity architecture checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 
   process.exitCode = 1
 } else {
-  console.log('Failure severity architecture checks passed.')
 }
 
 function scanProductionSources() {
@@ -98,14 +97,14 @@ function scanProductionSources() {
     const source = read(relativePath)
 
     if (source.includes('reportUiError')) {
-      failures.push('Legacy reportUiError remains in ' + relativePath + '.')
+      failures.push(`Legacy reportUiError remains in ${relativePath}.`)
     }
 
     if (
       source.includes('fatalIncidentController.report(') &&
       relativePath !== 'apps/desktop/src/fatal/fatal-runtime.ts'
     ) {
-      failures.push('Direct fatal controller report remains in ' + relativePath + '.')
+      failures.push(`Direct fatal controller report remains in ${relativePath}.`)
     }
   }
 }

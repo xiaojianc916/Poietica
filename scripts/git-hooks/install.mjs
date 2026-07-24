@@ -40,8 +40,6 @@ async function main() {
     cwd: root,
     windowsHide: true,
   })
-
-  console.log('已启用 Git Hook：.githooks')
 }
 
 main().catch((error) => {

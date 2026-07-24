@@ -21,7 +21,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing document isolation file: ' + relativePath)
+    failures.push(`Missing document isolation file: ${relativePath}`)
   }
 }
 
@@ -82,13 +82,12 @@ if (failures.length > 0) {
   console.error(
     [
       'Document failure isolation checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 
   process.exitCode = 1
 } else {
-  console.log('Document failure isolation checks passed.')
 }
 
 function read(relativePath) {

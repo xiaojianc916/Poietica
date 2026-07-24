@@ -128,7 +128,7 @@ function formatDocumentDiagnostic(
     return [
       'Hybrid Canvas Document Failure',
       '',
-      'Session ID: ' + sessionId,
+      `Session ID: ${sessionId}`,
       '错误码: DOCUMENT_EDITOR_SESSION_FATAL',
       '错误信息: Document session was quarantined.',
     ].join('\n')
@@ -141,14 +141,14 @@ function formatDocumentDiagnostic(
   return [
     'Hybrid Canvas Document Failure',
     '',
-    'Failure ID: ' + failure.id,
-    'Session ID: ' + sessionId,
-    '时间: ' + failure.occurredAt,
-    '错误码: ' + failure.code,
+    `Failure ID: ${failure.id}`,
+    `Session ID: ${sessionId}`,
+    `时间: ${failure.occurredAt}`,
+    `错误码: ${failure.code}`,
     '影响范围: document-fatal',
-    '错误信息: ' + failure.technicalMessage,
-    stack ? '\nJavaScript Stack:\n' + stack : undefined,
-    componentStack ? '\nReact Component Stack:\n' + componentStack : undefined,
+    `错误信息: ${failure.technicalMessage}`,
+    stack ? `\nJavaScript Stack:\n${stack}` : undefined,
+    componentStack ? `\nReact Component Stack:\n${componentStack}` : undefined,
   ]
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
     .join('\n')

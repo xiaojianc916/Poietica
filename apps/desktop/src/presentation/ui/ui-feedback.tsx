@@ -254,7 +254,7 @@ export function UiFeedbackRegion() {
                 {' · '}
                 {failure.code}
 
-                {entry.occurrences > 1 ? ' · ' + String(entry.occurrences) + ' 次' : ''}
+                {entry.occurrences > 1 ? ` · ${String(entry.occurrences)} 次` : ''}
               </span>
             </div>
 

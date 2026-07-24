@@ -236,16 +236,16 @@ interface TransformGroupProps {
 
 function TransformGroup({ children, label, title }: TransformGroupProps) {
   return (
-    <div
+    <fieldset
       aria-label={label}
-      role="group"
       className="
+        m-0 min-w-0 border-0 p-0
         inline-flex h-6 shrink-0 items-center gap-0.5
       "
       title={title}
     >
       {children}
-    </div>
+    </fieldset>
   )
 }
 

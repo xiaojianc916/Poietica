@@ -2,8 +2,8 @@ import type { EditorSession } from '@hybrid-canvas/canvas/application'
 import {
   CanvasInspectorRightSidebar,
   CanvasTransformStatus,
-  EditorSessionHost,
   type EditorSessionFailure,
+  EditorSessionHost,
   useCanvasInspectorAvailability,
 } from '@hybrid-canvas/canvas/react'
 import { ConfirmationDialog } from '@hybrid-canvas/design-system'
@@ -24,13 +24,12 @@ import {
   WorkspaceShell,
   WorkspaceSurface,
 } from '@hybrid-canvas/workspace/react'
-import { useCallback, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
-
-import { failureRuntime } from '../../application/failures/failure-runtime'
+import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
+import { failureRuntime } from '../../application/failures/failure-runtime'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
-import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 import { reportUiFailure as reportFailure } from '../ui/ui-feedback'
+import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
   pages: Object.freeze([]),
@@ -320,10 +319,10 @@ export function WorkspaceContainer({
     onSessionFailure: handleSessionFailure,
     renderSessionFailure: (sessionId) => (
       <DocumentQuarantineSurface
-        sessionId={sessionId}
         onClose={() => {
           handleCloseCanvas(sessionId)
         }}
+        sessionId={sessionId}
       />
     ),
   })
@@ -387,8 +386,6 @@ export function WorkspaceContainer({
       }) => (
         <DesktopTitleBar
           isMaximized={isWindowMaximized}
-          windowControlsDisabled={windowControlsDisabled}
-          windowDraggingDisabled={windowDraggingDisabled}
           isSidebarOpen={isSidebarOpen}
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
@@ -396,6 +393,8 @@ export function WorkspaceContainer({
           onSidebarToggle={onSidebarToggle}
           onStartDragging={onWindowStartDragging}
           sidebarWidth={sidebarWidth}
+          windowControlsDisabled={windowControlsDisabled}
+          windowDraggingDisabled={windowDraggingDisabled}
         >
           <WorkbenchTabs
             onActivate={onActivateTab}

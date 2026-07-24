@@ -17,6 +17,21 @@ export {
   ValidationError,
 } from './errors'
 export {
+  type ClassifiedFailure,
+  type ClassifiedFailureInput,
+  createClassifiedFailure,
+  createFailureScopeKey,
+  FAILURE_IMPACTS,
+  type FailureImpact,
+  type FailureRecovery,
+  type FailureScope,
+  isNonTerminalFailureImpact,
+  isTerminalFailureImpact,
+  type NonTerminalFailureImpact,
+  type TerminalFailureImpact,
+  validateFailurePolicy,
+} from './failure-policy'
+export {
   type ActorId,
   type AnyId,
   type AssetId,
@@ -88,19 +103,3 @@ export {
   unwrap,
   unwrapErr,
 } from './result'
-
-export {
-  createClassifiedFailure,
-  createFailureScopeKey,
-  FAILURE_IMPACTS,
-  isNonTerminalFailureImpact,
-  isTerminalFailureImpact,
-  validateFailurePolicy,
-  type ClassifiedFailure,
-  type ClassifiedFailureInput,
-  type FailureImpact,
-  type FailureRecovery,
-  type FailureScope,
-  type NonTerminalFailureImpact,
-  type TerminalFailureImpact,
-} from './failure-policy'

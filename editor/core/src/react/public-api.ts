@@ -18,8 +18,8 @@ export {
 } from './canvas-inspector-portal'
 export { EditorCanvas, type EditorCanvasProps } from './EditorCanvas'
 export {
-  EditorSessionHost,
   type EditorSessionFailure,
+  EditorSessionHost,
   type EditorSessionHostEntry,
   type EditorSessionHostProps,
 } from './EditorSessionHost'

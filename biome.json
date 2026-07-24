@@ -88,7 +88,7 @@
         },
         "noForEach": "off",
         "noStaticOnlyClass": "error",
-        "useLiteralKeys": "error",
+        "useLiteralKeys": "off",
         "useOptionalChain": "error"
       },
       "correctness": {

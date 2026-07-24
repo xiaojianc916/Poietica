@@ -123,13 +123,13 @@ export function isNonTerminalFailureImpact(
 export function createFailureScopeKey(scope: FailureScope): string {
   switch (scope.kind) {
     case 'operation':
-      return 'operation:' + scope.operation
+      return `operation:${scope.operation}`
 
     case 'feature':
-      return 'feature:' + scope.featureId
+      return `feature:${scope.featureId}`
 
     case 'document':
-      return 'document:' + scope.documentId
+      return `document:${scope.documentId}`
 
     case 'application':
       return 'application'
@@ -156,7 +156,7 @@ export function validateFailurePolicy(input: ClassifiedFailureInput): void {
 
   if (!allowedRecovery.has(input.recovery)) {
     throw new Error(
-      ['Recovery', input.recovery, 'is invalid for impact', input.impact + '.'].join(' '),
+      ['Recovery', input.recovery, 'is invalid for impact', `${input.impact}.`].join(' '),
     )
   }
 
