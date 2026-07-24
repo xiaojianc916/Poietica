@@ -26,7 +26,7 @@ export function DocumentQuarantineSurface({ sessionId, onClose }: DocumentQuaran
         : [
             'Hybrid Canvas Document Failure',
             '',
-            'Session ID: ' + sessionId,
+            `Session ID: ${sessionId}`,
 
             '错误码: DOCUMENT_EDITOR_SESSION_FATAL',
           ].join('\n'),

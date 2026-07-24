@@ -21,7 +21,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing feature degradation file: ' + relativePath)
+    failures.push(`Missing feature degradation file: ${relativePath}`)
   }
 }
 
@@ -67,7 +67,7 @@ if (failures.length === 0) {
 
 if (failures.length > 0) {
   console.error(
-    ['Feature degradation checks failed:', ...failures.map((failure) => '- ' + failure)].join('\n'),
+    ['Feature degradation checks failed:', ...failures.map((failure) => `- ${failure}`)].join('\n'),
   )
 
   process.exitCode = 1

@@ -29,13 +29,13 @@ const forbiddenFiles = [
 
 for (const file of required) {
   if (!existsSync(path.join(ROOT, file))) {
-    failures.push('Missing unified failure file: ' + file)
+    failures.push(`Missing unified failure file: ${file}`)
   }
 }
 
 for (const file of forbiddenFiles) {
   if (existsSync(path.join(ROOT, file))) {
-    failures.push('Obsolete failure artifact remains: ' + file)
+    failures.push(`Obsolete failure artifact remains: ${file}`)
   }
 }
 
@@ -87,7 +87,7 @@ if (failures.length === 0) {
     ['Pre-React', preReactRenderer],
   ]) {
     if (renderer.includes('incident.impact') || renderer.includes('formatFailureDiagnostic')) {
-      failures.push(rendererName + ' Terminal renderer bypasses the canonical ViewModel.')
+      failures.push(`${rendererName} Terminal renderer bypasses the canonical ViewModel.`)
     }
   }
 
@@ -105,7 +105,7 @@ if (failures.length > 0) {
   console.error(
     [
       'Failure architecture convergence checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 
@@ -132,7 +132,7 @@ function scanProductionSources() {
       'createFeatureAvailability',
     ]) {
       if (source.includes(forbiddenText)) {
-        failures.push('Legacy failure symbol ' + forbiddenText + ' remains in ' + file + '.')
+        failures.push(`Legacy failure symbol ${forbiddenText} remains in ${file}.`)
       }
     }
   }

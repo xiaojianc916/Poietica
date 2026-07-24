@@ -32,7 +32,7 @@ export function createTerminalFailureViewModel(
 
     description: incident.userMessage,
 
-    summary: incident.code + ' · ' + incident.id,
+    summary: `${incident.code} · ${incident.id}`,
 
     ...optionalProperty(
       'additionalIncidentMessage',
@@ -91,7 +91,7 @@ function createAdditionalIncidentMessage(count: number): string | undefined {
     return undefined
   }
 
-  return '此后还捕获到 ' + String(count) + ' 个相关异常。'
+  return `此后还捕获到 ${String(count)} 个相关异常。`
 }
 
 function optionalProperty<Key extends string, Value>(

@@ -16,7 +16,7 @@ const files = {
 
   workspace: 'apps/desktop/src/presentation/workspace/WorkspaceContainer.tsx',
 
-  runtime: 'apps/desktop/src/application/failures/failure-runtime.ts',
+  coordinator: 'apps/desktop/src/application/failures/failure-coordinator.ts',
 }
 
 for (const relativePath of Object.values(files)) {
@@ -29,7 +29,7 @@ if (failures.length === 0) {
   const host = read(files.host)
   const reporter = read(files.reporter)
   const workspace = read(files.workspace)
-  const runtime = read(files.runtime)
+  const coordinator = read(files.coordinator)
 
   requireText(
     host,
@@ -69,7 +69,11 @@ if (failures.length === 0) {
     'Workspace does not render the document isolation surface.',
   )
 
-  requireText(runtime, 'quarantinedDocuments', 'Failure runtime does not own document quarantine.')
+  requireText(
+    coordinator,
+    'quarantinedDocuments',
+    'Failure Coordinator does not own document quarantine.',
+  )
 
   forbidText(
     reporter,
