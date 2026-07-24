@@ -1,4 +1,5 @@
 <svg fill="none" height="1024" viewBox="0 0 1024 1024" width="1024" xmlns="http://www.w3.org/2000/svg">
+  <title>Hybrid Canvas</title>
   <defs>
     <!-- 主渐变：Linear 风格的冷静蓝紫 -->
     <linearGradient gradientUnits="userSpaceOnUse" id="mainGradient" x1="104" x2="356" y1="360" y2="112" >

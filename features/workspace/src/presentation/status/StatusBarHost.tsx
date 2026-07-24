@@ -8,6 +8,7 @@ export function StatusBarHost({ children }: StatusBarHostProps) {
   return (
     <footer
       aria-label="画布状态栏"
+      role="status"
       className="
         flex h-(--status-height) min-w-0 items-center
         border-t border-divider bg-chrome

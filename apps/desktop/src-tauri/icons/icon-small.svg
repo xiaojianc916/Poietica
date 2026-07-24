@@ -1,4 +1,5 @@
 <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" >
+  <title>Hybrid Canvas</title>
   <g fill="#5E6AD2">
     <rect height="16" rx="1" width="4" x="4"  y="4" />
     <rect height="12" rx="1" width="4" x="10" y="6" />

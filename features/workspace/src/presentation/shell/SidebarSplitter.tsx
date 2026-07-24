@@ -223,7 +223,6 @@ export function SidebarSplitter({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      role="separator"
       tabIndex={0}
     />
   )

@@ -350,6 +350,7 @@ function ChromeActiveTabShape() {
         preserveAspectRatio="xMinYMin meet"
         viewBox="0 0 20 32"
       >
+        <title>活动标签页左侧轮廓</title>
         <path
           className="chrome-workbench-tab__active-cap-fill"
           d="M0 32C5.5 32 9.5 28 9.5 23V10C9.5 5.6 13.1 2 17.5 2H20V32Z"
@@ -368,6 +369,7 @@ function ChromeActiveTabShape() {
         preserveAspectRatio="xMinYMin meet"
         viewBox="0 0 20 32"
       >
+        <title>活动标签页右侧轮廓</title>
         <path
           className="chrome-workbench-tab__active-cap-fill"
           d="M0 32C5.5 32 9.5 28 9.5 23V10C9.5 5.6 13.1 2 17.5 2H20V32Z"
@@ -401,6 +403,7 @@ function TabEndAction({
         <span
           aria-label={status === 'dirty' ? '未保存' : status === 'saving' ? '正在保存' : '保存失败'}
           className={`chrome-workbench-tab__status chrome-workbench-tab__status--${status}`}
+          role="status"
         />
       ) : null}
 

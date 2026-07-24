@@ -17,7 +17,6 @@ import type { CanvasNavigationItemId } from './ActivityRail'
 export interface WorkspaceSidebarProps {
   readonly activeNavigationItem: CanvasNavigationItemId
   readonly pages: readonly CanvasPageViewModel[]
-  readonly onClose: () => void
   readonly onActivatePage: (pageId: string) => void
   readonly onCreatePage: () => void
 }

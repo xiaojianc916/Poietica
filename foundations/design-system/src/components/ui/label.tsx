@@ -15,6 +15,7 @@ export const Label = forwardRef<HTMLLabelElement, LabelProps>(function Label(
   forwardedRef,
 ) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: 通用标签由调用处通过 htmlFor 或嵌套控件建立关联
     <label
       className={cn(
         'text-sm font-medium leading-none',

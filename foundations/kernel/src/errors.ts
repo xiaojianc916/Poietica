@@ -12,9 +12,7 @@ export abstract class DomainError extends Error {
     this.context = context
     // Error.captureStackTrace is non-standard, use standard stack instead
     if ('captureStackTrace' in Error) {
-      ;(
-        Error as { captureStackTrace?: (target: object, constructor: Function) => void }
-      ).captureStackTrace?.(this, this.constructor)
+      ;(Error as { captureStackTrace?: (target: object) => void }).captureStackTrace?.(this)
     }
   }
 

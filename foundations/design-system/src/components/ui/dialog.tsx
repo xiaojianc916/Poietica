@@ -120,6 +120,7 @@ export function Dialog({
   }
 
   return createPortal(
+    // biome-ignore lint/a11y/noStaticElementInteractions: 对话框遮罩仅检测背景点击，不是独立交互控件
     <div
       className={cn(
         'fixed inset-0',
