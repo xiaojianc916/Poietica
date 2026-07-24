@@ -48,6 +48,12 @@
   --color-info: var(--ui-info);
   --color-info-foreground: var(--ui-info-foreground);
 
+  --text-micro: var(--ui-font-size-micro);
+  --text-micro--line-height: 1rem;
+
+  --text-caption: var(--ui-font-size-caption);
+  --text-caption--line-height: 1rem;
+
   --font-sans: var(--ui-font-sans);
   --font-mono: var(--ui-font-mono);
 

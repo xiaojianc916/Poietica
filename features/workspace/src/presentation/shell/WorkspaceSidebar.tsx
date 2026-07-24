@@ -35,18 +35,18 @@ export function WorkspaceSidebar({
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-2.5">
-          <div className="mb-4 flex h-8 items-center gap-2 rounded-md border border-divider bg-background px-2 text-muted-foreground shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)]">
+          <div className="mb-4 flex h-[var(--ui-control-height-sm)] items-center gap-2 rounded-md border border-divider bg-background px-2 text-muted-foreground shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)]">
             <Search className="size-3.5 shrink-0" />
-            <span className="text-[11px]">筛选页面</span>
-            <kbd className="ml-auto rounded border bg-muted/30 px-1 py-0.5 text-[9px] opacity-60">
+            <span className="text-caption">筛选页面</span>
+            <kbd className="ml-auto rounded border bg-muted/30 px-1 py-0.5 text-micro opacity-60">
               ⌘ F
             </kbd>
           </div>
           <div className="mb-1.5 flex items-center justify-between px-2 py-1">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="text-caption font-semibold uppercase tracking-widest text-muted-foreground">
               画布
             </span>
-            <span className="grid size-4 place-items-center rounded-full bg-muted text-[9px] text-muted-foreground">
+            <span className="grid size-4 place-items-center rounded-full bg-muted text-micro text-muted-foreground">
               {pages.length}
             </span>
           </div>
@@ -56,7 +56,7 @@ export function WorkspaceSidebar({
                 <button
                   aria-current={page.isActive ? 'page' : undefined}
                   className={cn(
-                    'group flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground',
+                    'group flex h-[var(--ui-control-height-md)] w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground',
                     page.isActive &&
                       'bg-sidebar-accent text-foreground shadow-[inset_2px_0_0_var(--color-foreground)]',
                   )}
@@ -78,7 +78,7 @@ export function WorkspaceSidebar({
                 <Grid className="size-4 text-muted-foreground" />
               </div>
               <p className="mt-3 text-xs font-medium">还没有页面</p>
-              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+              <p className="mt-1 text-caption leading-4 text-muted-foreground">
                 创建页面后即可开始绘制
               </p>
               <Button
@@ -133,7 +133,7 @@ function WorkspacePanel({ kind }: { readonly kind: Exclude<CanvasNavigationItemI
           <Icon className="size-4 text-muted-foreground" />
         </div>
         <p className="mt-3 text-xs font-medium">{title}</p>
-        <p className="mt-1 text-[10px] leading-5 text-muted-foreground">{description}</p>
+        <p className="mt-1 text-caption leading-5 text-muted-foreground">{description}</p>
       </div>
     </section>
   )
