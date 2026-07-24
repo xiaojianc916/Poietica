@@ -633,8 +633,7 @@ mod tests {
         write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#)
             .expect("first entry should write");
 
-        let duplicate_result =
-            write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#);
+        let duplicate_result = write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#);
 
         // Newer zip versions reject duplicate names while writing. Older
         // versions may allow construction, in which case the decoder must
