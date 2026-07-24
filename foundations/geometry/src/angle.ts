@@ -26,13 +26,18 @@ export const Radians = {
   },
   normalize(rad: Radians): Radians {
     let r = (rad as number) % (2 * Math.PI)
-    if (r < 0) r += 2 * Math.PI
+    if (r < 0) {
+      r += 2 * Math.PI
+    }
     return r as Radians
   },
   normalizeHalf(rad: Radians): Radians {
     let r = (rad as number) % (2 * Math.PI)
-    if (r < -Math.PI) r += 2 * Math.PI
-    else if (r > Math.PI) r -= 2 * Math.PI
+    if (r < -Math.PI) {
+      r += 2 * Math.PI
+    } else if (r > Math.PI) {
+      r -= 2 * Math.PI
+    }
     return r as Radians
   },
   lerp(a: Radians, b: Radians, t: number): Radians {

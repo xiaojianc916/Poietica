@@ -86,13 +86,13 @@ function validatePersistenceToken(token: string): void {
 }
 
 function persistedAssetToken(asset: TLAsset): string | null {
-  const token = asset.meta?.['hybridCanvasAssetToken']
+  const token = asset.meta?.hybridCanvasAssetToken
 
   if (typeof token !== 'string' || !/^[a-f0-9]{64}$/u.test(token)) {
     return null
   }
 
-  const contentHash = asset.meta?.['hybridCanvasContentHash']
+  const contentHash = asset.meta?.hybridCanvasContentHash
 
   if (typeof contentHash !== 'string' || contentHash !== token) {
     return null

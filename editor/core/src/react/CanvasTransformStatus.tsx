@@ -41,7 +41,7 @@ export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProp
   useEffect(() => {
     setActiveField(null)
     setUserAspectRatioLocked(false)
-  }, [snapshot?.selectionKey])
+  }, [])
 
   if (!canvasTitle && !snapshot) {
     return null
@@ -213,7 +213,7 @@ export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProp
 }
 
 function SelectionCount({ count }: { readonly count: number }) {
-  const label = count === 1 ? '1 个对象' : String(count) + ' 个对象'
+  const label = count === 1 ? '1 个对象' : `${String(count)} 个对象`
 
   return (
     <span
@@ -221,7 +221,7 @@ function SelectionCount({ count }: { readonly count: number }) {
         inline-flex h-6 w-[56px] shrink-0 items-center overflow-hidden px-1 text-foreground/65
         tabular-nums whitespace-nowrap
       "
-      title={count === 1 ? '已选择 1 个对象' : '已选择 ' + String(count) + ' 个对象'}
+      title={count === 1 ? '已选择 1 个对象' : `已选择 ${String(count)} 个对象`}
     >
       <span className="block w-full whitespace-nowrap">{label}</span>
     </span>
@@ -439,7 +439,7 @@ function InlineTransformField({
 
         <input
           ref={inputRef}
-          aria-label={'编辑 ' + label}
+          aria-label={`编辑 ${label}`}
           className="
             h-6 min-w-0 w-[48px] appearance-none
             border-0 bg-transparent p-0
@@ -476,7 +476,7 @@ function InlineTransformField({
 
   return (
     <button
-      aria-label={disabled ? label + ' 不可编辑' : '双击编辑 ' + label}
+      aria-label={disabled ? `${label} 不可编辑` : `双击编辑 ${label}`}
       className={[
         'inline-grid h-6 w-[88px] shrink-0',
         'grid-cols-[12px_auto_auto_minmax(0,1fr)]',
@@ -492,7 +492,7 @@ function InlineTransformField({
       onDoubleClick={() => {
         onActivate(field)
       }}
-      title={disabled ? label + ' 当前不可编辑' : '双击编辑 ' + label}
+      title={disabled ? `${label} 当前不可编辑` : `双击编辑 ${label}`}
       type="button"
     >
       <span

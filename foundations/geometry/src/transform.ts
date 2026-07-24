@@ -82,10 +82,18 @@ export function transformRect(t: Transform2D, rect: Rect): Rect {
   let maxY = Number.NEGATIVE_INFINITY
   for (const [x, y] of corners) {
     const transformed = transformPoint(t, [x, y])
-    if (transformed[0] < minX) minX = transformed[0]
-    if (transformed[0] > maxX) maxX = transformed[0]
-    if (transformed[1] < minY) minY = transformed[1]
-    if (transformed[1] > maxY) maxY = transformed[1]
+    if (transformed[0] < minX) {
+      minX = transformed[0]
+    }
+    if (transformed[0] > maxX) {
+      maxX = transformed[0]
+    }
+    if (transformed[1] < minY) {
+      minY = transformed[1]
+    }
+    if (transformed[1] > maxY) {
+      maxY = transformed[1]
+    }
   }
   return [minX, minY, maxX - minX, maxY - minY]
 }

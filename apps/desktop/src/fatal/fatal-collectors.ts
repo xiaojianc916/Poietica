@@ -48,7 +48,7 @@ function handleWindowError(event: Event): void {
 
   const reactMounted = isReactFatalHostMounted()
 
-  const capturedError = event['error'] ?? event.message ?? 'Unhandled window error'
+  const capturedError = event.error ?? event.message ?? 'Unhandled window error'
 
   const input: CreateFatalIncidentInput = {
     error: capturedError,
@@ -131,11 +131,11 @@ function parseViteError(payload: unknown): ParsedViteError {
     }
   }
 
-  const payloadError = payload['error']
+  const payloadError = payload.error
 
   const rawError = isRecord(payloadError) ? payloadError : payload
 
-  const locationValue = rawError['location']
+  const locationValue = rawError.location
 
   const rawLocation = isRecord(locationValue) ? locationValue : undefined
 

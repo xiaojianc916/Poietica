@@ -52,7 +52,7 @@ function stableStringify(value: unknown): string {
   }
 
   if (Array.isArray(value)) {
-    return '[' + value.map((item) => stableStringify(item)).join(',') + ']'
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
   }
 
   const record = value as Record<string, unknown>
@@ -63,7 +63,7 @@ function stableStringify(value: unknown): string {
 
   return (
     '{' +
-    keys.map((key) => JSON.stringify(key) + ':' + stableStringify(record[key])).join(',') +
+    keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',') +
     '}'
   )
 }

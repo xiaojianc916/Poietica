@@ -108,7 +108,9 @@ export function rectIntersect(a: Rect, b: Rect): Rect | null {
   const top = Math.max(a[1], b[1])
   const right = Math.min(a[0] + a[2], b[0] + b[2])
   const bottom = Math.min(a[1] + a[3], b[1] + b[3])
-  if (left >= right || top >= bottom) return null
+  if (left >= right || top >= bottom) {
+    return null
+  }
   return [left, top, right - left, bottom - top]
 }
 export function rectContainsPoint(r: Rect, p: Point): boolean {

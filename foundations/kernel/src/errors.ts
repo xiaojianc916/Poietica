@@ -73,7 +73,9 @@ export function assertInvariant(
   invariant: string,
   context?: Record<string, unknown>,
 ): asserts condition {
-  if (!condition) throw new InternalInvariantError(invariant, context)
+  if (!condition) {
+    throw new InternalInvariantError(invariant, context)
+  }
 }
 
 export function assertUnreachable(value: never, context?: Record<string, unknown>): never {

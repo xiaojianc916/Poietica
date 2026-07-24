@@ -131,25 +131,25 @@ export function formatFatalDiagnostic(incident: FatalIncident): string {
   return [
     'Hybrid Canvas Fatal Incident',
     '',
-    'Incident ID: ' + incident.id,
-    '时间: ' + incident.occurredAt,
-    '错误码: ' + incident.code,
-    '错误类型: ' + incident.errorName,
-    '错误种类: ' + incident.kind,
-    '运行阶段: ' + incident.phase,
-    '错误信息: ' + incident.technicalMessage,
-    incident.source ? '来源: ' + incident.source : undefined,
-    typeof incident.line === 'number' ? '行: ' + String(incident.line) : undefined,
-    typeof incident.column === 'number' ? '列: ' + String(incident.column) : undefined,
-    '页面: ' + incident.pageUrl,
-    'User Agent: ' + incident.userAgent,
+    `Incident ID: ${incident.id}`,
+    `时间: ${incident.occurredAt}`,
+    `错误码: ${incident.code}`,
+    `错误类型: ${incident.errorName}`,
+    `错误种类: ${incident.kind}`,
+    `运行阶段: ${incident.phase}`,
+    `错误信息: ${incident.technicalMessage}`,
+    incident.source ? `来源: ${incident.source}` : undefined,
+    typeof incident.line === 'number' ? `行: ${String(incident.line)}` : undefined,
+    typeof incident.column === 'number' ? `列: ${String(incident.column)}` : undefined,
+    `页面: ${incident.pageUrl}`,
+    `User Agent: ${incident.userAgent}`,
     contextEntries.length > 0
-      ? '\n上下文:\n' + contextEntries.map(([key, value]) => key + ': ' + value).join('\n')
+      ? `\n上下文:\n${contextEntries.map(([key, value]) => `${key}: ${value}`).join('\n')}`
       : undefined,
-    incident.stack ? '\nJavaScript Stack:\n' + incident.stack : undefined,
-    incident.componentStack ? '\nReact Component Stack:\n' + incident.componentStack : undefined,
+    incident.stack ? `\nJavaScript Stack:\n${incident.stack}` : undefined,
+    incident.componentStack ? `\nReact Component Stack:\n${incident.componentStack}` : undefined,
     incident.recentLogs.length > 0
-      ? '\n最近的结构化日志:\n' + formatDiagnosticLogs(incident.recentLogs)
+      ? `\n最近的结构化日志:\n${formatDiagnosticLogs(incident.recentLogs)}`
       : undefined,
   ]
     .filter((value): value is string => typeof value === 'string' && value.length > 0)
@@ -281,14 +281,14 @@ function normalizeText(value: string, maximumLength: number): string {
     return redacted
   }
 
-  return redacted.slice(0, maximumLength) + '\n[Diagnostic value truncated]'
+  return `${redacted.slice(0, maximumLength)}\n[Diagnostic value truncated]`
 }
 
 function redactText(value: string): string {
   return value
-    .replace(BEARER_PATTERN, 'Bearer ' + REDACTED)
-    .replace(WINDOWS_USER_PATH_PATTERN, 'C:\\Users\\' + REDACTED)
-    .replace(UNIX_USER_PATH_PATTERN, '/Users/' + REDACTED)
+    .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
+    .replace(WINDOWS_USER_PATH_PATTERN, `C:\\Users\\${REDACTED}`)
+    .replace(UNIX_USER_PATH_PATTERN, `/Users/${REDACTED}`)
 }
 
 function createDefaultCode(kind: FatalIncidentKind, phase: FatalIncidentPhase): string {
@@ -303,5 +303,5 @@ function createDefaultCode(kind: FatalIncidentKind, phase: FatalIncidentPhase): 
 function createIncidentId(): string {
   const randomPart = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
 
-  return 'fatal-' + Date.now().toString(36) + '-' + randomPart
+  return `fatal-${Date.now().toString(36)}-${randomPart}`
 }

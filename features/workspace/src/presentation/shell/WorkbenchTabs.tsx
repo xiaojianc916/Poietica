@@ -120,7 +120,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
 
     const syncBaselineGap = () => {
       if (!activeTabId) {
-        viewport.dataset['hasActiveTab'] = 'false'
+        viewport.dataset.hasActiveTab = 'false'
         viewport.style.removeProperty('--chrome-active-tab-left')
         viewport.style.removeProperty('--chrome-active-tab-right')
         return
@@ -130,7 +130,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
       const activeTab = activation?.closest<HTMLElement>('.chrome-workbench-tab')
 
       if (!activeTab) {
-        viewport.dataset['hasActiveTab'] = 'false'
+        viewport.dataset.hasActiveTab = 'false'
         viewport.style.removeProperty('--chrome-active-tab-left')
         viewport.style.removeProperty('--chrome-active-tab-right')
         return
@@ -142,7 +142,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
       const left = Math.max(0, tabRect.left - viewportRect.left)
       const right = Math.min(viewportRect.width, tabRect.right - viewportRect.left)
 
-      viewport.dataset['hasActiveTab'] = 'true'
+      viewport.dataset.hasActiveTab = 'true'
       viewport.style.setProperty('--chrome-active-tab-left', `${left}px`)
       viewport.style.setProperty('--chrome-active-tab-right', `${right}px`)
     }
@@ -156,7 +156,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
       scroller.removeEventListener('scroll', syncBaselineGap)
       window.removeEventListener('resize', syncBaselineGap)
     }
-  }, [activeTabId, tabs])
+  }, [activeTabId])
 
   function handleKeyboard(event: KeyboardEvent<HTMLButtonElement>, tabId: WorkbenchTabId): void {
     const currentIndex = tabs.findIndex((tab) => tab.id === tabId)
@@ -297,10 +297,10 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
 
                 <div className="chrome-workbench-tab__content">
                   <button
-                    aria-controls={'workbench-panel-' + encodeDomId(tab.id)}
+                    aria-controls={`workbench-panel-${encodeDomId(tab.id)}`}
                     aria-selected={tab.isActive}
                     className="chrome-workbench-tab__activation"
-                    id={'workbench-tab-' + encodeDomId(tab.id)}
+                    id={`workbench-tab-${encodeDomId(tab.id)}`}
                     onClick={() => onActivate(tab.id)}
                     onKeyDown={(event) => handleKeyboard(event, tab.id)}
                     ref={(node) => {
@@ -400,12 +400,12 @@ function TabEndAction({
       {status && status !== 'clean' ? (
         <span
           aria-label={status === 'dirty' ? '未保存' : status === 'saving' ? '正在保存' : '保存失败'}
-          className={'chrome-workbench-tab__status ' + 'chrome-workbench-tab__status--' + status}
+          className={`chrome-workbench-tab__status chrome-workbench-tab__status--${status}`}
         />
       ) : null}
 
       <button
-        aria-label={'关闭 ' + model.title}
+        aria-label={`关闭 ${model.title}`}
         className="chrome-workbench-tab__close"
         onClick={(event) => {
           event.stopPropagation()

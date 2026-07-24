@@ -218,9 +218,9 @@ export function WorkspaceShell({
       }}
     >
       <main
-        aria-labelledby={'workbench-tab-' + model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}
+        aria-labelledby={`workbench-tab-${model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}`}
         className="relative h-full min-h-0 min-w-0 overflow-hidden"
-        id={'workbench-panel-' + model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}
+        id={`workbench-panel-${model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}`}
         role="tabpanel"
       >
         {mainContent}

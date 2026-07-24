@@ -91,16 +91,16 @@ async function checkFile(filePath) {
   const layer = layerFor(file)
 
   if (/from\s+['"]@hybrid-canvas\/[^'"]+\/src\//.test(source)) {
-    violations.push(file + ': cross-package imports must use public package exports')
+    violations.push(`${file}: cross-package imports must use public package exports`)
   }
 
   if (/from\s+['"](?:\.\.\/){2,}(?:apps|editor|features|foundations|platforms)\//.test(source)) {
-    violations.push(file + ': relative imports must not cross top-level package boundaries')
+    violations.push(`${file}: relative imports must not cross top-level package boundaries`)
   }
 
   for (const rule of layerRules) {
     if (rule.layer === layer && rule.pattern.test(source)) {
-      violations.push(file + ': ' + rule.message)
+      violations.push(`${file}: ${rule.message}`)
     }
   }
 }
@@ -118,7 +118,7 @@ async function main() {
   console.error('Architecture boundary violations:')
 
   for (const violation of violations) {
-    console.error('- ' + violation)
+    console.error(`- ${violation}`)
   }
 
   process.exitCode = 1

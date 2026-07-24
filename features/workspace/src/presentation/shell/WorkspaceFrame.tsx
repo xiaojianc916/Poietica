@@ -50,8 +50,8 @@ export function WorkspaceFrame({
   return (
     <motion.div
       animate={{
-        '--workspace-sidebar-column-width': sidebarColumnWidth + 'px',
-        '--workspace-inspector-column-width': inspectorColumnWidth + 'px',
+        '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
+        '--workspace-inspector-column-width': `${inspectorColumnWidth}px`,
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       initial={false}

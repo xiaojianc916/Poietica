@@ -350,7 +350,7 @@ export function PropertiesInspectorContent({
     const selected = editor.getSelectedShapes()
 
     if (selected.length > 1) {
-      return String(selected.length) + ' 个对象'
+      return `${String(selected.length)} 个对象`
     }
 
     if (selected.length === 1) {
@@ -736,13 +736,13 @@ function OpacityControl({ value }: { readonly value: SharedStyle<number> }) {
 
         return (
           <TldrawUiTooltip
-            content={'透明度 ' + option.label}
+            content={`透明度 ${option.label}`}
             key={option.value}
             side="left"
             sideOffset={8}
           >
             <button
-              aria-label={'透明度 ' + option.label}
+              aria-label={`透明度 ${option.label}`}
               aria-pressed={active}
               className="hc-properties-sidebar__opacity-option"
               onClick={() => {
@@ -785,7 +785,7 @@ function ColorControl({ value }: { readonly value: SharedStyle<TLDefaultColorSty
 
         const active = value.type === 'shared' && value.value === colorValue
 
-        const label = '颜色 — ' + getColorLabel(colorValue)
+        const label = `颜色 — ${getColorLabel(colorValue)}`
 
         return (
           <TldrawUiTooltip content={label} key={item.value} side="left" sideOffset={8}>
@@ -843,7 +843,7 @@ function StyleControl<TValue extends string>({ style, value, options }: StyleCon
               aria-pressed={active}
               className="hc-properties-sidebar__segment"
               onClick={() => {
-                styleContext.onHistoryMark('change ' + style.id)
+                styleContext.onHistoryMark(`change ${style.id}`)
 
                 styleContext.onValueChange(style, option.value)
               }}

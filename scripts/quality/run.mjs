@@ -65,11 +65,6 @@ function execute(task) {
       resolveExitCode(exitCode)
     }
 
-    console.log('')
-    console.log(`>>> ${task.label}`)
-    console.log(`>>> ${task.command} ${task.args.join(' ')}`)
-    console.log('')
-
     let child
 
     try {

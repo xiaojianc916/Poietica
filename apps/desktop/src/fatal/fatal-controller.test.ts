@@ -138,7 +138,7 @@ function createIncident(input: CreateFatalIncidentInput, sequence: number): Fata
   const code = input.code ?? 'UNKNOWN'
 
   return {
-    id: 'incident-' + String(sequence),
+    id: `incident-${String(sequence)}`,
     fingerprint: code,
     severity: 'fatal',
     kind: input.kind,

@@ -27,9 +27,9 @@ export function Field({
 }: FieldProps) {
   const inputId = useId()
 
-  const descriptionId = description ? inputId + '-description' : undefined
+  const descriptionId = description ? `${inputId}-description` : undefined
 
-  const errorId = error ? inputId + '-error' : undefined
+  const errorId = error ? `${inputId}-error` : undefined
 
   const describedBy = [descriptionId, errorId].filter(Boolean).join(' ') || undefined
 

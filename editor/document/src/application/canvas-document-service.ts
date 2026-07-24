@@ -7,7 +7,7 @@ import {
   type DocumentPersistenceState,
   type DocumentSession,
 } from '../domain/document-session'
-import type { EditorDocumentEvent, EditorDocumentPort } from '../ports/editor-document-port'
+import type { EditorDocumentPort } from '../ports/editor-document-port'
 
 export type CanvasId = string
 export type CanvasSessionId = string
@@ -401,8 +401,8 @@ export function createCanvasDocumentService({
       error.details !== null
     ) {
       const details = error.details as Record<string, unknown>
-      const code = details['code']
-      const recoverable = details['recoverable']
+      const code = details.code
+      const recoverable = details.recoverable
 
       if (
         (code === 'permission-denied' ||

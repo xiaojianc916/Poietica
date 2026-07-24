@@ -20,7 +20,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing native crash recovery file: ' + relativePath)
+    failures.push(`Missing native crash recovery file: ${relativePath}`)
   }
 }
 
@@ -153,13 +153,12 @@ if (failures.length > 0) {
   console.error(
     [
       'Native crash recovery architecture checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 
   process.exitCode = 1
 } else {
-  console.log('Native crash recovery architecture checks passed.')
 }
 
 function read(relativePath) {

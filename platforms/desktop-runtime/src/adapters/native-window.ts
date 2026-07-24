@@ -73,7 +73,9 @@ export function createMainWindowController(): MainWindowController {
     },
     async onCloseRequested(handler) {
       const { isTauri } = await import('@tauri-apps/api/core')
-      if (!isTauri()) return () => {}
+      if (!isTauri()) {
+        return () => {}
+      }
       const { getCurrentWindow } = await import('@tauri-apps/api/window')
       return getCurrentWindow().onCloseRequested((event) => {
         event.preventDefault()

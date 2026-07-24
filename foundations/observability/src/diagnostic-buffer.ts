@@ -95,8 +95,8 @@ export function formatDiagnosticLogs(logEntries: readonly DiagnosticLogEntry[]):
       const prefix = [
         entry.timestamp,
         entry.level.toUpperCase(),
-        entry.scope ? '[' + entry.scope + ']' : undefined,
-        '#' + String(entry.sequence),
+        entry.scope ? `[${entry.scope}]` : undefined,
+        `#${String(entry.sequence)}`,
       ]
         .filter((value): value is string => typeof value === 'string')
         .join(' ')
@@ -104,12 +104,12 @@ export function formatDiagnosticLogs(logEntries: readonly DiagnosticLogEntry[]):
       const contextEntries = Object.entries(entry.context)
 
       if (contextEntries.length === 0) {
-        return prefix + ' ' + entry.message
+        return `${prefix} ${entry.message}`
       }
 
       return [
-        prefix + ' ' + entry.message,
-        ...contextEntries.map(([key, value]) => '  ' + key + ': ' + value),
+        `${prefix} ${entry.message}`,
+        ...contextEntries.map(([key, value]) => `  ${key}: ${value}`),
       ].join('\n')
     })
     .join('\n')
@@ -149,11 +149,11 @@ function serializeUnknown(value: unknown): string {
   }
 
   if (typeof value === 'symbol') {
-    return value.description ? 'Symbol(' + value.description + ')' : 'Symbol()'
+    return value.description ? `Symbol(${value.description})` : 'Symbol()'
   }
 
   if (typeof value === 'function') {
-    return '[Function ' + (value.name || 'anonymous') + ']'
+    return `[Function ${value.name || 'anonymous'}]`
   }
 
   const seen = new WeakSet<object>()
@@ -183,7 +183,7 @@ function serializeUnknown(value: unknown): string {
         }
 
         if (typeof candidate === 'function') {
-          return '[Function ' + (candidate.name || 'anonymous') + ']'
+          return `[Function ${candidate.name || 'anonymous'}]`
         }
 
         return candidate
@@ -254,20 +254,20 @@ function normalizeText(value: string, maximumLength: number): string {
     return redacted
   }
 
-  return redacted.slice(0, maximumLength) + '\n[Diagnostic value truncated]'
+  return `${redacted.slice(0, maximumLength)}\n[Diagnostic value truncated]`
 }
 
 function redactText(value: string): string {
   return value
-    .replace(BEARER_PATTERN, 'Bearer ' + REDACTED)
-    .replace(WINDOWS_USER_PATH_PATTERN, 'C:\\Users\\' + REDACTED)
-    .replace(UNIX_USER_PATH_PATTERN, '/Users/' + REDACTED)
-    .replace(URL_CREDENTIAL_PATTERN, '$1' + REDACTED + ':' + REDACTED + '@')
+    .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
+    .replace(WINDOWS_USER_PATH_PATTERN, `C:\\Users\\${REDACTED}`)
+    .replace(UNIX_USER_PATH_PATTERN, `/Users/${REDACTED}`)
+    .replace(URL_CREDENTIAL_PATTERN, `$1${REDACTED}:${REDACTED}@`)
 }
 
 function emergencyConsoleError(message: string, error: unknown): void {
   try {
-    console.error('[Hybrid Canvas Observability] ' + message, error)
+    console.error(`[Hybrid Canvas Observability] ${message}`, error)
   } catch {
     // There is deliberately no further fallback.
   }

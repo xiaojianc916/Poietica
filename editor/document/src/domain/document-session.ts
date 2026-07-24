@@ -81,8 +81,12 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
   }
 
   function persistence(): DocumentPersistenceState {
-    if (phase === 'saving') return 'saving'
-    if (phase === 'save-failed') return 'failed'
+    if (phase === 'saving') {
+      return 'saving'
+    }
+    if (phase === 'save-failed') {
+      return 'failed'
+    }
     return isDirty() ? 'dirty' : 'clean'
   }
 

@@ -43,7 +43,9 @@ export class CancellationTokenSource {
   }
 
   cancel(reason: CancellationReason = 'cancelled'): void {
-    if (this.#cancelled) return
+    if (this.#cancelled) {
+      return
+    }
     this.#cancelled = true
     this.#reason = reason
     const listeners = [...this.#listeners]

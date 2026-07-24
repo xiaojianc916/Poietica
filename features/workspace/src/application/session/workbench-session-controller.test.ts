@@ -6,7 +6,7 @@ beforeEach(() => {
   let id = 0
 
   vi.stubGlobal('crypto', {
-    randomUUID: () => 'generated-' + String(++id),
+    randomUUID: () => `generated-${String(++id)}`,
   })
 })
 

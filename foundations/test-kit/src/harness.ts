@@ -27,7 +27,9 @@ export function fixture<T>(name: string, build: () => T): Fixture<T> {
 
 export function collectFixtures<T>(fixtures: Fixture<T>[]): Record<string, T> {
   const out: Record<string, T> = {}
-  for (const f of fixtures) out[f.name] = f.build()
+  for (const f of fixtures) {
+    out[f.name] = f.build()
+  }
   return out
 }
 
@@ -39,8 +41,12 @@ export function waitFor(
   return new Promise((resolve, reject) => {
     const start = Date.now()
     const tick = () => {
-      if (predicate()) return resolve()
-      if (Date.now() - start > timeoutMs) return reject(new Error('waitFor timeout'))
+      if (predicate()) {
+        return resolve()
+      }
+      if (Date.now() - start > timeoutMs) {
+        return reject(new Error('waitFor timeout'))
+      }
       setTimeout(tick, intervalMs)
     }
     tick()

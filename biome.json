@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
   "files": {
     "includes": [
       "**",
@@ -56,7 +56,10 @@
     }
   },
   "css": {
-    "parser": { "cssModules": true, "tailwindDirectives": true },
+    "parser": {
+      "cssModules": true,
+      "tailwindDirectives": true
+    },
     "formatter": {
       "enabled": true,
       "indentStyle": "space",
@@ -79,7 +82,9 @@
         "noBannedTypes": "error",
         "noExcessiveCognitiveComplexity": {
           "level": "warn",
-          "options": { "maxAllowedComplexity": 20 }
+          "options": {
+            "maxAllowedComplexity": 20
+          }
         },
         "noForEach": "off",
         "noStaticOnlyClass": "error",
@@ -104,7 +109,9 @@
         "noUnusedImports": "error",
         "noUnusedVariables": {
           "level": "error",
-          "options": { "ignoreRestSiblings": true }
+          "options": {
+            "ignoreRestSiblings": true
+          }
         },
         "useExhaustiveDependencies": "warn",
         "useHookAtTopLevel": "error",
@@ -158,7 +165,9 @@
         "noConfusingLabels": "error",
         "noConsole": {
           "level": "error",
-          "options": { "allow": ["warn", "error"] }
+          "options": {
+            "allow": ["warn", "error"]
+          }
         },
         "noControlCharactersInRegex": "error",
         "noDebugger": "error",
@@ -235,16 +244,26 @@
       ],
       "linter": {
         "rules": {
-          "style": { "noDefaultExport": "off" },
-          "suspicious": { "noConsole": "off" }
+          "style": {
+            "noDefaultExport": "off"
+          },
+          "suspicious": {
+            "noConsole": "off"
+          }
         }
       }
     },
     {
       "includes": ["**/src/generated/**/*.ts", "**/generated/**/*.ts"],
-      "formatter": { "enabled": false },
-      "linter": { "enabled": false },
-      "assist": { "enabled": false }
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      },
+      "assist": {
+        "enabled": false
+      }
     }
   ]
 }

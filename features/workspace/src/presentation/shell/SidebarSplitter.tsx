@@ -77,7 +77,7 @@ export function SidebarSplitter({
       dragSessionRef.current = null
       restoreBodyInteraction(session)
     }
-  }, [])
+  }, [restoreBodyInteraction])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) {

@@ -27,12 +27,16 @@ export function isErr<T, E>(result: Result<T, E>): result is Err<E> {
 }
 
 export function unwrap<T, E>(result: Result<T, E>): T {
-  if (result._tag === 'Ok') return result.value
+  if (result._tag === 'Ok') {
+    return result.value
+  }
   throw new Error(`Called unwrap on Err: ${JSON.stringify(result.error)}`)
 }
 
 export function unwrapErr<T, E>(result: Result<T, E>): E {
-  if (result._tag === 'Err') return result.error
+  if (result._tag === 'Err') {
+    return result.error
+  }
   throw new Error(`Called unwrapErr on Ok: ${JSON.stringify(result.value)}`)
 }
 
@@ -81,7 +85,9 @@ export async function fromPromise<T, E>(
 export function all<T, E>(results: readonly Result<T, E>[]): Result<T[], E> {
   const values: T[] = []
   for (const r of results) {
-    if (r._tag === 'Err') return r
+    if (r._tag === 'Err') {
+      return r
+    }
     values.push(r.value)
   }
   return ok(values)
@@ -92,7 +98,9 @@ export function firstOk<T, E>(results: readonly Result<T, E>[]): Result<T, E> {
     return err(undefined as E)
   }
   for (const r of results) {
-    if (r._tag === 'Ok') return r
+    if (r._tag === 'Ok') {
+      return r
+    }
   }
   const last = results[results.length - 1]!
   return last._tag === 'Err' ? last : err(undefined as E)

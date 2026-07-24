@@ -71,7 +71,7 @@ export function WorkspaceSurface({ surfaceId }: WorkspaceSurfaceProps) {
 
   return (
     <section
-      aria-labelledby={'workspace-surface-title-' + surfaceId}
+      aria-labelledby={`workspace-surface-title-${surfaceId}`}
       className="relative grid h-full place-items-center overflow-hidden bg-canvas px-8"
     >
       <div
@@ -86,7 +86,7 @@ export function WorkspaceSurface({ surfaceId }: WorkspaceSurfaceProps) {
 
         <h1
           className="mt-4 text-base font-semibold tracking-tight"
-          id={'workspace-surface-title-' + surfaceId}
+          id={`workspace-surface-title-${surfaceId}`}
         >
           {definition.title}
         </h1>

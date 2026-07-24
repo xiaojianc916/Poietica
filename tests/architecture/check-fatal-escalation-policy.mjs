@@ -19,7 +19,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing fatal escalation policy file: ' + relativePath)
+    failures.push(`Missing fatal escalation policy file: ${relativePath}`)
   }
 }
 
@@ -81,14 +81,13 @@ if (failures.length === 0) {
 
 if (failures.length > 0) {
   console.error(
-    ['Fatal escalation policy checks failed:', ...failures.map((failure) => '- ' + failure)].join(
+    ['Fatal escalation policy checks failed:', ...failures.map((failure) => `- ${failure}`)].join(
       '\n',
     ),
   )
 
   process.exitCode = 1
 } else {
-  console.log('Fatal escalation policy checks passed.')
 }
 
 function findDirectControllerReports() {
@@ -116,7 +115,7 @@ function findDirectControllerReports() {
       failures.push(
         [
           'Direct fatal controller report is forbidden:',
-          relativePath + '.',
+          `${relativePath}.`,
           'Use reportFatalIncident with an explicit impact.',
         ].join(' '),
       )

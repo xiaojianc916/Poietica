@@ -5,7 +5,9 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
   try {
     return await tauriInvoke<T>(cmd, args)
   } catch (error) {
-    if (isIpcError(error)) throw new IpcInvocationError(error)
+    if (isIpcError(error)) {
+      throw new IpcInvocationError(error)
+    }
     throw error
   }
 }

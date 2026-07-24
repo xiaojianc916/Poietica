@@ -88,7 +88,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     }
 
     insertToActiveRight({
-      id: 'canvas:' + sessionId,
+      id: `canvas:${sessionId}`,
       kind: 'canvas',
       title: request.title,
       canClose: true,
@@ -98,7 +98,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
   }
 
   function openWorkspaceSurface(request: OpenWorkspaceSurfaceRequest): void {
-    const tabId = 'workspace:' + request.surfaceId
+    const tabId = `workspace:${request.surfaceId}`
 
     const existing = entries.find((entry) => entry.id === tabId)
 
@@ -344,7 +344,7 @@ function assertInvariants(snapshot: WorkbenchViewModel): void {
 
   const startTab = snapshot.tabs.find((tab) => tab.id === START_TAB_ID)
 
-  if (!startTab || startTab.kind !== 'start' || startTab.canClose) {
+  if (startTab?.kind !== 'start' || startTab.canClose) {
     throw new Error('WORKBENCH_INVALID_START_TAB')
   }
 

@@ -145,7 +145,7 @@ export function WorkspaceContainer({
     (tabId: WorkbenchTabId) => {
       const tab = port.workspace.getSnapshot().tabs.find((candidate) => candidate.id === tabId)
 
-      if (!tab || !tab.canClose) {
+      if (!tab?.canClose) {
         return
       }
 
@@ -209,7 +209,7 @@ export function WorkspaceContainer({
       },
 
       createPage() {
-        activeEditorSession?.createPage('画布 ' + String(pages.length + 1))
+        activeEditorSession?.createPage(`画布 ${String(pages.length + 1)}`)
       },
 
       openCommandPalette: onCommandPaletteOpen,
@@ -401,9 +401,9 @@ function createUntitledCanvasTitle(existingTitles: readonly string[]): string {
 
   let suffix = 2
 
-  while (existingTitles.includes(baseTitle + ' ' + String(suffix))) {
+  while (existingTitles.includes(`${baseTitle} ${String(suffix)}`)) {
     suffix += 1
   }
 
-  return baseTitle + ' ' + String(suffix)
+  return `${baseTitle} ${String(suffix)}`
 }

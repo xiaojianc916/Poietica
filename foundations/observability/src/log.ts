@@ -25,18 +25,16 @@ function defaultConsoleSink(
   context: LogContext,
   timestamp: string,
 ): void {
-  const prefix = context.scope ? '[' + context.scope + ']' : ''
+  const prefix = context.scope ? `[${context.scope}]` : ''
 
   const formatted = [timestamp, level.toUpperCase(), prefix, message].filter(Boolean).join(' ')
 
   switch (level) {
     case 'trace':
     case 'debug':
-      console.debug(formatted, context)
       return
 
     case 'info':
-      console.info(formatted, context)
       return
 
     case 'warn':
