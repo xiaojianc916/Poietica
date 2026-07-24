@@ -12,16 +12,11 @@ import {
   Search,
   X,
 } from '@mynaui/icons-react'
-import {
-  type ComponentType,
-  type DragEvent,
-  type KeyboardEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-} from 'react'
+import { type ComponentType, type DragEvent, useEffect, useLayoutEffect, useRef } from 'react'
 
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../contracts/workbench-contract'
+import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tab-model'
+import { useWorkbenchTabKeyboard } from './workbench-tabs/use-workbench-tab-keyboard'
 
 import './chrome-workbench-tabs.css'
 
@@ -50,6 +45,13 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
 
   const previousActiveTabIdRef = useRef<WorkbenchTabId | undefined>(activeTabId)
+
+  const handleTabKeyDown = useWorkbenchTabKeyboard({
+    tabs,
+    onActivate,
+    onClose,
+    getTabElement: (tabId) => tabRefs.current.get(tabId),
+  })
 
   useEffect(() => {
     const previousActiveTabId = previousActiveTabIdRef.current
@@ -158,61 +160,6 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     }
   }, [activeTabId])
 
-  function handleKeyboard(event: KeyboardEvent<HTMLButtonElement>, tabId: WorkbenchTabId): void {
-    const currentIndex = tabs.findIndex((tab) => tab.id === tabId)
-
-    if (currentIndex < 0) {
-      return
-    }
-
-    let targetIndex: number | null = null
-
-    switch (event.key) {
-      case 'ArrowLeft':
-        targetIndex = (currentIndex - 1 + tabs.length) % tabs.length
-        break
-
-      case 'ArrowRight':
-        targetIndex = (currentIndex + 1) % tabs.length
-        break
-
-      case 'Home':
-        targetIndex = 0
-        break
-
-      case 'End':
-        targetIndex = tabs.length - 1
-        break
-
-      case 'Delete': {
-        const tab = tabs[currentIndex]
-
-        if (tab?.canClose) {
-          event.preventDefault()
-          onClose(tab.id)
-        }
-
-        return
-      }
-
-      default:
-        return
-    }
-
-    const target = tabs[targetIndex]
-
-    if (!target) {
-      return
-    }
-
-    event.preventDefault()
-    onActivate(target.id)
-
-    requestAnimationFrame(() => {
-      tabRefs.current.get(target.id)?.focus()
-    })
-  }
-
   function handleDragStart(event: DragEvent<HTMLElement>, tab: WorkbenchTabViewModel): void {
     if (!tab.canClose) {
       event.preventDefault()
@@ -297,12 +244,12 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
 
                 <div className="chrome-workbench-tab__content">
                   <button
-                    aria-controls={`workbench-panel-${encodeDomId(tab.id)}`}
+                    aria-controls={`workbench-panel-${encodeWorkbenchTabDomId(tab.id)}`}
                     aria-selected={tab.isActive}
                     className="chrome-workbench-tab__activation"
-                    id={`workbench-tab-${encodeDomId(tab.id)}`}
+                    id={`workbench-tab-${encodeWorkbenchTabDomId(tab.id)}`}
                     onClick={() => onActivate(tab.id)}
-                    onKeyDown={(event) => handleKeyboard(event, tab.id)}
+                    onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
                     ref={(node) => {
                       if (node) {
                         tabRefs.current.set(tab.id, node)
@@ -450,8 +397,4 @@ function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
     case 'extensions':
       return Box
   }
-}
-
-function encodeDomId(value: string): string {
-  return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-')
 }
