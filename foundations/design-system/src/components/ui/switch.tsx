@@ -1,15 +1,14 @@
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
 import { type ComponentPropsWithoutRef, forwardRef } from 'react'
-
 import { cn } from '../../lib/utils'
 
 export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root>
 
 /**
- * 通用开关组件。
+ * Hybrid Canvas compact switch.
  *
- * 保留 Base UI 默认的 span 结构，
- * 方便通过外层 Label 进行隐式关联。
+ * Base UI owns interaction semantics and keyboard behavior.
+ * The design system owns sizing, motion, focus and visual states.
  */
 export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
   { className, children, ...props },
@@ -18,20 +17,32 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
   return (
     <BaseSwitch.Root
       className={cn(
-        'peer inline-flex h-5 w-9 shrink-0',
-        'cursor-pointer items-center rounded-full',
-        'border-2 border-transparent',
-        'shadow-sm outline-none',
-        'transition-[background-color,box-shadow,border-color]',
+        'group relative inline-flex',
+        'h-6 w-10 shrink-0',
+        'cursor-pointer items-center',
+        'rounded-full border',
+        'border-transparent',
+        'bg-input/70',
+        'outline-none',
+        'transition-colors',
+        'duration-[var(--ui-duration-fast)]',
+        'ease-[var(--ui-ease-standard)]',
+
+        'after:absolute',
+        'after:-inset-[10px]',
+        'after:content-[""]',
+
+        'hover:bg-input',
         'focus-visible:ring-2',
-        'focus-visible:ring-ring',
-        'focus-visible:ring-offset-2',
-        'focus-visible:ring-offset-background',
+        'focus-visible:ring-ring/40',
+
         'disabled:cursor-not-allowed',
-        'disabled:opacity-50',
+        'disabled:opacity-45',
+
         'data-[checked]:bg-primary',
-        'data-[unchecked]:bg-input',
-        'dark:data-[unchecked]:bg-input/80',
+        'data-[unchecked]:bg-input/70',
+
+        'motion-reduce:transition-none',
         className,
       )}
       ref={forwardedRef}
@@ -39,12 +50,23 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
     >
       <BaseSwitch.Thumb
         className={cn(
-          'pointer-events-none block size-4',
-          'rounded-full bg-background',
-          'shadow-lg ring-0',
+          'pointer-events-none block',
+          'size-[18px]',
+          'translate-x-[3px]',
+          'rounded-full',
+          'bg-background',
+          'shadow-[var(--ui-shadow-xs)]',
+          'ring-1',
+          'ring-black/5',
+
           'transition-transform',
-          'data-[checked]:translate-x-4',
-          'data-[unchecked]:translate-x-0',
+          'duration-[var(--ui-duration-fast)]',
+          'ease-[var(--ui-ease-emphasized)]',
+
+          'data-[checked]:translate-x-[19px]',
+          'data-[unchecked]:translate-x-[3px]',
+
+          'motion-reduce:transition-none',
         )}
       />
 
