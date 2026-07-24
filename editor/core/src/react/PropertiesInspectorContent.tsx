@@ -386,8 +386,10 @@ export function PropertiesInspectorContent({
     return 'mixed'
   }, [editor])
 
-  const selectionCapabilities =
-    useValue<SelectionCapabilities>('right properties sidebar selection capabilities', () => {
+  const selectionCapabilities = useValue<SelectionCapabilities>(
+    'right properties sidebar selection capabilities',
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 选择能力必须从同一个编辑器快照集中计算，避免拆分后产生状态不一致
+    () => {
       const selected = editor.getSelectedShapes()
 
       const readonly = editor.getIsReadonly()
@@ -520,7 +522,9 @@ export function PropertiesInspectorContent({
 
         canDelete: !readonly && allUnlocked,
       }
-    }, [editor])
+    },
+    [editor],
+  )
 
   return (
     <div className="hc-properties-sidebar__panel">
@@ -541,6 +545,7 @@ export function PropertiesInspectorContent({
   )
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 样式面板按可用共享样式声明式渲染，各条件对应独立控件
 function StyleSections({ styles }: { readonly styles: ReadonlySharedStyleMap }) {
   const editor = useEditor()
 
@@ -725,11 +730,11 @@ function OpacityControl({ value }: { readonly value: SharedStyle<number> }) {
   const styleContext = useStylePanelContext()
 
   return (
-    <div
+    <fieldset
       aria-label="透明度"
       className="hc-properties-sidebar__opacity"
       data-mixed={value.type === 'mixed' ? '' : undefined}
-      role="group"
+      style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
     >
       {opacityOptions.map((option) => {
         const active = value.type === 'shared' && value.value === option.value
@@ -757,7 +762,7 @@ function OpacityControl({ value }: { readonly value: SharedStyle<number> }) {
           </TldrawUiTooltip>
         )
       })}
-    </div>
+    </fieldset>
   )
 }
 
@@ -774,11 +779,11 @@ function ColorControl({ value }: { readonly value: SharedStyle<TLDefaultColorSty
   const items = getColorStyleItems(colors)
 
   return (
-    <div
+    <fieldset
       aria-label="颜色"
       className="hc-properties-sidebar__color-grid"
       data-mixed={value.type === 'mixed' ? '' : undefined}
-      role="group"
+      style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
     >
       {items.map((item) => {
         const colorValue = item.value as TLDefaultColorStyle
@@ -810,7 +815,7 @@ function ColorControl({ value }: { readonly value: SharedStyle<TLDefaultColorSty
           </TldrawUiTooltip>
         )
       })}
-    </div>
+    </fieldset>
   )
 }
 
@@ -824,14 +829,14 @@ function StyleControl<TValue extends string>({ style, value, options }: StyleCon
   const styleContext = useStylePanelContext()
 
   return (
-    <div
+    <fieldset
       className={
         options.length > 4
           ? 'hc-properties-sidebar__segmented hc-properties-sidebar__segmented--grid'
           : 'hc-properties-sidebar__segmented'
       }
       data-mixed={value.type === 'mixed' ? '' : undefined}
-      role="group"
+      style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}
     >
       {options.map((option) => {
         const active = value.type === 'shared' && value.value === option.value
@@ -854,7 +859,7 @@ function StyleControl<TValue extends string>({ style, value, options }: StyleCon
           </TldrawUiTooltip>
         )
       })}
-    </div>
+    </fieldset>
   )
 }
 
@@ -886,7 +891,7 @@ function SidebarField({ title, mixed, children }: SidebarFieldProps) {
         <span>{title}</span>
 
         {mixed ? (
-          <span aria-label="多个值" className="hc-properties-sidebar__mixed" title="多个值">
+          <span className="hc-properties-sidebar__mixed" title="多个值">
             <TldrawUiIcon icon="mixed" label="多个值" small />
           </span>
         ) : null}
@@ -903,6 +908,7 @@ interface SelectionActionsProps {
   readonly selectionLockState: 'locked' | 'unlocked' | 'mixed'
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 操作面板集中映射选择能力到独立按钮，条件不共享控制流
 function SelectionActions({
   capabilities,
   isCroppingImage,

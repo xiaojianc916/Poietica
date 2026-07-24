@@ -18,18 +18,14 @@ function createHarness({
   rollbackError,
 }: HarnessOptions) {
   const editorSessions = {
-    create: vi.fn(async () => {
-      throw editorOpenError
-    }),
+    create: vi.fn(() => Promise.reject(editorOpenError)),
     close: vi.fn(),
     dispose: vi.fn(),
   }
 
   const close = rollbackError
-    ? vi.fn(async () => {
-        throw rollbackError
-      })
-    : vi.fn(async () => {})
+    ? vi.fn(() => Promise.reject(rollbackError))
+    : vi.fn(() => Promise.resolve())
 
   const persistence = {
     open: vi.fn(async () => ({
