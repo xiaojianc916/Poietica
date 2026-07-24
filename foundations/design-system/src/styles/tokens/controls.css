@@ -1,0 +1,15 @@
+:root {
+  --ui-control-height-xs: 1.75rem;
+  --ui-control-height-sm: 2rem;
+  --ui-control-height-md: 2.25rem;
+  --ui-control-height-lg: 2.5rem;
+
+  --ui-icon-size-sm: 0.875rem;
+  --ui-icon-size-md: 1rem;
+  --ui-icon-size-lg: 1.25rem;
+
+  --ui-hit-target-min: 2.25rem;
+  --ui-region-divider-width: 1px;
+  --ui-focus-ring-width: 2px;
+  --ui-focus-ring-offset: 2px;
+}

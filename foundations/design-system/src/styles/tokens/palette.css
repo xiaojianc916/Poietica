@@ -1,0 +1,43 @@
+/*
+ * Primitive palette.
+ *
+ * Components and feature packages must not consume
+ * palette values directly. Themes map these primitives
+ * to semantic tokens.
+ */
+
+:root {
+  --ui-palette-white: oklch(1 0 0);
+  --ui-palette-black: oklch(0 0 0);
+
+  --ui-palette-neutral-25: oklch(0.994 0.001 90);
+  --ui-palette-neutral-50: oklch(0.985 0.001 90);
+  --ui-palette-neutral-75: oklch(0.962 0.002 90);
+  --ui-palette-neutral-100: oklch(0.95 0.004 90);
+  --ui-palette-neutral-150: oklch(0.945 0.005 90);
+  --ui-palette-neutral-200: oklch(0.925 0.007 90);
+  --ui-palette-neutral-300: oklch(0.84 0.006 90);
+  --ui-palette-neutral-500: oklch(0.47 0.012 90);
+  --ui-palette-neutral-800: oklch(0.22 0.01 90);
+  --ui-palette-neutral-850: oklch(0.19 0.01 90);
+  --ui-palette-neutral-900: oklch(0.18 0.01 90);
+
+  --ui-palette-dark-700: #383836;
+  --ui-palette-dark-750: #30302f;
+  --ui-palette-dark-800: #242424;
+  --ui-palette-dark-850: #202020;
+  --ui-palette-dark-900: #1d1d1d;
+  --ui-palette-dark-950: #191919;
+  --ui-palette-dark-1000: #111111;
+
+  --ui-palette-blue-500: oklch(0.55 0.19 255);
+  --ui-palette-blue-400: #5e9fe8;
+
+  --ui-palette-red-500: oklch(0.56 0.22 28);
+  --ui-palette-red-400: #e97366;
+
+  --ui-palette-amber-500: oklch(0.72 0.16 75);
+  --ui-palette-amber-400: oklch(0.78 0.14 75);
+  --ui-palette-amber-900: oklch(0.22 0.04 75);
+  --ui-palette-amber-950: oklch(0.18 0.03 75);
+}

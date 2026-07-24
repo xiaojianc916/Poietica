@@ -85,3 +85,5 @@ export {
   type CommandMenuItem,
   type CommandMenuProps,
 } from './components/ui/command-menu'
+
+export { type UiTokens, uiTokens } from './tokens'

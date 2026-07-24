@@ -1,0 +1,10 @@
+:root {
+  --ui-z-canvas: 0;
+  --ui-z-content: 10;
+  --ui-z-chrome: 20;
+  --ui-z-floating: 40;
+  --ui-z-popover: 60;
+  --ui-z-dialog: 100;
+  --ui-z-toast: 120;
+  --ui-z-fatal: 1000;
+}

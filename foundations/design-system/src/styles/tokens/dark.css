@@ -1,0 +1,46 @@
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ui-background: var(--ui-palette-dark-950);
+  --ui-foreground: var(--ui-palette-white);
+  --ui-surface: var(--ui-palette-dark-850);
+  --ui-chrome: var(--ui-palette-dark-800);
+  --ui-canvas: var(--ui-palette-dark-900);
+
+  --ui-sidebar: var(--ui-palette-dark-800);
+  --ui-sidebar-accent: var(--ui-palette-dark-700);
+  --ui-sidebar-accent-foreground: var(--ui-palette-white);
+
+  --ui-region-divider-color: rgb(255 255 255 / 16%);
+  --ui-divider: var(--ui-region-divider-color);
+  --ui-border: var(--ui-region-divider-color);
+  --ui-input: rgb(255 255 255 / 24%);
+  --ui-ring: var(--ui-palette-blue-400);
+
+  --ui-primary: var(--ui-palette-blue-400);
+  --ui-primary-foreground: var(--ui-palette-dark-1000);
+
+  --ui-secondary: var(--ui-palette-dark-750);
+  --ui-secondary-foreground: var(--ui-palette-white);
+
+  --ui-muted: var(--ui-palette-dark-750);
+  --ui-muted-foreground: rgb(255 255 255 / 65%);
+
+  --ui-accent: var(--ui-palette-dark-700);
+  --ui-accent-foreground: var(--ui-palette-white);
+
+  --ui-popover: var(--ui-palette-dark-800);
+  --ui-popover-foreground: var(--ui-palette-white);
+
+  --ui-destructive: var(--ui-palette-red-400);
+  --ui-destructive-foreground: var(--ui-palette-dark-1000);
+
+  --ui-warning: var(--ui-palette-amber-400);
+  --ui-warning-foreground: var(--ui-palette-amber-950);
+
+  --ui-success: oklch(0.72 0.14 145);
+  --ui-success-foreground: var(--ui-palette-dark-1000);
+
+  --ui-info: var(--ui-palette-blue-400);
+  --ui-info-foreground: var(--ui-palette-dark-1000);
+}

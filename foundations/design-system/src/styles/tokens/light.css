@@ -1,0 +1,47 @@
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --ui-background: var(--ui-palette-neutral-25);
+  --ui-foreground: var(--ui-palette-neutral-850);
+  --ui-surface: var(--ui-palette-white);
+  --ui-chrome: var(--ui-palette-neutral-75);
+  --ui-canvas: var(--ui-palette-neutral-50);
+
+  --ui-sidebar: var(--ui-palette-neutral-75);
+  --ui-sidebar-accent: var(--ui-palette-neutral-200);
+  --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
+
+  --ui-region-divider-color: oklch(0.9067 0 0);
+  --ui-divider: var(--ui-region-divider-color);
+  --ui-border: var(--ui-region-divider-color);
+  --ui-input: var(--ui-palette-neutral-300);
+  --ui-ring: var(--ui-palette-blue-500);
+
+  --ui-primary: var(--ui-palette-blue-500);
+  --ui-primary-foreground: oklch(0.99 0 0);
+
+  --ui-secondary: var(--ui-palette-neutral-150);
+  --ui-secondary-foreground: var(--ui-palette-neutral-800);
+
+  --ui-muted: var(--ui-palette-neutral-100);
+  --ui-muted-foreground: var(--ui-palette-neutral-500);
+
+  --ui-accent: var(--ui-palette-neutral-200);
+  --ui-accent-foreground: oklch(0.2 0.01 90);
+
+  --ui-popover: var(--ui-surface);
+  --ui-popover-foreground: var(--ui-foreground);
+
+  --ui-destructive: var(--ui-palette-red-500);
+  --ui-destructive-foreground: oklch(0.99 0 0);
+
+  --ui-warning: var(--ui-palette-amber-500);
+  --ui-warning-foreground: var(--ui-palette-amber-900);
+
+  --ui-success: oklch(0.57 0.16 145);
+  --ui-success-foreground: oklch(0.99 0 0);
+
+  --ui-info: var(--ui-palette-blue-500);
+  --ui-info-foreground: oklch(0.99 0 0);
+}
