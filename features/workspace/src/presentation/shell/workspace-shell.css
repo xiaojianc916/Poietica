@@ -1,0 +1,16 @@
+/*
+ * Workspace product-layout tokens.
+ *
+ * These values belong to the Hybrid Canvas workspace shell. They are not
+ * general design-system tokens and must not be consumed by unrelated features.
+ */
+
+:root {
+  --activity-rail-width: 48px;
+  --workspace-sidebar-min: 220px;
+  --workspace-sidebar-max: 420px;
+  --workspace-sidebar-default: 280px;
+  --inspector-width: 276px;
+  --chrome-height: 36px;
+  --status-height: 30px;
+}

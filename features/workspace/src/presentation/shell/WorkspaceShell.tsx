@@ -12,6 +12,8 @@ import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 
+import './workspace-shell.css'
+
 const SIDEBAR_MIN = 220
 const SIDEBAR_MAX = 420
 const SIDEBAR_DEFAULT = 280
