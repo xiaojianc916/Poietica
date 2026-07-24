@@ -208,3 +208,5 @@ dev-output.txt
 # One-off repository migration scripts
 refactor.mjs
 
+.vscode/
+

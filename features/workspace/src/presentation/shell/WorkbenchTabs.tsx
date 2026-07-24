@@ -12,11 +12,13 @@ import {
   Search,
   X,
 } from '@mynaui/icons-react'
-import { type ComponentType, type DragEvent, useEffect, useLayoutEffect, useRef } from 'react'
+
+import { type ComponentType, useEffect, useLayoutEffect, useRef } from 'react'
 
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../contracts/workbench-contract'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tab-model'
 import { useWorkbenchTabKeyboard } from './workbench-tabs/use-workbench-tab-keyboard'
+import { useWorkbenchTabDrag } from './workbench-tabs/use-workbench-tab-drag'
 
 import './chrome-workbench-tabs.css'
 
@@ -40,8 +42,6 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
 
   const tabRefs = useRef(new Map<WorkbenchTabId, HTMLButtonElement>())
 
-  const draggedTabIdRef = useRef<WorkbenchTabId | null>(null)
-
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
 
   const previousActiveTabIdRef = useRef<WorkbenchTabId | undefined>(activeTabId)
@@ -51,6 +51,11 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     onActivate,
     onClose,
     getTabElement: (tabId) => tabRefs.current.get(tabId),
+  })
+
+  const tabDrag = useWorkbenchTabDrag({
+    tabCount: tabs.length,
+    onMove,
   })
 
   useEffect(() => {
@@ -160,32 +165,6 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     }
   }, [activeTabId])
 
-  function handleDragStart(event: DragEvent<HTMLElement>, tab: WorkbenchTabViewModel): void {
-    if (!tab.canClose) {
-      event.preventDefault()
-      return
-    }
-
-    draggedTabIdRef.current = tab.id
-
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('application/x-hybrid-canvas-workbench-tab', tab.id)
-  }
-
-  function handleDrop(event: DragEvent<HTMLElement>, targetIndex: number): void {
-    event.preventDefault()
-
-    const draggedTabId =
-      draggedTabIdRef.current ??
-      event.dataTransfer.getData('application/x-hybrid-canvas-workbench-tab')
-
-    draggedTabIdRef.current = null
-
-    if (draggedTabId) {
-      onMove(draggedTabId, targetIndex)
-    }
-  }
-
   return (
     <div className="chrome-workbench-tabs">
       <div
@@ -217,17 +196,10 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
                 data-active={tab.isActive ? 'true' : 'false'}
                 draggable={tab.canClose}
                 key={tab.id}
-                onDragEnd={() => {
-                  draggedTabIdRef.current = null
-                }}
-                onDragOver={(event) => {
-                  if (draggedTabIdRef.current) {
-                    event.preventDefault()
-                    event.dataTransfer.dropEffect = 'move'
-                  }
-                }}
-                onDragStart={(event) => handleDragStart(event, tab)}
-                onDrop={(event) => handleDrop(event, index)}
+                onDragEnd={tabDrag.onDragEnd}
+                onDragOver={tabDrag.onDragOver}
+                onDragStart={(event) => tabDrag.onDragStart(event, tab)}
+                onDrop={(event) => tabDrag.onDrop(event, index)}
                 onMouseDown={(event) => {
                   if (event.button === 1 && tab.canClose) {
                     event.preventDefault()
