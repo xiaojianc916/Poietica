@@ -11,16 +11,24 @@ export interface SidebarResizeOptions {
   readonly width: number
   readonly min: number
   readonly max: number
-  readonly onResizeStart: (() => void) | undefined
+  readonly onResizeStart?: () => void
   readonly onResize: (width: number) => void
-  readonly onResizeEnd: (() => void) | undefined
+  readonly onResizeEnd?: () => void
   readonly onCollapse: () => void
 }
 
 interface SidebarResizeCallbacks {
-  readonly onResizeStart?: () => void
+  /*
+   * These keys always exist in callbacksRef.current.
+   * Their values may be undefined when the public
+   * options were omitted.
+   */
+  readonly onResizeStart: (() => void) | undefined
+
   readonly onResize: (width: number) => void
-  readonly onResizeEnd?: () => void
+
+  readonly onResizeEnd: (() => void) | undefined
+
   readonly onCollapse: () => void
 }
 
