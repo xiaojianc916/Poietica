@@ -7,9 +7,7 @@ import process from 'node:process'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
-
 const root = process.cwd()
-const hooksPath = '.githooks'
 
 async function exists(filePath) {
   try {
@@ -20,50 +18,30 @@ async function exists(filePath) {
   }
 }
 
-async function git(args, allowFailure = false) {
+async function main() {
+  if (process.env.CI) {
+    return
+  }
+
+  if (!(await exists(path.join(root, '.githooks', 'pre-commit')))) {
+    return
+  }
+
   try {
-    const { stdout } = await execFileAsync('git', args, {
+    await execFileAsync('git', ['rev-parse', '--show-toplevel'], {
       cwd: root,
       windowsHide: true,
     })
-
-    return { ok: true, stdout: stdout.trim() }
-  } catch (error) {
-    if (!allowFailure) {
-      throw error
-    }
-
-    return {
-      ok: false,
-      stdout: error.stdout?.trim() ?? '',
-    }
-  }
-}
-
-async function main() {
-  if (process.env.CI) {
-    console.log('跳过 Git Hook 安装：CI 环境。')
+  } catch {
     return
   }
 
-  if (!(await exists(path.join(root, 'package.json')))) {
-    throw new Error('请在仓库根目录执行 pnpm install。')
-  }
+  await execFileAsync('git', ['config', 'core.hooksPath', '.githooks'], {
+    cwd: root,
+    windowsHide: true,
+  })
 
-  if (!(await exists(path.join(root, hooksPath, 'pre-commit')))) {
-    throw new Error('缺少 .githooks/pre-commit。')
-  }
-
-  const gitRoot = await git(['rev-parse', '--show-toplevel'], true)
-
-  if (!gitRoot.ok) {
-    console.log('跳过 Git Hook 安装：当前目录不是 Git 仓库。')
-    return
-  }
-
-  await git(['config', 'core.hooksPath', hooksPath])
-
-  console.log('已启用 Git Hook：' + hooksPath)
+  console.log('已启用 Git Hook：.githooks')
 }
 
 main().catch((error) => {
