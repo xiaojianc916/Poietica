@@ -38,7 +38,22 @@ export function CanvasInspectorPortalProvider({ children }: CanvasInspectorPorta
   }, [])
 
   const recomputeAvailability = useCallback(() => {
-    setAvailable(Array.from(publishers.current.values()).some(Boolean))
+    let nextAvailable = false
+
+    for (const publisherAvailable of publishers.current.values()) {
+      if (publisherAvailable) {
+        nextAvailable = true
+        break
+      }
+    }
+
+    /*
+     * Avoid allocating an intermediate array and avoid publishing an
+     * equivalent provider value.
+     */
+    setAvailable((currentAvailable) =>
+      currentAvailable === nextAvailable ? currentAvailable : nextAvailable,
+    )
   }, [])
 
   const publishAvailability = useCallback(

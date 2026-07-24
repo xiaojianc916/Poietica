@@ -253,7 +253,11 @@ export function createCanvasDocumentService({
         throw new Error('DOCUMENT_CHANGE_BEFORE_EDITOR_READY')
       }
 
-      document.recordDocumentChange(editorDocument.captureDocument())
+      /*
+       * Dirty tracking consumes tldraw's incremental RecordsDiff. Full
+       * snapshots are reserved for initialization and explicit save.
+       */
+      document.recordDocumentChange(event.changes)
       emit()
     })
 

@@ -1,6 +1,10 @@
 import type { TLStoreSnapshot } from 'tldraw'
 
-// Contract tests: tests/cross-domain-contract/document-lifecycle/canvas-document-service.test.ts
+export interface EditorDocumentChanges {
+  readonly added: Readonly<Record<string, unknown>>
+  readonly updated: Readonly<Record<string, readonly [before: unknown, after: unknown]>>
+  readonly removed: Readonly<Record<string, unknown>>
+}
 
 export type EditorDocumentEvent =
   | {
@@ -8,23 +12,21 @@ export type EditorDocumentEvent =
     }
   | {
       readonly kind: 'changed'
+      readonly changes: EditorDocumentChanges
     }
 
 export interface EditorDocumentPort {
   /**
    * Returns the canonical persistable tldraw document snapshot.
    *
-   * This contains document-scoped TLStore records only. Camera, selection,
-   * current tool, viewport and other local session state are excluded by the
-   * return type and must be persisted through a separate local-session port.
+   * Full capture is intentionally restricted to initialization and explicit
+   * persistence boundaries. It must not be called for each Store transaction.
    */
   readonly captureDocument: () => TLStoreSnapshot
 
   /**
-   * Emits ready exactly at the explicit editor attachment boundary.
-   *
-   * Changed events are emitted only after ready and only for user-originated
-   * TLStore document transactions.
+   * Emits ready at editor attachment and forwards tldraw's official
+   * document-scoped Store diff for subsequent user transactions.
    */
   readonly subscribeDocumentEvents: (listener: (event: EditorDocumentEvent) => void) => () => void
 }

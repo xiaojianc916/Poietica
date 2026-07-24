@@ -1,9 +1,13 @@
 import type { TLStoreSnapshot } from 'tldraw'
 
 import {
-  checkpointsEqual,
+  applyDocumentChanges,
+  cloneDocumentCheckpoint,
   createDocumentCheckpoint,
   type DocumentCheckpoint,
+  type DocumentRecordChanges,
+  rebuildDirtyRecords,
+  reconcileDirtyRecords,
 } from './document-checkpoint'
 
 export type DocumentSessionPhase =
@@ -31,9 +35,19 @@ export interface DocumentSessionSnapshot {
 
 export interface DocumentSession {
   readonly initialize: (snapshot: TLStoreSnapshot) => void
-  readonly recordDocumentChange: (snapshot: TLStoreSnapshot) => void
+
+  /**
+   * Applies a tldraw Store diff to dirty tracking.
+   *
+   * This path must remain incremental. Full snapshots are reserved for
+   * initialization and explicit persistence boundaries.
+   */
+  readonly recordDocumentChange: (changes: DocumentRecordChanges) => void
+
   readonly beginSave: (snapshot: TLStoreSnapshot) => DocumentSaveTicket
+
   readonly completeSave: (ticket: DocumentSaveTicket, documentId: string) => void
+
   readonly failSave: (ticket: DocumentSaveTicket) => void
   readonly beginClosing: () => void
   readonly cancelClosing: () => void
@@ -54,39 +68,47 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
   let phaseBeforeClosing: ReopenableDocumentSessionPhase | null = null
   let nextSaveId = 1
 
-  function assertNotClosed() {
+  const dirtyRecordIds = new Set<string>()
+
+  function assertNotClosed(): void {
     if (phase === 'closing' || phase === 'closed') {
       throw new Error('DOCUMENT_SESSION_NOT_ACTIVE')
     }
   }
 
-  function requireInitialized() {
+  function requireInitialized(): {
+    readonly current: DocumentCheckpoint
+    readonly saved: DocumentCheckpoint
+  } {
     if (!currentCheckpoint || !savedCheckpoint) {
       throw new Error('DOCUMENT_SESSION_NOT_INITIALIZED')
     }
+
+    return {
+      current: currentCheckpoint,
+      saved: savedCheckpoint,
+    }
   }
 
-  function requireActiveTicket(ticket: DocumentSaveTicket) {
+  function requireActiveTicket(ticket: DocumentSaveTicket): void {
     if (!activeSave || activeSave.id !== ticket.id) {
       throw new Error('DOCUMENT_SESSION_STALE_SAVE_TICKET')
     }
   }
 
-  function isDirty() {
-    return (
-      currentCheckpoint !== null &&
-      savedCheckpoint !== null &&
-      !checkpointsEqual(currentCheckpoint, savedCheckpoint)
-    )
+  function isDirty(): boolean {
+    return dirtyRecordIds.size > 0
   }
 
   function persistence(): DocumentPersistenceState {
     if (phase === 'saving') {
       return 'saving'
     }
+
     if (phase === 'save-failed') {
       return 'failed'
     }
+
     return isDirty() ? 'dirty' : 'clean'
   }
 
@@ -99,16 +121,20 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       }
 
       const checkpoint = createDocumentCheckpoint(snapshot)
-      currentCheckpoint = checkpoint
+
       savedCheckpoint = checkpoint
+      currentCheckpoint = cloneDocumentCheckpoint(checkpoint)
+      dirtyRecordIds.clear()
       phase = 'ready'
     },
 
-    recordDocumentChange(snapshot) {
+    recordDocumentChange(changes) {
       assertNotClosed()
-      requireInitialized()
 
-      currentCheckpoint = createDocumentCheckpoint(snapshot)
+      const { current, saved } = requireInitialized()
+      const changedIds = applyDocumentChanges(current, changes)
+
+      reconcileDirtyRecords(current, saved, dirtyRecordIds, changedIds)
 
       if (phase === 'save-failed') {
         phase = 'ready'
@@ -123,11 +149,24 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
         throw new Error('DOCUMENT_SESSION_SAVE_ALREADY_ACTIVE')
       }
 
-      currentCheckpoint = createDocumentCheckpoint(snapshot)
+      /*
+       * Explicit save is a valid full-snapshot boundary.
+       *
+       * The save ticket owns an immutable checkpoint. The mutable current
+       * checkpoint is cloned so edits arriving while Native persistence is in
+       * progress cannot mutate the ticket.
+       */
+      const checkpoint = createDocumentCheckpoint(snapshot)
+
+      currentCheckpoint = cloneDocumentCheckpoint(checkpoint)
+
+      if (savedCheckpoint) {
+        rebuildDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds)
+      }
 
       const ticket: DocumentSaveTicket = {
         id: nextSaveId,
-        checkpoint: currentCheckpoint,
+        checkpoint,
       }
 
       nextSaveId += 1
@@ -145,6 +184,15 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       documentId = nextDocumentId
       activeSave = null
       phase = 'ready'
+
+      /*
+       * Edits may have arrived while persistence was running. Compare current
+       * state with the exact checkpoint accepted by Native instead of blindly
+       * clearing dirty state.
+       */
+      if (currentCheckpoint) {
+        rebuildDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds)
+      }
     },
 
     failSave(ticket) {

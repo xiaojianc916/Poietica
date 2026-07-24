@@ -76,12 +76,19 @@ export class PersistedSnapshotLoadError extends Error {
   }
 }
 
+export interface EditorDocumentChanges {
+  readonly added: Readonly<Record<string, unknown>>
+  readonly updated: Readonly<Record<string, readonly [before: unknown, after: unknown]>>
+  readonly removed: Readonly<Record<string, unknown>>
+}
+
 export type EditorDocumentEvent =
   | {
       readonly kind: 'ready'
     }
   | {
       readonly kind: 'changed'
+      readonly changes: EditorDocumentChanges
     }
 
 export interface CanvasPageSnapshot {
@@ -222,9 +229,22 @@ export function createEditorSession(
     }
   }
 
-  const stopObservingSession = store.listen(publishSessionSnapshot, {
-    scope: 'document',
-  })
+  /*
+   * A shape transaction must not rebuild the page projection.
+   *
+   * TLStore already provides the precise RecordsDiff, so page navigation state
+   * is projected only when a page record actually changes.
+   */
+  const stopObservingSession = store.listen(
+    ({ changes }) => {
+      if (hasPageRecordChange(changes)) {
+        publishSessionSnapshot()
+      }
+    },
+    {
+      scope: 'document',
+    },
+  )
 
   /*
    * Persistable change observation is armed only after attachEditor declares
@@ -232,13 +252,18 @@ export function createEditorSession(
    * heuristic is used.
    */
   const stopObservingDocument = store.listen(
-    () => {
+    ({ changes }) => {
       if (state !== 'attached' || !documentReady) {
         return
       }
 
+      /*
+       * Forward the official incremental Store diff. Do not construct a full
+       * TLStoreSnapshot on the pointer-driven interaction path.
+       */
       publishDocumentEvent({
         kind: 'changed',
+        changes,
       })
     },
     {
@@ -490,4 +515,41 @@ export function createEditorSessionRegistry(
       await Promise.all(ownedSessions.map((owned) => owned.assetStoreSession.dispose()))
     },
   }
+}
+
+interface StoreRecordChanges {
+  readonly added: Readonly<Record<string, unknown>>
+  readonly updated: Readonly<Record<string, readonly [before: unknown, after: unknown]>>
+  readonly removed: Readonly<Record<string, unknown>>
+}
+
+function hasPageRecordChange(changes: StoreRecordChanges): boolean {
+  for (const record of Object.values(changes.added)) {
+    if (isPageRecord(record)) {
+      return true
+    }
+  }
+
+  for (const update of Object.values(changes.updated)) {
+    if (isPageRecord(update[0]) || isPageRecord(update[1])) {
+      return true
+    }
+  }
+
+  for (const record of Object.values(changes.removed)) {
+    if (isPageRecord(record)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isPageRecord(record: unknown): boolean {
+  return (
+    typeof record === 'object' &&
+    record !== null &&
+    'typeName' in record &&
+    record.typeName === 'page'
+  )
 }
