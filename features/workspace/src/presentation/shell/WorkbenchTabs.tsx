@@ -13,12 +13,13 @@ import {
   X,
 } from '@mynaui/icons-react'
 
-import { type ComponentType, useEffect, useLayoutEffect, useRef } from 'react'
+import type { ComponentType } from 'react'
 
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../contracts/workbench-contract'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tab-model'
 import { useWorkbenchTabKeyboard } from './workbench-tabs/use-workbench-tab-keyboard'
 import { useWorkbenchTabDrag } from './workbench-tabs/use-workbench-tab-drag'
+import { useWorkbenchTabsViewport } from './workbench-tabs/use-workbench-tabs-viewport'
 
 import './chrome-workbench-tabs.css'
 
@@ -36,21 +37,17 @@ type TabIcon = ComponentType<{
 }>
 
 export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: WorkbenchTabsProps) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null)
-
-  const viewportRef = useRef<HTMLDivElement | null>(null)
-
-  const tabRefs = useRef(new Map<WorkbenchTabId, HTMLButtonElement>())
-
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
 
-  const previousActiveTabIdRef = useRef<WorkbenchTabId | undefined>(activeTabId)
+  const tabViewport = useWorkbenchTabsViewport({
+    activeTabId,
+  })
 
   const handleTabKeyDown = useWorkbenchTabKeyboard({
     tabs,
     onActivate,
     onClose,
-    getTabElement: (tabId) => tabRefs.current.get(tabId),
+    getTabElement: tabViewport.getTabElement,
   })
 
   const tabDrag = useWorkbenchTabDrag({
@@ -58,133 +55,18 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     onMove,
   })
 
-  useEffect(() => {
-    const previousActiveTabId = previousActiveTabIdRef.current
-
-    if (previousActiveTabId && previousActiveTabId !== activeTabId) {
-      const previousActivation = tabRefs.current.get(previousActiveTabId)
-
-      const previousTab = previousActivation?.closest<HTMLElement>('.chrome-workbench-tab')
-
-      if (previousTab?.matches(':hover')) {
-        previousTab.setAttribute('data-suppress-hover', 'true')
-      }
-    }
-
-    if (activeTabId) {
-      const activeActivation = tabRefs.current.get(activeTabId)
-
-      const activeTab = activeActivation?.closest<HTMLElement>('.chrome-workbench-tab')
-
-      activeTab?.removeAttribute('data-suppress-hover')
-    }
-
-    previousActiveTabIdRef.current = activeTabId
-  }, [activeTabId])
-
-  useEffect(() => {
-    if (!activeTabId) {
-      return
-    }
-
-    const scroller = scrollerRef.current
-    const activation = tabRefs.current.get(activeTabId)
-    const tab = activation?.closest<HTMLElement>('.chrome-workbench-tab')
-
-    if (!scroller || !tab) {
-      return
-    }
-
-    const viewportPadding = 4
-    const viewportStart = scroller.scrollLeft
-    const viewportEnd = viewportStart + scroller.clientWidth
-    const tabStart = tab.offsetLeft
-    const tabEnd = tabStart + tab.offsetWidth
-
-    let nextScrollLeft = viewportStart
-
-    if (tabStart < viewportStart + viewportPadding) {
-      nextScrollLeft = Math.max(0, tabStart - viewportPadding)
-    } else if (tabEnd > viewportEnd - viewportPadding) {
-      nextScrollLeft = tabEnd - scroller.clientWidth + viewportPadding
-    }
-
-    if (nextScrollLeft !== viewportStart) {
-      scroller.scrollTo({
-        left: nextScrollLeft,
-        behavior: 'auto',
-      })
-    }
-  }, [activeTabId])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-    const scroller = scrollerRef.current
-
-    if (!viewport || !scroller) {
-      return
-    }
-
-    const syncBaselineGap = () => {
-      if (!activeTabId) {
-        viewport.dataset['hasActiveTab'] = 'false'
-        viewport.style.removeProperty('--chrome-active-tab-left')
-        viewport.style.removeProperty('--chrome-active-tab-right')
-        return
-      }
-
-      const activation = tabRefs.current.get(activeTabId)
-      const activeTab = activation?.closest<HTMLElement>('.chrome-workbench-tab')
-
-      if (!activeTab) {
-        viewport.dataset['hasActiveTab'] = 'false'
-        viewport.style.removeProperty('--chrome-active-tab-left')
-        viewport.style.removeProperty('--chrome-active-tab-right')
-        return
-      }
-
-      const viewportRect = viewport.getBoundingClientRect()
-      const tabRect = activeTab.getBoundingClientRect()
-
-      const left = Math.max(0, tabRect.left - viewportRect.left)
-      const right = Math.min(viewportRect.width, tabRect.right - viewportRect.left)
-
-      viewport.dataset['hasActiveTab'] = 'true'
-      viewport.style.setProperty('--chrome-active-tab-left', `${left}px`)
-      viewport.style.setProperty('--chrome-active-tab-right', `${right}px`)
-    }
-
-    syncBaselineGap()
-
-    scroller.addEventListener('scroll', syncBaselineGap, { passive: true })
-    window.addEventListener('resize', syncBaselineGap)
-
-    return () => {
-      scroller.removeEventListener('scroll', syncBaselineGap)
-      window.removeEventListener('resize', syncBaselineGap)
-    }
-  }, [activeTabId])
-
   return (
     <div className="chrome-workbench-tabs">
       <div
         className="chrome-workbench-tabs__viewport"
         data-has-active-tab={activeTabId ? 'true' : 'false'}
-        ref={viewportRef}
+        ref={tabViewport.viewportRef}
       >
         <div
           aria-label="工作台标签页"
           className="chrome-workbench-tabs__scroller"
-          onWheel={(event) => {
-            const scroller = scrollerRef.current
-
-            if (!scroller || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-              return
-            }
-
-            scroller.scrollLeft += event.deltaY
-          }}
-          ref={scrollerRef}
+          onWheel={tabViewport.onWheel}
+          ref={tabViewport.scrollerRef}
           role="tablist"
         >
           {tabs.map((tab, index) => {
@@ -223,11 +105,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
                     onClick={() => onActivate(tab.id)}
                     onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
                     ref={(node) => {
-                      if (node) {
-                        tabRefs.current.set(tab.id, node)
-                      } else {
-                        tabRefs.current.delete(tab.id)
-                      }
+                      tabViewport.registerTab(tab.id, node)
                     }}
                     role="tab"
                     tabIndex={tab.isActive ? 0 : -1}
