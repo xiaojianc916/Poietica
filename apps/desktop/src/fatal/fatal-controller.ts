@@ -1,6 +1,6 @@
 import {
-  createFatalIncident,
   type CreateFatalIncidentInput,
+  createFatalIncident,
   type FatalIncident,
 } from './fatal-incident'
 

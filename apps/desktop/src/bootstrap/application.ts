@@ -3,8 +3,8 @@ import { createCanvasDocumentService } from '@hybrid-canvas/document'
 import {
   createDesktopSettingsStore,
   createDocumentFileCommands,
-  createNativeTLAssetStoreSession,
   createMainWindowController,
+  createNativeTLAssetStoreSession,
   type MainWindowController,
   type SettingsStore,
 } from '@hybrid-canvas/platforms-desktop-runtime'

@@ -1,6 +1,6 @@
 import {
-  commands,
   type AppSettings as AppSettingsDto,
+  commands,
 } from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
 import type { AppSettings, SettingsStore, ThemeMode } from '@hybrid-canvas/settings'
 

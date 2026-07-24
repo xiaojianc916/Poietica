@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   ArrowShapeArrowheadEndStyle,
   ArrowShapeArrowheadStartStyle,
@@ -18,18 +19,17 @@ import {
   type ReadonlySharedStyleMap,
   type SharedStyle,
   type StyleProp,
-  TldrawUiIcon,
-  TldrawUiTooltip,
   type TLDefaultColorStyle,
   type TLGeoShape,
   type TLUiActionItem,
   type TLUiIconType,
+  TldrawUiIcon,
+  TldrawUiTooltip,
   useActions,
   useEditor,
   useStylePanelContext,
   useValue,
 } from 'tldraw'
-import type { ReactNode } from 'react'
 
 interface SelectionCapabilities {
   readonly canAlign: boolean

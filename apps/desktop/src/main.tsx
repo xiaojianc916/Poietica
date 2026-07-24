@@ -1,8 +1,8 @@
 import './app.css'
 
 import {
-  takePreviousNativeCrashReport,
   type NativeCrashReport,
+  takePreviousNativeCrashReport,
 } from '@hybrid-canvas/platforms-desktop-runtime'
 import { installApplicationLifecycle } from './bootstrap/application-lifecycle'
 import { mountReactApplication } from './bootstrap/react-root'

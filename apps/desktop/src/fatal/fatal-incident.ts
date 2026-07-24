@@ -1,7 +1,7 @@
 import {
+  type DiagnosticLogEntry,
   formatDiagnosticLogs,
   getRecentLogEntries,
-  type DiagnosticLogEntry,
 } from '@hybrid-canvas/foundations-observability'
 
 export type FatalIncidentKind =

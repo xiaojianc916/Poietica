@@ -1,7 +1,7 @@
 import {
-  PersistedSnapshotLoadError,
   createEditorSessionRegistry,
   type EditorAssetStoreSessionFactory,
+  PersistedSnapshotLoadError,
 } from '@hybrid-canvas/canvas/application'
 import type { TLAssetStore, TLStoreSnapshot } from 'tldraw'
 import { describe, expect, it, vi } from 'vitest'

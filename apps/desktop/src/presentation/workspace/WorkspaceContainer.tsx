@@ -1,8 +1,3 @@
-import type {
-  CanvasCloseIntent,
-  CanvasCloseSnapshot,
-  CanvasSessionSnapshot,
-} from '@hybrid-canvas/document'
 import type { EditorSession } from '@hybrid-canvas/canvas/application'
 import {
   CanvasInspectorRightSidebar,
@@ -11,6 +6,11 @@ import {
   useCanvasInspectorAvailability,
 } from '@hybrid-canvas/canvas/react'
 import { ConfirmationDialog } from '@hybrid-canvas/design-system'
+import type {
+  CanvasCloseIntent,
+  CanvasCloseSnapshot,
+  CanvasSessionSnapshot,
+} from '@hybrid-canvas/document'
 import type {
   CanvasSessionId,
   WorkbenchSessionStore,

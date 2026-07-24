@@ -42,6 +42,7 @@ async function git(args, allowFailure = false) {
 
 async function main() {
   if (process.env.CI) {
+    console.log('跳过 Git Hook 安装：CI 环境。')
     return
   }
 
@@ -53,30 +54,16 @@ async function main() {
     throw new Error('缺少 .githooks/pre-commit。')
   }
 
-  if (!(await exists(path.join(root, hooksPath, 'pre-push')))) {
-    throw new Error('缺少 .githooks/pre-push。')
-  }
-
   const gitRoot = await git(['rev-parse', '--show-toplevel'], true)
 
   if (!gitRoot.ok) {
-    return
-  }
-
-  const currentHooksPath = await git(['config', '--get', 'core.hooksPath'], true)
-
-  if (currentHooksPath.ok && currentHooksPath.stdout && currentHooksPath.stdout !== hooksPath) {
-    console.warn(
-      [
-        `保留已有 core.hooksPath：${currentHooksPath.stdout}`,
-        '如需使用本仓库 Hook，请手动执行：',
-        `git config core.hooksPath ${hooksPath}`,
-      ].join('\n'),
-    )
+    console.log('跳过 Git Hook 安装：当前目录不是 Git 仓库。')
     return
   }
 
   await git(['config', 'core.hooksPath', hooksPath])
+
+  console.log('已启用 Git Hook：' + hooksPath)
 }
 
 main().catch((error) => {

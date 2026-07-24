@@ -1,4 +1,5 @@
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
+
 const WINDOW_DRAG_EXCLUSION_SELECTOR = [
   'button',
   'a',

@@ -438,7 +438,6 @@ function InlineTransformField({
         </span>
 
         <input
-          ref={inputRef}
           aria-label={`编辑 ${label}`}
           className="
             h-6 min-w-0 w-[48px] appearance-none
@@ -456,6 +455,7 @@ function InlineTransformField({
             setDraft(event.currentTarget.value)
           }}
           onKeyDown={handleKeyDown}
+          ref={inputRef}
           step="any"
           type="number"
           value={draft}

@@ -133,11 +133,11 @@ export function WorkspaceShell({
     >
       <ActivityRail
         activeItemId={activeNavigationItem}
+        onDeveloperToolsOpen={actions.openDeveloperTools}
         onItemActivate={(surfaceId) => {
           actions.openWorkspaceSurface(surfaceId, SURFACE_TITLES[surfaceId])
           openSidebar()
         }}
-        onDeveloperToolsOpen={actions.openDeveloperTools}
         onSettingsOpen={actions.openSettingsWindow}
       />
     </div>

@@ -3,12 +3,12 @@ import {
   commands,
   type DocumentCloseRequest,
   type DocumentDescriptor,
-  type DocumentId as NativeDocumentId,
   type DocumentOpenResponse,
   type DocumentSaveAsRequest,
   type DocumentSaveAsResult,
   type DocumentSaveRequest,
   type DocumentSaveResult,
+  type DocumentId as NativeDocumentId,
 } from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
 
 export type DocumentId = NativeDocumentId

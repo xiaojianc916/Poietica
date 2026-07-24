@@ -1,10 +1,10 @@
 import { IpcInvocationError, isIpcError } from '@hybrid-canvas/desktop-ipc'
 import {
-  commands,
   type AssetRemoveRequest,
   type AssetSessionCloseRequest,
   type AssetUploadRequest,
   type AssetUploadResult,
+  commands,
 } from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { TLAsset, TLAssetId, TLAssetStore } from 'tldraw'

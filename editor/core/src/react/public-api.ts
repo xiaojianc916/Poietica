@@ -4,6 +4,18 @@ export {
   HYBRID_CANVAS_EXTENSION_API_VERSION,
   type HybridCanvasExtension,
 } from '../contracts/public-api'
+export {
+  CanvasTransformStatus,
+  type CanvasTransformStatusProps,
+} from './CanvasTransformStatus'
+export {
+  CanvasInspectorPortalProvider,
+  type CanvasInspectorPortalProviderProps,
+  CanvasInspectorRightSidebar,
+  CanvasInspectorStylePanel,
+  type CanvasInspectorStylePanelProps,
+  useCanvasInspectorAvailability,
+} from './canvas-inspector-portal'
 export { EditorCanvas, type EditorCanvasProps } from './EditorCanvas'
 export {
   EditorSessionHost,
@@ -16,17 +28,3 @@ export {
   useEditor,
   useTldrawLicenseKey,
 } from './editor-context'
-
-export {
-  CanvasInspectorRightSidebar,
-  CanvasInspectorPortalProvider,
-  type CanvasInspectorPortalProviderProps,
-  CanvasInspectorStylePanel,
-  type CanvasInspectorStylePanelProps,
-  useCanvasInspectorAvailability,
-} from './canvas-inspector-portal'
-
-export {
-  CanvasTransformStatus,
-  type CanvasTransformStatusProps,
-} from './CanvasTransformStatus'

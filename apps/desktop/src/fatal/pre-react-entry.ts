@@ -1,6 +1,6 @@
 import { installFatalCollectors } from './fatal-collectors'
+import { type FatalIncident, formatFatalDiagnostic } from './fatal-incident'
 import { fatalIncidentController, isReactFatalHostMounted } from './fatal-runtime'
-import { formatFatalDiagnostic, type FatalIncident } from './fatal-incident'
 
 installFatalCollectors()
 

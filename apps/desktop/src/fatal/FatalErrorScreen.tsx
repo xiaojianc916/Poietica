@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { formatFatalDiagnostic, type FatalIncident } from './fatal-incident'
+import { type FatalIncident, formatFatalDiagnostic } from './fatal-incident'
 
 export interface FatalErrorScreenProps {
   readonly incident: FatalIncident

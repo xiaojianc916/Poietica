@@ -9,8 +9,8 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { PropertiesInspectorContent } from './PropertiesInspectorContent'
 import { StylePanelContextProvider, useEditor, useRelevantStyles, useValue } from 'tldraw'
+import { PropertiesInspectorContent } from './PropertiesInspectorContent'
 
 interface CanvasInspectorPortalContextValue {
   readonly host: HTMLElement | null
