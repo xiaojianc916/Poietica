@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type PointerEvent, useEffect, useRef } from 'react'
+import { type KeyboardEvent, type PointerEvent, useCallback, useEffect, useRef } from 'react'
 
 export interface SidebarSplitterProps {
   readonly width: number
@@ -12,7 +12,7 @@ export interface SidebarSplitterProps {
 
 interface SidebarDragSession {
   readonly pointerId: number
-  readonly element: HTMLDivElement
+  readonly element: HTMLHRElement
   readonly startX: number
   readonly startWidth: number
   readonly previousBodyCursor: string
@@ -38,11 +38,11 @@ export function SidebarSplitter({
     return Math.max(min, Math.min(max, nextWidth))
   }
 
-  const restoreBodyInteraction = (session: SidebarDragSession) => {
+  const restoreBodyInteraction = useCallback((session: SidebarDragSession) => {
     document.body.style.cursor = session.previousBodyCursor
 
     document.body.style.userSelect = session.previousBodyUserSelect
-  }
+  }, [])
 
   const finishResize = () => {
     const session = dragSessionRef.current
@@ -79,7 +79,7 @@ export function SidebarSplitter({
     }
   }, [restoreBodyInteraction])
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerDown = (event: PointerEvent<HTMLHRElement>) => {
     if (event.button !== 0) {
       return
     }
@@ -120,7 +120,7 @@ export function SidebarSplitter({
     onResizeStart?.()
   }
 
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (event: PointerEvent<HTMLHRElement>) => {
     const session = dragSessionRef.current
 
     if (!session || session.pointerId !== event.pointerId) {
@@ -136,7 +136,7 @@ export function SidebarSplitter({
     onResize(nextWidth)
   }
 
-  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = (event: PointerEvent<HTMLHRElement>) => {
     const session = dragSessionRef.current
 
     if (!session || session.pointerId !== event.pointerId) {
@@ -147,7 +147,7 @@ export function SidebarSplitter({
     finishResize()
   }
 
-  const handlePointerCancel = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerCancel = (event: PointerEvent<HTMLHRElement>) => {
     const session = dragSessionRef.current
 
     if (!session || session.pointerId !== event.pointerId) {
@@ -157,7 +157,7 @@ export function SidebarSplitter({
     finishResize()
   }
 
-  const handleLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
+  const handleLostPointerCapture = (event: PointerEvent<HTMLHRElement>) => {
     const session = dragSessionRef.current
 
     if (!session || session.pointerId !== event.pointerId) {
@@ -167,7 +167,7 @@ export function SidebarSplitter({
     finishResize()
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLHRElement>) => {
     switch (event.key) {
       case 'ArrowLeft':
         event.preventDefault()
@@ -192,7 +192,7 @@ export function SidebarSplitter({
   }
 
   return (
-    <div
+    <hr
       aria-label="调整侧边栏宽度"
       aria-orientation="vertical"
       aria-valuemax={max}

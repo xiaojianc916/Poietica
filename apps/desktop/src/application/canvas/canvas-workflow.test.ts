@@ -164,20 +164,20 @@ describe('CanvasWorkflow lifecycle coordinator', () => {
   it('preserves discard intent and failure classification for retry', async () => {
     let attempts = 0
 
-    const documents = createDocumentPort(async () => {
+    const documents = createDocumentPort(() => {
       attempts += 1
 
       if (attempts === 1) {
-        return {
+        return Promise.resolve({
           kind: 'release-failed',
           failure: {
             code: 'persistence',
             recoverable: true,
           },
-        }
+        })
       }
 
-      return { kind: 'released' }
+      return Promise.resolve({ kind: 'released' })
     })
 
     const workspace = createWorkspace()

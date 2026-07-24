@@ -238,6 +238,8 @@ function TransformGroup({ children, label, title }: TransformGroupProps) {
   return (
     <div
       aria-label={label}
+      role="group"
+      role="group"
       className="
         inline-flex h-6 shrink-0 items-center gap-0.5
       "
@@ -362,6 +364,8 @@ function InlineTransformField({
     finishWithCommit()
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 键盘事件分支集中描述一个输入框的完整交互协议
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 键盘事件分支集中描述一个输入框的完整交互协议
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault()

@@ -102,6 +102,7 @@ export function firstOk<T, E>(results: readonly Result<T, E>[]): Result<T, E> {
       return r
     }
   }
-  const last = results[results.length - 1]!
-  return last._tag === 'Err' ? last : err(undefined as E)
+  const last = results.at(-1)
+
+  return last?._tag === 'Err' ? last : err(undefined as E)
 }

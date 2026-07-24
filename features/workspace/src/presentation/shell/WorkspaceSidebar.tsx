@@ -25,7 +25,6 @@ export interface WorkspaceSidebarProps {
 export function WorkspaceSidebar({
   activeNavigationItem,
   pages,
-  onClose,
   onActivatePage,
   onCreatePage,
 }: WorkspaceSidebarProps) {

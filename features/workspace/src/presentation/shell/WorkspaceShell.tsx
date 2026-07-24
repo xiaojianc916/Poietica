@@ -28,6 +28,7 @@ const SURFACE_TITLES: Record<WorkspaceSurfaceId, string> = {
   extensions: '插件',
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 工作区外壳集中编排响应式区域及其条件渲染
 export function WorkspaceShell({
   model,
   actions,
@@ -99,7 +100,6 @@ export function WorkspaceShell({
     <WorkspaceSidebar
       activeNavigationItem={activeNavigationItem}
       onActivatePage={actions.activatePage}
-      onClose={() => setSidebarOpen(false)}
       onCreatePage={actions.createPage}
       pages={pages}
     />
