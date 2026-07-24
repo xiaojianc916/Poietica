@@ -1,5 +1,5 @@
 import { applyThemePreference } from '@hybrid-canvas/design-system'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 
@@ -16,11 +16,9 @@ export interface SettingsController {
   readonly settings: AppSettings | undefined
   readonly loading: boolean
   readonly saving: boolean
-  readonly dirty: boolean
   readonly operation: SettingsOperation | undefined
   readonly error: string | undefined
   readonly update: (updater: (settings: AppSettings) => AppSettings) => void
-  readonly save: () => void
   readonly reset: () => void
   readonly retry: () => void
   readonly requestClose: () => void
@@ -32,6 +30,8 @@ interface UseSettingsControllerOptions {
   readonly onOpenChange: (open: boolean) => void
 }
 
+const AUTO_SAVE_DELAY_MS = 350
+
 export function useSettingsController({
   open,
   store,
@@ -41,9 +41,9 @@ export function useSettingsController({
     status: 'idle',
   })
 
+  const stateRef = useRef(state)
   const baselineRef = useRef<AppSettings | null>(null)
   const requestVersionRef = useRef(0)
-  const stateRef = useRef(state)
 
   stateRef.current = state
 
@@ -84,14 +84,60 @@ export function useSettingsController({
     )
   }, [store])
 
+  const persist = useCallback(
+    (settings: AppSettings, closeAfterSave = false) => {
+      const requestVersion = requestVersionRef.current + 1
+      requestVersionRef.current = requestVersion
+
+      setState({
+        status: 'saving',
+        operation: 'save',
+        draft: settings,
+      })
+
+      void store.save(settings).then(
+        () => {
+          if (requestVersionRef.current !== requestVersion) {
+            return
+          }
+
+          baselineRef.current = settings
+          applyThemePreference(settings.theme)
+
+          if (closeAfterSave) {
+            setState({
+              status: 'idle',
+            })
+
+            onOpenChange(false)
+            return
+          }
+
+          setState({
+            status: 'ready',
+            draft: settings,
+          })
+        },
+        (cause: unknown) => {
+          if (requestVersionRef.current !== requestVersion) {
+            return
+          }
+
+          setState({
+            status: 'error',
+            operation: 'save',
+            message: getErrorMessage(cause),
+            draft: settings,
+          })
+        },
+      )
+    },
+    [onOpenChange, store],
+  )
+
   useEffect(() => {
     if (!open) {
       requestVersionRef.current += 1
-
-      const baseline = baselineRef.current
-      if (baseline) {
-        applyThemePreference(baseline.theme)
-      }
 
       setState({
         status: 'idle',
@@ -107,6 +153,36 @@ export function useSettingsController({
     }
   }, [beginLoad, open])
 
+  /*
+   * Automatically persist a stable draft.
+   *
+   * Only the small settings object is written. Canvas document state remains
+   * owned by TLStore and is not involved in this process.
+   */
+  useEffect(() => {
+    const baseline = baselineRef.current
+
+    if (
+      !open ||
+      state.status !== 'ready' ||
+      !state.draft ||
+      !baseline ||
+      settingsEqual(state.draft, baseline)
+    ) {
+      return
+    }
+
+    const draft = state.draft
+
+    const timeout = window.setTimeout(() => {
+      persist(draft)
+    }, AUTO_SAVE_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [open, persist, state.draft, state.status])
+
   const update = useCallback((updater: (settings: AppSettings) => AppSettings) => {
     setState((current) => {
       if (!current.draft || current.status === 'saving') {
@@ -114,6 +190,7 @@ export function useSettingsController({
       }
 
       const nextSettings = updater(current.draft)
+
       applyThemePreference(nextSettings.theme)
 
       return {
@@ -122,54 +199,6 @@ export function useSettingsController({
       }
     })
   }, [])
-
-  const save = useCallback(() => {
-    const current = stateRef.current
-
-    if (!current.draft || current.status === 'saving') {
-      return
-    }
-
-    const settingsToSave = current.draft
-    const requestVersion = requestVersionRef.current + 1
-    requestVersionRef.current = requestVersion
-
-    setState({
-      status: 'saving',
-      operation: 'save',
-      draft: settingsToSave,
-    })
-
-    void store.save(settingsToSave).then(
-      () => {
-        if (requestVersionRef.current !== requestVersion) {
-          return
-        }
-
-        baselineRef.current = settingsToSave
-        applyThemePreference(settingsToSave.theme)
-
-        setState({
-          status: 'ready',
-          draft: settingsToSave,
-        })
-
-        onOpenChange(false)
-      },
-      (cause: unknown) => {
-        if (requestVersionRef.current !== requestVersion) {
-          return
-        }
-
-        setState({
-          status: 'error',
-          operation: 'save',
-          message: getErrorMessage(cause),
-          draft: settingsToSave,
-        })
-      },
-    )
-  }, [onOpenChange, store])
 
   const reset = useCallback(() => {
     const current = stateRef.current
@@ -180,6 +209,7 @@ export function useSettingsController({
 
     const currentDraft = current.draft
     const requestVersion = requestVersionRef.current + 1
+
     requestVersionRef.current = requestVersion
 
     setState({
@@ -234,43 +264,44 @@ export function useSettingsController({
       return
     }
 
-    save()
-  }, [beginLoad, reset, save])
+    if (current.draft) {
+      persist(current.draft)
+    }
+  }, [beginLoad, persist, reset])
 
   const requestClose = useCallback(() => {
     const current = stateRef.current
+    const baseline = baselineRef.current
 
     if (current.status === 'saving') {
       return
     }
 
+    /*
+     * If the debounce has not fired yet, flush the latest draft before
+     * closing instead of silently discarding it.
+     */
+    if (current.draft && baseline && !settingsEqual(current.draft, baseline)) {
+      persist(current.draft, true)
+      return
+    }
+
     requestVersionRef.current += 1
 
-    const baseline = baselineRef.current
-    if (baseline) {
-      applyThemePreference(baseline.theme)
-    }
+    setState({
+      status: 'idle',
+    })
 
     onOpenChange(false)
-  }, [onOpenChange])
-
-  const dirty = useMemo(() => {
-    if (!state.draft || !baselineRef.current) {
-      return false
-    }
-
-    return !settingsEqual(state.draft, baselineRef.current)
-  }, [state.draft])
+  }, [onOpenChange, persist])
 
   return {
     settings: state.draft,
     loading: state.status === 'idle' || state.status === 'loading',
     saving: state.status === 'saving',
-    dirty,
     operation: state.operation,
     error: state.status === 'error' ? state.message : undefined,
     update,
-    save,
     reset,
     retry,
     requestClose,

@@ -98,8 +98,6 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
                 />
               ) : null}
 
-              <SettingsActions controller={controller} />
-
               <SettingsSectionContent
                 controller={controller}
                 section={section}
@@ -797,33 +795,6 @@ function RangeControl({ ariaLabel, value, onChange }: RangeControlProps) {
       />
 
       <output>{value}%</output>
-    </div>
-  )
-}
-
-interface SettingsActionsProps {
-  readonly controller: SettingsController
-}
-
-function SettingsActions({ controller }: SettingsActionsProps) {
-  return (
-    <div className="settings-content-actions">
-      <Button
-        disabled={controller.saving}
-        onClick={controller.requestClose}
-        type="button"
-        variant="ghost"
-      >
-        取消
-      </Button>
-
-      <Button
-        disabled={controller.saving || !controller.settings || !controller.dirty}
-        onClick={controller.save}
-        type="button"
-      >
-        {controller.saving && controller.operation === 'save' ? '正在保存…' : '保存'}
-      </Button>
     </div>
   )
 }

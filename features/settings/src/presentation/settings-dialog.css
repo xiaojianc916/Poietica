@@ -885,3 +885,54 @@
     min-width: 64px;
   }
 }
+
+/* Final settings layout: no header and no action bars. */
+
+/*
+ * Keep the Base UI title in the accessibility tree through the Dialog
+ * implementation, but remove the entire visual header region.
+ */
+.settings-dialog > header {
+  display: none !important;
+}
+
+/* No Save, Cancel or status action regions. */
+.settings-content-actions,
+.settings-footer,
+.settings-footer__status {
+  display: none !important;
+}
+
+/* Content now occupies the full dialog height. */
+.settings-dialog__viewport {
+  height: 100%;
+  flex: 1 1 auto;
+}
+
+/* Remove spacing that was reserved for top-right actions. */
+.settings-page {
+  padding-top: 32px;
+}
+
+.settings-page__header {
+  min-height: 0;
+  padding-right: 0;
+}
+
+/* Keep wheel and touch scrolling without showing a scrollbar. */
+.settings-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.settings-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 720px) {
+  .settings-page {
+    padding-top: 24px;
+  }
+}
