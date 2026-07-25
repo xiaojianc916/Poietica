@@ -1,14 +1,8 @@
 'use client'
 
-import { Button } from '@poietica/foundations-design-system'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@poietica/foundations-design-system'
-import { cn } from '@poietica/foundations-design-system'
+import { Button } from './ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
+import { cn } from './lib/utils'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import type { ComponentProps, CSSProperties, HTMLAttributes } from 'react'
 import {

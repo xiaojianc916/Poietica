@@ -1,12 +1,8 @@
 'use client'
 
-import { Badge } from '@poietica/foundations-design-system'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@poietica/foundations-design-system'
-import { cn } from '@poietica/foundations-design-system'
+import { Badge } from './ui/badge'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import { cn } from './lib/utils'
 import type { DynamicToolUIPart, ToolUIPart } from 'ai'
 import {
   CheckCircleIcon,

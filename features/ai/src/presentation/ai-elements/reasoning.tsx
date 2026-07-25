@@ -1,12 +1,8 @@
 'use client'
 
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@poietica/foundations-design-system'
-import { cn } from '@poietica/foundations-design-system'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import { cn } from './lib/utils'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'

@@ -1,14 +1,9 @@
 'use client'
 
-import { Button } from '@poietica/foundations-design-system'
-import { ButtonGroup, ButtonGroupText } from '@poietica/foundations-design-system'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@poietica/foundations-design-system'
-import { cn } from '@poietica/foundations-design-system'
+import { Button } from './ui/button'
+import { ButtonGroup, ButtonGroupText } from './ui/button-group'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
+import { cn } from './lib/utils'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'

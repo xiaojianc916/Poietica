@@ -1,11 +1,7 @@
 'use client'
 
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@poietica/foundations-design-system'
-import { cn } from '@poietica/foundations-design-system'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
+import { cn } from './lib/utils'
 import { ChevronDownIcon, SearchIcon } from 'lucide-react'
 import type { ComponentProps } from 'react'
 
