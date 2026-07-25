@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils'
 export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root>
 
 /**
- * Hybrid Canvas compact switch.
+ * Poietica compact switch.
  *
  * Base UI owns interaction semantics and keyboard behavior.
  * The design system owns sizing, motion, focus and visual states.

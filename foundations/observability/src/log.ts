@@ -61,7 +61,7 @@ export function log(level: LogLevel, message: string, context: LogContext = {}):
   } catch (error: unknown) {
     // Logging must not recursively become a fatal application error.
     try {
-      console.error('[Hybrid Canvas Observability] Log sink failed', {
+      console.error('[Poietica Observability] Log sink failed', {
         level,
         message,
         error,
@@ -109,6 +109,6 @@ export function initObservability(options?: {
 
   info('observability initialized', {
     scope: 'observability',
-    appName: options?.appName ?? 'hybrid-canvas',
+    appName: options?.appName ?? 'poietica',
   })
 }

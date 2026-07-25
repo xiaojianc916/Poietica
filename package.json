@@ -1,5 +1,5 @@
 {
-  "name": "hybrid-canvas",
+  "name": "poietica",
   "version": "0.1.0",
   "private": true,
   "description": "A local-first canvas application built on tldraw.",
@@ -18,10 +18,10 @@
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@hybrid-canvas/desktop",
-    "dev:desktop": "pnpm --filter @hybrid-canvas/desktop dev",
+    "dev": "turbo run dev --filter=@poietica/desktop",
+    "dev:desktop": "pnpm --filter @poietica/desktop dev",
     "build": "pnpm build:desktop",
-    "build:desktop": "turbo run build --filter=@hybrid-canvas/desktop",
+    "build:desktop": "turbo run build --filter=@poietica/desktop",
     "build:native": "cargo build --workspace",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:architecture && pnpm test && pnpm check:rust",
     "check:rust": "cargo check --workspace --all-targets --all-features",
@@ -36,12 +36,12 @@
     "audit": "pnpm audit --audit-level high",
     "audit:rust": "cargo deny check",
     "clean": "turbo run clean && rimraf node_modules .turbo target",
-    "tauri": "pnpm --filter @hybrid-canvas/desktop tauri",
-    "tauri:dev": "pnpm --filter @hybrid-canvas/desktop tauri dev",
-    "tauri:build": "pnpm --filter @hybrid-canvas/desktop tauri build",
+    "tauri": "pnpm --filter @poietica/desktop tauri",
+    "tauri:dev": "pnpm --filter @poietica/desktop tauri dev",
+    "tauri:build": "pnpm --filter @poietica/desktop tauri build",
     "test:architecture": "node tests/architecture/check.mjs && node tests/architecture/check-native-crash-recovery.mjs && node tests/architecture/check-document-failure-isolation.mjs && node tests/architecture/check-failure-presentation-hierarchy.mjs && node tests/architecture/check-feature-degradation-enforcement.mjs && node tests/architecture/check-failure-architecture-convergence.mjs && node tests/architecture/check-ui-boundaries.mjs && node tests/architecture/check-design-token-authority.mjs && node tests/architecture/check-design-token-consumption.mjs && node tests/architecture/check-workspace-token-consumption.mjs && node tests/architecture/check-desktop-token-consumption.mjs && node tests/architecture/check-inspector-style-authority.mjs && node tests/architecture/check-tldraw-style-authority.mjs && node tests/architecture/check-canvas-host-contract.mjs && node tests/architecture/check-workspace-motion-contract.mjs",
     "verify:release": "pnpm check && pnpm build:desktop && pnpm check:ipc && pnpm clippy && pnpm audit && pnpm audit:rust",
-    "generate:ipc": "cargo run -p hybrid-canvas-desktop --bin export-ipc-bindings",
+    "generate:ipc": "cargo run -p poietica-desktop --bin export-ipc-bindings",
     "check:ipc": "pnpm generate:ipc && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
     "test:frontend": "node scripts/quality/run.mjs frontend-test",
     "prepare": "node scripts/git-hooks/install.mjs"

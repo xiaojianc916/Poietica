@@ -4,9 +4,9 @@ import type {
   TLStateNodeConstructor,
 } from 'tldraw'
 
-export const HYBRID_CANVAS_EXTENSION_API_VERSION = '3'
+export const POIETICA_EXTENSION_API_VERSION = '3'
 
-export interface HybridCanvasExtension {
+export interface PoieticaExtension {
   readonly id: string
   readonly version: string
   readonly apiVersion: string
@@ -17,7 +17,7 @@ export interface HybridCanvasExtension {
 }
 
 export interface ExtensionRegistration {
-  readonly extensions: readonly HybridCanvasExtension[]
+  readonly extensions: readonly PoieticaExtension[]
   readonly shapeUtils: readonly TLAnyShapeUtilConstructor[]
   readonly bindingUtils: readonly TLAnyBindingUtilConstructor[]
   readonly tools: readonly TLStateNodeConstructor[]
@@ -25,7 +25,7 @@ export interface ExtensionRegistration {
 }
 
 export function buildExtensionRegistration(
-  input: readonly HybridCanvasExtension[] = [],
+  input: readonly PoieticaExtension[] = [],
 ): ExtensionRegistration {
   const ids = new Set<string>()
   const shapeUtils: TLAnyShapeUtilConstructor[] = []
@@ -38,7 +38,7 @@ export function buildExtensionRegistration(
       throw new Error('EXTENSION_DUPLICATE_ID')
     }
 
-    if (extension.apiVersion !== HYBRID_CANVAS_EXTENSION_API_VERSION) {
+    if (extension.apiVersion !== POIETICA_EXTENSION_API_VERSION) {
       throw new Error('EXTENSION_API_VERSION_MISMATCH')
     }
 

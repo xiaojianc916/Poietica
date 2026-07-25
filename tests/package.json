@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/tests",
+  "name": "@poietica/tests",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
     "test:integration": "vitest run integration"
   },
   "dependencies": {
-    "@hybrid-canvas/canvas": "workspace:*",
-    "@hybrid-canvas/document": "workspace:*",
-    "@hybrid-canvas/file": "workspace:*"
+    "@poietica/canvas": "workspace:*",
+    "@poietica/document": "workspace:*",
+    "@poietica/file": "workspace:*"
   },
   "devDependencies": {
     "@tldraw/tlschema": "catalog:",

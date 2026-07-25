@@ -7,7 +7,7 @@
 
 ## Context
 
-Hybrid Canvas previously implemented multiple unrelated failure paths:
+Poietica previously implemented multiple unrelated failure paths:
 
 1. a static HTML startup card and bootstrap error renderer;
 2. an application-level React error boundary;
@@ -23,7 +23,7 @@ process terminates, the WebView cannot render a React error screen.
 
 ## Decision
 
-Hybrid Canvas uses one fatal incident model and one terminal fatal state.
+Poietica uses one fatal incident model and one terminal fatal state.
 
 ### Ownership
 

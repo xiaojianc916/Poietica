@@ -113,11 +113,11 @@ function isViteErrorPayload(payload: unknown): payload is UnknownRecord & {
  * - 不查询或删除 vite-error-overlay DOM；
  * - 不进入生产构建；
  * - 原始 Vite 错误仍正常转发给 HMR 客户端和终端；
- * - 额外发送 Hybrid Canvas 自定义诊断事件。
+ * - 额外发送 Poietica 自定义诊断事件。
  */
 export function customErrorDiagnosticsPlugin(): Plugin {
   return {
-    name: 'hybrid-canvas:custom-error-diagnostics',
+    name: 'poietica:custom-error-diagnostics',
     apply: 'serve',
     configureServer(server) {
       const originalSend = server.ws.send.bind(server.ws)
@@ -136,7 +136,7 @@ export function customErrorDiagnosticsPlugin(): Plugin {
 
           sendOriginal({
             type: 'custom',
-            event: 'hybrid-canvas:diagnostic',
+            event: 'poietica:diagnostic',
             data: diagnostic,
           })
         }

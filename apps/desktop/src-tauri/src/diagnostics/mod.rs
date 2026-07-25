@@ -51,7 +51,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
         let report = create_report(panic_info, &app_version);
 
         if let Err(error) = write_report_atomically(&report_directory, &report) {
-            eprintln!("[Hybrid Canvas] failed to persist native crash report: {error}");
+            eprintln!("[Poietica] failed to persist native crash report: {error}");
         }
 
         previous_hook(panic_info);
@@ -120,7 +120,7 @@ fn create_report(panic_info: &PanicHookInfo<'_>, app_version: &str) -> NativeCra
     NativeCrashReport {
         incident_id: format!("native-{}", Uuid::now_v7()),
         occurred_at: current_timestamp(),
-        process: "hybrid-canvas-desktop".to_owned(),
+        process: "poietica-desktop".to_owned(),
         thread: truncate(thread_name, 256),
         message: truncate(message, MAX_MESSAGE_LENGTH),
         location,

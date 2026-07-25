@@ -105,31 +105,31 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@hybrid-canvas/ai':
+      '@poietica/ai':
         specifier: workspace:*
         version: link:../../features/ai
-      '@hybrid-canvas/canvas':
+      '@poietica/canvas':
         specifier: workspace:*
         version: link:../../editor/core
-      '@hybrid-canvas/design-system':
+      '@poietica/design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
-      '@hybrid-canvas/document':
+      '@poietica/document':
         specifier: workspace:*
         version: link:../../editor/document
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
-      '@hybrid-canvas/foundations-observability':
+      '@poietica/foundations-observability':
         specifier: workspace:*
         version: link:../../foundations/observability
-      '@hybrid-canvas/platforms-desktop-runtime':
+      '@poietica/platforms-desktop-runtime':
         specifier: workspace:*
         version: link:../../platforms/desktop-runtime
-      '@hybrid-canvas/settings':
+      '@poietica/settings':
         specifier: workspace:*
         version: link:../../features/settings
-      '@hybrid-canvas/workspace':
+      '@poietica/workspace':
         specifier: workspace:*
         version: link:../../features/workspace
       '@mynaui/icons-react':
@@ -178,14 +178,14 @@ importers:
 
   editor/assets:
     dependencies:
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@hybrid-canvas/foundations-test-kit':
+      '@poietica/foundations-test-kit':
         specifier: workspace:*
         version: link:../../foundations/test-kit
       typescript:
@@ -197,7 +197,7 @@ importers:
 
   editor/core:
     dependencies:
-      '@hybrid-canvas/design-system':
+      '@poietica/design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
       '@mynaui/icons-react':
@@ -228,10 +228,10 @@ importers:
 
   editor/document:
     dependencies:
-      '@hybrid-canvas/canvas':
+      '@poietica/canvas':
         specifier: workspace:*
         version: link:../core
-      '@hybrid-canvas/file':
+      '@poietica/file':
         specifier: workspace:*
         version: link:../persistence
     devDependencies:
@@ -244,14 +244,14 @@ importers:
 
   editor/extensions:
     dependencies:
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@hybrid-canvas/foundations-test-kit':
+      '@poietica/foundations-test-kit':
         specifier: workspace:*
         version: link:../../foundations/test-kit
       typescript:
@@ -263,17 +263,17 @@ importers:
 
   editor/persistence:
     dependencies:
-      '@hybrid-canvas/asset':
+      '@poietica/asset':
         specifier: workspace:*
         version: link:../assets
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@hybrid-canvas/foundations-test-kit':
+      '@poietica/foundations-test-kit':
         specifier: workspace:*
         version: link:../../foundations/test-kit
       tldraw:
@@ -291,7 +291,7 @@ importers:
       '@ai-sdk/react':
         specifier: 'catalog:'
         version: 3.0.28(react@19.2.7)(zod@4.4.3)
-      '@hybrid-canvas/design-system':
+      '@poietica/design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
       '@mynaui/icons-react':
@@ -325,17 +325,17 @@ importers:
 
   features/settings:
     dependencies:
-      '@hybrid-canvas/design-system':
+      '@poietica/design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@hybrid-canvas/foundations-test-kit':
+      '@poietica/foundations-test-kit':
         specifier: workspace:*
         version: link:../../foundations/test-kit
       '@types/react':
@@ -359,7 +359,7 @@ importers:
 
   features/workspace:
     dependencies:
-      '@hybrid-canvas/design-system':
+      '@poietica/design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
       '@mynaui/icons-react':
@@ -477,10 +477,10 @@ importers:
 
   foundations/test-kit:
     dependencies:
-      '@hybrid-canvas/foundations-geometry':
+      '@poietica/foundations-geometry':
         specifier: workspace:*
         version: link:../geometry
-      '@hybrid-canvas/foundations-kernel':
+      '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../kernel
     devDependencies:
@@ -499,13 +499,13 @@ importers:
 
   platforms/desktop-runtime:
     dependencies:
-      '@hybrid-canvas/desktop-ipc':
+      '@poietica/desktop-ipc':
         specifier: workspace:*
         version: link:../desktop-ipc
-      '@hybrid-canvas/file':
+      '@poietica/file':
         specifier: workspace:*
         version: link:../../editor/persistence
-      '@hybrid-canvas/settings':
+      '@poietica/settings':
         specifier: workspace:*
         version: link:../../features/settings
       '@tauri-apps/api':
@@ -517,13 +517,13 @@ importers:
 
   tests:
     dependencies:
-      '@hybrid-canvas/canvas':
+      '@poietica/canvas':
         specifier: workspace:*
         version: link:../editor/core
-      '@hybrid-canvas/document':
+      '@poietica/document':
         specifier: workspace:*
         version: link:../editor/document
-      '@hybrid-canvas/file':
+      '@poietica/file':
         specifier: workspace:*
         version: link:../editor/persistence
     devDependencies:

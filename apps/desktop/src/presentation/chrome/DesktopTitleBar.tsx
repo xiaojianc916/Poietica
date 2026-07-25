@@ -1,4 +1,4 @@
-import { Button, cn } from '@hybrid-canvas/design-system'
+import { Button, cn } from '@poietica/design-system'
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
 import type { MouseEvent, ReactNode } from 'react'
 

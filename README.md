@@ -1,6 +1,6 @@
-# Hybrid Canvas
+# Poietica
 
-Hybrid Canvas 是一个以 tldraw 为核心、基于 Tauri、React 和 Rust 构建的本地优先桌面画布应用。
+Poietica 是一个以 tldraw 为核心、基于 Tauri、React 和 Rust 构建的本地优先桌面画布应用。
 
 项目当前处于早期架构建设阶段。现有空目录、占位包和预留模块不代表功能已经完成；受允许的预留脚手架必须登记在 architecture.scaffolds.json，并明确所有者、激活条件和删除条件。
 
@@ -38,7 +38,7 @@ Hybrid Canvas 是一个以 tldraw 为核心、基于 Tauri、React 和 Rust 构�
 
 ## 当前目录结构
 
-    hybrid-canvas/
+    poietica/
     ├── apps/
     │   └── desktop/                 Tauri 桌面应用与组合入口
     ├── editor/

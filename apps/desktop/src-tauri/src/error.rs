@@ -219,8 +219,8 @@ impl Serialize for Error {
     }
 }
 
-impl From<hybrid_canvas_file_native::Error> for Error {
-    fn from(error: hybrid_canvas_file_native::Error) -> Self {
+impl From<poietica_file_native::Error> for Error {
+    fn from(error: poietica_file_native::Error) -> Self {
         Self::Persistence(error.to_string())
     }
 }

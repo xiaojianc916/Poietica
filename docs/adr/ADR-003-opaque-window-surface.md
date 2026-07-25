@@ -6,7 +6,7 @@
 
 ## Context
 
-Hybrid Canvas 使用 Tauri 2 承载 React、tldraw 和 WebView2。
+Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
 
 主窗口原先同时配置了：
 

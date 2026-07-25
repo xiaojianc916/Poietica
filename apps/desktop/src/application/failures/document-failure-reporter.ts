@@ -1,4 +1,4 @@
-import type { EditorSessionFailure } from '@hybrid-canvas/canvas/react'
+import type { EditorSessionFailure } from '@poietica/canvas/react'
 import { reportFailure } from './failure-policy'
 
 export function reportDocumentFatal(failure: EditorSessionFailure): void {

@@ -8,7 +8,7 @@ export interface WindowErrorLike {
  *
  * These exact messages are emitted by browser engines when
  * ResizeObserver delivery is deferred to a later frame.
- * They do not indicate that Hybrid Canvas is unable to
+ * They do not indicate that Poietica is unable to
  * continue safely.
  */
 const BENIGN_RESIZE_OBSERVER_MESSAGES = new Set([

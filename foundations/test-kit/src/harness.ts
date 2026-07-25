@@ -1,8 +1,4 @@
-import {
-  CancellationTokenSource,
-  type Clock,
-  createMockClock,
-} from '@hybrid-canvas/foundations-kernel'
+import { CancellationTokenSource, type Clock, createMockClock } from '@poietica/foundations-kernel'
 
 export function fakeClock(initialIso = '2024-01-01T00:00:00.000Z'): Clock {
   return createMockClock(new Date(initialIso))

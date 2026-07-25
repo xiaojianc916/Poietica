@@ -12,7 +12,7 @@ use tauri::http::{
     header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, X_CONTENT_TYPE_OPTIONS},
 };
 
-pub const ASSET_PROTOCOL_SCHEME: &str = "hybrid-canvas-asset";
+pub const ASSET_PROTOCOL_SCHEME: &str = "poietica-asset";
 
 const ASSET_PROTOCOL_HOST: &str = "asset";
 const MAX_ASSET_BYTES: usize = 32 * 1024 * 1024;
@@ -472,7 +472,7 @@ impl AssetProtocolRegistry {
             .split('/')
             .filter(|component| !component.is_empty());
 
-        if host == "hybrid-canvas-asset.localhost" || host == "localhost" {
+        if host == "poietica-asset.localhost" || host == "localhost" {
             if components.next() != Some(ASSET_PROTOCOL_HOST) {
                 return Err(AssetProtocolError::InvalidToken);
             }
@@ -554,7 +554,7 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 ///
 /// SVG's exclusion, and the reason for it, now live with the list.
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
-    if hybrid_canvas_file_native::is_supported_asset_content_type(content_type) {
+    if poietica_file_native::is_supported_asset_content_type(content_type) {
         return Ok(());
     }
 
@@ -630,7 +630,7 @@ mod tests {
         let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3, 4]);
 
         let response = registry.response(&request(&format!(
-            "hybrid-canvas-asset://asset/session-1/{asset}"
+            "poietica-asset://asset/session-1/{asset}"
         )));
 
         assert_eq!(response.status(), StatusCode::OK);
@@ -646,10 +646,10 @@ mod tests {
         let registry = AssetProtocolRegistry::default();
 
         for uri in [
-            "hybrid-canvas-asset://asset/../asset",
-            "hybrid-canvas-asset://asset/session/asset/extra",
-            "hybrid-canvas-asset://asset/session\\escape/asset",
-            "hybrid-canvas-asset://asset/session/asset?path=secret",
+            "poietica-asset://asset/../asset",
+            "poietica-asset://asset/session/asset/extra",
+            "poietica-asset://asset/session\\escape/asset",
+            "poietica-asset://asset/session/asset?path=secret",
         ] {
             let response = registry.response(&request(uri));
 
@@ -674,7 +674,7 @@ mod tests {
         );
 
         let response = registry.response(&request(&format!(
-            "hybrid-canvas-asset://asset/session-1/{asset}"
+            "poietica-asset://asset/session-1/{asset}"
         )));
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -823,7 +823,7 @@ mod tests {
         );
 
         let first_response = registry.response(&request(&format!(
-            "hybrid-canvas-asset://asset/restored-session/{first_hash}"
+            "poietica-asset://asset/restored-session/{first_hash}"
         )));
 
         assert_eq!(first_response.status(), StatusCode::OK,);

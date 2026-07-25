@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/document",
+  "name": "@poietica/document",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,8 @@
     "clean": "rimraf .turbo *.tsbuildinfo"
   },
   "dependencies": {
-    "@hybrid-canvas/canvas": "workspace:*",
-    "@hybrid-canvas/file": "workspace:*"
+    "@poietica/canvas": "workspace:*",
+    "@poietica/file": "workspace:*"
   },
   "devDependencies": {
     "tldraw": "catalog:",

@@ -12,7 +12,7 @@ import {
 import {
   buildExtensionRegistration,
   type ExtensionRegistration,
-  type HybridCanvasExtension,
+  type PoieticaExtension,
 } from '../contracts/public-api'
 
 // Contract tests: tests/unit/document-lifecycle/tlstore-record-id-contract.test.ts
@@ -54,7 +54,7 @@ export interface CreateEditorSessionOptions {
    */
   readonly assetStoreRestore?: EditorAssetStoreRestore
 
-  readonly extensions?: readonly HybridCanvasExtension[]
+  readonly extensions?: readonly PoieticaExtension[]
 }
 
 export type EditorSessionState = 'created' | 'attached' | 'detached' | 'disposed'

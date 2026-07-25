@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-07-23
-- 决策者：Hybrid Canvas maintainers
+- 决策者：Poietica maintainers
 
 ## 背景
 

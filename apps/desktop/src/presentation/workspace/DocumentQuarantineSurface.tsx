@@ -24,7 +24,7 @@ export function DocumentQuarantineSurface({ sessionId, onClose }: DocumentQuaran
       failure
         ? formatFailureDiagnostic(failure)
         : [
-            'Hybrid Canvas Document Failure',
+            'Poietica Document Failure',
             '',
             `Session ID: ${sessionId}`,
 

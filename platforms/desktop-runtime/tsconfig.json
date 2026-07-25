@@ -3,11 +3,11 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop-runtime.tsbuildinfo",
     "paths": {
-      "@hybrid-canvas/desktop-ipc": ["../desktop-ipc/src/public-api.ts"],
-      "@hybrid-canvas/asset": ["../../editor/assets/src/public-api.ts"],
-      "@hybrid-canvas/file": ["../../editor/persistence/src/public-api.ts"],
-      "@hybrid-canvas/plugin": ["../../editor/extensions/src/public-api.ts"],
-      "@hybrid-canvas/settings": ["../../features/settings/src/public-api.ts"]
+      "@poietica/desktop-ipc": ["../desktop-ipc/src/public-api.ts"],
+      "@poietica/asset": ["../../editor/assets/src/public-api.ts"],
+      "@poietica/file": ["../../editor/persistence/src/public-api.ts"],
+      "@poietica/plugin": ["../../editor/extensions/src/public-api.ts"],
+      "@poietica/settings": ["../../features/settings/src/public-api.ts"]
     }
   },
   "include": ["src/**/*.ts"]

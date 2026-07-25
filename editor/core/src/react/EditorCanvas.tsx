@@ -13,7 +13,7 @@ import type { EditorSession } from '../runtime/editor-session'
 import { CanvasInspectorStylePanel } from './canvas-inspector-portal'
 import { useBindEditorSession, useTldrawLicenseKey } from './editor-context'
 
-export const HYBRID_CANVAS_SAVE_ACTION_ID = 'hybrid-canvas.save'
+export const POIETICA_SAVE_ACTION_ID = 'poietica.save'
 
 /**
  * tldraw 负责：
@@ -164,8 +164,8 @@ function createCanvasUiOverrides(onSave: (() => void) | undefined): TLUiOverride
       return {
         ...actions,
 
-        [HYBRID_CANVAS_SAVE_ACTION_ID]: {
-          id: HYBRID_CANVAS_SAVE_ACTION_ID,
+        [POIETICA_SAVE_ACTION_ID]: {
+          id: POIETICA_SAVE_ACTION_ID,
 
           label: '保存',
           kbd: 'cmd+s,ctrl+s',

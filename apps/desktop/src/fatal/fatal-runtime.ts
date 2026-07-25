@@ -1,4 +1,4 @@
-import type { FailureRecovery, TerminalFailureImpact } from '@hybrid-canvas/foundations-kernel'
+import type { FailureRecovery, TerminalFailureImpact } from '@poietica/foundations-kernel'
 import {
   failureCoordinator,
   type FailureIncident,
@@ -50,8 +50,8 @@ export function reportFatalIncident(input: TerminalFailureInput): FailureInciden
 
     userMessage:
       input.impact === 'native-fatal'
-        ? 'Hybrid Canvas 上次运行时异常终止。请复制诊断信息后继续启动。'
-        : 'Hybrid Canvas 无法安全地继续当前运行。请复制诊断信息后重新加载应用。',
+        ? 'Poietica 上次运行时异常终止。请复制诊断信息后继续启动。'
+        : 'Poietica 无法安全地继续当前运行。请复制诊断信息后重新加载应用。',
 
     cause: input.error,
 

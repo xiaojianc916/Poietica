@@ -1,4 +1,4 @@
-import { Button, cn, ScrollArea } from '@hybrid-canvas/design-system'
+import { Button, cn, ScrollArea } from '@poietica/design-system'
 import {
   Box,
   ChartNetwork,
@@ -11,6 +11,7 @@ import {
   Search,
 } from '@mynaui/icons-react'
 import type { CanvasPageViewModel } from '../../contracts/shell-contract'
+import type { WorkspacePanelRenderers } from '../../contracts/surface-contract'
 import type { CanvasNavigationItemId } from './ActivityRail'
 import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
@@ -19,6 +20,7 @@ export interface WorkspaceSidebarProps {
   readonly pages: readonly CanvasPageViewModel[]
   readonly onActivatePage: (pageId: string) => void
   readonly onCreatePage: () => void
+  readonly panelRenderers?: WorkspacePanelRenderers
 }
 
 export function WorkspaceSidebar({
@@ -26,8 +28,19 @@ export function WorkspaceSidebar({
   pages,
   onActivatePage,
   onCreatePage,
+  panelRenderers,
 }: WorkspaceSidebarProps) {
   if (activeNavigationItem !== 'pages') {
+    const renderPanel = panelRenderers?.[activeNavigationItem]
+
+    if (renderPanel) {
+      return (
+        <section className="flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
+          {renderPanel()}
+        </section>
+      )
+    }
+
     return <WorkspacePanel kind={activeNavigationItem} />
   }
 

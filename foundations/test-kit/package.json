@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/foundations-test-kit",
+  "name": "@poietica/foundations-test-kit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -21,7 +21,7 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@hybrid-canvas/foundations-kernel": "workspace:*",
-    "@hybrid-canvas/foundations-geometry": "workspace:*"
+    "@poietica/foundations-kernel": "workspace:*",
+    "@poietica/foundations-geometry": "workspace:*"
   }
 }

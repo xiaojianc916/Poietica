@@ -1,5 +1,5 @@
 [package]
-name = "hybrid-canvas-plugin-native"
+name = "poietica-plugin-native"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true

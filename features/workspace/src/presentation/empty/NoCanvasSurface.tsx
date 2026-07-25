@@ -1,4 +1,4 @@
-import { Button } from '@hybrid-canvas/design-system'
+import { Button } from '@poietica/design-system'
 import { FilePlus, Folder } from '@mynaui/icons-react'
 export interface NoCanvasSurfaceProps {
   readonly onCreateDocument: () => void

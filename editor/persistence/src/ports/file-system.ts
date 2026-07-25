@@ -1,4 +1,4 @@
-import type { Result } from '@hybrid-canvas/foundations-kernel'
+import type { Result } from '@poietica/foundations-kernel'
 import type { FileReference } from '../domain/file'
 
 export interface AtomicDocumentStorage {

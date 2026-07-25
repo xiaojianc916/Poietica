@@ -6,7 +6,7 @@ import {
   resolveWorkbenchTabKeyboardAction,
 } from './workbench-tabs-model'
 
-const WORKBENCH_TAB_MIME = 'application/x-hybrid-canvas-workbench-tab'
+const WORKBENCH_TAB_MIME = 'application/x-poietica-workbench-tab'
 
 interface PendingCloseFocus {
   readonly closingTabId: WorkbenchTabId

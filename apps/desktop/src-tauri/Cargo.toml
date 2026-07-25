@@ -1,6 +1,6 @@
 [package]
-name = "hybrid-canvas-desktop"
-default-run = "hybrid-canvas-desktop"
+name = "poietica-desktop"
+default-run = "poietica-desktop"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 publish.workspace = true
 
 [lib]
-name = "hybrid_canvas_desktop_lib"
+name = "poietica_desktop_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [package.metadata]
@@ -31,7 +31,7 @@ sha2.workspace = true
 thiserror.workspace = true
 time = { version = "0.3", features = ["formatting"] }
 uuid.workspace = true
-hybrid-canvas-file-native = { path = "../../../editor/persistence/native" }
+poietica-file-native = { path = "../../../editor/persistence/native" }
 
 tauri.workspace = true
 tauri-plugin-clipboard-manager.workspace = true

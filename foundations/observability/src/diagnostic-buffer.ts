@@ -267,7 +267,7 @@ function redactText(value: string): string {
 
 function emergencyConsoleError(message: string, error: unknown): void {
   try {
-    console.error(`[Hybrid Canvas Observability] ${message}`, error)
+    console.error(`[Poietica Observability] ${message}`, error)
   } catch {
     // There is deliberately no further fallback.
   }

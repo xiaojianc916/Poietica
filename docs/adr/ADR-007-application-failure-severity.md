@@ -16,7 +16,7 @@ allowed presentation code to infer severity.
 
 ## Decision
 
-Hybrid Canvas defines five failure impacts:
+Poietica defines five failure impacts:
 
 1. recoverable — the operation failed but the owning state remains valid;
 2. feature-degraded — one optional feature is unavailable;

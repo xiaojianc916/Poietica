@@ -23,9 +23,9 @@
 ## 运行
 
 ```bash
-pnpm --filter @hybrid-canvas/tests test
-pnpm --filter @hybrid-canvas/tests test:unit
-pnpm --filter @hybrid-canvas/tests test:integration
+pnpm --filter @poietica/tests test
+pnpm --filter @poietica/tests test:unit
+pnpm --filter @poietica/tests test:integration
 pnpm test:architecture
 pnpm test
 ```

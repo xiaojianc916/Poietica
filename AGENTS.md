@@ -4,7 +4,7 @@
 
 项目软件是tldraw画图软件，核心是这个，不要忘记，以 tldraw-native canvas application 为唯一核心。
 
-守住 Hybrid Canvas 的长期架构地基：**tldraw-first、本地优先、安全、高性能、可演进**。
+守住 Poietica 的长期架构地基：**tldraw-first、本地优先、安全、高性能、可演进**。
 
 tldraw Editor 和 TLStore 是画布文档的事实标准；React、Tauri、WASM 及云服务均为平台层。编辑器内核不可替换，但扩展、平台和 UI 均可替换。
 
@@ -25,7 +25,7 @@ tldraw Editor 和 TLStore 是画布文档的事实标准；React、Tauri、WASM 
 ## 包结构
 
 ```
-hybrid-canvas/
+poietica/
 ├── apps/               # 应用入口
 ├── editor/             # 编辑器内核与扩展 API
 │   ├── core/           #   tldraw Editor Runtime, TLSchema, TLStore, ExtensionRegistry

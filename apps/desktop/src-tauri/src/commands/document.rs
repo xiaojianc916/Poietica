@@ -1,6 +1,6 @@
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::error::{Error, IpcError, Result};
-use hybrid_canvas_file_native::{
+use poietica_file_native::{
     DocumentRevision, DrawAssetInput, DrawDocumentInput, atomic_write, decode_draw_document,
     document_revision, encode_draw_document,
 };
@@ -551,7 +551,7 @@ async fn select_open_document(app: &AppHandle) -> Result<Option<FilePath>> {
 
     app.dialog()
         .file()
-        .add_filter("Hybrid Canvas document", &[DRAW_EXTENSION])
+        .add_filter("Poietica document", &[DRAW_EXTENSION])
         .pick_file(move |selected| {
             let _ = sender.send(selected);
         });
@@ -566,7 +566,7 @@ async fn select_save_document(app: &AppHandle, suggested_name: String) -> Result
 
     app.dialog()
         .file()
-        .add_filter("Hybrid Canvas document", &[DRAW_EXTENSION])
+        .add_filter("Poietica document", &[DRAW_EXTENSION])
         .set_file_name(suggested_name)
         .save_file(move |selected| {
             let _ = sender.send(selected);
@@ -861,7 +861,7 @@ mod tests {
     fn rejects_non_container_documents() {
         let legacy = serde_json::json!({
             "header": {
-                "format": "hybrid-canvas/draw",
+                "format": "poietica/draw",
                 "version": 1,
                 "createdAt": "2026-07-23T00:00:00.000Z"
             },

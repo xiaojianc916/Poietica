@@ -3,11 +3,9 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/plugin.tsbuildinfo",
     "paths": {
-      "@hybrid-canvas/kernel": ["../../foundations/kernel/src/public-api.ts"],
-      "@hybrid-canvas/foundations-observability": [
-        "../../foundations/observability/src/public-api.ts"
-      ],
-      "@hybrid-canvas/canvas": ["../core/src/public-api.ts"]
+      "@poietica/kernel": ["../../foundations/kernel/src/public-api.ts"],
+      "@poietica/foundations-observability": ["../../foundations/observability/src/public-api.ts"],
+      "@poietica/canvas": ["../core/src/public-api.ts"]
     }
   },
   "include": ["src/**/*.ts"]

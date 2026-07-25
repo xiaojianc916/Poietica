@@ -29,24 +29,23 @@ const layerRules = [
   {
     layer: 'foundations',
     pattern:
-      /@hybrid-canvas\/(?:asset|canvas|desktop(?:-ipc)?|document|file|platforms-desktop-runtime|plugin|settings|workspace)(?:['"]|\/)/,
+      /@poietica\/(?:asset|canvas|desktop(?:-ipc)?|document|file|platforms-desktop-runtime|plugin|settings|workspace)(?:['"]|\/)/,
     message: 'foundations must not depend on higher-level packages',
   },
   {
     layer: 'editor',
-    pattern:
-      /@hybrid-canvas\/(?:desktop|desktop-ipc|platforms-desktop-runtime|workspace)(?:['"]|\/)/,
+    pattern: /@poietica\/(?:desktop|desktop-ipc|platforms-desktop-runtime|workspace)(?:['"]|\/)/,
     message: 'editor must not depend on application, workspace, or desktop runtime packages',
   },
   {
     layer: 'features',
     pattern:
-      /(?:@tauri-apps\/|@hybrid-canvas\/(?:desktop|desktop-ipc|platforms-desktop-runtime)(?:['"]|\/))/,
+      /(?:@tauri-apps\/|@poietica\/(?:desktop|desktop-ipc|platforms-desktop-runtime)(?:['"]|\/))/,
     message: 'features must not depend directly on Tauri or desktop runtime packages',
   },
   {
     layer: 'platforms',
-    pattern: /@hybrid-canvas\/desktop(?:['"]|\/)/,
+    pattern: /@poietica\/desktop(?:['"]|\/)/,
     message: 'platform packages must not depend on application entry packages',
   },
 ]
@@ -91,7 +90,7 @@ async function checkFile(filePath) {
   const file = relativePath(filePath)
   const layer = layerFor(file)
 
-  if (/from\s+['"]@hybrid-canvas\/[^'"]+\/src\//.test(source)) {
+  if (/from\s+['"]@poietica\/[^'"]+\/src\//.test(source)) {
     violations.push(`${file}: cross-package imports must use public package exports`)
   }
 

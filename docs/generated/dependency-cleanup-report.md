@@ -10,9 +10,9 @@
 
 | 依赖 | 引用位置 | 结论 |
 |---|---|---|
-| `@hybrid-canvas/file` | 未发现 | 删除候选 |
-| `@hybrid-canvas/flowchart` | `apps/desktop/src/bootstrap/application.ts` | 保留 |
-| `@hybrid-canvas/foundations-observability` | `apps/desktop/src/bootstrap/ApplicationErrorBoundary.tsx`<br>`apps/desktop/src/bootstrap/application-lifecycle.ts`<br>`apps/desktop/src/presentation/boundaries/UiErrorBoundary.tsx`<br>`apps/desktop/src/presentation/ui/ui-feedback.tsx` | 保留 |
+| `@poietica/file` | 未发现 | 删除候选 |
+| `@poietica/flowchart` | `apps/desktop/src/bootstrap/application.ts` | 保留 |
+| `@poietica/foundations-observability` | `apps/desktop/src/bootstrap/ApplicationErrorBoundary.tsx`<br>`apps/desktop/src/bootstrap/application-lifecycle.ts`<br>`apps/desktop/src/presentation/boundaries/UiErrorBoundary.tsx`<br>`apps/desktop/src/presentation/ui/ui-feedback.tsx` | 保留 |
 | `@tauri-apps/api` | 未发现 | 删除候选 |
 | `lucide-react` | `apps/desktop/src/bootstrap/ApplicationErrorBoundary.tsx`<br>`apps/desktop/src/presentation/chrome/DesktopTitleBar.tsx`<br>`apps/desktop/src/presentation/ui/ui-feedback.tsx` | 保留 |
 | `tldraw` | `apps/desktop/src/app.css` | 保留 |

@@ -9,6 +9,6 @@ export {
 export {
   buildExtensionRegistration,
   type ExtensionRegistration,
-  HYBRID_CANVAS_EXTENSION_API_VERSION,
-  type HybridCanvasExtension,
+  POIETICA_EXTENSION_API_VERSION,
+  type PoieticaExtension,
 } from './extension-contract'

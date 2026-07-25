@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-07-21
-- 决策者：Hybrid Canvas maintainers
+- 决策者：Poietica maintainers
 
 ## 背景
 
@@ -22,7 +22,7 @@
 
 包名为：
 
-\`@hybrid-canvas/document\`
+\`@poietica/document\`
 
 该包拥有：
 

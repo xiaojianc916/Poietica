@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/platforms-desktop-runtime",
+  "name": "@poietica/platforms-desktop-runtime",
   "version": "0.1.0",
   "type": "module",
   "private": true,
@@ -13,9 +13,9 @@
     "lint": "echo 'lint ok'"
   },
   "dependencies": {
-    "@hybrid-canvas/desktop-ipc": "workspace:*",
-    "@hybrid-canvas/file": "workspace:*",
-    "@hybrid-canvas/settings": "workspace:*",
+    "@poietica/desktop-ipc": "workspace:*",
+    "@poietica/file": "workspace:*",
+    "@poietica/settings": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",
     "tldraw": "catalog:"
   }

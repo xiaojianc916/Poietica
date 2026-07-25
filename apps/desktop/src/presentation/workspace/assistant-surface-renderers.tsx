@@ -1,7 +1,7 @@
-import { createAgentRegistry } from '@hybrid-canvas/ai'
-import type { AssistantTransportPort } from '@hybrid-canvas/ai'
-import { AssistantSurface } from '@hybrid-canvas/ai/react'
-import type { WorkspaceSurfaceRenderers } from '@hybrid-canvas/workspace/contracts'
+import { createAgentRegistry } from '@poietica/ai'
+import type { AssistantTransportPort } from '@poietica/ai'
+import { AssistantSurface } from '@poietica/ai/react'
+import type { WorkspaceSurfaceRenderers } from '@poietica/workspace/contracts'
 
 /**
  * 组合根：把 AI feature 接入 workspace 表面扩展点。

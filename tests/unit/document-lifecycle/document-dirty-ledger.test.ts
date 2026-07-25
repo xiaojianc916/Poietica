@@ -1,4 +1,4 @@
-import { createDocumentDirtyLedger, type DocumentRecordChanges } from '@hybrid-canvas/document'
+import { createDocumentDirtyLedger, type DocumentRecordChanges } from '@poietica/document'
 import { describe, expect, it } from 'vitest'
 
 function added(id: string, value: unknown): DocumentRecordChanges {

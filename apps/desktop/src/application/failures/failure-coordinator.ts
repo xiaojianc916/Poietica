@@ -7,8 +7,8 @@ import {
   type FailureScope,
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
-} from '@hybrid-canvas/foundations-kernel'
-import { error as reportDiagnosticError } from '@hybrid-canvas/foundations-observability'
+} from '@poietica/foundations-kernel'
+import { error as reportDiagnosticError } from '@poietica/foundations-observability'
 import {
   createFailureDiagnostic,
   normalizeFailureCause,
@@ -320,7 +320,7 @@ export class FailureCoordinator {
       })
     } catch (error: unknown) {
       try {
-        console.error('[Hybrid Canvas] Failure diagnostic reporting failed', error)
+        console.error('[Poietica] Failure diagnostic reporting failed', error)
       } catch {
         // No further safe fallback.
       }
@@ -333,7 +333,7 @@ export class FailureCoordinator {
         listener()
       } catch (error: unknown) {
         try {
-          console.error('[Hybrid Canvas] Failure coordinator listener failed', error)
+          console.error('[Poietica] Failure coordinator listener failed', error)
         } catch {
           // No further safe fallback.
         }

@@ -1,7 +1,7 @@
 //! Build-time TypeScript binding exporter for document IPC.
 //!
 //! Rust command DTOs are the source of truth. The generated file is consumed by
-//! @hybrid-canvas/desktop-runtime; renderer code must not redefine native DTOs.
+//! @poietica/desktop-runtime; renderer code must not redefine native DTOs.
 
 use specta_typescript::Typescript;
 use tauri::Wry;

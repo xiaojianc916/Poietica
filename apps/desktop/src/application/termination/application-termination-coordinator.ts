@@ -1,4 +1,4 @@
-import type { CanvasSessionId } from '@hybrid-canvas/document'
+import type { CanvasSessionId } from '@poietica/document'
 
 import type { ApplicationClosePlan } from '../canvas/canvas-workflow'
 

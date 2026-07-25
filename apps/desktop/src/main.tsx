@@ -3,7 +3,7 @@ import './app.css'
 import {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
-} from '@hybrid-canvas/platforms-desktop-runtime'
+} from '@poietica/platforms-desktop-runtime'
 import { installApplicationLifecycle } from './bootstrap/application-lifecycle'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
@@ -29,7 +29,7 @@ async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null
   } catch (error: unknown) {
     // Failure to inspect an old crash report must not prevent a healthy
     // application startup. The current failure remains visible in native logs.
-    console.error('[Hybrid Canvas] Failed to inspect previous native crash report', error)
+    console.error('[Poietica] Failed to inspect previous native crash report', error)
 
     return null
   }

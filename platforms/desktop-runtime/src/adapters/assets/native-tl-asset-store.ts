@@ -1,15 +1,15 @@
-import { IpcInvocationError, isIpcError } from '@hybrid-canvas/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@poietica/desktop-ipc'
 import {
   type AssetRemoveRequest,
   type AssetSessionCloseRequest,
   type AssetUploadRequest,
   type AssetUploadResult,
   commands,
-} from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
+} from '@poietica/desktop-ipc/generated/ipc-bindings'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { TLAsset, TLAssetId, TLAssetStore } from 'tldraw'
 
-const ASSET_PROTOCOL_SCHEME = 'hybrid-canvas-asset'
+const ASSET_PROTOCOL_SCHEME = 'poietica-asset'
 const ASSET_PROTOCOL_HOST = 'asset'
 
 interface OpenedNativeAssetSession {
@@ -86,13 +86,13 @@ function validatePersistenceToken(token: string): void {
 }
 
 function persistedAssetToken(asset: TLAsset): string | null {
-  const token = asset.meta?.['hybridCanvasAssetToken']
+  const token = asset.meta?.['poieticaAssetToken']
 
   if (typeof token !== 'string' || !/^[a-f0-9]{64}$/u.test(token)) {
     return null
   }
 
-  const contentHash = asset.meta?.['hybridCanvasContentHash']
+  const contentHash = asset.meta?.['poieticaContentHash']
 
   if (typeof contentHash !== 'string' || contentHash !== token) {
     return null
@@ -225,10 +225,10 @@ export function createNativeTLAssetStoreSession(
         return {
           src: toWebviewAssetUrl(sessionToken, uploaded.assetToken),
           meta: {
-            hybridCanvasAssetToken: uploaded.assetToken,
-            hybridCanvasContentHash: uploaded.contentHash,
-            hybridCanvasByteLength: uploaded.byteLength,
-            hybridCanvasContentType: uploaded.contentType,
+            poieticaAssetToken: uploaded.assetToken,
+            poieticaContentHash: uploaded.contentHash,
+            poieticaByteLength: uploaded.byteLength,
+            poieticaContentType: uploaded.contentType,
           },
         }
       })

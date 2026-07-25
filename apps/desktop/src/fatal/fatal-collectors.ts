@@ -39,7 +39,7 @@ export function installFatalCollectors(): void {
     }
   ).hot
 
-  hot?.on('hybrid-canvas:diagnostic', handleViteDiagnostic)
+  hot?.on('poietica:diagnostic', handleViteDiagnostic)
 }
 
 function handleWindowError(event: Event): void {
@@ -257,7 +257,7 @@ function emergencyLogIncident(incident: {
   readonly technicalMessage: string
 }): void {
   try {
-    console.error('[Hybrid Canvas Fatal Incident]', incident)
+    console.error('[Poietica Fatal Incident]', incident)
   } catch {
     // The fatal UI remains the primary output.
   }

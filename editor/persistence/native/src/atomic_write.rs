@@ -34,10 +34,10 @@ use windows_sys::Win32::Storage::FileSystem::{
 
 #[cfg(not(any(unix, windows)))]
 compile_error!(
-    "hybrid-canvas-file-native requires an audited atomic replacement implementation for this platform"
+    "poietica-file-native requires an audited atomic replacement implementation for this platform"
 );
 
-const TEMPORARY_FILE_PREFIX: &str = ".hybrid-canvas-";
+const TEMPORARY_FILE_PREFIX: &str = ".poietica-";
 const TEMPORARY_FILE_SUFFIX: &str = ".tmp";
 
 pub fn atomic_write(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {

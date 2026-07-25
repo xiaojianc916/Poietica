@@ -4,6 +4,7 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
   WorkbenchViewModel,
+  WorkspacePanelRenderers,
   WorkspaceSurfaceId,
 } from './public-api'
 
@@ -52,6 +53,13 @@ export interface WorkspaceShellProps {
    */
   readonly inspectorAvailable: boolean
   readonly statusContent: ReactNode
+  /**
+   * 侧边栏面板体，由应用组合根注入。
+   *
+   * features/* 之间不得互相依赖，因此外壳只声明插槽，具体面板（如 AI 会话
+   * 记录）由 apps/desktop 提供。
+   */
+  readonly panelRenderers?: WorkspacePanelRenderers
   readonly assistantOverlay?: ReactNode
   readonly overlays?: ReactNode
 }

@@ -15,7 +15,7 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     hmr: {
-      // 使用 Hybrid Canvas 自己的错误界面，禁止显示 Vite 默认 Overlay。
+      // 使用 Poietica 自己的错误界面，禁止显示 Vite 默认 Overlay。
       overlay: false,
     },
   },

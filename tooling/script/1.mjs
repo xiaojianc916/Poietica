@@ -87,8 +87,8 @@ function assertRepositoryRoot() {
     fail(`无法读取 package.json：${formatCause(cause)}`)
   }
 
-  if (packageJson.name !== 'hybrid-canvas') {
-    fail(`仓库不匹配：期望 package.json.name 为 hybrid-canvas，实际为 ${String(packageJson.name)}`)
+  if (packageJson.name !== 'poietica') {
+    fail(`仓库不匹配：期望 package.json.name 为 poietica，实际为 ${String(packageJson.name)}`)
   }
 }
 

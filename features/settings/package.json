@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/settings",
+  "name": "@poietica/settings",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "clean": "rm -rf node_modules dist"
   },
   "devDependencies": {
-    "@hybrid-canvas/foundations-test-kit": "workspace:*",
+    "@poietica/foundations-test-kit": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "catalog:",
@@ -29,8 +29,8 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@hybrid-canvas/design-system": "workspace:*",
-    "@hybrid-canvas/foundations-kernel": "workspace:*",
+    "@poietica/design-system": "workspace:*",
+    "@poietica/foundations-kernel": "workspace:*",
     "valibot": "catalog:"
   },
   "peerDependencies": {

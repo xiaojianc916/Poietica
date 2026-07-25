@@ -1,8 +1,4 @@
-import type {
-  FailureImpact,
-  FailureRecovery,
-  FailureScope,
-} from '@hybrid-canvas/foundations-kernel'
+import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/foundations-kernel'
 import { failureCoordinator, type FailureIncident, type FailureSignal } from './failure-coordinator'
 
 export const APPLICATION_FAILURE_CODES = [

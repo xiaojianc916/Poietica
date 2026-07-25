@@ -1,5 +1,5 @@
 import './properties-inspector.css'
-import { ScrollArea } from '@hybrid-canvas/design-system'
+import { ScrollArea } from '@poietica/design-system'
 import type { ReactNode } from 'react'
 
 export interface InspectorHostProps {

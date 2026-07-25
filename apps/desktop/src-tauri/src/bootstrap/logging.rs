@@ -6,7 +6,7 @@ pub fn plugin() -> tauri_plugin_log::Builder {
         .targets([
             Target::new(TargetKind::Stdout),
             Target::new(TargetKind::LogDir {
-                file_name: Some("hybrid-canvas".to_string()),
+                file_name: Some("poietica".to_string()),
             }),
             Target::new(TargetKind::Webview),
         ])

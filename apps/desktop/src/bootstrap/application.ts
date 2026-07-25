@@ -1,5 +1,5 @@
-import { createEditorSessionRegistry } from '@hybrid-canvas/canvas/application'
-import { createCanvasDocumentService } from '@hybrid-canvas/document'
+import { createEditorSessionRegistry } from '@poietica/canvas/application'
+import { createCanvasDocumentService } from '@poietica/document'
 import {
   createDesktopSettingsStore,
   createDocumentFileCommands,
@@ -7,13 +7,13 @@ import {
   createNativeTLAssetStoreSession,
   type MainWindowController,
   type SettingsStore,
-} from '@hybrid-canvas/platforms-desktop-runtime'
+} from '@poietica/platforms-desktop-runtime'
 import {
   type CommandRegistry,
   createCommandRegistry,
   createWorkbenchSessionController,
-} from '@hybrid-canvas/workspace/application'
-import type { WorkbenchSessionStore } from '@hybrid-canvas/workspace/contracts'
+} from '@poietica/workspace/application'
+import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
 import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'
 import {
   type ApplicationTerminationCoordinator,

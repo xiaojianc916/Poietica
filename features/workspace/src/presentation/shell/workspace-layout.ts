@@ -1,5 +1,5 @@
 /**
- * Hybrid Canvas workspace product-layout contract.
+ * Poietica workspace product-layout contract.
  *
  * This module is the single source of truth for
  * Workspace shell dimensions. These values are

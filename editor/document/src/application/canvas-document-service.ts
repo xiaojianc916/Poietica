@@ -1,5 +1,5 @@
-import type { EditorSession, EditorSessionRegistry } from '@hybrid-canvas/canvas/application'
-import type { HybridCanvasExtension } from '@hybrid-canvas/canvas/extensions'
+import type { EditorSession, EditorSessionRegistry } from '@poietica/canvas/application'
+import type { PoieticaExtension } from '@poietica/canvas/extensions'
 import type { TLStoreSnapshot } from 'tldraw'
 
 import {
@@ -127,7 +127,7 @@ export interface DocumentPersistencePort {
 export interface CreateCanvasDocumentServiceDependencies {
   readonly editorSessions: CanvasEditorSessionRegistryPort
   readonly persistence: DocumentPersistencePort
-  readonly extensions: readonly HybridCanvasExtension[]
+  readonly extensions: readonly PoieticaExtension[]
 }
 
 interface OwnedCanvasSession {

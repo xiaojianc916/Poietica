@@ -1,3 +1,3 @@
 fn main() {
-    hybrid_canvas_desktop_lib::run();
+    poietica_desktop_lib::run();
 }

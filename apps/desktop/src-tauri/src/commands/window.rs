@@ -47,7 +47,7 @@ pub async fn window_create(app: AppHandle, options: WindowOptions) -> Result<Win
 
     let mut builder =
         tauri::WebviewWindowBuilder::new(&app, &options.label, tauri::WebviewUrl::default())
-            .title(options.title.unwrap_or_else(|| "Hybrid Canvas".into()))
+            .title(options.title.unwrap_or_else(|| "Poietica".into()))
             .inner_size(
                 options.width.unwrap_or(800.0),
                 options.height.unwrap_or(600.0),

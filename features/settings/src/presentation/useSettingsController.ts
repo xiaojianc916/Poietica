@@ -1,4 +1,4 @@
-import { applyThemePreference } from '@hybrid-canvas/design-system'
+import { applyThemePreference } from '@poietica/design-system'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'

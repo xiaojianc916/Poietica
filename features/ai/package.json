@@ -1,5 +1,5 @@
 {
-  "name": "@hybrid-canvas/ai",
+  "name": "@poietica/ai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
-    "@hybrid-canvas/design-system": "workspace:*",
+    "@poietica/design-system": "workspace:*",
     "@mynaui/icons-react": "catalog:",
     "ai": "catalog:",
     "motion": "catalog:"

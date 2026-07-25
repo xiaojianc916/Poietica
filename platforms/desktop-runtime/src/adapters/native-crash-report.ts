@@ -1,8 +1,8 @@
-import { IpcInvocationError, isIpcError } from '@hybrid-canvas/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@poietica/desktop-ipc'
 import {
   commands,
   type NativeCrashReport as GeneratedNativeCrashReport,
-} from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
+} from '@poietica/desktop-ipc/generated/ipc-bindings'
 
 /**
  * Native crash report generated from the Rust IPC contract.

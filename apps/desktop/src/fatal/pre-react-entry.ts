@@ -31,7 +31,7 @@ function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
 
   if (!root) {
     try {
-      console.error('[Hybrid Canvas] Root element unavailable', model.summary)
+      console.error('[Poietica] Root element unavailable', model.summary)
     } catch {
       // No further safe fallback.
     }

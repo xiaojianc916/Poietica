@@ -27,5 +27,5 @@ pub use error::{Error, Result};
 pub fn run() {
     app::build()
         .run(tauri::generate_context!())
-        .expect("failed to run hybrid-canvas desktop");
+        .expect("failed to run poietica desktop");
 }

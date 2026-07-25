@@ -30,7 +30,7 @@ export interface DialogProps {
  * - outside-press handling
  * - modal accessibility semantics
  *
- * Hybrid Canvas owns:
+ * Poietica owns:
  * - visual tokens
  * - layout
  * - busy policy

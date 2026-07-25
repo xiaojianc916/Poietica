@@ -15,7 +15,7 @@
   --hc-inspector-opacity-height: 1.875rem;
 }
 
-/* hybrid-canvas:properties-inspector-v1 */
+/* poietica:properties-inspector-v1 */
 
 .hc-properties-inspector-host,
 .hc-properties-sidebar {
@@ -207,7 +207,7 @@
   outline-offset: 1px;
 }
 
-/* hybrid-canvas:properties-sidebar-v2 */
+/* poietica:properties-sidebar-v2 */
 
 .hc-properties-sidebar__opacity {
   display: grid;
@@ -260,7 +260,7 @@
   outline-offset: -2px;
 }
 
-/* hybrid-canvas:properties-sidebar-v4 */
+/* poietica:properties-sidebar-v4 */
 
 /*
  * Mixed 值不伪装成普通未选中状态。

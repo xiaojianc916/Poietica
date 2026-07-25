@@ -1,8 +1,8 @@
 import {
   type AppSettings as AppSettingsDto,
   commands,
-} from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
-import type { AppSettings, SettingsStore, ThemeMode } from '@hybrid-canvas/settings'
+} from '@poietica/desktop-ipc/generated/ipc-bindings'
+import type { AppSettings, SettingsStore, ThemeMode } from '@poietica/settings'
 
 export function createDesktopSettingsStore(): SettingsStore {
   return {

@@ -1,4 +1,4 @@
-import { createDocumentSession } from '@hybrid-canvas/document'
+import { createDocumentSession } from '@poietica/document'
 import type { TLStoreSnapshot } from 'tldraw'
 import { describe, expect, it } from 'vitest'
 

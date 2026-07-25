@@ -2,7 +2,7 @@ import {
   formatDiagnosticLogs,
   getRecentLogEntries,
   type DiagnosticLogEntry,
-} from '@hybrid-canvas/foundations-observability'
+} from '@poietica/foundations-observability'
 
 export interface FailureDiagnosticHint {
   readonly componentStack?: string | null
@@ -141,7 +141,7 @@ export function formatFailureDiagnostic(incident: {
   const contextEntries = Object.entries(incident.context)
 
   return [
-    'Hybrid Canvas Failure Incident',
+    'Poietica Failure Incident',
     '',
     `Incident ID: ${incident.id}`,
 

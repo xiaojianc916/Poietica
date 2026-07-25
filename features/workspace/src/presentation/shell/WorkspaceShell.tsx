@@ -1,4 +1,4 @@
-import { Button, TooltipProvider } from '@hybrid-canvas/design-system'
+import { Button, TooltipProvider } from '@poietica/design-system'
 import { PanelLeftClose, PanelRightClose, PanelRightOpen } from '@mynaui/icons-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -24,6 +24,7 @@ export function WorkspaceShell({
   inspector,
   inspectorAvailable,
   statusContent,
+  panelRenderers,
   assistantOverlay,
   overlays,
 }: WorkspaceShellProps) {
@@ -87,6 +88,7 @@ export function WorkspaceShell({
       activeNavigationItem={activeNavigationItem}
       onActivatePage={actions.activatePage}
       onCreatePage={actions.createPage}
+      panelRenderers={panelRenderers}
       pages={pages}
     />
   )

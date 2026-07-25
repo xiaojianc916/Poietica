@@ -1,4 +1,4 @@
-import type { CommandRegistry } from '@hybrid-canvas/workspace/application'
+import type { CommandRegistry } from '@poietica/workspace/application'
 import { useEffect } from 'react'
 
 export interface CommandShortcutBinding {

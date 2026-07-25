@@ -1,4 +1,4 @@
-//! Current Hybrid Canvas .draw container codec.
+//! Current Poietica .draw container codec.
 //!
 //! This module owns only the physical document container. It treats the tldraw
 //! store snapshot as opaque JSON and never constructs, edits or interprets
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-const DRAW_FORMAT: &str = "hybrid-canvas/draw";
+const DRAW_FORMAT: &str = "poietica/draw";
 const DRAW_VERSION: u32 = 2;
 
 const MANIFEST_PATH: &str = "manifest.json";

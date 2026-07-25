@@ -7,7 +7,7 @@ export const DEFAULT_AGENT: AgentDefinition = Object.freeze({
   name: 'Super Computer',
   description: '通用画布助手。',
   badge: 'New',
-  systemPrompt: '你是 Hybrid Canvas 的画布助手。',
+  systemPrompt: '你是 Poietica 的画布助手。',
   capabilities: Object.freeze(['canvas.read', 'workspace.search'] as const),
   tools: Object.freeze([]),
 })

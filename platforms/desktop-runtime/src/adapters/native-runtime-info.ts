@@ -1,4 +1,4 @@
-import { invoke } from '@hybrid-canvas/desktop-ipc'
+import { invoke } from '@poietica/desktop-ipc'
 
 export interface NativeRuntimeInfo {
   readonly platform: string

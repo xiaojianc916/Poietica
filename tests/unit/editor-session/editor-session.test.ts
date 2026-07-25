@@ -2,7 +2,7 @@ import {
   type CreateEditorSessionOptions,
   createEditorSession,
   type EditorAssetStoreSession,
-} from '@hybrid-canvas/canvas/application'
+} from '@poietica/canvas/application'
 import type { Editor, TLAssetStore } from 'tldraw'
 import { describe, expect, it, vi } from 'vitest'
 

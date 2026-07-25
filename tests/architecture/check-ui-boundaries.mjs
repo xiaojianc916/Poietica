@@ -39,7 +39,7 @@ for (const sourceRoot of sourceRoots) {
     ) {
       violations.push({
         filePath,
-        message: 'Base UI must be consumed through @hybrid-canvas/design-system.',
+        message: 'Base UI must be consumed through @poietica/design-system.',
       })
     }
 

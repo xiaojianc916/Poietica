@@ -10,7 +10,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@hybrid-canvas/design-system'
+} from '@poietica/design-system'
 import {
   BookOpen,
   Box,

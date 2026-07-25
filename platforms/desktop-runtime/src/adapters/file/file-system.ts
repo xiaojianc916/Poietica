@@ -1,4 +1,4 @@
-import { IpcInvocationError, isIpcError } from '@hybrid-canvas/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@poietica/desktop-ipc'
 import {
   commands,
   type DocumentCloseRequest,
@@ -9,7 +9,7 @@ import {
   type DocumentSaveRequest,
   type DocumentSaveResult,
   type DocumentId as NativeDocumentId,
-} from '@hybrid-canvas/desktop-ipc/generated/ipc-bindings'
+} from '@poietica/desktop-ipc/generated/ipc-bindings'
 
 export type DocumentId = NativeDocumentId
 

@@ -131,7 +131,7 @@ temp/
 *.bak
 *~
 
-# Hybrid Canvas temporary documents
+# Poietica temporary documents
 *.draw~
 *.draw.tmp
 *.draw.temp

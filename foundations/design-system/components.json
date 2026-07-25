@@ -10,10 +10,10 @@
     "cssVariables": true
   },
   "aliases": {
-    "components": "@hybrid-canvas/design-system/components",
-    "utils": "@hybrid-canvas/design-system/lib/utils",
-    "ui": "@hybrid-canvas/design-system/components/ui",
-    "lib": "@hybrid-canvas/design-system/lib",
-    "hooks": "@hybrid-canvas/design-system/hooks"
+    "components": "@poietica/design-system/components",
+    "utils": "@poietica/design-system/lib/utils",
+    "ui": "@poietica/design-system/components/ui",
+    "lib": "@poietica/design-system/lib",
+    "hooks": "@poietica/design-system/hooks"
   }
 }

@@ -1,4 +1,4 @@
-import { error as reportError } from '@hybrid-canvas/foundations-observability'
+import { error as reportError } from '@poietica/foundations-observability'
 import type { ApplicationRuntime } from './application'
 import type { MountedReactApplication } from './react-root'
 

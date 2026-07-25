@@ -6,7 +6,7 @@ Accepted architecture boundary.
 
 ## Goal
 
-Hybrid Canvas does not require every UI component to live in the design-system
+Poietica does not require every UI component to live in the design-system
 package. It requires every cross-feature visual rule and reusable interaction
 primitive to have exactly one authority.
 
@@ -33,7 +33,7 @@ primitive to have exactly one authority.
 - Feature packages may compose primitives but must not recreate generic dialog,
   menu, tooltip, select, combobox or toast interaction kernels.
 - Product-layout dimensions do not belong to global design-system tokens.
-- Public consumers import only from `@hybrid-canvas/design-system`.
+- Public consumers import only from `@poietica/design-system`.
 
 ## tldraw rules
 

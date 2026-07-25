@@ -3,24 +3,22 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop.tsbuildinfo",
     "paths": {
-      "@hybrid-canvas/canvas": ["../../editor/core/src/public-api.ts"],
-      "@hybrid-canvas/workspace": ["../../features/workspace/src/public-api.ts"],
-      "@hybrid-canvas/design-system": ["../../foundations/design-system/src/public-api.ts"],
-      "@hybrid-canvas/kernel": ["../../foundations/kernel/src/public-api.ts"],
-      "@hybrid-canvas/geometry": ["../../foundations/geometry/src/public-api.ts"],
-      "@hybrid-canvas/foundations-observability": [
-        "../../foundations/observability/src/public-api.ts"
-      ],
-      "@hybrid-canvas/file": ["../../editor/persistence/src/public-api.ts"],
-      "@hybrid-canvas/asset": ["../../editor/assets/src/public-api.ts"],
-      "@hybrid-canvas/flowchart": ["../../features/flowchart/src/public-api.ts"],
-      "@hybrid-canvas/freehand": ["../../features/freehand/src/public-api.ts"],
-      "@hybrid-canvas/scientific-plot": ["../../features/scientific-plot/src/public-api.ts"],
-      "@hybrid-canvas/settings": ["../../features/settings/src/public-api.ts"],
-      "@hybrid-canvas/serialization": ["../../foundations/serialization/src/public-api.ts"],
-      "@hybrid-canvas/test-kit": ["../../foundations/test-kit/src/public-api.ts"],
-      "@hybrid-canvas/desktop-ipc": ["../../platforms/desktop-ipc/src/public-api.ts"],
-      "@hybrid-canvas/desktop-runtime": ["../../platforms/desktop-runtime/src/public-api.ts"]
+      "@poietica/canvas": ["../../editor/core/src/public-api.ts"],
+      "@poietica/workspace": ["../../features/workspace/src/public-api.ts"],
+      "@poietica/design-system": ["../../foundations/design-system/src/public-api.ts"],
+      "@poietica/kernel": ["../../foundations/kernel/src/public-api.ts"],
+      "@poietica/geometry": ["../../foundations/geometry/src/public-api.ts"],
+      "@poietica/foundations-observability": ["../../foundations/observability/src/public-api.ts"],
+      "@poietica/file": ["../../editor/persistence/src/public-api.ts"],
+      "@poietica/asset": ["../../editor/assets/src/public-api.ts"],
+      "@poietica/flowchart": ["../../features/flowchart/src/public-api.ts"],
+      "@poietica/freehand": ["../../features/freehand/src/public-api.ts"],
+      "@poietica/scientific-plot": ["../../features/scientific-plot/src/public-api.ts"],
+      "@poietica/settings": ["../../features/settings/src/public-api.ts"],
+      "@poietica/serialization": ["../../foundations/serialization/src/public-api.ts"],
+      "@poietica/test-kit": ["../../foundations/test-kit/src/public-api.ts"],
+      "@poietica/desktop-ipc": ["../../platforms/desktop-ipc/src/public-api.ts"],
+      "@poietica/desktop-runtime": ["../../platforms/desktop-runtime/src/public-api.ts"]
     }
   },
   "include": ["src", "src/css.d.ts"],

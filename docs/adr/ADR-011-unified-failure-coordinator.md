@@ -6,7 +6,7 @@
 
 ## Decision
 
-Hybrid Canvas uses one FailureIncident model and one FailureCoordinator.
+Poietica uses one FailureIncident model and one FailureCoordinator.
 
 FailureCoordinator owns:
 

@@ -11,7 +11,7 @@ import {
   type SelectOption,
   SelectTrigger,
   Switch,
-} from '@hybrid-canvas/design-system'
+} from '@poietica/design-system'
 import { type ChangeEvent, memo, type ReactNode, useCallback, useId, useState } from 'react'
 import type { AppSettings, ThemeMode } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
@@ -510,7 +510,7 @@ const PrivacySettings = memo(function PrivacySettings({
 }: SettingsPanelProps) {
   return (
     <SettingsPage
-      description="Hybrid Canvas 默认以本地优先方式处理文档和设置。"
+      description="Poietica 默认以本地优先方式处理文档和设置。"
       eyebrow="Privacy"
       title="隐私"
     >
@@ -580,7 +580,7 @@ const AboutSettings = memo(function AboutSettings() {
     <SettingsPage
       description="一个以 tldraw 为核心的本地优先桌面画布应用。"
       eyebrow="About"
-      title="Hybrid Canvas"
+      title="Poietica"
     >
       <div className="settings-about-card">
         <div aria-hidden="true" className="settings-about-card__logo">
@@ -588,7 +588,7 @@ const AboutSettings = memo(function AboutSettings() {
         </div>
 
         <div className="settings-about-card__copy">
-          <strong>Hybrid Canvas</strong>
+          <strong>Poietica</strong>
           <span>Version 0.1.0</span>
           <p>使用 React、Tauri、Rust 和 tldraw 构建。</p>
         </div>
