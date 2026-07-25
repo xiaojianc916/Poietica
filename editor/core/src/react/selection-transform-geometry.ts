@@ -10,7 +10,6 @@ import {
 export type SelectionTransformField = 'x' | 'y' | 'width' | 'height' | 'rotation'
 
 export interface SelectionTransformSnapshot {
-  readonly selectionKey: string
   readonly count: number
   readonly x: number
   readonly y: number
@@ -160,7 +159,6 @@ function deriveSelectionGeometry(editor: Editor): DerivedSelectionGeometry | nul
     bounds,
     sharedRotation,
     snapshot: {
-      selectionKey: editor.getSelectedShapeIds().join('|'),
       count: shapes.length,
       x: bounds.x,
       y: bounds.y,

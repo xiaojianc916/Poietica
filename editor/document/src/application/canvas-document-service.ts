@@ -257,8 +257,24 @@ export function createCanvasDocumentService({
        * Dirty tracking consumes tldraw's incremental RecordsDiff. Full
        * snapshots are reserved for initialization and explicit save.
        */
+      /*
+       * The only externally observable output of this path is the persistence
+       * state, a four-valued enum that changes at most twice during a single
+       * drag. Notifying subscribers on every transaction published an
+       * unchanged value at pointer frequency.
+       *
+       * Both probes are O(1) and allocation-free: getPhase returns a stored
+       * enum and isDirty reads a Set size. getSnapshot is deliberately not
+       * used here because it allocates.
+       */
+      const phaseBefore = document.getPhase()
+      const dirtyBefore = document.isDirty()
+
       document.recordDocumentChange(event.changes)
-      emit()
+
+      if (document.getPhase() !== phaseBefore || document.isDirty() !== dirtyBefore) {
+        emit()
+      }
     })
 
     return owned

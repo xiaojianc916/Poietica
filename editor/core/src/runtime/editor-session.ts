@@ -523,33 +523,31 @@ interface StoreRecordChanges {
   readonly removed: Readonly<Record<string, unknown>>
 }
 
+/*
+ * TLStore record identifiers are type-prefixed, so page participation in a
+ * diff is decided from the diff keys alone.
+ *
+ * The previous implementation called Object.values on all three diff
+ * containers and inspected `typeName` on each materialised record. That
+ * allocated three arrays per store transaction on the pointer-driven path in
+ * order to answer a question the keys already answer.
+ */
+const PAGE_RECORD_ID_PREFIX = 'page:'
+
 function hasPageRecordChange(changes: StoreRecordChanges): boolean {
-  for (const record of Object.values(changes.added)) {
-    if (isPageRecord(record)) {
-      return true
-    }
-  }
+  return (
+    containsPageRecordId(changes.added) ||
+    containsPageRecordId(changes.updated) ||
+    containsPageRecordId(changes.removed)
+  )
+}
 
-  for (const update of Object.values(changes.updated)) {
-    if (isPageRecord(update[0]) || isPageRecord(update[1])) {
-      return true
-    }
-  }
-
-  for (const record of Object.values(changes.removed)) {
-    if (isPageRecord(record)) {
+function containsPageRecordId(container: Readonly<Record<string, unknown>>): boolean {
+  for (const id in container) {
+    if (Object.hasOwn(container, id) && id.startsWith(PAGE_RECORD_ID_PREFIX)) {
       return true
     }
   }
 
   return false
-}
-
-function isPageRecord(record: unknown): boolean {
-  return (
-    typeof record === 'object' &&
-    record !== null &&
-    'typeName' in record &&
-    record.typeName === 'page'
-  )
 }

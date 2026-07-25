@@ -38,11 +38,6 @@ export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProp
     return getSelectionTransformSnapshot(editor)
   }, [editor])
 
-  useEffect(() => {
-    setActiveField(null)
-    setUserAspectRatioLocked(false)
-  }, [])
-
   if (!canvasTitle && !snapshot) {
     return null
   }
@@ -288,14 +283,30 @@ function InlineTransformField({
    */
   const skipNextBlurRef = useRef(false)
 
+  /*
+   * The static branch of this component renders `formattedValue` directly and
+   * never reads `draft`, so seeding draft state outside edit mode produced one
+   * useless state update per field per frame while a selection was being
+   * dragged.
+   *
+   * The latest formatted value is mirrored into a ref so that entering edit
+   * mode can seed the draft without making the seeding effect depend on a
+   * value that changes at pointer frequency. This effect is declared first, so
+   * the ref is already current when the activation effect below runs.
+   */
+  const formattedValueRef = useRef(formattedValue)
+
+  useEffect(() => {
+    formattedValueRef.current = formattedValue
+  }, [formattedValue])
+
   useEffect(() => {
     if (!active) {
-      setDraft(formattedValue)
       return
     }
 
     skipNextBlurRef.current = false
-    setDraft(formattedValue)
+    setDraft(formattedValueRef.current)
 
     const frame = requestAnimationFrame(() => {
       inputRef.current?.focus()
@@ -305,7 +316,7 @@ function InlineTransformField({
     return () => {
       cancelAnimationFrame(frame)
     }
-  }, [active, formattedValue])
+  }, [active])
 
   const parseDraft = (): number | null => {
     /*

@@ -47,19 +47,43 @@ export function applyDocumentChanges(
   changes: DocumentRecordChanges,
 ): ReadonlySet<string> {
   const changedIds = new Set<string>()
+  const records = checkpoint.records
 
-  for (const [id, record] of Object.entries(changes.added)) {
-    checkpoint.records.set(id, record)
+  /*
+   * Diff containers are iterated by key. Object.entries / Object.values
+   * materialise an intermediate array on every store transaction, which on the
+   * pointer-driven path means one allocation per container per frame.
+   */
+  for (const id in changes.added) {
+    if (!Object.hasOwn(changes.added, id)) {
+      continue
+    }
+
+    records.set(id, changes.added[id])
     changedIds.add(id)
   }
 
-  for (const [id, update] of Object.entries(changes.updated)) {
-    checkpoint.records.set(id, update[1])
+  for (const id in changes.updated) {
+    if (!Object.hasOwn(changes.updated, id)) {
+      continue
+    }
+
+    const update = changes.updated[id]
+
+    if (!update) {
+      continue
+    }
+
+    records.set(id, update[1])
     changedIds.add(id)
   }
 
-  for (const id of Object.keys(changes.removed)) {
-    checkpoint.records.delete(id)
+  for (const id in changes.removed) {
+    if (!Object.hasOwn(changes.removed, id)) {
+      continue
+    }
+
+    records.delete(id)
     changedIds.add(id)
   }
 
@@ -124,60 +148,96 @@ export function checkpointsEqual(left: DocumentCheckpoint, right: DocumentCheckp
   return true
 }
 
+/**
+ * Structural record comparison.
+ *
+ * Undo can recreate a record carrying equivalent data under a different object
+ * identity, so reference equality alone is not sufficient for dirty tracking.
+ * The comparison therefore walks the value graph directly.
+ *
+ * The previous implementation compared two canonical strings produced by a
+ * hand-written serialiser. That approach was rejected for two reasons.
+ *
+ * Cost: it allocated a key array, a filtered array, a sorted array, a mapped
+ * array and a joined string at every level of every record, twice per
+ * comparison, on a path that runs once per pointer-driven transaction.
+ *
+ * Correctness: key ordering was established with String.prototype.localeCompare,
+ * which resolves against the host ICU locale. The canonical form was therefore
+ * not stable across machines, despite the function's name.
+ *
+ * This comparison allocates nothing and short-circuits on the first difference.
+ */
 function recordsEqual(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) {
     return true
   }
 
-  return stableStringify(left) === stableStringify(right)
-}
-
-/**
- * Deterministic comparison remains necessary when Undo recreates a record with
- * equivalent data but a different object identity.
- *
- * Unlike the previous implementation, this function is called only for records
- * present in the current Store diff, never for the full document on every
- * pointer-driven transaction.
- */
-function stableStringify(value: unknown): string {
-  if (value === null) {
-    return 'null'
+  if (typeof left !== 'object' || left === null) {
+    return false
   }
 
-  switch (typeof value) {
-    case 'string':
-    case 'boolean':
-      return JSON.stringify(value)
-
-    case 'number':
-      return Number.isFinite(value) ? JSON.stringify(value) : 'null'
-
-    case 'bigint':
-      return JSON.stringify(value.toString())
-
-    case 'undefined':
-    case 'function':
-    case 'symbol':
-      return 'null'
-
-    case 'object':
-      break
+  if (typeof right !== 'object' || right === null) {
+    return false
   }
 
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  const leftIsArray = Array.isArray(left)
+
+  if (leftIsArray !== Array.isArray(right)) {
+    return false
   }
 
-  const record = value
+  if (leftIsArray) {
+    const leftArray = left as readonly unknown[]
+    const rightArray = right as readonly unknown[]
 
-  const keys = Object.keys(record)
-    .filter((key) => record[key] !== undefined)
-    .sort((left, right) => left.localeCompare(right))
+    if (leftArray.length !== rightArray.length) {
+      return false
+    }
 
-  return (
-    '{' +
-    keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(',') +
-    '}'
-  )
+    for (let index = 0; index < leftArray.length; index += 1) {
+      if (!recordsEqual(leftArray[index], rightArray[index])) {
+        return false
+      }
+    }
+
+    return true
+  }
+
+  const leftRecord = left as Record<string, unknown>
+  const rightRecord = right as Record<string, unknown>
+
+  /*
+   * An explicitly present `undefined` value is treated as an absent key, which
+   * preserves the semantics of the serialiser this replaced.
+   */
+  let leftDefinedKeys = 0
+
+  for (const key in leftRecord) {
+    if (!Object.hasOwn(leftRecord, key)) {
+      continue
+    }
+
+    const leftValue = leftRecord[key]
+
+    if (leftValue === undefined) {
+      continue
+    }
+
+    leftDefinedKeys += 1
+
+    if (!recordsEqual(leftValue, rightRecord[key])) {
+      return false
+    }
+  }
+
+  let rightDefinedKeys = 0
+
+  for (const key in rightRecord) {
+    if (Object.hasOwn(rightRecord, key) && rightRecord[key] !== undefined) {
+      rightDefinedKeys += 1
+    }
+  }
+
+  return leftDefinedKeys === rightDefinedKeys
 }
