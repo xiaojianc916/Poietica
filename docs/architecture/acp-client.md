@@ -82,3 +82,30 @@ happened.
 The crate spawns nothing itself. Connecting hands back a future and the
 composition root decides which executor runs it, which is why no async
 runtime appears in this crate's dependencies.
+
+## The renderer sees only durable frames
+
+The desktop seam lives in `commands/agent.rs`. It owns one `AgentRuntime`:
+the database path, the run slot, and the session, if one has been started.
+
+The session starts lazily. Spawning an agent process at launch would charge
+every start-up for a feature the user may never open, so the process appears on
+the first prompt and is then reused for every turn after it. Two prompts can
+race to be the first; the one that loses hands its process back instead of
+leaving an orphan behind.
+
+`agent_prompt` returns as soon as the turn is under way, carrying the run and
+session identifiers. It does not wait for the agent to stop. Frames reach the
+interface on the `ai://run-event` channel, emitted from the recorder's sink,
+which runs only after the frame has been written to the encrypted log. A frame
+that the renderer misses is therefore never lost: `agent_load_run` reads the
+same values back out of the log, in the same order.
+
+Agent failures fold into the existing error variants. No variant was added for
+the agent, because the public message table is an exhaustive match whose whole
+job is to keep native detail away from the webview, and every new arm there is
+a new opportunity to leak one.
+
+Permission answers are not here yet. The handler still refuses automatically,
+so there is nowhere for a user's decision to go; the command arrives together
+with the handler that can wait for it.

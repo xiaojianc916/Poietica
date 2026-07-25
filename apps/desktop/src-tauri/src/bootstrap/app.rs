@@ -1,4 +1,4 @@
-use tauri::{Wry, async_runtime};
+use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
 
 use super::logging;
@@ -45,10 +45,15 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.store("settings.json")?;
+            let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::agent::agent_prompt,
+            commands::agent::agent_cancel,
+            commands::agent::agent_shutdown,
+            commands::agent::agent_load_run,
             commands::asset::asset_session_open,
             commands::asset::asset_upload,
             commands::asset::asset_remove,
