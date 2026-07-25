@@ -1,12 +1,13 @@
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
-    RequestPermissionRequest, SessionUpdate, ToolCallStatus as ProtocolToolCallStatus, ToolKind,
+    RequestPermissionRequest, SessionNotification, SessionUpdate,
+    ToolCallStatus as ProtocolToolCallStatus, ToolKind,
 };
-use poietica_ai_persistence_native::{
-    AiStore, PermissionOutcome, RunStatus, ToolCallStatus,
-};
+use poietica_ai_persistence_native::{AiStore, PermissionOutcome, RunStatus, ToolCallStatus};
 use serde::Serialize;
+use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
@@ -25,18 +26,23 @@ pub const RUN_FINISHED: &str = "run_finished";
 /// Log kind for a run that ended in a failure.
 pub const RUN_FAILED: &str = "run_failed";
 
-/// An event that is already durable and is now safe to forward.
+/// A frame that is already durable and is now safe to forward.
+///
+/// `frame` is exactly what the interface consumes, and exactly what was
+/// written to the log, so replaying a stored run cannot drift from watching a
+/// live one. The run identifier stays outside the frame because it is a routing
+/// concern of the transport, not part of the event contract.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordedEvent {
-    /// The run the event belongs to.
+    /// The run the frame belongs to.
     pub run_id: String,
     /// Position within the run, starting at one.
     pub seq: i64,
     /// Discriminator, one of the constants in this module.
     pub kind: String,
-    /// The payload as it was written.
-    pub payload: serde_json::Value,
+    /// The frame as the interface receives it.
+    pub frame: Value,
 }
 
 /// Writes the event log and keeps the projections in step with it.
@@ -64,13 +70,9 @@ impl fmt::Debug for Recorder {
 }
 
 impl Recorder {
-    /// Starts recording a run, forwarding every durable event to `sink`.
+    /// Starts recording a run, forwarding every durable frame to `sink`.
     #[must_use]
-    pub fn new(
-        store: AiStore,
-        run_id: Uuid,
-        sink: Box<dyn FnMut(&RecordedEvent) + Send>,
-    ) -> Self {
+    pub fn new(store: AiStore, run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
         Self {
             store,
             run_id,
@@ -100,15 +102,15 @@ impl Recorder {
         self.failure.take()
     }
 
-    /// Records that the run began.
-    pub fn record_run_started(&mut self) {
-        let outcome = self.append(RUN_STARTED, serde_json::Value::Null);
+    /// Records that the run began, once the session exists.
+    pub fn record_run_started(&mut self, session_id: &str) {
+        let outcome = self.append(RUN_STARTED, json!({ "sessionId": session_id }));
         self.remember(outcome);
     }
 
-    /// Records a session update and projects it.
-    pub fn record_session_update(&mut self, update: &SessionUpdate) {
-        let outcome = self.persist_update(update);
+    /// Records a session notification and projects it.
+    pub fn record_session_update(&mut self, notification: &SessionNotification) {
+        let outcome = self.persist_update(notification);
         self.remember(outcome);
     }
 
@@ -116,7 +118,7 @@ impl Recorder {
     ///
     /// The protocol does not expose the underlying request identifier to the
     /// handler, so the client mints one. It exists to correlate the request
-    /// with its answer in the log, nothing more.
+    /// with its answer, nothing more.
     pub fn record_permission(
         &mut self,
         request: &RequestPermissionRequest,
@@ -133,20 +135,45 @@ impl Recorder {
 
     /// Records that the run ended on the agent's terms.
     pub fn record_run_finished(&mut self, stop_reason: &str) {
-        let outcome = self.finish(RunStatus::Finished, RUN_FINISHED, stop_reason);
+        let outcome = self.finish(
+            RunStatus::Finished,
+            RUN_FINISHED,
+            json!({ "stopReason": stop_reason }),
+            stop_reason,
+        );
         self.remember(outcome);
     }
 
     /// Records that the run ended in a failure.
     pub fn record_run_failed(&mut self, message: &str) {
-        let outcome = self.finish(RunStatus::Failed, RUN_FAILED, message);
+        let outcome = self.finish(
+            RunStatus::Failed,
+            RUN_FAILED,
+            json!({ "message": message }),
+            message,
+        );
         self.remember(outcome);
     }
 
-    fn persist_update(&mut self, update: &SessionUpdate) -> Result<()> {
-        let payload = serde_json::to_value(update)?;
-        self.append(ACP_UPDATE, payload)?;
-        self.project(update)
+    fn persist_update(&mut self, notification: &SessionNotification) -> Result<()> {
+        let mut update = serde_json::to_value(&notification.update)?;
+
+        // The boundary validator treats an absent field and a null field
+        // differently, and an optional protocol field may be encoded either
+        // way. Removing nulls satisfies it without depending on which.
+        prune_nulls(&mut update);
+
+        self.append(
+            ACP_UPDATE,
+            json!({
+                "notification": {
+                    "sessionId": notification.session_id.to_string(),
+                    "update": update,
+                }
+            }),
+        )?;
+
+        self.project(&notification.update)
     }
 
     fn project(&mut self, update: &SessionUpdate) -> Result<()> {
@@ -175,7 +202,8 @@ impl Recorder {
                         change.fields.title.as_deref(),
                     )?
                 } else if let Some(title) = change.fields.title.as_deref() {
-                    self.store.rename_tool_call(self.run_id, &tool_call_id, title)?
+                    self.store
+                        .rename_tool_call(self.run_id, &tool_call_id, title)?
                 } else {
                     true
                 };
@@ -201,48 +229,93 @@ impl Recorder {
     ) -> Result<()> {
         self.store
             .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
+
+        let mut options = serde_json::to_value(&request.options)?;
+        prune_nulls(&mut options);
+
         self.append(
             PERMISSION_REQUESTED,
-            serde_json::json!({
+            json!({
                 "requestId": request_id,
                 "toolCallId": tool_call_id,
-                "options": serde_json::to_value(&request.options)?,
+                "title": self.permission_title(request, tool_call_id),
+                "options": options,
             }),
         )?;
 
-        let outcome = match decision {
-            Decision::Reject(_) => PermissionOutcome::Denied,
-            Decision::Cancel => PermissionOutcome::Cancelled,
+        let (outcome, option_id, wire_outcome) = match decision {
+            // Refusing by selecting the agent's own refusal option is still a
+            // selection as far as the protocol is concerned. Only an
+            // unanswered turn is cancelled.
+            Decision::Reject(option_id) => {
+                (PermissionOutcome::Denied, option_id.to_string(), "selected")
+            }
+            Decision::Cancel => (PermissionOutcome::Cancelled, String::new(), "cancelled"),
         };
 
         self.store.resolve_permission(request_id, outcome)?;
         self.append(
             PERMISSION_RESOLVED,
-            serde_json::json!({
+            json!({
                 "requestId": request_id,
-                "outcome": outcome_name(outcome),
+                "optionId": option_id,
+                "outcome": wire_outcome,
             }),
         )?;
 
         Ok(())
     }
 
-    fn finish(&mut self, status: RunStatus, kind: &str, detail: &str) -> Result<()> {
-        self.store.finish_run(self.run_id, status, Some(detail))?;
-        self.append(kind, serde_json::json!({ "detail": detail }))
+    /// The interface requires a title; the protocol makes it optional.
+    ///
+    /// The request's own title wins, then the title already projected for that
+    /// tool call, and only then the identifier as a last resort.
+    fn permission_title(&self, request: &RequestPermissionRequest, tool_call_id: &str) -> String {
+        if let Some(title) = request.tool_call.fields.title.clone() {
+            return title;
+        }
+
+        self.store
+            .tool_calls_for_run(self.run_id)
+            .ok()
+            .and_then(|calls| {
+                calls
+                    .into_iter()
+                    .find(|call| call.id == tool_call_id)
+                    .map(|call| call.title)
+            })
+            .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn append(&mut self, kind: &str, payload: serde_json::Value) -> Result<()> {
-        let seq = self.next_seq;
+    fn finish(
+        &mut self,
+        status: RunStatus,
+        kind: &str,
+        body: Value,
+        detail: &str,
+    ) -> Result<()> {
+        self.store.finish_run(self.run_id, status, Some(detail))?;
+        self.append(kind, body)
+    }
 
-        self.store.append_event(self.run_id, seq, kind, &payload)?;
+    fn append(&mut self, kind: &str, body: Value) -> Result<()> {
+        let seq = self.next_seq;
+        let mut frame = body;
+
+        if let Value::Object(fields) = &mut frame {
+            fields.insert("kind".to_owned(), Value::String(kind.to_owned()));
+            fields.insert("seq".to_owned(), Value::from(seq));
+            fields.insert("at".to_owned(), Value::from(now_millis()));
+        }
+
+        self.store.append_event(self.run_id, seq, kind, &frame)?;
         self.next_seq = seq.saturating_add(1);
 
         let event = RecordedEvent {
             run_id: self.run_id.to_string(),
             seq,
             kind: kind.to_owned(),
-            payload,
+            frame,
         };
 
         (self.sink)(&event);
@@ -257,6 +330,32 @@ impl Recorder {
             }
         }
     }
+}
+
+/// Removes null members so that an optional field reads as absent.
+fn prune_nulls(value: &mut Value) {
+    match value {
+        Value::Object(fields) => {
+            fields.retain(|_name, member| !member.is_null());
+            for member in fields.values_mut() {
+                prune_nulls(member);
+            }
+        }
+        Value::Array(members) => {
+            for member in members.iter_mut() {
+                prune_nulls(member);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or_default()
 }
 
 fn translate(status: ProtocolToolCallStatus) -> Option<ToolCallStatus> {
@@ -281,13 +380,5 @@ fn kind_name(kind: ToolKind) -> &'static str {
         ToolKind::Fetch => "fetch",
         ToolKind::SwitchMode => "switch_mode",
         _ => "other",
-    }
-}
-
-const fn outcome_name(outcome: PermissionOutcome) -> &'static str {
-    match outcome {
-        PermissionOutcome::Allowed => "allowed",
-        PermissionOutcome::Denied => "denied",
-        PermissionOutcome::Cancelled => "cancelled",
     }
 }

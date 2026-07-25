@@ -1,18 +1,22 @@
-//! Recording and projection behaviour, without an agent process.
+//! Recording, frame shape and projection behaviour, without an agent process.
 //!
 //! The updates here are built with the SDK's own constructors, so the shapes
-//! under test are the shapes the protocol actually delivers.
+//! under test are the shapes the protocol actually delivers. The assertions on
+//! the frames mirror `features/ai/src/domain/acp-event-schema.ts`: if a field
+//! named here is renamed there, one side fails loudly instead of silently
+//! dropping frames at the boundary.
 
 #![allow(clippy::expect_used)]
 
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{
-    PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionUpdate, ToolCall,
-    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
+    SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_ai_acp_native::{Decision, RecordedEvent, Recorder, ACP_UPDATE, RUN_STARTED};
+use poietica_ai_acp_native::{Decision, RecordedEvent, Recorder};
 use poietica_ai_persistence_native::{AiStore, DatabaseKey};
+use serde_json::Value;
 use tempfile::TempDir;
 
 struct Fixture {
@@ -47,93 +51,113 @@ fn fixture() -> Fixture {
     }
 }
 
+impl Fixture {
+    fn frames(&self) -> Vec<Value> {
+        self.observed
+            .lock()
+            .expect("the sink")
+            .iter()
+            .map(|event| event.frame.clone())
+            .collect()
+    }
+
+    fn notify(&mut self, update: SessionUpdate) {
+        self.recorder
+            .record_session_update(&SessionNotification::new("sess_alpha", update));
+    }
+}
+
+fn text_of(frame: &Value, field: &str) -> String {
+    frame
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
+}
+
 #[test]
-fn a_tool_call_is_logged_and_projected_in_step() {
+fn every_frame_carries_the_fields_the_interface_validates() {
     let mut fixture = fixture();
-    let run_id = fixture.recorder.run_id();
 
-    fixture.recorder.record_run_started();
-    fixture
-        .recorder
-        .record_session_update(&SessionUpdate::ToolCall(
-            ToolCall::new("call_001", "Read config.toml")
-                .kind(ToolKind::Read)
-                .status(ToolCallStatus::Pending),
-        ));
-    fixture
-        .recorder
-        .record_session_update(&SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-            "call_001",
-            ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
-        )));
+    fixture.recorder.record_run_started("sess_alpha");
+    fixture.notify(SessionUpdate::ToolCall(
+        ToolCall::new("call_001", "Read config.toml")
+            .kind(ToolKind::Read)
+            .status(ToolCallStatus::Pending),
+    ));
+    fixture.recorder.record_run_finished("end_turn");
 
-    assert!(
-        fixture.recorder.take_failure().is_none(),
-        "nothing should have failed"
-    );
+    assert!(fixture.recorder.take_failure().is_none());
 
-    let events = fixture
-        .recorder
-        .store()
-        .events_since(run_id, 0)
-        .expect("the log to be readable");
+    let frames = fixture.frames();
 
-    assert_eq!(events.len(), 3);
-    assert_eq!(events.first().expect("the first event").kind, RUN_STARTED);
-    assert_eq!(events.last().expect("the last event").kind, ACP_UPDATE);
+    assert_eq!(frames.len(), 3);
+
+    for (position, frame) in frames.iter().enumerate() {
+        assert!(frame.get("kind").is_some_and(Value::is_string), "kind");
+        assert!(frame.get("seq").is_some_and(Value::is_number), "seq");
+        assert!(frame.get("at").is_some_and(Value::is_number), "at");
+        assert_eq!(
+            frame.get("seq").and_then(Value::as_i64),
+            i64::try_from(position + 1).ok(),
+            "sequence numbers are dense and ordered"
+        );
+    }
+
+    let started = frames.first().expect("the first frame");
+    assert_eq!(text_of(started, "kind"), "run_started");
+    assert_eq!(text_of(started, "sessionId"), "sess_alpha");
+
+    let update = frames.get(1).expect("the update frame");
+    assert_eq!(text_of(update, "kind"), "acp_update");
+    let notification = update.get("notification").expect("a notification");
+    assert_eq!(text_of(notification, "sessionId"), "sess_alpha");
+    let inner = notification.get("update").expect("an update");
+    assert_eq!(text_of(inner, "sessionUpdate"), "tool_call");
+    assert_eq!(text_of(inner, "toolCallId"), "call_001");
+    assert_eq!(text_of(inner, "status"), "pending");
+    assert_eq!(text_of(inner, "kind"), "read");
+
+    let finished = frames.last().expect("the last frame");
+    assert_eq!(text_of(finished, "kind"), "run_finished");
     assert_eq!(
-        events.iter().map(|event| event.seq).collect::<Vec<_>>(),
-        vec![1, 2, 3],
-        "sequence numbers are dense and ordered"
-    );
-
-    let calls = fixture
-        .recorder
-        .store()
-        .tool_calls_for_run(run_id)
-        .expect("the projection to be readable");
-    let call = calls.first().expect("exactly one call");
-
-    assert_eq!(calls.len(), 1);
-    assert_eq!(
-        call.status,
-        poietica_ai_persistence_native::ToolCallStatus::Completed
-    );
-    assert_eq!(call.kind, "read");
-    assert!(call.ended_at.is_some());
-
-    let forwarded = fixture.observed.lock().expect("the sink").clone();
-
-    assert_eq!(
-        forwarded.len(),
-        3,
-        "every durable event is forwarded exactly once"
+        text_of(finished, "stopReason"),
+        "end_turn",
+        "the interface only accepts the protocol's own stop reasons"
     );
 }
 
 #[test]
-fn a_title_only_update_is_still_projected() {
+fn an_optional_protocol_field_is_absent_rather_than_null() {
     let mut fixture = fixture();
-    let run_id = fixture.recorder.run_id();
 
-    fixture
-        .recorder
-        .record_session_update(&SessionUpdate::ToolCall(
-            ToolCall::new("call_002", "Editing").status(ToolCallStatus::InProgress),
-        ));
-    fixture
-        .recorder
-        .record_session_update(&SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-            "call_002",
-            ToolCallUpdateFields::new().title("Editing main.rs"),
-        )));
+    fixture.notify(SessionUpdate::ToolCall(
+        ToolCall::new("call_002", "Editing").status(ToolCallStatus::InProgress),
+    ));
+    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+        "call_002",
+        ToolCallUpdateFields::new().title("Editing main.rs"),
+    )));
 
     assert!(fixture.recorder.take_failure().is_none());
+
+    let frames = fixture.frames();
+    let inner = frames
+        .get(1)
+        .and_then(|frame| frame.get("notification"))
+        .and_then(|notification| notification.get("update"))
+        .expect("an update");
+
+    assert_eq!(text_of(inner, "title"), "Editing main.rs");
+    assert!(
+        inner.get("status").is_none(),
+        "a null status would be rejected by the boundary validator"
+    );
 
     let calls = fixture
         .recorder
         .store()
-        .tool_calls_for_run(run_id)
+        .tool_calls_for_run(fixture.recorder.run_id())
         .expect("the projection to be readable");
     let call = calls.first().expect("exactly one call");
 
@@ -146,15 +170,44 @@ fn a_title_only_update_is_still_projected() {
 }
 
 #[test]
+fn a_tool_call_reaches_a_terminal_state_in_the_projection() {
+    let mut fixture = fixture();
+
+    fixture.notify(SessionUpdate::ToolCall(
+        ToolCall::new("call_003", "Read config.toml")
+            .kind(ToolKind::Read)
+            .status(ToolCallStatus::Pending),
+    ));
+    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+        "call_003",
+        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+    )));
+
+    assert!(fixture.recorder.take_failure().is_none());
+
+    let calls = fixture
+        .recorder
+        .store()
+        .tool_calls_for_run(fixture.recorder.run_id())
+        .expect("the projection to be readable");
+    let call = calls.first().expect("exactly one call");
+
+    assert_eq!(calls.len(), 1, "one announcement plus one update is one row");
+    assert_eq!(
+        call.status,
+        poietica_ai_persistence_native::ToolCallStatus::Completed
+    );
+    assert!(call.ended_at.is_some());
+}
+
+#[test]
 fn an_update_for_an_unannounced_call_is_surfaced() {
     let mut fixture = fixture();
 
-    fixture
-        .recorder
-        .record_session_update(&SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-            "call_404",
-            ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
-        )));
+    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+        "call_404",
+        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+    )));
 
     assert!(
         fixture.recorder.take_failure().is_some(),
@@ -168,8 +221,8 @@ fn a_permission_request_is_refused_and_recorded() {
     let run_id = fixture.recorder.run_id();
 
     let request = RequestPermissionRequest::new(
-        "sess_test",
-        ToolCallUpdate::new("call_003", ToolCallUpdateFields::new()),
+        "sess_alpha",
+        ToolCallUpdate::new("call_005", ToolCallUpdateFields::new().title("Run cargo test")),
         vec![
             PermissionOption::new("allow", "Allow", PermissionOptionKind::AllowOnce),
             PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
@@ -186,6 +239,39 @@ fn a_permission_request_is_refused_and_recorded() {
     let request_id = fixture.recorder.record_permission(&request, &decision);
 
     assert!(fixture.recorder.take_failure().is_none());
+
+    let frames = fixture.frames();
+    let requested = frames.first().expect("the request frame");
+
+    assert_eq!(text_of(requested, "kind"), "permission_requested");
+    assert_eq!(text_of(requested, "requestId"), request_id);
+    assert_eq!(text_of(requested, "toolCallId"), "call_005");
+    assert_eq!(
+        text_of(requested, "title"),
+        "Run cargo test",
+        "the interface requires a title even though the protocol does not"
+    );
+
+    let option = requested
+        .get("options")
+        .and_then(|options| options.get(0))
+        .expect("the first option");
+
+    assert_eq!(text_of(option, "optionId"), "allow");
+    assert_eq!(text_of(option, "kind"), "allow_once");
+    assert_eq!(text_of(option, "name"), "Allow");
+
+    let resolved = frames.get(1).expect("the answer frame");
+
+    assert_eq!(text_of(resolved, "kind"), "permission_resolved");
+    assert_eq!(text_of(resolved, "requestId"), request_id);
+    assert_eq!(text_of(resolved, "optionId"), "reject");
+    assert_eq!(
+        text_of(resolved, "outcome"),
+        "selected",
+        "refusing by choosing a refusal option is a selection, not a cancellation"
+    );
+
     assert!(
         fixture
             .recorder

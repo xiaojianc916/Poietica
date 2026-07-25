@@ -9,6 +9,7 @@ use agent_client_protocol::schema::v1::{
     SessionNotification, TextContent,
 };
 use agent_client_protocol::{AcpAgent, Agent, ConnectionTo};
+use serde_json::Value;
 
 use crate::error::{AcpError, Result};
 use crate::permission::{decide, Decision};
@@ -20,12 +21,13 @@ use crate::recorder::Recorder;
 /// process is the transport: the protocol speaks JSON-RPC over its standard
 /// input and output, which is why nothing here opens a socket or a port.
 ///
-/// The returned string is the stop reason the agent reported.
+/// The returned string is the stop reason the agent reported, in its wire form.
 ///
 /// # Errors
 ///
-/// Fails when the process cannot be started, when the connection fails, or when
-/// a durable write failed at any point during the turn.
+/// Fails when the process cannot be started, when the connection fails, when
+/// the stop reason cannot be read, or when a durable write failed during the
+/// turn.
 pub async fn run_prompt(
     command: &str,
     cwd: PathBuf,
@@ -36,8 +38,7 @@ pub async fn run_prompt(
         message: error.to_string(),
     })?;
 
-    with_recorder(&recorder, Recorder::record_run_started)?;
-
+    let starting = Arc::clone(&recorder);
     let updates = Arc::clone(&recorder);
     let permissions = Arc::clone(&recorder);
     let stop_reason: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
@@ -52,7 +53,7 @@ pub async fn run_prompt(
                 // useful to tell the agent about that, and the driver reports it
                 // once the turn is over.
                 if let Ok(mut recorder) = updates.lock() {
-                    recorder.record_session_update(&notification.update);
+                    recorder.record_session_update(&notification);
                 }
 
                 Ok(())
@@ -93,6 +94,12 @@ pub async fn run_prompt(
                 .block_task()
                 .await?;
 
+            // The first frame of a run carries the session id, so it can only
+            // be written once the session exists.
+            if let Ok(mut recorder) = starting.lock() {
+                recorder.record_run_started(&session.session_id.to_string());
+            }
+
             let response = connection
                 .send_request(PromptRequest::new(
                     session.session_id.clone(),
@@ -101,8 +108,15 @@ pub async fn run_prompt(
                 .block_task()
                 .await?;
 
+            // The wire form is the contract, so the stop reason is taken from
+            // serialisation rather than from a hand-written mapping.
+            let wire = match serde_json::to_value(&response.stop_reason) {
+                Ok(Value::String(reason)) => Some(reason),
+                _ => None,
+            };
+
             if let Ok(mut slot) = reported.lock() {
-                *slot = Some(format!("{:?}", response.stop_reason));
+                *slot = wire;
             }
 
             Ok(())
@@ -119,8 +133,14 @@ pub async fn run_prompt(
     let reason = stop_reason
         .lock()
         .map_err(|_poisoned| AcpError::RecorderPoisoned)?
-        .clone()
-        .unwrap_or_else(|| "unreported".to_owned());
+        .clone();
+
+    let Some(reason) = reason else {
+        let message = "the agent reported a stop reason the client could not read".to_owned();
+        with_recorder(&recorder, |recorder| recorder.record_run_failed(&message))?;
+
+        return Err(AcpError::Protocol { message });
+    };
 
     with_recorder(&recorder, |recorder| recorder.record_run_finished(&reason))?;
 
@@ -137,7 +157,9 @@ fn with_recorder(
     recorder: &Arc<Mutex<Recorder>>,
     action: impl FnOnce(&mut Recorder),
 ) -> Result<()> {
-    let mut guard = recorder.lock().map_err(|_poisoned| AcpError::RecorderPoisoned)?;
+    let mut guard = recorder
+        .lock()
+        .map_err(|_poisoned| AcpError::RecorderPoisoned)?;
     action(&mut guard);
 
     Ok(())
@@ -147,7 +169,9 @@ fn with_value<T>(
     recorder: &Arc<Mutex<Recorder>>,
     action: impl FnOnce(&mut Recorder) -> T,
 ) -> Result<T> {
-    let mut guard = recorder.lock().map_err(|_poisoned| AcpError::RecorderPoisoned)?;
+    let mut guard = recorder
+        .lock()
+        .map_err(|_poisoned| AcpError::RecorderPoisoned)?;
 
     Ok(action(&mut guard))
 }

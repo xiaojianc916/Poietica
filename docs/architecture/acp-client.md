@@ -31,3 +31,25 @@ The update enum grows with the protocol and its variants are not exhaustive.
 Unrecognised updates and unrecognised tool states are logged verbatim but left
 out of the projections rather than guessed at. Since the projections are
 rebuildable from the log, a later version can backfill them.
+
+## The frame is the interface contract
+
+The recorder does not invent a shape of its own. Every frame it writes is
+exactly the shape declared in `features/ai/src/contracts/run-contract.ts` and
+validated by `features/ai/src/domain/acp-event-schema.ts`, and the same value
+is what goes into the log. Replaying a stored run and watching a live one
+therefore cannot drift apart, and there is no translation layer to keep in sync.
+
+Three consequences worth stating.
+
+The stop reason is taken from serialising the protocol type, never from a
+hand-written mapping. The wire form is the contract; a mapping would be a second
+source of truth that silently rots.
+
+Null members are stripped from serialised protocol payloads, because the
+boundary validator accepts an absent optional field but not a null one.
+
+The interface requires a permission title that the protocol leaves optional. It
+is resolved from the request, then from the projected tool call, and only then
+from the identifier. A refusal that selects the agent's own refusal option is
+reported as a selection; only an unanswered turn is a cancellation.
