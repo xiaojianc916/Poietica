@@ -6,6 +6,7 @@ members = [
   "editor/persistence/native",
   "editor/extensions/native",
   "platforms/desktop-runtime/native",
+  "features/ai/native",
 ]
 default-members = [
   "apps/desktop/src-tauri",
@@ -113,6 +114,20 @@ tauri-specta = { version = "=2.0.0-rc.21", features = [
 # Testing
 proptest = "1.7.0"
 rstest = "0.25.0"
+
+# Encrypted local storage
+#
+# SQLCipher is compiled in rather than linked against a system library, so
+# every platform gets the same cipher configuration as the tests.
+rusqlite = { version = "0.40.1", features = [
+  "bundled-sqlcipher-vendored-openssl",
+] }
+
+# keyring 4 ships the macOS, Windows and *nix credential stores through
+# its default v1 feature; the v3 per-platform features no longer exist.
+keyring = { version = "4.1.5", features = [
+  "v1",
+] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
