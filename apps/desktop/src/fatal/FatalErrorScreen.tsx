@@ -13,7 +13,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
 
   const model = useMemo(
     () => createTerminalFailureViewModel(incident, additionalIncidentCount),
-
     [additionalIncidentCount, incident],
   )
 
@@ -36,7 +35,6 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
   const copyDiagnostic = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(model.diagnostic)
-
       setCopyState('copied')
     } catch {
       // Keep the copy icon available so the user can retry immediately.
@@ -106,24 +104,6 @@ function executePrimaryAction(action: { readonly kind: 'reload' }): void {
   }
 }
 
-function WarningIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="M12 8.5v4.25" />
-      <path d="M12 16.25h.01" />
-      <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
-    </svg>
-  )
-}
-
 function ReloadIcon() {
   return (
     <svg
@@ -170,6 +150,24 @@ function CheckIcon() {
       viewBox="0 0 24 24"
     >
       <path d="m5 12 4.2 4.2L19 6.5" />
+    </svg>
+  )
+}
+
+function WarningIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.7"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 8.5v4.25" />
+      <path d="M12 16.25h.01" />
+      <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
     </svg>
   )
 }
