@@ -1,16 +1,13 @@
+# The toolchain every build of this repository uses.
+#
+# Pinned rather than tracking stable, so a compiler upgrade is a reviewed
+# change instead of a surprise. rustup installs this automatically.
+#
+# The floor is Rust 1.95: libsqlite3-sys builds with the cfg_select! macro,
+# which stabilised there, and an older compiler fails inside that dependency's
+# build script with an error that points nowhere useful.
+
 [toolchain]
-channel = "1.88.0"
+channel = "1.97.1"
+components = ["clippy", "rustfmt"]
 profile = "minimal"
-components = [
-  "cargo",
-  "clippy",
-  "rustfmt",
-  "rust-src",
-]
-targets = [
-  "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
-  "aarch64-pc-windows-msvc",
-  "x86_64-pc-windows-msvc",
-  "x86_64-unknown-linux-gnu",
-]
