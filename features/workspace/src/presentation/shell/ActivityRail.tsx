@@ -65,14 +65,19 @@ export interface ActivityRailProps {
 
 const DEFAULT_NAVIGATION: readonly CanvasNavigationItem[] = [
   {
-    id: 'pages',
-    label: '画布',
-    icon: Grid,
+    id: 'ai',
+    label: 'AI',
+    icon: AiSurfaceIcon,
   },
   {
     id: 'search',
     label: '搜索',
     icon: Search,
+  },
+  {
+    id: 'pages',
+    label: '画布',
+    icon: Grid,
   },
   {
     id: 'relations',
@@ -88,11 +93,6 @@ const DEFAULT_NAVIGATION: readonly CanvasNavigationItem[] = [
     id: 'extensions',
     label: '插件',
     icon: Box,
-  },
-  {
-    id: 'ai',
-    label: 'AI',
-    icon: AiSurfaceIcon,
   },
   {
     id: 'documents',
