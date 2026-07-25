@@ -34,6 +34,17 @@ async agentCancel() : Promise<null> {
     return await TAURI_INVOKE("agent_cancel");
 },
 /**
+ * Answers a permission request the agent is blocked on.
+ * 
+ * # Errors
+ * 
+ * Fails when the request is not outstanding, when the option was never
+ * offered, or when the agent has already stopped waiting.
+ */
+async agentResolvePermission(request: AgentResolvePermissionRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_resolve_permission", { request });
+},
+/**
  * Ends the session and lets the agent process exit.
  * 
  * # Errors
@@ -172,6 +183,18 @@ runId: string;
  * The session the run belongs to.
  */
 sessionId: string }
+/**
+ * A user's answer to a permission request.
+ */
+export type AgentResolvePermissionRequest = { 
+/**
+ * The request being answered.
+ */
+requestId: string; 
+/**
+ * One of the options the agent offered with that request.
+ */
+optionId: string }
 /**
  * A run as it was recorded.
  */

@@ -52,6 +52,7 @@ pub fn build() -> tauri::Builder<Wry> {
         .invoke_handler(tauri::generate_handler![
             commands::agent::agent_prompt,
             commands::agent::agent_cancel,
+            commands::agent::agent_resolve_permission,
             commands::agent::agent_shutdown,
             commands::agent::agent_load_run,
             commands::asset::asset_session_open,

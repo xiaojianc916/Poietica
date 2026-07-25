@@ -1,6 +1,6 @@
 //! The Agent Client Protocol client, over a locally spawned agent process.
 //!
-//! Three rules shape this crate.
+//! Four rules shape this crate.
 //!
 //! Every session update is written to the encrypted log before it is handed to
 //! anything else, so an interrupted run is replayable rather than lost.
@@ -15,15 +15,21 @@
 //! commands. Because the handlers live as long as the connection and a recorder
 //! lives only as long as one run, the two meet through a slot rather than by
 //! ownership.
+//!
+//! A permission request is a question, not a formality. The handler waits at
+//! the desk for a real answer, and the fallback refusal is used only where
+//! there is nobody to ask.
 
+mod desk;
 mod error;
 mod permission;
 mod recorder;
 mod run_slot;
 mod session;
 
+pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
-pub use permission::{decide, Decision};
+pub use permission::{answers, decide, Decision};
 pub use recorder::{
     RecordedEvent, Recorder, ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
     RUN_FINISHED, RUN_STARTED,

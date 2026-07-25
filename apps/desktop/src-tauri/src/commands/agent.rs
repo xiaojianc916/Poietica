@@ -1,6 +1,6 @@
 //! The desktop seam onto the ACP client.
 //!
-//! Two rules shape this module.
+//! Three rules shape this module.
 //!
 //! The session is started once and reused. A turn is cheap; a process and a
 //! protocol handshake are not, and a session that restarted between turns
@@ -10,13 +10,18 @@
 //! already been written to the encrypted log, so a dropped event is a
 //! reload away from being recovered through `agent_load_run` rather than
 //! lost.
+//!
+//! An answer arriving from the renderer is untrusted. The desk checks it
+//! against the options the agent actually offered before anything is recorded
+//! or sent.
 
 use std::env;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use poietica_ai_acp_native::{
-    connect, AcpError, AgentClient, AgentConnection, AgentSpawn, RecordedEvent, Recorder, RunSlot,
+    connect, AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RecordedEvent,
+    Recorder, RunSlot,
 };
 use poietica_ai_persistence_native::{AiStore, StoreError};
 use serde::{Deserialize, Serialize};
@@ -58,6 +63,7 @@ struct Session {
 pub struct AgentRuntime {
     database: PathBuf,
     slot: RunSlot,
+    desk: PermissionDesk,
     session: Mutex<Option<Session>>,
 }
 
@@ -78,6 +84,7 @@ impl AgentRuntime {
         Ok(Self {
             database: directory.join(DATABASE_FILE),
             slot: RunSlot::new(),
+            desk: PermissionDesk::new(),
             session: Mutex::new(None),
         })
     }
@@ -103,6 +110,16 @@ pub struct AgentPromptResult {
     pub run_id: String,
     /// The session the run belongs to.
     pub session_id: String,
+}
+
+/// A user's answer to a permission request.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentResolvePermissionRequest {
+    /// The request being answered.
+    pub request_id: String,
+    /// One of the options the agent offered with that request.
+    pub option_id: String,
 }
 
 /// A request to replay a run from the log.
@@ -190,6 +207,28 @@ pub async fn agent_prompt(
     })
 }
 
+/// Answers a permission request the agent is blocked on.
+///
+/// # Errors
+///
+/// Fails when the request is not outstanding, when the option was never
+/// offered, or when the agent has already stopped waiting.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_resolve_permission(
+    state: State<'_, AgentRuntime>,
+    request: AgentResolvePermissionRequest,
+) -> AgentCommandResult<()> {
+    // Every failure here means the same thing to the interface: that answer no
+    // longer applies to anything. The detail stays on this side of the wire.
+    state
+        .desk
+        .answer(&request.request_id, &request.option_id)
+        .map_err(|error| Error::NotFound(error.to_string()))?;
+
+    Ok(())
+}
+
 /// Asks the agent to stop the turn that is in flight.
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
@@ -226,6 +265,8 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
         // stopped is not an error worth reporting.
         let _ignored = live.client.shutdown();
     }
+
+    state.desk.clear();
 
     Ok(())
 }
@@ -289,7 +330,7 @@ async fn ensure_session(
         client,
         session_id,
         driver,
-    } = connect(spawn, state.slot.clone()).map_err(translate)?;
+    } = connect(spawn, state.slot.clone(), state.desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.

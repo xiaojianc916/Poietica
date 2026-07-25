@@ -54,9 +54,6 @@ export interface AgentCommandBridge {
   readonly loadRun: (runId: string) => Promise<readonly unknown[]>
 }
 
-const NOT_IMPLEMENTED =
-  'answering a permission request is not wired up yet: the native handler still refuses automatically'
-
 /**
  * Subscribes to run frames.
  *
@@ -116,11 +113,10 @@ async function call<T>(operation: () => Promise<T>): Promise<T> {
 /**
  * The command half of the port.
  *
- * Two limits are deliberate and visible rather than papered over. Cancellation
- * ignores the run identifier because a session runs one turn at a time, so
- * there is exactly one turn to stop. Answering a permission request throws,
- * because the native handler cannot yet wait for an answer and a silently
- * successful call would be a lie the interface would act on.
+ * Cancellation ignores the run identifier because a session runs one turn at a
+ * time, so there is exactly one turn to stop. Answering a permission request
+ * is checked natively: an answer naming an option the agent never offered is
+ * refused rather than acted on.
  */
 export function createAgentCommandBridge({
   command,
@@ -143,7 +139,9 @@ export function createAgentCommandBridge({
       await call(() => commands.agentCancel())
     },
 
-    resolvePermission: (_requestId, _optionId) => Promise.reject(new Error(NOT_IMPLEMENTED)),
+    resolvePermission: async (requestId, optionId) => {
+      await call(() => commands.agentResolvePermission({ requestId, optionId }))
+    },
 
     loadRun: async (runId) => {
       const snapshot = await call(() => commands.agentLoadRun({ runId, afterSeq: null }))

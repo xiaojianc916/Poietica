@@ -14,6 +14,7 @@ use futures::future::{select, BoxFuture, Either};
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 
+use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Result};
 use crate::permission::{decide, Decision};
 use crate::recorder::Recorder;
@@ -140,16 +141,30 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
+/// The response that carries a decision back to the agent.
+fn reply(decision: &Decision) -> RequestPermissionResponse {
+    match decision.option_id() {
+        Some(option_id) => RequestPermissionResponse::new(RequestPermissionOutcome::Selected(
+            SelectedPermissionOutcome::new(option_id.clone()),
+        )),
+        None => RequestPermissionResponse::new(RequestPermissionOutcome::Cancelled),
+    }
+}
+
 /// Spawns the agent, creates one session, and keeps it open for many turns.
 ///
 /// Updates are routed through the slot: a turn installs its recorder for the
 /// duration of the run, so a notification that arrives between turns is dropped
 /// instead of being attributed to the run that came before it.
 ///
+/// Permission requests are routed through the desk: the handler records the
+/// request, waits for an answer that arrives on a different call entirely, and
+/// records the answer before returning it to the agent.
+///
 /// # Errors
 ///
 /// Fails when the command line cannot be turned into a process.
-pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
+pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result<AgentConnection> {
     let AgentSpawn { command, cwd } = spawn;
 
     let agent = AcpAgent::from_str(&command).map_err(|error| AcpError::Spawn {
@@ -161,6 +176,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
 
     let updates = slot.clone();
     let permissions = slot.clone();
+    let waiting = desk.clone();
 
     let driver = async move {
         let served = agent_client_protocol::Client
@@ -178,24 +194,33 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
             )
             .on_receive_request(
                 async move |request: RequestPermissionRequest, responder, _connection| {
-                    let decision = decide(&request);
+                    let mut opened = None;
 
                     let _routed = permissions.record(|recorder| {
-                        recorder.record_permission(&request, &decision);
+                        opened = Some(recorder.record_permission_requested(&request));
                     });
 
-                    match decision {
-                        Decision::Reject(option_id) => {
-                            responder.respond(RequestPermissionResponse::new(
-                                RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                                    option_id,
-                                )),
-                            ))
-                        }
-                        Decision::Cancel => responder.respond(RequestPermissionResponse::new(
-                            RequestPermissionOutcome::Cancelled,
-                        )),
-                    }
+                    // A request arriving outside a turn has nowhere to be
+                    // recorded and nobody to answer it. Refusing is the only
+                    // honest reply; leaving the agent blocked is not.
+                    let Some(request_id) = opened else {
+                        return responder.respond(reply(&decide(&request)));
+                    };
+
+                    let decision = match waiting.wait(&request_id, &request) {
+                        // A dropped sender means the turn ended first, which
+                        // is exactly what the protocol calls a cancellation.
+                        Ok(answer) => answer.await.unwrap_or(Decision::Cancel),
+                        // An unusable desk is our fault, not the agent's, so
+                        // the turn is not left hanging on it.
+                        Err(_unusable) => decide(&request),
+                    };
+
+                    let _routed = permissions.record(|recorder| {
+                        recorder.record_permission_resolved(&request_id, &decision);
+                    });
+
+                    responder.respond(reply(&decision))
                 },
                 agent_client_protocol::on_receive_request!(),
             )
@@ -222,7 +247,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
                         break 'commands;
                     };
 
-                    let (text, recorder, reply) = match message {
+                    let (text, recorder, reply_to) = match message {
                         Command::Shutdown => break 'commands,
                         // Nothing is in flight, so there is nothing to stop.
                         Command::Cancel => continue 'commands,
@@ -236,7 +261,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
                     // One turn at a time. A second prompt is refused here
                     // rather than allowed to interleave two runs on one log.
                     if let Err(error) = slot.install(recorder) {
-                        let _ignored = reply.send(Err(error));
+                        let _ignored = reply_to.send(Err(error));
 
                         continue 'commands;
                     }
@@ -285,8 +310,13 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
                         }
                     };
 
+                    // The turn is over, so nobody is going to answer a
+                    // permission request that is still open. Releasing them
+                    // first lets each handler finish before the log is closed.
+                    desk.clear();
+
                     let Ok(Some(mut recorder)) = slot.take() else {
-                        let _ignored = reply.send(Err(AcpError::RecorderPoisoned));
+                        let _ignored = reply_to.send(Err(AcpError::RecorderPoisoned));
 
                         if stopping {
                             break 'commands;
@@ -294,6 +324,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
 
                         continue 'commands;
                     };
+
+                    recorder.record_pending_cancelled();
 
                     let settled = match answered {
                         None => {
@@ -335,7 +367,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot) -> Result<AgentConnection> {
                         None => settled,
                     };
 
-                    let _ignored = reply.send(settled);
+                    let _ignored = reply_to.send(settled);
 
                     if stopping {
                         break 'commands;

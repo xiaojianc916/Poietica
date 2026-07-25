@@ -10,7 +10,8 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 use crate::{
     commands::{
         agent::{
-            AgentLoadRunRequest, AgentPromptRequest, AgentPromptResult, AgentRunSnapshot,
+            AgentLoadRunRequest, AgentPromptRequest, AgentPromptResult,
+            AgentResolvePermissionRequest, AgentRunSnapshot,
         },
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
@@ -40,6 +41,7 @@ pub fn export_document_bindings() {
         .commands(tauri_specta::collect_commands![
             crate::commands::agent::agent_prompt,
             crate::commands::agent::agent_cancel,
+            crate::commands::agent::agent_resolve_permission,
             crate::commands::agent::agent_shutdown,
             crate::commands::agent::agent_load_run,
             crate::commands::asset::asset_session_open,
@@ -58,6 +60,7 @@ pub fn export_document_bindings() {
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentLoadRunRequest>()
+        .typ::<AgentResolvePermissionRequest>()
         .typ::<AgentRunSnapshot>()
         .typ::<AssetSessionResult>()
         .typ::<AssetUploadRequest>()

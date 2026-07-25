@@ -117,23 +117,58 @@ impl Recorder {
         self.remember(outcome);
     }
 
-    /// Records a permission request together with the answer given to it.
+    /// Records a permission request the agent is now blocked on.
     ///
     /// The protocol does not expose the underlying request identifier to the
     /// handler, so the client mints one. It exists to correlate the request
     /// with its answer, nothing more.
+    pub fn record_permission_requested(&mut self, request: &RequestPermissionRequest) -> String {
+        let request_id = Uuid::now_v7().to_string();
+        let tool_call_id = request.tool_call.tool_call_id.to_string();
+        let outcome = self.persist_request(&request_id, &tool_call_id, request);
+
+        self.remember(outcome);
+
+        request_id
+    }
+
+    /// Records the answer a permission request was settled with.
+    pub fn record_permission_resolved(&mut self, request_id: &str, decision: &Decision) {
+        let outcome = self.persist_resolution(request_id, decision);
+        self.remember(outcome);
+    }
+
+    /// Records a request and its answer in one step, for the paths that need
+    /// no human: a request arriving outside a turn, or an unusable desk.
     pub fn record_permission(
         &mut self,
         request: &RequestPermissionRequest,
         decision: &Decision,
     ) -> String {
-        let request_id = Uuid::now_v7().to_string();
-        let tool_call_id = request.tool_call.tool_call_id.to_string();
-        let outcome = self.persist_permission(&request_id, &tool_call_id, request, decision);
-
-        self.remember(outcome);
+        let request_id = self.record_permission_requested(request);
+        self.record_permission_resolved(&request_id, decision);
 
         request_id
+    }
+
+    /// Settles every request still outstanding when the turn ended.
+    ///
+    /// Their handlers are being abandoned, and an abandoned handler can no
+    /// longer record anything, so the log would otherwise keep a request that
+    /// is permanently unanswered.
+    pub fn record_pending_cancelled(&mut self) {
+        let pending = match self.store.pending_permissions(self.run_id) {
+            Ok(pending) => pending,
+            Err(error) => {
+                self.remember(Err(error.into()));
+
+                return;
+            }
+        };
+
+        for record in pending {
+            self.record_permission_resolved(&record.request_id, &Decision::Cancel);
+        }
     }
 
     /// Records that the run ended on the agent's terms.
@@ -238,12 +273,11 @@ impl Recorder {
         Ok(())
     }
 
-    fn persist_permission(
+    fn persist_request(
         &mut self,
         request_id: &str,
         tool_call_id: &str,
         request: &RequestPermissionRequest,
-        decision: &Decision,
     ) -> Result<()> {
         self.store
             .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
@@ -259,19 +293,25 @@ impl Recorder {
                 "title": self.permission_title(request, tool_call_id),
                 "options": options,
             }),
-        )?;
+        )
+    }
 
+    fn persist_resolution(&mut self, request_id: &str, decision: &Decision) -> Result<()> {
+        // Refusing by choosing the agent's own refusal option is still a
+        // selection as far as the protocol is concerned. Only an unanswered
+        // request is cancelled.
         let (outcome, option_id, wire_outcome) = match decision {
-            // Refusing by selecting the agent's own refusal option is still a
-            // selection as far as the protocol is concerned. Only an
-            // unanswered turn is cancelled.
+            Decision::Allow(option_id) => {
+                (PermissionOutcome::Allowed, option_id.to_string(), "selected")
+            }
             Decision::Reject(option_id) => {
                 (PermissionOutcome::Denied, option_id.to_string(), "selected")
             }
             Decision::Cancel => (PermissionOutcome::Cancelled, String::new(), "cancelled"),
         };
 
-        self.store.resolve_permission(request_id, outcome)?;
+        let _settled = self.store.resolve_permission(request_id, outcome)?;
+
         self.append(
             PERMISSION_RESOLVED,
             json!({
@@ -279,9 +319,7 @@ impl Recorder {
                 "optionId": option_id,
                 "outcome": wire_outcome,
             }),
-        )?;
-
-        Ok(())
+        )
     }
 
     /// The interface requires a title; the protocol makes it optional.

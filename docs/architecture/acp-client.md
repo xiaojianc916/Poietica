@@ -109,3 +109,28 @@ a new opportunity to leak one.
 Permission answers are not here yet. The handler still refuses automatically,
 so there is nowhere for a user's decision to go; the command arrives together
 with the handler that can wait for it.
+
+
+## A permission request is a question
+
+The handler cannot answer a permission request itself: the person who can is on
+the other side of an IPC boundary and will not reply for several seconds, if at
+all. So the handler records the request, registers it at the desk, and waits.
+The answer arrives later on `agent_resolve_permission`, and only then is the
+resolution recorded and the reply sent.
+
+The desk validates before it acts. An answer naming a request that is not
+outstanding, or an option the agent never offered, is refused, and refusing
+happens before the request is taken off the desk so a bad answer cannot destroy
+a good one. Which options mean approval is read from the kinds the agent itself
+attached to them, and a kind this build does not recognise counts as a refusal.
+
+Two paths still answer without asking. A request that arrives outside a turn
+has nowhere to be recorded and nobody to ask, and a desk that has been poisoned
+by a panic cannot be waited on. Both refuse using the agent's own refusal
+option, which the agent can tell apart from an abandoned turn.
+
+When a turn ends, the desk is cleared before the recorder is taken back. Each
+waiting handler observes the dropped answer and replies with the protocol's
+cancellation, and the run's own recorder settles whatever requests were still
+open, so the log never keeps a request that nobody can ever answer.
