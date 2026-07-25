@@ -242,7 +242,12 @@ export function createCanvasDocumentService({
     owned.stopObservingDocument = editorDocument.subscribeDocumentEvents((event) => {
       if (event.kind === 'ready') {
         if (!document.isInitialized()) {
-          document.initialize(editorDocument.captureDocument())
+          /*
+           * Opening no longer captures a full TLStoreSnapshot. Dirty state is
+           * derived from store diffs against a save point, and a document that
+           * has just been opened is clean by definition.
+           */
+          document.initialize()
           emit()
         }
 
@@ -300,7 +305,7 @@ export function createCanvasDocumentService({
     }
 
     const documentSnapshot = owned.editorDocument.captureDocument()
-    const ticket = owned.document.beginSave(documentSnapshot)
+    const ticket = owned.document.beginSave()
 
     emit()
 

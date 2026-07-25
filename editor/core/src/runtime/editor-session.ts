@@ -15,7 +15,7 @@ import {
   type HybridCanvasExtension,
 } from '../contracts/public-api'
 
-// Contract tests: tests/cross-domain-contract/document-lifecycle/canvas-document-service.test.ts
+// Contract tests: tests/unit/document-lifecycle/tlstore-record-id-contract.test.ts
 
 /**
  * Process-local Native resource capability associated with an opened document.
@@ -267,8 +267,20 @@ export function createEditorSession(
       })
     },
     {
+      /*
+       * No source filter.
+       *
+       * Restricting observation to source 'user' left every other document
+       * mutation invisible to dirty tracking, so the incremental view of the
+       * document could drift from the store. The document session compensated
+       * by rebuilding its entire dirty set from a fresh snapshot at each save
+       * boundary, which made the incremental path pure overhead: it was
+       * discarded and recomputed anyway.
+       *
+       * Observing the full document scope makes the dirty ledger authoritative
+       * by construction, which is what allows that rebuild to be deleted.
+       */
       scope: 'document',
-      source: 'user',
     },
   )
 

@@ -1,14 +1,8 @@
-import type { TLStoreSnapshot } from 'tldraw'
-
 import {
-  applyDocumentChanges,
-  cloneDocumentCheckpoint,
-  createDocumentCheckpoint,
-  type DocumentCheckpoint,
+  createDocumentDirtyLedger,
+  type DocumentDirtyLedger,
   type DocumentRecordChanges,
-  rebuildDirtyRecords,
-  reconcileDirtyRecords,
-} from './document-checkpoint'
+} from './document-dirty-ledger'
 
 export type DocumentSessionPhase =
   | 'initializing'
@@ -22,9 +16,16 @@ export type DocumentPersistenceState = 'clean' | 'dirty' | 'saving' | 'failed'
 
 type ReopenableDocumentSessionPhase = Exclude<DocumentSessionPhase, 'closing' | 'closed'>
 
+/**
+ * Identifies one in-flight save.
+ *
+ * The ticket previously carried a full copy of the document so that
+ * completeSave could compare against exactly what persistence had accepted.
+ * The dirty ledger records that save point itself, so the ticket is reduced to
+ * the identity needed to reject a stale completion.
+ */
 export interface DocumentSaveTicket {
   readonly id: number
-  readonly checkpoint: DocumentCheckpoint
 }
 
 export interface DocumentSessionSnapshot {
@@ -34,17 +35,24 @@ export interface DocumentSessionSnapshot {
 }
 
 export interface DocumentSession {
-  readonly initialize: (snapshot: TLStoreSnapshot) => void
+  /**
+   * Declares the document open and clean.
+   *
+   * No snapshot is required. A freshly opened document has nothing to compare
+   * against itself, so the previous full-document capture here was pure cost
+   * on the open path.
+   */
+  readonly initialize: () => void
 
   /**
-   * Applies a tldraw Store diff to dirty tracking.
+   * Folds a tldraw Store diff into dirty tracking.
    *
-   * This path must remain incremental. Full snapshots are reserved for
-   * initialization and explicit persistence boundaries.
+   * This path is incremental by construction. Full snapshots exist only to be
+   * serialised for persistence, never to answer dirty state.
    */
   readonly recordDocumentChange: (changes: DocumentRecordChanges) => void
 
-  readonly beginSave: (snapshot: TLStoreSnapshot) => DocumentSaveTicket
+  readonly beginSave: () => DocumentSaveTicket
 
   readonly completeSave: (ticket: DocumentSaveTicket, documentId: string) => void
 
@@ -61,32 +69,13 @@ export interface DocumentSession {
 
 export function createDocumentSession(initialDocumentId: string | null): DocumentSession {
   let phase: DocumentSessionPhase = 'initializing'
-  let currentCheckpoint: DocumentCheckpoint | null = null
-  let savedCheckpoint: DocumentCheckpoint | null = null
+  let initialized = false
   let documentId = initialDocumentId
   let activeSave: DocumentSaveTicket | null = null
   let phaseBeforeClosing: ReopenableDocumentSessionPhase | null = null
   let nextSaveId = 1
 
-  const dirtyRecordIds = new Set<string>()
-
-  /*
-   * Record ids reported between beginSave and completeSave.
-   *
-   * completeSave previously called rebuildDirtyRecords, a full structural
-   * comparison of every record in the document against the checkpoint Native
-   * had just accepted. That ran on every successful save even though the
-   * result is already determined: beginSave sets currentCheckpoint to a copy
-   * of the ticket checkpoint, so the two are structurally identical at that
-   * instant, and completeSave then promotes the ticket checkpoint to saved.
-   * The only records that can still differ are the ones that changed while
-   * the save was in flight.
-   *
-   * Tracking those ids makes reconciliation O(k) in the number of concurrent
-   * edits, and O(1) in the overwhelmingly common case where there were none,
-   * instead of O(N) in document size on the user-visible save path.
-   */
-  const changedDuringSave = new Set<string>()
+  const ledger: DocumentDirtyLedger = createDocumentDirtyLedger()
 
   function assertNotClosed(): void {
     if (phase === 'closing' || phase === 'closed') {
@@ -94,17 +83,9 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
     }
   }
 
-  function requireInitialized(): {
-    readonly current: DocumentCheckpoint
-    readonly saved: DocumentCheckpoint
-  } {
-    if (!currentCheckpoint || !savedCheckpoint) {
+  function requireInitialized(): void {
+    if (!initialized) {
       throw new Error('DOCUMENT_SESSION_NOT_INITIALIZED')
-    }
-
-    return {
-      current: currentCheckpoint,
-      saved: savedCheckpoint,
     }
   }
 
@@ -115,7 +96,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
   }
 
   function isDirty(): boolean {
-    return dirtyRecordIds.size > 0
+    return ledger.isDirty()
   }
 
   function persistence(): DocumentPersistenceState {
@@ -131,42 +112,30 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
   }
 
   return {
-    initialize(snapshot) {
+    initialize() {
       assertNotClosed()
 
       if (phase !== 'initializing') {
         throw new Error('DOCUMENT_SESSION_ALREADY_INITIALIZED')
       }
 
-      const checkpoint = createDocumentCheckpoint(snapshot)
-
-      savedCheckpoint = checkpoint
-      currentCheckpoint = cloneDocumentCheckpoint(checkpoint)
-      dirtyRecordIds.clear()
-      changedDuringSave.clear()
+      ledger.reset()
+      initialized = true
       phase = 'ready'
     },
 
     recordDocumentChange(changes) {
       assertNotClosed()
+      requireInitialized()
 
-      const { current, saved } = requireInitialized()
-      const changedIds = applyDocumentChanges(current, changes)
-
-      reconcileDirtyRecords(current, saved, dirtyRecordIds, changedIds)
-
-      if (phase === 'saving') {
-        for (const id of changedIds) {
-          changedDuringSave.add(id)
-        }
-      }
+      ledger.apply(changes)
 
       if (phase === 'save-failed') {
         phase = 'ready'
       }
     },
 
-    beginSave(snapshot) {
+    beginSave() {
       assertNotClosed()
       requireInitialized()
 
@@ -175,28 +144,17 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       }
 
       /*
-       * Explicit save is a valid full-snapshot boundary.
-       *
-       * The save ticket owns an immutable checkpoint. The mutable current
-       * checkpoint is cloned so edits arriving while Native persistence is in
-       * progress cannot mutate the ticket.
+       * The caller serialises the document as it stands right now, so right
+       * now is the pending save point. Opening the window is O(1); the
+       * previous implementation captured a snapshot, built two full record
+       * Maps from it and structurally compared the whole document.
        */
-      const checkpoint = createDocumentCheckpoint(snapshot)
+      ledger.openSaveWindow()
 
-      currentCheckpoint = cloneDocumentCheckpoint(checkpoint)
-
-      if (savedCheckpoint) {
-        rebuildDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds)
-      }
-
-      const ticket: DocumentSaveTicket = {
-        id: nextSaveId,
-        checkpoint,
-      }
+      const ticket: DocumentSaveTicket = { id: nextSaveId }
 
       nextSaveId += 1
       activeSave = ticket
-      changedDuringSave.clear()
       phase = 'saving'
 
       return ticket
@@ -206,36 +164,20 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       assertNotClosed()
       requireActiveTicket(ticket)
 
-      savedCheckpoint = ticket.checkpoint
+      ledger.commitSaveWindow()
+
       documentId = nextDocumentId
       activeSave = null
       phase = 'ready'
-
-      /*
-       * Edits may have arrived while persistence was running.
-       *
-       * beginSave set currentCheckpoint to a copy of the ticket checkpoint, so
-       * the two were structurally identical at that point, and Native has now
-       * accepted that ticket checkpoint as saved. The only records that can
-       * still be dirty are therefore exactly those reported while the save was
-       * in flight. When none arrived, the document is clean by construction
-       * and no comparison is needed at all.
-       */
-      if (changedDuringSave.size === 0) {
-        dirtyRecordIds.clear()
-      } else if (currentCheckpoint) {
-        reconcileDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds, changedDuringSave)
-      }
-
-      changedDuringSave.clear()
     },
 
     failSave(ticket) {
       assertNotClosed()
       requireActiveTicket(ticket)
 
+      ledger.discardSaveWindow()
+
       activeSave = null
-      changedDuringSave.clear()
       phase = 'save-failed'
     },
 
@@ -276,7 +218,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
     },
 
     isInitialized() {
-      return currentCheckpoint !== null && savedCheckpoint !== null
+      return initialized
     },
 
     isDirty,

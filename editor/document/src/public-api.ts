@@ -21,10 +21,10 @@ export {
 } from './application/canvas-document-service'
 
 export {
-  checkpointsEqual,
-  createDocumentCheckpoint,
-  type DocumentCheckpoint,
-} from './domain/document-checkpoint'
+  createDocumentDirtyLedger,
+  type DocumentDirtyLedger,
+  type DocumentRecordChanges,
+} from './domain/document-dirty-ledger'
 
 export {
   createDocumentSession,
