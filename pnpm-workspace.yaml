@@ -34,10 +34,6 @@ catalog:
   typescript: "7.0.2"
   uuid: "14.0.1"
 
-  ai: "6.0.28"
-  "@ai-sdk/react": "3.0.28"
-  "@ai-sdk/openai": "3.0.20"
-
   valibot: "1.4.2"
   vite: "8.1.4"
   vitest: "4.1.10"
@@ -46,6 +42,13 @@ catalog:
   "@tldraw/sync-core": "5.2.5"
   "@tldraw/tlschema": "5.2.5"
   "@tldraw/validate": "5.2.5"
+
+  # Agent activity feed
+  "@tanstack/react-virtual": "3.13.12"
+  "streamdown": "1.6.1"
+  "@streamdown/code": "1.6.1"
+  "@streamdown/math": "1.6.1"
+  "@streamdown/cjk": "1.6.1"
 
 catalogs:
   tauri:

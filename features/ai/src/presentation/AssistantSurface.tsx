@@ -2,9 +2,12 @@ import './assistant-composer.css'
 
 import { useId, useState } from 'react'
 
+import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
+import { TimelineItemPreview } from './TimelineItemPreview'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { MODEL_MARKS } from './primitives/model-icons'
+import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
 import { useAssistantSession } from '../application/useAssistantSession'
 import {
   ASSISTANT_MODELS,
@@ -24,6 +27,7 @@ export interface AssistantSurfaceProps {
  */
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })
+  const rows = selectFeedRows(session.timeline)
   const [modelId, setModelId] = useState(DEFAULT_ASSISTANT_MODEL_ID)
 
   const columnId = `${useId()}-column`
@@ -38,6 +42,14 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
 
           <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
         </header>
+
+        {rows.length > 0 ? (
+          <AgentActivityFeed
+            isBusy={selectIsBusy(session.timeline)}
+            renderRow={(row) => <TimelineItemPreview row={row} />}
+            rows={rows}
+          />
+        ) : null}
 
         <AssistantComposer
           agentLabel="Super Computer"
