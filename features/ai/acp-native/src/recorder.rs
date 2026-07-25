@@ -26,6 +26,9 @@ pub const RUN_FINISHED: &str = "run_finished";
 /// Log kind for a run that ended in a failure.
 pub const RUN_FAILED: &str = "run_failed";
 
+/// The stop reason for a turn the user stopped, as the interface spells it.
+const CANCELLED: &str = "cancelled";
+
 /// A frame that is already durable and is now safe to forward.
 ///
 /// `frame` is exactly what the interface consumes, and exactly what was
@@ -140,6 +143,21 @@ impl Recorder {
             RUN_FINISHED,
             json!({ "stopReason": stop_reason }),
             stop_reason,
+        );
+        self.remember(outcome);
+    }
+
+    /// Records that the user stopped the run.
+    ///
+    /// The frame is a normal end of turn carrying the protocol's own cancelled
+    /// stop reason, because that is what the interface validates. The run row
+    /// is marked cancelled rather than finished, because that is what happened.
+    pub fn record_run_cancelled(&mut self) {
+        let outcome = self.finish(
+            RunStatus::Cancelled,
+            RUN_FINISHED,
+            json!({ "stopReason": CANCELLED }),
+            CANCELLED,
         );
         self.remember(outcome);
     }

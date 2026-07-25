@@ -53,3 +53,32 @@ The interface requires a permission title that the protocol leaves optional. It
 is resolved from the request, then from the projected tool call, and only then
 from the identifier. A refusal that selects the agent's own refusal option is
 reported as a selection; only an unanswered turn is a cancellation.
+
+## A session outlives a turn
+
+The agent process is started once and the session is created once. Prompts,
+cancellation and shutdown arrive afterwards as commands on a channel, which
+is what makes the conversation multi-turn: the agent keeps its context
+between turns because the connection was never torn down.
+
+That creates two different lifetimes. The protocol handlers are installed on
+the connection and live as long as it does. A recorder exists only for the
+run it records, and there are many runs per session. They meet through a
+slot: a turn installs its recorder, the handlers write to whatever is
+installed, and the turn takes it back to close the run out. An update that
+arrives between turns is dropped rather than attributed to the run that
+happened to come before it, and a second prompt sent during a turn is
+refused rather than interleaved onto the same log.
+
+Cancellation uses the SDK's own mechanism instead of a message of our own:
+dropping the in-flight request handle makes the SDK send the protocol-level
+cancellation notification. Cancellation is cooperative, so the agent may
+still finish normally; the turn's answer reports which of the two happened.
+A cancelled turn is recorded as an ordinary end of turn carrying the
+protocol's cancelled stop reason, because that is what the interface
+validates, while the run row is marked cancelled, because that is what
+happened.
+
+The crate spawns nothing itself. Connecting hands back a future and the
+composition root decides which executor runs it, which is why no async
+runtime appears in this crate's dependencies.
