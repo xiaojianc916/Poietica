@@ -26,3 +26,5 @@ export {
   type WorkspaceSurfaceViewModel,
   type WorkspaceTabViewModel,
 } from './workbench-contract'
+
+export type { WorkspaceSurfaceRenderers } from './surface-contract'

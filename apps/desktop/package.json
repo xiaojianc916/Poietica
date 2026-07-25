@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@hybrid-canvas/canvas": "workspace:*",
+    "@hybrid-canvas/ai": "workspace:*",
     "@hybrid-canvas/design-system": "workspace:*",
     "@hybrid-canvas/document": "workspace:*",
     "@hybrid-canvas/foundations-kernel": "workspace:*",

@@ -1,16 +1,9 @@
-import {
-  Box,
-  ChartNetwork,
-  ChartNoAxesCombined,
-  FolderTwo,
-  Grid,
-  Image,
-  LayersThree,
-  Search,
-} from '@mynaui/icons-react'
+import { Box, ChartNetwork, FolderTwo, Grid, Image, LayersThree, Search } from '@mynaui/icons-react'
 import type { ComponentType } from 'react'
 
+import type { WorkspaceSurfaceRenderers } from '../../contracts/surface-contract'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
 interface WorkspaceSurfaceDefinition {
   readonly title: string
@@ -49,10 +42,10 @@ const SURFACES: Record<WorkspaceSurfaceId, WorkspaceSurfaceDefinition> = {
     description: '管理为编辑器提供能力的扩展。',
     icon: Box,
   },
-  data: {
-    title: '自动化',
-    description: '创建和管理可执行的画布自动化流程。',
-    icon: ChartNoAxesCombined,
+  ai: {
+    title: 'AI',
+    description: '与 AI 协作生成、整理并驱动画布内容。',
+    icon: AiSurfaceIcon,
   },
   documents: {
     title: '恢复',
@@ -63,9 +56,22 @@ const SURFACES: Record<WorkspaceSurfaceId, WorkspaceSurfaceDefinition> = {
 
 export interface WorkspaceSurfaceProps {
   readonly surfaceId: WorkspaceSurfaceId
+
+  /**
+   * 由 apps 组合根注入的表面渲染器。
+   *
+   * workspace 不得依赖任何 feature 包；具体表面（如 AI）通过此扩展点接入。
+   */
+  readonly renderers?: WorkspaceSurfaceRenderers
 }
 
-export function WorkspaceSurface({ surfaceId }: WorkspaceSurfaceProps) {
+export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps) {
+  const render = renderers?.[surfaceId]
+
+  if (render) {
+    return <>{render()}</>
+  }
+
   const definition = SURFACES[surfaceId]
   const Icon = definition.icon
 

@@ -10,7 +10,7 @@ export type WorkspaceSurfaceId =
   | 'search'
   | 'layers'
   | 'relations'
-  | 'data'
+  | 'ai'
   | 'assets'
   | 'extensions'
 

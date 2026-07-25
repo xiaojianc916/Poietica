@@ -19,7 +19,7 @@ const SURFACE_TITLES: Record<WorkspaceSurfaceId, string> = {
   search: '搜索',
   layers: '图层',
   relations: '关系',
-  data: '自动化',
+  ai: 'AI',
   assets: '素材',
   extensions: '插件',
 }

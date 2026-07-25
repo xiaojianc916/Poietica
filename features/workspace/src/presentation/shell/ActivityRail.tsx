@@ -15,7 +15,6 @@ import {
   BookOpen,
   Box,
   ChartNetwork,
-  ChartNoAxesCombined,
   Code,
   Cog,
   ExternalLink,
@@ -29,6 +28,8 @@ import {
 } from '@mynaui/icons-react'
 import type { ComponentType } from 'react'
 
+import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
+
 type NavigationIcon = ComponentType<{
   className?: string
   'aria-hidden'?: boolean | 'true' | 'false'
@@ -40,7 +41,7 @@ export type CanvasNavigationItemId =
   | 'search'
   | 'layers'
   | 'relations'
-  | 'data'
+  | 'ai'
   | 'assets'
   | 'extensions'
 
@@ -89,9 +90,9 @@ const DEFAULT_NAVIGATION: readonly CanvasNavigationItem[] = [
     icon: Box,
   },
   {
-    id: 'data',
-    label: '自动化',
-    icon: ChartNoAxesCombined,
+    id: 'ai',
+    label: 'AI',
+    icon: AiSurfaceIcon,
   },
   {
     id: 'documents',

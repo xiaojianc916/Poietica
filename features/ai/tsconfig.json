@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/workspace.tsbuildinfo",
+    "paths": {
+      "@hybrid-canvas/design-system": ["../../foundations/design-system/src/public-api.ts"],
+      "@hybrid-canvas/kernel": ["../../foundations/kernel/src/public-api.ts"],
+      "@hybrid-canvas/geometry": ["../../foundations/geometry/src/public-api.ts"],
+      "@hybrid-canvas/foundations-observability": [
+        "../../foundations/observability/src/public-api.ts"
+      ],
+      "@hybrid-canvas/canvas": ["../../editor/core/src/public-api.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
+}

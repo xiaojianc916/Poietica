@@ -2,7 +2,6 @@ import { Button, cn, ScrollArea } from '@hybrid-canvas/design-system'
 import {
   Box,
   ChartNetwork,
-  ChartNoAxesCombined,
   FileText,
   FolderTwo,
   Grid,
@@ -13,6 +12,7 @@ import {
 } from '@mynaui/icons-react'
 import type { CanvasPageViewModel } from '../../contracts/shell-contract'
 import type { CanvasNavigationItemId } from './ActivityRail'
+import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
 export interface WorkspaceSidebarProps {
   readonly activeNavigationItem: CanvasNavigationItemId
@@ -110,10 +110,10 @@ const PANEL_DETAILS: Record<
     description: '连接画布中的内容，建立可视化关系。',
     icon: ChartNetwork,
   },
-  data: {
-    title: '自动化',
-    description: '把重复操作和流程编排成可执行的自动化。',
-    icon: ChartNoAxesCombined,
+  ai: {
+    title: 'AI',
+    description: '与 AI 协作生成、整理并驱动画布内容。',
+    icon: AiSurfaceIcon,
   },
   assets: { title: '素材', description: '集中管理图片、附件和可复用素材。', icon: Image },
   extensions: { title: '插件', description: '探索能够增强画布工作流的扩展能力。', icon: Box },
