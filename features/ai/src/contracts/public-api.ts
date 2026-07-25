@@ -1,4 +1,23 @@
 export type {
+  AcpContentBlock,
+  AcpPlanEntry,
+  AcpPlanEntryPriority,
+  AcpPlanEntryStatus,
+  AcpSessionId,
+  AcpSessionNotification,
+  AcpSessionUpdate,
+  AcpStopReason,
+  AcpToolCallId,
+  AcpToolCallLocation,
+  AcpToolCallStatus,
+  AcpToolKind,
+} from './acp-session-contract'
+export type {
+  AgentPromptHandle,
+  AgentPromptRequest,
+  AgentSessionPort,
+} from './agent-session-port'
+export type {
   AgentCapability,
   AgentDefinition,
   AgentId,
@@ -19,4 +38,22 @@ export type {
   AssistantRole,
   AssistantStatus,
 } from './conversation-contract'
-export type { AssistantTransportPort } from './transport-contract'
+export type {
+  PermissionOption,
+  RunEvent,
+  RunId,
+  RunStatus,
+  ThreadId,
+} from './run-contract'
+export type {
+  AgentTextItem,
+  AgentThoughtItem,
+  ErrorItem,
+  PermissionItem,
+  PlanItem,
+  TimelineItem,
+  TimelineItemId,
+  TimelineState,
+  ToolCallTimelineItem,
+  UserMessageItem,
+} from './timeline-contract'

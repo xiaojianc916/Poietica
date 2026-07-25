@@ -1,5 +1,6 @@
-export {
-  type AssistantSession,
-  type AssistantSessionOptions,
-  useAssistantSession,
+export { useAssistantSession } from './useAssistantSession'
+export type {
+  AssistantSession,
+  AssistantSessionOptions,
+  AssistantSubmission,
 } from './useAssistantSession'

@@ -36,10 +36,11 @@
   },
   "dependencies": {
     "@ai-sdk/react": "catalog:",
-    "@poietica/foundations-design-system": "workspace:*",
     "@mynaui/icons-react": "catalog:",
+    "@poietica/foundations-design-system": "workspace:*",
     "ai": "catalog:",
-    "motion": "catalog:"
+    "motion": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

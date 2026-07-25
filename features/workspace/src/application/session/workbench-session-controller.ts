@@ -61,6 +61,25 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       listener()
     }
   }
+  /**
+   * The start tab is the canvas surface's empty state, not a permanent fixture.
+   * Opening a canvas — or any workspace surface — turns that placeholder into
+   * the thing that was opened, in the very slot it occupied, so the strip never
+   * carries a stale empty tab beside a real one.
+   */
+  function openEntry(entry: WorkbenchEntry): void {
+    const placeholder = entries.findIndex((candidate) => candidate.kind === 'start')
+
+    if (placeholder < 0) {
+      insertToActiveRight(entry)
+      return
+    }
+
+    entries = entries.map((candidate, index) => (index === placeholder ? entry : candidate))
+
+    activeTabId = entry.id
+    emit()
+  }
 
   function insertToActiveRight(entry: WorkbenchEntry): void {
     const activeIndex = entries.findIndex((candidate) => candidate.id === activeTabId)
@@ -87,7 +106,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
-    insertToActiveRight({
+    openEntry({
       id: `canvas:${sessionId}`,
       kind: 'canvas',
       title: request.title,
@@ -107,7 +126,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
-    insertToActiveRight({
+    openEntry({
       id: tabId,
       kind: 'workspace',
       title: request.title,
@@ -169,7 +188,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
-    const minimumIndex = 1
+    const minimumIndex = entries.some((candidate) => candidate.kind === 'start') ? 1 : 0
     const maximumIndex = entries.length - 1
     const boundedTarget = Math.max(minimumIndex, Math.min(maximumIndex, targetIndex))
 
@@ -344,7 +363,7 @@ function assertInvariants(snapshot: WorkbenchViewModel): void {
 
   const startTab = snapshot.tabs.find((tab) => tab.id === START_TAB_ID)
 
-  if (startTab?.kind !== 'start' || startTab.canClose) {
+  if (startTab && (startTab.kind !== 'start' || startTab.canClose)) {
     throw new Error('WORKBENCH_INVALID_START_TAB')
   }
 

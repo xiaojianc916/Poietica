@@ -297,6 +297,9 @@ importers:
       motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
