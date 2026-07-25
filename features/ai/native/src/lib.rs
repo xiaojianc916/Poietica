@@ -9,9 +9,11 @@ mod connection;
 mod error;
 mod key;
 mod migrations;
+mod projections;
 mod store;
 
 pub use connection::{open_encrypted, DEFAULT_BUSY_TIMEOUT};
 pub use error::{Result, StoreError};
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
+pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};
 pub use store::{AiStore, RunStatus, StoredEvent};

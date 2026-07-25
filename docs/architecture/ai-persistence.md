@@ -50,3 +50,25 @@ seconds for the lock.
 The message, plan and attachment projections are deliberately absent. They are
 derived from ACP updates, and their shape should follow the client that
 produces them rather than be guessed ahead of it.
+
+## Tool call and permission projections
+
+`tool_calls` and `permissions` are projections. They are written from the
+same code path that appends to `run_events`, never independently of it, so
+they can be dropped and rebuilt by replaying the log.
+
+Three rules follow from the fact that the source of those writes is a stream
+that may repeat itself:
+
+- An announcement that arrives twice folds into the existing row. The protocol
+  permits an agent to describe the same call more than once while its input is
+  still streaming in.
+- An update that arrives before the announcement it belongs to matches no row.
+  The write reports that instead of inventing one, because only the caller
+  knows whether that is a recoverable ordering artefact or a real fault.
+- An answer to a permission request only lands while the request is still
+  outstanding. This is what stops a late click from overwriting a
+  cancellation.
+
+The end timestamp is written by exactly one decision, `ToolCallStatus::is_terminal`,
+so completed and failed calls can never disagree about whether they finished.

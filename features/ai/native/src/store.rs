@@ -56,10 +56,10 @@ pub struct StoredEvent {
 /// simpler and safer than reconciling interleaved sequence numbers later.
 #[derive(Debug)]
 pub struct AiStore {
-    connection: Connection,
+    pub(crate) connection: Connection,
 }
 
-fn now() -> Result<String> {
+pub(crate) fn now() -> Result<String> {
     Ok(OffsetDateTime::now_utc().format(&Rfc3339)?)
 }
 
