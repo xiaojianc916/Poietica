@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo, useRef } from 'react'
 import {
   ArrowShapeArrowheadEndStyle,
   ArrowShapeArrowheadStartStyle,
@@ -58,6 +58,61 @@ interface SelectionCapabilities {
   readonly canOpenEmbedLink: boolean
   readonly canConvertEmbedToBookmark: boolean
   readonly canConvertBookmarkToEmbed: boolean
+}
+
+type SelectionLockState = 'locked' | 'unlocked' | 'mixed'
+
+interface SelectionInspectorSnapshot {
+  readonly title: string
+  readonly isCroppingImage: boolean
+  readonly selectionLockState: SelectionLockState
+  readonly selectionCapabilities: SelectionCapabilities
+}
+
+const selectionCapabilityKeys = [
+  'canAlign',
+  'canDistribute',
+  'canStretch',
+  'canStack',
+  'canPack',
+  'canArrange',
+  'canEnableTextAutoSize',
+  'canEditLink',
+  'canManageFrame',
+  'canReplaceImage',
+  'canReplaceVideo',
+  'canDownloadImage',
+  'canDownloadVideo',
+  'canCropImage',
+  'canToggleLock',
+  'canReorder',
+  'canGroup',
+  'canUngroup',
+  'canRotate',
+  'canFrame',
+  'canDuplicate',
+  'canDelete',
+  'canFlip',
+  'canOpenEmbedLink',
+  'canConvertEmbedToBookmark',
+  'canConvertBookmarkToEmbed',
+] as const satisfies readonly (keyof SelectionCapabilities)[]
+
+function selectionInspectorSnapshotsEqual(
+  left: SelectionInspectorSnapshot,
+  right: SelectionInspectorSnapshot,
+): boolean {
+  if (
+    left.title !== right.title ||
+    left.isCroppingImage !== right.isCroppingImage ||
+    left.selectionLockState !== right.selectionLockState
+  ) {
+    return false
+  }
+
+  return selectionCapabilityKeys.every(
+    (key) => left.selectionCapabilities[key] === right.selectionCapabilities[key],
+  )
 }
 
 export interface PropertiesInspectorContentProps {
@@ -346,185 +401,217 @@ export function PropertiesInspectorContent({
 }: PropertiesInspectorContentProps) {
   const editor = useEditor()
 
-  const title = useValue('right properties sidebar title', () => {
-    const selected = editor.getSelectedShapes()
+  const previousSnapshotRef = useRef<SelectionInspectorSnapshot | null>(null)
 
-    if (selected.length > 1) {
-      return `${String(selected.length)} 个对象`
-    }
+  const { title, isCroppingImage, selectionLockState, selectionCapabilities } =
+    useValue<SelectionInspectorSnapshot>(
+      'right properties sidebar selection view model',
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: all selection facts are derived from one consistent editor snapshot and one shape-util pass
+      () => {
+        const selected = editor.getSelectedShapes()
+        const selectedCount = selected.length
+        const hasSelection = selectedCount > 0
+        const readonly = editor.getIsReadonly()
 
-    if (selected.length === 1) {
-      return getShapeTitle(selected[0]?.type)
-    }
+        let lockedCount = 0
 
-    return getToolTitle(editor.getCurrentToolId())
-  }, [editor])
+        for (const shape of selected) {
+          if (shape.isLocked) {
+            lockedCount += 1
+          }
+        }
 
-  const isCroppingImage = useValue(
-    'right properties sidebar image crop state',
-    () => editor.isIn('select.crop.'),
-    [editor],
-  )
+        const allUnlocked = hasSelection && lockedCount === 0
 
-  const selectionLockState = useValue('right properties sidebar selection lock state', () => {
-    const selected = editor.getSelectedShapes()
+        const selectionLockState: SelectionLockState =
+          lockedCount === 0 ? 'unlocked' : lockedCount === selectedCount ? 'locked' : 'mixed'
 
-    if (selected.length === 0) {
-      return 'unlocked'
-    }
+        let canAlign = !readonly && allUnlocked && selectedCount >= 2
+        let canDistribute = !readonly && allUnlocked && selectedCount >= 3
+        let canStretch = !readonly && allUnlocked && selectedCount >= 2
+        let canStack = !readonly && allUnlocked && selectedCount >= 2
+        let canPack = !readonly && allUnlocked && selectedCount >= 2
+        let canFlip = !readonly && allUnlocked
+        let allRotatable = allUnlocked
+        let canEnableTextAutoSize = false
 
-    const lockedCount = selected.filter((shape) => shape.isLocked).length
+        /*
+         * Evaluate all layout capabilities in one selection pass.
+         *
+         * The previous implementation traversed the complete selection once for
+         * every operation type and repeatedly resolved the same ShapeUtil.
+         */
+        for (const shape of selected) {
+          const shapeUtil = editor.getShapeUtil(shape)
 
-    if (lockedCount === 0) {
-      return 'unlocked'
-    }
+          if (
+            canAlign &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'align',
+              shapes: selected,
+            })
+          ) {
+            canAlign = false
+          }
 
-    if (lockedCount === selected.length) {
-      return 'locked'
-    }
+          if (
+            canDistribute &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'distribute',
+              shapes: selected,
+            })
+          ) {
+            canDistribute = false
+          }
 
-    return 'mixed'
-  }, [editor])
+          if (
+            canStretch &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'stretch',
+              shapes: selected,
+            })
+          ) {
+            canStretch = false
+          }
 
-  const selectionCapabilities = useValue<SelectionCapabilities>(
-    'right properties sidebar selection capabilities',
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 选择能力必须从同一个编辑器快照集中计算，避免拆分后产生状态不一致
-    () => {
-      const selected = editor.getSelectedShapes()
+          if (
+            canStack &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'stack',
+              shapes: selected,
+            })
+          ) {
+            canStack = false
+          }
 
-      const readonly = editor.getIsReadonly()
+          if (
+            canPack &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'pack',
+              shapes: selected,
+            })
+          ) {
+            canPack = false
+          }
 
-      const hasSelection = selected.length > 0
+          if (
+            canFlip &&
+            !shapeUtil.canBeLaidOut(shape, {
+              type: 'flip',
+              shapes: selected,
+            })
+          ) {
+            canFlip = false
+          }
 
-      const allUnlocked = hasSelection && selected.every((shape) => !shape.isLocked)
+          if (allRotatable && shapeUtil.hideRotateHandle(shape)) {
+            allRotatable = false
+          }
 
-      /*
-       * 多选操作采用 all-or-nothing。
-       *
-       * 不再过滤 locked 或 unsupported 对象后，
-       * 静默地只处理选择中的一部分。
-       */
-      const everyCanLayout = (
-        type: 'align' | 'distribute' | 'stretch' | 'stack' | 'pack' | 'flip',
-      ) =>
-        allUnlocked &&
-        selected.every((shape) =>
-          editor.getShapeUtil(shape).canBeLaidOut(shape, {
-            type,
-            shapes: selected,
-          }),
-        )
+          if (
+            !canEnableTextAutoSize &&
+            editor.isShapeOfType(shape, 'text') &&
+            shape.props.autoSize === false
+          ) {
+            canEnableTextAutoSize = true
+          }
+        }
 
-      const canAlign = !readonly && selected.length >= 2 && everyCanLayout('align')
+        canEnableTextAutoSize = !readonly && allUnlocked && canEnableTextAutoSize
 
-      const canDistribute = !readonly && selected.length >= 3 && everyCanLayout('distribute')
+        const onlySelected = selectedCount === 1 ? (selected[0] ?? null) : null
+        const onlySelectedIsUnlocked = onlySelected !== null && !onlySelected.isLocked
+        const onlySelectedIsFrameLike =
+          onlySelected !== null && editor.isShapeFrameLike(onlySelected)
+        const onlySelectedIsImage =
+          onlySelected !== null && editor.isShapeOfType(onlySelected, 'image')
+        const onlySelectedIsVideo =
+          onlySelected !== null && editor.isShapeOfType(onlySelected, 'video')
+        const onlySelectedIsEmbed =
+          onlySelected !== null && editor.isShapeOfType(onlySelected, 'embed')
+        const onlySelectedIsBookmark =
+          onlySelected !== null && editor.isShapeOfType(onlySelected, 'bookmark')
 
-      const canStretch = !readonly && selected.length >= 2 && everyCanLayout('stretch')
+        const onlySelectedHasUrl =
+          onlySelected !== null &&
+          'url' in onlySelected.props &&
+          typeof onlySelected.props.url === 'string' &&
+          onlySelected.props.url.length > 0
 
-      const canStack = !readonly && selected.length >= 2 && everyCanLayout('stack')
+        const onlySelectedHasMediaAsset =
+          onlySelected !== null &&
+          'assetId' in onlySelected.props &&
+          onlySelected.props.assetId !== null &&
+          onlySelected.props.assetId !== undefined
 
-      const canPack = !readonly && selected.length >= 2 && everyCanLayout('pack')
+        const canCropImage =
+          !readonly &&
+          onlySelectedIsUnlocked &&
+          onlySelectedIsImage &&
+          editor.canCropShape(onlySelected)
 
-      const canFlip = !readonly && hasSelection && everyCanLayout('flip')
+        const selectionCapabilities: SelectionCapabilities = {
+          canAlign,
+          canDistribute,
+          canStretch,
+          canStack,
+          canPack,
+          canFlip,
+          canArrange: canAlign || canDistribute || canStretch || canStack || canPack || canFlip,
+          canEnableTextAutoSize,
+          canEditLink: !readonly && onlySelectedIsUnlocked && onlySelectedHasUrl,
+          canOpenEmbedLink: onlySelectedIsEmbed && onlySelectedHasUrl,
+          canConvertEmbedToBookmark:
+            !readonly && onlySelectedIsUnlocked && onlySelectedIsEmbed && onlySelectedHasUrl,
+          canConvertBookmarkToEmbed:
+            !readonly && onlySelectedIsUnlocked && onlySelectedIsBookmark && onlySelectedHasUrl,
+          canManageFrame: !readonly && onlySelectedIsUnlocked && onlySelectedIsFrameLike,
+          canReplaceImage: !readonly && onlySelectedIsUnlocked && onlySelectedIsImage,
+          canReplaceVideo: !readonly && onlySelectedIsUnlocked && onlySelectedIsVideo,
+          canDownloadImage: onlySelectedIsImage && onlySelectedHasMediaAsset,
+          canDownloadVideo: onlySelectedIsVideo && onlySelectedHasMediaAsset,
+          canCropImage,
+          canToggleLock: !readonly && hasSelection,
+          canReorder: !readonly && allUnlocked,
+          canGroup: !readonly && allUnlocked && selectedCount >= 2,
+          canUngroup: !readonly && onlySelectedIsUnlocked && onlySelected?.type === 'group',
+          canRotate: !readonly && hasSelection && allRotatable,
+          canFrame: !readonly && allUnlocked && selectedCount >= 2,
+          canDuplicate: !readonly && hasSelection,
+          canDelete: !readonly && allUnlocked,
+        }
 
-      const allRotatable =
-        allUnlocked &&
-        selected.every((shape) => !editor.getShapeUtil(shape).hideRotateHandle(shape))
+        const title =
+          selectedCount > 1
+            ? String(selectedCount) + ' 个对象'
+            : selectedCount === 1
+              ? getShapeTitle(onlySelected?.type)
+              : getToolTitle(editor.getCurrentToolId())
 
-      const canEnableTextAutoSize =
-        !readonly &&
-        allUnlocked &&
-        selected.some(
-          (shape) => editor.isShapeOfType(shape, 'text') && shape.props.autoSize === false,
-        )
+        const nextSnapshot: SelectionInspectorSnapshot = {
+          title,
+          isCroppingImage: editor.isIn('select.crop.'),
+          selectionLockState,
+          selectionCapabilities,
+        }
 
-      const onlySelected = editor.getOnlySelectedShape()
+        const previousSnapshot = previousSnapshotRef.current
 
-      const onlySelectedIsUnlocked = onlySelected !== null && !onlySelected.isLocked
+        /*
+         * tldraw may recompute this value while selected records move. Reuse the
+         * previous object when all UI-visible values are unchanged so React does
+         * not rerender the complete inspector for position-only transactions.
+         */
+        if (previousSnapshot && selectionInspectorSnapshotsEqual(previousSnapshot, nextSnapshot)) {
+          return previousSnapshot
+        }
 
-      const onlySelectedIsFrameLike = onlySelected ? editor.isShapeFrameLike(onlySelected) : false
+        previousSnapshotRef.current = nextSnapshot
 
-      const onlySelectedIsImage = onlySelected ? editor.isShapeOfType(onlySelected, 'image') : false
-
-      const onlySelectedIsVideo = onlySelected ? editor.isShapeOfType(onlySelected, 'video') : false
-
-      const onlySelectedIsEmbed = onlySelected ? editor.isShapeOfType(onlySelected, 'embed') : false
-
-      const onlySelectedIsBookmark = onlySelected
-        ? editor.isShapeOfType(onlySelected, 'bookmark')
-        : false
-
-      const onlySelectedHasUrl =
-        onlySelected !== null &&
-        'url' in onlySelected.props &&
-        typeof onlySelected.props.url === 'string' &&
-        onlySelected.props.url.length > 0
-
-      const onlySelectedHasMediaAsset =
-        onlySelected !== null &&
-        'assetId' in onlySelected.props &&
-        onlySelected.props.assetId !== null &&
-        onlySelected.props.assetId !== undefined
-
-      const canCropImage =
-        !readonly &&
-        onlySelectedIsUnlocked &&
-        onlySelectedIsImage &&
-        editor.canCropShape(onlySelected)
-
-      return {
-        canAlign,
-        canDistribute,
-        canStretch,
-        canStack,
-        canPack,
-        canFlip,
-
-        canArrange: canAlign || canDistribute || canStretch || canStack || canPack || canFlip,
-
-        canEnableTextAutoSize,
-
-        canEditLink: !readonly && onlySelectedIsUnlocked && onlySelectedHasUrl,
-
-        canOpenEmbedLink: onlySelectedIsEmbed && onlySelectedHasUrl,
-
-        canConvertEmbedToBookmark:
-          !readonly && onlySelectedIsUnlocked && onlySelectedIsEmbed && onlySelectedHasUrl,
-
-        canConvertBookmarkToEmbed:
-          !readonly && onlySelectedIsUnlocked && onlySelectedIsBookmark && onlySelectedHasUrl,
-
-        canManageFrame: !readonly && onlySelectedIsUnlocked && onlySelectedIsFrameLike,
-
-        canReplaceImage: !readonly && onlySelectedIsUnlocked && onlySelectedIsImage,
-
-        canReplaceVideo: !readonly && onlySelectedIsUnlocked && onlySelectedIsVideo,
-
-        canDownloadImage: onlySelectedIsImage && onlySelectedHasMediaAsset,
-
-        canDownloadVideo: onlySelectedIsVideo && onlySelectedHasMediaAsset,
-
-        canCropImage,
-
-        canToggleLock: !readonly && hasSelection,
-
-        canReorder: !readonly && allUnlocked,
-
-        canGroup: !readonly && allUnlocked && selected.length >= 2,
-
-        canUngroup: !readonly && onlySelectedIsUnlocked && onlySelected?.type === 'group',
-
-        canRotate: !readonly && hasSelection && allRotatable,
-
-        canFrame: !readonly && allUnlocked && selected.length >= 2,
-
-        canDuplicate: !readonly && hasSelection,
-
-        canDelete: !readonly && allUnlocked,
-      }
-    },
-    [editor],
-  )
+        return nextSnapshot
+      },
+      [editor],
+    )
 
   return (
     <div className="hc-properties-sidebar__panel">
@@ -776,7 +863,7 @@ function ColorControl({ value }: { readonly value: SharedStyle<TLDefaultColorSty
     [editor],
   )
 
-  const items = getColorStyleItems(colors)
+  const items = useMemo(() => getColorStyleItems(colors), [colors])
 
   return (
     <fieldset
