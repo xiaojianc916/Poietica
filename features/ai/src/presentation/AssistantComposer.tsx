@@ -64,9 +64,7 @@ export function AssistantComposer({
   /* Ctrl/⌘+U is advertised in the menu, so it has to actually work. */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'u') {
-        return
-      }
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'u') return
 
       const picker = document
         .getElementById(cardId)
@@ -97,9 +95,7 @@ export function AssistantComposer({
   const focusEditor = (event: MouseEvent<HTMLFormElement>) => {
     const target = event.target as HTMLElement
 
-    if (target.closest('button, a, input, textarea, [role="option"], [role="menuitem"]')) {
-      return
-    }
+    if (target.closest('button, a, input, textarea, [role="option"], [role="menuitem"]')) return
 
     const editor = document.getElementById(editorId) as HTMLTextAreaElement | null
 
@@ -119,9 +115,7 @@ export function AssistantComposer({
       onSubmit={(message) => {
         const trimmed = message.text.trim()
 
-        if (trimmed.length === 0 && message.files.length === 0) {
-          return
-        }
+        if (trimmed.length === 0 && message.files.length === 0) return
 
         onSubmit({ text: trimmed, files: message.files })
         setText('')

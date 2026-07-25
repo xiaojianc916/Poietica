@@ -1,9 +1,6 @@
 import { useEffect } from 'react'
 
-/**
- * Reads a duration token from computed style so timing stays a design
- * decision expressed in composer-metrics.css.
- */
+/** Reads a duration token so timing stays a design decision in CSS. */
 const durationOf = (element: Element, token: string, fallback: number): number => {
   const raw = getComputedStyle(element).getPropertyValue(token).trim()
 
@@ -19,9 +16,8 @@ const durationOf = (element: Element, token: string, fallback: number): number =
  * The stylesheet remains the only owner of the editor's height: this hook
  * merely replays the previous box for one beat (`fill: 'none'`, nothing
  * committed) so the new height is arrived at rather than jumped to. The
- * surrounding column is centred, so a growing editor would also shove the
- * masthead upwards — the counter-translate cancels that shove and lets it
- * resolve over the same beat.
+ * column is centred, so a growing editor would also shove the masthead
+ * upwards — the counter-translate absorbs that shove over the same beat.
  */
 export function useFluidResize(editorId: string, columnId?: string): void {
   useEffect(() => {
@@ -53,10 +49,7 @@ export function useFluidResize(editorId: string, columnId?: string): void {
         return
       }
 
-      /* Our own animation resizes the editor; ignore those frames. */
-      if (playing || reduced.matches || Math.abs(delta) < 1) {
-        return
-      }
+      if (playing || reduced.matches || Math.abs(delta) < 1) return
 
       const duration = durationOf(editor, '--cp-motion-grow', 240)
       const easing =
@@ -71,11 +64,7 @@ export function useFluidResize(editorId: string, columnId?: string): void {
 
       column?.animate(
         [{ transform: `translateY(${delta / -2}px)` }, { transform: 'translateY(0)' }],
-        {
-          duration,
-          easing,
-          fill: 'none',
-        },
+        { duration, easing, fill: 'none' },
       )
 
       const release = () => {

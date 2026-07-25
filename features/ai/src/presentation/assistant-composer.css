@@ -15,8 +15,6 @@
   white-space: nowrap;
 }
 
-/* ── surface & grid ──────────────────────────────────── */
-
 .assistant-surface {
   display: flex;
   block-size: 100%;
@@ -43,7 +41,6 @@
   gap: var(--cp-mast-gap);
 }
 
-/* The mark is the selected provider's own artwork; it swaps in, not blinks. */
 .assistant-masthead__mark {
   display: block;
   block-size: var(--cp-mark);
@@ -69,8 +66,6 @@
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-
-/* ── the card IS the input ───────────────────────────── */
 
 [data-slot="prompt-input"] {
   display: flex;
@@ -107,11 +102,6 @@
   appearance: none;
 }
 
-/*
- * Height has one owner. `field-sizing: content` grows the editor between the
- * idle and maximum line counts; the resize hook only replays the previous box
- * for one beat and never persists a height.
- */
 [data-slot="prompt-input-textarea"] {
   display: block;
   inline-size: 100%;
@@ -138,8 +128,6 @@
 [data-slot="prompt-input-textarea"]::placeholder {
   color: var(--cp-placeholder);
 }
-
-/* ── toolbar ─────────────────────────────────────────── */
 
 [data-slot="prompt-input-toolbar"] {
   display: flex;
@@ -226,8 +214,6 @@
   color: var(--cp-accent);
 }
 
-/* ── submit ──────────────────────────────────────────── */
-
 [data-slot="prompt-input-submit"] {
   display: inline-grid;
   block-size: var(--cp-control);
@@ -278,8 +264,6 @@
   }
 }
 
-/* ── popovers share one entrance ─────────────────────── */
-
 @keyframes assistant-menu-in {
   from {
     opacity: 0;
@@ -296,8 +280,6 @@
   animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
   transform-origin: bottom center;
 }
-
-/* ── model select ────────────────────────────────────── */
 
 .assistant-model-select {
   position: relative;
@@ -383,7 +365,6 @@
   flex: 1;
 }
 
-/* A dot, drawn by the skin — no icon dependency for a selection state. */
 .assistant-model-select__check {
   block-size: var(--cp-dot);
   inline-size: var(--cp-dot);
@@ -401,8 +382,6 @@
   opacity: 1;
   transform: none;
 }
-
-/* ── action menu ─────────────────────────────────────── */
 
 .assistant-action-menu {
   position: relative;
@@ -459,8 +438,6 @@
   margin-inline: var(--cp-optical);
   background: var(--cp-hairline);
 }
-
-/* ── attachments ─────────────────────────────────────── */
 
 [data-slot="prompt-input-attachments"] {
   display: flex;
@@ -522,8 +499,6 @@
   inline-size: var(--cp-icon-2xs);
 }
 
-/* ── quick actions ───────────────────────────────────── */
-
 .assistant-quick-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -570,8 +545,6 @@
   font-size: var(--cp-font-caption);
   color: var(--cp-ink-subtle);
 }
-
-/* ── conversation history ────────────────────────────── */
 
 .assistant-threads {
   display: flex;
@@ -708,8 +681,6 @@
   background: rgb(13 13 13 / 8%);
   color: var(--cp-ink);
 }
-
-/* ── motion is a courtesy, never a requirement ───────── */
 
 @media (prefers-reduced-motion: reduce) {
   [data-assistant-skin] *,
