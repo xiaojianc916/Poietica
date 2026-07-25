@@ -1,5 +1,5 @@
-import { createEditorSessionRegistry } from '@poietica/canvas/application'
-import { createCanvasDocumentService } from '@poietica/document'
+import { createEditorSessionRegistry } from '@poietica/editor-core/application'
+import { createCanvasDocumentService } from '@poietica/editor-document'
 import {
   createDesktopSettingsStore,
   createDocumentFileCommands,
@@ -12,8 +12,8 @@ import {
   type CommandRegistry,
   createCommandRegistry,
   createWorkbenchSessionController,
-} from '@poietica/workspace/application'
-import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
+} from '@poietica/features-workspace/application'
+import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'
 import {
   type ApplicationTerminationCoordinator,

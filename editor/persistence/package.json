@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/file",
+  "name": "@poietica/editor-persistence",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@poietica/asset": "workspace:*",
+    "@poietica/editor-assets": "workspace:*",
     "@poietica/foundations-kernel": "workspace:*",
     "valibot": "catalog:"
   },

@@ -1,4 +1,4 @@
-import { Button, cn, ScrollArea } from '@poietica/design-system'
+import { Button, cn, ScrollArea } from '@poietica/foundations-design-system'
 import {
   Box,
   ChartNetwork,

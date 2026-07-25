@@ -3,10 +3,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/document.tsbuildinfo",
     "paths": {
-      "@poietica/canvas": ["../core/src/public-api.ts"],
-      "@poietica/canvas/application": ["../core/src/application/public-api.ts"],
-      "@poietica/canvas/extensions": ["../core/src/extensions-public-api.ts"],
-      "@poietica/file": ["../persistence/src/public-api.ts"]
+      "@poietica/editor-core": ["../core/src/public-api.ts"],
+      "@poietica/editor-core/application": ["../core/src/application/public-api.ts"],
+      "@poietica/editor-core/extensions": ["../core/src/extensions-public-api.ts"],
+      "@poietica/editor-persistence": ["../persistence/src/public-api.ts"]
     }
   },
   "include": ["src/**/*.ts"]

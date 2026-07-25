@@ -1,4 +1,4 @@
-import { createDocumentSession } from '@poietica/document'
+import { createDocumentSession } from '@poietica/editor-document'
 import type { TLStoreSnapshot } from 'tldraw'
 import { describe, expect, it } from 'vitest'
 

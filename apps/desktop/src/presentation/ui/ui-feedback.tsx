@@ -1,5 +1,5 @@
 import type { FailureImpact } from '@poietica/foundations-kernel'
-import { type ToastNotice, ToastRegion } from '@poietica/design-system'
+import { type ToastNotice, ToastRegion } from '@poietica/foundations-design-system'
 import { useSyncExternalStore } from 'react'
 import {
   failureCoordinator,

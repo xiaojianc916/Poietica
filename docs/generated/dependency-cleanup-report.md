@@ -10,7 +10,7 @@
 
 | 依赖 | 引用位置 | 结论 |
 |---|---|---|
-| `@poietica/file` | 未发现 | 删除候选 |
+| `@poietica/editor-persistence` | 未发现 | 删除候选 |
 | `@poietica/flowchart` | `apps/desktop/src/bootstrap/application.ts` | 保留 |
 | `@poietica/foundations-observability` | `apps/desktop/src/bootstrap/ApplicationErrorBoundary.tsx`<br>`apps/desktop/src/bootstrap/application-lifecycle.ts`<br>`apps/desktop/src/presentation/boundaries/UiErrorBoundary.tsx`<br>`apps/desktop/src/presentation/ui/ui-feedback.tsx` | 保留 |
 | `@tauri-apps/api` | 未发现 | 删除候选 |

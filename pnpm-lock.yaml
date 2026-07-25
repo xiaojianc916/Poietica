@@ -105,18 +105,27 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@poietica/ai':
-        specifier: workspace:*
-        version: link:../../features/ai
-      '@poietica/canvas':
+      '@mynaui/icons-react':
+        specifier: 'catalog:'
+        version: 0.4.11(react@19.2.7)
+      '@poietica/editor-core':
         specifier: workspace:*
         version: link:../../editor/core
-      '@poietica/design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
-      '@poietica/document':
+      '@poietica/editor-document':
         specifier: workspace:*
         version: link:../../editor/document
+      '@poietica/features-ai':
+        specifier: workspace:*
+        version: link:../../features/ai
+      '@poietica/features-settings':
+        specifier: workspace:*
+        version: link:../../features/settings
+      '@poietica/features-workspace':
+        specifier: workspace:*
+        version: link:../../features/workspace
+      '@poietica/foundations-design-system':
+        specifier: workspace:*
+        version: link:../../foundations/design-system
       '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
@@ -126,15 +135,6 @@ importers:
       '@poietica/platforms-desktop-runtime':
         specifier: workspace:*
         version: link:../../platforms/desktop-runtime
-      '@poietica/settings':
-        specifier: workspace:*
-        version: link:../../features/settings
-      '@poietica/workspace':
-        specifier: workspace:*
-        version: link:../../features/workspace
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.7)
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -197,12 +197,12 @@ importers:
 
   editor/core:
     dependencies:
-      '@poietica/design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/foundations-design-system':
+        specifier: workspace:*
+        version: link:../../foundations/design-system
       '@tldraw/editor':
         specifier: 'catalog:'
         version: 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -228,10 +228,10 @@ importers:
 
   editor/document:
     dependencies:
-      '@poietica/canvas':
+      '@poietica/editor-core':
         specifier: workspace:*
         version: link:../core
-      '@poietica/file':
+      '@poietica/editor-persistence':
         specifier: workspace:*
         version: link:../persistence
     devDependencies:
@@ -263,7 +263,7 @@ importers:
 
   editor/persistence:
     dependencies:
-      '@poietica/asset':
+      '@poietica/editor-assets':
         specifier: workspace:*
         version: link:../assets
       '@poietica/foundations-kernel':
@@ -291,12 +291,12 @@ importers:
       '@ai-sdk/react':
         specifier: 'catalog:'
         version: 3.0.28(react@19.2.7)(zod@4.4.3)
-      '@poietica/design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/foundations-design-system':
+        specifier: workspace:*
+        version: link:../../foundations/design-system
       ai:
         specifier: 'catalog:'
         version: 6.0.28(zod@4.4.3)
@@ -325,7 +325,7 @@ importers:
 
   features/settings:
     dependencies:
-      '@poietica/design-system':
+      '@poietica/foundations-design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
       '@poietica/foundations-kernel':
@@ -359,12 +359,12 @@ importers:
 
   features/workspace:
     dependencies:
-      '@poietica/design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/foundations-design-system':
+        specifier: workspace:*
+        version: link:../../foundations/design-system
       motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -499,15 +499,15 @@ importers:
 
   platforms/desktop-runtime:
     dependencies:
-      '@poietica/desktop-ipc':
-        specifier: workspace:*
-        version: link:../desktop-ipc
-      '@poietica/file':
+      '@poietica/editor-persistence':
         specifier: workspace:*
         version: link:../../editor/persistence
-      '@poietica/settings':
+      '@poietica/features-settings':
         specifier: workspace:*
         version: link:../../features/settings
+      '@poietica/platforms-desktop-ipc':
+        specifier: workspace:*
+        version: link:../desktop-ipc
       '@tauri-apps/api':
         specifier: catalog:tauri
         version: 2.11.1
@@ -517,13 +517,13 @@ importers:
 
   tests:
     dependencies:
-      '@poietica/canvas':
+      '@poietica/editor-core':
         specifier: workspace:*
         version: link:../editor/core
-      '@poietica/document':
+      '@poietica/editor-document':
         specifier: workspace:*
         version: link:../editor/document
-      '@poietica/file':
+      '@poietica/editor-persistence':
         specifier: workspace:*
         version: link:../editor/persistence
     devDependencies:

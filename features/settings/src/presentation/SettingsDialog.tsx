@@ -11,7 +11,7 @@ import {
   type SelectOption,
   SelectTrigger,
   Switch,
-} from '@poietica/design-system'
+} from '@poietica/foundations-design-system'
 import { type ChangeEvent, memo, type ReactNode, useCallback, useId, useState } from 'react'
 import type { AppSettings, ThemeMode } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'

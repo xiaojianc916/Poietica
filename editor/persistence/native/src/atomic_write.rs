@@ -34,7 +34,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 
 #[cfg(not(any(unix, windows)))]
 compile_error!(
-    "poietica-file-native requires an audited atomic replacement implementation for this platform"
+    "poietica-editor-persistence-native requires an audited atomic replacement implementation for this platform"
 );
 
 const TEMPORARY_FILE_PREFIX: &str = ".poietica-";

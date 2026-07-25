@@ -2864,16 +2864,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-asset-native"
-version = "0.1.0"
-
-[[package]]
 name = "poietica-desktop"
 version = "0.1.0"
 dependencies = [
  "hex",
  "log",
- "poietica-file-native",
+ "poietica-editor-persistence-native",
  "serde",
  "serde_json",
  "sha2",
@@ -2903,15 +2899,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-desktop-runtime"
+name = "poietica-editor-assets-native"
 version = "0.1.0"
-dependencies = [
- "serde",
- "thiserror 1.0.69",
-]
 
 [[package]]
-name = "poietica-file-native"
+name = "poietica-editor-extensions-native"
+version = "0.1.0"
+
+[[package]]
+name = "poietica-editor-persistence-native"
 version = "0.1.0"
 dependencies = [
  "hex",
@@ -2924,8 +2920,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-plugin-native"
+name = "poietica-platforms-desktop-runtime-native"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "polling"

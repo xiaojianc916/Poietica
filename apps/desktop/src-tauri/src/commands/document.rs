@@ -1,6 +1,6 @@
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry};
 use crate::error::{Error, IpcError, Result};
-use poietica_file_native::{
+use poietica_editor_persistence_native::{
     DocumentRevision, DrawAssetInput, DrawDocumentInput, atomic_write, decode_draw_document,
     document_revision, encode_draw_document,
 };

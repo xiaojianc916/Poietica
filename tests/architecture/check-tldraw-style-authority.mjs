@@ -67,7 +67,7 @@ const appCssPath = path.join(repositoryRoot, 'apps/desktop/src/app.css')
 
 const appCss = await readFile(appCssPath, 'utf8')
 
-if (!appCss.includes('@import "@poietica/canvas/tldraw-adapter.css";')) {
+if (!appCss.includes('@import "@poietica/editor-core/tldraw-adapter.css";')) {
   violations.push('Desktop app must consume the Canvas package tldraw adapter export.')
 }
 

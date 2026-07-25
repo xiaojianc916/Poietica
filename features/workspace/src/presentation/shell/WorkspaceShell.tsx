@@ -1,4 +1,4 @@
-import { Button, TooltipProvider } from '@poietica/design-system'
+import { Button, TooltipProvider } from '@poietica/foundations-design-system'
 import { PanelLeftClose, PanelRightClose, PanelRightOpen } from '@mynaui/icons-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 

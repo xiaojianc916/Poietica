@@ -18,6 +18,11 @@ export interface AssistantSurfaceProps {
   readonly endpoint: string
 }
 
+/**
+ * The masthead, the composer and the quick actions are siblings in a single
+ * column whose width comes from --cp-grid, so their edges align by
+ * construction rather than by coincidence.
+ */
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })
   const [modelId, setModelId] = useState(MODELS[0].id)
@@ -27,6 +32,7 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
       <div className="assistant-surface__column">
         <header className="assistant-masthead">
           <AssistantMark className="assistant-masthead__mark" />
+
           <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
         </header>
 

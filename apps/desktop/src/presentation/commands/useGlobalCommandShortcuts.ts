@@ -1,4 +1,4 @@
-import type { CommandRegistry } from '@poietica/workspace/application'
+import type { CommandRegistry } from '@poietica/features-workspace/application'
 import { useEffect } from 'react'
 
 export interface CommandShortcutBinding {

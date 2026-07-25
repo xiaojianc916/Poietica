@@ -1,7 +1,7 @@
 {
-  "name": "@poietica/desktop-ipc",
+  "name": "@poietica/platforms-desktop-ipc",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "./src/public-api.ts",
   "types": "./src/public-api.ts",

@@ -1,5 +1,5 @@
-import type { EditorSession, EditorSessionRegistry } from '@poietica/canvas/application'
-import type { PoieticaExtension } from '@poietica/canvas/extensions'
+import type { EditorSession, EditorSessionRegistry } from '@poietica/editor-core/application'
+import type { PoieticaExtension } from '@poietica/editor-core/extensions'
 import type { TLStoreSnapshot } from 'tldraw'
 
 import {

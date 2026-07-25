@@ -1,7 +1,7 @@
-import { createAgentRegistry } from '@poietica/ai'
-import type { AssistantTransportPort } from '@poietica/ai'
-import { AssistantSurface } from '@poietica/ai/react'
-import type { WorkspaceSurfaceRenderers } from '@poietica/workspace/contracts'
+import { createAgentRegistry } from '@poietica/features-ai'
+import type { AssistantTransportPort } from '@poietica/features-ai'
+import { AssistantSurface } from '@poietica/features-ai/react'
+import type { WorkspaceSurfaceRenderers } from '@poietica/features-workspace/contracts'
 
 /**
  * 组合根：把 AI feature 接入 workspace 表面扩展点。

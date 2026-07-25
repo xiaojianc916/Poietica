@@ -10,10 +10,10 @@
     "cssVariables": true
   },
   "aliases": {
-    "components": "@poietica/design-system/components",
-    "utils": "@poietica/design-system/lib/utils",
-    "ui": "@poietica/design-system/components/ui",
-    "lib": "@poietica/design-system/lib",
-    "hooks": "@poietica/design-system/hooks"
+    "components": "@poietica/foundations-design-system/components",
+    "utils": "@poietica/foundations-design-system/lib/utils",
+    "ui": "@poietica/foundations-design-system/components/ui",
+    "lib": "@poietica/foundations-design-system/lib",
+    "hooks": "@poietica/foundations-design-system/hooks"
   }
 }

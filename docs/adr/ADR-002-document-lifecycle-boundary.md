@@ -22,7 +22,7 @@
 
 包名为：
 
-\`@poietica/document\`
+\`@poietica/editor-document\`
 
 该包拥有：
 

@@ -11,9 +11,9 @@
     "test:integration": "vitest run integration"
   },
   "dependencies": {
-    "@poietica/canvas": "workspace:*",
-    "@poietica/document": "workspace:*",
-    "@poietica/file": "workspace:*"
+    "@poietica/editor-core": "workspace:*",
+    "@poietica/editor-document": "workspace:*",
+    "@poietica/editor-persistence": "workspace:*"
   },
   "devDependencies": {
     "@tldraw/tlschema": "catalog:",

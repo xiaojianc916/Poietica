@@ -1,6 +1,6 @@
-import { AssistantThreadList } from '@poietica/ai/react'
-import type { AssistantThreadSummary } from '@poietica/ai/react'
-import type { WorkspacePanelRenderers } from '@poietica/workspace/contracts'
+import { AssistantThreadList } from '@poietica/features-ai/react'
+import type { AssistantThreadSummary } from '@poietica/features-ai/react'
+import type { WorkspacePanelRenderers } from '@poietica/features-workspace/contracts'
 import { useState } from 'react'
 
 /*

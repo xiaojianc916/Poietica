@@ -55,9 +55,8 @@ export function AssistantComposer({
   const activeModel = models.find((model) => model.id === modelId)?.label ?? modelId
 
   /*
-   * There is no wrapper element: the card is the <form> itself, so the click
-   * target and the visible border are the same box. Presses that land on a
-   * control are left alone so buttons and the model list keep working.
+   * The card is the <form> itself, so the click target and the visible border
+   * are the same box. Presses that land on a control are left alone.
    */
   const focusEditor = (event: MouseEvent<HTMLFormElement>) => {
     const target = event.target as HTMLElement

@@ -2,7 +2,7 @@ import {
   createEditorSessionRegistry,
   type EditorAssetStoreSessionFactory,
   PersistedSnapshotLoadError,
-} from '@poietica/canvas/application'
+} from '@poietica/editor-core/application'
 import type { TLAssetStore, TLStoreSnapshot } from 'tldraw'
 import { describe, expect, it, vi } from 'vitest'
 

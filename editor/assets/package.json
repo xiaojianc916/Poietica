@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/asset",
+  "name": "@poietica/editor-assets",
   "version": "0.1.0",
   "private": true,
   "type": "module",

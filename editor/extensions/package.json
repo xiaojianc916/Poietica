@@ -1,5 +1,5 @@
 ﻿{
-  "name": "@poietica/plugin",
+  "name": "@poietica/editor-extensions",
   "version": "0.1.0",
   "private": true,
   "type": "module",

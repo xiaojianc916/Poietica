@@ -10,7 +10,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@poietica/design-system'
+} from '@poietica/foundations-design-system'
 import {
   BookOpen,
   Box,

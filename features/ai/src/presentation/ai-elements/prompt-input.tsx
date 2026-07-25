@@ -283,16 +283,15 @@ export function PromptInputTextarea({
 }: ComponentProps<'textarea'>) {
   const { registerTextarea, requestSubmit } = usePromptInputContext()
 
+  /*
+   * Growth is owned by the stylesheet (`field-sizing: content` between the
+   * idle and maximum line counts). Writing an inline height here would outrank
+   * the sheet and put two mechanisms in charge of one dimension.
+   */
   return (
     <textarea
       className={className}
       data-slot="prompt-input-textarea"
-      onInput={(event) => {
-        const element = event.currentTarget
-
-        element.style.height = 'auto'
-        element.style.height = `${String(element.scrollHeight)}px`
-      }}
       onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
         onKeyDown?.(event)
 
@@ -302,7 +301,6 @@ export function PromptInputTextarea({
         }
       }}
       ref={registerTextarea}
-      rows={1}
       {...props}
     />
   )

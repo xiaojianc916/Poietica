@@ -4,11 +4,11 @@
     "jsx": "react-jsx",
     "tsBuildInfoFile": "./node_modules/.cache/typescript/workspace.tsbuildinfo",
     "paths": {
-      "@poietica/design-system": ["../../foundations/design-system/src/public-api.ts"],
+      "@poietica/foundations-design-system": ["../../foundations/design-system/src/public-api.ts"],
       "@poietica/kernel": ["../../foundations/kernel/src/public-api.ts"],
       "@poietica/geometry": ["../../foundations/geometry/src/public-api.ts"],
       "@poietica/foundations-observability": ["../../foundations/observability/src/public-api.ts"],
-      "@poietica/canvas": ["../../editor/core/src/public-api.ts"]
+      "@poietica/editor-core": ["../../editor/core/src/public-api.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]

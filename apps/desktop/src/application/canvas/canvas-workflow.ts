@@ -1,4 +1,4 @@
-import type { EditorSession } from '@poietica/canvas/application'
+import type { EditorSession } from '@poietica/editor-core/application'
 import type {
   CanvasCloseIntent,
   CanvasCloseSnapshot,
@@ -7,8 +7,8 @@ import type {
   CanvasReleaseResult,
   CanvasSessionId,
   CanvasSessionSnapshot,
-} from '@poietica/document'
-import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
+} from '@poietica/editor-document'
+import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 
 /**
  * Application termination has exactly one asynchronous boundary:

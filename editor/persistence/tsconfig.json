@@ -5,7 +5,7 @@
     "paths": {
       "@poietica/kernel": ["../../foundations/kernel/src/public-api.ts"],
       "@poietica/foundations-observability": ["../../foundations/observability/src/public-api.ts"],
-      "@poietica/asset": ["../assets/src/public-api.ts"]
+      "@poietica/editor-assets": ["../assets/src/public-api.ts"]
     }
   },
   "include": ["src/**/*.ts"]

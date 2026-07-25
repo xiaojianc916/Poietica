@@ -13,9 +13,9 @@
     "lint": "echo 'lint ok'"
   },
   "dependencies": {
-    "@poietica/desktop-ipc": "workspace:*",
-    "@poietica/file": "workspace:*",
-    "@poietica/settings": "workspace:*",
+    "@poietica/platforms-desktop-ipc": "workspace:*",
+    "@poietica/editor-persistence": "workspace:*",
+    "@poietica/features-settings": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",
     "tldraw": "catalog:"
   }

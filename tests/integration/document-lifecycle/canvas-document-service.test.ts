@@ -1,5 +1,5 @@
-import type { EditorDocumentEvent, EditorSession } from '@poietica/canvas/application'
-import { createCanvasDocumentService } from '@poietica/document'
+import type { EditorDocumentEvent, EditorSession } from '@poietica/editor-core/application'
+import { createCanvasDocumentService } from '@poietica/editor-document'
 import { createTLStore, type TLStoreSnapshot } from 'tldraw'
 import { describe, expect, it, vi } from 'vitest'
 

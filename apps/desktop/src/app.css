@@ -1,7 +1,7 @@
 @import "tldraw/tldraw.css";
-@import "@poietica/design-system/styles.css";
+@import "@poietica/foundations-design-system/styles.css";
 @import "tailwindcss" source("../../../");
-@import "@poietica/canvas/tldraw-adapter.css";
+@import "@poietica/editor-core/tldraw-adapter.css";
 
 /*
  * Desktop platform tokens.

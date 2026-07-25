@@ -2,7 +2,7 @@ import type {
   CanvasDocumentLifecycleSnapshot,
   CanvasDocumentService,
   CanvasReleaseResult,
-} from '@poietica/document'
+} from '@poietica/editor-document'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createCanvasWorkflow } from './canvas-workflow'

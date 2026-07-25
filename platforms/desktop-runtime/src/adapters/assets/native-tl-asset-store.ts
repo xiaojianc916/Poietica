@@ -1,11 +1,11 @@
-import { IpcInvocationError, isIpcError } from '@poietica/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@poietica/platforms-desktop-ipc'
 import {
   type AssetRemoveRequest,
   type AssetSessionCloseRequest,
   type AssetUploadRequest,
   type AssetUploadResult,
   commands,
-} from '@poietica/desktop-ipc/generated/ipc-bindings'
+} from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { TLAsset, TLAssetId, TLAssetStore } from 'tldraw'
 

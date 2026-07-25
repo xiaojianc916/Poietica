@@ -1,8 +1,8 @@
-import { IpcInvocationError, isIpcError } from '@poietica/desktop-ipc'
+import { IpcInvocationError, isIpcError } from '@poietica/platforms-desktop-ipc'
 import {
   commands,
   type NativeCrashReport as GeneratedNativeCrashReport,
-} from '@poietica/desktop-ipc/generated/ipc-bindings'
+} from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 
 /**
  * Native crash report generated from the Rust IPC contract.

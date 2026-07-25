@@ -1,5 +1,5 @@
 [package]
-name = "poietica-asset-native"
+name = "poietica-editor-assets-native"
 version = "0.1.0"
 edition = "2021"
 license.workspace = true

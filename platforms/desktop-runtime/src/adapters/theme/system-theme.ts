@@ -1,4 +1,4 @@
-import { invoke } from '@poietica/desktop-ipc'
+import { invoke } from '@poietica/platforms-desktop-ipc'
 
 export interface SystemTheme {
   getTheme(): Promise<'light' | 'dark' | 'system'>

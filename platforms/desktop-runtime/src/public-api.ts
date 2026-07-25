@@ -1,4 +1,4 @@
-export type { SettingsStore } from '@poietica/settings'
+export type { SettingsStore } from '@poietica/features-settings'
 export {
   createNativeTLAssetStoreSession,
   type NativeAssetStoreSessionRestore,

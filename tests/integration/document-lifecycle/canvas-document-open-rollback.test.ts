@@ -1,4 +1,4 @@
-import { createCanvasDocumentService } from '@poietica/document'
+import { createCanvasDocumentService } from '@poietica/editor-document'
 import { describe, expect, it, vi } from 'vitest'
 
 const VALID_STORE_SNAPSHOT = JSON.stringify({

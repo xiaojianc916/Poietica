@@ -1,30 +1,30 @@
-import type { EditorSession } from '@poietica/canvas/application'
+import type { EditorSession } from '@poietica/editor-core/application'
 import {
   CanvasInspectorRightSidebar,
   CanvasTransformStatus,
   type EditorSessionFailure,
   EditorSessionHost,
   useCanvasInspectorAvailability,
-} from '@poietica/canvas/react'
-import { ConfirmationDialog } from '@poietica/design-system'
+} from '@poietica/editor-core/react'
+import { ConfirmationDialog } from '@poietica/foundations-design-system'
 import type {
   CanvasCloseIntent,
   CanvasCloseSnapshot,
   CanvasSessionSnapshot,
-} from '@poietica/document'
+} from '@poietica/editor-document'
 import type {
   CanvasSessionId,
   WorkbenchSessionStore,
   WorkbenchTabViewModel,
   WorkbenchTabId,
   WorkspaceShellActions,
-} from '@poietica/workspace/contracts'
+} from '@poietica/features-workspace/contracts'
 import {
   NoCanvasSurface,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSurface,
-} from '@poietica/workspace/react'
+} from '@poietica/features-workspace/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
@@ -496,7 +496,7 @@ function persistenceStatesEqual(
 }
 
 interface ActiveSurfaceRendererProps {
-  readonly activeSurface: import('@poietica/workspace/contracts').WorkbenchSurfaceViewModel
+  readonly activeSurface: import('@poietica/features-workspace/contracts').WorkbenchSurfaceViewModel
   readonly activeSessionId: CanvasSessionId | null
   readonly hostedSessions: readonly {
     readonly sessionId: CanvasSessionId

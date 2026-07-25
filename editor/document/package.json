@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/document",
+  "name": "@poietica/editor-document",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,8 @@
     "clean": "rimraf .turbo *.tsbuildinfo"
   },
   "dependencies": {
-    "@poietica/canvas": "workspace:*",
-    "@poietica/file": "workspace:*"
+    "@poietica/editor-core": "workspace:*",
+    "@poietica/editor-persistence": "workspace:*"
   },
   "devDependencies": {
     "tldraw": "catalog:",

@@ -1,4 +1,4 @@
-import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/design-system'
+import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/foundations-design-system'
 import { Command } from '@mynaui/icons-react'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { CommandRegistry } from '../../application/public-api'

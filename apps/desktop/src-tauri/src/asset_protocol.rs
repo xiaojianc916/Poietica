@@ -554,7 +554,7 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 ///
 /// SVG's exclusion, and the reason for it, now live with the list.
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
-    if poietica_file_native::is_supported_asset_content_type(content_type) {
+    if poietica_editor_persistence_native::is_supported_asset_content_type(content_type) {
         return Ok(());
     }
 

@@ -219,8 +219,8 @@ impl Serialize for Error {
     }
 }
 
-impl From<poietica_file_native::Error> for Error {
-    fn from(error: poietica_file_native::Error) -> Self {
+impl From<poietica_editor_persistence_native::Error> for Error {
+    fn from(error: poietica_editor_persistence_native::Error) -> Self {
         Self::Persistence(error.to_string())
     }
 }
