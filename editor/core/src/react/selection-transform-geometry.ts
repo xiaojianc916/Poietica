@@ -70,6 +70,47 @@ export interface CommitSelectionTransformOptions {
 const EPSILON = 0.000001
 export const MINIMUM_SELECTION_SIZE = 0.01
 
+/*
+ * Field-wise equality for a selection snapshot.
+ *
+ * A snapshot is a value: thirteen numbers, booleans and nulls, all readonly.
+ * But deriveSelectionGeometry hands it out as a fresh object on every
+ * recomputation, so any consumer that compares by reference - which is what a
+ * signal does - observes a change on every editor tick that invalidates a
+ * derivation this module reads, even when nothing in the value moved. This
+ * function is the value-equality half that the type always implied.
+ *
+ * Both operands are produced by the single object literal in
+ * deriveSelectionGeometry, so they always carry the same key set and
+ * iterating one of them is exhaustive. That is deliberate. A hand-written
+ * chain of field comparisons goes stale the day someone adds a field to the
+ * interface, and a stale equality here does not merely lose an optimisation -
+ * it reports "unchanged" for a value that changed, and the status bar shows a
+ * number that is no longer true. react-redux takes exactly this position in
+ * shallowEqual, for exactly this reason.
+ *
+ * Object.keys allocates one small array per call. That is paid once per
+ * recomputation and buys the removal of a full React render of the status
+ * bar, so the trade is not close.
+ *
+ * Object.is rather than ===, so that a NaN rotation does not compare unequal
+ * to itself and force a render on every single frame.
+ */
+export function selectionTransformSnapshotsEqual(
+  left: SelectionTransformSnapshot,
+  right: SelectionTransformSnapshot,
+): boolean {
+  const keys = Object.keys(left) as (keyof SelectionTransformSnapshot)[]
+
+  for (const key of keys) {
+    if (!Object.is(left[key], right[key])) {
+      return false
+    }
+  }
+
+  return true
+}
+
 export function getSelectionTransformSnapshot(editor: Editor): SelectionTransformSnapshot | null {
   return deriveSelectionGeometry(editor)?.snapshot ?? null
 }

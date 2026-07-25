@@ -9,6 +9,7 @@ import {
   MINIMUM_SELECTION_SIZE,
   type SelectionTransformField,
   type SelectionTransformSnapshot,
+  selectionTransformSnapshotsEqual,
 } from './selection-transform-geometry'
 
 const TRANSFORM_FIELDS: readonly SelectionTransformField[] = [
@@ -30,13 +31,7 @@ export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProp
 
   const [userAspectRatioLocked, setUserAspectRatioLocked] = useState(false)
 
-  const snapshot = useValue('canvas transform status', () => {
-    if (!editor) {
-      return null
-    }
-
-    return getSelectionTransformSnapshot(editor)
-  }, [editor])
+  const snapshot = useSelectionTransformSnapshot(editor)
 
   if (!canvasTitle && !snapshot) {
     return null
@@ -205,6 +200,57 @@ export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProp
       ) : null}
     </>
   )
+}
+
+/*
+ * Gives the status bar a snapshot with value identity.
+ *
+ * getSelectionTransformSnapshot allocates a new object on every
+ * recomputation, and useValue decides whether to re-render by comparing the
+ * computed result against the previous one by reference. The two facts
+ * multiply: every editor change that invalidates a derivation the geometry
+ * module reads - dragging a shape that is not even selected, an edit on
+ * another page, any document tick at all - produced a new object, failed the
+ * reference check, and re-rendered this entire subtree. That subtree is the
+ * selection count, three group fieldsets, five transform fields (each one
+ * formatting its number again and running its value-mirroring effect again),
+ * four dividers and the aspect-ratio button, all to paint pixels that were
+ * already on screen.
+ *
+ * Returning the previous object whenever the new one is field-equal means the
+ * signal observes no change and React does no work at all, which is strictly
+ * better than making the render cheap.
+ *
+ * The cache lives in a ref rather than inside the computation because the
+ * computation has to remain, from the signal graph's point of view, a pure
+ * function of the editor. The ref only ever holds a value equal to the one
+ * just returned, so a recomputation that the graph discards cannot leave it
+ * stale: the worst case is that the next call finds an equal value and
+ * returns it, which is the correct answer anyway.
+ */
+function useSelectionTransformSnapshot(
+  editor: ReturnType<typeof useEditor>,
+): SelectionTransformSnapshot | null {
+  const previousRef = useRef<SelectionTransformSnapshot | null>(null)
+
+  return useValue('canvas transform status', () => {
+    if (!editor) {
+      previousRef.current = null
+
+      return null
+    }
+
+    const next = getSelectionTransformSnapshot(editor)
+    const previous = previousRef.current
+
+    if (previous !== null && next !== null && selectionTransformSnapshotsEqual(previous, next)) {
+      return previous
+    }
+
+    previousRef.current = next
+
+    return next
+  }, [editor])
 }
 
 function SelectionCount({ count }: { readonly count: number }) {
