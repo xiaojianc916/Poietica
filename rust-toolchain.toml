@@ -1,13 +1,18 @@
-# The toolchain every build of this repository uses.
+# Resolved by rustup for every cargo invocation inside this workspace.
 #
-# Pinned rather than tracking stable, so a compiler upgrade is a reviewed
-# change instead of a surprise. rustup installs this automatically.
+# The channel is "stable" rather than an exact version on purpose. Pinning an
+# exact version makes rustup provision a second toolchain directory even when
+# the identical compiler build is already installed under "stable", and that
+# download comes from static.rust-lang.org, which no cargo registry mirror
+# covers.
 #
-# The floor is Rust 1.95: libsqlite3-sys builds with the cfg_select! macro,
-# which stabilised there, and an older compiler fails inside that dependency's
-# build script with an error that points nowhere useful.
+# The genuine lower bound lives in Cargo.toml as
+# [workspace.package] rust-version = "1.95". Cargo enforces it natively and
+# reports a readable error, which is what we want: the alternative is an
+# opaque "cannot find macro cfg_select" failure from the libsqlite3-sys build
+# script, whose real cause is an out-of-date compiler.
 
 [toolchain]
-channel = "1.97.1"
+channel = "stable"
 components = ["clippy", "rustfmt"]
 profile = "minimal"
