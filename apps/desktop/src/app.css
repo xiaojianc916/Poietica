@@ -96,3 +96,70 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* fatal-error-icon-actions */
+.fatal-icon-button {
+  display: inline-grid;
+  width: var(--ui-control-height-md);
+  height: var(--ui-control-height-md);
+  place-items: center;
+  border: var(--ui-region-divider-width) solid var(--color-divider);
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  background: var(--window-backing-surface);
+  color: var(--color-foreground);
+  cursor: pointer;
+  transition:
+    color var(--ui-duration-fast) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    border-color var(--ui-duration-fast) var(--ui-ease-standard),
+    transform var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.fatal-icon-button:hover {
+  background: var(--desktop-window-control-hover);
+}
+
+.fatal-icon-button:active {
+  background: var(--desktop-window-control-active);
+  transform: scale(0.96);
+}
+
+.fatal-icon-button:focus-visible {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
+.fatal-icon-button-primary {
+  background: var(--color-foreground);
+  color: var(--window-backing-surface);
+}
+
+.fatal-icon-button-primary:hover {
+  background: color-mix(in srgb, var(--color-foreground) 88%, var(--window-backing-surface));
+}
+
+.fatal-icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.fatal-details,
+.fatal-diagnostic {
+  background: var(--window-backing-surface);
+}
+
+.fatal-diagnostic {
+  scrollbar-color: color-mix(in srgb, var(--color-foreground) 32%, transparent)
+    var(--window-backing-surface);
+}
+
+.fatal-diagnostic::-webkit-scrollbar-track {
+  background: var(--window-backing-surface);
+}
+
+.fatal-diagnostic::-webkit-scrollbar-thumb {
+  border: 3px solid var(--window-backing-surface);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-foreground) 32%, transparent);
+}
