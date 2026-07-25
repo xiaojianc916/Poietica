@@ -27,4 +27,4 @@ export {
   type WorkspaceTabViewModel,
 } from './workbench-contract'
 
-export type { WorkspaceSurfaceRenderers } from './surface-contract'
+export type { WorkspacePanelRenderers, WorkspaceSurfaceRenderers } from './surface-contract'

@@ -4,7 +4,7 @@ import { GlobeIcon, PlusIcon, SearchIcon } from './primitives/icons'
 
 interface QuickAction {
   readonly id: string
-  readonly icon: ComponentType<{ readonly className?: string; readonly 'aria-hidden'?: 'true' }>
+  readonly icon: ComponentType<{ readonly className?: string }>
   readonly title: string
   readonly subtitle: string
 }
@@ -32,9 +32,7 @@ export function AssistantQuickActions({
           type="button"
         >
           <Icon aria-hidden="true" className="assistant-tile__icon" />
-
           <span className="assistant-tile__title">{title}</span>
-
           <span className="assistant-tile__subtitle">{subtitle}</span>
         </button>
       ))}

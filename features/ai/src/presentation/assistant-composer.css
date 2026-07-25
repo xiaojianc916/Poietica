@@ -398,3 +398,270 @@
     transform: rotate(360deg);
   }
 }
+
+/* ── raised surface ── */
+
+[data-assistant-skin] {
+  --as-brand: #16c65a;
+
+  /* four-layer raised surface, tuned as one system */
+  --as-edge-top: rgb(13 13 13 / 8%);
+  --as-edge-bottom: rgb(13 13 13 / 16%);
+  --as-gloss: inset 0 1px 0 rgb(255 255 255 / 90%);
+  --as-lift-near: 0 1px 2px rgb(16 24 40 / 6%);
+  --as-lift-far: 0 10px 28px -14px rgb(16 24 40 / 20%);
+}
+
+[data-assistant-skin] .assistant-masthead__mark {
+  block-size: 30px;
+  inline-size: 30px;
+  color: var(--as-brand);
+}
+
+/*
+ * The composer reads as a physical slab: lighter top edge, heavier bottom
+ * edge, a hairline gloss along the top inside, and two shadow tiers whose
+ * blur radii sit an order of magnitude apart.
+ */
+[data-assistant-skin] [data-slot="prompt-input"] {
+  border: 1px solid var(--as-edge-top);
+  border-bottom-color: var(--as-edge-bottom);
+  border-bottom-width: 1.5px;
+  box-shadow:
+    var(--as-gloss),
+    inset 0 -1px 0 rgb(13 13 13 / 4%),
+    var(--as-lift-near),
+    var(--as-lift-far);
+  transition:
+    box-shadow 140ms cubic-bezier(0.2, 0, 0.1, 1),
+    border-color 140ms cubic-bezier(0.2, 0, 0.1, 1),
+    transform 140ms cubic-bezier(0.2, 0, 0.1, 1);
+}
+
+[data-assistant-skin] [data-slot="prompt-input"]:hover {
+  box-shadow:
+    var(--as-gloss),
+    inset 0 -1px 0 rgb(13 13 13 / 5%),
+    0 1px 2px rgb(16 24 40 / 7%),
+    0 12px 30px -14px rgb(16 24 40 / 24%);
+}
+
+/* focus sinks the slab instead of recolouring it */
+[data-assistant-skin] [data-slot="prompt-input"]:focus-within {
+  border-color: rgb(13 13 13 / 12%);
+  border-bottom-color: rgb(13 13 13 / 22%);
+  transform: translateY(0.5px);
+  box-shadow:
+    var(--as-gloss),
+    inset 0 -1px 0 rgb(13 13 13 / 6%),
+    0 1px 2px rgb(16 24 40 / 8%),
+    0 14px 34px -16px rgb(16 24 40 / 26%),
+    0 0 0 3px rgb(10 132 255 / 10%);
+}
+
+/* ── model select ── */
+
+[data-assistant-skin] .assistant-model-select {
+  position: relative;
+  display: inline-flex;
+}
+
+[data-assistant-skin] .assistant-model-select__trigger {
+  display: inline-flex;
+  block-size: 32px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 9999px;
+  padding-inline: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--as-ink);
+}
+
+[data-assistant-skin] .assistant-model-select__trigger:hover {
+  background: var(--as-hover);
+}
+
+[data-assistant-skin] .assistant-model-select__mark {
+  block-size: 16px;
+  inline-size: 16px;
+  color: #f2601f;
+}
+
+[data-assistant-skin] .assistant-model-select__chevron {
+  block-size: 16px;
+  inline-size: 16px;
+  color: #8e8e93;
+}
+
+[data-assistant-skin] .assistant-model-select__content {
+  position: absolute;
+  inset-block-end: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 20;
+  display: flex;
+  min-inline-size: 168px;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--as-hairline);
+  border-radius: 12px;
+  padding: 6px;
+  background: #fff;
+  box-shadow: var(--as-lift-far);
+}
+
+[data-assistant-skin] .assistant-model-select__item {
+  display: flex;
+  block-size: 34px;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  padding-inline: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--as-ink);
+  text-align: start;
+}
+
+[data-assistant-skin] .assistant-model-select__item:hover,
+[data-assistant-skin] .assistant-model-select__item[aria-selected="true"] {
+  background: var(--as-hover);
+}
+
+/* ── conversation history ── */
+
+.assistant-threads {
+  display: flex;
+  block-size: 100%;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 12px 8px;
+}
+
+.assistant-threads__header {
+  display: flex;
+  block-size: 28px;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 8px;
+}
+
+.assistant-threads__caption {
+  font-size: 12px;
+  color: var(--as-ink-subtle);
+}
+
+.assistant-threads__create {
+  display: inline-flex;
+  block-size: 22px;
+  inline-size: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--as-ink-muted);
+}
+
+.assistant-threads__create:hover {
+  background: var(--as-hover);
+}
+
+.assistant-threads__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-thread {
+  position: relative;
+  display: flex;
+  block-size: 32px;
+  align-items: center;
+  border-radius: 8px;
+  padding-inline: 8px;
+}
+
+.assistant-thread:hover,
+.assistant-thread[data-active="true"] {
+  background: rgb(13 13 13 / 5%);
+}
+
+.assistant-thread[data-muted="true"] {
+  opacity: 0.45;
+}
+
+.assistant-thread__open {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.assistant-thread__icon {
+  block-size: 15px;
+  inline-size: 15px;
+  flex: none;
+  color: var(--as-ink-muted);
+}
+
+.assistant-thread__title {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--as-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-thread__time {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  color: var(--as-ink-subtle);
+}
+
+.assistant-thread:hover .assistant-thread__time {
+  visibility: hidden;
+}
+
+.assistant-thread__actions {
+  position: absolute;
+  inset-inline-end: 6px;
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.assistant-thread:hover .assistant-thread__actions {
+  display: flex;
+}
+
+.assistant-thread__action {
+  display: inline-flex;
+  block-size: 22px;
+  inline-size: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--as-ink-muted);
+}
+
+.assistant-thread__action svg {
+  block-size: 15px;
+  inline-size: 15px;
+}
+
+.assistant-thread__action:hover {
+  background: rgb(13 13 13 / 8%);
+  color: var(--as-ink);
+}

@@ -10,17 +10,30 @@ import {
   PromptInputAttachments,
   PromptInputBody,
   PromptInputButton,
+  PromptInputModelSelect,
+  PromptInputModelSelectContent,
+  PromptInputModelSelectItem,
+  PromptInputModelSelectTrigger,
+  PromptInputModelSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
 } from './ai-elements/prompt-input'
 import type { ChatStatus } from './ai-elements/prompt-input'
-import { AgentIcon, MicIcon, PaperclipIcon, ToolsIcon } from './primitives/icons'
+import { AgentIcon, AttachIcon, MicIcon, ModelIcon, ToolsIcon } from './primitives/icons'
+
+export interface AssistantModelOption {
+  readonly id: string
+  readonly label: string
+}
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
   readonly isAgentNew?: boolean
+  readonly models: readonly AssistantModelOption[]
+  readonly modelId: string
+  readonly onModelChange: (modelId: string) => void
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
@@ -29,11 +42,15 @@ export interface AssistantComposerProps {
 export function AssistantComposer({
   agentLabel,
   isAgentNew = false,
+  models,
+  modelId,
+  onModelChange,
   placeholder = '问我任何问题…',
   status = 'ready',
   onSubmit,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
+  const activeModel = models.find((model) => model.id === modelId)?.label ?? modelId
 
   return (
     <PromptInput
@@ -41,11 +58,7 @@ export function AssistantComposer({
       multiple
       onSubmit={(message) => {
         const trimmed = message.text.trim()
-
-        if (trimmed.length === 0 && message.files.length === 0) {
-          return
-        }
-
+        if (trimmed.length === 0 && message.files.length === 0) return
         onSubmit({ text: trimmed, files: message.files })
         setText('')
       }}
@@ -68,7 +81,7 @@ export function AssistantComposer({
         <PromptInputTools>
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger className="assistant-control--round" title="添加内容">
-              <PaperclipIcon aria-hidden="true" />
+              <AttachIcon aria-hidden="true" />
             </PromptInputActionMenuTrigger>
 
             <PromptInputActionMenuContent>
@@ -82,14 +95,27 @@ export function AssistantComposer({
 
           <PromptInputButton className="assistant-agent-pill">
             <AgentIcon aria-hidden="true" />
-
             <span>{agentLabel}</span>
-
             {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
           </PromptInputButton>
         </PromptInputTools>
 
         <span className="assistant-toolbar__spacer" />
+
+        <PromptInputModelSelect onValueChange={onModelChange} value={activeModel}>
+          <PromptInputModelSelectTrigger>
+            <ModelIcon aria-hidden="true" className="assistant-model-select__mark" />
+            <PromptInputModelSelectValue />
+          </PromptInputModelSelectTrigger>
+
+          <PromptInputModelSelectContent>
+            {models.map((model) => (
+              <PromptInputModelSelectItem key={model.id} value={model.id}>
+                {model.label}
+              </PromptInputModelSelectItem>
+            ))}
+          </PromptInputModelSelectContent>
+        </PromptInputModelSelect>
 
         <PromptInputButton className="assistant-control--ghost" title="语音输入">
           <MicIcon aria-hidden="true" />

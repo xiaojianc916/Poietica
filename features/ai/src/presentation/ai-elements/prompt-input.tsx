@@ -10,7 +10,14 @@ import {
 } from 'react'
 import type { ComponentProps, FormEvent, KeyboardEvent, ReactNode } from 'react'
 
-import { ArrowUpIcon, CloseIcon, FileIcon, SpinnerIcon, StopIcon } from '../primitives/icons'
+import {
+  ChevronDownIcon,
+  CloseIcon,
+  FileIcon,
+  SpinnerIcon,
+  StopIcon,
+  SubmitIcon,
+} from '../primitives/icons'
 
 /*
  * Vendored AI Elements "prompt-input".
@@ -455,8 +462,7 @@ export function PromptInputSubmit({
   status = 'ready',
   ...props
 }: ComponentProps<'button'> & { readonly status?: ChatStatus }) {
-  const Icon =
-    status === 'streaming' ? StopIcon : status === 'submitted' ? SpinnerIcon : ArrowUpIcon
+  const Icon = status === 'streaming' ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
   return (
     <button
@@ -468,6 +474,130 @@ export function PromptInputSubmit({
       {...props}
     >
       <Icon aria-hidden="true" />
+    </button>
+  )
+}
+
+/* ── model select ─────────────────────────────────────────── */
+
+const ModelSelectContext = createContext<{
+  readonly open: boolean
+  readonly setOpen: (open: boolean) => void
+  readonly value: string
+  readonly onValueChange: (value: string) => void
+} | null>(null)
+
+function useModelSelect() {
+  const context = useContext(ModelSelectContext)
+  if (!context) throw new Error('PromptInputModelSelect sub-components require a provider.')
+  return context
+}
+
+export function PromptInputModelSelect({
+  children,
+  onValueChange,
+  value,
+}: {
+  readonly children: ReactNode
+  readonly value: string
+  readonly onValueChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [open])
+
+  const context = useMemo(
+    () => ({ open, setOpen, value, onValueChange }),
+    [onValueChange, open, value],
+  )
+
+  return (
+    <ModelSelectContext.Provider value={context}>
+      <div
+        className="assistant-model-select"
+        data-slot="prompt-input-model-select"
+        ref={containerRef}
+      >
+        {children}
+      </div>
+    </ModelSelectContext.Provider>
+  )
+}
+
+export function PromptInputModelSelectTrigger({ children }: { readonly children: ReactNode }) {
+  const { open, setOpen } = useModelSelect()
+
+  return (
+    <button
+      aria-expanded={open}
+      aria-haspopup="listbox"
+      className="assistant-model-select__trigger"
+      data-slot="prompt-input-model-select-trigger"
+      onClick={() => {
+        setOpen(!open)
+      }}
+      type="button"
+    >
+      {children}
+      <ChevronDownIcon aria-hidden="true" className="assistant-model-select__chevron" />
+    </button>
+  )
+}
+
+export function PromptInputModelSelectValue() {
+  const { value } = useModelSelect()
+  return <span data-slot="prompt-input-model-select-value">{value}</span>
+}
+
+export function PromptInputModelSelectContent({ children }: { readonly children: ReactNode }) {
+  const { open } = useModelSelect()
+  if (!open) return null
+
+  return (
+    <div
+      className="assistant-model-select__content"
+      data-slot="prompt-input-model-select-content"
+      role="listbox"
+    >
+      {children}
+    </div>
+  )
+}
+
+export function PromptInputModelSelectItem({
+  children,
+  value,
+}: {
+  readonly children: ReactNode
+  readonly value: string
+}) {
+  const { onValueChange, setOpen, value: current } = useModelSelect()
+
+  return (
+    <button
+      aria-selected={current === value}
+      className="assistant-model-select__item"
+      data-slot="prompt-input-model-select-item"
+      onClick={() => {
+        onValueChange(value)
+        setOpen(false)
+      }}
+      role="option"
+      type="button"
+    >
+      {children}
     </button>
   )
 }
