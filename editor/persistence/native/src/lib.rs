@@ -18,10 +18,12 @@
 )]
 mod atomic_write;
 
+mod asset_content_type;
 mod draw_document_codec;
 mod error;
 mod revision;
 
+pub use asset_content_type::is_supported_asset_content_type;
 pub use atomic_write::atomic_write;
 pub use draw_document_codec::{
     decode_draw_document, encode_draw_document, DecodedDrawDocument, DrawAssetInput,

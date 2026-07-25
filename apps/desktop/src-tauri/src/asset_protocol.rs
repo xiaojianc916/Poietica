@@ -544,19 +544,21 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
     Ok(())
 }
 
+/// Whether the delivery protocol may serve this content type.
+///
+/// The vocabulary itself is owned by the persistence crate, because the
+/// container format is what ultimately has to be able to carry the bytes. A
+/// type this protocol accepted but the codec did not would produce an asset
+/// the user can place on the canvas and then cannot save, which is the worst
+/// possible moment to find out.
+///
+/// SVG's exclusion, and the reason for it, now live with the list.
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
-    match content_type {
-        "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "application/pdf"
-        | "video/mp4" | "video/webm" | "audio/mpeg" | "audio/mp4" | "audio/ogg" | "audio/wav" => {
-            Ok(())
-        }
-
-        /*
-         * SVG is deliberately excluded here. It is active content and requires
-         * a dedicated sanitizer and CSP policy before it may enter the protocol.
-         */
-        _ => Err(AssetProtocolError::UnsupportedContentType),
+    if hybrid_canvas_file_native::is_supported_asset_content_type(content_type) {
+        return Ok(());
     }
+
+    Err(AssetProtocolError::UnsupportedContentType)
 }
 
 fn asset_response(asset: &RegisteredAsset) -> Response<Vec<u8>> {

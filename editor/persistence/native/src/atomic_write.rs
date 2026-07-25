@@ -34,7 +34,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 
 #[cfg(not(any(unix, windows)))]
 compile_error!(
-    "hybrid-canvas-file-native requires an audited atomic replacement      implementation for this platform"
+    "hybrid-canvas-file-native requires an audited atomic replacement implementation for this platform"
 );
 
 const TEMPORARY_FILE_PREFIX: &str = ".hybrid-canvas-";

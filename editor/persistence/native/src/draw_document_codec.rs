@@ -4,6 +4,7 @@
 //! store snapshot as opaque JSON and never constructs, edits or interprets
 //! tldraw records.
 
+use crate::asset_content_type::{asset_content_type, is_supported_asset_content_type};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -419,19 +420,21 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
 
 /// Picks a compression method for an asset from its declared content type.
 ///
-/// Every type below is already entropy coded by its own container format, so
-/// Deflate would walk every byte on every save to save approximately nothing.
-/// Storing them makes the write cost proportional to the bytes moved rather
-/// than to the bytes compressed.
+/// Whether a payload is worth deflating is a property of the content type, so
+/// it is read off the content-type table rather than kept as a second list
+/// here.
 ///
-/// audio/wav is linear PCM and application/pdf may embed uncompressed streams,
-/// so both still earn their Deflate and fall through to the default. Any type
-/// not listed is treated as compressible, which is never wrong, only slower:
-/// a new entry in validate_content_type cannot silently lose compression.
+/// The comment this replaces claimed that a new entry in validate_content_type
+/// could not silently lose compression. That was never true. The two lists
+/// were entirely independent, and the default arm below is precisely where a
+/// forgotten entry landed. There is no second list to forget now.
+///
+/// An unknown type still defaults to Deflate, which is never wrong, only
+/// slower. Validation rejects unknown types before encoding reaches this
+/// point, so the default is defence rather than behaviour.
 fn compression_for_asset(content_type: &str) -> CompressionMethod {
-    match content_type {
-        "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "video/mp4" | "video/webm"
-        | "audio/mpeg" | "audio/mp4" | "audio/ogg" => CompressionMethod::Stored,
+    match asset_content_type(content_type) {
+        Some(entry) if entry.entropy_coded => CompressionMethod::Stored,
         _ => CompressionMethod::Deflated,
     }
 }
@@ -572,13 +575,11 @@ fn validate_sha256(value: &str) -> Result<()> {
 }
 
 fn validate_content_type(value: &str) -> Result<()> {
-    match value {
-        "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "application/pdf"
-        | "video/mp4" | "video/webm" | "audio/mpeg" | "audio/mp4" | "audio/ogg" | "audio/wav" => {
-            Ok(())
-        }
-        _ => Err(corrupted("asset has an unsupported content type")),
+    if is_supported_asset_content_type(value) {
+        return Ok(());
     }
+
+    Err(corrupted("asset has an unsupported content type"))
 }
 
 fn ensure_entry_size(size: usize, description: &str) -> Result<()> {
