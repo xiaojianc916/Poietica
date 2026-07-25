@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "features/ai/acp-native",
   "apps/desktop/src-tauri",
   "editor/assets/native",
   "editor/persistence/native",
@@ -128,6 +129,8 @@ rusqlite = { version = "0.40.1", features = [
 keyring = { version = "4.1.5", features = [
   "v1",
 ] }
+
+agent-client-protocol = "1.2.0"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

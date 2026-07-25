@@ -337,6 +337,32 @@ impl AiStore {
         Ok(calls)
     }
 
+    /// Applies a title change to a tool call without touching its state.
+    ///
+    /// The protocol allows an update that carries a new title and no status,
+    /// and dropping those would leave the projection showing a stale label.
+    ///
+    /// Returns whether a row matched.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the write is rejected.
+    pub fn rename_tool_call(
+        &self,
+        run_id: Uuid,
+        tool_call_id: &str,
+        title: &str,
+    ) -> Result<bool> {
+        let affected = self.connection.execute(
+            "UPDATE tool_calls
+                SET title = ?3
+              WHERE run_id = ?1 AND id = ?2",
+            rusqlite::params![run_id.to_string(), tool_call_id, title],
+        )?;
+
+        Ok(affected == 1)
+    }
+
     /// Records a permission request the agent is blocked on.
     ///
     /// A redelivered request is ignored rather than reopened, so an answer
