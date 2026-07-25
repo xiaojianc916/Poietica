@@ -95,15 +95,17 @@ tauri-plugin-window-state = "2.3.0"
 #
 # These prerelease versions are deliberately pinned as a compatible set.
 # Do not upgrade one of them independently.
-specta = { version = "=2.0.0-rc.24", features = [
+specta = { version = "=2.0.0-rc.22", features = [
   "derive",
   "function",
+  "serde",
+  "serde_json",
   "uuid",
 ] }
 
-specta-typescript = "=0.0.11"
+specta-typescript = "=0.0.9"
 
-tauri-specta = { version = "=2.0.0-rc.24", features = [
+tauri-specta = { version = "=2.0.0-rc.21", features = [
   "derive",
   "typescript",
 ] }
