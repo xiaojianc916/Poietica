@@ -31,6 +31,7 @@ import { failureCoordinator } from '../../application/failures/failure-coordinat
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { reportFailure } from '../../application/failures/failure-policy'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
+import { WORKSPACE_PANEL_RENDERERS } from './assistant-panel-renderers'
 import { WORKSPACE_SURFACE_RENDERERS } from './assistant-surface-renderers'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
@@ -379,6 +380,7 @@ export function WorkspaceContainer({
           />
         </>
       }
+      panelRenderers={WORKSPACE_PANEL_RENDERERS}
       pages={pages}
       renderChrome={({
         isSidebarOpen,

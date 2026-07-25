@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 
 import {
   PromptInput,
@@ -50,79 +51,114 @@ export function AssistantComposer({
   onSubmit,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
+  const shellRef = useRef<HTMLDivElement>(null)
+
   const activeModel = models.find((model) => model.id === modelId)?.label ?? modelId
 
+  /*
+   * The card — not just the textarea — is the hit target. Presses that land on
+   * a control are left alone so buttons and the model list keep working.
+   */
+  const focusEditor = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+
+    if (target.closest('button, a, input, textarea, [role="option"], [role="listbox"]')) {
+      return
+    }
+
+    const editor = shellRef.current?.querySelector<HTMLTextAreaElement>(
+      '[data-slot="prompt-input-textarea"]',
+    )
+
+    if (!editor) {
+      return
+    }
+
+    event.preventDefault()
+    editor.focus()
+    editor.setSelectionRange(editor.value.length, editor.value.length)
+  }
+
   return (
-    <PromptInput
-      globalDrop
-      multiple
-      onSubmit={(message) => {
-        const trimmed = message.text.trim()
-        if (trimmed.length === 0 && message.files.length === 0) return
-        onSubmit({ text: trimmed, files: message.files })
-        setText('')
-      }}
-    >
-      <PromptInputBody>
-        <PromptInputAttachments>
-          {(attachment) => <PromptInputAttachment data={attachment} />}
-        </PromptInputAttachments>
+    <div className="assistant-composer" onMouseDown={focusEditor} ref={shellRef}>
+      <PromptInput
+        globalDrop
+        multiple
+        onSubmit={(message) => {
+          const trimmed = message.text.trim()
 
-        <PromptInputTextarea
-          onChange={(event) => {
-            setText(event.currentTarget.value)
-          }}
-          placeholder={placeholder}
-          value={text}
-        />
-      </PromptInputBody>
+          if (trimmed.length === 0 && message.files.length === 0) {
+            return
+          }
 
-      <PromptInputToolbar>
-        <PromptInputTools>
-          <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger className="assistant-control--round" title="添加内容">
-              <AttachIcon aria-hidden="true" />
-            </PromptInputActionMenuTrigger>
+          onSubmit({ text: trimmed, files: message.files })
+          setText('')
+        }}
+      >
+        <PromptInputBody>
+          <PromptInputAttachments>
+            {(attachment) => <PromptInputAttachment data={attachment} />}
+          </PromptInputAttachments>
 
-            <PromptInputActionMenuContent>
-              <PromptInputActionAddAttachments label="添加文件" />
-            </PromptInputActionMenuContent>
-          </PromptInputActionMenu>
+          <PromptInputTextarea
+            onChange={(event) => {
+              setText(event.currentTarget.value)
+            }}
+            placeholder={placeholder}
+            value={text}
+          />
+        </PromptInputBody>
 
-          <PromptInputButton className="assistant-control--round" title="工具">
-            <ToolsIcon aria-hidden="true" />
+        <PromptInputToolbar>
+          <PromptInputTools>
+            <PromptInputActionMenu>
+              <PromptInputActionMenuTrigger className="assistant-control--round" title="添加内容">
+                <AttachIcon aria-hidden="true" />
+              </PromptInputActionMenuTrigger>
+
+              <PromptInputActionMenuContent>
+                <PromptInputActionAddAttachments label="添加文件" />
+              </PromptInputActionMenuContent>
+            </PromptInputActionMenu>
+
+            <PromptInputButton className="assistant-control--round" title="工具">
+              <ToolsIcon aria-hidden="true" />
+            </PromptInputButton>
+
+            <PromptInputButton className="assistant-agent-pill">
+              <AgentIcon aria-hidden="true" />
+
+              <span>{agentLabel}</span>
+
+              {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
+            </PromptInputButton>
+          </PromptInputTools>
+
+          <span className="assistant-toolbar__spacer" />
+
+          <PromptInputModelSelect onValueChange={onModelChange} value={activeModel}>
+            <PromptInputModelSelectTrigger>
+              <ModelIcon aria-hidden="true" className="assistant-model-select__mark" />
+
+              <PromptInputModelSelectValue />
+            </PromptInputModelSelectTrigger>
+
+            <PromptInputModelSelectContent>
+              {models.map((model) => (
+                <PromptInputModelSelectItem key={model.id} value={model.id}>
+                  {model.label}
+                </PromptInputModelSelectItem>
+              ))}
+            </PromptInputModelSelectContent>
+          </PromptInputModelSelect>
+
+          <PromptInputButton className="assistant-control--ghost" title="语音输入">
+            <MicIcon aria-hidden="true" />
           </PromptInputButton>
 
-          <PromptInputButton className="assistant-agent-pill">
-            <AgentIcon aria-hidden="true" />
-            <span>{agentLabel}</span>
-            {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
-          </PromptInputButton>
-        </PromptInputTools>
-
-        <span className="assistant-toolbar__spacer" />
-
-        <PromptInputModelSelect onValueChange={onModelChange} value={activeModel}>
-          <PromptInputModelSelectTrigger>
-            <ModelIcon aria-hidden="true" className="assistant-model-select__mark" />
-            <PromptInputModelSelectValue />
-          </PromptInputModelSelectTrigger>
-
-          <PromptInputModelSelectContent>
-            {models.map((model) => (
-              <PromptInputModelSelectItem key={model.id} value={model.id}>
-                {model.label}
-              </PromptInputModelSelectItem>
-            ))}
-          </PromptInputModelSelectContent>
-        </PromptInputModelSelect>
-
-        <PromptInputButton className="assistant-control--ghost" title="语音输入">
-          <MicIcon aria-hidden="true" />
-        </PromptInputButton>
-
-        <PromptInputSubmit disabled={text.trim().length === 0} status={status} />
-      </PromptInputToolbar>
-    </PromptInput>
+          <PromptInputSubmit disabled={text.trim().length === 0} status={status} />
+        </PromptInputToolbar>
+      </PromptInput>
+    </div>
   )
 }
