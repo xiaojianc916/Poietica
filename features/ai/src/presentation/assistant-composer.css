@@ -438,7 +438,7 @@
 
 /*
  * The editor is invisible furniture: it contributes glyphs and a caret and
- * nothing else. Every chrome property is zeroed, in every state, so focus can
+ * nothing else. Every frame property is zeroed, in every state, so focus can
  * never conjure an inner rectangle.
  */
 [data-assistant-skin] [data-slot="prompt-input-textarea"],

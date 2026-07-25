@@ -2,7 +2,7 @@
   "name": "poietica",
   "version": "0.1.0",
   "private": true,
-  "description": "A local-first canvas application built on tldraw.",
+  "description": "Poietica — a local-first, AI-assisted canvas for thinking, describing, and creating.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
