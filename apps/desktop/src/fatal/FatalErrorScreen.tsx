@@ -2,6 +2,7 @@ import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+import errorRobotIllustration from './assets/error-robot.svg'
 
 export interface FatalErrorScreenProps {
   readonly incident: TerminalFailureIncident
@@ -46,9 +47,12 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
   return (
     <main aria-live="assertive" className="fatal-surface" role="alert">
       <section className="fatal-content">
-        <div aria-hidden="true" className="fatal-icon">
-          <WarningIcon />
-        </div>
+        <img
+          alt=""
+          aria-hidden="true"
+          className="fatal-illustration"
+          src={errorRobotIllustration}
+        />
 
         <h1 className="fatal-title">{model.title}</h1>
 
