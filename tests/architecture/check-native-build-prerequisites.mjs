@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 // Verifies that the host can build the native crates in this workspace.
 //
-// The AI persistence crate depends on rusqlite with the
+// poietica-ai-persistence-native depends on rusqlite with the
 // `bundled-sqlcipher-vendored-openssl` feature. That feature compiles both
-// SQLCipher and OpenSSL from C source, which keeps the shipped binary free of
-// any system OpenSSL dependency. OpenSSL configures itself through ./Configure,
-// a Perl script, so Perl has to be on PATH at build time. It is not needed at
-// run time and end users never see it.
+// SQLCipher and OpenSSL from C source and links them statically, so the shipped
+// binary can open an encrypted database on a machine with no OpenSSL installed.
+// OpenSSL configures itself through ./Configure, a Perl script, so Perl must be
+// on PATH at build time. It is not needed at run time and end users never see it.
 //
 // NASM is deliberately not checked: openssl-src passes `no-asm` for the
-// msvc target used here, so the assembly routines are never built.
+// x86_64-pc-windows-msvc target, so OpenSSL's assembly routines are never built.
+//
+// Commands are spawned without a shell. Both tools are real executables that
+// libuv resolves through PATH, and passing an argument array together with
+// `shell: true` is deprecated in Node 26 (DEP0190) because arguments would be
+// concatenated rather than escaped.
 //
 // Exit code 0 when the host is ready, 1 otherwise.
 
@@ -46,18 +51,16 @@ const requirements = [
 ]
 
 function isAvailable(command, commandArguments) {
-  const result = spawnSync(command, commandArguments, {
-    stdio: 'ignore',
-    shell: platform === 'win32',
-  })
-  return result.error === undefined && result.status === 0
+  const result = spawnSync(command, commandArguments, { stdio: 'ignore' })
+  if (result.error) return false
+  return result.status === 0
 }
 
 const missing = []
 
 for (const requirement of requirements) {
   if (isAvailable(requirement.command, requirement.arguments)) {
-    console.log(`ok    ${requirement.label}`)
+    console.log(`ok      ${requirement.label}`)
   } else {
     console.log(`MISSING ${requirement.label}`)
     missing.push(requirement)
