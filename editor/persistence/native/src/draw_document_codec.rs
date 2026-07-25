@@ -21,6 +21,12 @@ const DOCUMENT_PATH: &str = "document.json";
 const ASSET_INDEX_PATH: &str = "assets/index.json";
 const APPLICATION_METADATA_PATH: &str = "metadata/application.json";
 
+/// Compression for the container's own JSON entries.
+///
+/// The manifest, document snapshot, asset index and application metadata are
+/// text and compress by a large factor, so Deflate is worth its cost here.
+const METADATA_COMPRESSION: CompressionMethod = CompressionMethod::Deflated;
+
 const MAX_CONTAINER_BYTES: usize = 320 * 1024 * 1024;
 const MAX_ENTRY_COUNT: usize = 1_024;
 const MAX_ENTRY_BYTES: u64 = 32 * 1024 * 1024;
@@ -85,6 +91,17 @@ struct AssetIndex {
     assets: Vec<AssetDescriptor>,
 }
 
+/// Write-side view of the asset index.
+///
+/// The descriptors already exist while encoding. Serialising them by reference
+/// avoids rebuilding an identical copy of every content hash, content type and
+/// path purely to hand them to serde.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetIndexRef<'a> {
+    assets: Vec<&'a AssetDescriptor>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AssetDescriptor {
@@ -141,15 +158,10 @@ pub fn encode_draw_document(input: DrawDocumentInput<'_>) -> Result<Vec<u8>> {
         ));
     }
 
-    let asset_index = canonical_json(&AssetIndex {
+    let asset_index = canonical_json(&AssetIndexRef {
         assets: asset_entries
             .iter()
-            .map(|(descriptor, _)| AssetDescriptor {
-                content_hash: descriptor.content_hash.clone(),
-                content_type: descriptor.content_type.clone(),
-                byte_length: descriptor.byte_length,
-                path: descriptor.path.clone(),
-            })
+            .map(|(descriptor, _)| descriptor)
             .collect(),
     })?;
 
@@ -175,13 +187,25 @@ pub fn encode_draw_document(input: DrawDocumentInput<'_>) -> Result<Vec<u8>> {
     let cursor = Cursor::new(Vec::new());
     let mut writer = ZipWriter::new(cursor);
 
-    write_container_entry(&mut writer, MANIFEST_PATH, &manifest)?;
-    write_container_entry(&mut writer, DOCUMENT_PATH, &document)?;
-    write_container_entry(&mut writer, ASSET_INDEX_PATH, &asset_index)?;
-    write_container_entry(&mut writer, APPLICATION_METADATA_PATH, &application)?;
+    write_container_entry(&mut writer, MANIFEST_PATH, &manifest, METADATA_COMPRESSION)?;
+    write_container_entry(&mut writer, DOCUMENT_PATH, &document, METADATA_COMPRESSION)?;
+    write_container_entry(
+        &mut writer,
+        ASSET_INDEX_PATH,
+        &asset_index,
+        METADATA_COMPRESSION,
+    )?;
+    write_container_entry(
+        &mut writer,
+        APPLICATION_METADATA_PATH,
+        &application,
+        METADATA_COMPRESSION,
+    )?;
 
     for (asset, bytes) in asset_entries {
-        write_container_entry(&mut writer, &asset.path, bytes)?;
+        let compression = compression_for_asset(&asset.content_type);
+
+        write_container_entry(&mut writer, &asset.path, bytes, compression)?;
     }
 
     let bytes = writer
@@ -307,6 +331,14 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
         APPLICATION_METADATA_PATH.to_owned(),
     ]);
 
+    /*
+     * Taken before the loop below drains the asset payloads out of the map.
+     * Nothing inserts into entries past this point, so the snapshot is the
+     * same set the comparison at the end of this function used to compute
+     * after the fact.
+     */
+    let actual_paths = entries.keys().cloned().collect::<BTreeSet<_>>();
+
     let mut decoded_assets = Vec::new();
     let mut previous_hash: Option<&str> = None;
 
@@ -334,24 +366,33 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
             return Err(corrupted("asset index contains a duplicate path"));
         }
 
-        let content = require_entry(&entries, &asset.path)?;
+        /*
+         * Moved rather than borrowed and copied. The map's own copy was
+         * dropped unread at the end of this function, so to_vec duplicated
+         * every asset in the document for nothing. The duplicate-path check
+         * above guarantees each path is taken at most once.
+         */
+        let content = entries.remove(&asset.path).ok_or_else(|| {
+            corrupted(&format!(
+                "required document entry is missing: {}",
+                asset.path
+            ))
+        })?;
 
         if content.len() as u64 != asset.byte_length {
             return Err(corrupted("asset length does not match its index"));
         }
 
-        if sha256(content) != asset.content_hash {
+        if sha256(&content) != asset.content_hash {
             return Err(corrupted("asset digest does not match its index"));
         }
 
         decoded_assets.push(DrawAssetOutput {
             content_hash: asset.content_hash.clone(),
             content_type: asset.content_type.clone(),
-            bytes: content.to_vec(),
+            bytes: content,
         });
     }
-
-    let actual_paths = entries.keys().cloned().collect::<BTreeSet<_>>();
 
     if actual_paths != expected_paths {
         return Err(corrupted(
@@ -368,7 +409,31 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
     })
 }
 
-fn write_container_entry<W>(writer: &mut ZipWriter<W>, path: &str, bytes: &[u8]) -> Result<()>
+/// Picks a compression method for an asset from its declared content type.
+///
+/// Every type below is already entropy coded by its own container format, so
+/// Deflate would walk every byte on every save to save approximately nothing.
+/// Storing them makes the write cost proportional to the bytes moved rather
+/// than to the bytes compressed.
+///
+/// audio/wav is linear PCM and application/pdf may embed uncompressed streams,
+/// so both still earn their Deflate and fall through to the default. Any type
+/// not listed is treated as compressible, which is never wrong, only slower:
+/// a new entry in validate_content_type cannot silently lose compression.
+fn compression_for_asset(content_type: &str) -> CompressionMethod {
+    match content_type {
+        "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "video/mp4" | "video/webm"
+        | "audio/mpeg" | "audio/mp4" | "audio/ogg" => CompressionMethod::Stored,
+        _ => CompressionMethod::Deflated,
+    }
+}
+
+fn write_container_entry<W>(
+    writer: &mut ZipWriter<W>,
+    path: &str,
+    bytes: &[u8],
+    compression: CompressionMethod,
+) -> Result<()>
 where
     W: Write + std::io::Seek,
 {
@@ -376,7 +441,7 @@ where
     ensure_entry_size(bytes.len(), path)?;
 
     let options = SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Deflated)
+        .compression_method(compression)
         .unix_permissions(0o600);
 
     writer
@@ -593,6 +658,90 @@ mod tests {
             .all(|pair| { pair[0].content_hash < pair[1].content_hash }));
     }
 
+    /*
+     * The whole point of the change is that an already-compressed asset is
+     * stored rather than deflated. Asserting on the encoded container rather
+     * than on the helper keeps the test honest: it fails if the writer stops
+     * honouring the choice, not merely if the mapping table is edited.
+     */
+    #[test]
+    fn stores_already_compressed_assets_and_deflates_the_rest() {
+        // Highly repetitive, so Deflate would shrink it dramatically. Any
+        // shrinkage therefore proves compression was applied.
+        let payload = vec![0_u8; 64 * 1024];
+        let hash = sha256(&payload);
+
+        let encode_with = |content_type: &'static str| {
+            encode_draw_document(DrawDocumentInput {
+                created_at: "2026-07-23T00:00:00.000Z",
+                saved_at: "2026-07-23T01:00:00.000Z",
+                document_json: br#"{"schema":{},"store":{}}"#,
+                application_json: br#"{}"#,
+                assets: &[DrawAssetInput {
+                    content_hash: &hash,
+                    content_type,
+                    bytes: &payload,
+                }],
+            })
+            .expect("fixture should encode")
+        };
+
+        let entry_method = |container: &[u8], content_type: &'static str| {
+            let mut archive =
+                ZipArchive::new(Cursor::new(container.to_vec())).expect("container should open");
+
+            let entry = archive
+                .by_name(&format!("assets/{hash}"))
+                .expect("asset entry should exist");
+
+            let method = entry.compression();
+
+            assert_eq!(
+                entry.size(),
+                payload.len() as u64,
+                "{content_type} entry must report its true length",
+            );
+
+            method
+        };
+
+        let stored = encode_with("image/png");
+        let deflated = encode_with("audio/wav");
+
+        assert_eq!(entry_method(&stored, "image/png"), CompressionMethod::Stored);
+        assert_eq!(
+            entry_method(&deflated, "audio/wav"),
+            CompressionMethod::Deflated,
+        );
+
+        assert!(
+            deflated.len() < stored.len(),
+            "the deflated container must be smaller, otherwise the test payload is not compressible",
+        );
+
+        for (container, content_type) in [(&stored, "image/png"), (&deflated, "audio/wav")] {
+            let decoded = decode_draw_document(container)
+                .unwrap_or_else(|_| panic!("{content_type} container should decode"));
+
+            assert_eq!(decoded.assets.len(), 1);
+            assert_eq!(decoded.assets[0].bytes, payload);
+            assert_eq!(decoded.assets[0].content_type, content_type);
+        }
+    }
+
+    /// An unlisted type must fall back to compression, never to Stored.
+    #[test]
+    fn unknown_content_types_stay_compressible() {
+        assert_eq!(
+            compression_for_asset("application/octet-stream"),
+            CompressionMethod::Deflated,
+        );
+        assert_eq!(
+            compression_for_asset("application/pdf"),
+            CompressionMethod::Deflated,
+        );
+    }
+
     #[test]
     fn rejects_asset_with_false_digest() {
         let result = encode_draw_document(DrawDocumentInput {
@@ -630,10 +779,11 @@ mod tests {
         let cursor = Cursor::new(Vec::new());
         let mut writer = ZipWriter::new(cursor);
 
-        write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#)
+        write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#, METADATA_COMPRESSION)
             .expect("first entry should write");
 
-        let duplicate_result = write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#);
+        let duplicate_result =
+            write_container_entry(&mut writer, MANIFEST_PATH, br#"{}"#, METADATA_COMPRESSION);
 
         // Newer zip versions reject duplicate names while writing. Older
         // versions may allow construction, in which case the decoder must
@@ -667,10 +817,17 @@ mod tests {
 
             entry.read_to_end(&mut bytes).expect("entry bytes");
 
-            write_container_entry(&mut writer, entry.name(), &bytes).expect("copied entry");
+            write_container_entry(&mut writer, entry.name(), &bytes, METADATA_COMPRESSION)
+                .expect("copied entry");
         }
 
-        write_container_entry(&mut writer, "unknown.bin", b"unexpected").expect("unknown entry");
+        write_container_entry(
+            &mut writer,
+            "unknown.bin",
+            b"unexpected",
+            METADATA_COMPRESSION,
+        )
+        .expect("unknown entry");
 
         let bytes = writer
             .finish()
@@ -696,10 +853,24 @@ mod tests {
         let cursor = Cursor::new(Vec::new());
         let mut writer = ZipWriter::new(cursor);
 
-        write_container_entry(&mut writer, MANIFEST_PATH, &manifest).expect("manifest");
-        write_container_entry(&mut writer, DOCUMENT_PATH, br#"{}"#).expect("document");
-        write_container_entry(&mut writer, ASSET_INDEX_PATH, br#"{"assets":[]}"#).expect("index");
-        write_container_entry(&mut writer, APPLICATION_METADATA_PATH, br#"{}"#).expect("metadata");
+        write_container_entry(&mut writer, MANIFEST_PATH, &manifest, METADATA_COMPRESSION)
+            .expect("manifest");
+        write_container_entry(&mut writer, DOCUMENT_PATH, br#"{}"#, METADATA_COMPRESSION)
+            .expect("document");
+        write_container_entry(
+            &mut writer,
+            ASSET_INDEX_PATH,
+            br#"{"assets":[]}"#,
+            METADATA_COMPRESSION,
+        )
+        .expect("index");
+        write_container_entry(
+            &mut writer,
+            APPLICATION_METADATA_PATH,
+            br#"{}"#,
+            METADATA_COMPRESSION,
+        )
+        .expect("metadata");
 
         let bytes = writer
             .finish()
