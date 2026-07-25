@@ -134,8 +134,10 @@ body {
 }
 
 .fatal-icon-button svg {
+  display: block;
   width: 18px;
   height: 18px;
+  overflow: visible;
 }
 
 .fatal-details,

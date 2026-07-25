@@ -1,3 +1,4 @@
+import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
@@ -70,7 +71,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
               title={primaryAction.label}
               type="button"
             >
-              <ReloadIcon />
+              <Refresh aria-hidden="true" />
             </button>
           ) : null}
 
@@ -83,7 +84,11 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
             title={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
             type="button"
           >
-            {copyState === 'copied' ? <CheckIcon /> : <CopyIcon />}
+            {copyState === 'copied' ? (
+              <CheckCircle aria-hidden="true" />
+            ) : (
+              <Copy aria-hidden="true" />
+            )}
           </button>
         </div>
 
@@ -102,56 +107,6 @@ function executePrimaryAction(action: { readonly kind: 'reload' }): void {
     case 'reload':
       window.location.reload()
   }
-}
-
-function ReloadIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 11a8 8 0 1 0 2 5.3" />
-      <path d="M20 4v7h-7" />
-    </svg>
-  )
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <rect height="13" rx="2" width="10" x="9" y="8" />
-      <path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />
-    </svg>
-  )
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="m5 12 4.2 4.2L19 6.5" />
-    </svg>
-  )
 }
 
 function WarningIcon() {

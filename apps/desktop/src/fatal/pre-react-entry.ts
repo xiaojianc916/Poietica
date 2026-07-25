@@ -175,53 +175,15 @@ function setCopyButtonState(button: HTMLButtonElement, label: string, icon: stri
 }
 
 function createReloadIcon(): string {
-  return [
-    '<svg',
-    ' viewBox="0 0 24 24"',
-    ' fill="none"',
-    ' stroke="currentColor"',
-    ' stroke-width="1.8"',
-    ' stroke-linecap="round"',
-    ' stroke-linejoin="round"',
-    ' aria-hidden="true"',
-    '>',
-    '<path d="M20 11a8 8 0 1 0 2 5.3" />',
-    '<path d="M20 4v7h-7" />',
-    '</svg>',
-  ].join('')
+  return '<svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20.5 8c-1.392-3.179-4.823-5-8.522-5C7.299 3 3.453 6.552 3 11.1"/><path d="M16.489 8.4h3.97A.54.54 0 0 0 21 7.86V3.9M3.5 16c1.392 3.179 4.823 5 8.522 5 4.679 0 8.525-3.552 8.978-8.1"/><path d="M7.511 15.6h-3.97a.54.54 0 0 0-.541.54v3.96"/></svg>'
 }
 
 function createCopyIcon(): string {
-  return [
-    '<svg',
-    ' viewBox="0 0 24 24"',
-    ' fill="none"',
-    ' stroke="currentColor"',
-    ' stroke-width="1.8"',
-    ' stroke-linecap="round"',
-    ' stroke-linejoin="round"',
-    ' aria-hidden="true"',
-    '>',
-    '<rect x="9" y="8" width="10" height="13" rx="2" />',
-    '<path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />',
-    '</svg>',
-  ].join('')
+  return '<svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M20.829 12.861c.171-.413.171-.938.171-1.986s0-1.573-.171-1.986a2.25 2.25 0 0 0-1.218-1.218c-.413-.171-.938-.171-1.986-.171H11.1c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C7.5 9.209 7.5 9.839 7.5 11.1v6.525c0 1.048 0 1.573.171 1.986.229.551.667.99 1.218 1.218.413.171.938.171 1.986.171s1.573 0 1.986-.171m7.968-7.968a2.25 2.25 0 0 1-1.218 1.218c-.413.171-.938.171-1.986.171s-1.573 0-1.986.171a2.25 2.25 0 0 0-1.218 1.218c-.171.413-.171.938-.171 1.986s0 1.573-.171 1.986a2.25 2.25 0 0 1-1.218 1.218m7.968-7.968a11.68 11.68 0 0 1-7.75 7.9l-.218.068M16.5 7.5v-.9c0-1.26 0-1.89-.245-2.371a2.25 2.25 0 0 0-.983-.984C14.79 3 14.16 3 12.9 3H6.6c-1.26 0-1.89 0-2.371.245a2.25 2.25 0 0 0-.984.984C3 4.709 3 5.339 3 6.6v6.3c0 1.26 0 1.89.245 2.371.216.424.56.768.984.984.48.245 1.111.245 2.372.245H7.5"/></svg>'
 }
 
 function createCheckIcon(): string {
-  return [
-    '<svg',
-    ' viewBox="0 0 24 24"',
-    ' fill="none"',
-    ' stroke="currentColor"',
-    ' stroke-width="2"',
-    ' stroke-linecap="round"',
-    ' stroke-linejoin="round"',
-    ' aria-hidden="true"',
-    '>',
-    '<path d="m5 12 4.2 4.2L19 6.5" />',
-    '</svg>',
-  ].join('')
+  return '<svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/><path d="m8.667 12.633 1.505 1.721a1 1 0 0 0 1.564-.073L15.333 9.3"/></svg>'
 }
 
 function createWarningIcon(): string {

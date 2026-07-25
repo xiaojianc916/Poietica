@@ -32,7 +32,7 @@ export function createTerminalFailureViewModel(
 
     description: incident.userMessage,
 
-    summary: `${incident.code} · ${incident.id}`,
+    summary: createFailureSummary(incident),
 
     ...optionalProperty(
       'additionalIncidentMessage',
@@ -51,6 +51,22 @@ export function createTerminalFailureViewModel(
 
     diagnostic: formatFailureDiagnostic(incident),
   })
+}
+
+const MAX_FAILURE_SUMMARY_LENGTH = 160
+
+function createFailureSummary(incident: TerminalFailureIncident): string {
+  const technicalMessage = incident.technicalMessage.replace(/\s+/g, ' ').trim()
+
+  return truncateFailureSummary(technicalMessage || incident.code)
+}
+
+function truncateFailureSummary(message: string): string {
+  if (message.length <= MAX_FAILURE_SUMMARY_LENGTH) {
+    return message
+  }
+
+  return `${message.slice(0, MAX_FAILURE_SUMMARY_LENGTH - 1).trimEnd()}…`
 }
 
 function resolvePresentationTitle(incident: TerminalFailureIncident): string {

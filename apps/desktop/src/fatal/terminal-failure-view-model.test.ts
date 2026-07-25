@@ -34,9 +34,31 @@ describe('createTerminalFailureViewModel', () => {
       label: '重新加载',
     })
 
-    expect(model.summary).toContain('APPLICATION_FATAL')
+    expect(model.summary).toBe('render failed')
 
     expect(model.diagnostic).toContain('render failed')
+  })
+
+  it('shortens long technical messages', () => {
+    const incident = createTerminalIncident({
+      impact: 'application-fatal',
+
+      code: 'LONG_MESSAGE_FATAL',
+
+      userMessage: '应用无法继续运行。',
+
+      recovery: 'reload',
+
+      scope: {
+        kind: 'application',
+      },
+
+      cause: new Error('x'.repeat(200)),
+    })
+
+    const model = createTerminalFailureViewModel(incident)
+
+    expect(model.summary).toBe(`${'x'.repeat(159)}…`)
   })
 
   it('projects native fatal state', () => {
