@@ -9,19 +9,47 @@ import {
 
 export type SelectionTransformField = 'x' | 'y' | 'width' | 'height' | 'rotation'
 
-export interface SelectionTransformSnapshot {
-  readonly count: number
-  readonly x: number
-  readonly y: number
-  readonly width: number
-  readonly height: number
-  readonly rotation: number | null
+/*
+ * What the selection permits, as opposed to where it currently is.
+ *
+ * Every field here is a function of which shapes are selected, their lock
+ * state and their ShapeUtil capabilities. None of it changes while a drag is in
+ * flight, whereas x/y/width/height/rotation change on every frame. Separating
+ * the two is what lets a consumer stop recomputing the half that stood still.
+ *
+ * canResize is the exception that explains why the two were fused in the first
+ * place: it also has to reject a degenerate bounding box, which is per-frame
+ * geometry. That part is an O(1) guard applied on top, not a reason to walk the
+ * selection again.
+ */
+export interface SelectionCapability {
   readonly isReadonly: boolean
   readonly hasLockedShape: boolean
   readonly hasMixedRotation: boolean
   readonly canMove: boolean
   readonly canResize: boolean
   readonly canRotate: boolean
+  readonly hasForcedAspectRatio: boolean
+}
+
+export interface SelectionTransformSnapshot extends SelectionCapability {
+  readonly count: number
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  readonly rotation: number | null
+}
+
+/*
+ * Everything the selection itself can answer, gathered in a single walk.
+ */
+interface SelectionSurvey {
+  readonly firstRotation: number
+  readonly hasMixedRotation: boolean
+  readonly hasLockedShape: boolean
+  readonly allResizable: boolean
+  readonly allRotatable: boolean
   readonly hasForcedAspectRatio: boolean
 }
 
@@ -76,6 +104,130 @@ export function commitSelectionTransform({
   }
 }
 
+/*
+ * One walk over the selection.
+ *
+ * This previously took five separate walks, three of which called
+ * editor.getShapeUtil(shape) independently, so every shape was looked up three
+ * times on every frame of a drag. A sixth walk built a rotations array that was
+ * read once for its first element and then discarded, allocating an N-element
+ * array per frame for nothing.
+ *
+ * The three ShapeUtil predicates short-circuit individually today. Fusing them
+ * means all three have to settle before the loop can stop, so the loop breaks as
+ * soon as they have. In the ordinary case, where everything is resizable and
+ * rotatable, the old code walked all three to completion anyway.
+ */
+function surveySelection(editor: Editor, shapes: TLShape[]): SelectionSurvey {
+  let firstRotation: number | null = null
+  let hasMixedRotation = false
+  let hasLockedShape = false
+  let allResizable = true
+  let allRotatable = true
+  let hasForcedAspectRatio = false
+
+  for (const shape of shapes) {
+    const rotation = editor.getShapePageTransform(shape)?.rotation() ?? 0
+
+    if (firstRotation === null) {
+      firstRotation = rotation
+    } else if (
+      !hasMixedRotation &&
+      Math.abs(normalizeRadians(rotation - firstRotation)) > EPSILON
+    ) {
+      hasMixedRotation = true
+    }
+
+    if (shape.isLocked) {
+      hasLockedShape = true
+    }
+
+    if (allResizable || allRotatable || !hasForcedAspectRatio) {
+      // One lookup per shape, shared by all three capability predicates.
+      const util = editor.getShapeUtil(shape)
+
+      if (
+        allResizable &&
+        !(
+          util.canResize(shape) &&
+          util.canBeLaidOut(shape, {
+            type: 'resize_to_bounds',
+            shapes,
+          })
+        )
+      ) {
+        allResizable = false
+      }
+
+      if (allRotatable && util.hideRotateHandle(shape)) {
+        allRotatable = false
+      }
+
+      if (!hasForcedAspectRatio && util.isAspectRatioLocked(shape)) {
+        hasForcedAspectRatio = true
+      }
+    }
+  }
+
+  return {
+    firstRotation: firstRotation ?? 0,
+    hasMixedRotation,
+    hasLockedShape,
+    allResizable,
+    allRotatable,
+    hasForcedAspectRatio,
+  }
+}
+
+function deriveSelectionCapability(
+  editor: Editor,
+  survey: SelectionSurvey,
+  bounds: Box,
+): SelectionCapability {
+  const isReadonly = editor.getIsReadonly()
+
+  /*
+   * This used to be every((shape) => !shape.isLocked), computed with a
+   * dedicated pass alongside some((shape) => shape.isLocked). The two are
+   * negations of one another, so the second pass spent a full walk of the
+   * selection, every frame, arriving at a boolean already in hand.
+   */
+  const canMove = !isReadonly && !survey.hasLockedShape
+
+  /*
+   * 混合旋转选择没有唯一的局部 X/Y 轴。
+   * 在实现完整的每对象矩阵编辑器之前，不允许用一个
+   * W/H 数值对混合旋转对象进行非一致缩放。
+   *
+   * The trailing bounds test is the one capability that depends on per-frame
+   * geometry rather than on the selection. It is O(1), so it can sit on top of a
+   * survey that only has to be redone when the selection itself changes.
+   */
+  const canResize =
+    canMove &&
+    !survey.hasMixedRotation &&
+    survey.allResizable &&
+    bounds.w > EPSILON &&
+    bounds.h > EPSILON
+
+  /*
+   * rotateShapesBy 支持混合旋转的相对旋转，
+   * 但底部 R 字段表达的是绝对角度。
+   * 混合值没有唯一绝对角度，因此禁止编辑。
+   */
+  const canRotate = canMove && !survey.hasMixedRotation && survey.allRotatable
+
+  return {
+    isReadonly,
+    hasLockedShape: survey.hasLockedShape,
+    hasMixedRotation: survey.hasMixedRotation,
+    canMove,
+    canResize,
+    canRotate,
+    hasForcedAspectRatio: survey.hasForcedAspectRatio,
+  }
+}
+
 function deriveSelectionGeometry(editor: Editor): DerivedSelectionGeometry | null {
   const shapes = editor.getSelectedShapes()
 
@@ -89,17 +241,9 @@ function deriveSelectionGeometry(editor: Editor): DerivedSelectionGeometry | nul
     return null
   }
 
-  const rotations = shapes.map((shape) => {
-    return editor.getShapePageTransform(shape)?.rotation() ?? 0
-  })
+  const survey = surveySelection(editor, shapes)
 
-  const firstRotation = rotations[0] ?? 0
-
-  const hasMixedRotation = rotations.some(
-    (rotation) => Math.abs(normalizeRadians(rotation - firstRotation)) > EPSILON,
-  )
-
-  const sharedRotation = hasMixedRotation ? null : firstRotation
+  const sharedRotation = survey.hasMixedRotation ? null : survey.firstRotation
 
   /*
    * 只有具有共同页面旋转时，旋转包围盒才具有明确的
@@ -109,69 +253,26 @@ function deriveSelectionGeometry(editor: Editor): DerivedSelectionGeometry | nul
    * 的绝对编辑，避免把 getSelectionRotation() 返回的
    * 0 错误解释为真实共同旋转。
    */
-  const rotatedBounds = !hasMixedRotation ? editor.getSelectionRotatedPageBounds() : undefined
+  const rotatedBounds = !survey.hasMixedRotation
+    ? editor.getSelectionRotatedPageBounds()
+    : undefined
 
   const bounds = rotatedBounds ?? pageBounds
-
-  const isReadonly = editor.getIsReadonly()
-
-  const hasLockedShape = shapes.some((shape) => shape.isLocked)
-
-  const allUnlocked = shapes.every((shape) => !shape.isLocked)
-
-  const allResizable = shapes.every((shape) => {
-    const util = editor.getShapeUtil(shape)
-
-    return (
-      util.canResize(shape) &&
-      util.canBeLaidOut(shape, {
-        type: 'resize_to_bounds',
-        shapes,
-      })
-    )
-  })
-
-  const allRotatable = shapes.every((shape) => !editor.getShapeUtil(shape).hideRotateHandle(shape))
-
-  const hasForcedAspectRatio = shapes.some((shape) =>
-    editor.getShapeUtil(shape).isAspectRatioLocked(shape),
-  )
-
-  const canMove = !isReadonly && allUnlocked
-
-  /*
-   * 混合旋转选择没有唯一的局部 X/Y 轴。
-   * 在实现完整的每对象矩阵编辑器之前，不允许用一个
-   * W/H 数值对混合旋转对象进行非一致缩放。
-   */
-  const canResize =
-    canMove && !hasMixedRotation && allResizable && bounds.w > EPSILON && bounds.h > EPSILON
-
-  /*
-   * rotateShapesBy 支持混合旋转的相对旋转，
-   * 但底部 R 字段表达的是绝对角度。
-   * 混合值没有唯一绝对角度，因此禁止编辑。
-   */
-  const canRotate = canMove && !hasMixedRotation && allRotatable
 
   return {
     shapes,
     bounds,
     sharedRotation,
     snapshot: {
+      ...deriveSelectionCapability(editor, survey, bounds),
       count: shapes.length,
       x: bounds.x,
       y: bounds.y,
       width: bounds.w,
       height: bounds.h,
-      rotation: hasMixedRotation ? null : normalizeDegrees(radiansToDegrees(sharedRotation ?? 0)),
-      isReadonly,
-      hasLockedShape,
-      hasMixedRotation,
-      canMove,
-      canResize,
-      canRotate,
-      hasForcedAspectRatio,
+      rotation: survey.hasMixedRotation
+        ? null
+        : normalizeDegrees(radiansToDegrees(sharedRotation ?? 0)),
     },
   }
 }
