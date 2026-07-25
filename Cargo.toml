@@ -98,8 +98,6 @@ tauri-plugin-window-state = "2.3.0"
 specta = { version = "=2.0.0-rc.25", features = [
   "derive",
   "function",
-  "serde",
-  "serde_json",
   "uuid",
 ] }
 
