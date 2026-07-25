@@ -97,11 +97,6 @@
   color: var(--as-placeholder);
 }
 
-[data-assistant-skin] [data-slot="prompt-input-textarea"]:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
 /* ── toolbar ────────────────────────────────────────────── */
 
 [data-assistant-skin] [data-slot="prompt-input-toolbar"] {
@@ -409,16 +404,12 @@
   color: var(--as-brand);
 }
 
-/* the card is the hit target, so it must own the full inline size */
-[data-assistant-skin] .assistant-composer {
-  inline-size: 100%;
-  cursor: text;
-}
-
 /*
- * Constant chrome: lighter top edge, heavier bottom edge, top inset gloss and
- * two shadow tiers. Nothing here reacts to focus; keyboard users get an
- * outline on the editor itself, which does not disturb the card geometry.
+ * THE CARD IS THE INPUT.
+ *
+ * This <form> is the only box: it owns the border, the radius, the gloss and
+ * the shadows, and it is also the click target. Nothing inside it may draw a
+ * second frame.
  */
 [data-assistant-skin] [data-slot="prompt-input"] {
   display: flex;
@@ -435,6 +426,7 @@
     inset 0 -1px 0 rgb(13 13 13 / 4%),
     var(--as-lift-near),
     var(--as-lift-far);
+  cursor: text;
 }
 
 [data-assistant-skin] [data-slot="prompt-input-body"] {
@@ -444,30 +436,40 @@
   flex-direction: column;
 }
 
-/* the editor fills the card and grows with its content */
+/*
+ * The editor is invisible furniture: it contributes glyphs and a caret and
+ * nothing else. Every chrome property is zeroed, in every state, so focus can
+ * never conjure an inner rectangle.
+ */
+[data-assistant-skin] [data-slot="prompt-input-textarea"],
+[data-assistant-skin] [data-slot="prompt-input-textarea"]:hover,
+[data-assistant-skin] [data-slot="prompt-input-textarea"]:focus,
+[data-assistant-skin] [data-slot="prompt-input-textarea"]:focus-visible,
+[data-assistant-skin] [data-slot="prompt-input-textarea"]:active {
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 [data-assistant-skin] [data-slot="prompt-input-textarea"] {
   display: block;
   inline-size: 100%;
   min-inline-size: 0;
-  min-block-size: 88px;
+  min-block-size: 76px;
   max-block-size: 240px;
   overflow-y: auto;
-  border: 0;
-  outline: none;
-  padding: 18px 20px 2px;
-  background: transparent;
+  padding: 18px 20px 4px;
   font-family: inherit;
   font-size: 16px;
   line-height: 1.55;
   color: var(--as-ink);
+  caret-color: var(--as-accent);
   resize: none;
   field-sizing: content;
-}
-
-[data-assistant-skin] [data-slot="prompt-input-textarea"]:focus-visible {
-  outline: 2px solid rgb(10 132 255 / 45%);
-  outline-offset: -2px;
-  border-radius: 18px;
 }
 
 [data-assistant-skin] [data-slot="prompt-input-textarea"]::placeholder {
