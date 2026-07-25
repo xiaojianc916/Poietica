@@ -158,18 +158,56 @@ export function useWorkbenchTabsViewport({
       viewport.style.setProperty('--chrome-active-tab-right', String(right) + 'px')
     }
 
-    syncBaselineGap()
+    let measureFrame: number | null = null
 
-    scroller.addEventListener('scroll', syncBaselineGap, {
+    const scheduleBaselineGapSync = () => {
+      if (measureFrame !== null) {
+        return
+      }
+
+      measureFrame = requestAnimationFrame(() => {
+        measureFrame = null
+        syncBaselineGap()
+      })
+    }
+
+    /*
+     * Scroll events may fire several times in one frame. Geometry reads are
+     * coalesced so getBoundingClientRect cannot force repeated layout work
+     * within the same display frame.
+     */
+    scheduleBaselineGapSync()
+
+    scroller.addEventListener('scroll', scheduleBaselineGapSync, {
       passive: true,
     })
 
-    window.addEventListener('resize', syncBaselineGap)
+    /*
+     * Observe the elements whose geometry actually affects the baseline gap.
+     * This is more precise than subscribing every tab strip to global window
+     * resize events.
+     */
+    const resizeObserver = new ResizeObserver(scheduleBaselineGapSync)
+
+    resizeObserver.observe(viewport)
+    resizeObserver.observe(scroller)
+
+    const activeActivation = activeTabId ? tabRefs.current.get(activeTabId) : undefined
+
+    const activeTab = activeActivation?.closest<HTMLElement>('.chrome-workbench-tab')
+
+    if (activeTab) {
+      resizeObserver.observe(activeTab)
+    }
 
     return () => {
-      scroller.removeEventListener('scroll', syncBaselineGap)
+      scroller.removeEventListener('scroll', scheduleBaselineGapSync)
 
-      window.removeEventListener('resize', syncBaselineGap)
+      resizeObserver.disconnect()
+
+      if (measureFrame !== null) {
+        cancelAnimationFrame(measureFrame)
+      }
     }
   }, [activeTabId, layoutKey])
 

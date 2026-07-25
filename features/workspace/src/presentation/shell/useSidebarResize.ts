@@ -77,6 +77,13 @@ export function useSidebarResize({
 }: SidebarResizeOptions): SidebarResizeBindings {
   const dragSessionRef = useRef<SidebarDragSession | null>(null)
 
+  /*
+   * Pointer events can arrive faster than the display refresh rate. Keep the
+   * newest requested width and publish at most once per animation frame.
+   */
+  const resizeFrameRef = useRef<number | null>(null)
+  const pendingWidthRef = useRef<number | null>(null)
+
   const [isResizing, setResizing] = useState(false)
 
   const widthRef = useRef(width)
@@ -111,6 +118,39 @@ export function useSidebarResize({
     document.body.style.userSelect = session.previousBodyUserSelect
   }, [])
 
+  const flushPendingResize = useCallback((publish: boolean) => {
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current)
+      resizeFrameRef.current = null
+    }
+
+    const pendingWidth = pendingWidthRef.current
+    pendingWidthRef.current = null
+
+    if (publish && pendingWidth !== null) {
+      callbacksRef.current.onResize(pendingWidth)
+    }
+  }, [])
+
+  const scheduleResize = useCallback((nextWidth: number) => {
+    pendingWidthRef.current = nextWidth
+
+    if (resizeFrameRef.current !== null) {
+      return
+    }
+
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null
+
+      const pendingWidth = pendingWidthRef.current
+      pendingWidthRef.current = null
+
+      if (pendingWidth !== null) {
+        callbacksRef.current.onResize(pendingWidth)
+      }
+    })
+  }, [])
+
   const finishResize = useCallback(() => {
     const session = dragSessionRef.current
 
@@ -118,9 +158,14 @@ export function useSidebarResize({
       return
     }
 
-    // Clear before releasing capture because
-    // releasePointerCapture may synchronously
-    // dispatch lostpointercapture.
+    /*
+     * Commit the last pointer position synchronously. This preserves the exact
+     * final width even when pointerup happens before the scheduled frame.
+     *
+     * Clear the drag session before releasing capture because
+     * releasePointerCapture may synchronously dispatch lostpointercapture.
+     */
+    flushPendingResize(true)
     dragSessionRef.current = null
     setResizing(false)
 
@@ -131,10 +176,12 @@ export function useSidebarResize({
     restoreBodyInteraction(session)
 
     callbacksRef.current.onResizeEnd?.()
-  }, [restoreBodyInteraction])
+  }, [flushPendingResize, restoreBodyInteraction])
 
   useEffect(() => {
     return () => {
+      flushPendingResize(false)
+
       const session = dragSessionRef.current
 
       if (!session) {
@@ -144,7 +191,7 @@ export function useSidebarResize({
       dragSessionRef.current = null
       restoreBodyInteraction(session)
     }
-  }, [restoreBodyInteraction])
+  }, [flushPendingResize, restoreBodyInteraction])
 
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLHRElement>) => {
@@ -195,9 +242,9 @@ export function useSidebarResize({
 
       const deltaX = event.clientX - session.startX
 
-      callbacksRef.current.onResize(clamp(session.startWidth + deltaX))
+      scheduleResize(clamp(session.startWidth + deltaX))
     },
-    [clamp],
+    [clamp, scheduleResize],
   )
 
   const handlePointerEnd = useCallback(

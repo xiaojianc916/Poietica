@@ -15,6 +15,7 @@ import type {
 import type {
   CanvasSessionId,
   WorkbenchSessionStore,
+  WorkbenchTabViewModel,
   WorkbenchTabId,
   WorkspaceShellActions,
 } from '@hybrid-canvas/workspace/contracts'
@@ -119,8 +120,6 @@ export function WorkspaceContainer({
       })
     }
   }, [failureSnapshot.quarantinedDocuments, workbench.tabs])
-
-  useSyncExternalStore(port.canvases.subscribe, port.canvases.getVersion, port.canvases.getVersion)
 
   const closeSnapshot = useSyncExternalStore(
     port.canvases.subscribe,
@@ -273,26 +272,32 @@ export function WorkspaceContainer({
     ],
   )
 
-  const tabs = workbench.tabs.map((tab) => {
-    if (tab.kind !== 'canvas') {
-      return tab
-    }
+  /*
+   * CanvasWorkflow may publish after any document transaction. Subscribing to
+   * its monotonically increasing version forced this entire composition root
+   * to render for shape movement, drawing and resizing.
+   *
+   * The selector below returns the previous array reference unless one of the
+   * tab-visible persistence states actually changed.
+   */
+  const tabs = useCanvasTabs(port.canvases, workbench.tabs)
 
-    const status = port.canvases.getSessionSnapshot(tab.sessionId)?.persistence
+  const model = useMemo(
+    () => ({
+      ...workbench,
+      tabs,
+    }),
+    [tabs, workbench],
+  )
 
-    return status ? { ...tab, status } : tab
-  })
-
-  const model = {
-    ...workbench,
-    tabs,
-  }
-
-  const activeCanvasTitle =
-    activeSessionId === null
-      ? null
-      : (tabs.find((tab) => tab.kind === 'canvas' && tab.sessionId === activeSessionId)?.title ??
-        null)
+  const activeCanvasTitle = useMemo(
+    () =>
+      activeSessionId === null
+        ? null
+        : (tabs.find((tab) => tab.kind === 'canvas' && tab.sessionId === activeSessionId)?.title ??
+          null),
+    [activeSessionId, tabs],
+  )
 
   const hostedSessions = useMemo(
     () =>
@@ -408,6 +413,83 @@ export function WorkspaceContainer({
       statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}
     />
   )
+}
+
+function useCanvasTabs(
+  canvases: WorkspaceCanvasUIPort,
+  sourceTabs: readonly WorkbenchTabViewModel[],
+): readonly WorkbenchTabViewModel[] {
+  /*
+   * React compares external-store snapshots with Object.is. The selector is
+   * scoped to the current source tab array and caches its projected result.
+   *
+   * Canvas notifications still cause a cheap O(tab count) status check, but
+   * ordinary document changes return the exact previous array reference and
+   * therefore do not schedule a WorkspaceContainer render.
+   */
+  const getTabsSnapshot = useMemo(
+    () => createCanvasTabsSnapshotReader(canvases, sourceTabs),
+    [canvases, sourceTabs],
+  )
+
+  return useSyncExternalStore(canvases.subscribe, getTabsSnapshot, getTabsSnapshot)
+}
+
+function createCanvasTabsSnapshotReader(
+  canvases: WorkspaceCanvasUIPort,
+  sourceTabs: readonly WorkbenchTabViewModel[],
+): () => readonly WorkbenchTabViewModel[] {
+  type PersistenceState = CanvasSessionSnapshot['persistence'] | undefined
+
+  let cachedStatuses: ReadonlyMap<CanvasSessionId, PersistenceState> | null = null
+
+  let cachedTabs: readonly WorkbenchTabViewModel[] | null = null
+
+  return () => {
+    const nextStatuses = new Map<CanvasSessionId, PersistenceState>()
+
+    for (const tab of sourceTabs) {
+      if (tab.kind !== 'canvas') {
+        continue
+      }
+
+      nextStatuses.set(tab.sessionId, canvases.getSessionSnapshot(tab.sessionId)?.persistence)
+    }
+
+    if (cachedStatuses && cachedTabs && persistenceStatesEqual(cachedStatuses, nextStatuses)) {
+      return cachedTabs
+    }
+
+    cachedStatuses = nextStatuses
+    cachedTabs = sourceTabs.map((tab) => {
+      if (tab.kind !== 'canvas') {
+        return tab
+      }
+
+      const status = nextStatuses.get(tab.sessionId)
+
+      return status ? { ...tab, status } : tab
+    })
+
+    return cachedTabs
+  }
+}
+
+function persistenceStatesEqual(
+  previous: ReadonlyMap<CanvasSessionId, CanvasSessionSnapshot['persistence'] | undefined>,
+  next: ReadonlyMap<CanvasSessionId, CanvasSessionSnapshot['persistence'] | undefined>,
+): boolean {
+  if (previous.size !== next.size) {
+    return false
+  }
+
+  for (const [sessionId, status] of previous) {
+    if (!next.has(sessionId) || next.get(sessionId) !== status) {
+      return false
+    }
+  }
+
+  return true
 }
 
 interface ActiveSurfaceRendererProps {
