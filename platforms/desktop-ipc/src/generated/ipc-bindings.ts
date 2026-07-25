@@ -5,6 +5,57 @@
 
 
 export const commands = {
+/**
+ * Starts a turn and returns as soon as it is under way.
+ * 
+ * The answer to the prompt is not awaited here. Frames arrive on
+ * [`AGENT_EVENT`] as they are recorded, which is what the timeline consumes;
+ * blocking the caller until the agent stopped would defeat the point.
+ * 
+ * # Errors
+ * 
+ * Fails when the prompt is empty, the agent cannot be started, or the log
+ * cannot be written.
+ */
+async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
+    return await TAURI_INVOKE("agent_prompt", { request });
+},
+/**
+ * Asks the agent to stop the turn that is in flight.
+ * 
+ * Cancellation is cooperative: the agent may still finish normally, and the
+ * recorded stop reason reports which of the two happened.
+ * 
+ * # Errors
+ * 
+ * Fails when no session is running or the driver has stopped.
+ */
+async agentCancel() : Promise<null> {
+    return await TAURI_INVOKE("agent_cancel");
+},
+/**
+ * Ends the session and lets the agent process exit.
+ * 
+ * # Errors
+ * 
+ * Fails when the session lock was poisoned.
+ */
+async agentShutdown() : Promise<null> {
+    return await TAURI_INVOKE("agent_shutdown");
+},
+/**
+ * Reads a run back out of the log.
+ * 
+ * The frames returned are the same values that were broadcast while the run
+ * was live, so replaying a stored run cannot drift from having watched it.
+ * 
+ * # Errors
+ * 
+ * Fails when the identifier is not a UUID or the log cannot be read.
+ */
+async agentLoadRun(request: AgentLoadRunRequest) : Promise<AgentRunSnapshot> {
+    return await TAURI_INVOKE("agent_load_run", { request });
+},
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
@@ -76,6 +127,63 @@ async settingsReset() : Promise<AppSettings> {
 
 /** user-defined types **/
 
+/**
+ * A request to replay a run from the log.
+ */
+export type AgentLoadRunRequest = { 
+/**
+ * The run to read.
+ */
+runId: string; 
+/**
+ * Resume after this position; omit to read from the beginning.
+ * 
+ * The width is deliberate. Sequence numbers are 64-bit in the log, but
+ * the generated TypeScript refuses a 64-bit integer rather than hand the
+ * renderer a value it cannot represent, and no single run is going to
+ * reach four billion frames.
+ */
+afterSeq: number | null }
+/**
+ * A prompt, and how to start the agent if it is not running yet.
+ */
+export type AgentPromptRequest = { 
+/**
+ * What the user typed.
+ */
+text: string; 
+/**
+ * The agent command line; defaults to the Kimi ACP entry point.
+ */
+command: string | null; 
+/**
+ * The working directory the session is created against.
+ */
+cwd: string | null }
+/**
+ * What the interface needs to follow the turn it just started.
+ */
+export type AgentPromptResult = { 
+/**
+ * The run every frame of this turn is tagged with.
+ */
+runId: string; 
+/**
+ * The session the run belongs to.
+ */
+sessionId: string }
+/**
+ * A run as it was recorded.
+ */
+export type AgentRunSnapshot = { 
+/**
+ * The run the frames belong to.
+ */
+runId: string; 
+/**
+ * The frames, in order, exactly as they were broadcast when live.
+ */
+events: JsonValue[] }
 export type AppSettings = { theme: string; language: string; auto_save: boolean; 
 /**
  * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,
@@ -114,6 +222,7 @@ export type ExportSettings = { default_format: string; png_dpi: number; pdf_qual
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
+export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PrivacySettings = { telemetry: boolean; crash_reporting: boolean; update_check: boolean }
 

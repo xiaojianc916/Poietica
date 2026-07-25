@@ -30,7 +30,7 @@ use crate::error::{Error, IpcError, Result};
 type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 
 /// The event the renderer listens on to receive run frames.
-pub const AGENT_EVENT: &str = "ai://run-event";
+pub const AGENT_EVENT: &str = "ai-run-event";
 
 /// The encrypted database, kept beside the rest of the application data.
 const DATABASE_FILE: &str = "ai.sqlite3";
@@ -112,7 +112,12 @@ pub struct AgentLoadRunRequest {
     /// The run to read.
     pub run_id: String,
     /// Resume after this position; omit to read from the beginning.
-    pub after_seq: Option<i64>,
+    ///
+    /// The width is deliberate. Sequence numbers are 64-bit in the log, but
+    /// the generated TypeScript refuses a 64-bit integer rather than hand the
+    /// renderer a value it cannot represent, and no single run is going to
+    /// reach four billion frames.
+    pub after_seq: Option<u32>,
 }
 
 /// A run as it was recorded.
@@ -244,7 +249,7 @@ pub fn agent_load_run(
 
     let store = AiStore::open(&state.database).map_err(persistence)?;
     let events = store
-        .events_since(run_id, request.after_seq.unwrap_or_default())
+        .events_since(run_id, i64::from(request.after_seq.unwrap_or_default()))
         .map_err(persistence)?;
 
     Ok(AgentRunSnapshot {

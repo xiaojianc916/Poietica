@@ -96,7 +96,7 @@ leaving an orphan behind.
 
 `agent_prompt` returns as soon as the turn is under way, carrying the run and
 session identifiers. It does not wait for the agent to stop. Frames reach the
-interface on the `ai://run-event` channel, emitted from the recorder's sink,
+interface on the `ai-run-event` channel, emitted from the recorder's sink,
 which runs only after the frame has been written to the encrypted log. A frame
 that the renderer misses is therefore never lost: `agent_load_run` reads the
 same values back out of the log, in the same order.

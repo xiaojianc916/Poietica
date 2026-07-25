@@ -3210,6 +3210,8 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "log",
+ "poietica-ai-acp-native",
+ "poietica-ai-persistence-native",
  "poietica-editor-persistence-native",
  "serde",
  "serde_json",
@@ -3244,6 +3246,7 @@ name = "poietica-ai-acp-native"
 version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
+ "futures",
  "poietica-ai-persistence-native",
  "serde",
  "serde_json",

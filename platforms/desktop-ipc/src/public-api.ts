@@ -1,4 +1,14 @@
 export {
+  AGENT_EVENT,
+  type AgentBridgeOptions,
+  type AgentCommandBridge,
+  type AgentEventSource,
+  type AgentEventSourceOptions,
+  createAgentCommandBridge,
+  createAgentEventSource,
+  shutdownAgent,
+} from './agent'
+export {
   type IpcError,
   IpcInvocationError,
   isIpcError,
