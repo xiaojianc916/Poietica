@@ -159,3 +159,12 @@ body {
   border-radius: 999px;
   background: color-mix(in srgb, var(--color-foreground) 32%, transparent);
 }
+
+/* fatal-error-illustration */
+.fatal-illustration {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: 0 0 20px;
+  object-fit: contain;
+}

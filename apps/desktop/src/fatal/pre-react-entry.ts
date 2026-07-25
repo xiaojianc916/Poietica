@@ -4,6 +4,8 @@ import { isReactFatalHostMounted } from './fatal-runtime'
 import type { TerminalFailureViewModel } from './terminal-failure-view-model'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
+const errorRobotIllustrationUrl = new URL('./assets/error-robot.svg', import.meta.url).href
+
 installFatalCollectors()
 
 failureCoordinator.subscribe(() => {
@@ -46,10 +48,11 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
 
   const content = createElement('section', 'fatal-content')
 
-  const icon = createElement('div', 'fatal-icon')
+  const illustration = createElement('img', 'fatal-illustration')
 
-  icon.setAttribute('aria-hidden', 'true')
-  icon.innerHTML = createWarningIcon()
+  illustration.src = errorRobotIllustrationUrl
+  illustration.alt = ''
+  illustration.setAttribute('aria-hidden', 'true')
 
   const title = createTextElement('h1', 'fatal-title', model.title)
   const description = createTextElement('p', 'fatal-description', model.description)
@@ -110,7 +113,7 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
 
   actions.append(copyButton)
 
-  content.append(icon, title, description, summary)
+  content.append(illustration, title, description, summary)
 
   if (model.additionalIncidentMessage) {
     content.append(createTextElement('p', 'fatal-secondary', model.additionalIncidentMessage))
@@ -184,22 +187,4 @@ function createCopyIcon(): string {
 
 function createCheckIcon(): string {
   return '<svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/><path d="m8.667 12.633 1.505 1.721a1 1 0 0 0 1.564-.073L15.333 9.3"/></svg>'
-}
-
-function createWarningIcon(): string {
-  return [
-    '<svg',
-    ' viewBox="0 0 24 24"',
-    ' fill="none"',
-    ' stroke="currentColor"',
-    ' stroke-width="1.7"',
-    ' stroke-linecap="round"',
-    ' stroke-linejoin="round"',
-    ' aria-hidden="true"',
-    '>',
-    '<path d="M12 8.5v4.25" />',
-    '<path d="M12 16.25h.01" />',
-    '<path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />',
-    '</svg>',
-  ].join('')
 }
