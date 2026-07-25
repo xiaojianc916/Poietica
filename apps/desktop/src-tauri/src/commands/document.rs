@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tauri::{AppHandle, State, command};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -43,8 +43,23 @@ impl DocumentId {
 struct DocumentHandle {
     path: PathBuf,
     revision: DocumentRevision,
+    /// Length of the container as this session last wrote or read it.
+    ///
+    /// A stored file of a different length cannot hash to the same revision,
+    /// so this settles the common external-edit case without reading the file.
+    /// It filters; the revision still decides.
+    container_len: u64,
     created_at: String,
     asset_session_token: Option<String>,
+    /// Serialises saves of this document without serialising the registry.
+    save_lock: Arc<Mutex<()>>,
+}
+
+/// What a save copies out of the registry before touching the disk.
+struct SavePlan {
+    path: PathBuf,
+    created_at: String,
+    container_len: u64,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -53,26 +68,82 @@ pub struct DocumentRegistry {
 }
 
 impl DocumentRegistry {
+    fn read(&self) -> Result<RwLockReadGuard<'_, HashMap<DocumentId, DocumentHandle>>> {
+        self.documents
+            .read()
+            .map_err(|_| Error::Internal("document registry read lock poisoned".into()))
+    }
+
+    fn write(&self) -> Result<RwLockWriteGuard<'_, HashMap<DocumentId, DocumentHandle>>> {
+        self.documents
+            .write()
+            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))
+    }
+
+    fn handle(
+        documents: &HashMap<DocumentId, DocumentHandle>,
+        document_id: DocumentId,
+    ) -> Result<&DocumentHandle> {
+        documents
+            .get(&document_id)
+            .ok_or_else(|| Error::NotFound("document session does not exist".into()))
+    }
+
+    /// Hands out the save lock of one document and releases the registry.
+    fn save_lock(&self, document_id: DocumentId) -> Result<Arc<Mutex<()>>> {
+        let documents = self.read()?;
+
+        Ok(Arc::clone(&Self::handle(&documents, document_id)?.save_lock))
+    }
+
+    /// Publishes the outcome of a completed write.
+    ///
+    /// Callers hold this document's save lock, so no other save can have moved
+    /// the handle. A missing entry therefore means the session was closed while
+    /// the bytes were being written; the file is already durable and the caller
+    /// is told the session no longer exists.
+    fn commit(
+        &self,
+        document_id: DocumentId,
+        path: &Path,
+        revision: DocumentRevision,
+        container_len: u64,
+        asset_session_token: Option<String>,
+    ) -> Result<()> {
+        let mut documents = self.write()?;
+
+        let handle = documents.get_mut(&document_id).ok_or_else(|| {
+            Error::NotFound("document session was closed while saving".into())
+        })?;
+
+        handle.path = path.to_owned();
+        handle.revision = revision;
+        handle.container_len = container_len;
+        handle.asset_session_token = asset_session_token;
+
+        Ok(())
+    }
+
     fn insert(
         &self,
         path: PathBuf,
         revision: DocumentRevision,
+        container_len: u64,
         created_at: String,
         asset_session_token: Option<String>,
     ) -> Result<DocumentId> {
         let document_id = DocumentId::new();
-        let mut documents = self
-            .documents
-            .write()
-            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))?;
+        let mut documents = self.write()?;
 
         documents.insert(
             document_id,
             DocumentHandle {
                 path,
                 revision,
+                container_len,
                 created_at,
                 asset_session_token,
+                save_lock: Arc::new(Mutex::new(())),
             },
         );
 
@@ -80,17 +151,16 @@ impl DocumentRegistry {
     }
 
     fn path(&self, document_id: DocumentId) -> Result<PathBuf> {
-        let documents = self
-            .documents
-            .read()
-            .map_err(|_| Error::Internal("document registry read lock poisoned".into()))?;
+        let documents = self.read()?;
 
-        documents
-            .get(&document_id)
-            .map(|handle| handle.path.clone())
-            .ok_or_else(|| Error::NotFound("document session does not exist".into()))
+        Ok(Self::handle(&documents, document_id)?.path.clone())
     }
 
+    /// Moves an existing session to a newly selected file.
+    ///
+    /// Shares the per-document save lock with save_existing, so a Save As and a
+    /// Save of the same document cannot interleave, while leaving the registry
+    /// available to every other document throughout.
     fn save_as_existing(
         &self,
         document_id: DocumentId,
@@ -99,35 +169,51 @@ impl DocumentRegistry {
         asset_session_token: Option<String>,
         assets: &[AssetSessionSnapshotEntry],
     ) -> Result<DocumentRevision> {
-        ensure_logical_document_size(content.len() as u64)?;
         ensure_draw_document_path(&path)?;
 
-        let mut documents = self
-            .documents
-            .write()
-            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))?;
+        let save_lock = self.save_lock(document_id)?;
+        let _save_guard = save_lock
+            .lock()
+            .map_err(|_| Error::Internal("document save lock poisoned".into()))?;
 
-        let handle = documents
-            .get_mut(&document_id)
-            .ok_or_else(|| Error::NotFound("document session does not exist".into()))?;
+        let created_at = {
+            let documents = self.read()?;
+            let handle = Self::handle(&documents, document_id)?;
 
-        validate_asset_session_transition(
-            handle.asset_session_token.as_deref(),
-            asset_session_token.as_deref(),
-        )?;
+            validate_asset_session_transition(
+                handle.asset_session_token.as_deref(),
+                asset_session_token.as_deref(),
+            )?;
 
-        let encoded = encode_document(content, &handle.created_at, assets)?;
+            handle.created_at.clone()
+        };
+
+        let encoded = encode_document(content, &created_at, assets)?;
         atomic_write(&path, &encoded)?;
 
         let revision = document_revision(&encoded);
 
-        handle.path = path;
-        handle.revision.clone_from(&revision);
-        handle.asset_session_token = asset_session_token;
+        self.commit(
+            document_id,
+            &path,
+            revision.clone(),
+            encoded.len() as u64,
+            asset_session_token,
+        )?;
 
         Ok(revision)
     }
 
+    /// Compare-and-swap the stored document.
+    ///
+    /// The registry lock is a guard over a map of sessions. It is deliberately
+    /// not held across any filesystem operation here: doing so would make an
+    /// unrelated document's open, close or path lookup wait behind this
+    /// document's fsync, and would serialise saves that share nothing.
+    ///
+    /// Atomicity of the compare-and-swap is provided instead by a lock owned by
+    /// this document, so exactly the operations that must not interleave are
+    /// the operations that contend.
     fn save_existing(
         &self,
         document_id: DocumentId,
@@ -136,94 +222,68 @@ impl DocumentRegistry {
         asset_session_token: Option<String>,
         assets: &[AssetSessionSnapshotEntry],
     ) -> Result<DocumentRevision> {
-        ensure_logical_document_size(content.len() as u64)?;
-
         let expected_revision = DocumentRevision::parse(expected_revision).ok_or_else(|| {
             Error::Validation("expected revision must be canonical SHA-256".into())
         })?;
 
-        let mut documents = self
-            .documents
-            .write()
-            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))?;
+        let save_lock = self.save_lock(document_id)?;
+        let _save_guard = save_lock
+            .lock()
+            .map_err(|_| Error::Internal("document save lock poisoned".into()))?;
 
-        let handle = documents
-            .get_mut(&document_id)
-            .ok_or_else(|| Error::NotFound("document session does not exist".into()))?;
+        // Everything the write needs is copied out here so that the registry is
+        // unlocked for the duration of the disk work below.
+        let plan = {
+            let documents = self.read()?;
+            let handle = Self::handle(&documents, document_id)?;
 
-        if handle.revision != expected_revision {
-            return Err(Error::FileConflict(
-                "renderer document revision is stale".into(),
-            ));
-        }
-
-        validate_asset_session_transition(
-            handle.asset_session_token.as_deref(),
-            asset_session_token.as_deref(),
-        )?;
-
-        ensure_draw_document_path(&handle.path)?;
-
-        /*
-         * Conflict detection needs the identity of the stored bytes, not the
-         * bytes themselves. Reading the whole container in first allocated up
-         * to MAX_CONTAINER_BYTES on every save, held alongside the freshly
-         * encoded container about to be written, and made peak memory a
-         * function of embedded asset size rather than of the edit.
-         *
-         * The size guard now runs against file metadata, so an oversized
-         * container is rejected before any byte is read. Previously it ran
-         * after the read it was supposed to guard.
-         */
-        let stored = match std::fs::File::open(&handle.path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if handle.revision != expected_revision {
                 return Err(Error::FileConflict(
-                    "document was removed outside Canvas".into(),
+                    "renderer document revision is stale".into(),
                 ));
             }
-            Err(error) => return Err(error.into()),
+
+            validate_asset_session_transition(
+                handle.asset_session_token.as_deref(),
+                asset_session_token.as_deref(),
+            )?;
+
+            ensure_draw_document_path(&handle.path)?;
+
+            SavePlan {
+                path: handle.path.clone(),
+                created_at: handle.created_at.clone(),
+                container_len: handle.container_len,
+            }
         };
 
-        ensure_container_size(stored.metadata()?.len())?;
+        verify_unchanged_on_disk(&plan.path, plan.container_len, &expected_revision)?;
 
-        let actual_revision = DocumentRevision::from_reader(stored)?;
-
-        if actual_revision != expected_revision {
-            return Err(Error::FileConflict(
-                "document changed outside Canvas".into(),
-            ));
-        }
-
-        let encoded = encode_document(content, &handle.created_at, assets)?;
-        atomic_write(&handle.path, &encoded)?;
+        let encoded = encode_document(content, &plan.created_at, assets)?;
+        atomic_write(&plan.path, &encoded)?;
 
         let next_revision = document_revision(&encoded);
 
-        handle.revision.clone_from(&next_revision);
-        handle.asset_session_token = asset_session_token;
+        self.commit(
+            document_id,
+            &plan.path,
+            next_revision.clone(),
+            encoded.len() as u64,
+            asset_session_token,
+        )?;
 
         Ok(next_revision)
     }
 
     fn remove(&self, document_id: DocumentId) -> Result<DocumentHandle> {
-        let mut documents = self
-            .documents
-            .write()
-            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))?;
-
-        documents
+        self.write()?
             .remove(&document_id)
             .ok_or_else(|| Error::NotFound("document session does not exist".into()))
     }
 
     fn restore(&self, document_id: DocumentId, handle: DocumentHandle) -> Result<()> {
-        let mut documents = self
-            .documents
-            .write()
-            .map_err(|_| Error::Internal("document registry write lock poisoned".into()))?;
+        self.write()?.insert(document_id, handle);
 
-        documents.insert(document_id, handle);
         Ok(())
     }
 }
@@ -310,7 +370,7 @@ pub async fn document_open(
     let path = selected_native_path(selected)?;
     ensure_draw_document_path(&path)?;
 
-    let (decoded, revision) = read_document(path.clone()).await?;
+    let (decoded, revision, container_len) = read_document(path.clone()).await?;
 
     let asset_session_token = if decoded.assets.is_empty() {
         None
@@ -327,6 +387,7 @@ pub async fn document_open(
     let document_id = match documents.insert(
         path.clone(),
         revision.clone(),
+        container_len,
         decoded.created_at,
         asset_session_token.clone(),
     ) {
@@ -405,7 +466,7 @@ pub async fn document_save_as(
         None => {
             let created_at = now_timestamp()?;
 
-            let revision = write_document(
+            let (revision, container_len) = write_document(
                 path.clone(),
                 request.content,
                 created_at.clone(),
@@ -416,6 +477,7 @@ pub async fn document_save_as(
             let document_id = documents.insert(
                 path.clone(),
                 revision.clone(),
+                container_len,
                 created_at,
                 request.asset_session_token,
             )?;
@@ -521,7 +583,12 @@ struct DecodedDocument {
     assets: Vec<AssetSessionSnapshotEntry>,
 }
 
-async fn read_document(path: PathBuf) -> Result<(DecodedDocument, DocumentRevision)> {
+/*
+ * Both size checks are load bearing. The first rejects an oversized container
+ * from its metadata before a byte is read; the second catches a file that grew
+ * between the metadata call and the read. They are not duplicates.
+ */
+async fn read_document(path: PathBuf) -> Result<(DecodedDocument, DocumentRevision, u64)> {
     let metadata = tokio::fs::metadata(&path).await?;
     ensure_container_size(metadata.len())?;
 
@@ -529,10 +596,11 @@ async fn read_document(path: PathBuf) -> Result<(DecodedDocument, DocumentRevisi
     ensure_container_size(bytes.len() as u64)?;
 
     tokio::task::spawn_blocking(move || {
+        let container_len = bytes.len() as u64;
         let revision = document_revision(&bytes);
         let decoded = decode_document(&bytes)?;
 
-        Ok((decoded, revision))
+        Ok((decoded, revision, container_len))
     })
     .await
     .map_err(|_| Error::Internal("document decode task terminated unexpectedly".into()))?
@@ -543,13 +611,13 @@ async fn write_document(
     content: String,
     created_at: String,
     assets: Vec<AssetSessionSnapshotEntry>,
-) -> Result<DocumentRevision> {
+) -> Result<(DocumentRevision, u64)> {
     tokio::task::spawn_blocking(move || {
         let encoded = encode_document(&content, &created_at, &assets)?;
 
         atomic_write(&path, &encoded)?;
 
-        Ok(document_revision(&encoded))
+        Ok((document_revision(&encoded), encoded.len() as u64))
     })
     .await
     .map_err(|_| Error::Internal("document save task terminated unexpectedly".into()))?
@@ -606,6 +674,51 @@ fn encode_document(
         application_json: br#"{}"#,
         assets: &asset_inputs,
     })?)
+}
+
+/// Confirms the stored container still carries the revision this session last
+/// saw, without loading it and without holding the registry lock.
+///
+/// Length is checked first only because a container of a different length
+/// cannot hash to the same revision: that case is decided having read zero
+/// bytes. When the length matches, the exact bytes decide. Length filters,
+/// the hash rules.
+fn verify_unchanged_on_disk(
+    path: &Path,
+    expected_len: u64,
+    expected_revision: &DocumentRevision,
+) -> Result<()> {
+    let stored = match std::fs::File::open(path) {
+        Ok(stored) => stored,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(Error::FileConflict(
+                "document was removed outside Canvas".into(),
+            ));
+        }
+        Err(error) => return Err(error.into()),
+    };
+
+    let actual_len = stored.metadata()?.len();
+
+    // Runs against metadata, so an oversized container is rejected before any
+    // byte is read rather than after it has been allocated.
+    ensure_container_size(actual_len)?;
+
+    if actual_len != expected_len {
+        return Err(Error::FileConflict(
+            "document changed outside Canvas".into(),
+        ));
+    }
+
+    // Streamed in fixed chunks: peak memory is constant rather than the length
+    // of the container, which may embed every asset in the document.
+    if DocumentRevision::from_reader(stored)? != *expected_revision {
+        return Err(Error::FileConflict(
+            "document changed outside Canvas".into(),
+        ));
+    }
+
+    Ok(())
 }
 
 fn snapshot_assets(
@@ -794,6 +907,7 @@ mod tests {
             .insert(
                 path.clone(),
                 original_revision.clone(),
+                original.len() as u64,
                 created_at.to_owned(),
                 None,
             )
@@ -834,6 +948,7 @@ mod tests {
             .insert(
                 path.clone(),
                 original_revision.clone(),
+                original.len() as u64,
                 created_at.to_owned(),
                 None,
             )
@@ -853,6 +968,121 @@ mod tests {
         assert_eq!(
             std::fs::read(&path).expect("file should remain"),
             b"external change",
+        );
+    }
+
+    /*
+     * The length fast path would be a silent data-loss bug if length were ever
+     * treated as the verdict. This tampers with the stored container in place,
+     * leaving its length identical, so the only thing that can reject the save
+     * is the hash of the exact bytes.
+     */
+    #[test]
+    fn cas_rejects_same_length_external_change() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("tampered.draw");
+        let created_at = "2026-07-23T00:00:00.000Z";
+
+        let original = encode_document(&logical_store_snapshot("original"), created_at, &[])
+            .expect("fixture should encode");
+
+        std::fs::write(&path, &original).expect("fixture should write");
+
+        let original_revision = document_revision(&original);
+
+        let registry = DocumentRegistry::default();
+        let document_id = registry
+            .insert(
+                path.clone(),
+                original_revision.clone(),
+                original.len() as u64,
+                created_at.to_owned(),
+                None,
+            )
+            .expect("document should register");
+
+        let mut tampered = original.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0xFF;
+
+        assert_eq!(tampered.len(), original.len(), "tampering must preserve length");
+        assert_ne!(tampered, original, "tampering must change the bytes");
+
+        std::fs::write(&path, &tampered).expect("external edit should write");
+
+        let result = registry.save_existing(
+            document_id,
+            &original_revision.clone().into_string(),
+            &logical_store_snapshot("replacement"),
+            None,
+            &[],
+        );
+
+        assert!(matches!(result, Err(Error::FileConflict(_))));
+        assert_eq!(
+            std::fs::read(&path).expect("file should remain"),
+            tampered,
+            "a rejected save must not overwrite",
+        );
+    }
+
+    /*
+     * The registry must stay usable while a document is being written. If the
+     * save ever reacquires the registry lock for the duration of its disk work
+     * again, an unrelated lookup taken mid-save will deadlock this test rather
+     * than merely slow the application down.
+     */
+    #[test]
+    fn saving_one_document_leaves_the_registry_available() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let created_at = "2026-07-23T00:00:00.000Z";
+
+        let registry = DocumentRegistry::default();
+
+        let busy_path = directory.path().join("busy.draw");
+        let busy = encode_document(&logical_store_snapshot("busy"), created_at, &[])
+            .expect("fixture should encode");
+        std::fs::write(&busy_path, &busy).expect("fixture should write");
+
+        let busy_id = registry
+            .insert(
+                busy_path.clone(),
+                document_revision(&busy),
+                busy.len() as u64,
+                created_at.to_owned(),
+                None,
+            )
+            .expect("document should register");
+
+        let idle_path = directory.path().join("idle.draw");
+        let idle_id = registry
+            .insert(
+                idle_path.clone(),
+                document_revision(b""),
+                0,
+                created_at.to_owned(),
+                None,
+            )
+            .expect("document should register");
+
+        // Held for the whole save: an unrelated document's save lock must not
+        // be reachable from the busy document's write path.
+        let idle_guard = registry.save_lock(idle_id).expect("idle save lock");
+        let _idle_held = idle_guard.lock().expect("idle save lock should be free");
+
+        registry
+            .save_existing(
+                busy_id,
+                document_revision(&busy).as_str(),
+                &logical_store_snapshot("replacement"),
+                None,
+                &[],
+            )
+            .expect("an unrelated held save lock must not block this save");
+
+        assert_eq!(
+            registry.path(idle_id).expect("registry should stay readable"),
+            idle_path,
         );
     }
 
