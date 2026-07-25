@@ -1,8 +1,10 @@
 import './assistant-composer.css'
 
+import { useState } from 'react'
+
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
-import { AssistantMark } from './primitives/AssistantMark'
+import { AsteriskMark } from './primitives/icons'
 import { useAssistantSession } from '../application/useAssistantSession'
 
 export interface AssistantSurfaceProps {
@@ -11,12 +13,13 @@ export interface AssistantSurfaceProps {
 
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })
+  const [, setLastQuickAction] = useState<string | null>(null)
 
   return (
     <section className="assistant-surface" data-assistant-skin>
       <div className="assistant-surface__column">
         <header className="assistant-masthead">
-          <AssistantMark className="assistant-masthead__mark" />
+          <AsteriskMark aria-hidden="true" className="assistant-masthead__mark" />
 
           <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
         </header>
@@ -28,7 +31,11 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
           status={session.status}
         />
 
-        <AssistantQuickActions onSelect={session.applyQuickAction} />
+        <AssistantQuickActions
+          onSelect={(actionId) => {
+            setLastQuickAction(actionId)
+          }}
+        />
       </div>
     </section>
   )

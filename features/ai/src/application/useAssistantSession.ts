@@ -1,78 +1,68 @@
-import { useChat } from '@ai-sdk/react'
-import { useCallback, useMemo, useReducer } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
-import { createAiSdkTransport } from '../adapters/ai-sdk-transport'
-import type { AgentId, AgentRegistryPort } from '../contracts/agent-contract'
-import type { ComposerCommands, ComposerViewModel } from '../contracts/composer-contract'
-import type { AssistantStatus } from '../contracts/conversation-contract'
-import type { AssistantTransportPort } from '../contracts/transport-contract'
-import { canSubmit, composerReducer, type ComposerState } from '../domain/composer-state'
-import { DEFAULT_AGENT_ID } from '../domain/agent-registry'
+import type { ChatStatus } from '../presentation/ai-elements/prompt-input'
+
+/*
+ * The surface depends on the transport PORT, never on a concrete SDK.
+ *
+ * Rendering the AI surface must not require ai / @ai-sdk/react to be
+ * installed or an endpoint to be reachable. The ai-sdk adapter
+ * (adapters/ai-sdk-transport.ts) is wired in during P2 by passing a
+ * transport here; until then the default stub keeps the UI fully usable.
+ */
+
+export interface AssistantSubmission {
+  readonly text: string
+  readonly files: readonly File[]
+}
+
+export interface AssistantTransportPort {
+  readonly send: (submission: AssistantSubmission) => Promise<void>
+}
 
 export interface AssistantSessionOptions {
-  readonly transport: AssistantTransportPort
-  readonly registry: AgentRegistryPort
-  readonly initialAgentId?: AgentId
+  readonly endpoint: string
+  readonly transport?: AssistantTransportPort
 }
 
 export interface AssistantSession {
-  readonly composer: ComposerViewModel
-  readonly commands: ComposerCommands
-  readonly status: AssistantStatus
-  readonly agents: ReturnType<AgentRegistryPort['list']>
+  readonly status: ChatStatus
+  readonly send: (submission: AssistantSubmission) => void
 }
 
-/**
- * 会话编排：把 composer 纯状态与 ai-sdk 运行时绑定。
- *
- * UI 只消费 ViewModel + Commands，永远看不到 ai-sdk 类型。
- */
 export function useAssistantSession({
+  endpoint,
   transport,
-  registry,
-  initialAgentId = DEFAULT_AGENT_ID,
 }: AssistantSessionOptions): AssistantSession {
-  const [state, dispatch] = useReducer(composerReducer, {
-    draft: '',
-    attachments: [],
-    activeAgentId: initialAgentId,
-  } satisfies ComposerState)
+  const [status, setStatus] = useState<ChatStatus>('ready')
 
-  const chatTransport = useMemo(
-    () => createAiSdkTransport(transport, state.activeAgentId),
-    [transport, state.activeAgentId],
+  const resolved = useMemo<AssistantTransportPort>(
+    () =>
+      transport ?? {
+        send: async () => {
+          /* P2: replaced by createAiSdkTransport({ endpoint }) */
+          void endpoint
+          await Promise.resolve()
+        },
+      },
+    [endpoint, transport],
   )
 
-  const chat = useChat({ transport: chatTransport })
-  const isBusy = chat.status === 'submitted' || chat.status === 'streaming'
+  const send = useCallback(
+    (submission: AssistantSubmission) => {
+      setStatus('submitted')
 
-  const submit = useCallback(() => {
-    if (!canSubmit(state, isBusy)) return
-    void chat.sendMessage({ text: state.draft.trim() })
-    dispatch({ type: 'draft/cleared' })
-  }, [chat, isBusy, state])
+      resolved.send(submission).then(
+        () => {
+          setStatus('ready')
+        },
+        () => {
+          setStatus('error')
+        },
+      )
+    },
+    [resolved],
+  )
 
-  return {
-    agents: registry.list(),
-    status: (chat.status ?? 'idle') as AssistantStatus,
-    composer: {
-      draft: state.draft,
-      attachments: state.attachments,
-      activeAgentId: state.activeAgentId,
-      canSubmit: canSubmit(state, isBusy),
-      isBusy,
-    },
-    commands: {
-      setDraft: (draft) => dispatch({ type: 'draft/changed', draft }),
-      submit,
-      stop: () => void chat.stop(),
-      selectAgent: (agentId) => dispatch({ type: 'agent/selected', agentId }),
-      attach: (source) =>
-        dispatch({
-          type: 'attachment/added',
-          attachment: { id: crypto.randomUUID(), name: source, kind: 'file' },
-        }),
-      removeAttachment: (attachmentId) => dispatch({ type: 'attachment/removed', attachmentId }),
-    },
-  }
+  return { status, send }
 }

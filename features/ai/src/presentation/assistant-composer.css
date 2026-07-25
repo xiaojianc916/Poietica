@@ -281,3 +281,120 @@
   font-size: 13px;
   color: var(--as-ink-subtle);
 }
+
+/* ── vendored nodes ── */
+
+.assistant-visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+[data-assistant-skin] [data-slot="prompt-input-attachments"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 10px;
+}
+
+[data-assistant-skin] [data-slot="prompt-input-attachment"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  max-inline-size: 260px;
+}
+
+[data-assistant-skin] .assistant-attachment__icon {
+  block-size: 18px;
+  inline-size: 18px;
+  color: var(--as-ink-muted);
+  flex: none;
+}
+
+[data-assistant-skin] .assistant-attachment__meta {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+[data-assistant-skin] .assistant-attachment__name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--as-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-attachment__type {
+  font-size: 11px;
+  color: var(--as-ink-subtle);
+}
+
+[data-assistant-skin] .assistant-attachment__remove {
+  display: inline-flex;
+  block-size: 18px;
+  inline-size: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--as-ink-subtle);
+}
+
+[data-assistant-skin] .assistant-attachment__remove:hover {
+  background: var(--as-hover);
+  color: var(--as-ink);
+}
+
+[data-assistant-skin] .assistant-action-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+[data-assistant-skin] .assistant-action-menu__content {
+  position: absolute;
+  inset-block-end: calc(100% + 8px);
+  inset-inline-start: 0;
+  z-index: 20;
+  display: flex;
+  min-inline-size: 176px;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--as-hairline);
+  border-radius: 12px;
+  padding: 6px;
+  background: #fff;
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 18%);
+}
+
+[data-assistant-skin] .assistant-action-menu__item {
+  display: flex;
+  block-size: 34px;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  padding-inline: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--as-ink);
+  text-align: start;
+}
+
+[data-assistant-skin] .assistant-action-menu__item:hover {
+  background: var(--as-hover);
+}
+
+[data-assistant-skin] [data-slot="prompt-input-submit"][data-status="submitted"] svg {
+  animation: assistant-spin 800ms linear infinite;
+}
+
+@keyframes assistant-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

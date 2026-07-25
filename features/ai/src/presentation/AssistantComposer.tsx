@@ -1,4 +1,3 @@
-import { Mic, Paperclip, Send, Sparkle } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -16,19 +15,17 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from './ai-elements/prompt-input'
+import type { ChatStatus } from './ai-elements/prompt-input'
+import { AgentIcon, MicIcon, PaperclipIcon, ToolsIcon } from './primitives/icons'
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
   readonly isAgentNew?: boolean
   readonly placeholder?: string
-  readonly status?: 'ready' | 'submitted' | 'streaming' | 'error'
+  readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
 }
 
-/**
- * Structure and behaviour come from AI Elements; visuals come from
- * assistant-composer.css. Deliberately no geometry classes inline.
- */
 export function AssistantComposer({
   agentLabel,
   isAgentNew = false,
@@ -43,13 +40,13 @@ export function AssistantComposer({
       globalDrop
       multiple
       onSubmit={(message) => {
-        const trimmed = (message.text ?? '').trim()
+        const trimmed = message.text.trim()
 
-        if (trimmed.length === 0 && (message.files?.length ?? 0) === 0) {
+        if (trimmed.length === 0 && message.files.length === 0) {
           return
         }
 
-        onSubmit({ text: trimmed, files: message.files ?? [] })
+        onSubmit({ text: trimmed, files: message.files })
         setText('')
       }}
     >
@@ -70,8 +67,8 @@ export function AssistantComposer({
       <PromptInputToolbar>
         <PromptInputTools>
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger className="assistant-control--round">
-              <Paperclip aria-hidden="true" />
+            <PromptInputActionMenuTrigger className="assistant-control--round" title="添加内容">
+              <PaperclipIcon aria-hidden="true" />
             </PromptInputActionMenuTrigger>
 
             <PromptInputActionMenuContent>
@@ -80,11 +77,11 @@ export function AssistantComposer({
           </PromptInputActionMenu>
 
           <PromptInputButton className="assistant-control--round" title="工具">
-            <Sparkle aria-hidden="true" />
+            <ToolsIcon aria-hidden="true" />
           </PromptInputButton>
 
           <PromptInputButton className="assistant-agent-pill">
-            <Send aria-hidden="true" />
+            <AgentIcon aria-hidden="true" />
 
             <span>{agentLabel}</span>
 
@@ -95,7 +92,7 @@ export function AssistantComposer({
         <span className="assistant-toolbar__spacer" />
 
         <PromptInputButton className="assistant-control--ghost" title="语音输入">
-          <Mic aria-hidden="true" />
+          <MicIcon aria-hidden="true" />
         </PromptInputButton>
 
         <PromptInputSubmit disabled={text.trim().length === 0} status={status} />
