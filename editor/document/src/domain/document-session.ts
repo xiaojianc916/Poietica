@@ -70,6 +70,24 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
 
   const dirtyRecordIds = new Set<string>()
 
+  /*
+   * Record ids reported between beginSave and completeSave.
+   *
+   * completeSave previously called rebuildDirtyRecords, a full structural
+   * comparison of every record in the document against the checkpoint Native
+   * had just accepted. That ran on every successful save even though the
+   * result is already determined: beginSave sets currentCheckpoint to a copy
+   * of the ticket checkpoint, so the two are structurally identical at that
+   * instant, and completeSave then promotes the ticket checkpoint to saved.
+   * The only records that can still differ are the ones that changed while
+   * the save was in flight.
+   *
+   * Tracking those ids makes reconciliation O(k) in the number of concurrent
+   * edits, and O(1) in the overwhelmingly common case where there were none,
+   * instead of O(N) in document size on the user-visible save path.
+   */
+  const changedDuringSave = new Set<string>()
+
   function assertNotClosed(): void {
     if (phase === 'closing' || phase === 'closed') {
       throw new Error('DOCUMENT_SESSION_NOT_ACTIVE')
@@ -125,6 +143,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       savedCheckpoint = checkpoint
       currentCheckpoint = cloneDocumentCheckpoint(checkpoint)
       dirtyRecordIds.clear()
+      changedDuringSave.clear()
       phase = 'ready'
     },
 
@@ -135,6 +154,12 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       const changedIds = applyDocumentChanges(current, changes)
 
       reconcileDirtyRecords(current, saved, dirtyRecordIds, changedIds)
+
+      if (phase === 'saving') {
+        for (const id of changedIds) {
+          changedDuringSave.add(id)
+        }
+      }
 
       if (phase === 'save-failed') {
         phase = 'ready'
@@ -171,6 +196,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
 
       nextSaveId += 1
       activeSave = ticket
+      changedDuringSave.clear()
       phase = 'saving'
 
       return ticket
@@ -186,13 +212,22 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       phase = 'ready'
 
       /*
-       * Edits may have arrived while persistence was running. Compare current
-       * state with the exact checkpoint accepted by Native instead of blindly
-       * clearing dirty state.
+       * Edits may have arrived while persistence was running.
+       *
+       * beginSave set currentCheckpoint to a copy of the ticket checkpoint, so
+       * the two were structurally identical at that point, and Native has now
+       * accepted that ticket checkpoint as saved. The only records that can
+       * still be dirty are therefore exactly those reported while the save was
+       * in flight. When none arrived, the document is clean by construction
+       * and no comparison is needed at all.
        */
-      if (currentCheckpoint) {
-        rebuildDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds)
+      if (changedDuringSave.size === 0) {
+        dirtyRecordIds.clear()
+      } else if (currentCheckpoint) {
+        reconcileDirtyRecords(currentCheckpoint, savedCheckpoint, dirtyRecordIds, changedDuringSave)
       }
+
+      changedDuringSave.clear()
     },
 
     failSave(ticket) {
@@ -200,6 +235,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       requireActiveTicket(ticket)
 
       activeSave = null
+      changedDuringSave.clear()
       phase = 'save-failed'
     },
 

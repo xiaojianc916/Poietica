@@ -38,7 +38,17 @@ export function EditorProvider({ children, licenseKey }: EditorProviderProps) {
   const bindSession = useCallback(
     (nextOwner: symbol, editor: Editor | null, registration: ExtensionRegistration | null) => {
       activeOwner.current = nextOwner
-      setSession({ editor, registration })
+
+      /*
+       * Rebinding the same pair is a no-op. Allocating a fresh state object
+       * unconditionally published a new context value and re-rendered every
+       * consumer of the editor context for a session that did not change.
+       */
+      setSession((previous) =>
+        previous.editor === editor && previous.registration === registration
+          ? previous
+          : { editor, registration },
+      )
     },
     [],
   )
@@ -47,7 +57,11 @@ export function EditorProvider({ children, licenseKey }: EditorProviderProps) {
       return
     }
     activeOwner.current = null
-    setSession({ editor: null, registration: null })
+    setSession((previous) =>
+      previous.editor === null && previous.registration === null
+        ? previous
+        : { editor: null, registration: null },
+    )
   }, [])
   const value = useMemo<EditorBindingContextValue>(
     () => ({
@@ -91,14 +105,24 @@ export function useBindEditorSession(
   const ctx = useContext(EditorCtx)
   const bindSession = ctx?.bindSession
   const unbindSession = ctx?.unbindSession
-  const owner = useRef(Symbol('editor-session-owner'))
+  /*
+   * useRef evaluates its argument on every render and keeps only the first
+   * result, so passing Symbol(...) directly allocated a symbol and its
+   * description string on every render of every canvas, to no effect.
+   */
+  const owner = useRef<symbol | null>(null)
+
+  if (owner.current === null) {
+    owner.current = Symbol('editor-session-owner')
+  }
 
   useEffect(() => {
-    if (!bindSession || !unbindSession || !editor || !registration) {
+    const currentOwner = owner.current
+
+    if (!bindSession || !unbindSession || !editor || !registration || !currentOwner) {
       return
     }
 
-    const currentOwner = owner.current
     bindSession(currentOwner, editor, registration)
 
     return () => unbindSession(currentOwner)

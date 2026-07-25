@@ -25,9 +25,22 @@ export interface DocumentCheckpoint {
 }
 
 export function createDocumentCheckpoint(document: TLStoreSnapshot): DocumentCheckpoint {
-  return {
-    records: new Map(Object.entries(document.store)),
+  /*
+   * Object.entries materialises an array of N two-element arrays before the
+   * Map is constructed, so a document of N records costs N + 1 immediately
+   * discarded allocations at every save boundary. Inserting directly keeps the
+   * cost at a single Map.
+   */
+  const records = new Map<string, unknown>()
+  const store = document.store as Record<string, unknown>
+
+  for (const id in store) {
+    if (Object.hasOwn(store, id)) {
+      records.set(id, store[id])
+    }
   }
+
+  return { records }
 }
 
 export function cloneDocumentCheckpoint(checkpoint: DocumentCheckpoint): DocumentCheckpoint {
