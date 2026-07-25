@@ -22,7 +22,7 @@ import {
   PromptInputTools,
 } from './ai-elements/prompt-input'
 import type { ChatStatus } from './ai-elements/prompt-input'
-import { AgentIcon, AttachIcon, CheckIcon, MicIcon } from './primitives/icons'
+import { AgentIcon, AttachIcon, MicIcon } from './primitives/icons'
 import { MODEL_MARKS } from './primitives/model-icons'
 import { useFluidResize } from './useFluidResize'
 import type { AssistantModelDescriptor } from '../domain/model-catalog'
@@ -216,7 +216,7 @@ export function AssistantComposer({
 
                   <span className="assistant-model-select__label">{model.label}</span>
 
-                  <CheckIcon aria-hidden="true" className="assistant-model-select__check" />
+                  <span aria-hidden="true" className="assistant-model-select__check" />
                 </PromptInputModelSelectItem>
               )
             })}

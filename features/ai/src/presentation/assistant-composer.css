@@ -43,10 +43,12 @@
   gap: var(--cp-mast-gap);
 }
 
-/* The mark is the selected model's official logo; it swaps in, not blinks. */
+/* The mark is the selected provider's own artwork; it swaps in, not blinks. */
 .assistant-masthead__mark {
+  display: block;
   block-size: var(--cp-mark);
   inline-size: var(--cp-mark);
+  object-fit: contain;
   animation: assistant-mark-in var(--cp-motion-grow) var(--cp-motion-ease) both;
 }
 
@@ -322,9 +324,11 @@
 }
 
 .assistant-model-select__brand {
+  display: block;
   block-size: var(--cp-icon-sm);
   inline-size: var(--cp-icon-sm);
   flex: none;
+  object-fit: contain;
 }
 
 .assistant-model-select__chevron {
@@ -379,16 +383,23 @@
   flex: 1;
 }
 
+/* A dot, drawn by the skin — no icon dependency for a selection state. */
 .assistant-model-select__check {
-  block-size: var(--cp-icon-xs);
-  inline-size: var(--cp-icon-xs);
-  color: var(--cp-accent);
+  block-size: var(--cp-dot);
+  inline-size: var(--cp-dot);
+  flex: none;
+  border-radius: 9999px;
+  background: var(--cp-accent);
   opacity: 0;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  transform: scale(0.6);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-model-select__item[aria-selected="true"] .assistant-model-select__check {
   opacity: 1;
+  transform: none;
 }
 
 /* ── action menu ─────────────────────────────────────── */

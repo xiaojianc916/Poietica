@@ -15,8 +15,8 @@ export interface AssistantSurfaceProps {
 /**
  * Masthead, composer and quick actions are siblings in a single column bound
  * to --cp-grid, so their edges align by construction. The masthead mark is the
- * official logo of whichever model is selected — remount it on change (key) so
- * the entrance animation plays.
+ * artwork of whichever model is selected — remount it on change (key) so the
+ * entrance animation plays.
  */
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })

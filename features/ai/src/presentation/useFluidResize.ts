@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 
 /**
- * Reads a duration token from the element's computed style so timing stays a
- * design decision expressed in composer-metrics.css.
+ * Reads a duration token from computed style so timing stays a design
+ * decision expressed in composer-metrics.css.
  */
 const durationOf = (element: Element, token: string, fallback: number): number => {
   const raw = getComputedStyle(element).getPropertyValue(token).trim()

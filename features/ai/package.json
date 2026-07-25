@@ -39,8 +39,7 @@
     "@poietica/foundations-design-system": "workspace:*",
     "@mynaui/icons-react": "catalog:",
     "ai": "catalog:",
-    "motion": "catalog:",
-    "@lobehub/icons": "^2.0.0"
+    "motion": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

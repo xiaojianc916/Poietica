@@ -47,6 +47,7 @@
   --cp-icon-sm: calc(var(--cp-icon) - 2px);
   --cp-icon-xs: calc(var(--cp-icon) - 3px);
   --cp-icon-2xs: calc(var(--cp-icon) - 4px);
+  --cp-dot: calc(var(--cp-icon) / 3); /* 6px, the selected marker */
 
   /* ── padding ───────────────────────────────────────── */
   --cp-inset: 10px;
@@ -69,7 +70,7 @@
    * Durations live here too, and the resize hook reads them from computed
    * style, so timing stays a design decision rather than a literal in TSX.
    *   swift — popovers and affordances
-   *   grow  — the composer changing size, and the brand mark swapping in
+   *   grow  — the composer changing size, and the mark swapping in
    *   ease  — quick departure, soft arrival: paper unfolding, not a spring
    */
   --cp-motion-swift: 140ms;

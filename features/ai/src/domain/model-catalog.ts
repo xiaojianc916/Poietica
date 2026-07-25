@@ -1,4 +1,4 @@
-/** Brands whose official marks are rendered by the presentation layer. */
+/** Providers whose marks ship with the repository, in assets/provider-icons. */
 export type AssistantModelBrand = 'deepseek' | 'zhipu' | 'kimi'
 
 export interface AssistantModelDescriptor {
