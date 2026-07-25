@@ -63,7 +63,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
           {primaryAction ? (
             <button
               aria-label={primaryAction.label}
-              className="fatal-icon-button fatal-icon-button-primary"
+              className="fatal-icon-button"
               onClick={() => {
                 executePrimaryAction(primaryAction)
               }}

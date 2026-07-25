@@ -70,7 +70,7 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
 
   if (primaryAction) {
     const reloadButton = createIconButton(
-      'fatal-icon-button fatal-icon-button-primary',
+      'fatal-icon-button',
       primaryAction.label,
       createReloadIcon(),
     )

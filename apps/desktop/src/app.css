@@ -103,45 +103,39 @@ body {
   width: var(--ui-control-height-md);
   height: var(--ui-control-height-md);
   place-items: center;
-  border: var(--ui-region-divider-width) solid var(--color-divider);
+  border: 0;
   border-radius: var(--ui-radius-md);
   padding: 0;
-  background: var(--window-backing-surface);
+  background: transparent;
   color: var(--color-foreground);
   cursor: pointer;
+  opacity: 0.78;
   transition:
-    color var(--ui-duration-fast) var(--ui-ease-standard),
-    background-color var(--ui-duration-fast) var(--ui-ease-standard),
-    border-color var(--ui-duration-fast) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard),
     transform var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
 .fatal-icon-button:hover {
-  background: var(--desktop-window-control-hover);
+  background: transparent;
+  opacity: 1;
 }
 
 .fatal-icon-button:active {
-  background: var(--desktop-window-control-active);
-  transform: scale(0.96);
+  background: transparent;
+  opacity: 1;
+  transform: scale(0.9);
 }
 
 .fatal-icon-button:focus-visible {
+  background: transparent;
+  opacity: 1;
   outline: 2px solid var(--color-foreground);
   outline-offset: 2px;
 }
 
-.fatal-icon-button-primary {
-  background: var(--color-foreground);
-  color: var(--window-backing-surface);
-}
-
-.fatal-icon-button-primary:hover {
-  background: color-mix(in srgb, var(--color-foreground) 88%, var(--window-backing-surface));
-}
-
 .fatal-icon-button svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
 }
 
 .fatal-details,

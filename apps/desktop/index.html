@@ -234,51 +234,45 @@
         }
       }
 
-    
     /* fatal-pre-react-icon-actions */
     .fatal-icon-button {
       display: inline-grid;
       width: 36px;
       height: 36px;
       place-items: center;
+      border: 0;
+      border-radius: 6px;
       padding: 0;
       color: var(--fatal-foreground);
       background: transparent;
-      border: 1px solid var(--fatal-border);
-      border-radius: 8px;
       cursor: pointer;
+      opacity: 0.78;
       transition:
-        background-color 120ms ease,
-        border-color 120ms ease,
+        opacity 120ms ease,
         transform 120ms ease;
     }
 
     .fatal-icon-button:hover {
-      background: var(--fatal-hover);
+      background: transparent;
+      opacity: 1;
     }
 
     .fatal-icon-button:active {
-      transform: scale(0.96);
+      background: transparent;
+      opacity: 1;
+      transform: scale(0.9);
     }
 
     .fatal-icon-button:focus-visible {
+      background: transparent;
+      opacity: 1;
       outline: 2px solid rgb(24 24 27 / 35%);
       outline-offset: 2px;
     }
 
-    .fatal-icon-button-primary {
-      color: #ffffff;
-      background: var(--fatal-foreground);
-      border-color: var(--fatal-foreground);
-    }
-
-    .fatal-icon-button-primary:hover {
-      background: #27272a;
-    }
-
     .fatal-icon-button svg {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
     }
 
     .fatal-diagnostic {
@@ -297,20 +291,11 @@
     }
 
     @media (prefers-color-scheme: dark) {
-      .fatal-icon-button-primary {
-        color: #18181b;
-        background: #f4f4f5;
-        border-color: #f4f4f5;
-      }
-
-      .fatal-icon-button-primary:hover {
-        background: #e4e4e7;
-      }
-
       .fatal-icon-button:focus-visible {
         outline-color: rgb(244 244 245 / 45%);
       }
     }
+
 
     </style>
 
