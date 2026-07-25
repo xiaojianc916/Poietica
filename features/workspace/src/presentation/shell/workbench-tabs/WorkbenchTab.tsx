@@ -1,19 +1,8 @@
-import {
-  Box,
-  ChartNetwork,
-  ChartNoAxesCombined,
-  FilePlus,
-  FileText,
-  FolderTwo,
-  Grid,
-  Image,
-  LayersThree,
-  Search,
-  X,
-} from '@mynaui/icons-react'
+import { FilePlus, FileText, X } from '@mynaui/icons-react'
 import type { ComponentType, DragEvent, KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import type { WorkbenchTabDragBindings } from './use-workbench-tabs-interactions'
+import { describeWorkspaceSurface } from '../surface-registry'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
 type TabIcon = ComponentType<{
@@ -212,29 +201,5 @@ function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
     return FileText
   }
 
-  switch (model.surfaceId) {
-    case 'pages':
-      return Grid
-
-    case 'documents':
-      return FolderTwo
-
-    case 'search':
-      return Search
-
-    case 'layers':
-      return LayersThree
-
-    case 'relations':
-      return ChartNetwork
-
-    case 'data':
-      return ChartNoAxesCombined
-
-    case 'assets':
-      return Image
-
-    case 'extensions':
-      return Box
-  }
+  return describeWorkspaceSurface(model.surfaceId).icon
 }

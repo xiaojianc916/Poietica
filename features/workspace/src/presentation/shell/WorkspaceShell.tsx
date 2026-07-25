@@ -11,18 +11,8 @@ import { SidebarSplitter } from './SidebarSplitter'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { describeWorkspaceSurface } from './surface-registry'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
-
-const SURFACE_TITLES: Record<WorkspaceSurfaceId, string> = {
-  pages: '画布',
-  documents: '恢复',
-  search: '搜索',
-  layers: '图层',
-  relations: '关系',
-  ai: 'AI',
-  assets: '素材',
-  extensions: '插件',
-}
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 工作区外壳集中编排响应式区域及其条件渲染
 export function WorkspaceShell({
@@ -131,7 +121,7 @@ export function WorkspaceShell({
         activeItemId={activeNavigationItem}
         onDeveloperToolsOpen={actions.openDeveloperTools}
         onItemActivate={(surfaceId) => {
-          actions.openWorkspaceSurface(surfaceId, SURFACE_TITLES[surfaceId])
+          actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
           openSidebar()
         }}
         onSettingsOpen={actions.openSettingsWindow}

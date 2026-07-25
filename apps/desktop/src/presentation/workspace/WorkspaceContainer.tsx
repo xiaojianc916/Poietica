@@ -31,6 +31,7 @@ import { failureCoordinator } from '../../application/failures/failure-coordinat
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { reportFailure } from '../../application/failures/failure-policy'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
+import { WORKSPACE_SURFACE_RENDERERS } from './assistant-surface-renderers'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
   pages: Object.freeze([]),
@@ -523,7 +524,12 @@ function renderActiveSurface({
       return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />
 
     case 'workspace':
-      return <WorkspaceSurface surfaceId={activeSurface.surfaceId} />
+      return (
+        <WorkspaceSurface
+          renderers={WORKSPACE_SURFACE_RENDERERS}
+          surfaceId={activeSurface.surfaceId}
+        />
+      )
 
     case 'canvas':
       return (
