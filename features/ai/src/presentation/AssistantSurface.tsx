@@ -6,7 +6,11 @@ import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { MODEL_MARKS } from './primitives/model-icons'
 import { useAssistantSession } from '../application/useAssistantSession'
-import { ASSISTANT_MODELS, DEFAULT_ASSISTANT_MODEL_ID } from '../domain/model-catalog'
+import {
+  ASSISTANT_MODELS,
+  DEFAULT_ASSISTANT_MODEL_ID,
+  resolveAssistantModel,
+} from '../domain/model-catalog'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string
@@ -23,7 +27,7 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const [modelId, setModelId] = useState(DEFAULT_ASSISTANT_MODEL_ID)
 
   const columnId = `${useId()}-column`
-  const activeModel = ASSISTANT_MODELS.find((model) => model.id === modelId) ?? ASSISTANT_MODELS[0]
+  const activeModel = resolveAssistantModel(ASSISTANT_MODELS, modelId)
   const ActiveMark = MODEL_MARKS[activeModel.brand]
 
   return (

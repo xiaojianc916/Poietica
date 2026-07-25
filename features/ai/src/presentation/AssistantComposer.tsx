@@ -25,6 +25,7 @@ import type { ChatStatus } from './ai-elements/prompt-input'
 import { AgentIcon, AttachIcon, MicIcon } from './primitives/icons'
 import { MODEL_MARKS } from './primitives/model-icons'
 import { useFluidResize } from './useFluidResize'
+import { resolveAssistantModel } from '../domain/model-catalog'
 import type { AssistantModelDescriptor } from '../domain/model-catalog'
 
 export interface AssistantComposerProps {
@@ -56,7 +57,7 @@ export function AssistantComposer({
   const cardId = `${uid}-card`
   const editorId = `${uid}-editor`
 
-  const activeModel = models.find((model) => model.id === modelId) ?? models[0]
+  const activeModel = resolveAssistantModel(models, modelId)
   const ActiveMark = MODEL_MARKS[activeModel.brand]
 
   useFluidResize(editorId, columnId)
