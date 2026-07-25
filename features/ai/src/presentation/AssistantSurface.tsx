@@ -1,44 +1,35 @@
-import { TooltipProvider } from '@hybrid-canvas/design-system'
+import './assistant-composer.css'
 
-import { useAssistantSession } from '../application/useAssistantSession'
-import type { AgentRegistryPort } from '../contracts/agent-contract'
-import type { AssistantTransportPort } from '../contracts/transport-contract'
-import { DEFAULT_AGENT } from '../domain/agent-registry'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { AssistantMark } from './primitives/AssistantMark'
+import { useAssistantSession } from '../application/useAssistantSession'
 
 export interface AssistantSurfaceProps {
-  readonly transport: AssistantTransportPort
-  readonly registry: AgentRegistryPort
-  readonly title?: string
+  readonly endpoint: string
 }
 
-export function AssistantSurface({
-  transport,
-  registry,
-  title = '接下来我们做点什么？',
-}: AssistantSurfaceProps) {
-  const { composer, commands } = useAssistantSession({ registry, transport })
-  const agent = registry.get(composer.activeAgentId) ?? DEFAULT_AGENT
+export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
+  const session = useAssistantSession({ endpoint })
 
   return (
-    <TooltipProvider delayDuration={450}>
-      <section
-        aria-label="AI"
-        className="relative h-full min-h-0 overflow-y-auto bg-background px-8 py-16"
-      >
-        <div className="mx-auto w-full max-w-[640px]">
-          <div className="mb-7 flex items-center justify-center gap-2.5">
-            <AssistantMark className="size-[22px] text-foreground" />
-            <h1 className="text-[22px] font-medium tracking-[-0.02em]">{title}</h1>
-          </div>
+    <section className="assistant-surface" data-assistant-skin>
+      <div className="assistant-surface__column">
+        <header className="assistant-masthead">
+          <AssistantMark className="assistant-masthead__mark" />
 
-          <AssistantComposer agent={agent} commands={commands} model={composer} />
+          <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
+        </header>
 
-          <AssistantQuickActions onPick={commands.setDraft} />
-        </div>
-      </section>
-    </TooltipProvider>
+        <AssistantComposer
+          agentLabel="Super Computer"
+          isAgentNew
+          onSubmit={session.send}
+          status={session.status}
+        />
+
+        <AssistantQuickActions onSelect={session.applyQuickAction} />
+      </div>
+    </section>
   )
 }
