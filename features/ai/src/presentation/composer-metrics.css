@@ -1,21 +1,18 @@
 /*
- * Composer metrics — the single source of every length on the AI surface.
+ * Composer metrics — the single source of every length and every duration on
+ * the AI surface.
  *
  * Rules of this layer:
  *   1. a number lives here or it does not exist;
- *   2. a number that can be derived MUST be derived, so relationships survive
- *      later edits;
- *   3. the skin consumes tokens only — it never invents a length.
+ *   2. a number that can be derived MUST be derived;
+ *   3. the skin and the motion hook consume tokens only.
  */
 
 [data-assistant-skin] {
   /* ── atoms ─────────────────────────────────────────── */
   --cp-px: 1px;
 
-  /* ── grid ─────────────────────────────────────────────
-   * One column width for the masthead, the composer and the quick actions,
-   * so their edges line up by construction rather than by coincidence.
-   */
+  /* ── grid ──────────────────────────────────────────── */
   --cp-grid: 768px;
   --cp-gutter: 24px;
   --cp-stack: 20px;
@@ -24,61 +21,61 @@
   --cp-font: 16px;
   --cp-line-ratio: 1.625;
   --cp-line: calc(var(--cp-font) * var(--cp-line-ratio)); /* 26px */
-  --cp-font-title: calc(var(--cp-font) + 10px); /* 26px */
-  --cp-font-label: calc(var(--cp-font) - 2px); /* 14px */
-  --cp-font-caption: calc(var(--cp-font) - 3px); /* 13px */
-  --cp-font-micro: calc(var(--cp-font) - 4px); /* 12px */
+  --cp-font-title: calc(var(--cp-font) + 10px);
+  --cp-font-label: calc(var(--cp-font) - 2px);
+  --cp-font-caption: calc(var(--cp-font) - 3px);
+  --cp-font-micro: calc(var(--cp-font) - 4px);
 
-  /* ── editor height, expressed in lines ─────────────────
-   * Idle is a visible three-line field; growth stops at eight lines and the
-   * editor scrolls from there. No literal height is written anywhere.
-   */
+  /* ── editor height, expressed in lines ─────────────── */
   --cp-rows-idle: 3;
   --cp-rows-max: 8;
-  --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle)); /* 78px */
+  --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle));
   --cp-editor-max: calc(var(--cp-line) * var(--cp-rows-max));
 
   /* ── controls ──────────────────────────────────────── */
   --cp-control: 32px;
   --cp-control-gap: 6px;
   --cp-icon: 18px;
-  --cp-optical: 6px; /* the padding an icon button puts around its glyph */
+  --cp-optical: 6px;
 
-  /* Derived control sizes — each states its distance from the base control. */
-  --cp-mark: calc(var(--cp-control) - 2px); /* 30px, brand mark */
-  --cp-row: calc(var(--cp-control) + 2px); /* 34px, menu row */
-  --cp-header: calc(var(--cp-control) - 4px); /* 28px, list header */
-  --cp-control-sm: calc(var(--cp-control) - 10px); /* 22px, inline action */
-  --cp-control-xs: calc(var(--cp-control) - 12px); /* 20px, chip dismiss */
+  --cp-mark: calc(var(--cp-control) - 2px);
+  --cp-row: calc(var(--cp-control) + 2px);
+  --cp-header: calc(var(--cp-control) - 4px);
+  --cp-control-sm: calc(var(--cp-control) - 10px);
+  --cp-control-xs: calc(var(--cp-control) - 12px);
 
-  --cp-icon-sm: calc(var(--cp-icon) - 2px); /* 16px */
-  --cp-icon-xs: calc(var(--cp-icon) - 3px); /* 15px */
-  --cp-icon-2xs: calc(var(--cp-icon) - 4px); /* 14px */
+  --cp-icon-sm: calc(var(--cp-icon) - 2px);
+  --cp-icon-xs: calc(var(--cp-icon) - 3px);
+  --cp-icon-2xs: calc(var(--cp-icon) - 4px);
 
-  /* ── card padding, derived from the controls ───────────
-   * The toolbar sits --cp-inset from the card edge; the first glyph therefore
-   * starts at --cp-inset + --cp-optical. Text uses that same left edge, which
-   * is what makes the column read as one aligned stack.
-   */
+  /* ── padding ───────────────────────────────────────── */
   --cp-inset: 10px;
-  --cp-pad-x: calc(var(--cp-inset) + var(--cp-optical)); /* 16px */
+  --cp-pad-x: calc(var(--cp-inset) + var(--cp-optical));
   --cp-pad-top: 16px;
-  --cp-pad-mid: 8px; /* editor ↔ toolbar */
-  --cp-pad-tile: calc(var(--cp-pad-top) - 2px); /* 14px */
-  --cp-mast-gap: calc(var(--cp-stack) - var(--cp-pad-mid)); /* 12px */
+  --cp-pad-mid: 8px;
+  --cp-pad-tile: calc(var(--cp-pad-top) - 2px);
+  --cp-mast-gap: calc(var(--cp-stack) - var(--cp-pad-mid));
 
-  /*
-   * Still concentric with the control row, but tight: half a control plus a
-   * 2px breath, instead of half a control plus the full inset.
-   */
-  --cp-radius: calc(var(--cp-control) / 2 + 2px); /* 18px */
-  --cp-radius-tile: calc(var(--cp-radius) - 4px); /* 14px */
+  --cp-radius: calc(var(--cp-control) / 2 + 2px);
+  --cp-radius-tile: calc(var(--cp-radius) - 4px);
   --cp-radius-menu: 12px;
   --cp-radius-item: 8px;
 
   /* ── popovers ──────────────────────────────────────── */
   --cp-menu-min: 168px;
-  --cp-menu-min-wide: calc(var(--cp-menu-min) + 12px); /* 180px */
+  --cp-menu-min-wide: calc(var(--cp-menu-min) + 40px);
+
+  /* ── motion ────────────────────────────────────────────
+   * Durations live here too, and the resize hook reads them from computed
+   * style, so timing stays a design decision rather than a literal in TSX.
+   *   swift — popovers and affordances
+   *   grow  — the composer changing size, and the brand mark swapping in
+   *   ease  — quick departure, soft arrival: paper unfolding, not a spring
+   */
+  --cp-motion-swift: 140ms;
+  --cp-motion-grow: 240ms;
+  --cp-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --cp-motion-rise: calc(var(--cp-pad-mid) / 2);
 
   /* ── colour ────────────────────────────────────────── */
   --cp-ink: #0d0d0d;
@@ -93,15 +90,8 @@
   --cp-accent-hover: #0071e3;
   --cp-accent-idle: #cfe6ff;
   --cp-accent-wash: #e8f1ff;
-  --cp-brand: #16c65a;
-  --cp-model-mark: #f2601f;
 
-  /* ── elevation ─────────────────────────────────────────
-   * A physical card, seated lightly: the bottom edge is still heavier than the
-   * top so the object reads as resting on the canvas, but the cast shadow is
-   * short and pale rather than a dark pad under the card. Constant — focus
-   * never alters it.
-   */
+  /* ── elevation ─────────────────────────────────────── */
   --cp-edge-top: rgb(13 13 13 / 7%);
   --cp-edge-bottom: rgb(13 13 13 / 11%);
   --cp-edge-weight: 1.25px;

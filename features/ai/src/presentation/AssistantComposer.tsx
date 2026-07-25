@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { MouseEvent } from 'react'
 
 import {
@@ -6,6 +6,7 @@ import {
   PromptInputActionAddAttachments,
   PromptInputActionMenu,
   PromptInputActionMenuContent,
+  PromptInputActionMenuItem,
   PromptInputActionMenuTrigger,
   PromptInputAttachment,
   PromptInputAttachments,
@@ -15,28 +16,26 @@ import {
   PromptInputModelSelectContent,
   PromptInputModelSelectItem,
   PromptInputModelSelectTrigger,
-  PromptInputModelSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
 } from './ai-elements/prompt-input'
 import type { ChatStatus } from './ai-elements/prompt-input'
-import { AgentIcon, AttachIcon, MicIcon, ModelIcon } from './primitives/icons'
-
-export interface AssistantModelOption {
-  readonly id: string
-  readonly label: string
-}
+import { AgentIcon, AttachIcon, CheckIcon, MicIcon } from './primitives/icons'
+import { MODEL_MARKS } from './primitives/model-icons'
+import { useFluidResize } from './useFluidResize'
+import type { AssistantModelDescriptor } from '../domain/model-catalog'
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
   readonly isAgentNew?: boolean
-  readonly models: readonly AssistantModelOption[]
+  readonly models: readonly AssistantModelDescriptor[]
   readonly modelId: string
   readonly onModelChange: (modelId: string) => void
   readonly placeholder?: string
   readonly status?: ChatStatus
+  readonly columnId?: string
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
 }
 
@@ -48,30 +47,63 @@ export function AssistantComposer({
   onModelChange,
   placeholder = '问我任何问题…',
   status = 'ready',
+  columnId,
   onSubmit,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
 
-  const activeModel = models.find((model) => model.id === modelId)?.label ?? modelId
+  const uid = useId()
+  const cardId = `${uid}-card`
+  const editorId = `${uid}-editor`
 
-  /*
-   * The card is the <form> itself, so the click target and the visible border
-   * are the same box. Presses that land on a control are left alone.
-   */
+  const activeModel = models.find((model) => model.id === modelId) ?? models[0]
+  const ActiveMark = MODEL_MARKS[activeModel.brand]
+
+  useFluidResize(editorId, columnId)
+
+  /* Ctrl/⌘+U is advertised in the menu, so it has to actually work. */
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'u') {
+        return
+      }
+
+      const picker = document
+        .getElementById(cardId)
+        ?.querySelector<HTMLInputElement>('input[type="file"]')
+
+      if (!picker) return
+
+      event.preventDefault()
+      picker.click()
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [cardId])
+
+  const insertTrigger = (token: string) => {
+    setText((current) =>
+      current.length === 0 || current.endsWith(' ') ? `${current}${token}` : `${current} ${token}`,
+    )
+
+    document.getElementById(editorId)?.focus()
+  }
+
+  /* The card is the <form>: one box in the DOM, one box on screen. */
   const focusEditor = (event: MouseEvent<HTMLFormElement>) => {
     const target = event.target as HTMLElement
 
-    if (target.closest('button, a, input, textarea, [role="option"], [role="listbox"]')) {
+    if (target.closest('button, a, input, textarea, [role="option"], [role="menuitem"]')) {
       return
     }
 
-    const editor = event.currentTarget.querySelector<HTMLTextAreaElement>(
-      '[data-slot="prompt-input-textarea"]',
-    )
+    const editor = document.getElementById(editorId) as HTMLTextAreaElement | null
 
-    if (!editor) {
-      return
-    }
+    if (!editor) return
 
     event.preventDefault()
     editor.focus()
@@ -81,6 +113,7 @@ export function AssistantComposer({
   return (
     <PromptInput
       globalDrop
+      id={cardId}
       multiple
       onMouseDown={focusEditor}
       onSubmit={(message) => {
@@ -100,6 +133,7 @@ export function AssistantComposer({
         </PromptInputAttachments>
 
         <PromptInputTextarea
+          id={editorId}
           onChange={(event) => {
             setText(event.currentTarget.value)
           }}
@@ -110,7 +144,6 @@ export function AssistantComposer({
 
       <PromptInputToolbar>
         <PromptInputTools>
-          {/* Attachments are a glyph alone: the menu itself names the actions. */}
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger
               aria-label="添加内容"
@@ -120,7 +153,38 @@ export function AssistantComposer({
             </PromptInputActionMenuTrigger>
 
             <PromptInputActionMenuContent>
-              <PromptInputActionAddAttachments label="添加文件" />
+              <PromptInputActionAddAttachments hint="Ctrl+U">
+                图片与文件
+              </PromptInputActionAddAttachments>
+
+              <span className="assistant-action-menu__separator" role="separator" />
+
+              <PromptInputActionMenuItem
+                hint="/"
+                onClick={() => {
+                  insertTrigger('/')
+                }}
+              >
+                命令
+              </PromptInputActionMenuItem>
+
+              <PromptInputActionMenuItem
+                hint="@"
+                onClick={() => {
+                  insertTrigger('@')
+                }}
+              >
+                上下文
+              </PromptInputActionMenuItem>
+
+              <PromptInputActionMenuItem
+                hint="!"
+                onClick={() => {
+                  insertTrigger('!')
+                }}
+              >
+                终端命令
+              </PromptInputActionMenuItem>
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
 
@@ -135,19 +199,27 @@ export function AssistantComposer({
 
         <span className="assistant-toolbar__spacer" />
 
-        <PromptInputModelSelect onValueChange={onModelChange} value={activeModel}>
+        <PromptInputModelSelect onValueChange={onModelChange} value={activeModel.id}>
           <PromptInputModelSelectTrigger>
-            <ModelIcon aria-hidden="true" className="assistant-model-select__mark" />
+            <ActiveMark className="assistant-model-select__brand" />
 
-            <PromptInputModelSelectValue />
+            <span>{activeModel.label}</span>
           </PromptInputModelSelectTrigger>
 
           <PromptInputModelSelectContent>
-            {models.map((model) => (
-              <PromptInputModelSelectItem key={model.id} value={model.id}>
-                {model.label}
-              </PromptInputModelSelectItem>
-            ))}
+            {models.map((model) => {
+              const Mark = MODEL_MARKS[model.brand]
+
+              return (
+                <PromptInputModelSelectItem key={model.id} value={model.id}>
+                  <Mark className="assistant-model-select__brand" />
+
+                  <span className="assistant-model-select__label">{model.label}</span>
+
+                  <CheckIcon aria-hidden="true" className="assistant-model-select__check" />
+                </PromptInputModelSelectItem>
+              )
+            })}
           </PromptInputModelSelectContent>
         </PromptInputModelSelect>
 

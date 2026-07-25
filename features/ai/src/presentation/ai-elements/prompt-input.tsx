@@ -421,39 +421,54 @@ export function PromptInputActionMenuContent({ className, ...props }: ComponentP
   )
 }
 
-export function PromptInputActionMenuItem({ className, ...props }: ComponentProps<'button'>) {
+export function PromptInputActionMenuItem({
+  children,
+  className,
+  hint,
+  onClick,
+  ...props
+}: ComponentProps<'button'> & { readonly hint?: string }) {
+  const { setOpen } = useActionMenu()
+
   return (
     <button
       className={cx('assistant-action-menu__item', className)}
       data-slot="prompt-input-action-menu-item"
+      onClick={(event) => {
+        setOpen(false)
+        onClick?.(event)
+      }}
       role="menuitem"
       type="button"
       {...props}
-    />
+    >
+      <span>{children}</span>
+
+      {hint === undefined ? null : <kbd className="assistant-action-menu__hint">{hint}</kbd>}
+    </button>
   )
 }
 
 export function PromptInputActionAddAttachments({
-  label = '添加文件',
+  children = '图片与文件',
+  hint,
 }: {
-  readonly label?: string
+  readonly children?: ReactNode
+  readonly hint?: string
 }) {
   const { openFilePicker } = usePromptInputContext()
-  const { setOpen } = useActionMenu()
 
   return (
     <PromptInputActionMenuItem
+      hint={hint}
       onClick={() => {
-        setOpen(false)
         openFilePicker()
       }}
     >
-      {label}
+      {children}
     </PromptInputActionMenuItem>
   )
 }
-
-/* ── submit ───────────────────────────────────────────────── */
 
 export function PromptInputSubmit({
   className,

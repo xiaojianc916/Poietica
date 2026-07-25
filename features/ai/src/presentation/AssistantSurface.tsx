@@ -1,46 +1,46 @@
 import './assistant-composer.css'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 import { AssistantComposer } from './AssistantComposer'
-import type { AssistantModelOption } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
-import { AssistantMark } from './primitives/AssistantMark'
+import { MODEL_MARKS } from './primitives/model-icons'
 import { useAssistantSession } from '../application/useAssistantSession'
-
-const MODELS: readonly AssistantModelOption[] = [
-  { id: 'sonnet-4.5', label: 'Sonnet 4.5' },
-  { id: 'opus-4.1', label: 'Opus 4.1' },
-  { id: 'gpt-5.1', label: 'GPT-5.1' },
-]
+import { ASSISTANT_MODELS, DEFAULT_ASSISTANT_MODEL_ID } from '../domain/model-catalog'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string
 }
 
 /**
- * The masthead, the composer and the quick actions are siblings in a single
- * column whose width comes from --cp-grid, so their edges align by
- * construction rather than by coincidence.
+ * Masthead, composer and quick actions are siblings in a single column bound
+ * to --cp-grid, so their edges align by construction. The masthead mark is the
+ * official logo of whichever model is selected — remount it on change (key) so
+ * the entrance animation plays.
  */
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })
-  const [modelId, setModelId] = useState(MODELS[0].id)
+  const [modelId, setModelId] = useState(DEFAULT_ASSISTANT_MODEL_ID)
+
+  const columnId = `${useId()}-column`
+  const activeModel = ASSISTANT_MODELS.find((model) => model.id === modelId) ?? ASSISTANT_MODELS[0]
+  const ActiveMark = MODEL_MARKS[activeModel.brand]
 
   return (
     <section className="assistant-surface" data-assistant-skin>
-      <div className="assistant-surface__column">
+      <div className="assistant-surface__column" id={columnId}>
         <header className="assistant-masthead">
-          <AssistantMark className="assistant-masthead__mark" />
+          <ActiveMark className="assistant-masthead__mark" key={activeModel.id} />
 
           <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
         </header>
 
         <AssistantComposer
           agentLabel="Super Computer"
+          columnId={columnId}
           isAgentNew
           modelId={modelId}
-          models={MODELS}
+          models={ASSISTANT_MODELS}
           onModelChange={setModelId}
           onSubmit={session.send}
           status={session.status}

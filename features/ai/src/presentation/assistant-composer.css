@@ -1,11 +1,9 @@
 @import "./composer-metrics.css";
 
 /*
- * Assistant skin.
- *
- * Every length below is a token or a calc() over tokens. The composer card is
- * the input itself: it owns the border, the elevation and the click target,
- * and nothing inside it draws a second frame in any state.
+ * Assistant skin. Every length and duration is a token or a calc() over
+ * tokens. The composer card is the input itself: it owns the border, the
+ * elevation and the click target, and nothing inside it draws a second frame.
  */
 
 .assistant-visually-hidden {
@@ -19,10 +17,6 @@
 
 /* ── surface & grid ──────────────────────────────────── */
 
-/*
- * The column is centred by auto block margins rather than by `align-items`,
- * so a tall column still scrolls from its true top instead of being clipped.
- */
 .assistant-surface {
   display: flex;
   block-size: 100%;
@@ -49,10 +43,22 @@
   gap: var(--cp-mast-gap);
 }
 
+/* The mark is the selected model's official logo; it swaps in, not blinks. */
 .assistant-masthead__mark {
   block-size: var(--cp-mark);
   inline-size: var(--cp-mark);
-  color: var(--cp-brand);
+  animation: assistant-mark-in var(--cp-motion-grow) var(--cp-motion-ease) both;
+}
+
+@keyframes assistant-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .assistant-masthead__title {
@@ -85,11 +91,6 @@
   flex-direction: column;
 }
 
-/*
- * The editor is invisible furniture: glyphs and a caret, nothing else. Every
- * frame property is zeroed in every state, so focus cannot conjure an inner
- * rectangle.
- */
 [data-slot="prompt-input-textarea"],
 [data-slot="prompt-input-textarea"]:hover,
 [data-slot="prompt-input-textarea"]:focus,
@@ -106,8 +107,8 @@
 
 /*
  * Height has one owner. `field-sizing: content` grows the editor between the
- * idle and maximum line counts; no script writes an inline height, which would
- * outrank this sheet and put two mechanisms in charge of one dimension.
+ * idle and maximum line counts; the resize hook only replays the previous box
+ * for one beat and never persists a height.
  */
 [data-slot="prompt-input-textarea"] {
   display: block;
@@ -126,7 +127,6 @@
   field-sizing: content;
 }
 
-/* Single fallback path for engines without field-sizing: fixed idle, scrolls. */
 @supports not (field-sizing: content) {
   [data-slot="prompt-input-textarea"] {
     block-size: var(--cp-editor-idle);
@@ -170,6 +170,7 @@
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-control--round {
@@ -201,6 +202,7 @@
   font-weight: 600;
   color: var(--cp-ink);
   cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-agent-pill:hover {
@@ -240,9 +242,8 @@
     0 1px 2px rgb(10 132 255 / 28%);
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    transform 120ms ease,
-    box-shadow 120ms ease;
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 [data-slot="prompt-input-submit"] svg {
@@ -257,7 +258,6 @@
 
 [data-slot="prompt-input-submit"]:active:not(:disabled) {
   transform: scale(0.96);
-  box-shadow: inset 0 1px 2px rgb(0 0 0 / 18%);
 }
 
 [data-slot="prompt-input-submit"]:disabled {
@@ -274,6 +274,25 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ── popovers share one entrance ─────────────────────── */
+
+@keyframes assistant-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--cp-motion-rise)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[data-slot="prompt-input-action-menu-content"],
+[data-slot="prompt-input-model-select-content"] {
+  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
+  transform-origin: bottom center;
 }
 
 /* ── model select ────────────────────────────────────── */
@@ -295,22 +314,28 @@
   font-size: var(--cp-font-label);
   color: var(--cp-ink);
   cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-model-select__trigger:hover {
   background: var(--cp-hover);
 }
 
-.assistant-model-select__mark {
+.assistant-model-select__brand {
   block-size: var(--cp-icon-sm);
   inline-size: var(--cp-icon-sm);
-  color: var(--cp-model-mark);
+  flex: none;
 }
 
 .assistant-model-select__chevron {
   block-size: var(--cp-icon-sm);
   inline-size: var(--cp-icon-sm);
   color: var(--cp-ink-subtle);
+  transition: transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[aria-expanded="true"] .assistant-model-select__chevron {
+  transform: rotate(180deg);
 }
 
 .assistant-model-select__content {
@@ -329,11 +354,11 @@
   box-shadow: var(--cp-lift-far);
 }
 
-.assistant-model-select__item,
-.assistant-action-menu__item {
+.assistant-model-select__item {
   display: flex;
   block-size: var(--cp-row);
   align-items: center;
+  gap: var(--cp-pad-mid);
   border: 0;
   border-radius: var(--cp-radius-item);
   padding-inline: var(--cp-inset);
@@ -342,15 +367,31 @@
   color: var(--cp-ink);
   text-align: start;
   cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-model-select__item:hover,
-.assistant-model-select__item[aria-selected="true"],
-.assistant-action-menu__item:hover {
+.assistant-model-select__item[aria-selected="true"] {
   background: var(--cp-hover);
 }
 
-/* ── action menu & attachments ───────────────────────── */
+.assistant-model-select__label {
+  flex: 1;
+}
+
+.assistant-model-select__check {
+  block-size: var(--cp-icon-xs);
+  inline-size: var(--cp-icon-xs);
+  color: var(--cp-accent);
+  opacity: 0;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-model-select__item[aria-selected="true"] .assistant-model-select__check {
+  opacity: 1;
+}
+
+/* ── action menu ─────────────────────────────────────── */
 
 .assistant-action-menu {
   position: relative;
@@ -372,6 +413,43 @@
   background: var(--cp-surface);
   box-shadow: var(--cp-lift-far);
 }
+
+.assistant-action-menu__item {
+  display: flex;
+  block-size: var(--cp-row);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cp-stack);
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding-inline: var(--cp-inset);
+  background: transparent;
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-action-menu__item:hover {
+  background: var(--cp-hover);
+}
+
+.assistant-action-menu__hint {
+  font-family: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
+.assistant-action-menu__separator {
+  block-size: var(--cp-px);
+  margin-block: var(--cp-optical);
+  margin-inline: var(--cp-optical);
+  background: var(--cp-hairline);
+}
+
+/* ── attachments ─────────────────────────────────────── */
 
 [data-slot="prompt-input-attachments"] {
   display: flex;
@@ -433,7 +511,7 @@
   inline-size: var(--cp-icon-2xs);
 }
 
-/* ── quick actions (same grid as the card) ───────────── */
+/* ── quick actions ───────────────────────────────────── */
 
 .assistant-quick-actions {
   display: grid;
@@ -454,8 +532,8 @@
   text-align: start;
   cursor: pointer;
   transition:
-    box-shadow 120ms ease,
-    transform 120ms ease;
+    box-shadow var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-tile:hover {
@@ -618,4 +696,16 @@
 .assistant-thread__action:hover {
   background: rgb(13 13 13 / 8%);
   color: var(--cp-ink);
+}
+
+/* ── motion is a courtesy, never a requirement ───────── */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-assistant-skin] *,
+  [data-assistant-skin] *::before,
+  [data-assistant-skin] *::after {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+    transition-duration: 1ms;
+  }
 }
