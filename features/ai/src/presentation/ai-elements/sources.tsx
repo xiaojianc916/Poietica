@@ -4,7 +4,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/registry/default/ui/collapsible'
+} from '@poietica/foundations-design-system'
 import { cn } from '@poietica/foundations-design-system'
 import { BookIcon, ChevronDownIcon } from 'lucide-react'
 import type { ComponentProps } from 'react'

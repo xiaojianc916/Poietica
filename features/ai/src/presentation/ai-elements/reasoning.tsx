@@ -5,7 +5,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/registry/default/ui/collapsible'
+} from '@poietica/foundations-design-system'
 import { cn } from '@poietica/foundations-design-system'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'

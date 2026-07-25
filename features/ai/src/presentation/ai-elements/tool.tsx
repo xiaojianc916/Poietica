@@ -1,11 +1,11 @@
 'use client'
 
-import { Badge } from '@/registry/default/ui/badge'
+import { Badge } from '@poietica/foundations-design-system'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/registry/default/ui/collapsible'
+} from '@poietica/foundations-design-system'
 import { cn } from '@poietica/foundations-design-system'
 import type { DynamicToolUIPart, ToolUIPart } from 'ai'
 import {
