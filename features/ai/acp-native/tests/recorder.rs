@@ -295,3 +295,38 @@ fn a_permission_request_is_refused_and_recorded() {
         Some(poietica_ai_persistence_native::PermissionOutcome::Denied)
     );
 }
+
+#[test]
+fn an_announcement_carries_every_field_the_boundary_requires() {
+    let mut fixture = fixture();
+
+    // Both defaults at once: pending is the default status, and this call is
+    // announced without a kind. The protocol omits them on the wire, and the
+    // interface rejects a tool call frame that is missing either one, so the
+    // recorder has to put them back.
+    fixture.notify(SessionUpdate::ToolCall(ToolCall::new(
+        "call_006",
+        "Read config.toml",
+    )));
+
+    assert!(fixture.recorder.take_failure().is_none());
+
+    let frames = fixture.frames();
+    let inner = frames
+        .first()
+        .and_then(|frame| frame.get("notification"))
+        .and_then(|notification| notification.get("update"))
+        .expect("an update");
+
+    assert_eq!(text_of(inner, "toolCallId"), "call_006");
+    assert_eq!(text_of(inner, "title"), "Read config.toml");
+    assert_eq!(
+        text_of(inner, "status"),
+        "pending",
+        "a default status is still a status the interface demands"
+    );
+    assert!(
+        !text_of(inner, "kind").is_empty(),
+        "a default kind is still a kind the interface demands"
+    );
+}

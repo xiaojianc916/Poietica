@@ -216,6 +216,16 @@ impl Recorder {
         // way. Removing nulls satisfies it without depending on which.
         prune_nulls(&mut update);
 
+        // A tool call announcement must arrive complete. The serialiser omits
+        // fields holding the protocol's default value, and a pending call is
+        // the default, so the very first frame of every tool call would
+        // otherwise be rejected at the boundary.
+        if let SessionUpdate::ToolCall(call) = &notification.update {
+            restore(&mut update, "title", Value::String(call.title.clone()));
+            restore(&mut update, "kind", serde_json::to_value(call.kind)?);
+            restore(&mut update, "status", serde_json::to_value(call.status)?);
+        }
+
         self.append(
             ACP_UPDATE,
             json!({
@@ -384,6 +394,22 @@ impl Recorder {
             if self.failure.is_none() {
                 self.failure = Some(error);
             }
+        }
+    }
+}
+
+/// Puts back a required field the serialiser left out.
+///
+/// `title`, `kind` and `status` are mandatory on a tool call announcement at
+/// the interface boundary, while the protocol gives two of them defaults and
+/// omits them on the wire when they hold that default. The value written here
+/// is the SDK's own, through the same serialiser, so this restores a field
+/// rather than inventing one, and a field the serialiser did emit is left
+/// exactly as it was.
+fn restore(update: &mut Value, field: &str, value: Value) {
+    if let Value::Object(fields) = update {
+        if !fields.contains_key(field) {
+            let _absent = fields.insert(field.to_owned(), value);
         }
     }
 }
