@@ -1,6 +1,6 @@
 [package]
-name = "poietica-desktop"
-default-run = "poietica-desktop"
+name = "poietica"
+default-run = "poietica"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

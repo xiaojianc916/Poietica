@@ -120,7 +120,7 @@ fn create_report(panic_info: &PanicHookInfo<'_>, app_version: &str) -> NativeCra
     NativeCrashReport {
         incident_id: format!("native-{}", Uuid::now_v7()),
         occurred_at: current_timestamp(),
-        process: "poietica-desktop".to_owned(),
+        process: "poietica".to_owned(),
         thread: truncate(thread_name, 256),
         message: truncate(message, MAX_MESSAGE_LENGTH),
         location,

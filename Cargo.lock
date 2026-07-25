@@ -2864,7 +2864,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-desktop"
+name = "poietica"
 version = "0.1.0"
 dependencies = [
  "hex",

@@ -14,7 +14,7 @@
   "homepage": "https://github.com/xiaojianc916/poietica#readme",
   "packageManager": "pnpm@11.15.0",
   "engines": {
-    "node": ">=24.0.0 <27",
+    "node": ">=26.2.0 <27",
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
@@ -41,7 +41,7 @@
     "tauri:build": "pnpm --filter @poietica/desktop tauri build",
     "test:architecture": "node tests/architecture/check.mjs && node tests/architecture/check-native-crash-recovery.mjs && node tests/architecture/check-document-failure-isolation.mjs && node tests/architecture/check-failure-presentation-hierarchy.mjs && node tests/architecture/check-feature-degradation-enforcement.mjs && node tests/architecture/check-failure-architecture-convergence.mjs && node tests/architecture/check-ui-boundaries.mjs && node tests/architecture/check-design-token-authority.mjs && node tests/architecture/check-design-token-consumption.mjs && node tests/architecture/check-workspace-token-consumption.mjs && node tests/architecture/check-desktop-token-consumption.mjs && node tests/architecture/check-inspector-style-authority.mjs && node tests/architecture/check-tldraw-style-authority.mjs && node tests/architecture/check-canvas-host-contract.mjs && node tests/architecture/check-workspace-motion-contract.mjs",
     "verify:release": "pnpm check && pnpm build:desktop && pnpm check:ipc && pnpm clippy && pnpm audit && pnpm audit:rust",
-    "generate:ipc": "cargo run -p poietica-desktop --bin export-ipc-bindings",
+    "generate:ipc": "cargo run -p poietica --bin export-ipc-bindings",
     "check:ipc": "pnpm generate:ipc && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
     "test:frontend": "node scripts/quality/run.mjs frontend-test",
     "prepare": "node scripts/git-hooks/install.mjs"
