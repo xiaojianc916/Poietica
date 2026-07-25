@@ -11,8 +11,8 @@
 .assistant-visually-hidden {
   position: absolute;
   clip-path: inset(50%);
-  block-size: 1px;
-  inline-size: 1px;
+  block-size: var(--cp-px);
+  inline-size: var(--cp-px);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -25,7 +25,7 @@
   justify-content: center;
   overflow-y: auto;
   padding: 64px var(--cp-gutter) 48px;
-  background: #fbfbfa;
+  background: var(--cp-canvas);
   color: var(--cp-ink);
   font-size: var(--cp-font);
 }
@@ -41,19 +41,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding-block-end: 4px;
+  gap: var(--cp-mast-gap);
 }
 
 .assistant-masthead__mark {
-  block-size: 30px;
-  inline-size: 30px;
+  block-size: var(--cp-mark);
+  inline-size: var(--cp-mark);
   color: var(--cp-brand);
 }
 
 .assistant-masthead__title {
   margin: 0;
-  font-size: 26px;
+  font-size: var(--cp-font-title);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -65,9 +64,9 @@
   inline-size: 100%;
   min-inline-size: 0;
   flex-direction: column;
-  border: 1px solid var(--cp-edge-top);
+  border: var(--cp-px) solid var(--cp-edge-top);
   border-bottom-color: var(--cp-edge-bottom);
-  border-bottom-width: 1.5px;
+  border-bottom-width: var(--cp-edge-weight);
   border-radius: var(--cp-radius);
   background: var(--cp-surface);
   box-shadow: var(--cp-gloss), var(--cp-seat), var(--cp-lift-near), var(--cp-lift-far);
@@ -103,7 +102,7 @@
 /*
  * Height has one owner. `field-sizing: content` grows the editor between the
  * idle and maximum line counts; no script writes an inline height, which would
- * outrank this sheet and make growth unpredictable.
+ * outrank this sheet and put two mechanisms in charge of one dimension.
  */
 [data-slot="prompt-input-textarea"] {
   display: block;
@@ -169,7 +168,7 @@
 }
 
 .assistant-control--round {
-  border: 1px solid var(--cp-hairline);
+  border: var(--cp-px) solid var(--cp-hairline);
 }
 
 .assistant-control--round:hover,
@@ -193,7 +192,7 @@
   border-radius: 9999px;
   padding-inline: var(--cp-optical);
   background: transparent;
-  font-size: 14px;
+  font-size: var(--cp-font-label);
   font-weight: 600;
   color: var(--cp-ink);
   cursor: pointer;
@@ -210,10 +209,10 @@
 }
 
 .assistant-agent-pill__badge {
-  border-radius: 6px;
-  padding: 1px 6px;
-  background: #e8f1ff;
-  font-size: 12px;
+  border-radius: var(--cp-optical);
+  padding: 1px var(--cp-optical);
+  background: var(--cp-accent-wash);
+  font-size: var(--cp-font-micro);
   font-weight: 600;
   color: var(--cp-accent);
 }
@@ -242,8 +241,8 @@
 }
 
 [data-slot="prompt-input-submit"] svg {
-  block-size: calc(var(--cp-icon) - 2px);
-  inline-size: calc(var(--cp-icon) - 2px);
+  block-size: var(--cp-icon-sm);
+  inline-size: var(--cp-icon-sm);
   stroke-width: 2.25;
 }
 
@@ -288,7 +287,7 @@
   border-radius: 9999px;
   padding-inline: var(--cp-optical);
   background: transparent;
-  font-size: 14px;
+  font-size: var(--cp-font-label);
   color: var(--cp-ink);
   cursor: pointer;
 }
@@ -298,14 +297,14 @@
 }
 
 .assistant-model-select__mark {
-  block-size: 16px;
-  inline-size: 16px;
+  block-size: var(--cp-icon-sm);
+  inline-size: var(--cp-icon-sm);
   color: var(--cp-model-mark);
 }
 
 .assistant-model-select__chevron {
-  block-size: 16px;
-  inline-size: 16px;
+  block-size: var(--cp-icon-sm);
+  inline-size: var(--cp-icon-sm);
   color: var(--cp-ink-subtle);
 }
 
@@ -315,10 +314,10 @@
   inset-inline-end: 0;
   z-index: 20;
   display: flex;
-  min-inline-size: 168px;
+  min-inline-size: var(--cp-menu-min);
   flex-direction: column;
   gap: 2px;
-  border: 1px solid var(--cp-hairline);
+  border: var(--cp-px) solid var(--cp-hairline);
   border-radius: var(--cp-radius-menu);
   padding: var(--cp-optical);
   background: var(--cp-surface);
@@ -328,13 +327,13 @@
 .assistant-model-select__item,
 .assistant-action-menu__item {
   display: flex;
-  block-size: 34px;
+  block-size: var(--cp-row);
   align-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--cp-radius-item);
   padding-inline: var(--cp-inset);
   background: transparent;
-  font-size: 14px;
+  font-size: var(--cp-font-label);
   color: var(--cp-ink);
   text-align: start;
   cursor: pointer;
@@ -359,10 +358,10 @@
   inset-inline-start: 0;
   z-index: 20;
   display: flex;
-  min-inline-size: 180px;
+  min-inline-size: var(--cp-menu-min-wide);
   flex-direction: column;
   gap: 2px;
-  border: 1px solid var(--cp-hairline);
+  border: var(--cp-px) solid var(--cp-hairline);
   border-radius: var(--cp-radius-menu);
   padding: var(--cp-optical);
   background: var(--cp-surface);
@@ -380,7 +379,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--cp-control-gap);
-  border: 1px solid var(--cp-hairline);
+  border: var(--cp-px) solid var(--cp-hairline);
   border-radius: var(--cp-radius-menu);
   padding: var(--cp-optical) var(--cp-inset);
   background: var(--cp-surface);
@@ -398,19 +397,19 @@
 }
 
 .assistant-attachment__name {
-  font-size: 13px;
+  font-size: var(--cp-font-caption);
   color: var(--cp-ink);
 }
 
 .assistant-attachment__type {
-  font-size: 12px;
+  font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
 }
 
 .assistant-attachment__remove {
   display: inline-grid;
-  block-size: 20px;
-  inline-size: 20px;
+  block-size: var(--cp-control-xs);
+  inline-size: var(--cp-control-xs);
   place-items: center;
   border: 0;
   border-radius: 9999px;
@@ -425,8 +424,8 @@
 }
 
 .assistant-attachment__remove svg {
-  block-size: 14px;
-  inline-size: 14px;
+  block-size: var(--cp-icon-2xs);
+  inline-size: var(--cp-icon-2xs);
 }
 
 /* ── quick actions (same grid as the card) ───────────── */
@@ -441,10 +440,10 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border: 1px solid var(--cp-edge-top);
+  border: var(--cp-px) solid var(--cp-edge-top);
   border-bottom-color: var(--cp-edge-bottom);
   border-radius: var(--cp-radius-tile);
-  padding: 14px var(--cp-pad-x);
+  padding: var(--cp-pad-tile) var(--cp-pad-x);
   background: var(--cp-surface);
   box-shadow: var(--cp-lift-near);
   text-align: start;
@@ -469,12 +468,12 @@
 }
 
 .assistant-tile__title {
-  font-size: 14px;
+  font-size: var(--cp-font-label);
   font-weight: 600;
 }
 
 .assistant-tile__subtitle {
-  font-size: 13px;
+  font-size: var(--cp-font-caption);
   color: var(--cp-ink-subtle);
 }
 
@@ -484,31 +483,31 @@
   display: flex;
   block-size: 100%;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--cp-pad-tile);
   overflow-y: auto;
-  padding: 12px var(--cp-pad-mid);
+  padding: var(--cp-mast-gap) var(--cp-pad-mid);
 }
 
 .assistant-threads__header {
   display: flex;
-  block-size: 28px;
+  block-size: var(--cp-header);
   align-items: center;
   justify-content: space-between;
   padding-inline: var(--cp-pad-mid);
 }
 
 .assistant-threads__caption {
-  font-size: 12px;
+  font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
 }
 
 .assistant-threads__create {
   display: inline-grid;
-  block-size: 22px;
-  inline-size: 22px;
+  block-size: var(--cp-control-sm);
+  inline-size: var(--cp-control-sm);
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--cp-optical);
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
@@ -532,7 +531,7 @@
   display: flex;
   block-size: var(--cp-control);
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--cp-radius-item);
   padding-inline: var(--cp-pad-mid);
 }
 
@@ -558,15 +557,15 @@
 }
 
 .assistant-thread__icon {
-  block-size: 15px;
-  inline-size: 15px;
+  block-size: var(--cp-icon-xs);
+  inline-size: var(--cp-icon-xs);
   flex: none;
   color: var(--cp-ink-muted);
 }
 
 .assistant-thread__title {
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--cp-font-caption);
   color: var(--cp-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -574,7 +573,7 @@
 
 .assistant-thread__time {
   margin-inline-start: var(--cp-pad-mid);
-  font-size: 12px;
+  font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
 }
 
@@ -596,19 +595,19 @@
 
 .assistant-thread__action {
   display: inline-grid;
-  block-size: 22px;
-  inline-size: 22px;
+  block-size: var(--cp-control-sm);
+  inline-size: var(--cp-control-sm);
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--cp-optical);
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
 }
 
 .assistant-thread__action svg {
-  block-size: 15px;
-  inline-size: 15px;
+  block-size: var(--cp-icon-xs);
+  inline-size: var(--cp-icon-xs);
 }
 
 .assistant-thread__action:hover {
