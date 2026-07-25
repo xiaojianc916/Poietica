@@ -14,7 +14,7 @@ const MIGRATIONS: &[(i64, &str, &str)] =
 /// # Errors
 ///
 /// Fails when a migration statement is rejected.
-pub fn migrate(connection: &mut Connection) -> Result<()> {
+pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_migrations (
             version    INTEGER PRIMARY KEY,
