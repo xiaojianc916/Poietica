@@ -37,7 +37,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: .node-version
+          node-version: 26.2.0
           cache: pnpm
 
       - name: Verify JavaScript toolchain
@@ -45,7 +45,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $expectedNode = (Get-Content .node-version -Raw).Trim()
+          $expectedNode = "26.2.0"
           $actualNode = (node --version).Trim().TrimStart("v")
           $actualPnpm = (pnpm --version).Trim()
 
@@ -99,7 +99,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: .node-version
+          node-version: 26.2.0
           cache: pnpm
 
       - name: Install Rust

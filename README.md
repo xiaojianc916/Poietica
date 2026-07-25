@@ -143,7 +143,7 @@ The project is intentionally building reliability before broadening the product 
 
 | Tool | Required version |
 | --- | --- |
-| Node.js | See [`.node-version`](./.node-version) |
+| Node.js | 26.2.0 |
 | pnpm | 11.x |
 | Rust | See [`rust-toolchain.toml`](./rust-toolchain.toml) |
 | Tauri prerequisites | [Platform setup guide](https://v2.tauri.app/start/prerequisites/) |
