@@ -5,8 +5,15 @@
 //! timestamp, path or mutable sequence number.
 
 use sha2::{Digest, Sha256};
+use std::io::{self, Read};
 
 const SHA256_BYTES: usize = 32;
+
+/// Chunk size for streaming revision calculation.
+///
+/// Bounds peak memory during verification to a constant, independent of the
+/// container size, and is large enough that syscall overhead stays negligible.
+const HASH_CHUNK_BYTES: usize = 64 * 1024;
 const SHA256_HEX_LENGTH: usize = SHA256_BYTES * 2;
 
 /// Native-only, validated identity of exact document bytes.
@@ -22,6 +29,38 @@ impl DocumentRevision {
         debug_assert_eq!(revision.len(), SHA256_HEX_LENGTH);
 
         Self(revision)
+    }
+
+    /// Calculates the revision of a byte stream without buffering it.
+    ///
+    /// Verifying that a stored document has not changed requires hashing every
+    /// byte, but it never requires holding every byte. Callers that only need
+    /// the identity of a file on disk should use this instead of reading the
+    /// file into a Vec first: the result is identical and peak memory becomes
+    /// constant rather than the length of the file.
+    ///
+    /// The reader is consumed in fixed-size chunks, so callers should pass the
+    /// File directly. Wrapping it in a BufReader would copy every byte through
+    /// a second buffer for no benefit.
+    pub fn from_reader<R: Read>(mut reader: R) -> io::Result<Self> {
+        let mut hasher = Sha256::new();
+        let mut buffer = vec![0_u8; HASH_CHUNK_BYTES];
+
+        loop {
+            let read = reader.read(&mut buffer)?;
+
+            if read == 0 {
+                break;
+            }
+
+            hasher.update(&buffer[..read]);
+        }
+
+        let revision = hex::encode(hasher.finalize());
+
+        debug_assert_eq!(revision.len(), SHA256_HEX_LENGTH);
+
+        Ok(Self(revision))
     }
 
     /// Parses an opaque revision received through IPC.
@@ -86,6 +125,31 @@ mod tests {
             document_revision(b"{\"value\":1}"),
             document_revision(b"{ \"value\": 1 }"),
         );
+    }
+
+    /*
+     * The streaming path exists purely as a memory optimisation, so it is
+     * worthless unless it is byte-for-byte equivalent to the in-memory path.
+     * The chunk boundary is the interesting case: inputs shorter than, equal
+     * to, and longer than one chunk must all agree.
+     */
+    #[test]
+    fn streaming_revision_matches_in_memory_revision() {
+        for length in [
+            0,
+            1,
+            HASH_CHUNK_BYTES - 1,
+            HASH_CHUNK_BYTES,
+            HASH_CHUNK_BYTES + 1,
+            HASH_CHUNK_BYTES * 3 + 7,
+        ] {
+            let content = (0..length).map(|index| index as u8).collect::<Vec<u8>>();
+
+            let streamed = DocumentRevision::from_reader(content.as_slice())
+                .expect("slice reader cannot fail");
+
+            assert_eq!(streamed, document_revision(&content), "length {length}");
+        }
     }
 
     #[test]

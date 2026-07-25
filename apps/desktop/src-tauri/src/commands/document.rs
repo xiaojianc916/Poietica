@@ -164,8 +164,19 @@ impl DocumentRegistry {
 
         ensure_draw_document_path(&handle.path)?;
 
-        let disk_bytes = match std::fs::read(&handle.path) {
-            Ok(bytes) => bytes,
+        /*
+         * Conflict detection needs the identity of the stored bytes, not the
+         * bytes themselves. Reading the whole container in first allocated up
+         * to MAX_CONTAINER_BYTES on every save, held alongside the freshly
+         * encoded container about to be written, and made peak memory a
+         * function of embedded asset size rather than of the edit.
+         *
+         * The size guard now runs against file metadata, so an oversized
+         * container is rejected before any byte is read. Previously it ran
+         * after the read it was supposed to guard.
+         */
+        let stored = match std::fs::File::open(&handle.path) {
+            Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Err(Error::FileConflict(
                     "document was removed outside Canvas".into(),
@@ -174,9 +185,9 @@ impl DocumentRegistry {
             Err(error) => return Err(error.into()),
         };
 
-        ensure_container_size(disk_bytes.len() as u64)?;
+        ensure_container_size(stored.metadata()?.len())?;
 
-        let actual_revision = document_revision(&disk_bytes);
+        let actual_revision = DocumentRevision::from_reader(stored)?;
 
         if actual_revision != expected_revision {
             return Err(Error::FileConflict(

@@ -310,8 +310,19 @@ export function createCanvasDocumentService({
     emit()
 
     try {
+      /*
+       * Settling assets is native work behind an await; serialising the
+       * document is synchronous main-thread work. Requesting the token first
+       * lets the native side proceed while this thread is busy in
+       * JSON.stringify, instead of starting it only once serialisation is
+       * already finished.
+       *
+       * The promise is awaited within this same try block, so a rejection is
+       * still observed and still routes through failSave.
+       */
+      const assetPersistenceToken = owned.editor.captureAssetPersistenceToken()
       const content = JSON.stringify(documentSnapshot)
-      const assetPersistenceToken = await owned.editor.captureAssetPersistenceToken()
+      const settledAssetPersistenceToken = await assetPersistenceToken
       const currentDocumentId = owned.document.getDocumentId()
 
       const saved = currentDocumentId
@@ -319,9 +330,9 @@ export function createCanvasDocumentService({
             currentDocumentId,
             requireRevision(owned),
             content,
-            assetPersistenceToken,
+            settledAssetPersistenceToken,
           )
-        : await persistence.saveAs(content, assetPersistenceToken, {
+        : await persistence.saveAs(content, settledAssetPersistenceToken, {
             suggestedName: '未命名画布.draw',
           })
 
