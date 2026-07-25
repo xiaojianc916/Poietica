@@ -1,8 +1,8 @@
 import { failureCoordinator } from '../application/failures/failure-coordinator'
-import type { TerminalFailureViewModel } from './terminal-failure-view-model'
-import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 import { installFatalCollectors } from './fatal-collectors'
 import { isReactFatalHostMounted } from './fatal-runtime'
+import type { TerminalFailureViewModel } from './terminal-failure-view-model'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
 installFatalCollectors()
 
@@ -17,11 +17,7 @@ failureCoordinator.subscribe(() => {
     return
   }
 
-  const model = createTerminalFailureViewModel(
-    terminal.incident,
-
-    terminal.additionalIncidentCount,
-  )
+  const model = createTerminalFailureViewModel(terminal.incident, terminal.additionalIncidentCount)
 
   renderPreReactFatalScreen(model)
 })
@@ -46,7 +42,6 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
   const main = createElement('main', 'fatal-surface')
 
   main.setAttribute('role', 'alert')
-
   main.setAttribute('aria-live', 'assertive')
 
   const content = createElement('section', 'fatal-content')
@@ -54,55 +49,60 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
   const icon = createElement('div', 'fatal-icon')
 
   icon.setAttribute('aria-hidden', 'true')
-
   icon.innerHTML = createWarningIcon()
 
   const title = createTextElement('h1', 'fatal-title', model.title)
-
   const description = createTextElement('p', 'fatal-description', model.description)
-
   const summary = createTextElement('p', 'fatal-summary', model.summary)
 
   const details = createElement('details', 'fatal-details')
-
   const detailsSummary = createTextElement('summary', undefined, model.detailsLabel)
-
   const diagnostic = createTextElement('pre', 'fatal-diagnostic', model.diagnostic)
 
   details.append(detailsSummary, diagnostic)
 
   const actions = createElement('div', 'fatal-actions')
 
+  actions.setAttribute('aria-label', '错误处理操作')
+  actions.setAttribute('role', 'group')
+
   const primaryAction = model.primaryAction
 
   if (primaryAction) {
-    const primaryButton = createTextElement(
-      'button',
-      'fatal-button fatal-button-primary',
-
+    const reloadButton = createIconButton(
+      'fatal-icon-button fatal-icon-button-primary',
       primaryAction.label,
+      createReloadIcon(),
     )
 
-    primaryButton.setAttribute('type', 'button')
-
-    primaryButton.onclick = () => {
+    reloadButton.onclick = () => {
       executePrimaryAction(primaryAction)
     }
 
-    actions.append(primaryButton)
+    actions.append(reloadButton)
   }
 
-  const copyButton = createTextElement('button', 'fatal-button', model.copyActionLabel)
+  const copyButton = createIconButton('fatal-icon-button', model.copyActionLabel, createCopyIcon())
 
-  copyButton.setAttribute('type', 'button')
+  let copyResetTimer: number | undefined
 
   copyButton.onclick = async () => {
     try {
       await navigator.clipboard.writeText(model.diagnostic)
 
-      copyButton.textContent = model.copySuccessLabel
+      setCopyButtonState(copyButton, model.copySuccessLabel, createCheckIcon())
+
+      if (copyResetTimer !== undefined) {
+        window.clearTimeout(copyResetTimer)
+      }
+
+      copyResetTimer = window.setTimeout(() => {
+        setCopyButtonState(copyButton, model.copyActionLabel, createCopyIcon())
+
+        copyResetTimer = undefined
+      }, 2200)
     } catch {
-      copyButton.textContent = model.copyFailureLabel
+      setCopyButtonState(copyButton, model.copyActionLabel, createCopyIcon())
 
       details.open = true
     }
@@ -113,14 +113,7 @@ function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {
   content.append(icon, title, description, summary)
 
   if (model.additionalIncidentMessage) {
-    content.append(
-      createTextElement(
-        'p',
-        'fatal-secondary',
-
-        model.additionalIncidentMessage,
-      ),
-    )
+    content.append(createTextElement('p', 'fatal-secondary', model.additionalIncidentMessage))
   }
 
   content.append(actions, details)
@@ -160,6 +153,75 @@ function createTextElement<TagName extends keyof HTMLElementTagNameMap>(
   element.textContent = text
 
   return element
+}
+
+function createIconButton(className: string, label: string, icon: string): HTMLButtonElement {
+  const button = createElement('button', className)
+
+  button.setAttribute('type', 'button')
+  button.setAttribute('aria-label', label)
+  button.setAttribute('title', label)
+
+  button.innerHTML = icon
+
+  return button
+}
+
+function setCopyButtonState(button: HTMLButtonElement, label: string, icon: string): void {
+  button.setAttribute('aria-label', label)
+  button.setAttribute('title', label)
+
+  button.innerHTML = icon
+}
+
+function createReloadIcon(): string {
+  return [
+    '<svg',
+    ' viewBox="0 0 24 24"',
+    ' fill="none"',
+    ' stroke="currentColor"',
+    ' stroke-width="1.8"',
+    ' stroke-linecap="round"',
+    ' stroke-linejoin="round"',
+    ' aria-hidden="true"',
+    '>',
+    '<path d="M20 11a8 8 0 1 0 2 5.3" />',
+    '<path d="M20 4v7h-7" />',
+    '</svg>',
+  ].join('')
+}
+
+function createCopyIcon(): string {
+  return [
+    '<svg',
+    ' viewBox="0 0 24 24"',
+    ' fill="none"',
+    ' stroke="currentColor"',
+    ' stroke-width="1.8"',
+    ' stroke-linecap="round"',
+    ' stroke-linejoin="round"',
+    ' aria-hidden="true"',
+    '>',
+    '<rect x="9" y="8" width="10" height="13" rx="2" />',
+    '<path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />',
+    '</svg>',
+  ].join('')
+}
+
+function createCheckIcon(): string {
+  return [
+    '<svg',
+    ' viewBox="0 0 24 24"',
+    ' fill="none"',
+    ' stroke="currentColor"',
+    ' stroke-width="2"',
+    ' stroke-linecap="round"',
+    ' stroke-linejoin="round"',
+    ' aria-hidden="true"',
+    '>',
+    '<path d="m5 12 4.2 4.2L19 6.5" />',
+    '</svg>',
+  ].join('')
 }
 
 function createWarningIcon(): string {

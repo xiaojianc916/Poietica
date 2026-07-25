@@ -233,6 +233,84 @@
           transition: none;
         }
       }
+    
+    /* fatal-pre-react-icon-actions */
+    .fatal-icon-button {
+      display: inline-grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      padding: 0;
+      color: var(--fatal-foreground);
+      background: transparent;
+      border: 1px solid var(--fatal-border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition:
+        background-color 120ms ease,
+        border-color 120ms ease,
+        transform 120ms ease;
+    }
+
+    .fatal-icon-button:hover {
+      background: var(--fatal-hover);
+    }
+
+    .fatal-icon-button:active {
+      transform: scale(0.96);
+    }
+
+    .fatal-icon-button:focus-visible {
+      outline: 2px solid rgb(24 24 27 / 35%);
+      outline-offset: 2px;
+    }
+
+    .fatal-icon-button-primary {
+      color: #ffffff;
+      background: var(--fatal-foreground);
+      border-color: var(--fatal-foreground);
+    }
+
+    .fatal-icon-button-primary:hover {
+      background: #27272a;
+    }
+
+    .fatal-icon-button svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .fatal-diagnostic {
+      background: var(--window-backing-surface);
+      scrollbar-color: var(--fatal-muted) var(--window-backing-surface);
+    }
+
+    .fatal-diagnostic::-webkit-scrollbar-track {
+      background: var(--window-backing-surface);
+    }
+
+    .fatal-diagnostic::-webkit-scrollbar-thumb {
+      border: 3px solid var(--window-backing-surface);
+      border-radius: 999px;
+      background: var(--fatal-muted);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .fatal-icon-button-primary {
+        color: #18181b;
+        background: #f4f4f5;
+        border-color: #f4f4f5;
+      }
+
+      .fatal-icon-button-primary:hover {
+        background: #e4e4e7;
+      }
+
+      .fatal-icon-button:focus-visible {
+        outline-color: rgb(244 244 245 / 45%);
+      }
+    }
+
     </style>
 
     <title>Poietica</title>
