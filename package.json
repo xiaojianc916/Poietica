@@ -6,12 +6,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xiaojianc916/Canvas.git"
+    "url": "git+https://github.com/xiaojianc916/poietica.git"
   },
   "bugs": {
-    "url": "https://github.com/xiaojianc916/Canvas/issues"
+    "url": "https://github.com/xiaojianc916/poietica/issues"
   },
-  "homepage": "https://github.com/xiaojianc916/Canvas#readme",
+  "homepage": "https://github.com/xiaojianc916/poietica#readme",
   "packageManager": "pnpm@11.15.0",
   "engines": {
     "node": ">=24.0.0 <27",

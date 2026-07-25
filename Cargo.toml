@@ -17,7 +17,7 @@ edition = "2024"
 rust-version = "1.88"
 authors = ["Poietica Contributors"]
 license = "Apache-2.0"
-repository = "https://github.com/xiaojianc916/Canvas"
+repository = "https://github.com/xiaojianc916/poietica"
 publish = false
 
 [workspace.dependencies]
@@ -95,7 +95,7 @@ tauri-plugin-window-state = "2.3.0"
 #
 # These prerelease versions are deliberately pinned as a compatible set.
 # Do not upgrade one of them independently.
-specta = { version = "=2.0.0-rc.22", features = [
+specta = { version = "=2.0.0-rc.25", features = [
   "derive",
   "function",
   "serde",
@@ -103,7 +103,7 @@ specta = { version = "=2.0.0-rc.22", features = [
   "uuid",
 ] }
 
-specta-typescript = "=0.0.9"
+specta-typescript = "=0.0.12"
 
 tauri-specta = { version = "=2.0.0-rc.21", features = [
   "derive",
