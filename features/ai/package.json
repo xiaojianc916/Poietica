@@ -37,8 +37,14 @@
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
     "@poietica/foundations-design-system": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "motion": "catalog:",
+    "streamdown": "catalog:",
+    "tailwind-merge": "catalog:",
     "valibot": "catalog:"
   },
   "devDependencies": {
