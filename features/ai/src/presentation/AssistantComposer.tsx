@@ -22,7 +22,7 @@ import {
   PromptInputTools,
 } from './ai-elements/prompt-input'
 import type { ChatStatus } from './ai-elements/prompt-input'
-import { AgentIcon, AttachIcon, MicIcon, ModelIcon, ToolsIcon } from './primitives/icons'
+import { AgentIcon, AttachIcon, MicIcon, ModelIcon } from './primitives/icons'
 
 export interface AssistantModelOption {
   readonly id: string
@@ -110,8 +110,12 @@ export function AssistantComposer({
 
       <PromptInputToolbar>
         <PromptInputTools>
+          {/* Attachments are a glyph alone: the menu itself names the actions. */}
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger className="assistant-control--round" title="添加内容">
+            <PromptInputActionMenuTrigger
+              aria-label="添加内容"
+              className="assistant-control--round"
+            >
               <AttachIcon aria-hidden="true" />
             </PromptInputActionMenuTrigger>
 
@@ -119,10 +123,6 @@ export function AssistantComposer({
               <PromptInputActionAddAttachments label="添加文件" />
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
-
-          <PromptInputButton className="assistant-control--round" title="工具">
-            <ToolsIcon aria-hidden="true" />
-          </PromptInputButton>
 
           <PromptInputButton className="assistant-agent-pill">
             <AgentIcon aria-hidden="true" />
@@ -151,7 +151,7 @@ export function AssistantComposer({
           </PromptInputModelSelectContent>
         </PromptInputModelSelect>
 
-        <PromptInputButton className="assistant-control--ghost" title="语音输入">
+        <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
           <MicIcon aria-hidden="true" />
         </PromptInputButton>
 

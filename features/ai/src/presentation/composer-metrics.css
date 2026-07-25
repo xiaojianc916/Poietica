@@ -30,12 +30,12 @@
   --cp-font-micro: calc(var(--cp-font) - 4px); /* 12px */
 
   /* ── editor height, expressed in lines ─────────────────
-   * Idle is a visible two-line field; growth stops at eight lines and the
+   * Idle is a visible three-line field; growth stops at eight lines and the
    * editor scrolls from there. No literal height is written anywhere.
    */
-  --cp-rows-idle: 2;
+  --cp-rows-idle: 3;
   --cp-rows-max: 8;
-  --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle));
+  --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle)); /* 78px */
   --cp-editor-max: calc(var(--cp-line) * var(--cp-rows-max));
 
   /* ── controls ──────────────────────────────────────── */
@@ -67,9 +67,12 @@
   --cp-pad-tile: calc(var(--cp-pad-top) - 2px); /* 14px */
   --cp-mast-gap: calc(var(--cp-stack) - var(--cp-pad-mid)); /* 12px */
 
-  /* Concentric with the control row: half a control plus its inset. */
-  --cp-radius: calc(var(--cp-control) / 2 + var(--cp-inset)); /* 26px */
-  --cp-radius-tile: 16px;
+  /*
+   * Still concentric with the control row, but tight: half a control plus a
+   * 2px breath, instead of half a control plus the full inset.
+   */
+  --cp-radius: calc(var(--cp-control) / 2 + 2px); /* 18px */
+  --cp-radius-tile: calc(var(--cp-radius) - 4px); /* 14px */
   --cp-radius-menu: 12px;
   --cp-radius-item: 8px;
 
@@ -94,14 +97,16 @@
   --cp-model-mark: #f2601f;
 
   /* ── elevation ─────────────────────────────────────────
-   * A physical card: light top edge, heavier bottom edge, a top gloss and two
-   * shadow tiers. Constant — focus never alters it.
+   * A physical card, seated lightly: the bottom edge is still heavier than the
+   * top so the object reads as resting on the canvas, but the cast shadow is
+   * short and pale rather than a dark pad under the card. Constant — focus
+   * never alters it.
    */
-  --cp-edge-top: rgb(13 13 13 / 8%);
-  --cp-edge-bottom: rgb(13 13 13 / 16%);
-  --cp-edge-weight: 1.5px;
+  --cp-edge-top: rgb(13 13 13 / 7%);
+  --cp-edge-bottom: rgb(13 13 13 / 11%);
+  --cp-edge-weight: 1.25px;
   --cp-gloss: inset 0 1px 0 rgb(255 255 255 / 90%);
-  --cp-seat: inset 0 -1px 0 rgb(13 13 13 / 4%);
-  --cp-lift-near: 0 1px 2px rgb(16 24 40 / 6%);
-  --cp-lift-far: 0 10px 28px -14px rgb(16 24 40 / 20%);
+  --cp-seat: inset 0 -1px 0 rgb(13 13 13 / 3%);
+  --cp-lift-near: 0 1px 1px rgb(16 24 40 / 4%);
+  --cp-lift-far: 0 6px 16px -12px rgb(16 24 40 / 12%);
 }

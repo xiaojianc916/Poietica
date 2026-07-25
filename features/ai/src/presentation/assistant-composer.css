@@ -19,12 +19,16 @@
 
 /* ── surface & grid ──────────────────────────────────── */
 
+/*
+ * The column is centred by auto block margins rather than by `align-items`,
+ * so a tall column still scrolls from its true top instead of being clipped.
+ */
 .assistant-surface {
   display: flex;
   block-size: 100%;
   justify-content: center;
   overflow-y: auto;
-  padding: 64px var(--cp-gutter) 48px;
+  padding: var(--cp-gutter);
   background: var(--cp-canvas);
   color: var(--cp-ink);
   font-size: var(--cp-font);
@@ -35,6 +39,7 @@
   inline-size: min(100%, var(--cp-grid));
   flex-direction: column;
   gap: var(--cp-stack);
+  margin-block: auto;
 }
 
 .assistant-masthead {
@@ -232,7 +237,7 @@
   color: #fff;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 28%),
-    0 1px 2px rgb(10 132 255 / 35%);
+    0 1px 2px rgb(10 132 255 / 28%);
   cursor: pointer;
   transition:
     background-color 120ms ease,
