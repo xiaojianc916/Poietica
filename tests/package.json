@@ -16,6 +16,7 @@
     "@hybrid-canvas/file": "workspace:*"
   },
   "devDependencies": {
+    "@tldraw/tlschema": "catalog:",
     "@types/node": "catalog:",
     "tldraw": "catalog:",
     "typescript": "catalog:",
