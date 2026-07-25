@@ -10,6 +10,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read, Write};
+use std::sync::Arc;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -49,11 +50,18 @@ pub struct DrawDocumentInput<'a> {
     pub assets: &'a [DrawAssetInput<'a>],
 }
 
+/// One asset recovered from a container, with its digest already checked
+/// against the container's asset index.
+///
+/// The payload is shared rather than owned so that a consumer can take it
+/// without copying. Arc::new adopts the Vec that decoding already produced;
+/// Arc<[u8]> would have to reallocate and copy every byte to make room for its
+/// refcount.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DrawAssetOutput {
     pub content_hash: String,
     pub content_type: String,
-    pub bytes: Vec<u8>,
+    pub bytes: Arc<Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -390,7 +398,7 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
         decoded_assets.push(DrawAssetOutput {
             content_hash: asset.content_hash.clone(),
             content_type: asset.content_type.clone(),
-            bytes: content,
+            bytes: Arc::new(content),
         });
     }
 
@@ -724,7 +732,7 @@ mod tests {
                 .unwrap_or_else(|_| panic!("{content_type} container should decode"));
 
             assert_eq!(decoded.assets.len(), 1);
-            assert_eq!(decoded.assets[0].bytes, payload);
+            assert_eq!(decoded.assets[0].bytes.as_slice(), payload.as_slice());
             assert_eq!(decoded.assets[0].content_type, content_type);
         }
     }

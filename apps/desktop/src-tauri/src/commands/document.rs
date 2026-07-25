@@ -632,15 +632,25 @@ fn decode_document(bytes: &[u8]) -> Result<DecodedDocument> {
 
     let decoded = decode_draw_document(bytes)?;
 
+    /*
+     * decode_draw_document rejects the whole container unless every asset digest
+     * matches its index, so the guarantee the entry type asks for has already
+     * been established over these exact bytes, in this call, with nothing in
+     * between. Rebuilding it here hashed every asset in the document a second
+     * time; Arc::from copied every one of them a second time.
+     */
     let assets = decoded
         .assets
         .into_iter()
-        .map(|asset| AssetSessionSnapshotEntry {
-            content_hash: asset.content_hash,
-            content_type: asset.content_type,
-            bytes: Arc::from(asset.bytes),
+        .map(|asset| {
+            AssetSessionSnapshotEntry::from_verified_container(
+                asset.content_hash,
+                asset.content_type,
+                asset.bytes,
+            )
         })
-        .collect::<Vec<_>>();
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(map_asset_error)?;
 
     Ok(DecodedDocument {
         content: serde_json::to_string(&decoded.document)?,
@@ -661,9 +671,9 @@ fn encode_document(
     let asset_inputs = assets
         .iter()
         .map(|asset| DrawAssetInput {
-            content_hash: &asset.content_hash,
-            content_type: &asset.content_type,
-            bytes: asset.bytes.as_ref(),
+            content_hash: asset.content_hash(),
+            content_type: asset.content_type(),
+            bytes: asset.bytes().as_slice(),
         })
         .collect::<Vec<_>>();
 

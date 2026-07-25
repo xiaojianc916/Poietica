@@ -19,16 +19,96 @@ const MAX_ASSET_BYTES: usize = 32 * 1024 * 1024;
 const MAX_REGISTRY_BYTES: usize = 256 * 1024 * 1024;
 const MAX_TOKEN_BYTES: usize = 128;
 
+/// One content-addressed asset whose bytes are known to match their declared
+/// SHA-256 identity.
+///
+/// The fields are private because that guarantee is the whole value of this
+/// type. Every construction site has to say how it establishes the guarantee,
+/// either by paying for the digest or by naming the check that already did.
+///
+/// Bytes are held as Arc<Vec<u8>> rather than Arc<[u8]>. Arc stores a refcount
+/// ahead of its payload, so Arc::from(vec) cannot adopt the Vec's allocation
+/// and copies every byte; Arc::new boxes the Vec that already exists. The cost
+/// is one extra pointer hop per access, not per byte, and nothing here needs
+/// the cheap subslicing that would justify a bytes::Bytes dependency.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetSessionSnapshotEntry {
-    pub content_hash: String,
-    pub content_type: String,
-    pub bytes: Arc<[u8]>,
+    content_hash: String,
+    content_type: String,
+    bytes: Arc<Vec<u8>>,
+}
+
+impl AssetSessionSnapshotEntry {
+    /// Builds an entry by hashing the bytes and comparing them to the declared
+    /// identity.
+    ///
+    /// This is the constructor to reach for unless the digest has demonstrably
+    /// already been computed over these exact bytes.
+    pub fn verify(
+        content_hash: String,
+        content_type: String,
+        bytes: Arc<Vec<u8>>,
+    ) -> Result<Self, AssetProtocolError> {
+        validate_content_hash(&content_hash)?;
+        validate_content_type(&content_type)?;
+
+        if hex::encode(Sha256::digest(bytes.as_slice())) != content_hash {
+            return Err(AssetProtocolError::InvalidContentHash);
+        }
+
+        Ok(Self {
+            content_hash,
+            content_type,
+            bytes,
+        })
+    }
+
+    /// Builds an entry from bytes a container decoder has just verified against
+    /// this exact identity, without hashing them a second time.
+    ///
+    /// Contract for the caller: a SHA-256 digest of exactly these bytes must
+    /// already have been compared against exactly this content hash, in this
+    /// process, with no opportunity for the bytes to change in between. The
+    /// .draw decoder satisfies this by rejecting the entire container when any
+    /// asset digest disagrees with its index.
+    ///
+    /// Without this, opening a document hashes every asset twice: once in the
+    /// decoder and once again on the way into the registry. The obligation is
+    /// discharged once at the construction site instead of on every call.
+    ///
+    /// Identity format and content type are still validated. Only the digest,
+    /// the one check whose cost scales with the asset, is skipped.
+    pub fn from_verified_container(
+        content_hash: String,
+        content_type: String,
+        bytes: Arc<Vec<u8>>,
+    ) -> Result<Self, AssetProtocolError> {
+        validate_content_hash(&content_hash)?;
+        validate_content_type(&content_type)?;
+
+        Ok(Self {
+            content_hash,
+            content_type,
+            bytes,
+        })
+    }
+
+    pub fn content_hash(&self) -> &str {
+        &self.content_hash
+    }
+
+    pub fn content_type(&self) -> &str {
+        &self.content_type
+    }
+
+    pub fn bytes(&self) -> &Arc<Vec<u8>> {
+        &self.bytes
+    }
 }
 
 #[derive(Clone, Debug)]
 struct RegisteredAsset {
-    bytes: Arc<[u8]>,
+    bytes: Arc<Vec<u8>>,
     content_type: String,
     references: u32,
 }
@@ -112,13 +192,21 @@ impl AssetProtocolRegistry {
             .write()
             .map_err(|_| AssetProtocolError::Internal)?;
 
+        /*
+         * Read before the session borrow so the whole insert needs one map
+         * lookup. Previously the borrow was released to reach total_bytes and
+         * the session had to be looked up a second time to store the asset.
+         */
+        let current_total = state.total_bytes;
+
         let session = state
             .sessions
             .get_mut(session_token)
             .ok_or(AssetProtocolError::NotFound)?;
 
         if let Some(existing) = session.get_mut(asset_token) {
-            if existing.content_type != content_type || existing.bytes.as_ref() != bytes.as_slice()
+            if existing.content_type != content_type
+                || existing.bytes.as_slice() != bytes.as_slice()
             {
                 /*
                  * A SHA-256 identity must never resolve to different bytes or
@@ -135,8 +223,7 @@ impl AssetProtocolRegistry {
             return Ok(());
         }
 
-        let next_total = state
-            .total_bytes
+        let next_total = current_total
             .checked_add(bytes.len())
             .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
 
@@ -144,17 +231,16 @@ impl AssetProtocolRegistry {
             return Err(AssetProtocolError::RegistryBudgetExceeded);
         }
 
-        let registered = RegisteredAsset {
-            bytes: Arc::from(bytes),
-            content_type: content_type.to_owned(),
-            references: 1,
-        };
-
-        state
-            .sessions
-            .get_mut(session_token)
-            .ok_or(AssetProtocolError::NotFound)?
-            .insert(asset_token.to_owned(), registered);
+        // Arc::new adopts the Vec the IPC layer already allocated. Arc::from
+        // would reallocate and copy the asset in full.
+        session.insert(
+            asset_token.to_owned(),
+            RegisteredAsset {
+                bytes: Arc::new(bytes),
+                content_type: content_type.to_owned(),
+                references: 1,
+            },
+        );
 
         state.total_bytes = next_total;
 
@@ -220,12 +306,18 @@ impl AssetProtocolRegistry {
 
     /// Restores one complete document-owned asset session atomically.
     ///
-    /// Every asset is validated and materialized in private temporary state
-    /// before the registry write lock is acquired. The session becomes visible
-    /// only after the complete resource set and global byte budget have been
-    /// accepted.
+    /// Every asset is materialized in private temporary state before the
+    /// registry write lock is acquired. The session becomes visible only after
+    /// the complete resource set and global byte budget have been accepted.
     ///
     /// Failure never publishes an empty or partially restored session.
+    ///
+    /// Content identity, content type and digest are guaranteed by the entry
+    /// type and are deliberately not rechecked. Re-hashing here meant every
+    /// asset in a document was hashed twice on open: once by the container
+    /// decoder that produced these entries, and once again on arrival. Only the
+    /// registry's own budgets, which the entry knows nothing about, are
+    /// enforced below.
     pub fn restore_session(
         &self,
         session_token: &str,
@@ -237,17 +329,8 @@ impl AssetProtocolRegistry {
         let mut restored_bytes = 0_usize;
 
         for asset in assets {
-            validate_content_hash(&asset.content_hash)?;
-            validate_content_type(&asset.content_type)?;
-
             if asset.bytes.len() > MAX_ASSET_BYTES {
                 return Err(AssetProtocolError::AssetTooLarge);
-            }
-
-            let actual_hash = hex::encode(Sha256::digest(asset.bytes.as_ref()));
-
-            if actual_hash != asset.content_hash {
-                return Err(AssetProtocolError::InvalidContentHash);
             }
 
             restored_bytes = restored_bytes
@@ -258,11 +341,15 @@ impl AssetProtocolRegistry {
                 return Err(AssetProtocolError::RegistryBudgetExceeded);
             }
 
-            let content_hash = asset.content_hash;
+            let AssetSessionSnapshotEntry {
+                content_hash,
+                content_type,
+                bytes,
+            } = asset;
 
             let registered = RegisteredAsset {
-                bytes: asset.bytes,
-                content_type: asset.content_type,
+                bytes,
+                content_type,
                 references: 1,
             };
 
@@ -479,7 +566,7 @@ fn asset_response(asset: &RegisteredAsset) -> Response<Vec<u8>> {
         .header(CONTENT_LENGTH, asset.bytes.len().to_string())
         .header(X_CONTENT_TYPE_OPTIONS, "nosniff")
         .header(CACHE_CONTROL, "private, max-age=31536000, immutable")
-        .body(asset.bytes.as_ref().to_vec())
+        .body(asset.bytes.as_ref().clone())
         .unwrap_or_else(|_| empty_response(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
@@ -610,7 +697,7 @@ mod tests {
             .expect("snapshot should succeed");
 
         assert_eq!(snapshot.len(), 1);
-        assert_eq!(snapshot[0].content_hash, asset);
+        assert_eq!(snapshot[0].content_hash(), asset);
 
         assert!(
             registry
@@ -677,37 +764,35 @@ mod tests {
 
         let hashes = snapshot
             .iter()
-            .map(|asset| asset.content_hash.as_str())
+            .map(AssetSessionSnapshotEntry::content_hash)
             .collect::<Vec<_>>();
 
         assert!(hashes.windows(2).all(|pair| { pair[0] < pair[1] }));
+    }
+
+    fn entry(bytes: &Arc<Vec<u8>>) -> AssetSessionSnapshotEntry {
+        AssetSessionSnapshotEntry::verify(
+            hash(bytes.as_slice()),
+            "image/png".to_owned(),
+            Arc::clone(bytes),
+        )
+        .expect("fixture entry should verify")
     }
 
     #[test]
     fn restores_complete_content_addressed_session() {
         let registry = AssetProtocolRegistry::default();
 
-        let first_bytes = Arc::<[u8]>::from(vec![1, 2, 3]);
-        let second_bytes = Arc::<[u8]>::from(vec![4, 5, 6]);
+        let first_bytes = Arc::new(vec![1, 2, 3]);
+        let second_bytes = Arc::new(vec![4, 5, 6]);
 
-        let first_hash = hash(first_bytes.as_ref());
-        let second_hash = hash(second_bytes.as_ref());
+        let first_hash = hash(first_bytes.as_slice());
+        let second_hash = hash(second_bytes.as_slice());
 
         registry
             .restore_session(
                 "restored-session",
-                vec![
-                    AssetSessionSnapshotEntry {
-                        content_hash: second_hash.clone(),
-                        content_type: "image/png".to_owned(),
-                        bytes: Arc::clone(&second_bytes),
-                    },
-                    AssetSessionSnapshotEntry {
-                        content_hash: first_hash.clone(),
-                        content_type: "image/png".to_owned(),
-                        bytes: Arc::clone(&first_bytes),
-                    },
-                ],
+                vec![entry(&second_bytes), entry(&first_bytes)],
             )
             .expect("session should restore");
 
@@ -732,7 +817,7 @@ mod tests {
         assert!(
             snapshot
                 .windows(2)
-                .all(|pair| { pair[0].content_hash < pair[1].content_hash })
+                .all(|pair| { pair[0].content_hash() < pair[1].content_hash() })
         );
 
         let first_response = registry.response(&request(&format!(
@@ -741,34 +826,55 @@ mod tests {
 
         assert_eq!(first_response.status(), StatusCode::OK,);
 
-        assert_eq!(first_response.body(), &first_bytes.as_ref().to_vec(),);
+        assert_eq!(first_response.body(), first_bytes.as_ref(),);
+    }
+
+    /*
+     * The digest check did not disappear, it moved to the only place that can
+     * establish it once. An entry claiming an identity its bytes do not have
+     * can no longer be built, so no session can be restored from one.
+     */
+    #[test]
+    fn an_entry_cannot_claim_an_identity_its_bytes_do_not_have() {
+        let result = AssetSessionSnapshotEntry::verify(
+            "0".repeat(64),
+            "image/png".to_owned(),
+            Arc::new(vec![9, 9, 9]),
+        );
+
+        assert_eq!(result, Err(AssetProtocolError::InvalidContentHash));
     }
 
     #[test]
-    fn invalid_restore_does_not_publish_partial_session() {
+    fn an_entry_cannot_carry_an_active_content_type() {
+        let bytes = Arc::new(vec![1, 2, 3]);
+
+        let result = AssetSessionSnapshotEntry::verify(
+            hash(bytes.as_slice()),
+            "image/svg+xml".to_owned(),
+            bytes,
+        );
+
+        assert_eq!(result, Err(AssetProtocolError::UnsupportedContentType));
+    }
+
+    /*
+     * Atomicity is a property of restore_session itself, so it is now exercised
+     * through a rejection restore_session still owns: its own byte budget.
+     */
+    #[test]
+    fn rejected_restore_does_not_publish_partial_session() {
         let registry = AssetProtocolRegistry::default();
 
-        let valid_bytes = Arc::<[u8]>::from(vec![1, 2, 3]);
-
-        let valid_hash = hash(valid_bytes.as_ref());
+        let small = Arc::new(vec![1, 2, 3]);
+        let oversized = Arc::new(vec![0_u8; MAX_ASSET_BYTES + 1]);
 
         let result = registry.restore_session(
             "failed-session",
-            vec![
-                AssetSessionSnapshotEntry {
-                    content_hash: valid_hash,
-                    content_type: "image/png".to_owned(),
-                    bytes: valid_bytes,
-                },
-                AssetSessionSnapshotEntry {
-                    content_hash: "0".repeat(64),
-                    content_type: "image/png".to_owned(),
-                    bytes: Arc::<[u8]>::from(vec![9, 9, 9]),
-                },
-            ],
+            vec![entry(&small), entry(&oversized)],
         );
 
-        assert_eq!(result, Err(AssetProtocolError::InvalidContentHash),);
+        assert_eq!(result, Err(AssetProtocolError::AssetTooLarge));
 
         assert!(matches!(
             registry.snapshot_session("failed-session"),
@@ -780,23 +886,11 @@ mod tests {
     fn duplicate_restore_hash_does_not_publish_session() {
         let registry = AssetProtocolRegistry::default();
 
-        let bytes = Arc::<[u8]>::from(vec![1, 2, 3]);
-        let content_hash = hash(bytes.as_ref());
+        let bytes = Arc::new(vec![1, 2, 3]);
 
         let result = registry.restore_session(
             "duplicate-session",
-            vec![
-                AssetSessionSnapshotEntry {
-                    content_hash: content_hash.clone(),
-                    content_type: "image/png".to_owned(),
-                    bytes: Arc::clone(&bytes),
-                },
-                AssetSessionSnapshotEntry {
-                    content_hash,
-                    content_type: "image/png".to_owned(),
-                    bytes,
-                },
-            ],
+            vec![entry(&bytes), entry(&bytes)],
         );
 
         assert_eq!(result, Err(AssetProtocolError::DuplicateAsset),);
