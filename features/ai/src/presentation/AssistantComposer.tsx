@@ -22,7 +22,7 @@ import {
   PromptInputTools,
 } from './ai-elements/prompt-input'
 import type { ChatStatus } from './ai-elements/prompt-input'
-import { AgentIcon, AttachIcon, MicIcon } from './primitives/icons'
+import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
 import { MODEL_MARKS } from './primitives/model-icons'
 import { useFluidResize } from './useFluidResize'
 import { resolveAssistantModel } from '../domain/model-catalog'
@@ -142,9 +142,9 @@ export function AssistantComposer({
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger
               aria-label="添加内容"
-              className="assistant-control--round"
+              className="assistant-control--ghost"
             >
-              <AttachIcon aria-hidden="true" />
+              <PlusIcon aria-hidden="true" />
             </PromptInputActionMenuTrigger>
 
             <PromptInputActionMenuContent>
