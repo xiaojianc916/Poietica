@@ -1,7 +1,16 @@
 #![allow(
     clippy::needless_pass_by_value,
-    clippy::unused_async,
     reason = "Tauri command signatures are consumed by generated IPC handlers"
+)]
+/*
+ * The previous reason claimed Tauri requires this, which is untrue: synchronous
+ * commands are supported. They are also dispatched on the main thread, whereas
+ * async commands go to the async runtime. Trivial registry commands are async
+ * on purpose, to keep even a short lock off the thread that draws the window.
+ */
+#![allow(
+    clippy::unused_async,
+    reason = "async dispatches a command onto the async runtime; sync would run it on the main thread"
 )]
 
 pub mod asset_protocol;

@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
-use tauri::State;
+use tauri::{State, async_runtime};
 use uuid::Uuid;
 
 use crate::asset_protocol::{AssetProtocolError, AssetProtocolRegistry, asset_protocol_url};
@@ -71,26 +71,48 @@ pub async fn asset_upload(
     request: AssetUploadRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<AssetUploadResult> {
-    let byte_length = u32::try_from(request.bytes.len())
-        .map_err(|_| Error::Asset("asset length overflow".into()))?;
+    let AssetUploadRequest {
+        session_token,
+        content_type,
+        bytes,
+    } = request;
 
-    let content_hash = hex::encode(Sha256::digest(&request.bytes));
+    let byte_length =
+        u32::try_from(bytes.len()).map_err(|_| Error::Asset("asset length overflow".into()))?;
+
+    /*
+     * A command body runs on the async runtime's worker threads. Hashing is
+     * CPU-bound over up to MAX_ASSET_BYTES, so doing it here occupied a worker
+     * that every other pending command was queued behind, in a function that
+     * awaited nothing at all.
+     *
+     * Only the digest moves. The registry write stays on this thread because
+     * State cannot cross the boundary, and it is a short lock, not a scan.
+     */
+    let (content_hash, bytes) = async_runtime::spawn_blocking(move || {
+        let content_hash = hex::encode(Sha256::digest(&bytes));
+
+        (content_hash, bytes)
+    })
+    .await
+    .map_err(|_| Error::Internal("asset hashing task failed".into()))?;
+
     let asset_token = content_hash.clone();
 
     assets
         .insert(
-            &request.session_token,
+            &session_token,
             &asset_token,
             &content_hash,
-            &request.content_type,
-            request.bytes,
+            &content_type,
+            bytes,
         )
         .map_err(map_asset_error)?;
 
-    let source = match asset_protocol_url(&request.session_token, &asset_token) {
+    let source = match asset_protocol_url(&session_token, &asset_token) {
         Ok(source) => source,
         Err(error) => {
-            let _ = assets.remove(&request.session_token, &asset_token);
+            let _ = assets.remove(&session_token, &asset_token);
 
             return Err(map_asset_error(error));
         }
@@ -101,7 +123,7 @@ pub async fn asset_upload(
         content_hash,
         source,
         byte_length,
-        content_type: request.content_type,
+        content_type,
     })
 }
 
@@ -128,13 +150,15 @@ pub async fn asset_session_close(
     request: AssetSessionCloseRequest,
     assets: State<'_, AssetProtocolRegistry>,
 ) -> CommandResult<()> {
-    let removed = assets
+    /*
+     * Document close may already have released a restored asset session, so a
+     * session that is not there is a success rather than a failure. The
+     * returned flag distinguishes the two cases and no caller needs to.
+     */
+    assets
         .remove_session(&request.session_token)
         .map_err(map_asset_error)?;
 
-    // Document close may already have released a restored asset session.
-    // Keep explicit renderer disposal idempotent.
-    let _ = removed;
     Ok(())
 }
 

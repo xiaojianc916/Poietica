@@ -1,4 +1,4 @@
-use tauri::Wry;
+use tauri::{Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
 
 use super::logging;
@@ -13,9 +13,31 @@ pub fn build() -> tauri::Builder<Wry> {
     tauri::Builder::<Wry>::default()
         .manage(DocumentRegistry::default())
         .manage(asset_protocol)
-        .register_uri_scheme_protocol(ASSET_PROTOCOL_SCHEME, move |_webview, request| {
-            protocol_registry.response(&request)
-        })
+        /*
+         * A synchronous protocol handler is invoked by the platform webview on
+         * its own thread, which is the UI thread on Windows and macOS. Building
+         * a response takes the registry read lock and copies the asset, up to
+         * MAX_ASSET_BYTES of it, so answering inline stalled painting and input
+         * for the length of that copy on every cache miss.
+         *
+         * The copy cannot be removed. Tauri bounds a protocol response body by
+         * Into<Cow<'static, [u8]>>, and an asset owned by the registry is not
+         * 'static, so it can only be handed over as Cow::Owned. Sharing types
+         * do not help. What can be fixed is which thread pays for it.
+         *
+         * The responder is Send, so the work moves to the blocking executor and
+         * the webview thread returns immediately.
+         */
+        .register_asynchronous_uri_scheme_protocol(
+            ASSET_PROTOCOL_SCHEME,
+            move |_context, request, responder| {
+                let registry = protocol_registry.clone();
+
+                async_runtime::spawn_blocking(move || {
+                    responder.respond(registry.response(&request));
+                });
+            },
+        )
         .plugin(logging::plugin().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
