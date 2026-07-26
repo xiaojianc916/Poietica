@@ -132,6 +132,12 @@ pub fn config_path(home: &Path) -> PathBuf {
 /// An agent that was never configured has no file, and no file is an empty
 /// list rather than a failure: nothing is wrong, there is simply nothing to
 /// offer yet.
+/// # Errors
+///
+/// Returns [`ModelError::Unreadable`] when the file cannot be opened, and
+/// [`ModelError::Malformed`] when its contents are not TOML we can walk.
+/// A file that exists but declares no models is not an error: it is an
+/// empty list.
 pub fn read_models(path: &Path) -> Result<ModelList, ModelError> {
     let Some(parsed) = document(path)? else {
         return Ok(ModelList::default());
@@ -145,6 +151,12 @@ pub fn read_models(path: &Path) -> Result<ModelList, ModelError> {
 /// A name the file does not declare is refused before anything is written: a
 /// `default_model` naming a section that does not exist stops the agent from
 /// starting at all, which is far worse than a refused switch.
+/// # Errors
+///
+/// Returns [`ModelError::Unknown`] when the agent declares no model under
+/// that identifier, in which case the file is left byte for byte as it
+/// was, and [`ModelError::Unwritable`] when the replacement could not be
+/// put in place. Reading the file first can fail for its own reasons.
 pub fn select_model(path: &Path, id: &str) -> Result<ModelList, ModelError> {
     let Some(mut parsed) = document(path)? else {
         return Err(ModelError::Unknown(id.to_owned()));

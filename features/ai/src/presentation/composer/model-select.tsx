@@ -23,8 +23,8 @@ import { ProviderIcon } from '../primitives/provider-icon'
 
 export interface ModelSelectProps {
   readonly models: readonly AgentModel[]
-  readonly activeModelId?: string
-  readonly onSelect?: (modelId: string) => void
+  readonly activeModelId?: string | undefined
+  readonly onSelect?: ((modelId: string) => void) | undefined
 }
 
 /*

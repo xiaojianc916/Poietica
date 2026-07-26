@@ -13,7 +13,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use poietica_ai_acp_native::{ModelError, config_path, read_models, select_model};
+use poietica_ai_acp_native::{
+    ModelError, model_config_path as config_path, read_models, select_model,
+};
 use tempfile::{TempDir, tempdir};
 
 const CONFIG: &str = concat!(
@@ -80,10 +82,10 @@ fn the_identifier_is_the_key_and_the_label_is_the_model_name() {
     assert_eq!(first.id, "moonshot-cn/kimi-k2.7-code");
     assert_eq!(first.label, "kimi-k2.7-code");
 
-    let last = list.models.last().expect("a last model");
+    let newest = list.models.last().expect("a last model");
 
-    assert_eq!(last.id, "moonshot-cn/kimi-k3");
-    assert_eq!(last.label, "kimi-k3");
+    assert_eq!(newest.id, "moonshot-cn/kimi-k3");
+    assert_eq!(newest.label, "kimi-k3");
 }
 
 #[test]
@@ -146,7 +148,7 @@ fn a_model_the_agent_does_not_have_is_refused() {
 
     let refused = select_model(&path, "openai/gpt-5").expect_err("a refusal");
 
-    assert!(matches!(refused, ModelError::Unknown(_named)), "{refused:?}");
+    assert!(matches!(refused, ModelError::Unknown(_)), "{refused:?}");
 
     // A refusal that had already written something would be the worst of
     // both: a file the agent cannot start from, and a switch that failed.

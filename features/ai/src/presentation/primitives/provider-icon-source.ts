@@ -45,5 +45,9 @@ export function providerIconUrl(provider?: string): string {
   const known = Object.keys(SOURCES).sort((left, right) => right.length - left.length)
   const hit = known.find((name) => key.startsWith(name) || name.startsWith(key))
 
-  return hit === undefined ? PROVIDER_ICON_FALLBACK : SOURCES[hit]
+  if (hit === undefined) {
+    return PROVIDER_ICON_FALLBACK
+  }
+
+  return SOURCES[hit] ?? PROVIDER_ICON_FALLBACK
 }
