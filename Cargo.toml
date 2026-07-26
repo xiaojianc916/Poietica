@@ -77,7 +77,7 @@ zeroize = { version = "1.8.1", features = ["derive"] }
 # Observability
 
 # Tauri composition root
-tauri = { version = "2.5.1", features = [] }
+tauri = { version = "2.5.1", features = ["tray-icon", "image-png"] }
 tauri-build = { version = "2.2.0", features = [] }
 tauri-plugin-clipboard-manager = "2.3.0"
 tauri-plugin-dialog = "2.3.0"

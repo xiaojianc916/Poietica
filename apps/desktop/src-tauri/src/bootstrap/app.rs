@@ -1,7 +1,7 @@
 use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
 
-use super::logging;
+use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
 use crate::commands::document::DocumentRegistry;
@@ -40,13 +40,16 @@ pub fn build() -> tauri::Builder<Wry> {
         )
         .plugin(logging::plugin().build())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .on_window_event(tray::on_window_event)
         .setup(|app| {
             app.store("settings.json")?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
+            tray::install(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
