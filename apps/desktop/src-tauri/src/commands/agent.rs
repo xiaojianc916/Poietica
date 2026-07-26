@@ -205,7 +205,11 @@ pub async fn agent_prompt(
 
     async_runtime::spawn(async move {
         match answer.await {
-            Ok(Ok(_stop_reason)) => {}
+            // A turn that ends without a word looks, from the outside, exactly
+            // like a turn that never reached the agent. The stop reason is the
+            // account the agent gave, so it is written down even when nothing
+            // went wrong.
+            Ok(Ok(stop_reason)) => log::info!("the agent turn stopped: {stop_reason:?}"),
             // Both of these were already recorded as a run_failed frame; the
             // log entry here is for the developer, not for the interface.
             Ok(Err(error)) => log::error!("the agent turn failed: {error}"),

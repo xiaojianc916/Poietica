@@ -26,6 +26,8 @@ mod permission;
 mod recorder;
 mod run_slot;
 mod session;
+mod stderr;
+mod stderr;
 
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
@@ -36,3 +38,5 @@ pub use recorder::{
 };
 pub use run_slot::RunSlot;
 pub use session::{connect, AgentClient, AgentConnection, AgentSpawn};
+pub use stderr::StderrLog;
+pub use stderr::StderrLog;

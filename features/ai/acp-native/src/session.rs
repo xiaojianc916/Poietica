@@ -8,7 +8,7 @@ use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
     SessionNotification, TextContent,
 };
-use agent_client_protocol::{AcpAgent, Agent, ConnectionTo};
+use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
 use futures::future::{select, BoxFuture, Either};
 use futures::{FutureExt, StreamExt};
@@ -19,6 +19,8 @@ use crate::error::{AcpError, Result};
 use crate::permission::{decide, Decision};
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
+use crate::stderr::StderrLog;
+use crate::stderr::StderrLog;
 
 const BUSY: &str = "a turn is already in flight on this session";
 const GONE: &str = "the agent connection is no longer running";
@@ -171,6 +173,30 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         message: error.to_string(),
     })?;
 
+    // What the agent says for itself. A provider rejection is reported on the
+    // process error stream and the turn still ends normally, so this is the
+    // only account of such a turn there is. The SDK offers the stream through
+    // its own observer, which is why nothing here reads a pipe.
+    let diagnostics = StderrLog::new();
+    let observed = diagnostics.clone();
+    let agent = agent.with_debug(move |line, direction| {
+        if direction == LineDirection::Stderr {
+            observed.push(line);
+        }
+    });
+
+    // What the agent says for itself. A provider rejection is reported on the
+    // process error stream and the turn still ends normally, so this is the
+    // only account of such a turn there is. The SDK offers the stream through
+    // its own observer, which is why nothing here reads a pipe.
+    let diagnostics = StderrLog::new();
+    let observed = diagnostics.clone();
+    let agent = agent.with_debug(move |line, direction| {
+        if direction == LineDirection::Stderr {
+            observed.push(line);
+        }
+    });
+
     let (commands, receiver) = mpsc::unbounded::<Command>();
     let (ready, session_id) = oneshot::channel::<String>();
 
@@ -266,6 +292,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         continue 'commands;
                     }
 
+                    // A turn is only answerable for itself, so it starts with an
+                    // empty record rather than the previous turn to explain it.
+                    diagnostics.clear();
+
+                    // A turn is only answerable for itself, so it starts with an
+                    // empty record rather than the previous turn to explain it.
+                    diagnostics.clear();
+
                     // The prompt is recorded before it is sent, so a turn that
                     // fails on the first request still shows what was asked.
                     let _routed = slot.record(|recorder| {
@@ -328,6 +362,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     };
 
                     recorder.record_pending_cancelled();
+
+                    // Handed over before the turn is settled, because the
+                    // recorder decides whether this turn needs it.
+                    recorder.set_diagnostics(diagnostics.tail());
+
+                    // Handed over before the turn is settled, because the
+                    // recorder decides whether this turn needs it.
+                    recorder.set_diagnostics(diagnostics.tail());
 
                     let settled = match answered {
                         None => {

@@ -19,19 +19,23 @@ import {
 } from './composer/prompt-input'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
+import { ProviderIcon } from './primitives/provider-icon'
 import { useEditorGrowth } from './useEditorGrowth'
 
 /*
- * The composer no longer offers a model picker.
+ * The model is chosen through the agent, not around it.
  *
- * Under ACP the agent owns its model: the client opens a session and prompts,
- * and which weights answer is decided on the other side of the connection. A
- * dropdown here could only ever have been decoration over a choice this process
- * does not make. The toolbar slot and its stylesheet are untouched, so the
- * things the agent really does advertise — its slash commands, which arrive as
- * an available_commands_update on the first frame of every session — can take
- * that place without a single change to the skin.
+ * Under ACP the agent owns its model and its credentials, and Kimi already
+ * ships the switch as a command of its own. So this control does not read the
+ * agent config, does not keep a model list, and does not hold a state that
+ * could disagree with the agent: it sends the command down the same path as
+ * any other message, and the agent answers it in the transcript like anything
+ * else it is asked. Nothing here can drift out of step, because nothing here
+ * is remembered.
  */
+
+/** The switch as the agent spells it. */
+const MODEL_COMMAND = '/model'
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
@@ -193,6 +197,23 @@ export function AssistantComposer({
 
             {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
           </PromptInputButton>
+
+          {/* A plain button on purpose: the submit path belongs to the form,
+              and this asks the agent something instead of submitting what is
+              being written, so it must not carry the editor content with it. */}
+          <button
+            aria-label="切换模型"
+            className="assistant-control--ghost assistant-model-select"
+            onClick={(event) => {
+              event.preventDefault()
+              onSubmit({ text: MODEL_COMMAND, files: [] })
+            }}
+            type="button"
+          >
+            <ProviderIcon />
+
+            <span className="assistant-model-select__label">模型</span>
+          </button>
         </PromptInputTools>
 
         <span className="assistant-toolbar__spacer" />

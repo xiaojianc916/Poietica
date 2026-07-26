@@ -59,6 +59,13 @@ pub struct Recorder {
     next_seq: i64,
     sink: Box<dyn FnMut(&RecordedEvent) + Send>,
     failure: Option<AcpError>,
+    /// What the agent said on its own error stream during this run.
+    diagnostics: String,
+    /// How many session updates this run carried.
+    ///
+    /// A run that carried none said nothing through the protocol, which is
+    /// the only case where its error stream is the account of the turn.
+    updates: u32,
 }
 
 impl fmt::Debug for Recorder {
@@ -82,6 +89,8 @@ impl Recorder {
             next_seq: 1,
             sink,
             failure: None,
+            diagnostics: String::new(),
+            updates: 0,
         }
     }
 
@@ -95,6 +104,24 @@ impl Recorder {
     #[must_use]
     pub const fn store(&self) -> &AiStore {
         &self.store
+    }
+
+    /// Hands over what the agent said on its own error stream.
+    ///
+    /// Recorded with the end of the turn rather than as it arrives: the
+    /// stream is not part of the protocol, it has no sequence of its own,
+    /// and interleaving it with real frames would invent an order.
+    pub fn set_diagnostics(&mut self, text: String) {
+        self.diagnostics = text;
+    }
+
+    /// Hands over what the agent said on its own error stream.
+    ///
+    /// Recorded with the end of the turn rather than as it arrives: the
+    /// stream is not part of the protocol, it has no sequence of its own,
+    /// and interleaving it with real frames would invent an order.
+    pub fn set_diagnostics(&mut self, text: String) {
+        self.diagnostics = text;
     }
 
     /// Takes the first failure observed while recording, if there was one.
@@ -216,6 +243,8 @@ impl Recorder {
     }
 
     fn persist_update(&mut self, notification: &SessionNotification) -> Result<()> {
+        self.updates = self.updates.saturating_add(1);
+
         let mut update = serde_json::to_value(&notification.update)?;
 
         // The boundary validator treats an absent field and a null field
@@ -368,6 +397,22 @@ impl Recorder {
         detail: &str,
     ) -> Result<()> {
         self.store.finish_run(self.run_id, status, Some(detail))?;
+
+        // A failure always carries the agent account of it. A turn that ended
+        // on the agent terms carries it only when the protocol carried
+        // nothing, so a healthy turn is not narrated by its own logging.
+        let mut body = body;
+        let telling = kind == RUN_FAILED || self.updates == 0;
+
+        if telling && !self.diagnostics.is_empty() {
+            if let Value::Object(fields) = &mut body {
+                let _absent = fields.insert(
+                    "diagnostics".to_owned(),
+                    Value::String(self.diagnostics.clone()),
+                );
+            }
+        }
+
         self.append(kind, body)
     }
 

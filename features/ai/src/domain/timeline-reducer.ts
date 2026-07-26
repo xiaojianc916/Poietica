@@ -127,12 +127,32 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
         ),
       }
 
-    case 'run_finished':
+    case 'run_finished': {
+      /* A turn can end on the agent terms and still be a failure: a rejected
+         provider request is reported by the agent itself, outside the
+         protocol, and the stop reason stays ordinary. When it left such an
+         account, that account is the entry, and our own wording never
+         appears at all. */
+      const sealed = sealTail(base.items)
+      const said = event.diagnostics?.trim() ?? ''
+      const status = finalStatus(event.stopReason)
+
+      if (said.length === 0) return { ...base, status, items: sealed }
+
       return {
         ...base,
-        status: finalStatus(event.stopReason),
-        items: sealTail(base.items),
+        status,
+        items: [
+          ...sealed,
+          {
+            type: 'error',
+            id: namespace(base) + 'agent-' + String(event.seq),
+            at: event.at,
+            message: said,
+          },
+        ],
       }
+    }
 
     case 'run_failed':
       return {
@@ -144,7 +164,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
             type: 'error',
             id: namespace(base) + 'error-' + String(event.seq),
             at: event.at,
-            message: event.message,
+            message: preferAgent(event.message, event.diagnostics),
           },
         ],
       }
@@ -360,6 +380,18 @@ function isTerminal(status: ToolCallTimelineItem['status']): boolean {
 
 function textOf(content: AcpContentBlock): string {
   return content.type === 'text' ? content.text : ''
+}
+
+/**
+ * The account the agent gave, or ours if it gave none.
+ *
+ * Ours is a description of a silence: it exists so that a turn nobody can
+ * explain is still visible. The moment the agent explains itself, ours is not
+ * context, it is noise, so it is not shown alongside — it is not shown.
+ */
+function preferAgent(message: string, diagnostics?: string): string {
+  const said = diagnostics?.trim() ?? ''
+  return said.length === 0 ? message : said
 }
 
 function finalStatus(stopReason: string): RunStatus {

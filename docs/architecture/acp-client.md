@@ -609,3 +609,60 @@ the status the reducer derived from the stop reason. That word is the evidence:
 `completed` means the agent ended the turn saying nothing, `failed` means it
 refused, `cancelled` means we stopped it. None of them may look like a blank
 screen.
+
+## The agent's own words outrank ours
+
+An agent can fail without failing the turn. Kimi answers a rejected provider
+request by printing its own error and ending the turn with an ordinary stop
+reason, so the protocol carries a perfectly successful run that produced
+nothing. A client that only reads the protocol has nothing to show but a
+sentence it wrote itself, and that sentence explains nothing.
+
+So the client listens to the stream the agent talks on. The SDK exposes the
+process error stream through its own observer, and a bounded tail of it is
+attached to the end of the turn: always to a failure, and to a finished turn
+only when the protocol carried no update at all. A healthy turn is never
+narrated by its own logging.
+
+The text is not sanitised on the way in, because it is not an application
+error. It travels as a frame, which is content, rather than as a command
+failure, which is a category. The public error table stays exactly as strict
+as it was: it exists to stop our own internals reaching the webview, not to
+silence the agent.
+
+## The agent's own words replace ours
+
+An agent can fail without failing the turn. Kimi answers a rejected provider
+request by printing its own error and ending the turn with an ordinary stop
+reason, so the protocol carries a perfectly successful run that produced
+nothing. A client that only reads the protocol has nothing to show but a
+sentence it wrote itself, and that sentence explains nothing.
+
+So the client listens to the stream the agent talks on. The SDK exposes the
+process error stream through its own observer, and a bounded tail of it is
+attached to the end of the turn: always to a failure, and to a finished turn
+only when the protocol carried no update at all.
+
+Where that account exists, it is the whole entry. Our own wording is a
+description of a silence — it exists so that an unexplained turn is still
+visible — and next to a real explanation it is not context, it is noise. So it
+is not appended, and it is not ranked below: it is not written.
+
+The text is not sanitised on the way in, because it is not an application
+error. It travels as a frame, which is content, rather than as a command
+failure, which is a category. The public error table stays exactly as strict
+as it was: it exists to stop our internals reaching the webview, not to
+silence the agent.
+
+## The model is switched by the agent, in its own words
+
+The agent owns its model, its providers and its credentials, and it already
+ships the switch as a command. So the composer control sends that command and
+nothing else. It parses no config, caches no model list, and keeps no selected
+model of its own, which is why it cannot show something the agent has stopped
+believing: there is no second copy of the truth to go stale.
+
+A provider mark is a file in the assets folder and nothing more. An
+unrecognised provider resolves to a neutral mark rather than to nothing,
+because a control that renders nothing and a control that failed to load look
+identical to the person using it.

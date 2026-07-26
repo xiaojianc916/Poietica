@@ -135,8 +135,17 @@ export const runEventSchema = v.variant('kind', [
     seq: v.number(),
     at: v.number(),
     stopReason: v.picklist(['end_turn', 'max_tokens', 'max_turn_requests', 'refusal', 'cancelled']),
+    /* Declared, not tolerated: an object schema keeps only what it names, so
+       an undeclared field would be quietly stripped on the way in. */
+    diagnostics: v.optional(v.string()),
   }),
-  v.object({ kind: v.literal('run_failed'), seq: v.number(), at: v.number(), message: v.string() }),
+  v.object({
+    kind: v.literal('run_failed'),
+    seq: v.number(),
+    at: v.number(),
+    message: v.string(),
+    diagnostics: v.optional(v.string()),
+  }),
 ])
 
 export type ParsedRunEvent =

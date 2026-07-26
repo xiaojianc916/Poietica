@@ -67,10 +67,20 @@ export type RunEvent =
       readonly seq: number
       readonly at: number
       readonly stopReason: AcpStopReason
+      /**
+       * What the agent said for itself while the protocol said nothing.
+       *
+       * An agent may report a failure of its own and still end the turn
+       * normally, so a finished turn is not automatically a successful one.
+       * Present only when the turn produced no update of any kind.
+       */
+      readonly diagnostics?: string
     }
   | {
       readonly kind: 'run_failed'
       readonly seq: number
       readonly at: number
       readonly message: string
+      /** What the agent said for itself, when it said anything. */
+      readonly diagnostics?: string
     }

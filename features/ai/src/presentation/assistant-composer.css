@@ -933,3 +933,32 @@
   flex-direction: column;
   margin-block-start: var(--cp-stack);
 }
+
+/* --- round 71: the provider mark --- */
+
+/*
+ * The mark sits on the text baseline of its control, so it is sized in the
+ * font of the toolbar rather than in pixels of its own.
+ */
+.assistant-provider-icon {
+  block-size: 1.15em;
+  inline-size: 1.15em;
+  flex: 0 0 auto;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* An unknown provider is quieter than a known one, and never invisible. */
+.assistant-provider-icon[data-fallback="true"] {
+  opacity: 0.75;
+}
+
+.assistant-model-select {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.assistant-model-select__label {
+  white-space: nowrap;
+}
