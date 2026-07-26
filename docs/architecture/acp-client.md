@@ -439,3 +439,32 @@ React, and tested against the recorded turn. Content blocks other than text are
 named rather than drawn. Inventing the shape of an image block is exactly the
 mistake that cost a round already, and it will not be repeated on the basis of a
 type definition nobody has seen a real frame satisfy.
+
+## A conversation is not a run
+
+The renderer keeps a transcript, and a run is a segment appended to it. Sending
+never clears anything: the previous turn stays where it is, and the surface
+derives its resting state from the transcript, so a second prompt cannot take
+the interface back to an empty screen.
+
+What the user said is committed locally, the instant they commit it. It does not
+wait for a process, a protocol handshake or a log write, because none of those
+is what makes it true. The recorded prompt frame still exists, and it is what a
+replayed run shows the question with; when both are present they converge on one
+entry. A failure can therefore take the answer away without taking the question
+with it.
+
+Sequence numbers restart at one for every run, so they identify a frame only
+inside its own segment. Deduplication is scoped to the segment, and entry
+identities are namespaced by it. That is not tidiness: an agent may reuse a tool
+call id in a later turn, and without the namespace the second turn would silently
+rewrite the first.
+
+## The layout carries the composer, not a script
+
+Opening the conversation is a real layout change. It is expressed as two resting
+states in CSS: flexible spacers own the free space before the first turn and hand
+it to the feed afterwards, and the intro blocks collapse through a grid row.
+Nothing measures anything. A layout projection over a virtualised, contain:
+strict scroller has to measure it mid-transition, which stutters and can leave a
+transformed element behind entirely.

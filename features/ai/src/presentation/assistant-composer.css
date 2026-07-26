@@ -692,34 +692,83 @@
   }
 }
 /*
- * The two resting states of the surface.
+ * The two resting states of the surface, and the travel between them.
  *
- * Before the first turn the column is centred, which is what puts the composer
- * in the middle. Once a turn exists the feed takes the free space and the
- * composer settles near the bottom. These rules describe the states only; the
- * travel between them is animated in AssistantSurface.
+ * The column always fills the surface, so the centring before the first turn
+ * comes from two flexible spacers rather than from auto margins. Starting a
+ * turn hands their share to the feed, and that is what carries the composer
+ * down: no element is repositioned, the free space simply moves. flex-grow is
+ * a number, so the browser interpolates it, and nothing has to be measured.
+ *
+ * The intro blocks collapse through a grid row, which is the one way an
+ * intrinsic height can be animated, and they keep their space until they have
+ * finished leaving. Every duration and curve is a token.
  */
 
-.assistant-surface[data-started="true"] {
-  overflow: hidden;
+.assistant-surface__column {
+  block-size: 100%;
+  gap: 0;
+  margin-block: 0;
 }
 
-.assistant-surface[data-started="true"] .assistant-surface__column {
-  block-size: 100%;
-  margin-block: 0;
+.assistant-surface__spacer {
+  block-size: 0;
+  flex: 1 1 0;
+  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
 .assistant-surface__feed {
   display: flex;
   inline-size: 100%;
   min-block-size: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  overflow: hidden;
+  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
-.assistant-surface__composer,
+.assistant-surface[data-started="true"] .assistant-surface__spacer {
+  flex-grow: 0;
+}
+
+.assistant-surface[data-started="true"] .assistant-surface__feed {
+  flex-grow: 1;
+}
+
+.assistant-surface__intro,
 .assistant-surface__starters {
+  display: grid;
+  min-block-size: 0;
+  grid-template-rows: 1fr;
+  flex: none;
+  transition:
+    grid-template-rows var(--cp-motion-settle) var(--cp-motion-settle-ease),
+    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),
+    opacity var(--cp-motion-grow) var(--cp-motion-ease),
+    transform var(--cp-motion-grow) var(--cp-motion-ease);
+}
+
+.assistant-surface__intro > *,
+.assistant-surface__starters > * {
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.assistant-surface__starters {
+  margin-block-start: var(--cp-stack);
+}
+
+.assistant-surface[data-started="true"] .assistant-surface__intro,
+.assistant-surface[data-started="true"] .assistant-surface__starters {
+  grid-template-rows: 0fr;
+  margin-block-start: 0;
+  opacity: 0;
+  transform: translateY(calc(var(--cp-motion-rise) * -1));
+}
+
+.assistant-surface__composer {
   display: flex;
   min-inline-size: 0;
   flex: none;
   flex-direction: column;
+  margin-block-start: var(--cp-stack);
 }

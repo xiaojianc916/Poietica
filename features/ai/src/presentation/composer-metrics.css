@@ -65,6 +65,11 @@
   --cp-motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --cp-motion-rise: calc(var(--cp-pad-mid) / 2);
 
+  /* opening the conversation is the one structural move on this surface, so
+   * it gets its own duration and a curve that decelerates into place. */
+  --cp-motion-settle: 320ms;
+  --cp-motion-settle-ease: cubic-bezier(0.2, 0, 0, 1);
+
   --cp-ink: #0d0d0d;
   --cp-ink-muted: #5d5d63;
   --cp-ink-subtle: #86868b;

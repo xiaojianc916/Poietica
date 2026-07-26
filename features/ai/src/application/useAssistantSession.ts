@@ -4,7 +4,7 @@ import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { RunEvent } from '../contracts/run-contract'
 import type { TimelineState } from '../contracts/timeline-contract'
-import { applyRunEvent, createTimelineState } from '../domain/timeline-reducer'
+import { appendUserMessage, applyRunEvent, createTimelineState } from '../domain/timeline-reducer'
 
 /*
  * The surface depends on the agent session PORT, never on a protocol client.
@@ -13,6 +13,11 @@ import { applyRunEvent, createTimelineState } from '../domain/timeline-reducer'
  * agent subprocess and every credential. Rendering the AI surface must not
  * require any of that to exist, so the default is an inert stub and the UI stays
  * fully developable against recorded fixtures.
+ *
+ * What the user said is not part of that arrangement. It is committed locally
+ * and shown immediately; the run that follows is a segment appended to the same
+ * transcript. A turn that fails therefore loses its answer, never the question,
+ * and a second turn is added to the conversation instead of replacing it.
  */
 
 export interface AssistantSubmission {
@@ -43,6 +48,13 @@ const RUN_PLACEHOLDER = 'run_pending'
  * a fallback for a rejection that carries no message at all.
  */
 const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
+
+/*
+ * A surface with no port is a composition mistake, not a mode of operation.
+ * Swallowing the submission would make the message vanish with no explanation,
+ * which is exactly the failure this round exists to remove.
+ */
+const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 
 function describeFailure(cause: unknown): string {
   if (cause instanceof Error && cause.message.length > 0) return cause.message
@@ -87,14 +99,27 @@ export function useAssistantSession({
 
   const send = useCallback(
     (submission: AssistantSubmission) => {
-      if (!session) return
+      const at = Date.now()
 
-      setTimeline(createTimelineState(RUN_PLACEHOLDER))
+      /* The question is on screen before anything is asked of the agent. */
+      setTimeline((current) => appendUserMessage(current, submission.text, at))
+
+      if (!session) {
+        fail(new Error(NO_SESSION))
+
+        return
+      }
 
       session
         .prompt({ threadId: endpoint, text: submission.text })
         .then((handle) => {
           cancelRef.current = handle.cancel
+
+          /* The turn now has a real identity, which is what replaying it from
+             the log will need. */
+          setTimeline((current) =>
+            current.runId === handle.runId ? current : { ...current, runId: handle.runId },
+          )
         })
         .catch((cause: unknown) => {
           fail(cause)

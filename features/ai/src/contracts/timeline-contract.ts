@@ -91,10 +91,20 @@ export type TimelineItem =
   | PermissionItem
   | ErrorItem
 
+/**
+ * The conversation, as the feed reads it.
+ *
+ * runId names the turn in flight; runIndex counts the turns this transcript
+ * has opened. The count exists because every run numbers its frames from one,
+ * so a sequence number identifies a frame only within its own turn, and entry
+ * identities have to be namespaced by turn to stay unique across a whole
+ * conversation.
+ */
 export interface TimelineState {
   readonly runId: RunId
   readonly status: RunStatus
   readonly items: readonly TimelineItem[]
   readonly lastSeq: number
   readonly appliedSeqs: ReadonlySet<number>
+  readonly runIndex: number
 }

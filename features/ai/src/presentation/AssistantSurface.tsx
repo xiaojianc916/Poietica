@@ -1,14 +1,13 @@
 import './assistant-composer.css'
 
-import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useId } from 'react'
 
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
-import { TimelineRow } from './timeline/TimelineRow'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
+import { TimelineRow } from './timeline/TimelineRow'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
 import { useAssistantSession } from '../application/useAssistantSession'
@@ -26,29 +25,24 @@ export interface AssistantSurfaceProps {
 }
 
 /*
- * One curve for the whole surface.
+ * Two resting states, and no script between them.
  *
- * Starting a turn is a real layout change: the column stops being centred and
- * the feed claims the free space, which is why the composer ends up near the
- * bottom without ever being positioned there. That change cannot be
- * interpolated by CSS, so the moving parts are measured before and after it
- * and the difference is animated with transforms instead.
- */
-const SETTLE = { duration: 0.34, ease: 'easeInOut' } as const
-
-/** Leaving is quicker than arriving; nobody studies an element on its way out. */
-const LEAVE = { opacity: 0, y: -8, transition: { duration: 0.18, ease: 'easeIn' } } as const
-
-const ARRIVED = { opacity: 1, y: 0 }
-const OFFSET = { opacity: 0, y: 12 }
-
-/**
- * Masthead, feed, composer and starters are siblings in one column bound to
- * --cp-grid, so their edges align by construction.
+ * Before the first turn two flexible spacers split the free space, so the group
+ * rests in the middle. Once a turn exists the spacers give up their share and
+ * the feed takes it, which is what carries the composer down: flex-grow is a
+ * number, so the browser interpolates the whole layout on its own. The intro
+ * blocks collapse through a grid row rather than through a height nobody can
+ * animate, and they stay mounted so that nothing can be left behind by an
+ * interrupted transition.
  *
- * The surface has exactly two resting states, and the first row of the feed is
- * what decides which one applies. Nothing here tracks whether a turn was ever
- * sent: a state derived from the timeline cannot disagree with it.
+ * This is deliberately not a layout animation. Projecting one over a
+ * virtualised, contain: strict scroller means measuring it mid-transition,
+ * which is what made the previous version stutter and, worse, occasionally
+ * leave the feed at zero opacity.
+ *
+ * Which state applies is derived from the transcript alone. Nothing here tracks
+ * whether a turn was ever sent: a state derived from the timeline cannot
+ * disagree with it.
  */
 export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
   /*
@@ -64,72 +58,55 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
 
-  const columnId = `${useId()}-column`
+  const columnId = useId() + '-column'
 
   return (
-    <MotionConfig reducedMotion="user">
-      <section
-        className="assistant-surface"
-        data-assistant-skin
-        data-started={started ? 'true' : undefined}
-      >
-        <motion.div className="assistant-surface__column" id={columnId} layout transition={SETTLE}>
-          <AnimatePresence initial={false}>
-            {started ? null : (
-              <motion.header className="assistant-masthead" exit={LEAVE} key="masthead" layout>
-                <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
+    <section
+      className="assistant-surface"
+      data-assistant-skin
+      data-started={started ? 'true' : undefined}
+    >
+      <div className="assistant-surface__column" id={columnId}>
+        <div aria-hidden="true" className="assistant-surface__spacer" />
 
-                <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
-              </motion.header>
-            )}
-          </AnimatePresence>
+        <div className="assistant-surface__intro" inert={started}>
+          <header className="assistant-masthead">
+            <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
-          {started ? (
-            <motion.div
-              animate={ARRIVED}
-              className="assistant-surface__feed"
-              initial={OFFSET}
-              layout
-              transition={SETTLE}
-            >
-              <AgentActivityFeed
-                isBusy={selectIsBusy(assistant.timeline)}
-                renderRow={(row) =>
-                  row.item.type === 'permission' ? (
-                    <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
-                  ) : (
-                    <TimelineRow row={row} />
-                  )
-                }
-                rows={rows}
-              />
-            </motion.div>
-          ) : null}
+            <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
+          </header>
+        </div>
 
-          <motion.div className="assistant-surface__composer" layout transition={SETTLE}>
-            <AssistantComposer
-              agentLabel="Super Computer"
-              columnId={columnId}
-              isAgentNew
-              onSubmit={assistant.send}
-              status={assistant.status}
-            />
-          </motion.div>
+        <div className="assistant-surface__feed">
+          <AgentActivityFeed
+            isBusy={selectIsBusy(assistant.timeline)}
+            renderRow={(row) =>
+              row.item.type === 'permission' ? (
+                <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
+              ) : (
+                <TimelineRow row={row} />
+              )
+            }
+            rows={rows}
+          />
+        </div>
 
-          <AnimatePresence initial={false}>
-            {started ? null : (
-              <motion.div
-                className="assistant-surface__starters"
-                exit={LEAVE}
-                key="starters"
-                layout
-              >
-                <AssistantQuickActions onSelect={() => {}} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </section>
-    </MotionConfig>
+        <div className="assistant-surface__composer">
+          <AssistantComposer
+            agentLabel="Super Computer"
+            columnId={columnId}
+            isAgentNew
+            onSubmit={assistant.send}
+            status={assistant.status}
+          />
+        </div>
+
+        <div className="assistant-surface__starters" inert={started}>
+          <AssistantQuickActions onSelect={() => {}} />
+        </div>
+
+        <div aria-hidden="true" className="assistant-surface__spacer" />
+      </div>
+    </section>
   )
 }
