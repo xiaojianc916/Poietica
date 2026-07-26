@@ -8,17 +8,44 @@
     "tsconfig.base.json",
     "biome.json",
     "turbo.json",
-    "rust-toolchain.toml"
+    "rust-toolchain.toml",
+    "Cargo.toml",
+    "Cargo.lock",
+    "deny.toml"
   ],
   "globalEnv": ["CI", "NODE_ENV", "RUST_BACKTRACE", "TAURI_ENV_*", "VITE_*"],
+  "globalPassThroughEnv": [
+    "CARGO_HOME",
+    "CARGO_TARGET_DIR",
+    "RUSTUP_HOME",
+    "RUSTC_WRAPPER",
+    "PATH",
+    "HOME",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PROGRAMDATA",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "GITHUB_ACTIONS",
+    "GITHUB_TOKEN"
+  ],
   "tasks": {
     "dev": {
       "cache": false,
       "persistent": true,
       "interruptible": true
     },
-    "build": {
+    "typecheck": {
       "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["^build", "typecheck"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "!**/*.test.*",
@@ -26,50 +53,37 @@
         "!**/__tests__/**",
         "!**/fixtures/**"
       ],
-      "outputs": ["dist/**", "build/**", ".vite/**"]
-    },
-    "typecheck": {
-      "dependsOn": ["^typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", "../../tsconfig.base.json", "tsconfig.json"],
-      "outputs": []
+      "outputs": ["dist/**", "dist-ssr/**", "build/**", ".vite/**"]
     },
     "check": {
-      "dependsOn": ["^check"],
-      "inputs": ["$TURBO_DEFAULT$", "../../tsconfig.base.json", "tsconfig.json"],
-      "outputs": []
-    },
-    "lint": {
-      "dependsOn": ["^lint"],
+      "dependsOn": ["typecheck", "lint", "test"],
       "outputs": []
     },
     "test": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["typecheck"],
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*", "playwright.config.*"],
       "outputs": ["coverage/**", "test-results/**", "playwright-report/**"]
     },
     "test:unit": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["typecheck"],
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"]
     },
-    "test:integration": {
-      "dependsOn": ["^typecheck"],
-      "cache": false,
-      "outputs": ["test-results/**"]
-    },
     "test:architecture": {
-      "dependsOn": ["^typecheck"],
-      "outputs": ["test-results/architecture/**"]
+      "dependsOn": ["typecheck"],
+      "outputs": []
+    },
+    "test:integration": {
+      "dependsOn": ["typecheck"],
+      "cache": false
     },
     "test:e2e": {
       "dependsOn": ["build"],
-      "cache": false,
-      "outputs": ["playwright-report/**", "test-results/**"]
+      "cache": false
     },
     "test:performance": {
       "dependsOn": ["build"],
-      "cache": false,
-      "outputs": ["benchmark-results/**", "performance-results/**"]
+      "cache": false
     },
     "clean": {
       "cache": false
