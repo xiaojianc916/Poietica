@@ -124,17 +124,35 @@ fn choosing_a_model_changes_that_one_line_and_nothing_else() {
 
     let text = fs::read_to_string(&path).expect("the file");
 
-    assert!(text.contains("default_model = \"moonshot-cn/kimi-k3\""), "{text}");
-    assert!(!text.contains("default_model = \"moonshot-cn/kimi-k2.6\""), "{text}");
+    assert!(
+        text.contains("default_model = \"moonshot-cn/kimi-k3\""),
+        "{text}"
+    );
+    assert!(
+        !text.contains("default_model = \"moonshot-cn/kimi-k2.6\""),
+        "{text}"
+    );
 
     // Everything the agent owns, and we do not understand, is still there.
     assert!(text.contains("api_key = \"sk-secret\""), "{text}");
-    assert!(text.contains("# the account, whose name is not its kind"), "{text}");
+    assert!(
+        text.contains("# the account, whose name is not its kind"),
+        "{text}"
+    );
     assert!(text.contains("[thinking]"), "{text}");
-    assert!(text.contains("capabilities = [ \"thinking\", \"tool_use\" ]"), "{text}");
-    assert!(text.contains("support_efforts = [ \"low\", \"high\", \"max\" ]"), "{text}");
+    assert!(
+        text.contains("capabilities = [ \"thinking\", \"tool_use\" ]"),
+        "{text}"
+    );
+    assert!(
+        text.contains("support_efforts = [ \"low\", \"high\", \"max\" ]"),
+        "{text}"
+    );
     assert!(text.contains("default_effort = \"max\""), "{text}");
-    assert!(text.contains("[models.\"moonshot-cn/kimi-k2.6\"]"), "{text}");
+    assert!(
+        text.contains("[models.\"moonshot-cn/kimi-k2.6\"]"),
+        "{text}"
+    );
 
     let directory = path.parent().expect("a parent");
 

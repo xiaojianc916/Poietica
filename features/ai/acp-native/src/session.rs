@@ -1,4 +1,7 @@
+use std::env;
 use std::fmt;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -25,6 +28,12 @@ const BUSY: &str = "a turn is already in flight on this session";
 const GONE: &str = "the agent connection is no longer running";
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
+
+/// Names the file every line of the conversation is copied to, when set.
+///
+/// Absent or blank means no trace at all. A trace holds whatever the agent
+/// said, so it is asked for deliberately and never left on by default.
+const TRACE: &str = "POIETICA_ACP_TRACE";
 
 /// How the agent process is started.
 #[derive(Clone, Debug)]
@@ -144,6 +153,17 @@ impl fmt::Debug for AgentConnection {
     }
 }
 
+/// Appends one observed line to the trace file.
+///
+/// Nothing is parsed and nothing is buffered: the point is to show what the
+/// two sides actually said. A trace that cannot be written is not worth
+/// failing a session over, so every error here is dropped on purpose.
+fn trace(path: &str, label: &str, line: &str) {
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ignored = writeln!(file, "{label} {line}");
+    }
+}
+
 /// The response that carries a decision back to the agent.
 fn reply(decision: &Decision) -> RequestPermissionResponse {
     match decision.option_id() {
@@ -180,8 +200,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     // its own observer, which is why nothing here reads a pipe.
     let diagnostics = StderrLog::new();
     let observed = diagnostics.clone();
+
+    // The observer sees both halves. Only the standard error half was kept,
+    // which left the protocol itself unobservable from inside the client.
+    let traced = env::var(TRACE).ok().filter(|path| !path.trim().is_empty());
+
     let agent = agent.with_debug(move |line, direction| {
-        if direction == LineDirection::Stderr {
+        let is_stderr = direction == LineDirection::Stderr;
+
+        if let Some(path) = traced.as_deref() {
+            trace(path, if is_stderr { "err " } else { "wire" }, &line);
+        }
+
+        if is_stderr {
             observed.push(line);
         }
     });

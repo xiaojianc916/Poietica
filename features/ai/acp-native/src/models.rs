@@ -200,7 +200,10 @@ fn document(path: &Path) -> Result<Option<DocumentMut>, ModelError> {
 
 /// Reads the list out of a parsed file.
 fn list(parsed: &DocumentMut) -> ModelList {
-    let active = parsed.get(DEFAULT_MODEL).and_then(Item::as_str).map(str::to_owned);
+    let active = parsed
+        .get(DEFAULT_MODEL)
+        .and_then(Item::as_str)
+        .map(str::to_owned);
     let providers = parsed.get(PROVIDERS).and_then(Item::as_table_like);
     let mut models = Vec::new();
 

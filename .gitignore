@@ -213,3 +213,4 @@ refactor.mjs
 # local env files hold licence keys and secrets
 *.env.local
 .env.local
+trace.txt
