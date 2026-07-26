@@ -19,6 +19,8 @@
 //! - `POIETICA_ACP_PROMPT`   what to ask (default: a one-word reply)
 //! - `POIETICA_ACP_CWD`      the session's working directory (default: a temporary one)
 //! - `POIETICA_ACP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
+//! - `POIETICA_ACP_CAPTURE` a path to write the recorded frames to, so the
+//!   renderer's schema can be tested against frames a real agent actually sent
 //!
 //! Every wait in here is two-sided. The channels the client hands back are
 //! cancelled when the connection dies, and a cancelled channel says nothing
@@ -185,8 +187,10 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let broadcast: Vec<RecordedEvent> = observed.try_iter().collect();
 
     for event in &broadcast {
-        println!("  {:>3} {}", event.seq, event.kind);
+        println!("  {:>3} {:<12} {}", event.seq, event.kind, describe(&event.frame));
     }
+
+    capture(&broadcast);
 
     let first = broadcast.first().expect("at least one frame");
     let last = broadcast.last().expect("at least one frame");
@@ -223,4 +227,47 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     }
 
     println!("recorded {} frames, all of them durable", recorded.len());
+}
+
+/// What kind of update a frame carries.
+///
+/// A run of twenty identical `acp_update` lines says nothing. The interesting
+/// part is the protocol's own discriminator, because those are exactly the
+/// cases the timeline will have to render.
+fn describe(frame: &serde_json::Value) -> String {
+    frame
+        .get("notification")
+        .and_then(|notification| notification.get("update"))
+        .and_then(|update| update.get("sessionUpdate"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_owned()
+}
+
+/// Writes the turn out, when asked.
+///
+/// The renderer validates every frame before it reaches the timeline, and that
+/// validator has only ever been tested against frames written by hand. A
+/// recording of a real turn is the only honest input for it, so this makes one
+/// on request rather than inventing one.
+fn capture(events: &[RecordedEvent]) {
+    let Ok(path) = env::var("POIETICA_ACP_CAPTURE") else {
+        return;
+    };
+
+    if path.trim().is_empty() {
+        return;
+    }
+
+    let path = PathBuf::from(path);
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("the capture directory");
+    }
+
+    let file = std::fs::File::create(&path).expect("the capture file");
+
+    serde_json::to_writer_pretty(file, events).expect("the capture to be written");
+
+    println!("captured {} frames to {}", events.len(), path.display());
 }

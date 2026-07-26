@@ -189,3 +189,19 @@ This dependency is not a library the client merely calls; it decides the bytes
 that cross the boundary and the shape of every frame the renderer will ever see.
 A change in it is a change in the contract, so it is made deliberately, with the
 frame tests run against the new version, rather than picked up by a resolver.
+
+## The recording is the only honest test input
+
+The native side writes frames and the renderer validates them, and until a real
+turn was recorded both sides were only ever tested against frames their own
+authors had written. Two schemas that agree with themselves can still disagree
+with each other, which is a failure that shows up as an empty timeline.
+
+Setting `POIETICA_ACP_CAPTURE` during the live turn writes the turn out
+verbatim, and `acp-event-schema.live.test.ts` feeds that recording to the
+validator the renderer actually uses. The fixture is committed unedited; if a
+frame in it needs adjusting to pass, the schema is wrong, not the recording.
+
+The same test prints the set of `sessionUpdate` kinds the agent sent. That set
+is the inventory the timeline has to cover, and it comes from the agent rather
+than from the specification, which lists many more.
