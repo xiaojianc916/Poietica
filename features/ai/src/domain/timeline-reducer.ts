@@ -262,7 +262,7 @@ function applyAcpUpdate(
       }
 
       const current = state.items[index]
-      if (!current || current.type !== 'tool_call') {
+      if (current?.type !== 'tool_call') {
         return state
       }
 

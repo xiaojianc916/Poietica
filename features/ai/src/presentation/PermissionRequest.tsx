@@ -52,7 +52,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
   const isSubmitting = submittedOptionId !== undefined
 
   return (
-    <div aria-busy={isSubmitting} className="assistant-permission" role="group">
+    <div aria-busy={isSubmitting} className="assistant-permission">
       <p className="assistant-permission__title">{item.title}</p>
 
       <div className="assistant-permission__options">

@@ -57,7 +57,7 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
   const tailKey = rows.at(-1)?.item.id ?? ''
 
   useEffect(() => {
-    if (!pinnedRef.current || rows.length === 0) {
+    if (!pinnedRef.current || tailKey === '') {
       return
     }
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })

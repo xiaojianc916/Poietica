@@ -52,7 +52,7 @@ export const AgentDisclosure = ({
         <ChevronDownIcon className="agent-disclosure__chevron" />
         {summary}
       </button>
-      <div className="agent-disclosure__region" hidden={!isOpen} id={regionId} role="group">
+      <div className="agent-disclosure__region" hidden={!isOpen} id={regionId}>
         {children}
       </div>
     </div>

@@ -580,9 +580,13 @@
   .settings-dialog *,
   .settings-dialog *::before,
   .settings-dialog *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: prefers-reduced-motion 降级必须压过内联样式与动画层叠，这是业界标准写法 */
     scroll-behavior: auto !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 同上 */
     transition-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 同上 */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: 同上 */
     animation-iteration-count: 1 !important;
   }
 }

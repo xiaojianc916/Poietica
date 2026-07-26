@@ -7,10 +7,6 @@
     "**/*.css"
   ],
   "exports": {
-    ".": {
-      "types": "./src/public-api.ts",
-      "default": "./src/public-api.ts"
-    },
     "./contracts": {
       "types": "./src/contracts/public-api.ts",
       "default": "./src/contracts/public-api.ts"

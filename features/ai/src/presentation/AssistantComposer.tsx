@@ -176,7 +176,7 @@ export function AssistantComposer({
                 图片与文件
               </PromptInputActionAddAttachments>
 
-              <span className="assistant-action-menu__separator" role="separator" />
+              <span aria-hidden="true" className="assistant-action-menu__separator" />
 
               <PromptInputActionMenuItem
                 hint="/"

@@ -209,7 +209,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         let is_stderr = direction == LineDirection::Stderr;
 
         if let Some(path) = traced.as_deref() {
-            trace(path, if is_stderr { "err " } else { "wire" }, &line);
+            trace(path, if is_stderr { "err " } else { "wire" }, line);
         }
 
         if is_stderr {
