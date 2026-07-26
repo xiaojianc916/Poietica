@@ -9,7 +9,7 @@
 //! user edits the file by hand.
 //!
 //! A configuration file is edited, never rewritten. The document is parsed
-//! with toml_edit so comments, ordering and every key we do not understand
+//! with `toml_edit` so comments, ordering and every key we do not understand
 //! survive a change of model, and the new text only takes the place of the
 //! old one once it is complete and on disk.
 
@@ -45,6 +45,9 @@ const BACKUP: &str = "config.toml.bak";
 /// The file the new text is written to before the rename.
 const TEMP: &str = "config.toml.new";
 
+/// What is reported when the path handed in has no directory to write into.
+const NO_DIRECTORY: &str = "the configuration file has no directory";
+
 /// Why a model could not be listed or chosen.
 #[derive(Debug, Error)]
 pub enum ModelError {
@@ -58,8 +61,12 @@ pub enum ModelError {
     #[error("the agent has no model named {0}")]
     Unknown(String),
     /// The replacement could not be written.
+    ///
+    /// The failure is carried as it arrived rather than flattened into a
+    /// message here. An io error already names what went wrong, and the
+    /// caller is the one that decides how much of it the user should read.
     #[error("the agent configuration file could not be written: {0}")]
-    Unwritable(String),
+    Unwritable(#[from] std::io::Error),
 }
 
 /// One model the agent has been configured with.
@@ -193,27 +200,23 @@ fn list(parsed: &DocumentMut) -> ModelList {
 
 /// Replaces the file, keeping a copy of what was there.
 fn save(path: &Path, parsed: &DocumentMut) -> Result<(), ModelError> {
-    let directory = path.parent().ok_or_else(|| {
-        ModelError::Unwritable("the configuration file has no directory".to_owned())
-    })?;
+    let directory = path
+        .parent()
+        .ok_or_else(|| ModelError::Unwritable(std::io::Error::other(NO_DIRECTORY)))?;
 
     let backup = directory.join(BACKUP);
     let temp = directory.join(TEMP);
     let text = parsed.to_string();
 
-    fs::copy(path, &backup).map_err(unwritable)?;
+    fs::copy(path, &backup).map_err(ModelError::Unwritable)?;
 
     // A half-written configuration file stops the agent from starting at all,
     // which is worse than a failed switch, so the new text is complete and
     // flushed before it takes the place of the old one.
-    let mut file = File::create(&temp).map_err(unwritable)?;
-    file.write_all(text.as_bytes()).map_err(unwritable)?;
-    file.sync_all().map_err(unwritable)?;
+    let mut file = File::create(&temp).map_err(ModelError::Unwritable)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all()?;
     drop(file);
 
-    fs::rename(&temp, path).map_err(unwritable)
-}
-
-fn unwritable(error: std::io::Error) -> ModelError {
-    ModelError::Unwritable(error.to_string())
+    fs::rename(&temp, path).map_err(ModelError::Unwritable)
 }
