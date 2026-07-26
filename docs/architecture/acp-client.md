@@ -220,3 +220,24 @@ The list is accepted and then deliberately ignored by the reducer. It describes
 what the session can do, not what happened during it, so it belongs to whatever
 offers those commands rather than to the transcript. Writing that case out
 explicitly keeps the silence intentional.
+
+## The surface is deliberately empty
+
+The feature package ships contracts, a reducer, adapters and a recorded turn,
+and no components at all. The components that used to live here were vendored
+from a component set this project does not depend on; they compiled against
+libraries that have since been replaced, imported icons from a library that was
+dropped, and referenced image assets that were never committed. Nothing in the
+repository imported them, and the one thing that did was importing a type: the
+session hook took its notion of a run's status from a text input component.
+
+They were deleted rather than repaired. The timeline they were meant to render
+now has something they never had: a recording of what a real agent actually
+sends. The inventory from the first recordings is lopsided in a way no
+hand-written mock would have suggested. A turn is overwhelmingly thought chunks,
+with a single message chunk at the end and a capability announcement at the
+start, so a reasoning surface is the main view rather than an accessory tucked
+behind a disclosure.
+
+The components come back when they are written against that recording, on this
+project's own dependencies.

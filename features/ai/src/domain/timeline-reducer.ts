@@ -178,6 +178,11 @@ function applyAcpUpdate(
       if (!current || current.type !== 'tool_call') return state
 
       const status = update.status ?? current.status
+      /* A call that is still running has no end time, which is not the same as
+         having one that is undefined. The distinction is the whole point of
+         exactOptionalPropertyTypes, so the property is omitted rather than set
+         to nothing. An end, once recorded, is never moved. */
+      const endedAt = isTerminal(status) ? (current.endedAt ?? at) : current.endedAt
       const merged: ToolCallTimelineItem = {
         ...current,
         title: update.title ?? current.title,
@@ -186,7 +191,7 @@ function applyAcpUpdate(
         content: update.content ?? current.content,
         locations: update.locations ?? current.locations,
         rawOutput: update.rawOutput ?? current.rawOutput,
-        endedAt: isTerminal(status) ? (current.endedAt ?? at) : current.endedAt,
+        ...(endedAt === undefined ? {} : { endedAt }),
       }
       return { ...state, items: replaceAt(state.items, index, merged) }
     }
