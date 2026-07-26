@@ -592,7 +592,12 @@
 }
 
 .assistant-threads__create:hover {
-  background: var(--cp-hover);
+  background: rgb(13 13 13 / 10%);
+}
+
+.assistant-threads__create:active {
+  background: rgb(13 13 13 / 14%);
+  transform: scale(0.94);
 }
 
 .assistant-threads__create:active {
@@ -700,6 +705,60 @@
 .assistant-thread__action:hover {
   background: rgb(13 13 13 / 8%);
   color: var(--cp-ink);
+}
+
+.assistant-thread-menu {
+  min-inline-size: 224px;
+  border-radius: var(--cp-radius-menu);
+  padding: var(--cp-optical);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift-near), var(--cp-lift-far);
+}
+
+.assistant-thread-menu__item {
+  display: flex;
+  min-block-size: var(--cp-control);
+  align-items: center;
+  gap: var(--cp-pad-mid);
+  border-radius: var(--cp-radius-item);
+  padding-inline: var(--cp-inset);
+  font-size: var(--cp-font-label);
+  color: var(--cp-ink);
+}
+
+.assistant-thread-menu__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.assistant-thread-menu__item[data-highlighted],
+.assistant-thread-menu__item:focus-visible {
+  background: rgb(13 13 13 / 7%);
+  color: var(--cp-ink);
+}
+
+.assistant-thread-menu__item--destructive[data-highlighted] {
+  background: rgb(255 59 48 / 10%);
+  color: #d70015;
+}
+
+.assistant-thread-menu__item--destructive[data-highlighted] svg {
+  color: currentcolor;
+}
+
+.assistant-thread-menu__separator {
+  margin-block: var(--cp-optical);
+  background: var(--cp-hairline);
+}
+
+.assistant-thread-menu__meta {
+  margin: var(--cp-optical) var(--cp-inset) 0;
+  padding-block-start: var(--cp-optical);
+  border-top: var(--cp-px) solid rgb(13 13 13 / 6%);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
 }
 
 @media (prefers-reduced-motion: reduce) {
