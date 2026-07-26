@@ -14,23 +14,23 @@ export interface RecordedFrame {
 
 export const recordedTurn: readonly RecordedFrame[] = [
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 1,
     kind: 'run_started',
     frame: {
-      sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+      sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
       kind: 'run_started',
       seq: 1,
-      at: 1785025410665,
+      at: 1785031293134,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 2,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'available_commands_update',
           availableCommands: [
@@ -125,16 +125,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 2,
-      at: 1785025410696,
+      at: 1785031293152,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 3,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -145,16 +145,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 3,
-      at: 1785025412926,
+      at: 1785031298078,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 4,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -165,16 +165,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 4,
-      at: 1785025412926,
+      at: 1785031298078,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 5,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -185,16 +185,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 5,
-      at: 1785025412926,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 6,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -205,16 +205,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 6,
-      at: 1785025412926,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 7,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -225,16 +225,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 7,
-      at: 1785025412926,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 8,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -245,16 +245,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 8,
-      at: 1785025412926,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 9,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -265,56 +265,36 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 9,
-      at: 1785025412926,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 10,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
             type: 'text',
-            text: ' just',
+            text: ' a',
           },
         },
       },
       kind: 'acp_update',
       seq: 10,
-      at: 1785025412927,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 11,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' the',
-          },
-        },
-      },
-      kind: 'acp_update',
-      seq: 11,
-      at: 1785025412927,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 12,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -324,17 +304,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 12,
-      at: 1785025413161,
+      seq: 11,
+      at: 1785031298085,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 13,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 12,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -344,17 +324,37 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 13,
-      at: 1785025413161,
+      seq: 12,
+      at: 1785031298473,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 13,
+    kind: 'acp_update',
+    frame: {
+      notification: {
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: {
+            type: 'text',
+            text: ':',
+          },
+        },
+      },
+      kind: 'acp_update',
+      seq: 13,
+      at: 1785031298473,
+    },
+  },
+  {
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 14,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -365,16 +365,16 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 14,
-      at: 1785025413161,
+      at: 1785031298474,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 15,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -385,56 +385,96 @@ export const recordedTurn: readonly RecordedFrame[] = [
       },
       kind: 'acp_update',
       seq: 15,
-      at: 1785025413162,
+      at: 1785031298476,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 16,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
             type: 'text',
-            text: '"',
+            text: '".',
           },
         },
       },
       kind: 'acp_update',
       seq: 16,
-      at: 1785025413162,
+      at: 1785031298476,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 17,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
             type: 'text',
-            text: ' and',
+            text: ' They',
           },
         },
       },
       kind: 'acp_update',
       seq: 17,
-      at: 1785025413162,
+      at: 1785031298477,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 18,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: {
+            type: 'text',
+            text: ' explicitly',
+          },
+        },
+      },
+      kind: 'acp_update',
+      seq: 18,
+      at: 1785031298477,
+    },
+  },
+  {
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 19,
+    kind: 'acp_update',
+    frame: {
+      notification: {
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: {
+            type: 'text',
+            text: ' say',
+          },
+        },
+      },
+      kind: 'acp_update',
+      seq: 19,
+      at: 1785031298477,
+    },
+  },
+  {
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 20,
+    kind: 'acp_update',
+    frame: {
+      notification: {
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -444,17 +484,37 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 18,
-      at: 1785025413162,
+      seq: 20,
+      at: 1785031298477,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 19,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 21,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: {
+            type: 'text',
+            text: ' to',
+          },
+        },
+      },
+      kind: 'acp_update',
+      seq: 21,
+      at: 1785031298477,
+    },
+  },
+  {
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 22,
+    kind: 'acp_update',
+    frame: {
+      notification: {
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -464,17 +524,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 19,
-      at: 1785025413162,
+      seq: 22,
+      at: 1785031298756,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 20,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 23,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -484,17 +544,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 20,
-      at: 1785025413162,
+      seq: 23,
+      at: 1785031298756,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 21,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 24,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -504,17 +564,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 21,
-      at: 1785025413162,
+      seq: 24,
+      at: 1785031298756,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 22,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 25,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -524,17 +584,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 22,
-      at: 1785025413327,
+      seq: 25,
+      at: 1785031298756,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 23,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 26,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -544,17 +604,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 23,
-      at: 1785025413327,
+      seq: 26,
+      at: 1785031298756,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 24,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 27,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -564,17 +624,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 24,
-      at: 1785025413327,
+      seq: 27,
+      at: 1785031298757,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 25,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 28,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -584,17 +644,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 25,
-      at: 1785025413327,
+      seq: 28,
+      at: 1785031298757,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 26,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 29,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -604,17 +664,37 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 26,
-      at: 1785025413327,
+      seq: 29,
+      at: 1785031298757,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 27,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 30,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: {
+            type: 'text',
+            text: ' direct',
+          },
+        },
+      },
+      kind: 'acp_update',
+      seq: 30,
+      at: 1785031298757,
+    },
+  },
+  {
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 31,
+    kind: 'acp_update',
+    frame: {
+      notification: {
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -624,117 +704,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 27,
-      at: 1785025413327,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 28,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' that',
-          },
-        },
-      },
-      kind: 'acp_update',
-      seq: 28,
-      at: 1785025413333,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 29,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' I',
-          },
-        },
-      },
-      kind: 'acp_update',
-      seq: 29,
-      at: 1785025413333,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 30,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' can',
-          },
-        },
-      },
-      kind: 'acp_update',
-      seq: 30,
-      at: 1785025413333,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 31,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' handle',
-          },
-        },
-      },
-      kind: 'acp_update',
       seq: 31,
-      at: 1785025413333,
+      at: 1785031298757,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
     seq: 32,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
-        update: {
-          sessionUpdate: 'agent_thought_chunk',
-          content: {
-            type: 'text',
-            text: ' directly',
-          },
-        },
-      },
-      kind: 'acp_update',
-      seq: 32,
-      at: 1785025413434,
-    },
-  },
-  {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 33,
-    kind: 'acp_update',
-    frame: {
-      notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -744,17 +724,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 33,
-      at: 1785025413434,
+      seq: 32,
+      at: 1785031298855,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 34,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 33,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_thought_chunk',
           content: {
@@ -764,17 +744,17 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 34,
-      at: 1785025413434,
+      seq: 33,
+      at: 1785031298856,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 35,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 34,
     kind: 'acp_update',
     frame: {
       notification: {
-        sessionId: 'session_165e3879-1db9-452f-976d-2b874db607a8',
+        sessionId: 'session_96ac89e8-dcfa-4c52-8f80-0e0039b0fbd8',
         update: {
           sessionUpdate: 'agent_message_chunk',
           content: {
@@ -784,19 +764,19 @@ export const recordedTurn: readonly RecordedFrame[] = [
         },
       },
       kind: 'acp_update',
-      seq: 35,
-      at: 1785025413434,
+      seq: 34,
+      at: 1785031298856,
     },
   },
   {
-    runId: '019f9bce-3342-7691-a789-d0b8fa522c8b',
-    seq: 36,
+    runId: '019f9c27-f559-75a1-b35a-45cc1461eff1',
+    seq: 35,
     kind: 'run_finished',
     frame: {
       stopReason: 'end_turn',
       kind: 'run_finished',
-      seq: 36,
-      at: 1785025413476,
+      seq: 35,
+      at: 1785031298890,
     },
   },
 ]

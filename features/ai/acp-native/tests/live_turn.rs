@@ -21,6 +21,8 @@
 //! - `POIETICA_ACP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
 //! - `POIETICA_ACP_CAPTURE` a path to write the recorded frames to, so the
 //!   renderer's schema can be tested against frames a real agent actually sent
+//! - `POIETICA_ACP_EXPECT`  frame kinds and session update discriminators the
+//!   turn must contain, comma separated, checked before anything is captured
 //!
 //! Every wait in here is two-sided. The channels the client hands back are
 //! cancelled when the connection dies, and a cancelled channel says nothing
@@ -29,6 +31,7 @@
 
 #![allow(clippy::expect_used)]
 
+use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -190,6 +193,12 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         println!("  {:>3} {:<12} {}", event.seq, event.kind, describe(&event.frame));
     }
 
+    report(&broadcast);
+
+    // Before the capture, not after: a turn that missed what it was recording
+    // must not overwrite a recording that caught it.
+    require_expected(&broadcast);
+
     capture(&broadcast);
 
     let first = broadcast.first().expect("at least one frame");
@@ -227,6 +236,60 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     }
 
     println!("recorded {} frames, all of them durable", recorded.len());
+}
+
+/// Everything the turn actually contained.
+///
+/// A frame counts under its log kind, and a session update counts under its
+/// protocol discriminator as well, because that is the level the timeline
+/// renders at and therefore the level a fixture is judged at.
+fn markers(events: &[RecordedEvent]) -> BTreeMap<String, usize> {
+    let mut counted: BTreeMap<String, usize> = BTreeMap::new();
+
+    for event in events {
+        *counted.entry(event.kind.clone()).or_default() += 1;
+
+        let discriminator = describe(&event.frame);
+
+        if !discriminator.is_empty() {
+            *counted.entry(discriminator).or_default() += 1;
+        }
+    }
+
+    counted
+}
+
+/// What this turn is worth as a fixture.
+fn report(events: &[RecordedEvent]) {
+    println!("contains:");
+
+    for (marker, count) in markers(events) {
+        println!("  {count:>3}  {marker}");
+    }
+}
+
+/// Fails when the turn is missing something it was recorded to capture.
+///
+/// The agent decides what to do, so a prompt that merely invites a tool call
+/// is often answered from memory. Without this the run still passes, the
+/// capture is still written, and the gap only surfaces much later as a
+/// renderer tested against frames no agent ever sent.
+fn require_expected(events: &[RecordedEvent]) {
+    let present = markers(events);
+    let wanted = setting("POIETICA_ACP_EXPECT", "");
+
+    let missing = wanted
+        .split(',')
+        .map(str::trim)
+        .filter(|marker| !marker.is_empty())
+        .filter(|marker| !present.contains_key(*marker))
+        .collect::<Vec<&str>>()
+        .join(", ");
+
+    assert!(
+        missing.is_empty(),
+        "the turn never contained: {missing}. ask for something the agent cannot know without acting, such as the contents of a named file inside POIETICA_ACP_CWD"
+    );
 }
 
 /// What kind of update a frame carries.

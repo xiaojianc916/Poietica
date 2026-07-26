@@ -318,3 +318,19 @@ when `permission_resolved` arrives through the event log. A live run and a
 replayed one therefore pass through exactly the same states. If the call is
 rejected the agent never heard the answer, so the run is marked failed rather
 than left waiting for something that will not come.
+
+## A recording only proves what it contains
+
+The first recording caught a plain answer: text and nothing else. Tested
+against it, the schema and the timeline look proven, while the tool call path
+and the permission path have never seen a byte a real agent produced.
+
+A turn is therefore asked to declare its content. `POIETICA_ACP_EXPECT` names
+the frame kinds and session update discriminators the run must contain, and it
+is checked before the capture is written, so a turn the agent answered from
+memory cannot quietly replace a recording that caught the real thing.
+
+Capturing a permission request needs no auto-approval. Nobody answers, the
+watchdog cancels, and every outstanding request is settled as cancelled in the
+log, which yields real `permission_requested` and `permission_resolved` frames
+while leaving the rule that nothing approves on the user's behalf intact.
