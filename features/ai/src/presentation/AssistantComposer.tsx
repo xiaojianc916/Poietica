@@ -19,7 +19,6 @@ import {
 } from './composer/prompt-input'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
-import { useFluidResize } from './useFluidResize'
 
 /*
  * The composer no longer offers a model picker.
@@ -38,7 +37,6 @@ export interface AssistantComposerProps {
   readonly isAgentNew?: boolean
   readonly placeholder?: string
   readonly status?: ChatStatus
-  readonly columnId?: string
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
 }
 
@@ -47,7 +45,6 @@ export function AssistantComposer({
   isAgentNew = false,
   placeholder = '问我任何问题…',
   status = 'ready',
-  columnId,
   onSubmit,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
@@ -56,7 +53,18 @@ export function AssistantComposer({
   const cardId = `${uid}-card`
   const editorId = `${uid}-editor`
 
-  useFluidResize(editorId, columnId)
+  /*
+   * The editor's height is not choreographed.
+   *
+   * It is field-sizing: content, so pasting a paragraph makes the box the size
+   * of that paragraph in the same frame the text arrives, which is what every
+   * serious editor does. Replaying the previous box over the new one animated a
+   * length the stylesheet was resolving at the same time, and it also
+   * counter-translated the whole column to cancel a shove that no longer
+   * happens: the column is no longer centred by auto margins, it is held in
+   * place by flexible spacers. The compensation outlived what it compensated
+   * for, and all that was left of it was a visible jolt.
+   */
 
   /* Ctrl/⌘+U is advertised in the menu, so it has to actually work. */
   useEffect(() => {

@@ -835,8 +835,25 @@
   inline-size: 100%;
   min-block-size: 0;
   flex: 0 1 auto;
+  flex-direction: column;
   overflow: hidden;
   transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
+}
+
+/*
+ * The transcript fills this box on both axes.
+ *
+ * The scroller inside declares contain: strict, and that includes size
+ * containment: the browser sizes it as if it had no contents at all. On a row
+ * flex line the inline axis is the main axis, so its width resolved to zero and
+ * every row was laid out at zero width — present, measured, scrolled and
+ * completely invisible, error rows included. Column direction moves the inline
+ * axis to the cross axis, where the default is to stretch.
+ */
+.assistant-surface__feed > * {
+  inline-size: 100%;
+  min-block-size: 0;
+  flex: 1 1 auto;
 }
 
 .assistant-surface[data-started="true"] .assistant-surface__spacer {
@@ -853,11 +870,13 @@
   min-block-size: 0;
   grid-template-rows: 1fr;
   flex: none;
+  /* One departure, not four: the content fades over the first beat and the
+     space it held closes over the whole one. A translation on top of a
+     collapse says the same thing twice, on a different clock. */
   transition:
     grid-template-rows var(--cp-motion-settle) var(--cp-motion-settle-ease),
     margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    opacity var(--cp-motion-grow) var(--cp-motion-ease),
-    transform var(--cp-motion-grow) var(--cp-motion-ease);
+    opacity var(--cp-motion-grow) var(--cp-motion-settle-ease);
 }
 
 .assistant-surface__intro > *,
@@ -875,7 +894,6 @@
   grid-template-rows: 0fr;
   margin-block-start: 0;
   opacity: 0;
-  transform: translateY(calc(var(--cp-motion-rise) * -1));
 }
 
 .assistant-surface__composer {

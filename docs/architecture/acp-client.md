@@ -494,3 +494,38 @@ expected must never guess — but it made the script a one-shot, and a step
 that has already landed then looks identical to a step whose premise was
 wrong. Each step now also carries the mark of its own outcome, so the script
 can tell "already done" from "cannot be done" and only stops for the second.
+
+## A transcript can be present and invisible
+
+The feed scroller declares `contain: strict`, which is what keeps a long run
+from making the rest of the surface re-layout. That contract includes size
+containment, so the element is sized as if it were empty, and an empty element
+on a row flex line has a main size of zero.
+
+The result was a conversation that existed in every respect except the visible
+one: rows were built, keyed, measured and scrolled at zero width, and the only
+thing that betrayed it was the composer correctly moving down, because the
+resting state is derived from the transcript and the transcript was not empty.
+It also meant a failure had no way to reach the screen — the error row was as
+invisible as everything else.
+
+A box that contains the transcript therefore states both axes: the inline axis
+is the cross axis, where stretching is the default, and the child is told to
+take the block axis.
+
+## The editor is not choreographed
+
+The composer grows with `field-sizing: content`. Pasting a paragraph makes the
+box the size of the paragraph in the frame the text lands, and that is the
+behaviour to keep: nothing is animated, so nothing can disagree about the
+height.
+
+It used to replay the previous box over the new one and counter-translate the
+column by half the difference. The compensation was correct once, when the
+column was centred with auto margins and a growing editor pushed the masthead
+upwards. Spacers hold the column now, so the shove it cancelled no longer
+happens and the cancellation was all that remained — a 240ms nudge of the
+entire surface, on the same length the stylesheet was already resolving.
+
+The general rule this leaves behind: motion compensates for a layout, so it
+has to be deleted with that layout.

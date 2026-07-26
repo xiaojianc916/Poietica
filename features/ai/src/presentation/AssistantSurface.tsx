@@ -1,7 +1,5 @@
 import './assistant-composer.css'
 
-import { useId } from 'react'
-
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
@@ -58,15 +56,13 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
 
-  const columnId = useId() + '-column'
-
   return (
     <section
       className="assistant-surface"
       data-assistant-skin
       data-started={started ? 'true' : undefined}
     >
-      <div className="assistant-surface__column" id={columnId}>
+      <div className="assistant-surface__column">
         <div aria-hidden="true" className="assistant-surface__spacer" />
 
         <div className="assistant-surface__intro" inert={started}>
@@ -94,7 +90,6 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
         <div className="assistant-surface__composer">
           <AssistantComposer
             agentLabel="Super Computer"
-            columnId={columnId}
             isAgentNew
             onSubmit={assistant.send}
             status={assistant.status}
