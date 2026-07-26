@@ -199,6 +199,13 @@ function applyAcpUpdate(
       return { ...state, items: replaceAt(state.items, index, plan) }
     }
 
+    case 'available_commands_update':
+      /* A session capability, not a turn. The command list belongs to the
+         composer that offers the commands, not to the transcript of what
+         happened, so it produces no item here. This case is written out rather
+         than left to the default so that ignoring it stays a decision. */
+      return state
+
     default:
       return state
   }

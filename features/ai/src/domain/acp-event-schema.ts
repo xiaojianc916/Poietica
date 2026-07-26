@@ -40,6 +40,12 @@ const planEntrySchema = v.object({
   priority: v.picklist(['high', 'medium', 'low']),
 })
 
+const availableCommandSchema = v.object({
+  name: v.string(),
+  description: v.string(),
+  input: v.optional(v.object({ hint: v.string() })),
+})
+
 export const sessionUpdateSchema = v.variant('sessionUpdate', [
   v.object({ sessionUpdate: v.literal('user_message_chunk'), content: contentBlockSchema }),
   v.object({ sessionUpdate: v.literal('agent_message_chunk'), content: contentBlockSchema }),
@@ -66,6 +72,10 @@ export const sessionUpdateSchema = v.variant('sessionUpdate', [
   }),
   v.object({ sessionUpdate: v.literal('plan'), entries: v.array(planEntrySchema) }),
   v.object({ sessionUpdate: v.literal('current_mode_update'), currentModeId: v.string() }),
+  v.object({
+    sessionUpdate: v.literal('available_commands_update'),
+    availableCommands: v.array(availableCommandSchema),
+  }),
 ])
 
 const permissionOptionSchema = v.object({

@@ -44,6 +44,20 @@ export interface AcpPlanEntry {
   readonly priority: AcpPlanEntryPriority
 }
 
+/**
+ * A command the agent offers for this session.
+ *
+ * The agent decides what these are and may revise the list mid-session, so the
+ * set is never assumed and never cached across sessions. `input` is present
+ * only for commands that take an argument, and the hint is display text rather
+ * than a grammar.
+ */
+export interface AcpAvailableCommand {
+  readonly name: string
+  readonly description: string
+  readonly input?: { readonly hint: string }
+}
+
 export type AcpSessionUpdate =
   | { readonly sessionUpdate: 'user_message_chunk'; readonly content: AcpContentBlock }
   | { readonly sessionUpdate: 'agent_message_chunk'; readonly content: AcpContentBlock }
@@ -74,6 +88,11 @@ export type AcpSessionUpdate =
       readonly entries: readonly AcpPlanEntry[]
     }
   | { readonly sessionUpdate: 'current_mode_update'; readonly currentModeId: string }
+  | {
+      /** The agent's current command list, replacing any earlier one entirely. */
+      readonly sessionUpdate: 'available_commands_update'
+      readonly availableCommands: readonly AcpAvailableCommand[]
+    }
 
 export interface AcpSessionNotification {
   readonly sessionId: AcpSessionId

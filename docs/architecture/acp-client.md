@@ -205,3 +205,18 @@ frame in it needs adjusting to pass, the schema is wrong, not the recording.
 The same test prints the set of `sessionUpdate` kinds the agent sent. That set
 is the inventory the timeline has to cover, and it comes from the agent rather
 than from the specification, which lists many more.
+
+### What the recording caught
+
+The first recorded turn was rejected at the boundary on its second frame. The
+agent opens every session by announcing its slash commands with
+`available_commands_update`, which is part of the protocol and was missing from
+the validator's union. Nothing else in the repository would have noticed: the
+native side records whatever the agent sends, and the renderer drops whatever it
+cannot validate, so the failure mode was a frame quietly disappearing between
+two components that each considered themselves correct.
+
+The list is accepted and then deliberately ignored by the reducer. It describes
+what the session can do, not what happened during it, so it belongs to whatever
+offers those commands rather than to the transcript. Writing that case out
+explicitly keeps the silence intentional.
