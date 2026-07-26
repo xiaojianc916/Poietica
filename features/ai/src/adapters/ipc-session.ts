@@ -66,8 +66,11 @@ export function createIpcSession({
       const events: RunEvent[] = []
       for (const payload of raw) {
         const parsed = parseRunEvent(payload)
-        if (parsed.ok) events.push(parsed.event)
-        else onInvalidFrame?.(parsed.issue, payload)
+        if (parsed.ok) {
+          events.push(parsed.event)
+        } else {
+          onInvalidFrame?.(parsed.issue, payload)
+        }
       }
       return events
     },
@@ -93,6 +96,6 @@ function refusedFrame(issue: string): RunEvent {
     kind: 'run_failed',
     seq: 0,
     at: Date.now(),
-    message: REFUSED + '（' + issue + '）',
+    message: `${REFUSED}（${issue}）`,
   }
 }

@@ -72,7 +72,7 @@ export function WorkbenchTab({
         <button
           aria-selected={model.isActive}
           className="chrome-workbench-tab__activation"
-          id={'workbench-tab-' + encodedId}
+          id={`workbench-tab-${encodedId}`}
           onClick={() => {
             onActivate(model.id)
           }}
@@ -119,14 +119,14 @@ function TabEndAction({
           aria-label={status === 'dirty' ? '未保存' : status === 'saving' ? '正在保存' : '保存失败'}
           className={[
             'chrome-workbench-tab__status',
-            'chrome-workbench-tab__status--' + status,
+            `chrome-workbench-tab__status--${status}`,
           ].join(' ')}
           role="status"
         />
       ) : null}
 
       <button
-        aria-label={'关闭 ' + model.title}
+        aria-label={`关闭 ${model.title}`}
         className="chrome-workbench-tab__close"
         onClick={(event) => {
           event.stopPropagation()

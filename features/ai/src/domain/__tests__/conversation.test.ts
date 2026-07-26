@@ -54,7 +54,9 @@ function finished(seq: number): RunEvent {
 
 function turn(state: TimelineState, prompt: string, events: readonly RunEvent[]): TimelineState {
   let next = appendUserMessage(state, prompt, 1)
-  for (const event of events) next = applyRunEvent(next, event)
+  for (const event of events) {
+    next = applyRunEvent(next, event)
+  }
   return next
 }
 

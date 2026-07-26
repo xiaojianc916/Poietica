@@ -34,7 +34,9 @@ export const AgentDisclosure = ({
 
   const toggle = useCallback(() => {
     const next = !isOpen
-    if (!isControlled) setUncontrolled(next)
+    if (!isControlled) {
+      setUncontrolled(next)
+    }
     onOpenChange?.(next)
   }, [isControlled, isOpen, onOpenChange])
 

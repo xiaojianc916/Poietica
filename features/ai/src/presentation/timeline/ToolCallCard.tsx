@@ -81,7 +81,7 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
               {item.locations.map((location) => (
                 <li className="timeline-tool__location" key={location.path}>
                   {location.path}
-                  {location.line === undefined ? null : ':' + String(location.line)}
+                  {location.line === undefined ? null : `:${String(location.line)}`}
                 </li>
               ))}
             </ul>
@@ -92,7 +92,7 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
           ) : null}
 
           {parts.map((part, index) => {
-            const key = part.type + ':' + String(index)
+            const key = `${part.type}:${String(index)}`
 
             if (part.type === 'text') {
               return (

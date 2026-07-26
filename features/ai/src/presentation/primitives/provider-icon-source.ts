@@ -10,7 +10,7 @@
  */
 
 const url = (name: string): string =>
-  new URL('../assets/provider-icons/' + name + '.svg', import.meta.url).href
+  new URL(`../assets/provider-icons/${name}.svg`, import.meta.url).href
 
 /** The mark for a provider we do not ship a mark for. */
 export const PROVIDER_ICON_FALLBACK = url('generic')
@@ -37,7 +37,9 @@ export function providerIconUrl(provider?: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
 
-  if (key.length === 0) return PROVIDER_ICON_FALLBACK
+  if (key.length === 0) {
+    return PROVIDER_ICON_FALLBACK
+  }
 
   /* A config says "moonshot-v1" or "kimi-k2.5"; the mark belongs to whoever
      the name starts with. Longest key first, so a prefix never wins over a

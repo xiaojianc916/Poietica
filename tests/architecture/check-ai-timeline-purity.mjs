@@ -57,11 +57,15 @@ const failures = []
 for (const rule of rules) {
   for (const filePath of await walk(path.join(aiSource, rule.layer))) {
     const relativePath = path.relative(repositoryRoot, filePath)
-    if (relativePath.includes('__tests__')) continue
+    if (relativePath.includes('__tests__')) {
+      continue
+    }
 
     const source = await readFile(filePath, 'utf8')
     for (const [pattern, reason] of rule.banned) {
-      if (pattern.test(source)) failures.push(relativePath + ': ' + reason)
+      if (pattern.test(source)) {
+        failures.push(`${relativePath}: ${reason}`)
+      }
     }
   }
 }
@@ -72,7 +76,7 @@ if (existsSync(reducer)) {
   for (const match of source.matchAll(/from '([^']+)'/g)) {
     const specifier = match[1]
     if (!/^\.\.\/contracts\//.test(specifier)) {
-      failures.push('features/ai/src/domain/timeline-reducer.ts: illegal import ' + specifier)
+      failures.push(`features/ai/src/domain/timeline-reducer.ts: illegal import ${specifier}`)
     }
   }
   if (/Date\.now\(|Math\.random\(|globalThis|window\./.test(source)) {
@@ -84,7 +88,9 @@ if (failures.length > 0) {
   console.error('')
   console.error('AI runtime layer violations:')
   console.error('')
-  for (const failure of failures) console.error('- ' + failure)
+  for (const failure of failures) {
+    console.error(`- ${failure}`)
+  }
   console.error('')
   process.exitCode = 1
 } else {
@@ -92,13 +98,18 @@ if (failures.length > 0) {
 }
 
 async function walk(directory) {
-  if (!existsSync(directory)) return []
+  if (!existsSync(directory)) {
+    return []
+  }
   const entries = await readdir(directory, { withFileTypes: true })
   const files = []
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name)
-    if (entry.isDirectory()) files.push(...(await walk(entryPath)))
-    else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) files.push(entryPath)
+    if (entry.isDirectory()) {
+      files.push(...(await walk(entryPath)))
+    } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) {
+      files.push(entryPath)
+    }
   }
   return files
 }

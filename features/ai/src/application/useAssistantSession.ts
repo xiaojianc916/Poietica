@@ -57,8 +57,12 @@ const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 
 function describeFailure(cause: unknown): string {
-  if (cause instanceof Error && cause.message.length > 0) return cause.message
-  if (typeof cause === 'string' && cause.length > 0) return cause
+  if (cause instanceof Error && cause.message.length > 0) {
+    return cause.message
+  }
+  if (typeof cause === 'string' && cause.length > 0) {
+    return cause
+  }
   return FAILURE_FALLBACK
 }
 
@@ -72,7 +76,9 @@ export function useAssistantSession({
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
   useEffect(() => {
-    if (!session) return undefined
+    if (!session) {
+      return undefined
+    }
     return session.subscribe((event: RunEvent) => {
       setTimeline((current) => applyRunEvent(current, event))
     })
@@ -142,7 +148,9 @@ export function useAssistantSession({
    */
   const resolvePermission = useCallback(
     (requestId: string, optionId: string) => {
-      if (!session) return
+      if (!session) {
+        return
+      }
 
       session.resolvePermission(requestId, optionId).catch((cause: unknown) => {
         fail(cause)

@@ -52,7 +52,9 @@ const requirements = [
 
 function isAvailable(command, commandArguments) {
   const result = spawnSync(command, commandArguments, { stdio: 'ignore' })
-  if (result.error) return false
+  if (result.error) {
+    return false
+  }
   return result.status === 0
 }
 
@@ -79,7 +81,9 @@ for (const requirement of missing) {
   console.log('')
   console.log(`  ${requirement.label} — ${requirement.reason}`)
   const lines = requirement.install[platform] ?? requirement.install.linux
-  for (const line of lines) console.log(`    ${line}`)
+  for (const line of lines) {
+    console.log(`    ${line}`)
+  }
 }
 console.log('')
 console.log('see docs/development/windows-build-prerequisites.md for the background')

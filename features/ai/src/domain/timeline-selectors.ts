@@ -48,8 +48,12 @@ export function selectIsBusy(state: TimelineState): boolean {
 }
 
 function isRenderable(item: TimelineItem): boolean {
-  if (item.type === 'agent_text' || item.type === 'agent_thought') return item.text.length > 0
-  if (item.type === 'plan') return item.entries.length > 0
+  if (item.type === 'agent_text' || item.type === 'agent_thought') {
+    return item.text.length > 0
+  }
+  if (item.type === 'plan') {
+    return item.entries.length > 0
+  }
   return true
 }
 
@@ -77,11 +81,15 @@ export interface TurnOutcome {
 export function selectSilentOutcome(state: TimelineState): TurnOutcome | null {
   const status = state.status
 
-  if (status !== 'completed' && status !== 'cancelled' && status !== 'failed') return null
+  if (status !== 'completed' && status !== 'cancelled' && status !== 'failed') {
+    return null
+  }
 
   const tail = state.items.filter(isRenderable).at(-1)
 
-  if (tail === undefined || tail.type !== 'user_message') return null
+  if (tail === undefined || tail.type !== 'user_message') {
+    return null
+  }
 
   return { status }
 }

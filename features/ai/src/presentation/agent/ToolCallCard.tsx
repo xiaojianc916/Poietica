@@ -27,9 +27,9 @@ const FENCE = String.fromCharCode(96).repeat(3)
 
 const asJsonBlock = (value: unknown) => {
   try {
-    return FENCE + 'json\n' + JSON.stringify(value, null, 2) + '\n' + FENCE
+    return `${FENCE}json\n${JSON.stringify(value, null, 2)}\n${FENCE}`
   } catch {
-    return FENCE + '\n' + String(value) + '\n' + FENCE
+    return `${FENCE}\n${String(value)}\n${FENCE}`
   }
 }
 

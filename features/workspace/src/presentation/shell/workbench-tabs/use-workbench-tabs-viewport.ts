@@ -153,9 +153,9 @@ export function useWorkbenchTabsViewport({
 
       viewport.dataset['hasActiveTab'] = 'true'
 
-      viewport.style.setProperty('--chrome-active-tab-left', String(left) + 'px')
+      viewport.style.setProperty('--chrome-active-tab-left', `${String(left)}px`)
 
-      viewport.style.setProperty('--chrome-active-tab-right', String(right) + 'px')
+      viewport.style.setProperty('--chrome-active-tab-right', `${String(right)}px`)
     }
 
     let measureFrame: number | null = null

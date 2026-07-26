@@ -32,7 +32,9 @@ const OPAQUE_LABELS: Record<string, string> = {
 export function toToolContentParts(
   content: readonly AcpToolCallContent[] | undefined,
 ): readonly ToolContentPart[] {
-  if (content === undefined) return []
+  if (content === undefined) {
+    return []
+  }
 
   const parts: ToolContentPart[] = []
 
@@ -57,7 +59,9 @@ export function toToolContentParts(
     if (block.type === 'text') {
       /* A tool call opens with an empty string and fills in as arguments
          stream. An empty bubble is noise, not information. */
-      if (block.text.length > 0) parts.push({ type: 'text', text: block.text })
+      if (block.text.length > 0) {
+        parts.push({ type: 'text', text: block.text })
+      }
       continue
     }
 

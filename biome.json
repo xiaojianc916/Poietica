@@ -17,7 +17,8 @@
       "!**/benchmark-results",
       "!**/performance-results",
       "!**/*.min.js",
-      "!**/*.snap"
+      "!**/*.snap",
+      "!**/*.svg"
     ],
     "maxSize": 2097152
   },

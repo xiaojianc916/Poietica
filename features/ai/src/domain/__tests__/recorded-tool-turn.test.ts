@@ -28,7 +28,9 @@ const events = recordedTurn.flatMap((captured) => {
 const state = replayRunEvents('run-tool-turn', events)
 
 const toolUpdates = events.flatMap((event) => {
-  if (event.kind !== 'acp_update') return []
+  if (event.kind !== 'acp_update') {
+    return []
+  }
 
   const update = event.notification.update
 
@@ -64,7 +66,9 @@ describe('a recorded tool turn', () => {
     const expected = new Map<string, string>()
 
     for (const update of toolUpdates) {
-      if (update.status !== undefined) expected.set(update.toolCallId, update.status)
+      if (update.status !== undefined) {
+        expected.set(update.toolCallId, update.status)
+      }
     }
 
     for (const item of toolItems) {
@@ -81,7 +85,9 @@ describe('a recorded tool turn', () => {
   it('collapses streamed chunks without losing a character', () => {
     const spoken = events
       .flatMap((event) => {
-        if (event.kind !== 'acp_update') return []
+        if (event.kind !== 'acp_update') {
+          return []
+        }
 
         const update = event.notification.update
 

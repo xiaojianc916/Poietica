@@ -47,7 +47,9 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
 
   const handleScroll = useCallback(() => {
     const element = scrollRef.current
-    if (!element) return
+    if (!element) {
+      return
+    }
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight
     pinnedRef.current = distance <= BOTTOM_THRESHOLD_PX
   }, [])
@@ -55,7 +57,9 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
   const tailKey = rows.at(-1)?.item.id ?? ''
 
   useEffect(() => {
-    if (!pinnedRef.current || rows.length === 0) return
+    if (!pinnedRef.current || rows.length === 0) {
+      return
+    }
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
   }, [rows.length, tailKey, virtualizer])
 
@@ -72,7 +76,9 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
       <div className="agent-activity-feed__canvas" style={{ height: virtualizer.getTotalSize() }}>
         {virtualRows.map((virtualRow) => {
           const row = rows[virtualRow.index]
-          if (!row) return null
+          if (!row) {
+            return null
+          }
 
           return (
             <div
@@ -82,7 +88,7 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
               data-type={row.item.type}
               key={virtualRow.key}
               ref={virtualizer.measureElement}
-              style={{ transform: 'translateY(' + String(virtualRow.start) + 'px)' }}
+              style={{ transform: `translateY(${String(virtualRow.start)}px)` }}
             >
               {renderRow(row)}
             </div>

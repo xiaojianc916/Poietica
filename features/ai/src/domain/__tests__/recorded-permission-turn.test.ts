@@ -102,7 +102,9 @@ describe('a recorded permission turn', () => {
     const lastStatus = new Map<string, ToolCallTimelineItem['status']>()
 
     for (const event of events) {
-      if (event.kind !== 'acp_update') continue
+      if (event.kind !== 'acp_update') {
+        continue
+      }
       const update = event.notification.update
       if (update.sessionUpdate === 'tool_call') {
         lastStatus.set(update.toolCallId, update.status)

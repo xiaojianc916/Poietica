@@ -18,7 +18,7 @@ const files = {
 
 for (const relativePath of Object.values(files)) {
   if (!existsSync(path.join(ROOT, relativePath))) {
-    failures.push('Missing failure presentation file: ' + relativePath)
+    failures.push(`Missing failure presentation file: ${relativePath}`)
   }
 }
 
@@ -40,7 +40,7 @@ if (failures.length > 0) {
   console.error(
     [
       'Failure presentation hierarchy checks failed:',
-      ...failures.map((failure) => '- ' + failure),
+      ...failures.map((failure) => `- ${failure}`),
     ].join('\n'),
   )
 

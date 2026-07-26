@@ -80,7 +80,9 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
           <PromptInputActionMenuItem
             key={model.id}
             onClick={() => {
-              if (model.id === active.id) return
+              if (model.id === active.id) {
+                return
+              }
               onSelect?.(model.id)
             }}
           >

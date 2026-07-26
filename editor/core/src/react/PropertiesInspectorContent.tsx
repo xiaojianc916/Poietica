@@ -583,7 +583,7 @@ export function PropertiesInspectorContent({
 
         const title =
           selectedCount > 1
-            ? String(selectedCount) + ' 个对象'
+            ? `${String(selectedCount)} 个对象`
             : selectedCount === 1
               ? getShapeTitle(onlySelected?.type)
               : getToolTitle(editor.getCurrentToolId())

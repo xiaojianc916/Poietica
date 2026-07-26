@@ -4,8 +4,12 @@ import { useEffect } from 'react'
 function durationOf(element: Element, token: string, fallback: number): number {
   const raw = getComputedStyle(element).getPropertyValue(token).trim()
 
-  if (raw.endsWith('ms')) return Number.parseFloat(raw)
-  if (raw.endsWith('s')) return Number.parseFloat(raw) * 1000
+  if (raw.endsWith('ms')) {
+    return Number.parseFloat(raw)
+  }
+  if (raw.endsWith('s')) {
+    return Number.parseFloat(raw) * 1000
+  }
 
   return fallback
 }
@@ -49,9 +53,13 @@ export function useEditorGrowth(editorId: string): void {
     const observer = new ResizeObserver((entries) => {
       const entry = entries.at(-1)
 
-      if (!entry) return
+      if (!entry) {
+        return
+      }
 
-      if (growth?.playState === 'running') return
+      if (growth?.playState === 'running') {
+        return
+      }
 
       const next = entry.borderBoxSize?.[0]?.blockSize ?? editor.getBoundingClientRect().height
       const from = previous
@@ -63,11 +71,13 @@ export function useEditorGrowth(editorId: string): void {
         return
       }
 
-      if (reduced.matches || Math.abs(next - from) < 1) return
+      if (reduced.matches || Math.abs(next - from) < 1) {
+        return
+      }
 
       growth?.cancel()
       growth = editor.animate(
-        [{ blockSize: String(from) + 'px' }, { blockSize: String(next) + 'px' }],
+        [{ blockSize: `${String(from)}px` }, { blockSize: `${String(next)}px` }],
         {
           duration: durationOf(editor, '--cp-motion-grow', 240),
           easing: easingOf(editor),

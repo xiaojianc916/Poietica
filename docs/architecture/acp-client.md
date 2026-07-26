@@ -782,3 +782,52 @@ Three sets must never be confused:
 Only the third one may drive our menus. Neither the documentation nor the
 terminal is evidence about it, so every switch and every completion entry we
 offer is built from recorded frames of that notification.
+
+## No modes are published, so no switch can be honest
+
+The protocol does model modes. A client shows the agent's `availableModes`,
+switches with `session/set_mode` at any time, idle or mid-turn, and learns of
+changes from the agent through `current_mode_update`. That is the honest way
+to offer plan mode: no message, no turn, no text in the composer.
+
+This agent publishes none. A search of the whole tree, recordings included,
+finds no `availableModes` anywhere, and nothing in our own code has ever
+called `set_mode`. An agent that announces no modes leaves a client nothing
+to switch, so a mode switch drawn today would be a control wired to nothing.
+It is therefore not on the plan, and it must appear only when the data does.
+
+### The eighteen commands that do exist
+
+Recorded identically in all three captured turns:
+
+- session: `compact` (with the input hint
+  `<optional custom summarization instructions>`), `status`, `usage`, `mcp`,
+  `tasks`, `help`;
+- skills and prompts: `check-kimi-code-docs`, `custom-theme`,
+  `import-from-cc-codex`, `mcp-config`, `sub-skill`, `sub-skill.consolidate`,
+  `sub-skill.review`, `update-config`, `write-goal`, `skill:emil-design-eng`,
+  `skill:find-skills`, `skill:transitions-dev`.
+
+Absent: `goal`, `plan`, `yolo`, `permission`, `model`. Sending any of them
+earns the same answer `/model` earned. The sharpest evidence is `write-goal`,
+whose own description offers to help "craft a well-specified `/goal`
+objective for goal mode": the mode exists in the product, and the protocol
+surface exposes only a skill for writing its input, never a way to enter it.
+
+### A command is text on the wire and a chip on the screen
+
+The protocol requires the text: commands "are run as part of regular prompt
+requests where the Client includes the command text in the prompt". That
+binds the wire, not the window. So the command is lifted out of the editor
+and kept as state: a chip inside the composer, beside the tools rather than
+inside the sentence, carrying a mark, a readable name and a way to remove it.
+The editor stays a plain textarea, which is what keeps growth, selection and
+IME behaviour simple; a rich contenteditable would buy commands in the middle
+of a sentence at the price of owning all three.
+
+Commands that declare `input.hint` take an argument, so the chip is followed
+by a field whose placeholder is the hint the agent supplied, verbatim.
+
+Every entry, name, hint and grouping comes from the published list. Nothing
+in the menu is ours to invent, and an empty list means an empty menu, not a
+remembered one.

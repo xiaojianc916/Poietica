@@ -20,7 +20,9 @@ describe('replay session', () => {
     session.subscribe((event) => received.push(event))
     await session.prompt({ threadId: 't', text: 'hi' })
 
-    for (const step of queue) step()
+    for (const step of queue) {
+      step()
+    }
 
     expect(received).toEqual(SAMPLE_RUN_EVENTS)
     expect(replayRunEvents('run', received).status).toBe('completed')

@@ -18,7 +18,7 @@ export function TurnOutcomeNotice({ outcome }: { readonly outcome: TurnOutcome }
     <p className="timeline-notice" role="status">
       {WORDING[outcome.status]}
 
-      <span className="timeline-notice__status">{'（' + outcome.status + '）'}</span>
+      <span className="timeline-notice__status">{`（${outcome.status}）`}</span>
     </p>
   )
 }

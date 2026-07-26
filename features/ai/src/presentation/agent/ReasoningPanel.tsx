@@ -25,7 +25,9 @@ export const ReasoningPanel = ({
   const userDecidedRef = useRef(false)
 
   useEffect(() => {
-    if (userDecidedRef.current) return undefined
+    if (userDecidedRef.current) {
+      return undefined
+    }
 
     if (isStreaming) {
       setOpen(true)
@@ -45,7 +47,7 @@ export const ReasoningPanel = ({
     ? 'Thinking'
     : durationSeconds === undefined
       ? 'Thought for a moment'
-      : 'Thought for ' + String(durationSeconds) + 's'
+      : `Thought for ${String(durationSeconds)}s`
 
   return (
     <AgentDisclosure

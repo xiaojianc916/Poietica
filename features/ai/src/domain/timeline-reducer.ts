@@ -44,7 +44,9 @@ export function createTimelineState(runId: RunId): TimelineState {
 
 export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
   let state = createTimelineState(runId)
-  for (const event of events) state = applyRunEvent(state, event)
+  for (const event of events) {
+    state = applyRunEvent(state, event)
+  }
   return state
 }
 
@@ -61,7 +63,9 @@ export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): Time
  */
 export function appendUserMessage(state: TimelineState, text: string, at: number): TimelineState {
   const said = text.trim()
-  if (said.length === 0) return state
+  if (said.length === 0) {
+    return state
+  }
 
   const opened: TimelineState = {
     ...state,
@@ -75,13 +79,15 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
     ...opened,
     items: [
       ...sealTail(state.items),
-      { type: 'user_message', id: namespace(opened) + 'said', at, text: said },
+      { type: 'user_message', id: `${namespace(opened)}said`, at, text: said },
     ],
   }
 }
 
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
-  if (state.appliedSeqs.has(event.seq)) return state
+  if (state.appliedSeqs.has(event.seq)) {
+    return state
+  }
 
   const appliedSeqs = new Set(state.appliedSeqs)
   appliedSeqs.add(event.seq)
@@ -107,7 +113,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
           ...sealTail(base.items),
           {
             type: 'permission',
-            id: namespace(base) + 'permission-' + event.requestId,
+            id: `${namespace(base)}permission-${event.requestId}`,
             at: event.at,
             requestId: event.requestId,
             title: event.title,
@@ -137,7 +143,9 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
       const said = event.diagnostics?.trim() ?? ''
       const status = finalStatus(event.stopReason)
 
-      if (said.length === 0) return { ...base, status, items: sealed }
+      if (said.length === 0) {
+        return { ...base, status, items: sealed }
+      }
 
       return {
         ...base,
@@ -146,7 +154,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
           ...sealed,
           {
             type: 'error',
-            id: namespace(base) + 'agent-' + String(event.seq),
+            id: `${namespace(base)}agent-${String(event.seq)}`,
             at: event.at,
             message: said,
           },
@@ -162,7 +170,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
           ...sealTail(base.items),
           {
             type: 'error',
-            id: namespace(base) + 'error-' + String(event.seq),
+            id: `${namespace(base)}error-${String(event.seq)}`,
             at: event.at,
             message: preferAgent(event.message, event.diagnostics),
           },
@@ -192,7 +200,7 @@ function applyAcpUpdate(
           ...sealTail(state.items),
           {
             type: 'user_message',
-            id: scope + 'user-' + String(seq),
+            id: `${scope}user-${String(seq)}`,
             at,
             text: textOf(update.content),
           },
@@ -212,7 +220,7 @@ function applyAcpUpdate(
       }
 
     case 'tool_call': {
-      const id = scope + 'tool-' + update.toolCallId
+      const id = `${scope}tool-${update.toolCallId}`
       const existing = indexOfId(state.items, id)
       const created: ToolCallTimelineItem = {
         type: 'tool_call',
@@ -227,12 +235,14 @@ function applyAcpUpdate(
         rawInput: update.rawInput,
         startedAt: at,
       }
-      if (existing < 0) return { ...state, items: [...sealTail(state.items), created] }
+      if (existing < 0) {
+        return { ...state, items: [...sealTail(state.items), created] }
+      }
       return { ...state, items: replaceAt(state.items, existing, created) }
     }
 
     case 'tool_call_update': {
-      const id = scope + 'tool-' + update.toolCallId
+      const id = `${scope}tool-${update.toolCallId}`
       const index = indexOfId(state.items, id)
       if (index < 0) {
         const placeholder: ToolCallTimelineItem = {
@@ -252,7 +262,9 @@ function applyAcpUpdate(
       }
 
       const current = state.items[index]
-      if (!current || current.type !== 'tool_call') return state
+      if (!current || current.type !== 'tool_call') {
+        return state
+      }
 
       const status = update.status ?? current.status
       /* A call that is still running has no end time, which is not the same as
@@ -276,10 +288,12 @@ function applyAcpUpdate(
     case 'plan': {
       /* The protocol replaces the whole plan; keep exactly one plan entry per
          turn, so a later turn cannot rewrite an earlier one. */
-      const id = scope + 'plan'
+      const id = `${scope}plan`
       const index = indexOfId(state.items, id)
       const plan = { type: 'plan', id, at, entries: update.entries } as const
-      if (index < 0) return { ...state, items: [...sealTail(state.items), plan] }
+      if (index < 0) {
+        return { ...state, items: [...sealTail(state.items), plan] }
+      }
       return { ...state, items: replaceAt(state.items, index, plan) }
     }
 
@@ -299,7 +313,7 @@ function applyAcpUpdate(
  * The identity prefix of the turn currently being written.
  */
 function namespace(state: TimelineState): string {
-  return 'r' + String(state.runIndex) + '-'
+  return `r${String(state.runIndex)}-`
 }
 
 /**
@@ -314,16 +328,20 @@ function withPrompt(
   event: { readonly seq: number; readonly at: number; readonly prompt?: string },
 ): readonly TimelineItem[] {
   const prompt = event.prompt
-  if (prompt === undefined || prompt.length === 0) return state.items
+  if (prompt === undefined || prompt.length === 0) {
+    return state.items
+  }
 
   const tail = state.items.at(-1)
-  if (tail && tail.type === 'user_message' && tail.text === prompt) return state.items
+  if (tail && tail.type === 'user_message' && tail.text === prompt) {
+    return state.items
+  }
 
   return [
     ...sealTail(state.items),
     {
       type: 'user_message',
-      id: namespace(state) + 'said-' + String(event.seq),
+      id: `${namespace(state)}said-${String(event.seq)}`,
       at: event.at,
       text: prompt,
     },
@@ -354,9 +372,15 @@ function appendChunk(
 
 function sealTail(items: readonly TimelineItem[]): readonly TimelineItem[] {
   const tail = items.at(-1)
-  if (!tail) return items
-  if (tail.type !== 'agent_text' && tail.type !== 'agent_thought') return items
-  if (tail.sealed) return items
+  if (!tail) {
+    return items
+  }
+  if (tail.type !== 'agent_text' && tail.type !== 'agent_thought') {
+    return items
+  }
+  if (tail.sealed) {
+    return items
+  }
   return replaceAt(items, items.length - 1, { ...tail, sealed: true })
 }
 
@@ -395,7 +419,11 @@ function preferAgent(message: string, diagnostics?: string): string {
 }
 
 function finalStatus(stopReason: string): RunStatus {
-  if (stopReason === 'cancelled') return 'cancelled'
-  if (stopReason === 'refusal') return 'failed'
+  if (stopReason === 'cancelled') {
+    return 'cancelled'
+  }
+  if (stopReason === 'refusal') {
+    return 'failed'
+  }
   return 'completed'
 }

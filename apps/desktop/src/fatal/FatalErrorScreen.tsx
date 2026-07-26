@@ -64,7 +64,7 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
           <p className="fatal-secondary">{model.additionalIncidentMessage}</p>
         ) : null}
 
-        <div aria-label="错误处理操作" className="fatal-actions" role="group">
+        <div className="fatal-actions">
           {primaryAction ? (
             <button
               aria-label={primaryAction.label}
@@ -111,22 +111,4 @@ function executePrimaryAction(action: { readonly kind: 'reload' }): void {
     case 'reload':
       window.location.reload()
   }
-}
-
-function WarningIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="M12 8.5v4.25" />
-      <path d="M12 16.25h.01" />
-      <path d="M10.28 3.86 2.82 16.8a2 2 0 0 0 1.73 3h14.9a2 2 0 0 0 1.73-3L13.72 3.86a2 2 0 0 0-3.44 0Z" />
-    </svg>
-  )
 }

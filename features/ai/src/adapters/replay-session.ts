@@ -38,12 +38,16 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
   let runCounter = 0
 
   const clearPending = () => {
-    for (const cancel of pending) cancel()
+    for (const cancel of pending) {
+      cancel()
+    }
     pending = []
   }
 
   const emit = (event: RunEvent) => {
-    for (const listener of listeners) listener(event)
+    for (const listener of listeners) {
+      listener(event)
+    }
   }
 
   return {
@@ -57,7 +61,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
     prompt: (_request: AgentPromptRequest): Promise<AgentPromptHandle> => {
       clearPending()
       runCounter += 1
-      const runId = 'run_replay_' + String(runCounter)
+      const runId = `run_replay_${String(runCounter)}`
 
       events.forEach((event, index) => {
         pending.push(scheduler(() => emit(event), stepMs * index))

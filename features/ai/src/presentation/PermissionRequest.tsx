@@ -43,7 +43,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
         <p className="assistant-permission__outcome">
           {resolution.outcome === 'cancelled'
             ? '请求已取消'
-            : '已选择：' + labelOf(item.options, resolution.optionId)}
+            : `已选择：${labelOf(item.options, resolution.optionId)}`}
         </p>
       </div>
     )
