@@ -30,6 +30,26 @@ export type AcpContentBlock =
   | { readonly type: 'resource_link'; readonly uri: string; readonly name?: string }
   | { readonly type: 'resource'; readonly uri: string; readonly text?: string }
 
+/**
+ * What a tool call produces.
+ *
+ * This is not a content block. The protocol wraps every payload in a tagged
+ * envelope so that a diff and a live terminal can sit in the same array as
+ * ordinary text, and an agent sends the envelope even for a single empty
+ * string. Unwrapping it here would be a product decision disguised as a
+ * transcription, so the envelope survives all the way to the renderer.
+ */
+export type AcpToolCallContent =
+  | { readonly type: 'content'; readonly content: AcpContentBlock }
+  | {
+      readonly type: 'diff'
+      readonly path: string
+      /** Absent or null when the file is being created. */
+      readonly oldText?: string | null
+      readonly newText: string
+    }
+  | { readonly type: 'terminal'; readonly terminalId: string }
+
 export interface AcpToolCallLocation {
   readonly path: string
   readonly line?: number
@@ -68,7 +88,7 @@ export type AcpSessionUpdate =
       readonly title: string
       readonly kind: AcpToolKind
       readonly status: AcpToolCallStatus
-      readonly content?: readonly AcpContentBlock[]
+      readonly content?: readonly AcpToolCallContent[]
       readonly locations?: readonly AcpToolCallLocation[]
       readonly rawInput?: unknown
     }
@@ -78,7 +98,7 @@ export type AcpSessionUpdate =
       readonly title?: string
       readonly kind?: AcpToolKind
       readonly status?: AcpToolCallStatus
-      readonly content?: readonly AcpContentBlock[]
+      readonly content?: readonly AcpToolCallContent[]
       readonly locations?: readonly AcpToolCallLocation[]
       readonly rawOutput?: unknown
     }

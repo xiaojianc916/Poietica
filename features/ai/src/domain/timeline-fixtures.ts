@@ -1,9 +1,14 @@
 import type { RunEvent } from '../contracts/run-contract'
 
 /**
- * A recorded run: thought, text, a tool call that succeeds, a plan, and a clean
- * finish. The presentation layer is developed against this, so the whole surface
- * can be built and reviewed before any agent process exists.
+ * A hand-written run: thought, text, a tool call that succeeds, a plan, and a
+ * clean finish. The presentation layer is developed against this, so the whole
+ * surface can be built and reviewed before any agent process exists.
+ *
+ * It is an illustration, never evidence. This sample once carried tool output as
+ * a bare content block, which is not what the protocol says and not what any
+ * agent sends, and every test that read it agreed with the mistake. Frames that
+ * must be believed live in __fixtures__ and come from a real agent.
  */
 export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo' },
@@ -93,7 +98,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
         sessionUpdate: 'tool_call_update',
         toolCallId: 'call_1',
         status: 'completed',
-        content: [{ type: 'text', text: '# Poietica ...' }],
+        content: [{ type: 'content', content: { type: 'text', text: '# Poietica ...' } }],
       },
     },
   },

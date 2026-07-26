@@ -355,3 +355,30 @@ should not be edited by a tool either.
 Still missing is a turn in which the agent asks permission. Recording one needs
 no auto-approval: leave it unanswered, let the watchdog cancel, and the log
 keeps the request together with the cancellation.
+
+## A sample agrees with you; a recording does not
+
+The boundary read `tool_call.content` as an array of content blocks for as long
+as nothing but the hand-written sample ever reached it. The sample was written
+from the same misreading, so the schema and its test confirmed each other and
+the mistake stayed invisible through every green run.
+
+The first recorded tool call ended that immediately. Ten consecutive frames were
+rejected with the same complaint — `Expected ("text" | "image" |
+"resource_link" | "resource") but received "content"` — because the protocol
+wraps tool output in a tagged envelope:
+
+```json
+{ "type": "content", "content": { "type": "text", "text": "…" } }
+```
+
+The envelope exists so that a diff and a live terminal can appear in the same
+array as ordinary text. `diff` carries `path`, `newText`, and an `oldText`
+that is absent or null when the file is new; `terminal` carries only a
+`terminalId` whose output keeps streaming after the terminal is released. Both
+are accepted at the boundary now, before any recording contains one, because the
+frame a client has never seen is the frame most likely to break it.
+
+The rule this leaves behind: a fixture written by hand may illustrate a shape,
+but it may never be the reason to believe one. When a recorded frame and our
+schema disagree, the schema is what changes.

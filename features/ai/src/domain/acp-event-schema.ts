@@ -17,6 +17,21 @@ const contentBlockSchema = v.variant('type', [
   v.object({ type: v.literal('resource'), uri: v.string(), text: v.optional(v.string()) }),
 ])
 
+/* ToolCallContent is a tagged envelope rather than a bare content block. The
+   diff and terminal variants are accepted here even though no recording has
+   produced one yet: they are in the specification, and a frame the boundary
+   has never seen is exactly the frame that must not crash the feed. */
+const toolCallContentSchema = v.variant('type', [
+  v.object({ type: v.literal('content'), content: contentBlockSchema }),
+  v.object({
+    type: v.literal('diff'),
+    path: v.string(),
+    oldText: v.optional(v.nullable(v.string())),
+    newText: v.string(),
+  }),
+  v.object({ type: v.literal('terminal'), terminalId: v.string() }),
+])
+
 const toolCallStatusSchema = v.picklist(['pending', 'in_progress', 'completed', 'failed'])
 
 const toolKindSchema = v.picklist([
@@ -56,7 +71,7 @@ export const sessionUpdateSchema = v.variant('sessionUpdate', [
     title: v.string(),
     kind: toolKindSchema,
     status: toolCallStatusSchema,
-    content: v.optional(v.array(contentBlockSchema)),
+    content: v.optional(v.array(toolCallContentSchema)),
     locations: v.optional(v.array(locationSchema)),
     rawInput: v.optional(v.unknown()),
   }),
@@ -66,7 +81,7 @@ export const sessionUpdateSchema = v.variant('sessionUpdate', [
     title: v.optional(v.string()),
     kind: v.optional(toolKindSchema),
     status: v.optional(toolCallStatusSchema),
-    content: v.optional(v.array(contentBlockSchema)),
+    content: v.optional(v.array(toolCallContentSchema)),
     locations: v.optional(v.array(locationSchema)),
     rawOutput: v.optional(v.unknown()),
   }),

@@ -30,6 +30,17 @@ describe('timeline reducer', () => {
     expect(tool && tool.type === 'tool_call' && tool.endedAt).toBe(1_090)
   })
 
+  it('keeps tool output inside the protocol envelope', () => {
+    const state = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
+    const tool = state.items.find((item) => item.type === 'tool_call')
+
+    /* A bare content block here would mean either the boundary reshaped the
+       frame or the sample drifted away from what an agent actually sends. */
+    expect(tool && tool.type === 'tool_call' && tool.content).toEqual([
+      { type: 'content', content: { type: 'text', text: '# Poietica ...' } },
+    ])
+  })
+
   it('is idempotent under duplicated events', () => {
     const once = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
     const twice = replayRunEvents(runId, [...SAMPLE_RUN_EVENTS, ...SAMPLE_RUN_EVENTS])

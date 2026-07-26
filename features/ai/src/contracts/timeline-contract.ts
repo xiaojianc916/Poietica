@@ -1,6 +1,6 @@
 import type {
-  AcpContentBlock,
   AcpPlanEntry,
+  AcpToolCallContent,
   AcpToolCallId,
   AcpToolCallLocation,
   AcpToolCallStatus,
@@ -50,7 +50,7 @@ export interface ToolCallTimelineItem {
   readonly title: string
   readonly kind: AcpToolKind
   readonly status: AcpToolCallStatus
-  readonly content: readonly AcpContentBlock[]
+  readonly content: readonly AcpToolCallContent[]
   readonly locations: readonly AcpToolCallLocation[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
