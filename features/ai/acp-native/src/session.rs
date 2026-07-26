@@ -266,8 +266,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         continue 'commands;
                     }
 
+                    // The prompt is recorded before it is sent, so a turn that
+                    // fails on the first request still shows what was asked.
                     let _routed = slot.record(|recorder| {
-                        recorder.record_run_started(&session_id.to_string());
+                        recorder.record_run_started(&session_id.to_string(), &text);
                     });
 
                     let mut pending = Box::pin(

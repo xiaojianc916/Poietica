@@ -691,3 +691,35 @@
     transition-duration: 1ms;
   }
 }
+/*
+ * The two resting states of the surface.
+ *
+ * Before the first turn the column is centred, which is what puts the composer
+ * in the middle. Once a turn exists the feed takes the free space and the
+ * composer settles near the bottom. These rules describe the states only; the
+ * travel between them is animated in AssistantSurface.
+ */
+
+.assistant-surface[data-started="true"] {
+  overflow: hidden;
+}
+
+.assistant-surface[data-started="true"] .assistant-surface__column {
+  block-size: 100%;
+  margin-block: 0;
+}
+
+.assistant-surface__feed {
+  display: flex;
+  inline-size: 100%;
+  min-block-size: 0;
+  flex: 1 1 auto;
+}
+
+.assistant-surface__composer,
+.assistant-surface__starters {
+  display: flex;
+  min-inline-size: 0;
+  flex: none;
+  flex-direction: column;
+}

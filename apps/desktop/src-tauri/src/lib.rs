@@ -24,6 +24,15 @@ pub use bootstrap::app;
 pub use error::{Error, Result};
 
 /// Single composition root. Called from main.rs.
+///
+/// # Panics
+///
+/// Panics when the application cannot be handed to the platform at all, which
+/// is a packaging fault rather than a runtime condition.
+#[allow(
+    clippy::exit,
+    reason = "the generated Tauri context expands to an exit this crate never writes"
+)]
 pub fn run() {
     app::build()
         .run(tauri::generate_context!())

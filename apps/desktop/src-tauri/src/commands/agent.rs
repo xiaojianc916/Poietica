@@ -43,12 +43,6 @@ const DATABASE_FILE: &str = "ai.sqlite3";
 /// The agent started when the caller does not name one.
 const DEFAULT_AGENT_COMMAND: &str = "kimi acp";
 
-/// Overrides the agent command line without a rebuild.
-///
-/// The live-turn test already reads this name, so the application and the test
-/// choose an agent the same way.
-const COMMAND_ENV: &str = "POIETICA_ACP_COMMAND";
-
 /// What Windows falls back to when PATHEXT is not set.
 #[cfg(windows)]
 const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
@@ -403,11 +397,13 @@ fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Sessio
 
 /// Decides which command line starts the agent.
 ///
-/// An explicit request wins, then the environment, then the built-in default.
+/// Nothing outside the program gets a vote. An environment variable would make
+/// this work on the machine that happens to define it and fail on every other
+/// one, so the caller's choice wins and the built-in default is the only
+/// fallback. Making that name launchable is a separate question, answered by
+/// resolution rather than by configuration.
 fn resolve_command(requested: Option<String>) -> String {
-    let line = requested
-        .or_else(|| env::var(COMMAND_ENV).ok())
-        .unwrap_or_else(|| DEFAULT_AGENT_COMMAND.to_owned());
+    let line = requested.unwrap_or_else(|| DEFAULT_AGENT_COMMAND.to_owned());
 
     executable(&line)
 }

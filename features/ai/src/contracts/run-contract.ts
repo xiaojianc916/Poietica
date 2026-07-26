@@ -31,6 +31,13 @@ export type RunEvent =
       readonly seq: number
       readonly at: number
       readonly sessionId: AcpSessionId
+      /**
+       * What the user asked, as it was recorded.
+       *
+       * Optional because a run recorded before this field existed carries no
+       * prompt, and a run replayed from that log must still be readable.
+       */
+      readonly prompt?: string
     }
   | {
       readonly kind: 'acp_update'

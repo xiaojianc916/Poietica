@@ -79,7 +79,9 @@ fn text_of(frame: &Value, field: &str) -> String {
 fn every_frame_carries_the_fields_the_interface_validates() {
     let mut fixture = fixture();
 
-    fixture.recorder.record_run_started("sess_alpha");
+    fixture
+        .recorder
+        .record_run_started("sess_alpha", "read config.toml");
     fixture.notify(SessionUpdate::ToolCall(
         ToolCall::new("call_001", "Read config.toml")
             .kind(ToolKind::Read)
@@ -107,6 +109,11 @@ fn every_frame_carries_the_fields_the_interface_validates() {
     let started = frames.first().expect("the first frame");
     assert_eq!(text_of(started, "kind"), "run_started");
     assert_eq!(text_of(started, "sessionId"), "sess_alpha");
+    assert_eq!(
+        text_of(started, "prompt"),
+        "read config.toml",
+        "the interface reads the question from the log, not from an echo"
+    );
 
     let update = frames.get(1).expect("the update frame");
     assert_eq!(text_of(update, "kind"), "acp_update");

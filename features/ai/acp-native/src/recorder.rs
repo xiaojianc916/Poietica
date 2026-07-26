@@ -105,9 +105,16 @@ impl Recorder {
         self.failure.take()
     }
 
-    /// Records that the run began, once the session exists.
-    pub fn record_run_started(&mut self, session_id: &str) {
-        let outcome = self.append(RUN_STARTED, json!({ "sessionId": session_id }));
+    /// Records that the run began, and what was asked.
+    ///
+    /// The prompt belongs in the log because the interface has to show it, and
+    /// an agent is under no obligation to echo it back. Recording it here is
+    /// what makes a replayed run show the same conversation as a live one.
+    pub fn record_run_started(&mut self, session_id: &str, prompt: &str) {
+        let outcome = self.append(
+            RUN_STARTED,
+            json!({ "sessionId": session_id, "prompt": prompt }),
+        );
         self.remember(outcome);
     }
 

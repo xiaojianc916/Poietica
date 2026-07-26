@@ -105,6 +105,7 @@ export const runEventSchema = v.variant('kind', [
     seq: v.number(),
     at: v.number(),
     sessionId: v.string(),
+    prompt: v.optional(v.string()),
   }),
   v.object({
     kind: v.literal('acp_update'),

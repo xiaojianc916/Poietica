@@ -51,7 +51,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
 
   switch (event.kind) {
     case 'run_started':
-      return { ...base, status: 'running' }
+      return { ...base, status: 'running', items: withPrompt(base.items, event) }
 
     case 'acp_update':
       return applyAcpUpdate(base, event.notification.update, event.seq, event.at)
@@ -214,6 +214,24 @@ function applyAcpUpdate(
     default:
       return state
   }
+}
+
+/**
+ * Opens the timeline with what the user said.
+ *
+ * The prompt is read out of the run log rather than remembered by the
+ * interface, so a replayed run and a live run show the same conversation. A
+ * recording made before the prompt was logged carries none, and adds nothing.
+ */
+function withPrompt(
+  items: readonly TimelineItem[],
+  event: { readonly seq: number; readonly at: number; readonly prompt?: string },
+): readonly TimelineItem[] {
+  if (event.prompt === undefined || event.prompt.length === 0) return items
+  return [
+    ...items,
+    { type: 'user_message', id: 'user-' + String(event.seq), at: event.at, text: event.prompt },
+  ]
 }
 
 function appendChunk(

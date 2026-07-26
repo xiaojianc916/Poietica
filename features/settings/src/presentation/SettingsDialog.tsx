@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   Switch,
 } from '@poietica/foundations-design-system'
-import { type ChangeEvent, memo, type ReactNode, useCallback, useId, useState } from 'react'
+import { type ChangeEvent, memo, type ReactNode, useCallback, useState } from 'react'
 import type { AppSettings, ThemeMode } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 import {
@@ -199,13 +199,9 @@ const GeneralSettings = memo(function GeneralSettings({
   controller,
 }: SettingsPanelProps) {
   return (
-    <SettingsPage
-      description="控制应用外观、界面语言和文档保存方式。"
-      eyebrow="Application"
-      title="常规"
-    >
-      <SettingsGroup description="界面会立即预览颜色模式，取消时恢复原来的主题。" title="外观">
-        <SettingRow description="选择适合当前环境的应用颜色模式。" label="颜色模式">
+    <SettingsPage>
+      <SettingsGroup title="外观">
+        <SettingRow label="颜色模式">
           <SettingsSelect
             ariaLabel="颜色模式"
             onChange={(theme) => {
@@ -223,7 +219,7 @@ const GeneralSettings = memo(function GeneralSettings({
           />
         </SettingRow>
 
-        <SettingRow description="更改应用菜单与设置界面的显示语言。" label="界面语言">
+        <SettingRow label="界面语言">
           <SettingsSelect
             ariaLabel="界面语言"
             onChange={(value) => {
@@ -241,10 +237,9 @@ const GeneralSettings = memo(function GeneralSettings({
         </SettingRow>
       </SettingsGroup>
 
-      <SettingsGroup description="自动保存只写入当前文档，不会创建第二套画布状态。" title="保存">
+      <SettingsGroup title="保存">
         <ToggleRow
           checked={settings.autoSave}
-          description="编辑时定期将 TLStore 文档快照安全写入当前文件。"
           label="自动保存"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -255,7 +250,7 @@ const GeneralSettings = memo(function GeneralSettings({
         />
 
         {settings.autoSave ? (
-          <SettingRow description="频繁保存更安全，较长间隔可以减少磁盘写入。" label="保存间隔">
+          <SettingRow label="保存间隔">
             <SettingsSelect
               ariaLabel="自动保存间隔"
               onChange={(value) => {
@@ -275,7 +270,7 @@ const GeneralSettings = memo(function GeneralSettings({
           </SettingRow>
         ) : null}
 
-        <SettingRow description="将应用、画布、导出和隐私选项恢复为初始值。" label="恢复默认设置">
+        <SettingRow label="恢复默认设置">
           <Button
             disabled={controller.saving}
             onClick={controller.reset}
@@ -292,15 +287,10 @@ const GeneralSettings = memo(function GeneralSettings({
 
 const CanvasSettings = memo(function CanvasSettings({ settings, controller }: SettingsPanelProps) {
   return (
-    <SettingsPage
-      description="调整 tldraw 画布的视图辅助功能和默认行为。"
-      eyebrow="Canvas"
-      title="画布"
-    >
-      <SettingsGroup description="这些选项只改变画布交互和显示，不复制文档状态。" title="视图">
+    <SettingsPage>
+      <SettingsGroup title="视图">
         <ToggleRow
           checked={settings.canvas.infiniteCanvas}
-          description="允许在所有方向持续扩展工作区域。"
           label="无限画布"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -315,7 +305,6 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.canvas.showRulers}
-          description="在画布边缘显示位置和尺寸参考。"
           label="显示标尺"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -328,7 +317,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
           }}
         />
 
-        <SettingRow description="新建或首次打开画布时使用的缩放比例。" label="默认缩放">
+        <SettingRow label="默认缩放">
           <SettingsSelect
             ariaLabel="默认画布缩放"
             onChange={(value) => {
@@ -351,10 +340,9 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
         </SettingRow>
       </SettingsGroup>
 
-      <SettingsGroup description="网格提供视觉参考，吸附用于更精确地排列图形。" title="网格与吸附">
+      <SettingsGroup title="网格与吸附">
         <ToggleRow
           checked={settings.canvas.showGrid}
-          description="在画布背景中显示轻量辅助网格。"
           label="显示网格"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -369,7 +357,6 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.canvas.snapToGrid}
-          description="移动和创建图形时自动对齐到网格。"
           label="吸附到网格"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -382,7 +369,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
           }}
         />
 
-        <SettingRow description="控制网格线和吸附点之间的距离。" label="网格尺寸">
+        <SettingRow label="网格尺寸">
           <SettingsSelect
             ariaLabel="画布网格尺寸"
             disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}
@@ -413,13 +400,9 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
 
 const ExportSettings = memo(function ExportSettings({ settings, controller }: SettingsPanelProps) {
   return (
-    <SettingsPage
-      description="设置画布导出的默认格式、清晰度和文档信息。"
-      eyebrow="Export"
-      title="导出"
-    >
-      <SettingsGroup description="导出不会修改画布中的原始 TLStore 文档记录。" title="默认输出">
-        <SettingRow description="执行快速导出时优先使用的文件格式。" label="文件格式">
+    <SettingsPage>
+      <SettingsGroup title="默认输出">
+        <SettingRow label="文件格式">
           <SettingsSelect
             ariaLabel="默认导出格式"
             onChange={(value) => {
@@ -440,7 +423,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
           />
         </SettingRow>
 
-        <SettingRow description="用于 PNG 导出的像素密度。" label="PNG 清晰度">
+        <SettingRow label="PNG 清晰度">
           <SettingsSelect
             ariaLabel="PNG 导出清晰度"
             onChange={(value) => {
@@ -462,7 +445,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
           />
         </SettingRow>
 
-        <SettingRow description="较高质量会生成更大的 PDF 文件。" label="PDF 质量">
+        <SettingRow label="PDF 质量">
           <SettingsSelect
             ariaLabel="PDF 导出质量"
             onChange={(value) => {
@@ -487,7 +470,6 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.export.includeMetadata}
-          description="在支持的格式中保留应用版本和画布元数据。"
           label="包含元数据"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -509,11 +491,7 @@ const PrivacySettings = memo(function PrivacySettings({
   controller,
 }: SettingsPanelProps) {
   return (
-    <SettingsPage
-      description="Poietica 默认以本地优先方式处理文档和设置。"
-      eyebrow="Privacy"
-      title="隐私"
-    >
+    <SettingsPage>
       <div className="settings-privacy-note">
         <span aria-hidden="true" className="settings-privacy-note__icon">
           ✓
@@ -525,10 +503,9 @@ const PrivacySettings = memo(function PrivacySettings({
         </div>
       </div>
 
-      <SettingsGroup description="你可以独立控制每一种联网或诊断行为。" title="诊断与更新">
+      <SettingsGroup title="诊断与更新">
         <ToggleRow
           checked={settings.privacy.telemetry}
-          description="发送不包含画布内容的匿名功能使用统计。"
           label="匿名使用数据"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -543,7 +520,6 @@ const PrivacySettings = memo(function PrivacySettings({
 
         <ToggleRow
           checked={settings.privacy.crashReporting}
-          description="发生崩溃时发送诊断信息，不包含画布文档。"
           label="崩溃报告"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -558,7 +534,6 @@ const PrivacySettings = memo(function PrivacySettings({
 
         <ToggleRow
           checked={settings.privacy.updateCheck}
-          description="启动后检查是否存在新的稳定版本。"
           label="自动检查更新"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -577,11 +552,7 @@ const PrivacySettings = memo(function PrivacySettings({
 
 const AboutSettings = memo(function AboutSettings() {
   return (
-    <SettingsPage
-      description="一个以 tldraw 为核心的本地优先桌面画布应用。"
-      eyebrow="About"
-      title="Poietica"
-    >
+    <SettingsPage>
       <div className="settings-about-card">
         <div aria-hidden="true" className="settings-about-card__logo">
           HC
@@ -646,20 +617,12 @@ const AboutSettings = memo(function AboutSettings() {
 })
 
 interface SettingsPageProps {
-  readonly eyebrow: string
-  readonly title: string
-  readonly description: string
   readonly children: ReactNode
 }
 
-function SettingsPage({ title, description, children }: SettingsPageProps) {
+function SettingsPage({ children }: SettingsPageProps) {
   return (
     <section className="settings-page">
-      <header className="settings-page__header">
-        <h2>{title}</h2>
-        <p>{description}</p>
-      </header>
-
       <div className="settings-page__body">{children}</div>
     </section>
   )
@@ -667,16 +630,14 @@ function SettingsPage({ title, description, children }: SettingsPageProps) {
 
 interface SettingsGroupProps {
   readonly title: string
-  readonly description?: string
   readonly children: ReactNode
 }
 
-function SettingsGroup({ title, description, children }: SettingsGroupProps) {
+function SettingsGroup({ title, children }: SettingsGroupProps) {
   return (
     <section className="settings-group">
       <header className="settings-group__header">
         <h3>{title}</h3>
-        {description ? <p>{description}</p> : null}
       </header>
 
       <div className="settings-group__surface">{children}</div>
@@ -686,16 +647,14 @@ function SettingsGroup({ title, description, children }: SettingsGroupProps) {
 
 interface SettingRowProps {
   readonly label: string
-  readonly description: string
   readonly children: ReactNode
 }
 
-function SettingRow({ label, description, children }: SettingRowProps) {
+function SettingRow({ label, children }: SettingRowProps) {
   return (
     <div className="settings-row">
       <div className="settings-row__copy">
         <strong>{label}</strong>
-        <p>{description}</p>
       </div>
 
       <div className="settings-row__control">{children}</div>
@@ -706,27 +665,18 @@ function SettingRow({ label, description, children }: SettingRowProps) {
 interface ToggleRowProps {
   readonly checked: boolean
   readonly label: string
-  readonly description: string
   readonly onChange: (checked: boolean) => void
 }
 
-function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
-  const descriptionId = useId()
-
+function ToggleRow({ checked, label, onChange }: ToggleRowProps) {
   return (
     <div className="settings-row">
       <div className="settings-row__copy">
         <strong>{label}</strong>
-        <p id={descriptionId}>{description}</p>
       </div>
 
       <div className="settings-row__control">
-        <Switch
-          aria-describedby={descriptionId}
-          aria-label={label}
-          checked={checked}
-          onCheckedChange={onChange}
-        />
+        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
       </div>
     </div>
   )
