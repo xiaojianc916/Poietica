@@ -192,6 +192,11 @@ const TOOL_CALL_COLUMNS: &str = "id, title, kind, status, started_at, ended_at";
 const PERMISSION_COLUMNS: &str =
     "request_id, tool_call_id, outcome, requested_at, resolved_at";
 
+#[expect(
+    clippy::multiple_inherent_impl,
+    reason = "the projections are a separate concern from opening the store, \
+and keeping them in their own file is what keeps both files readable"
+)]
 impl AiStore {
     /// Records a tool call the agent just announced.
     ///

@@ -962,3 +962,22 @@
 .assistant-model-select__label {
   white-space: nowrap;
 }
+
+/* --- round 73: the model list --- */
+
+.assistant-model-select__caret {
+  block-size: 1em;
+  inline-size: 1em;
+  opacity: 0.55;
+}
+
+.assistant-model-option {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* The entry in use is stated, not merely implied by order. */
+.assistant-model-option[data-active="true"] .assistant-model-option__label {
+  font-weight: 600;
+}

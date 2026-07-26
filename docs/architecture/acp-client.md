@@ -634,15 +634,30 @@ failure, which is a category. The public error table stays exactly as strict
 as it was: it exists to stop our internals reaching the webview, not to
 silence the agent.
 
-## The model is switched by the agent, in its own words
+## A window offers a list, never a command line
 
-The agent owns its model, its providers and its credentials, and it already
-ships the switch as a command. So the composer control sends that command and
-nothing else. It parses no config, caches no model list, and keeps no selected
-model of its own, which is why it cannot show something the agent has stopped
-believing: there is no second copy of the truth to go stale.
+The model is not a protocol matter. The ACP surface we pin carries sessions,
+prompts, permissions and MCP servers, and says nothing about which weights
+answer, so there is no request that could switch a model on a live session.
+
+The command a terminal accepts is not a substitute for one. Sent through a
+prompt it is a sentence addressed to the agent, and the agent answered exactly
+as it should: it knows no such command. Treating a terminal affordance as an
+interface affordance was a category error, and it is recorded here so it is
+not repeated.
+
+What remains is the truth the agent actually consults: its own configuration,
+read when it starts. So the list is read from that file, a choice is written
+back to it, and the session is rebuilt so the agent reads it again. The
+transcript is untouched by that, because a conversation is not a session, and
+the only thing that changes on screen is which entry the control names.
+
+Nothing about the choice is remembered by this interface. The file is the
+record; anything cached here would be a second copy of the truth, free to go
+stale the moment the person edits their config by hand.
 
 A provider mark is a file in the assets folder and nothing more. An
 unrecognised provider resolves to a neutral mark rather than to nothing,
 because a control that renders nothing and a control that failed to load look
-identical to the person using it.
+identical to the person using it. And with no list at all there is no control:
+an empty picker is a promise the surface cannot keep.

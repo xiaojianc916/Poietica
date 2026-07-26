@@ -15,9 +15,9 @@ pub const KEY_ACCOUNT: &str = "ai-store";
 
 const KEY_BYTES: usize = 32;
 
-/// A raw SQLCipher key.
+/// A raw `SQLCipher` key.
 ///
-/// A raw key is used rather than a passphrase, which means SQLCipher performs
+/// A raw key is used rather than a passphrase, which means `SQLCipher` performs
 /// no key derivation when opening the database. Deriving a key from a
 /// passphrase would cost hundreds of thousands of PBKDF2 rounds on every open
 /// and add nothing, because the material already has full entropy.
@@ -55,7 +55,7 @@ impl DatabaseKey {
         Ok(Self(bytes))
     }
 
-    /// Renders the key for the SQLCipher pragma.
+    /// Renders the key for the `SQLCipher` pragma.
     #[must_use]
     pub fn to_hex(&self) -> String {
         hex::encode(self.0)

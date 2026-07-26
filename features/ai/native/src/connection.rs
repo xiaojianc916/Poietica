@@ -7,12 +7,12 @@ use crate::error::{Result, StoreError};
 use crate::key::DatabaseKey;
 
 /// How long a writer waits for the lock before giving up.
-pub const DEFAULT_BUSY_TIMEOUT: Duration = Duration::from_millis(5000);
+pub const DEFAULT_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Opens an encrypted database and puts it into the configuration the rest of
 /// the crate assumes.
 ///
-/// The order matters. SQLCipher needs the key before any other statement, and
+/// The order matters. `SQLCipher` needs the key before any other statement, and
 /// the key is only proven correct once a page is actually read, which is why
 /// the schema is queried immediately: a wrong key fails here rather than
 /// somewhere deep in a later query.

@@ -17,25 +17,25 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from './composer/prompt-input'
+import { ModelSelect } from './composer/model-select'
 import type { ChatStatus } from '../contracts/chat-status-contract'
+import type { AgentModel } from '../contracts/model-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
-import { ProviderIcon } from './primitives/provider-icon'
 import { useEditorGrowth } from './useEditorGrowth'
 
 /*
- * The model is chosen through the agent, not around it.
+ * The model is offered as a list, because this is a window.
  *
- * Under ACP the agent owns its model and its credentials, and Kimi already
- * ships the switch as a command of its own. So this control does not read the
- * agent config, does not keep a model list, and does not hold a state that
- * could disagree with the agent: it sends the command down the same path as
- * any other message, and the agent answers it in the transcript like anything
- * else it is asked. Nothing here can drift out of step, because nothing here
- * is remembered.
+ * The pinned ACP surface has no model API, so the choice is not a protocol
+ * operation and cannot be sent down this connection at all; and the command a
+ * terminal would accept is, through a prompt, merely a sentence addressed to
+ * the agent. The composer therefore shows what it is given and reports what
+ * was picked, and the work of making it true happens where the agent reads
+ * its own configuration.
+ *
+ * With no list, there is no control: an empty picker would be a promise this
+ * surface cannot keep.
  */
-
-/** The switch as the agent spells it. */
-const MODEL_COMMAND = '/model'
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
@@ -43,6 +43,10 @@ export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
+  /** Models the agent config declares. Absent while they are unknown. */
+  readonly models?: readonly AgentModel[]
+  readonly activeModelId?: string
+  readonly onSelectModel?: (modelId: string) => void
 }
 
 export function AssistantComposer({
@@ -51,6 +55,9 @@ export function AssistantComposer({
   placeholder = '问我任何问题…',
   status = 'ready',
   onSubmit,
+  models = [],
+  activeModelId,
+  onSelectModel,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
 
@@ -198,22 +205,7 @@ export function AssistantComposer({
             {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
           </PromptInputButton>
 
-          {/* A plain button on purpose: the submit path belongs to the form,
-              and this asks the agent something instead of submitting what is
-              being written, so it must not carry the editor content with it. */}
-          <button
-            aria-label="切换模型"
-            className="assistant-control--ghost assistant-model-select"
-            onClick={(event) => {
-              event.preventDefault()
-              onSubmit({ text: MODEL_COMMAND, files: [] })
-            }}
-            type="button"
-          >
-            <ProviderIcon />
-
-            <span className="assistant-model-select__label">模型</span>
-          </button>
+          <ModelSelect activeModelId={activeModelId} models={models} onSelect={onSelectModel} />
         </PromptInputTools>
 
         <span className="assistant-toolbar__spacer" />
