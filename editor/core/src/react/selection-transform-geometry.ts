@@ -159,64 +159,108 @@ export function commitSelectionTransform({
  * soon as they have. In the ordinary case, where everything is resizable and
  * rotatable, the old code walked all three to completion anyway.
  */
+/*
+ * 遍历期间累加的可变状态。
+ *
+ * 之所以是一个可变对象而不是每个 shape 返回一个新的部分结果：拖拽期间这条路
+ * 径每帧都会跑，按 shape 分配对象会把上面注释里刚省下来的开销原样还回去。
+ * 遍历次数、每个 shape 的 getShapeUtil 查询次数、整体分配次数都与拆分前一致，
+ * 拆开的只是"观察什么"这件事本身。
+ */
+interface SelectionSurveyAccumulator {
+  firstRotation: number | null
+  hasMixedRotation: boolean
+  hasLockedShape: boolean
+  allResizable: boolean
+  allRotatable: boolean
+  hasForcedAspectRatio: boolean
+}
+
 function surveySelection(editor: Editor, shapes: TLShape[]): SelectionSurvey {
-  let firstRotation: number | null = null
-  let hasMixedRotation = false
-  let hasLockedShape = false
-  let allResizable = true
-  let allRotatable = true
-  let hasForcedAspectRatio = false
+  const survey: SelectionSurveyAccumulator = {
+    firstRotation: null,
+    hasMixedRotation: false,
+    hasLockedShape: false,
+    allResizable: true,
+    allRotatable: true,
+    hasForcedAspectRatio: false,
+  }
 
   for (const shape of shapes) {
-    const rotation = editor.getShapePageTransform(shape)?.rotation() ?? 0
-
-    if (firstRotation === null) {
-      firstRotation = rotation
-    } else if (
-      !hasMixedRotation &&
-      Math.abs(normalizeRadians(rotation - firstRotation)) > EPSILON
-    ) {
-      hasMixedRotation = true
-    }
-
     if (shape.isLocked) {
-      hasLockedShape = true
+      survey.hasLockedShape = true
     }
 
-    if (allResizable || allRotatable || !hasForcedAspectRatio) {
-      // One lookup per shape, shared by all three capability predicates.
-      const util = editor.getShapeUtil(shape)
-
-      if (
-        allResizable &&
-        !(
-          util.canResize(shape) &&
-          util.canBeLaidOut(shape, {
-            type: 'resize_to_bounds',
-            shapes,
-          })
-        )
-      ) {
-        allResizable = false
-      }
-
-      if (allRotatable && util.hideRotateHandle(shape)) {
-        allRotatable = false
-      }
-
-      if (!hasForcedAspectRatio && util.isAspectRatioLocked(shape)) {
-        hasForcedAspectRatio = true
-      }
-    }
+    observeRotation(survey, editor, shape)
+    observeShapeUtilCapability(survey, editor, shape, shapes)
   }
 
   return {
-    firstRotation: firstRotation ?? 0,
-    hasMixedRotation,
-    hasLockedShape,
-    allResizable,
-    allRotatable,
-    hasForcedAspectRatio,
+    firstRotation: survey.firstRotation ?? 0,
+    hasMixedRotation: survey.hasMixedRotation,
+    hasLockedShape: survey.hasLockedShape,
+    allResizable: survey.allResizable,
+    allRotatable: survey.allRotatable,
+    hasForcedAspectRatio: survey.hasForcedAspectRatio,
+  }
+}
+
+/*
+ * 第一个 shape 定义基准角度，后续 shape 只需要回答"是否偏离基准"，一旦确认
+ * 偏离就不再比较。
+ */
+function observeRotation(survey: SelectionSurveyAccumulator, editor: Editor, shape: TLShape): void {
+  const rotation = editor.getShapePageTransform(shape)?.rotation() ?? 0
+
+  if (survey.firstRotation === null) {
+    survey.firstRotation = rotation
+    return
+  }
+
+  if (survey.hasMixedRotation) {
+    return
+  }
+
+  if (Math.abs(normalizeRadians(rotation - survey.firstRotation)) > EPSILON) {
+    survey.hasMixedRotation = true
+  }
+}
+
+/*
+ * 三个能力判定都要问 ShapeUtil，所以共用一次查询。三个结论全部落定之后整个
+ * 分支就没有任何可改变的东西了，直接跳过查询。
+ */
+function observeShapeUtilCapability(
+  survey: SelectionSurveyAccumulator,
+  editor: Editor,
+  shape: TLShape,
+  shapes: TLShape[],
+): void {
+  if (!survey.allResizable && !survey.allRotatable && survey.hasForcedAspectRatio) {
+    return
+  }
+
+  const util = editor.getShapeUtil(shape)
+
+  if (
+    survey.allResizable &&
+    !(
+      util.canResize(shape) &&
+      util.canBeLaidOut(shape, {
+        type: 'resize_to_bounds',
+        shapes,
+      })
+    )
+  ) {
+    survey.allResizable = false
+  }
+
+  if (survey.allRotatable && util.hideRotateHandle(shape)) {
+    survey.allRotatable = false
+  }
+
+  if (!survey.hasForcedAspectRatio && util.isAspectRatioLocked(shape)) {
+    survey.hasForcedAspectRatio = true
   }
 }
 

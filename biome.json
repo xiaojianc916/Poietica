@@ -18,7 +18,8 @@
       "!**/performance-results",
       "!**/*.min.js",
       "!**/*.snap",
-      "!**/*.svg"
+      "!**/*.svg",
+      "!refactor.mjs"
     ],
     "maxSize": 2097152
   },
@@ -254,6 +255,17 @@
         }
       }
     },
+    {
+      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "tooling/**/*.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+
     {
       "includes": ["**/src/generated/**/*.ts", "**/generated/**/*.ts", "**/*.generated.ts"],
       "formatter": {

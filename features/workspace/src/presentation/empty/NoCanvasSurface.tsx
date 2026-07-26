@@ -40,7 +40,7 @@ export function NoCanvasSurface({ onCreateDocument, onOpenDocument }: NoCanvasSu
           创建一张无限画布，或打开已有的画布文件。
         </p>
 
-        <div aria-label="画布操作" className="mx-auto mt-6 flex w-fit flex-col items-center gap-1">
+        <div className="mx-auto mt-6 flex w-fit flex-col items-center gap-1">
           <Button
             className="h-9 gap-2 px-3 text-primary hover:bg-primary/10 hover:text-primary"
             onClick={onCreateDocument}

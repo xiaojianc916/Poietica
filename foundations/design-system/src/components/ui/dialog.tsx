@@ -156,7 +156,14 @@ export function Dialog({
                   </Button>
                 ) : null}
               </header>
-            ) : null}
+            ) : (
+              /*
+               * 模态对话框必须有名称。隐藏视觉表头不等于放弃无障碍名称：
+               * showHeader 为 false 时 header 整块不渲染，BaseDialog.Title
+               * 也随之消失，对话框就没有任何可访问名称了。
+               */
+              <BaseDialog.Title className="sr-only">{title}</BaseDialog.Title>
+            )}
 
             {children !== undefined && children !== null ? (
               <div className={cn('min-h-0 flex-1', 'overflow-auto', contentClassName)}>

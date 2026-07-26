@@ -12,8 +12,8 @@ import {
   SelectTrigger,
   Switch,
 } from '@poietica/foundations-design-system'
-import { type ChangeEvent, memo, type ReactNode, useCallback, useState } from 'react'
-import type { AppSettings, ThemeMode } from '../domain/settings'
+import { memo, type ReactNode, useCallback, useState } from 'react'
+import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 import {
   type SettingsController,

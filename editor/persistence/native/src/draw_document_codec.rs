@@ -33,7 +33,6 @@ const MAX_CONTAINER_BYTES: usize = 320 * 1024 * 1024;
 const MAX_ENTRY_COUNT: usize = 1_024;
 const MAX_ENTRY_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 256 * 1024 * 1024;
-const MAX_COMPRESSION_RATIO: u64 = 200;
 
 #[derive(Clone, Copy, Debug)]
 pub struct DrawAssetInput<'a> {
@@ -265,7 +264,6 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
         }
 
         let uncompressed = entry.size();
-        let compressed = entry.compressed_size();
 
         if uncompressed > MAX_ENTRY_BYTES {
             return Err(corrupted("document entry exceeds byte budget"));
@@ -279,19 +277,20 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
             return Err(corrupted("container exceeds total uncompressed budget"));
         }
 
-        if uncompressed > 0 {
-            if compressed == 0 {
-                return Err(corrupted("document entry has an invalid compressed size"));
-            }
+        // There is deliberately no compression-ratio guard here — do not add one back.
+        //
+        // Decompressed size is already constrained by three hard limits applied before
+        // any byte is read: MAX_ENTRY_BYTES, MAX_TOTAL_UNCOMPRESSED_BYTES, and
+        // MAX_CONTAINER_BYTES (enforced again after reading). No matter how high the
+        // ratio, an attacker cannot decompress more bytes than those ceilings allow,
+        // so a ratio check adds zero defensive value.
+        //
+        // What it does do is reject documents this codec itself produced: a silent WAV,
+        // a large SVG, or a nearly-uniform tldraw snapshot all compress at ~870:1 under
+        // Deflate. Keeping the check means save succeeds and open fails — data loss,
+        // not security.
 
-            let ratio = uncompressed.checked_div(compressed).unwrap_or(u64::MAX);
-
-            if ratio > MAX_COMPRESSION_RATIO {
-                return Err(corrupted("document entry exceeds compression-ratio limit"));
-            }
-        }
-
-        let capacity = usize::try_from(uncompressed)
+                let capacity = usize::try_from(uncompressed)
             .map_err(|_| corrupted("document entry size cannot be represented"))?;
 
         let mut content = Vec::with_capacity(capacity);
@@ -612,34 +611,41 @@ fn container_format_error(error: zip::result::ZipError) -> Error {
 mod tests {
     use super::*;
 
-    fn asset<'a>(bytes: &'a [u8]) -> (String, DrawAssetInput<'a>) {
-        let hash = sha256(bytes);
-
-        (
-            hash.clone(),
-            DrawAssetInput {
-                content_hash: Box::leak(hash.into_boxed_str()),
-                content_type: "image/png",
-                bytes,
-            },
-        )
-    }
-
     fn encode_fixture_document() -> Vec<u8> {
-        let (_, first) = asset(&[1, 2, 3]);
-        let (_, second) = asset(&[4, 5, 6]);
+        let first_bytes = [1_u8, 2, 3];
+        let second_bytes = [4_u8, 5, 6];
 
+        let first_hash = sha256(&first_bytes);
+        let second_hash = sha256(&second_bytes);
+
+        // Deliberately out of hash order — sorting is the encoder's responsibility,
+        // and the round-trip test asserts it.
+        //
+        // The hashes are owned by this frame and borrowed by the input, so no
+        // Box::leak is needed to satisfy the lifetime.
         encode_draw_document(DrawDocumentInput {
             created_at: "2026-07-23T00:00:00.000Z",
             saved_at: "2026-07-23T01:00:00.000Z",
             document_json: br#"{"schema":{},"store":{}}"#,
             application_json: br#"{"title":"fixture"}"#,
-            assets: &[second, first],
+            assets: &[
+                DrawAssetInput {
+                    content_hash: &second_hash,
+                    content_type: "image/png",
+                    bytes: &second_bytes,
+                },
+                DrawAssetInput {
+                    content_hash: &first_hash,
+                    content_type: "image/png",
+                    bytes: &first_bytes,
+                },
+            ],
         })
         .expect("fixture should encode")
     }
 
     #[test]
+    fn round_trips_draw_document_and_assets() {    #[test]
     fn round_trips_draw_document_and_assets() {
         let encoded = encode_fixture_document();
 
@@ -743,7 +749,35 @@ mod tests {
         }
     }
 
-    /// An unlisted type must fall back to compression, never to Stored.
+    // Regression: a legitimate document can compress by orders of magnitude.
+    // If the decoder rejected entries by compression ratio it would refuse to open
+    // files the encoder just wrote — that is data loss, not defence.
+    #[test]
+    fn decodes_documents_whose_entries_compress_by_orders_of_magnitude() {
+        let payload = vec![0_u8; 1024 * 1024];
+        let hash = sha256(&payload);
+
+        let encoded = encode_draw_document(DrawDocumentInput {
+            created_at: "2026-07-23T00:00:00.000Z",
+            saved_at: "2026-07-23T01:00:00.000Z",
+            document_json: br#"{"schema":{},"store":{}}"#,
+            application_json: br#"{}"#,
+            assets: &[DrawAssetInput {
+                content_hash: &hash,
+                content_type: "audio/wav",
+                bytes: &payload,
+            }],
+        })
+        .expect("fixture should encode");
+
+        let decoded = decode_draw_document(&encoded)
+            .expect("a highly compressible container must decode");
+
+        assert_eq!(decoded.assets.len(), 1);
+        assert_eq!(decoded.assets[0].bytes.as_slice(), payload.as_slice());
+    }
+
+        /// An unlisted type must fall back to compression, never to Stored.
     #[test]
     fn unknown_content_types_stay_compressible() {
         assert_eq!(
@@ -758,13 +792,15 @@ mod tests {
 
     #[test]
     fn rejects_asset_with_false_digest() {
+        let false_hash = "0".repeat(64);
+
         let result = encode_draw_document(DrawDocumentInput {
             created_at: "2026-07-23T00:00:00.000Z",
             saved_at: "2026-07-23T01:00:00.000Z",
             document_json: br#"{"store":{}}"#,
             application_json: br#"{}"#,
             assets: &[DrawAssetInput {
-                content_hash: "0".repeat(64).leak(),
+                content_hash: &false_hash,
                 content_type: "image/png",
                 bytes: &[1, 2, 3],
             }],

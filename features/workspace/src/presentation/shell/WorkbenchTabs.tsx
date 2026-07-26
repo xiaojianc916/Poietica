@@ -24,14 +24,14 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
 
   const activeTabId = tabs.find((tab) => tab.isActive)?.id
 
-  const layoutKey = useMemo(
+  const tabsGeometryKey = useMemo(
     () => tabs.map((tab) => [tab.id, tab.title].join(':')).join('|'),
     [tabs],
   )
 
   const viewport = useWorkbenchTabsViewport({
     activeTabId,
-    layoutKey,
+    tabsGeometryKey,
   })
 
   const focusNewTab = useCallback(() => {

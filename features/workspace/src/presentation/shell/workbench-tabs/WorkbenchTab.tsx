@@ -1,5 +1,5 @@
 import { FilePlus, FileText, X } from '@mynaui/icons-react'
-import type { ComponentType, DragEvent, KeyboardEvent } from 'react'
+import type { ComponentType, KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import type { WorkbenchTabDragBindings } from './use-workbench-tabs-interactions'
 import { describeWorkspaceSurface } from '../surface-registry'

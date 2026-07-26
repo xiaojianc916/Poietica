@@ -184,6 +184,95 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
 
 /* -------------------------------------------------------------- */
 
+/*
+ * 收窄后的协议更新类型。用 Extract 而不是在 contracts 里新导出七个成员名：
+ * 判别式已经在类型里了，再手抄一份就是第二份需要同步维护的清单。
+ */
+type AcpUpdateOf<TKind extends AcpSessionUpdate['sessionUpdate']> = Extract<
+  AcpSessionUpdate,
+  { sessionUpdate: TKind }
+>
+
+/*
+ * 需要和既有条目对账的两个分支各自独立。派发表因此只剩"哪种更新交给谁"，
+ * 而每个投影都可以在不看见另外六个分支的情况下读懂。
+ */
+function applyToolCall(
+  state: TimelineState,
+  update: AcpUpdateOf<'tool_call'>,
+  scope: string,
+  at: number,
+): TimelineState {
+  const id = `${scope}tool-${update.toolCallId}`
+  const existing = indexOfId(state.items, id)
+  const created: ToolCallTimelineItem = {
+    type: 'tool_call',
+    id,
+    at,
+    toolCallId: update.toolCallId,
+    title: update.title,
+    kind: update.kind,
+    status: update.status,
+    content: update.content ?? [],
+    locations: update.locations ?? [],
+    rawInput: update.rawInput,
+    startedAt: at,
+  }
+  if (existing < 0) {
+    return { ...state, items: [...sealTail(state.items), created] }
+  }
+  return { ...state, items: replaceAt(state.items, existing, created) }
+}
+
+function applyToolCallUpdate(
+  state: TimelineState,
+  update: AcpUpdateOf<'tool_call_update'>,
+  scope: string,
+  at: number,
+): TimelineState {
+  const id = `${scope}tool-${update.toolCallId}`
+  const index = indexOfId(state.items, id)
+  if (index < 0) {
+    const placeholder: ToolCallTimelineItem = {
+      type: 'tool_call',
+      id,
+      at,
+      toolCallId: update.toolCallId,
+      title: update.title ?? update.toolCallId,
+      kind: update.kind ?? 'other',
+      status: update.status ?? 'in_progress',
+      content: update.content ?? [],
+      locations: update.locations ?? [],
+      rawOutput: update.rawOutput,
+      startedAt: at,
+    }
+    return { ...state, items: [...sealTail(state.items), placeholder] }
+  }
+
+  const current = state.items[index]
+  if (current?.type !== 'tool_call') {
+    return state
+  }
+
+  const status = update.status ?? current.status
+  /* A call that is still running has no end time, which is not the same as
+         having one that is undefined. The distinction is the whole point of
+         exactOptionalPropertyTypes, so the property is omitted rather than set
+         to nothing. An end, once recorded, is never moved. */
+  const endedAt = isTerminal(status) ? (current.endedAt ?? at) : current.endedAt
+  const merged: ToolCallTimelineItem = {
+    ...current,
+    title: update.title ?? current.title,
+    kind: update.kind ?? current.kind,
+    status,
+    content: update.content ?? current.content,
+    locations: update.locations ?? current.locations,
+    rawOutput: update.rawOutput ?? current.rawOutput,
+    ...(endedAt === undefined ? {} : { endedAt }),
+  }
+  return { ...state, items: replaceAt(state.items, index, merged) }
+}
+
 function applyAcpUpdate(
   state: TimelineState,
   update: AcpSessionUpdate,
@@ -219,71 +308,11 @@ function applyAcpUpdate(
         items: appendChunk(state.items, 'agent_thought', textOf(update.content), scope, seq, at),
       }
 
-    case 'tool_call': {
-      const id = `${scope}tool-${update.toolCallId}`
-      const existing = indexOfId(state.items, id)
-      const created: ToolCallTimelineItem = {
-        type: 'tool_call',
-        id,
-        at,
-        toolCallId: update.toolCallId,
-        title: update.title,
-        kind: update.kind,
-        status: update.status,
-        content: update.content ?? [],
-        locations: update.locations ?? [],
-        rawInput: update.rawInput,
-        startedAt: at,
-      }
-      if (existing < 0) {
-        return { ...state, items: [...sealTail(state.items), created] }
-      }
-      return { ...state, items: replaceAt(state.items, existing, created) }
-    }
+    case 'tool_call':
+      return applyToolCall(state, update, scope, at)
 
-    case 'tool_call_update': {
-      const id = `${scope}tool-${update.toolCallId}`
-      const index = indexOfId(state.items, id)
-      if (index < 0) {
-        const placeholder: ToolCallTimelineItem = {
-          type: 'tool_call',
-          id,
-          at,
-          toolCallId: update.toolCallId,
-          title: update.title ?? update.toolCallId,
-          kind: update.kind ?? 'other',
-          status: update.status ?? 'in_progress',
-          content: update.content ?? [],
-          locations: update.locations ?? [],
-          rawOutput: update.rawOutput,
-          startedAt: at,
-        }
-        return { ...state, items: [...sealTail(state.items), placeholder] }
-      }
-
-      const current = state.items[index]
-      if (current?.type !== 'tool_call') {
-        return state
-      }
-
-      const status = update.status ?? current.status
-      /* A call that is still running has no end time, which is not the same as
-         having one that is undefined. The distinction is the whole point of
-         exactOptionalPropertyTypes, so the property is omitted rather than set
-         to nothing. An end, once recorded, is never moved. */
-      const endedAt = isTerminal(status) ? (current.endedAt ?? at) : current.endedAt
-      const merged: ToolCallTimelineItem = {
-        ...current,
-        title: update.title ?? current.title,
-        kind: update.kind ?? current.kind,
-        status,
-        content: update.content ?? current.content,
-        locations: update.locations ?? current.locations,
-        rawOutput: update.rawOutput ?? current.rawOutput,
-        ...(endedAt === undefined ? {} : { endedAt }),
-      }
-      return { ...state, items: replaceAt(state.items, index, merged) }
-    }
+    case 'tool_call_update':
+      return applyToolCallUpdate(state, update, scope, at)
 
     case 'plan': {
       /* The protocol replaces the whole plan; keep exactly one plan entry per

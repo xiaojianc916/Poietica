@@ -13,7 +13,7 @@ const VIEWPORT_PADDING = 4
 interface UseWorkbenchTabsViewportOptions {
   readonly activeTabId: WorkbenchTabId | undefined
 
-  readonly layoutKey: string
+  readonly tabsGeometryKey: string
 }
 
 interface WorkbenchTabsViewport {
@@ -30,7 +30,7 @@ interface WorkbenchTabsViewport {
 
 export function useWorkbenchTabsViewport({
   activeTabId,
-  layoutKey,
+  tabsGeometryKey,
 }: UseWorkbenchTabsViewportOptions): WorkbenchTabsViewport {
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
@@ -78,6 +78,14 @@ export function useWorkbenchTabsViewport({
     previousActiveTabIdRef.current = activeTabId
   }, [activeTabId])
 
+  /*
+   * tabsGeometryKey 是变更信号，不是本 effect 读取的值：标签集合或任一标题变化
+   * 都会改变标签宽度，激活标签可能因此被推出可视区，需要重新滚动对齐。
+   *
+   * Biome 把 hook 参数当作外层作用域值，所以把它报成多余依赖；同一个数组里的
+   * activeTabId 来源完全相同却没有被报，区别只在于它在 effect 体内被读取过。
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 删除会让激活标签在标签改名后停留在可视区外
   useEffect(() => {
     if (!activeTabId) {
       return
@@ -115,8 +123,14 @@ export function useWorkbenchTabsViewport({
         behavior: 'auto',
       })
     }
-  }, [activeTabId, layoutKey])
+  }, [activeTabId, tabsGeometryKey])
 
+  /*
+   * 同上。ResizeObserver 无法替代这个信号：重命名排在激活标签之前的标签，会让
+   * 激活标签整体位移而不改变任何被观察盒子的尺寸，ResizeObserver 对纯位移不
+   * 触发，平台也没有位置观察器。这个摘要是目前唯一能感知位移的信号。
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 删除会让激活标签的基线间隙自定义属性失同步
   useLayoutEffect(() => {
     const viewport = viewportRef.current
 
@@ -209,7 +223,7 @@ export function useWorkbenchTabsViewport({
         cancelAnimationFrame(measureFrame)
       }
     }
-  }, [activeTabId, layoutKey])
+  }, [activeTabId, tabsGeometryKey])
 
   const onWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
     const scroller = scrollerRef.current
