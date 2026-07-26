@@ -31,6 +31,7 @@ export interface AssistantSession {
   readonly timeline: TimelineState
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
+  readonly resolvePermission: (requestId: string, optionId: string) => void
 }
 
 const RUN_PLACEHOLDER = 'run_pending'
@@ -73,9 +74,28 @@ export function useAssistantSession({
     void cancelRef.current?.()
   }, [])
 
+  /*
+   * The answer is not applied locally. The native side records it and emits
+   * permission_resolved, which the reducer applies like any other event, so a
+   * replayed run and a live run agree.
+   *
+   * A rejected call means the agent never heard the answer and the turn cannot
+   * continue, which is a failed run rather than a silent stall.
+   */
+  const resolvePermission = useCallback(
+    (requestId: string, optionId: string) => {
+      if (!session) return
+
+      session.resolvePermission(requestId, optionId).catch(() => {
+        setTimeline((current) => ({ ...current, status: 'failed' }))
+      })
+    },
+    [session],
+  )
+
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
 
-  return { status, timeline, send, cancel }
+  return { status, timeline, send, cancel, resolvePermission }
 }
 
 function toChatStatus(status: TimelineState['status']): ChatStatus {

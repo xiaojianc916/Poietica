@@ -6,6 +6,7 @@ import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { TimelineItemPreview } from './TimelineItemPreview'
 import { AssistantQuickActions } from './AssistantQuickActions'
+import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
@@ -54,7 +55,13 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
         {rows.length > 0 ? (
           <AgentActivityFeed
             isBusy={selectIsBusy(assistant.timeline)}
-            renderRow={(row) => <TimelineItemPreview row={row} />}
+            renderRow={(row) =>
+              row.item.type === 'permission' ? (
+                <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
+              ) : (
+                <TimelineItemPreview row={row} />
+              )
+            }
             rows={rows}
           />
         ) : null}

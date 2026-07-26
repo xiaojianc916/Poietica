@@ -301,3 +301,20 @@ slot, `features/ai` declares the port, and neither imports the other; the
 application root is the only module that has both, so it is the only module
 that can join them. A module-level constant could not do this, because the
 session port does not exist until the runtime boots.
+
+## Answering is a decision, never a default
+
+Nothing auto-approves. An agent asking to write a file or run a command is
+asking the person, and a client that answers on their behalf has removed the
+only control the protocol offers.
+
+The question is rendered inline in the activity feed, in the position where the
+run stopped. A dialog would be easier to build and worse to use: it can be
+dismissed by accident, it hides the tool call that prompted it, and it has no
+place in a transcript that must replay.
+
+The click is not the answer. It is sent to the port, and the run moves only
+when `permission_resolved` arrives through the event log. A live run and a
+replayed one therefore pass through exactly the same states. If the call is
+rejected the agent never heard the answer, so the run is marked failed rather
+than left waiting for something that will not come.

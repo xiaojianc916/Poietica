@@ -1,0 +1,69 @@
+/*
+ * The request must read as an interruption, not as another paragraph, so it
+ * carries a border and its own block. Every custom property has a literal
+ * fallback: the component renders correctly even when hosted outside the
+ * assistant skin, which is how fixtures and isolated component work run it.
+ */
+
+.assistant-permission {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--cp-permission-border, currentColor);
+  border-radius: var(--cp-permission-radius, 0.625rem);
+  background: var(--cp-permission-surface, transparent);
+}
+
+.assistant-permission[data-resolved="true"] {
+  opacity: 0.72;
+}
+
+.assistant-permission__title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.assistant-permission__outcome {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  opacity: 0.78;
+}
+
+.assistant-permission__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.assistant-permission__option {
+  min-block-size: var(--ui-control-height-sm, 1.75rem);
+  padding-inline: 0.75rem;
+  border: 1px solid var(--cp-permission-border, currentColor);
+  border-radius: var(--cp-permission-radius, 0.5rem);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.assistant-permission__option[data-kind="allow_once"],
+.assistant-permission__option[data-kind="allow_always"] {
+  font-weight: 600;
+}
+
+.assistant-permission__option[data-pending="true"] {
+  opacity: 0.6;
+}
+
+.assistant-permission__option:disabled {
+  cursor: default;
+}
+
+.assistant-permission__option:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

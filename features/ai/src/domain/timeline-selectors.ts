@@ -1,4 +1,4 @@
-import type { TimelineItem, TimelineState } from '../contracts/timeline-contract'
+import type { PermissionItem, TimelineItem, TimelineState } from '../contracts/timeline-contract'
 
 /**
  * Read models for the activity feed.
@@ -32,8 +32,15 @@ export function selectActiveToolCalls(state: TimelineState): readonly TimelineIt
   )
 }
 
-export function selectPendingPermission(state: TimelineState): TimelineItem | undefined {
-  return state.items.find((item) => item.type === 'permission' && !item.resolution)
+/**
+ * The question the run is currently blocked on, if any.
+ *
+ * At most one: the agent waits for an answer before asking anything else.
+ */
+export function selectPendingPermission(state: TimelineState): PermissionItem | undefined {
+  return state.items.find(
+    (item): item is PermissionItem => item.type === 'permission' && item.resolution === undefined,
+  )
 }
 
 export function selectIsBusy(state: TimelineState): boolean {
