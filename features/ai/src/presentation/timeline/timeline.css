@@ -282,3 +282,21 @@
     opacity: 0.55;
   }
 }
+
+/*
+ * Not an entry, and drawn like one: quiet, small, and clearly the interface
+ * speaking rather than the agent.
+ */
+.timeline-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin: 0;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-size: 0.8125rem;
+}
+
+.timeline-notice__status {
+  font-family: var(--cp-font-mono, ui-monospace, monospace);
+}

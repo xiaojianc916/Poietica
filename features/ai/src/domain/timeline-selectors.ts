@@ -56,3 +56,32 @@ function isRenderable(item: TimelineItem): boolean {
 function isGrowable(item: TimelineItem): boolean {
   return item.type === 'agent_text' || item.type === 'agent_thought'
 }
+
+/** How a turn ended, for a turn that ended without saying anything. */
+export interface TurnOutcome {
+  readonly status: 'completed' | 'cancelled' | 'failed'
+}
+
+/**
+ * A finished turn that produced no entry of its own.
+ *
+ * Two endings are silent by nature: an agent may finish its turn having said
+ * nothing, and a refusal ends a run without ever sending a failure. Both leave
+ * a segment holding only the question, which on screen is indistinguishable
+ * from a transport that lost the answer — so the surface states the ending
+ * instead of drawing nothing.
+ *
+ * Nothing is invented here: the status is the one the reducer derived from the
+ * stop reason of the run.
+ */
+export function selectSilentOutcome(state: TimelineState): TurnOutcome | null {
+  const status = state.status
+
+  if (status !== 'completed' && status !== 'cancelled' && status !== 'failed') return null
+
+  const tail = state.items.filter(isRenderable).at(-1)
+
+  if (tail === undefined || tail.type !== 'user_message') return null
+
+  return { status }
+}

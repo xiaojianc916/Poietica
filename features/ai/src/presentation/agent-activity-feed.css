@@ -1,10 +1,22 @@
+/*
+ * The one scroller on the assistant surface.
+ *
+ * It spans the panel so its scrollbar lands on the edge of the panel. A row
+ * must never look as though it scrolls, and the reliable way to guarantee that
+ * is for no row to be a scroll box and for the scroller to be wider than any
+ * row: the measure is kept by padding, which is inside the scroll box, while
+ * the scrollbar is on its edge. The gutter is reserved so that arriving at a
+ * scrollbar does not shift the text sideways.
+ */
 .agent-activity-feed {
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   contain: strict;
   block-size: 100%;
   min-block-size: 0;
+  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
 .agent-activity-feed__canvas {

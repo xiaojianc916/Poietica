@@ -15,12 +15,22 @@
   white-space: nowrap;
 }
 
+/*
+ * The surface is a frame, not a scroller.
+ *
+ * Exactly one box on this screen scrolls, and it is the transcript. While the
+ * frame could scroll as well the wheel had two possible owners, and the
+ * frame's own padding pushed the transcript's scrollbar inside the panel,
+ * where it reads as a box within the page rather than as the page itself — a
+ * message tall enough to fill the transcript then looked like a message with a
+ * scrollbar of its own. The inset that used to live here is carried by the
+ * parts instead.
+ */
 .assistant-surface {
   display: flex;
   block-size: 100%;
   justify-content: center;
-  overflow-y: auto;
-  padding: var(--cp-gutter);
+  overflow: hidden;
   background: var(--cp-canvas);
   color: var(--cp-ink);
   font-size: var(--cp-font);
@@ -820,8 +830,28 @@
 
 .assistant-surface__column {
   block-size: 100%;
+  inline-size: 100%;
   gap: 0;
   margin-block: 0;
+  padding-block: var(--cp-gutter);
+}
+
+/*
+ * The reading measure belongs to the parts, not to the frame.
+ *
+ * Everything except the transcript is centred to the same width and carries
+ * its own gutter. The transcript spans the whole panel instead and centres its
+ * rows with its own padding, because padding sits inside a scroll box while
+ * the scrollbar sits on its edge: narrow rows, wide scroller, one scrollbar,
+ * against the side of the panel where a window scrollbar belongs.
+ */
+.assistant-surface__intro,
+.assistant-surface__composer,
+.assistant-surface__starters {
+  box-sizing: border-box;
+  inline-size: min(100%, calc(var(--cp-grid) + 2 * var(--cp-gutter)));
+  margin-inline: auto;
+  padding-inline: var(--cp-gutter);
 }
 
 .assistant-surface__spacer {

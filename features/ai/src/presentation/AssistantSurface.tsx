@@ -1,5 +1,7 @@
 import './assistant-composer.css'
 
+import type { ReactNode } from 'react'
+
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
@@ -7,8 +9,10 @@ import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
+import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
-import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
+import type { TurnOutcome } from '../domain/timeline-selectors'
+import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
 import { useAssistantSession } from '../application/useAssistantSession'
 
 export interface AssistantSurfaceProps {
@@ -21,6 +25,27 @@ export interface AssistantSurfaceProps {
    * supplies the real IPC-backed port.
    */
   readonly session?: AgentSessionPort
+}
+
+/*
+ * What the feed shows when the transcript has nothing to show.
+ *
+ * Two states have no entries to render and are not nothing: the wait before
+ * the first frame, and a turn that ended without producing anything. Drawing
+ * an empty column for either is what made a working session and a broken one
+ * look the same. Neither is a timeline entry — both are derived, and both live
+ * outside the virtualised canvas.
+ */
+function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNode {
+  if (isWaiting) {
+    return <ThinkingIndicator />
+  }
+
+  if (outcome !== null) {
+    return <TurnOutcomeNotice outcome={outcome} />
+  }
+
+  return null
 }
 
 /*
@@ -66,6 +91,7 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
    * disagree with the timeline and cannot be left behind by one.
    */
   const isWaiting = assistant.status === 'streaming' && rows.at(-1)?.item.type === 'user_message'
+  const outcome = selectSilentOutcome(assistant.timeline)
 
   return (
     <section
@@ -86,7 +112,7 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
 
         <div className="assistant-surface__feed">
           <AgentActivityFeed
-            footer={isWaiting ? <ThinkingIndicator /> : null}
+            footer={renderFooter(isWaiting, outcome)}
             isBusy={selectIsBusy(assistant.timeline)}
             renderRow={(row) =>
               row.item.type === 'permission' ? (

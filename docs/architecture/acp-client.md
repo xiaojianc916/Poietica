@@ -578,3 +578,34 @@ The second rule is narrower and easier to get wrong: an observer must not
 treat the effects of its own animation as new input. Feeding a replay back
 into the measurement it started from is how a smooth growth becomes a shudder
 in the opposite direction.
+
+## One scroller, and it is the transcript
+
+The assistant panel has exactly one scroll box. The frame around it does not
+scroll, the composer does not travel with the content, and no entry is ever a
+scroll box of its own.
+
+Where the scrollbar lands is part of that contract. The transcript spans the
+full width of the panel so its scrollbar sits against the edge, and the
+reading measure is held by the padding inside it — padding is inside a scroll
+box, the scrollbar is on its edge. While the frame carried the inset instead,
+the scrollbar appeared inside the panel, and a message tall enough to fill the
+transcript was indistinguishable from a message with a scrollbar of its own.
+
+The measure therefore belongs to the parts: the masthead, the composer and the
+starters each centre themselves to the same width and carry their own gutter.
+The frame only frames.
+
+## A turn can end without saying anything
+
+Two endings produce no entry at all. An agent may finish its turn having sent
+no content, and a refusal ends the run through `run_finished` rather than
+through a failure, so nothing is appended in either case.
+
+Rendered as an empty column, both are indistinguishable from a client that
+lost the answer — which is exactly how a real defect stayed invisible for
+several rounds. The end of a silent turn is therefore stated in words, next to
+the status the reducer derived from the stop reason. That word is the evidence:
+`completed` means the agent ended the turn saying nothing, `failed` means it
+refused, `cancelled` means we stopped it. None of them may look like a blank
+screen.
