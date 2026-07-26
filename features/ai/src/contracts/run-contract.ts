@@ -81,6 +81,6 @@ export type RunEvent =
       readonly seq: number
       readonly at: number
       readonly message: string
-      /** What the agent said for itself, when it said anything. */
+      /** What the agent said for itself, which is preferred to the above. */
       readonly diagnostics?: string
     }

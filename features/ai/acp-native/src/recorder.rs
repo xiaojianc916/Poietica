@@ -115,15 +115,6 @@ impl Recorder {
         self.diagnostics = text;
     }
 
-    /// Hands over what the agent said on its own error stream.
-    ///
-    /// Recorded with the end of the turn rather than as it arrives: the
-    /// stream is not part of the protocol, it has no sequence of its own,
-    /// and interleaving it with real frames would invent an order.
-    pub fn set_diagnostics(&mut self, text: String) {
-        self.diagnostics = text;
-    }
-
     /// Takes the first failure observed while recording, if there was one.
     ///
     /// Handlers cannot return our failures to the agent, so the driver asks for

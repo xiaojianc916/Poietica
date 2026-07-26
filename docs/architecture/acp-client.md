@@ -610,26 +610,6 @@ the status the reducer derived from the stop reason. That word is the evidence:
 refused, `cancelled` means we stopped it. None of them may look like a blank
 screen.
 
-## The agent's own words outrank ours
-
-An agent can fail without failing the turn. Kimi answers a rejected provider
-request by printing its own error and ending the turn with an ordinary stop
-reason, so the protocol carries a perfectly successful run that produced
-nothing. A client that only reads the protocol has nothing to show but a
-sentence it wrote itself, and that sentence explains nothing.
-
-So the client listens to the stream the agent talks on. The SDK exposes the
-process error stream through its own observer, and a bounded tail of it is
-attached to the end of the turn: always to a failure, and to a finished turn
-only when the protocol carried no update at all. A healthy turn is never
-narrated by its own logging.
-
-The text is not sanitised on the way in, because it is not an application
-error. It travels as a frame, which is content, rather than as a command
-failure, which is a category. The public error table stays exactly as strict
-as it was: it exists to stop our own internals reaching the webview, not to
-silence the agent.
-
 ## The agent's own words replace ours
 
 An agent can fail without failing the turn. Kimi answers a rejected provider
