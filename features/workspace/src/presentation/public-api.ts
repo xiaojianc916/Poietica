@@ -30,3 +30,4 @@ export {
 } from './shell/WorkspaceSurface'
 
 export { StatusBarHost } from './status/StatusBarHost'
+export { useWorkspaceLayoutState, workspaceLayoutStore } from './shell/workspace-layout-store'

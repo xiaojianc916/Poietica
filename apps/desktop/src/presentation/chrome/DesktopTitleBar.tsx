@@ -2,18 +2,12 @@ import { Button, cn } from '@poietica/foundations-design-system'
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
 import type { MouseEvent, ReactNode } from 'react'
 
-const WINDOW_DRAG_EXCLUSION_SELECTOR = [
-  'button',
-  'a',
-  'input',
-  'textarea',
-  'select',
-  '[contenteditable="true"]',
-  '[role="button"]',
-  '[role="tab"]',
-  '[role="menuitem"]',
-  '[data-window-drag-exclude]',
-].join(',')
+/*
+ * Tauri 官方模型是在明确的拖拽区域上标注属性，而不是维护一份"哪些元素
+ * 不能拖"的黑名单 —— 黑名单每引入一种新交互元素就会漏一条。这里沿用
+ * 同一范式：只有显式标注的空白区域才会发起窗口拖拽与双击最大化。
+ */
+const WINDOW_DRAG_REGION_SELECTOR = '[data-window-drag-region]'
 
 export interface DesktopTitleBarProps {
   readonly children: ReactNode
@@ -56,7 +50,7 @@ export function DesktopTitleBar({
 
     const target = event.target
 
-    if (!(target instanceof Element) || target.closest(WINDOW_DRAG_EXCLUSION_SELECTOR)) {
+    if (!(target instanceof Element) || !target.closest(WINDOW_DRAG_REGION_SELECTOR)) {
       return
     }
 
@@ -89,6 +83,7 @@ export function DesktopTitleBar({
             'justify-center',
             'border-b border-divider',
           )}
+          data-window-drag-region
         >
           <Button
             aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
@@ -113,6 +108,7 @@ export function DesktopTitleBar({
 
         <div
           className={cn('shrink-0', 'border-b border-divider')}
+          data-window-drag-region
           style={{
             borderRightStyle: 'solid',
             borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,

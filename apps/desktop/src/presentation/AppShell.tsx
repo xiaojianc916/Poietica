@@ -6,7 +6,7 @@ import { SettingsDialog } from '@poietica/features-settings/react'
 import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
-import { CommandPalette } from '@poietica/features-workspace/react'
+import { CommandPalette, workspaceLayoutStore } from '@poietica/features-workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
@@ -44,6 +44,11 @@ const GLOBAL_COMMAND_SHORTCUTS = [
   {
     key: 'o',
     commandId: 'workspace.open-canvas',
+    ctrlOrMeta: true,
+  },
+  {
+    key: 'b',
+    commandId: 'workspace.toggle-sidebar',
     ctrlOrMeta: true,
   },
   {
@@ -405,6 +410,21 @@ function useApplicationCommands(
         category: '文件',
         shortcut: 'Ctrl+O',
         execute: runtime.canvases.open,
+      }),
+
+      runtime.commands.register({
+        id: 'workspace.toggle-sidebar',
+        label: '切换侧边栏',
+        category: '视图',
+        shortcut: 'Ctrl+B',
+        execute: workspaceLayoutStore.toggleSidebar,
+      }),
+
+      runtime.commands.register({
+        id: 'workspace.toggle-inspector',
+        label: '切换属性面板',
+        category: '视图',
+        execute: workspaceLayoutStore.toggleInspector,
       }),
 
       runtime.commands.register({

@@ -1,6 +1,6 @@
 import { Button, TooltipProvider } from '@poietica/foundations-design-system'
 import { PanelLeftClose, PanelRightClose, PanelRightOpen } from '@mynaui/icons-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useState } from 'react'
 
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
@@ -13,6 +13,14 @@ import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 import { describeWorkspaceSurface } from './surface-registry'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
+
+const WORKSPACE_GRID_COLUMNS = [
+  'var(--activity-rail-width)',
+  'var(--workspace-sidebar-column-width, 0px)',
+  'minmax(0, 1fr)',
+  'var(--workspace-inspector-column-width, 0px)',
+].join(' ')
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 工作区外壳集中编排响应式区域及其条件渲染
 export function WorkspaceShell({
@@ -29,11 +37,20 @@ export function WorkspaceShell({
   overlays,
 }: WorkspaceShellProps) {
   const mode = useWorkspaceLayoutMode()
-  const previousModeRef = useRef(mode)
 
-  const [isSidebarOpen, setSidebarOpen] = useState(true)
-  const [isInspectorOpen, setInspectorOpen] = useState(true)
-  const [sidebarWidth, setSidebarWidth] = useState<number>(WORKSPACE_LAYOUT.sidebar.defaultWidth)
+  /*
+   * 侧边栏与属性栏的可见性、宽度由 workspaceLayoutStore 拥有：它跨会话
+   * 保留，并且要能被命令面板与快捷键驱动。isResizing 是单次拖拽内的
+   * 瞬时状态，留在组件本地。
+   */
+  const {
+    sidebarOpen: isSidebarOpen,
+    sidebarWidth,
+    inspectorOpen: isInspectorOpen,
+  } = useWorkspaceLayoutState()
+
+  const { setSidebarOpen, setSidebarWidth, setInspectorOpen } = workspaceLayoutStore
+
   const [isResizing, setResizing] = useState(false)
 
   const activeNavigationItem: WorkspaceSurfaceId =
@@ -43,41 +60,8 @@ export function WorkspaceShell({
   const dockSidebar = mode !== 'narrow' && isSidebarOpen
   const dockInspector = inspectorAvailable && isInspectorOpen && hasCanvas
 
-  useEffect(() => {
-    const previousMode = previousModeRef.current
-
-    if (previousMode === mode) {
-      return
-    }
-
-    previousModeRef.current = mode
-
-    if (mode === 'narrow') {
-      setSidebarOpen(false)
-    }
-  }, [mode])
-
-  const openSidebar = () => {
-    if (mode === 'narrow') {
-      setInspectorOpen(false)
-    }
-
-    setSidebarOpen(true)
-  }
-
   const sidebarColumnWidth = dockSidebar ? sidebarWidth : 0
   const inspectorColumnWidth = dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0
-
-  const columns = useMemo(
-    () =>
-      [
-        'var(--activity-rail-width)',
-        'var(--workspace-sidebar-column-width, 0px)',
-        'minmax(0, 1fr)',
-        'var(--workspace-inspector-column-width, 0px)',
-      ].join(' '),
-    [],
-  )
 
   const rows = hasCanvas
     ? ['var(--chrome-height)', 'minmax(0, 1fr)', 'var(--status-height)'].join(' ')
@@ -99,13 +83,7 @@ export function WorkspaceShell({
         isSidebarOpen,
         sidebarWidth: dockSidebar ? sidebarWidth : 0,
         tabs: model.tabs,
-        onSidebarToggle: () => {
-          if (isSidebarOpen) {
-            setSidebarOpen(false)
-          } else {
-            openSidebar()
-          }
-        },
+        onSidebarToggle: workspaceLayoutStore.toggleSidebar,
         onActivateTab: actions.activateTab,
         onCloseTab: actions.closeTab,
         onMoveTab: actions.moveTab,
@@ -124,7 +102,7 @@ export function WorkspaceShell({
         onDeveloperToolsOpen={actions.openDeveloperTools}
         onItemActivate={(surfaceId) => {
           actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
-          openSidebar()
+          setSidebarOpen(true)
         }}
         onSettingsOpen={actions.openSettingsWindow}
       />
@@ -196,6 +174,8 @@ export function WorkspaceShell({
     </>
   )
 
+  const activeTabDomId = toDomIdentifier(model.activeTabId)
+
   const canvas = (
     <section
       aria-label="内容区"
@@ -206,9 +186,9 @@ export function WorkspaceShell({
       }}
     >
       <main
-        aria-labelledby={`workbench-tab-${model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}`}
+        aria-labelledby={`workbench-tab-${activeTabDomId}`}
         className="relative h-full min-h-0 min-w-0 overflow-hidden"
-        id={`workbench-panel-${model.activeTabId.replaceAll(/[^a-zA-Z0-9_-]/g, '-')}`}
+        id={`workbench-panel-${activeTabDomId}`}
         role="tabpanel"
       >
         {mainContent}
@@ -268,10 +248,6 @@ export function WorkspaceShell({
             aria-label="展开属性面板"
             className="fixed right-0 top-[calc(var(--chrome-height)+12px)] z-30 rounded-r-none"
             onClick={() => {
-              if (mode !== 'wide') {
-                setSidebarOpen(false)
-              }
-
               setInspectorOpen(true)
             }}
             size="icon"
@@ -303,7 +279,7 @@ export function WorkspaceShell({
         canvas={canvas}
         chrome={chrome}
         disableLayoutAnimation={isResizing}
-        gridTemplateColumns={columns}
+        gridTemplateColumns={WORKSPACE_GRID_COLUMNS}
         gridTemplateRows={rows}
         inspector={inspectorRegion}
         inspectorColumnWidth={inspectorColumnWidth}
@@ -320,4 +296,12 @@ export function WorkspaceShell({
       />
     </TooltipProvider>
   )
+}
+
+/*
+ * 标签页与其面板的 ARIA 关联依赖同一个标识符。转义只做一次，避免两处
+ * 正则各自演化后 aria-labelledby 与 id 悄悄失配。
+ */
+function toDomIdentifier(value: string): string {
+  return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-')
 }

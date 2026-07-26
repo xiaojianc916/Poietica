@@ -88,7 +88,11 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
             <Plus aria-hidden="true" className="size-3.5" />
           </button>
 
-          <div aria-hidden="true" className="chrome-workbench-tabs__drag-region" />
+          <div
+            aria-hidden="true"
+            className="chrome-workbench-tabs__drag-region"
+            data-window-drag-region
+          />
         </div>
       </div>
     </div>
