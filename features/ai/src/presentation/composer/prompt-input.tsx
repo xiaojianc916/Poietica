@@ -10,26 +10,31 @@ import {
 } from 'react'
 import type { ComponentProps, FormEvent, KeyboardEvent, ReactNode } from 'react'
 
-import {
-  ChevronDownIcon,
-  CloseIcon,
-  FileIcon,
-  SpinnerIcon,
-  StopIcon,
-  SubmitIcon,
-} from '../primitives/icons'
+import type { ChatStatus } from '../../contracts/chat-status-contract'
+import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 
 /*
- * Vendored AI Elements "prompt-input".
+ * The composer input.
  *
- * Contract kept identical to elements.ai-sdk.dev so the surface can be
- * replaced by the upstream file without touching consumers or the skin:
- *   - same exported component names,
- *   - same data-slot attributes (the stylesheet keys off these),
- *   - same submit payload shape { text, files }.
+ * This file was once labelled a vendored copy of an upstream component set. It
+ * never was one: there is no third-party primitive here, no icon package beyond
+ * this project's own alias layer, and no utility-class framework. The label was
+ * the only thing tying it to a dependency this project does not have, so the
+ * label is gone and the file lives where it belongs.
+ *
+ * Two rules hold it together:
+ *   - the DOM is the contract. Every element carries the data-slot the
+ *     stylesheet keys off, so the skin is free to change without touching
+ *     behaviour, and behaviour is free to change without touching the skin.
+ *   - state that more than one part needs lives in a context, and nowhere else.
+ *     Nothing here reaches across the tree with a query selector.
+ *
+ * Optional props are typed `T | undefined` rather than `T?` wherever the value
+ * is forwarded onward, because under exactOptionalPropertyTypes "absent" and
+ * "present and undefined" are different types, and forwarding conflates them.
  */
 
-export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'error'
+export type { ChatStatus }
 
 export interface PromptInputAttachmentData {
   readonly id: string
@@ -45,7 +50,7 @@ export interface PromptInputMessage {
 
 interface PromptInputContextValue {
   readonly attachments: readonly PromptInputAttachmentData[]
-  readonly accept?: string
+  readonly accept: string | undefined
   readonly multiple: boolean
   readonly openFilePicker: () => void
   readonly addFiles: (files: FileList | readonly File[]) => void
@@ -427,7 +432,7 @@ export function PromptInputActionMenuItem({
   hint,
   onClick,
   ...props
-}: ComponentProps<'button'> & { readonly hint?: string }) {
+}: ComponentProps<'button'> & { readonly hint?: string | undefined }) {
   const { setOpen } = useActionMenu()
 
   return (
@@ -454,7 +459,7 @@ export function PromptInputActionAddAttachments({
   hint,
 }: {
   readonly children?: ReactNode
-  readonly hint?: string
+  readonly hint?: string | undefined
 }) {
   const { openFilePicker } = usePromptInputContext()
 
@@ -487,130 +492,6 @@ export function PromptInputSubmit({
       {...props}
     >
       <Icon aria-hidden="true" />
-    </button>
-  )
-}
-
-/* ── model select ─────────────────────────────────────────── */
-
-const ModelSelectContext = createContext<{
-  readonly open: boolean
-  readonly setOpen: (open: boolean) => void
-  readonly value: string
-  readonly onValueChange: (value: string) => void
-} | null>(null)
-
-function useModelSelect() {
-  const context = useContext(ModelSelectContext)
-  if (!context) throw new Error('PromptInputModelSelect sub-components require a provider.')
-  return context
-}
-
-export function PromptInputModelSelect({
-  children,
-  onValueChange,
-  value,
-}: {
-  readonly children: ReactNode
-  readonly value: string
-  readonly onValueChange: (value: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-    }
-  }, [open])
-
-  const context = useMemo(
-    () => ({ open, setOpen, value, onValueChange }),
-    [onValueChange, open, value],
-  )
-
-  return (
-    <ModelSelectContext.Provider value={context}>
-      <div
-        className="assistant-model-select"
-        data-slot="prompt-input-model-select"
-        ref={containerRef}
-      >
-        {children}
-      </div>
-    </ModelSelectContext.Provider>
-  )
-}
-
-export function PromptInputModelSelectTrigger({ children }: { readonly children: ReactNode }) {
-  const { open, setOpen } = useModelSelect()
-
-  return (
-    <button
-      aria-expanded={open}
-      aria-haspopup="listbox"
-      className="assistant-model-select__trigger"
-      data-slot="prompt-input-model-select-trigger"
-      onClick={() => {
-        setOpen(!open)
-      }}
-      type="button"
-    >
-      {children}
-      <ChevronDownIcon aria-hidden="true" className="assistant-model-select__chevron" />
-    </button>
-  )
-}
-
-export function PromptInputModelSelectValue() {
-  const { value } = useModelSelect()
-  return <span data-slot="prompt-input-model-select-value">{value}</span>
-}
-
-export function PromptInputModelSelectContent({ children }: { readonly children: ReactNode }) {
-  const { open } = useModelSelect()
-  if (!open) return null
-
-  return (
-    <div
-      className="assistant-model-select__content"
-      data-slot="prompt-input-model-select-content"
-      role="listbox"
-    >
-      {children}
-    </div>
-  )
-}
-
-export function PromptInputModelSelectItem({
-  children,
-  value,
-}: {
-  readonly children: ReactNode
-  readonly value: string
-}) {
-  const { onValueChange, setOpen, value: current } = useModelSelect()
-
-  return (
-    <button
-      aria-selected={current === value}
-      className="assistant-model-select__item"
-      data-slot="prompt-input-model-select-item"
-      onClick={() => {
-        onValueChange(value)
-        setOpen(false)
-      }}
-      role="option"
-      type="button"
-    >
-      {children}
     </button>
   )
 }

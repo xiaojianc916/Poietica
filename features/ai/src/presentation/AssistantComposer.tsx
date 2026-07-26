@@ -12,28 +12,30 @@ import {
   PromptInputAttachments,
   PromptInputBody,
   PromptInputButton,
-  PromptInputModelSelect,
-  PromptInputModelSelectContent,
-  PromptInputModelSelectItem,
-  PromptInputModelSelectTrigger,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
-} from './ai-elements/prompt-input'
-import type { ChatStatus } from './ai-elements/prompt-input'
+} from './composer/prompt-input'
+import type { ChatStatus } from '../contracts/chat-status-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
-import { MODEL_MARKS } from './primitives/model-icons'
 import { useFluidResize } from './useFluidResize'
-import { resolveAssistantModel } from '../domain/model-catalog'
-import type { AssistantModelDescriptor } from '../domain/model-catalog'
+
+/*
+ * The composer no longer offers a model picker.
+ *
+ * Under ACP the agent owns its model: the client opens a session and prompts,
+ * and which weights answer is decided on the other side of the connection. A
+ * dropdown here could only ever have been decoration over a choice this process
+ * does not make. The toolbar slot and its stylesheet are untouched, so the
+ * things the agent really does advertise — its slash commands, which arrive as
+ * an available_commands_update on the first frame of every session — can take
+ * that place without a single change to the skin.
+ */
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
   readonly isAgentNew?: boolean
-  readonly models: readonly AssistantModelDescriptor[]
-  readonly modelId: string
-  readonly onModelChange: (modelId: string) => void
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly columnId?: string
@@ -43,9 +45,6 @@ export interface AssistantComposerProps {
 export function AssistantComposer({
   agentLabel,
   isAgentNew = false,
-  models,
-  modelId,
-  onModelChange,
   placeholder = '问我任何问题…',
   status = 'ready',
   columnId,
@@ -56,9 +55,6 @@ export function AssistantComposer({
   const uid = useId()
   const cardId = `${uid}-card`
   const editorId = `${uid}-editor`
-
-  const activeModel = resolveAssistantModel(models, modelId)
-  const ActiveMark = MODEL_MARKS[activeModel.brand]
 
   useFluidResize(editorId, columnId)
 
@@ -193,30 +189,6 @@ export function AssistantComposer({
         </PromptInputTools>
 
         <span className="assistant-toolbar__spacer" />
-
-        <PromptInputModelSelect onValueChange={onModelChange} value={activeModel.id}>
-          <PromptInputModelSelectTrigger>
-            <ActiveMark className="assistant-model-select__brand" />
-
-            <span>{activeModel.label}</span>
-          </PromptInputModelSelectTrigger>
-
-          <PromptInputModelSelectContent>
-            {models.map((model) => {
-              const Mark = MODEL_MARKS[model.brand]
-
-              return (
-                <PromptInputModelSelectItem key={model.id} value={model.id}>
-                  <Mark className="assistant-model-select__brand" />
-
-                  <span className="assistant-model-select__label">{model.label}</span>
-
-                  <span aria-hidden="true" className="assistant-model-select__check" />
-                </PromptInputModelSelectItem>
-              )
-            })}
-          </PromptInputModelSelectContent>
-        </PromptInputModelSelect>
 
         <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
           <MicIcon aria-hidden="true" />

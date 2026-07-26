@@ -241,3 +241,22 @@ behind a disclosure.
 
 The components come back when they are written against that recording, on this
 project's own dependencies.
+
+## Model choice belongs to the agent
+
+The client does not choose a model. It spawns an agent, opens a session and
+sends prompts; which model answers is settled on the other side of the
+connection, by the agent's own configuration. A model picker in this process
+would be a control wired to nothing, and a list of provider names baked into the
+client would go stale the first time that configuration changed.
+
+So the picker was removed along with the hardcoded catalogue behind it and the
+provider artwork it referenced, none of which had ever been committed. What the
+agent genuinely advertises is different and better: an available_commands_update
+arrives as the first session update of every connection, listing the commands
+this particular agent supports. That is the real thing to put in front of a
+user, and it is already in the recorded turn.
+
+ChatStatus moved to the contracts folder in the same pass. The hook that derives
+it may not import the button that renders it: presentation and application both
+depend on contracts, and never on each other.

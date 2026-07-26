@@ -1,19 +1,14 @@
 import './assistant-composer.css'
 
-import { useId, useState } from 'react'
+import { useId } from 'react'
 
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { TimelineItemPreview } from './TimelineItemPreview'
 import { AssistantQuickActions } from './AssistantQuickActions'
-import { MODEL_MARKS } from './primitives/model-icons'
+import { AgentIcon } from './primitives/icons'
 import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
 import { useAssistantSession } from '../application/useAssistantSession'
-import {
-  ASSISTANT_MODELS,
-  DEFAULT_ASSISTANT_MODEL_ID,
-  resolveAssistantModel,
-} from '../domain/model-catalog'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string
@@ -21,24 +16,23 @@ export interface AssistantSurfaceProps {
 
 /**
  * Masthead, composer and quick actions are siblings in one column bound to
- * --cp-grid, so their edges align by construction. The masthead mark is the
- * artwork of the selected model; remount it on change (key) so the entrance
- * animation replays.
+ * --cp-grid, so their edges align by construction.
+ *
+ * The masthead used to show the artwork of the selected model. There is no
+ * selected model any more, so it shows the agent mark instead, on the same
+ * class the stylesheet already sizes and animates.
  */
 export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
   const session = useAssistantSession({ endpoint })
   const rows = selectFeedRows(session.timeline)
-  const [modelId, setModelId] = useState(DEFAULT_ASSISTANT_MODEL_ID)
 
   const columnId = `${useId()}-column`
-  const activeModel = resolveAssistantModel(ASSISTANT_MODELS, modelId)
-  const ActiveMark = MODEL_MARKS[activeModel.brand]
 
   return (
     <section className="assistant-surface" data-assistant-skin>
       <div className="assistant-surface__column" id={columnId}>
         <header className="assistant-masthead">
-          <ActiveMark className="assistant-masthead__mark" key={activeModel.id} />
+          <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
           <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
         </header>
@@ -55,9 +49,6 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
           agentLabel="Super Computer"
           columnId={columnId}
           isAgentNew
-          modelId={modelId}
-          models={ASSISTANT_MODELS}
-          onModelChange={setModelId}
           onSubmit={session.send}
           status={session.status}
         />

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { AgentSessionPort } from '../contracts/agent-session-port'
+import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { RunEvent } from '../contracts/run-contract'
 import type { TimelineState } from '../contracts/timeline-contract'
 import { applyRunEvent, createTimelineState } from '../domain/timeline-reducer'
-import type { ChatStatus } from '../presentation/ai-elements/prompt-input'
 
 /*
  * The surface depends on the agent session PORT, never on a protocol client.
