@@ -1,0 +1,198 @@
+/*
+ * The timeline draws itself from tokens with fallbacks, so a row is readable
+ * before any theme loads and correct once one does.
+ */
+
+.timeline-user {
+  margin: 0;
+  padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
+  border-radius: var(--cp-timeline-radius, 0.75rem);
+  background: var(--cp-timeline-user-surface, rgb(0 0 0 / 5%));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.timeline-message {
+  overflow-wrap: anywhere;
+}
+
+.timeline-reasoning {
+  border-inline-start: 2px solid var(--cp-timeline-quiet-border, rgb(0 0 0 / 12%));
+  padding-inline-start: 0.75rem;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+}
+
+.timeline-reasoning__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.timeline-reasoning__chevron {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  transition: transform 120ms ease;
+}
+
+.timeline-reasoning[data-open="true"] .timeline-reasoning__chevron {
+  transform: rotate(180deg);
+}
+
+.timeline-reasoning__body {
+  margin: 0.375rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.timeline-tool {
+  border: 1px solid var(--cp-timeline-card-border, rgb(0 0 0 / 10%));
+  border-radius: var(--cp-timeline-radius, 0.75rem);
+  background: var(--cp-timeline-card-surface, transparent);
+  overflow: hidden;
+}
+
+.timeline-tool__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: var(--ui-control-height-sm, 2rem);
+  padding-inline: 0.75rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.timeline-tool__icon,
+.timeline-tool__spinner,
+.timeline-tool__chevron {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.timeline-tool__spinner {
+  animation: timeline-tool-spin 900ms linear infinite;
+}
+
+.timeline-tool__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-tool__status {
+  flex: none;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-size: 0.8125rem;
+}
+
+.timeline-tool[data-status="failed"] .timeline-tool__status {
+  color: var(--cp-timeline-danger-text, rgb(180 35 24));
+}
+
+.timeline-tool__body {
+  padding: 0 0.75rem 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.timeline-tool__locations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-size: 0.8125rem;
+}
+
+.timeline-tool__text,
+.timeline-tool__diff-old,
+.timeline-tool__diff-new {
+  margin: 0;
+  max-block-size: var(--cp-timeline-output-max, 18rem);
+  overflow: auto;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
+  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.timeline-tool__diff-old {
+  background: var(--cp-timeline-diff-old, rgb(180 35 24 / 10%));
+}
+
+.timeline-tool__diff-new {
+  background: var(--cp-timeline-diff-new, rgb(28 140 80 / 12%));
+}
+
+.timeline-tool__diff-path,
+.timeline-tool__diff-note,
+.timeline-tool__terminal,
+.timeline-tool__opaque,
+.timeline-tool__empty {
+  margin: 0;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-size: 0.8125rem;
+}
+
+.timeline-plan {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timeline-plan__entry {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.timeline-plan__status {
+  flex: none;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-size: 0.8125rem;
+}
+
+.timeline-plan__entry[data-status="completed"] .timeline-plan__content {
+  text-decoration: line-through;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+}
+
+.timeline-error {
+  margin: 0;
+  padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
+  border-radius: var(--cp-timeline-radius, 0.75rem);
+  background: var(--cp-timeline-danger-surface, rgb(180 35 24 / 10%));
+  color: var(--cp-timeline-danger-text, rgb(180 35 24));
+}
+
+@keyframes timeline-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-tool__spinner {
+    animation: none;
+  }
+
+  .timeline-reasoning__chevron {
+    transition: none;
+  }
+}

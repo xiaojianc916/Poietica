@@ -4,7 +4,7 @@ import { useId } from 'react'
 
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
-import { TimelineItemPreview } from './TimelineItemPreview'
+import { TimelineRow } from './timeline/TimelineRow'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
@@ -59,7 +59,7 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
               row.item.type === 'permission' ? (
                 <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
               ) : (
-                <TimelineItemPreview row={row} />
+                <TimelineRow row={row} />
               )
             }
             rows={rows}

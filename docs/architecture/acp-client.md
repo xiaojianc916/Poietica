@@ -412,3 +412,30 @@ Three recordings now cover the three shapes a turn can take — a plain answer, 
 turn that used a tool, and a turn interrupted by a question. Each was captured
 from a real agent, and each had to declare what it contained before it was
 allowed to become a fixture.
+
+## The feed renders events, not messages
+
+The activity feed is one flat, ordered, virtualised column. Every entry in it
+came from a frame the agent broadcast, and each kind of entry has one renderer
+and no other: an answer, a thought chain, a tool call, a plan, a permission
+request, an error. There is no chat bubble abstraction underneath, because a run
+is not a conversation — it is a sequence of things that happened.
+
+Three of those renderers make a judgement worth stating.
+
+A user message is never rendered as markdown. Their text is theirs; letting it
+choose its own presentation lets a pasted document reformat the transcript.
+
+A thought chain is open while the agent is thinking and closed once it has moved
+on. A click overrides that for good, so the default is derived and the override
+is the only state. Nothing is synchronised in an effect, and nothing snaps shut
+under a reader mid-sentence.
+
+A tool call is collapsed unless it failed. A finished read is a fact; a failure
+is a question, and the answer to it should already be on screen.
+
+What a tool call has to show is decided in `tool-call-content.ts`, away from
+React, and tested against the recorded turn. Content blocks other than text are
+named rather than drawn. Inventing the shape of an image block is exactly the
+mistake that cost a round already, and it will not be repeated on the basis of a
+type definition nobody has seen a real frame satisfy.
