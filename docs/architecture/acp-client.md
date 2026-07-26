@@ -468,3 +468,29 @@ it to the feed afterwards, and the intro blocks collapse through a grid row.
 Nothing measures anything. A layout projection over a virtualised, contain:
 strict scroller has to measure it mid-transition, which stutters and can leave a
 transformed element behind entirely.
+
+## The session has a root, and the process does not choose it
+
+A session is created against a directory. Everything the agent reads, writes
+and reports paths for is relative to it, so that directory is part of the
+session contract rather than an incidental detail of how the app was started.
+
+It is therefore resolved once, from the platform, when the runtime is built,
+and stored. The current working directory of the process is not an answer: a
+development run executes the binary inside `src-tauri`, so the agent would be
+pointed at a build directory and would honestly report that it can find
+nothing to work on. A caller that knows better may still pass a directory in;
+the resolved root is only the fallback.
+
+An environment variable would not do either, for the reason given above about
+the agent command: it would work on the machine that defines it and fail
+everywhere else.
+
+## A migration must survive being run twice
+
+Every step of the refactor script asks for a byte-exact match and would
+otherwise stop. That is the right default — a step that cannot find what it
+expected must never guess — but it made the script a one-shot, and a step
+that has already landed then looks identical to a step whose premise was
+wrong. Each step now also carries the mark of its own outcome, so the script
+can tell "already done" from "cannot be done" and only stops for the second.

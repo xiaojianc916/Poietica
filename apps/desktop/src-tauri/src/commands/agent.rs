@@ -15,7 +15,6 @@
 //! against the options the agent actually offered before anything is recorded
 //! or sent.
 
-use std::env;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
@@ -66,6 +65,7 @@ struct Session {
 #[derive(Debug)]
 pub struct AgentRuntime {
     database: PathBuf,
+    root: PathBuf,
     slot: RunSlot,
     desk: PermissionDesk,
     session: Mutex<Option<Session>>,
@@ -80,13 +80,21 @@ impl AgentRuntime {
     ///
     /// # Errors
     ///
-    /// Fails when the application data directory cannot be resolved or created.
+    /// Fails when the data directory or the home directory cannot be resolved,
+    /// or when the data directory cannot be created.
     pub fn new<R: Runtime>(handle: &AppHandle<R>) -> Result<Self> {
         let directory = handle.path().app_data_dir()?;
         std::fs::create_dir_all(&directory)?;
 
+        // The session root is resolved here, once, from the platform rather than
+        // from the process. A development run starts the binary inside src-tauri,
+        // so the process directory is a build location and never a place the user
+        // keeps work.
+        let root = handle.path().home_dir()?;
+
         Ok(Self {
             database: directory.join(DATABASE_FILE),
+            root,
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
             session: Mutex::new(None),
@@ -320,9 +328,13 @@ async fn ensure_session(
         return Ok(live);
     }
 
+    // The agent reads and writes relative to the directory the session was
+    // created against, so the fallback has to be somewhere the user actually
+    // keeps files. Asking the process where it is answers a different
+    // question: under a development run that is the Rust build directory.
     let working_directory = match cwd {
         Some(path) => PathBuf::from(path),
-        None => env::current_dir()?,
+        None => state.root.clone(),
     };
 
     let spawn = AgentSpawn {
@@ -441,10 +453,11 @@ fn executable(line: &str) -> String {
 /// Finds the file name, extension included, that a bare program name resolves to.
 #[cfg(windows)]
 fn on_path(program: &str) -> Option<String> {
-    let extensions = env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
-    let path = env::var_os("PATH")?;
+    let extensions =
+        std::env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
+    let path = std::env::var_os("PATH")?;
 
-    for directory in env::split_paths(&path) {
+    for directory in std::env::split_paths(&path) {
         for extension in extensions.split(';').filter(|entry| !entry.is_empty()) {
             let candidate = directory.join(format!("{program}{extension}"));
 
