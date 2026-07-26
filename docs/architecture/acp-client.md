@@ -726,3 +726,29 @@ nothing when it has no list, on purpose. Reaching the screen took the rest of
 the line: a port in the feature, a bridge on the desktop side that turns the
 wire null into an absent key, a hook that holds the answer, and one line in the
 composition root. A capability nobody can see has not been delivered.
+
+## The terminal and the protocol are two modes
+
+Kimi Code CLI is one program with two entry points, and they do not accept
+the same input. The terminal interface accepts fifty-one slash commands and
+draws its own model picker; `kimi acp` prints no banner, waits for an
+`initialize` request on stdin and speaks JSON-RPC until it is shut down. The
+agent said so itself when it answered `Unknown ACP command: /model`, and the
+official reference says the same thing from the other side: the model is
+switched with `/model` *in shell mode*.
+
+Two consequences shape this client.
+
+A model is chosen by writing `default_model` in the file the agent reads and
+starting the next session against it. That is the interface the agent
+publishes for this, so the window offers a list and the file records the
+choice. Sending `/model` down the protocol would be sending a message, not
+issuing a command, which is exactly the mistake that produced an unknown
+command in the transcript.
+
+Every other command comes from the agent, not from us. The command set
+arrives as an `available_commands_update` session update and is already
+recorded in the log, so the composer can offer a `/` menu built from what
+this particular agent advertises, and the chosen line is sent as ordinary
+prompt text for the agent to parse. Nothing here is a command surface of our
+own invention, and an agent that advertises nothing gets no menu.

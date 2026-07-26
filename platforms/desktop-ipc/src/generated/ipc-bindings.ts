@@ -67,15 +67,68 @@ async agentShutdown() : Promise<null> {
 async agentLoadRun(request: AgentLoadRunRequest) : Promise<AgentRunSnapshot> {
     return await TAURI_INVOKE("agent_load_run", { request });
 },
+/**
+ * Lists the models the agent has been configured with.
+ * 
+ * The list is read from the file the agent reads, every time it is asked
+ * for, so a model added outside this program is offered here too.
+ * 
+ * # Errors
+ * 
+ * Fails when the configuration file exists but cannot be read or parsed.
+ */
+async agentModels() : Promise<AgentModelList> {
+    return await TAURI_INVOKE("agent_models");
+},
+/**
+ * Chooses the model the next session will start with.
+ * 
+ * A model is decided when a session is created, so the running session is
+ * ended here rather than asked to change its mind. The next prompt starts a
+ * new one against the file this command just wrote, which is why the switch
+ * costs nothing the user has to do.
+ * 
+ * # Errors
+ * 
+ * Fails when the agent has no such model, when the configuration file
+ * cannot be read or written, or when the session lock was poisoned.
+ */
+async agentSelectModel(request: AgentSelectModelRequest) : Promise<AgentModelList> {
+    return await TAURI_INVOKE("agent_select_model", { request });
+},
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async assetRemove(request: AssetRemoveRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_remove", { request });
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
@@ -84,6 +137,11 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
  * 
  * The renderer receives a bounded DTO, not an arbitrary filesystem path or
  * unrestricted native error object.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
  */
 async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
@@ -92,6 +150,11 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
  * Opens one .draw file selected by the native file dialog.
  * 
  * No caller-controlled path is accepted.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
  */
 async documentOpen() : Promise<DocumentOpenResponse> {
     return await TAURI_INVOKE("document_open");
@@ -99,6 +162,11 @@ async documentOpen() : Promise<DocumentOpenResponse> {
 /**
  * Creates a new document session or moves an existing session through a native
  * Save As dialog. No filesystem path is accepted from the renderer.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
  */
 async documentSaveAs(request: DocumentSaveAsRequest) : Promise<DocumentSaveAsResult> {
     return await TAURI_INVOKE("document_save_as", { request });
@@ -107,22 +175,50 @@ async documentSaveAs(request: DocumentSaveAsRequest) : Promise<DocumentSaveAsRes
  * Saves content to the document already selected by a native dialog.
  * 
  * The renderer supplies an opaque document ID, never a local path.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
  */
 async documentSave(request: DocumentSaveRequest) : Promise<DocumentSaveResult> {
     return await TAURI_INVOKE("document_save", { request });
 },
 /**
  * Ends the native document session and releases its private file handle.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
  */
 async documentClose(request: DocumentCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("document_close", { request });
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async settingsGet() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_get");
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async settingsSet(settings: AppSettings) : Promise<null> {
     return await TAURI_INVOKE("settings_set", { settings });
 },
+/**
+ * # Errors
+ * 
+ * Returns an error when the underlying operation fails; the message handed
+ * to the caller is the redacted IPC message, never native detail.
+ */
 async settingsReset() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_reset");
 }
@@ -155,6 +251,34 @@ runId: string;
  * reach four billion frames.
  */
 afterSeq: number | null }
+/**
+ * One model the agent has been configured with.
+ */
+export type AgentModelDescriptor = { 
+/**
+ * The key that selects the model in the agent configuration file.
+ */
+id: string; 
+/**
+ * What the provider answers to, which is what the user recognises.
+ */
+label: string; 
+/**
+ * The provider the model is reached through, when the file names one.
+ */
+provider: string | null }
+/**
+ * The agent models, and which one a new session starts with.
+ */
+export type AgentModelList = { 
+/**
+ * Every configured model, in the order the file lists them.
+ */
+models: AgentModelDescriptor[]; 
+/**
+ * The model a new session starts with, when the file names one.
+ */
+active: string | null }
 /**
  * A prompt, and how to start the agent if it is not running yet.
  */
@@ -207,6 +331,14 @@ runId: string;
  * The frames, in order, exactly as they were broadcast when live.
  */
 events: JsonValue[] }
+/**
+ * A choice made in the interface.
+ */
+export type AgentSelectModelRequest = { 
+/**
+ * One of the identifiers the model list offered.
+ */
+modelId: string }
 export type AppSettings = { theme: string; language: string; auto_save: boolean; 
 /**
  * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,
@@ -234,7 +366,7 @@ export type DocumentSaveAsRequest = {
 /**
  * None creates a new native document session.
  * 
- * Some(document_id) moves the existing session to the newly selected file.
+ * `Some(document_id)` moves the existing session to the newly selected file.
  */
 documentId: DocumentId | null; content: string; assetSessionToken: string | null; suggestedName: string | null }
 export type DocumentSaveAsResult = { document: DocumentDescriptor | null }

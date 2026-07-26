@@ -38,10 +38,32 @@ function mark(provider?: string) {
   return provider === undefined ? <ProviderIcon /> : <ProviderIcon provider={provider} />
 }
 
+/*
+ * What the control says when it has nothing to offer.
+ *
+ * Vanishing is the one thing it must not do. An absent control and an empty
+ * list are indistinguishable once both render nothing, so a file that names
+ * no model, a call that failed and a feature nobody connected all arrive as
+ * the same silence. This label is the difference.
+ */
+const NOTHING_TO_OFFER = '模型未就绪'
+
 export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProps) {
   const active = models.find((model) => model.id === activeModelId) ?? models[0]
 
-  if (active === undefined) return null
+  if (active === undefined) {
+    return (
+      <span
+        aria-live="polite"
+        className="assistant-control--ghost assistant-model-select"
+        data-empty="true"
+      >
+        {mark()}
+
+        <span className="assistant-model-select__label">{NOTHING_TO_OFFER}</span>
+      </span>
+    )
+  }
 
   return (
     <PromptInputActionMenu>
