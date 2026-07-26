@@ -661,3 +661,29 @@ unrecognised provider resolves to a neutral mark rather than to nothing,
 because a control that renders nothing and a control that failed to load look
 identical to the person using it. And with no list at all there is no control:
 an empty picker is a promise the surface cannot keep.
+
+## The model list is the file the agent reads
+
+The models offered in the composer are not a list this program maintains.
+Kimi Code keeps them in `~/.kimi-code/config.toml`, under `default_model`
+and `[models.*]`, and that file is read every time the list is asked for. A
+copy on this side would disagree with the agent the first time the user
+edited the file by hand, and the disagreement would surface as a model that
+cannot start.
+
+Choosing a model edits that file rather than replacing it. The document is
+parsed with `toml_edit`, one value is written, and comments, ordering, keys
+we do not understand and the provider credentials all survive unchanged. The
+replacement is written to a temporary file, flushed, and moved into place by
+a rename, with a copy of the original kept beside it: a half-written
+configuration file would stop the agent from starting at all, which is worse
+than a switch that failed.
+
+A name the file does not contain is refused before anything is written. The
+alternative is a configuration that names a model the agent cannot start,
+discovered on the next prompt instead of at the moment of the mistake.
+
+A model is decided when a session is created, not per turn, so selecting one
+ends the running session and lets the next prompt open a new one. Nothing is
+sent to the agent to announce the change, because there is nothing in
+protocol v1 to send it with.
