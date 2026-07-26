@@ -107,23 +107,33 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
 
 export const START_TAB_ID: WorkbenchTabId = 'workbench:start'
 
-const START_TAB: StartTabViewModel = Object.freeze({
-  id: START_TAB_ID,
-  kind: 'start',
-  title: '新标签页',
+export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = 'workspace:ai'
+
+const DEFAULT_TAB: WorkspaceTabViewModel = Object.freeze({
+  id: DEFAULT_SURFACE_TAB_ID,
+  kind: 'workspace',
+  title: 'AI',
   isActive: true,
-  canClose: false,
+  canClose: true,
+  surfaceId: 'ai',
 })
 
-const START_SURFACE: StartSurfaceViewModel = Object.freeze({
-  kind: 'start',
-  tabId: START_TAB_ID,
+const DEFAULT_SURFACE: WorkspaceSurfaceViewModel = Object.freeze({
+  kind: 'workspace',
+  tabId: DEFAULT_SURFACE_TAB_ID,
+  surfaceId: 'ai',
+  title: 'AI',
 })
 
+/**
+ * Fallback snapshot used before the session controller publishes its first
+ * projection. It mirrors the controller's startup state (the AI surface) so the
+ * first paint never flashes a placeholder tab.
+ */
 export const EMPTY_WORKBENCH_VIEW_MODEL: WorkbenchViewModel = Object.freeze({
-  activeTabId: START_TAB_ID,
+  activeTabId: DEFAULT_SURFACE_TAB_ID,
   activeSessionId: null,
-  tabs: Object.freeze([START_TAB]),
-  activeSurface: START_SURFACE,
+  tabs: Object.freeze([DEFAULT_TAB]),
+  activeSurface: DEFAULT_SURFACE,
   activeCanvas: null,
 })

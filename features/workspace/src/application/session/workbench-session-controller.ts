@@ -39,16 +39,27 @@ interface WorkspaceEntry extends EntryBase {
   readonly surfaceId: import('../../contracts/public-api').WorkspaceSurfaceId
 }
 
-const START_ENTRY: StartEntry = Object.freeze({
-  id: START_TAB_ID,
-  kind: 'start',
-  title: '新标签页',
-  canClose: false,
+/**
+ * Startup surface.
+ *
+ * The workbench opens on the AI assistant instead of an empty placeholder tab,
+ * so the first frame the user sees is already a usable surface.
+ *
+ * The id must stay `workspace:${surfaceId}`: openWorkspaceSurface derives tab
+ * ids from the surface id, so the activity rail activates this tab instead of
+ * opening a duplicate one.
+ */
+const DEFAULT_ENTRY: WorkspaceEntry = Object.freeze({
+  id: 'workspace:ai',
+  kind: 'workspace',
+  title: 'AI',
+  canClose: true,
+  surfaceId: 'ai',
 })
 
 export function createWorkbenchSessionController(): WorkbenchSessionStore {
-  let entries: readonly WorkbenchEntry[] = [START_ENTRY]
-  let activeTabId = START_TAB_ID
+  let entries: readonly WorkbenchEntry[] = [DEFAULT_ENTRY]
+  let activeTabId = DEFAULT_ENTRY.id
   const listeners = new Set<() => void>()
 
   let snapshot = projectSnapshot(entries, activeTabId)
@@ -165,8 +176,8 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       const nextEntry = entries[closingIndex] ?? entries[closingIndex - 1] ?? entries[0]
 
       if (!nextEntry) {
-        entries = [START_ENTRY]
-        activeTabId = START_TAB_ID
+        entries = [DEFAULT_ENTRY]
+        activeTabId = DEFAULT_ENTRY.id
       } else {
         activeTabId = nextEntry.id
       }

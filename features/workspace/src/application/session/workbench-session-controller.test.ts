@@ -11,21 +11,24 @@ beforeEach(() => {
 })
 
 describe('workbench session controller', () => {
-  it('starts with a tab-driven new-tab surface', () => {
+  it('starts on the AI workspace surface', () => {
     const store = createWorkbenchSessionController()
 
     expect(store.getSnapshot()).toMatchObject({
-      activeTabId: 'workbench:start',
+      activeTabId: 'workspace:ai',
       activeSurface: {
-        kind: 'start',
-        tabId: 'workbench:start',
+        kind: 'workspace',
+        tabId: 'workspace:ai',
+        surfaceId: 'ai',
+        title: 'AI',
       },
       tabs: [
         {
-          id: 'workbench:start',
-          kind: 'start',
-          title: '新标签页',
-          canClose: false,
+          id: 'workspace:ai',
+          kind: 'workspace',
+          surfaceId: 'ai',
+          title: 'AI',
+          canClose: true,
           isActive: true,
         },
       ],
@@ -41,7 +44,7 @@ describe('workbench session controller', () => {
       title: 'One',
     })
 
-    store.activateTab('workbench:start')
+    store.activateTab('workspace:ai')
 
     store.openWorkspaceSurface({
       surfaceId: 'assets',
@@ -49,7 +52,7 @@ describe('workbench session controller', () => {
     })
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workbench:start',
+      'workspace:ai',
       'workspace:assets',
       'canvas:session-1',
     ])
@@ -102,10 +105,10 @@ describe('workbench session controller', () => {
 
     store.closeTab('workspace:assets')
 
-    expect(store.getSnapshot().activeTabId).toBe('workbench:start')
+    expect(store.getSnapshot().activeTabId).toBe('workspace:ai')
   })
 
-  it('moves tabs without moving the permanent new-tab entry', () => {
+  it('moves tabs including the default surface tab', () => {
     const store = createWorkbenchSessionController()
 
     store.openWorkspaceSurface({
@@ -121,14 +124,14 @@ describe('workbench session controller', () => {
     store.moveTab('workspace:relations', 1)
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workbench:start',
+      'workspace:ai',
       'workspace:relations',
       'workspace:assets',
     ])
 
-    store.moveTab('workbench:start', 2)
+    store.moveTab('workspace:ai', 2)
 
-    expect(store.getSnapshot().tabs[0]?.id).toBe('workbench:start')
+    expect(store.getSnapshot().tabs[2]?.id).toBe('workspace:ai')
   })
 
   it('keeps canvas document commands at the boundary', () => {
