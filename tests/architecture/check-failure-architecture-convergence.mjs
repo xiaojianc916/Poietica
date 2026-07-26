@@ -18,6 +18,13 @@ const required = [
   'apps/desktop/src/fatal/fatal-runtime.ts',
 ]
 
+/*
+ * Failure machinery that was deleted and must not return.
+ *
+ * A developer's one-off refactor script does not belong here: .gitignore
+ * already guarantees it can never be committed, while this check reads the
+ * working tree and would fail on a file git is ignoring.
+ */
 const forbiddenFiles = [
   'apps/desktop/src/application/failures/failure-runtime.ts',
   'apps/desktop/src/application/failures/feature-availability.ts',
@@ -25,7 +32,6 @@ const forbiddenFiles = [
   'apps/desktop/src/fatal/fatal-incident.ts',
   'tests/architecture/check-failure-severity-architecture.mjs',
   'tests/architecture/check-fatal-escalation-policy.mjs',
-  'refactor.mjs',
 ]
 
 for (const file of required) {
