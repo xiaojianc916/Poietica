@@ -23,9 +23,10 @@ export default defineConfig({
   // Build-time Tauri variables remain available here through process.env.
   envPrefix: ['VITE_'],
   build: {
-    manifest: true,
-    target: process.env.TAURI_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    sourcemap: !!process.env.TAURI_DEBUG,
+    // Tauri v2 renamed these: TAURI_PLATFORM/TAURI_DEBUG are v1 names, and
+    // reading them silently downgraded the target and killed debug sourcemaps.
+    target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    minify: process.env.TAURI_ENV_DEBUG ? false : 'esbuild',
+    sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
   },
 })

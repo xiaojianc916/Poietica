@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build installers without publishing a release
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installers:
+    name: Windows installers
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # required to create the draft release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.0
+          run_install: false
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26.2.0
+          cache: pnpm
+
+      - name: Install Rust
+        run: rustup show # honours rust-toolchain.toml
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify version consistency
+        run: pnpm check:versions
+
+      - name: Dependency policy
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+
+      - name: Build installers
+        run: pnpm bundle:windows
+        env:
+          # Populate these secrets to produce signed installers. Unsigned
+          # builds still succeed, they just trigger SmartScreen.
+          TAURI_WINDOWS_CERTIFICATE: ${{ secrets.TAURI_WINDOWS_CERTIFICATE }}
+          TAURI_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.TAURI_WINDOWS_CERTIFICATE_PASSWORD }}
+
+      - name: Collect artifacts and checksums
+        id: collect
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $bundle = "target/x86_64-pc-windows-msvc/release/bundle"
+          $out = "dist-release"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          $installers = Get-ChildItem -Path $bundle -Recurse -Include *.msi, *.exe
+          if ($installers.Count -eq 0) {
+            throw "No installer was produced under $bundle"
+          }
+
+          foreach ($file in $installers) {
+            Copy-Item $file.FullName -Destination $out
+          }
+
+          Get-ChildItem $out | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding utf8
+
+          Get-Content "$out/SHA256SUMS.txt"
+
+      - name: Smoke test the NSIS installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $setup = Get-ChildItem "dist-release" -Filter *-setup.exe | Select-Object -First 1
+          if (-not $setup) {
+            Write-Host "No NSIS installer found, skipping smoke test."
+            exit 0
+          }
+
+          # /S is NSIS silent mode; currentUser install needs no elevation.
+          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
+
+          $installed = Get-ChildItem "$env:LOCALAPPDATA\\Programs" -Recurse -Filter "Poietica.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $installed) {
+            throw "Silent install did not place Poietica.exe"
+          }
+
+          $uninstaller = Join-Path $installed.Directory "uninstall.exe"
+          if (Test-Path $uninstaller) {
+            Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
+          }
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: poietica-windows-installers
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: dist-release/*

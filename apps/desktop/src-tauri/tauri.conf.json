@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.poietica.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "pnpm --filter @poietica/desktop dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm --filter @poietica/desktop build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -33,14 +33,38 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
+      "icons/64x64.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Poietica Contributors",
+    "copyright": "Copyright (c) 2026 Poietica Contributors",
+    "homepage": "https://github.com/xiaojianc916/poietica",
+    "shortDescription": "Local-first, AI-assisted canvas for thinking and creating.",
+    "longDescription": "Poietica is a local-first, AI-assisted canvas for thinking, describing, and creating. Documents stay on your machine; AI assistance is opt-in per session.",
+    "licenseFile": "../../../LICENSE",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "allowDowngrades": false,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "SimpChinese"],
+        "displayLanguageSelector": true,
+        "compression": "lzma"
+      }
+    },
+    "createUpdaterArtifacts": false
   },
   "plugins": {}
 }
