@@ -22,7 +22,8 @@
 //! - `POIETICA_ACP_CAPTURE` a path to write the recorded frames to, so the
 //!   renderer's schema can be tested against frames a real agent actually sent
 //! - `POIETICA_ACP_EXPECT`  frame kinds and session update discriminators the
-//!   turn must contain, comma separated, checked before anything is captured
+//!   turn must contain, comma separated, checked before anything is captured,
+//!   and required whenever a capture is requested
 //!
 //! Every wait in here is two-sided. The channels the client hands back are
 //! cancelled when the connection dies, and a cancelled channel says nothing
@@ -277,6 +278,16 @@ fn report(events: &[RecordedEvent]) {
 fn require_expected(events: &[RecordedEvent]) {
     let present = markers(events);
     let wanted = setting("POIETICA_ACP_EXPECT", "");
+
+    /* A capture overwrites the fixture other tests are judged against, and an
+       exported variable outlives the run that needed it, so a capture path
+       left in the shell is enough to replace a good recording with whatever
+       the next turn happened to be. Asking what the recording is for costs one
+       line and makes that impossible. */
+    assert!(
+        setting("POIETICA_ACP_CAPTURE", "").is_empty() || !wanted.is_empty(),
+        "POIETICA_ACP_CAPTURE would replace a fixture, so POIETICA_ACP_EXPECT must say what this recording is for"
+    );
 
     let missing = wanted
         .split(',')
