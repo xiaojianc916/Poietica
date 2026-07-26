@@ -207,35 +207,35 @@ function recordsEqual(left: unknown, right: unknown): boolean {
     return false
   }
 
-  if (leftIsArray) {
-    const leftArray = left as readonly unknown[]
-    const rightArray = right as readonly unknown[]
+  return leftIsArray
+    ? arraysEqual(left as readonly unknown[], right as readonly unknown[])
+    : objectsEqual(left as Record<string, unknown>, right as Record<string, unknown>)
+}
 
-    if (leftArray.length !== rightArray.length) {
-      return false
-    }
-
-    for (let index = 0; index < leftArray.length; index += 1) {
-      if (!recordsEqual(leftArray[index], rightArray[index])) {
-        return false
-      }
-    }
-
-    return true
+function arraysEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
+  if (left.length !== right.length) {
+    return false
   }
 
-  const leftRecord = left as Record<string, unknown>
-  const rightRecord = right as Record<string, unknown>
+  for (let index = 0; index < left.length; index += 1) {
+    if (!recordsEqual(left[index], right[index])) {
+      return false
+    }
+  }
 
-  /* An explicitly present `undefined` value is treated as an absent key. */
+  return true
+}
+
+/** An explicitly present `undefined` value is treated as an absent key. */
+function objectsEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
   let leftDefinedKeys = 0
 
-  for (const key in leftRecord) {
-    if (!Object.hasOwn(leftRecord, key)) {
+  for (const key in left) {
+    if (!Object.hasOwn(left, key)) {
       continue
     }
 
-    const leftValue = leftRecord[key]
+    const leftValue = left[key]
 
     if (leftValue === undefined) {
       continue
@@ -243,15 +243,15 @@ function recordsEqual(left: unknown, right: unknown): boolean {
 
     leftDefinedKeys += 1
 
-    if (!recordsEqual(leftValue, rightRecord[key])) {
+    if (!recordsEqual(leftValue, right[key])) {
       return false
     }
   }
 
   let rightDefinedKeys = 0
 
-  for (const key in rightRecord) {
-    if (Object.hasOwn(rightRecord, key) && rightRecord[key] !== undefined) {
+  for (const key in right) {
+    if (Object.hasOwn(right, key) && right[key] !== undefined) {
       rightDefinedKeys += 1
     }
   }

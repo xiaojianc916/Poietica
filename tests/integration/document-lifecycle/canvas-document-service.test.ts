@@ -7,13 +7,20 @@ function validSnapshot(): TLStoreSnapshot {
   return createTLStore({}).getStoreSnapshot()
 }
 
-function snapshot(documentValue: unknown): TLStoreSnapshot {
-  void documentValue
-  return validSnapshot()
+/*
+ * 脏状态由编辑器会话发布的记录 diff 决定，与快照内容无关，因此一次改动
+ * 就表达为它真正会发布的那条 diff。
+ */
+function recordAdded(recordId: string) {
+  return {
+    added: { [recordId]: { id: recordId } },
+    updated: {},
+    removed: {},
+  }
 }
 
 function createHarness() {
-  let currentSnapshot = snapshot({ shapes: [] })
+  const currentSnapshot = validSnapshot()
 
   const documentListeners = new Set<(event: EditorDocumentEvent) => void>()
   const closeEditorSession = vi.fn().mockResolvedValue(undefined)
@@ -69,11 +76,9 @@ function createHarness() {
       }
     },
 
-    change(nextSnapshot: TLStoreSnapshot) {
-      currentSnapshot = nextSnapshot
-
+    change(recordId = 'shape:1') {
       for (const listener of documentListeners) {
-        listener({ kind: 'changed' })
+        listener({ kind: 'changed', changes: recordAdded(recordId) })
       }
     },
   }
@@ -101,14 +106,7 @@ describe('Canvas document native-release contract', () => {
 
     harness.ready()
 
-    // createHarness 的 snapshot() 当前仅返回一个空的有效 TLStoreSnapshot，
-    // 因此必须显式构造内容不同的快照，才能覆盖 dirty-close 合约。
-    const dirtySnapshot = {
-      ...validSnapshot(),
-      __testDocumentRevision: 'shape:1',
-    } as unknown as TLStoreSnapshot
-
-    harness.change(dirtySnapshot)
+    harness.change()
 
     await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({
       kind: 'confirmation-required',
@@ -149,7 +147,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-opened',
       displayName: 'architecture.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -165,7 +163,7 @@ describe('Canvas document native-release contract', () => {
     const opened = await harness.service.create('未命名画布')
 
     harness.ready()
-    harness.change(snapshot({ shapes: [{ id: 'shape:1' }] }))
+    harness.change()
 
     harness.persistence.saveAs.mockResolvedValue({
       id: 'native-document-created',
@@ -192,7 +190,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-existing',
       displayName: 'existing.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -203,7 +201,7 @@ describe('Canvas document native-release contract', () => {
     }
 
     harness.ready()
-    harness.change(snapshot({ shapes: [{ id: 'shape:1' }] }))
+    harness.change()
 
     await harness.service.save(opened.sessionId)
 
@@ -222,7 +220,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-revision-advance',
       displayName: 'revision-advance.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -274,7 +272,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-conflict',
       displayName: 'conflict.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -285,7 +283,7 @@ describe('Canvas document native-release contract', () => {
     }
 
     harness.ready()
-    harness.change(snapshot({ shapes: [{ id: 'shape:conflict' }] }))
+    harness.change('shape:conflict')
 
     const conflict = Object.assign(new Error('document save conflict'), {
       details: {
@@ -319,7 +317,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-saving',
       displayName: 'saving.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -330,7 +328,7 @@ describe('Canvas document native-release contract', () => {
     }
 
     harness.ready()
-    harness.change(snapshot({ shapes: [{ id: 'shape:1' }] }))
+    harness.change()
 
     let resolveSave: () => void = () => {
       throw new Error('save resolver not initialized')
@@ -364,7 +362,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-save-failure',
       displayName: 'save-failure.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
@@ -375,7 +373,7 @@ describe('Canvas document native-release contract', () => {
     }
 
     harness.ready()
-    harness.change(snapshot({ shapes: [{ id: 'shape:1' }] }))
+    harness.change()
 
     harness.persistence.save.mockRejectedValue(new Error('native document_save rejected'))
 
@@ -398,7 +396,7 @@ describe('Canvas document native-release contract', () => {
       id: 'native-document-release-failure',
       displayName: 'failure.draw',
       revision: 'revision-current',
-      content: JSON.stringify(snapshot({ shapes: [] })),
+      content: JSON.stringify(validSnapshot()),
       assetPersistenceToken: null,
     })
 
