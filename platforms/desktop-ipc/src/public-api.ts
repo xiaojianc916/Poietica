@@ -4,8 +4,12 @@ export {
   type AgentCommandBridge,
   type AgentEventSource,
   type AgentEventSourceOptions,
+  type AgentModelBridge,
+  type AgentModelDescription,
+  type AgentModelListing,
   createAgentCommandBridge,
   createAgentEventSource,
+  createAgentModelBridge,
   shutdownAgent,
 } from './agent'
 export {

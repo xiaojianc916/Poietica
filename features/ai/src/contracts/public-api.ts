@@ -17,6 +17,11 @@ export type {
   AgentPromptRequest,
   AgentSessionPort,
 } from './agent-session-port'
+export type { AgentModel } from './model-contract'
+export type {
+  AgentModelSelection,
+  AgentModelsPort,
+} from './model-port'
 export type {
   AgentCapability,
   AgentDefinition,

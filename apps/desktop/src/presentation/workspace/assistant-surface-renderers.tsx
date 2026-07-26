@@ -2,7 +2,7 @@ import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import { AssistantSurface } from '@poietica/features-ai/react'
 import type { WorkspaceSurfaceRenderers } from '@poietica/features-workspace/contracts'
 
-import { DEFAULT_THREAD_ID } from '../../application/ai/agent-session'
+import { DEFAULT_THREAD_ID, desktopAgentModels } from '../../application/ai/agent-session'
 
 /**
  * 组合根：把 AI feature 接入 workspace 表面扩展点。
@@ -16,6 +16,12 @@ export function createAssistantSurfaceRenderers(
   session: AgentSessionPort,
 ): WorkspaceSurfaceRenderers {
   return {
-    ai: () => <AssistantSurface endpoint={DEFAULT_THREAD_ID} session={session} />,
+    ai: () => (
+      <AssistantSurface
+        endpoint={DEFAULT_THREAD_ID}
+        models={desktopAgentModels()}
+        session={session}
+      />
+    ),
   }
 }

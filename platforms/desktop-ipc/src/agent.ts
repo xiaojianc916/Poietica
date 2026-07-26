@@ -151,6 +151,68 @@ export function createAgentCommandBridge({
   }
 }
 
+/*
+ * The model list is a file, reached through two ordinary commands.
+ *
+ * Nothing is cached and nothing is merged here: the native side reads the
+ * agent's own configuration file, and a switch answers with the state that
+ * file is in afterwards.
+ */
+
+/** One model the agent's configuration declares. */
+export interface AgentModelDescription {
+  readonly id: string
+  readonly label: string
+  readonly provider?: string
+}
+
+export interface AgentModelListing {
+  readonly models: readonly AgentModelDescription[]
+  readonly activeModelId?: string
+}
+
+export interface AgentModelBridge {
+  readonly list: () => Promise<AgentModelListing>
+  readonly select: (modelId: string) => Promise<AgentModelListing>
+}
+
+interface NativeModel {
+  readonly id: string
+  readonly label: string
+  readonly provider: string | null
+}
+
+interface NativeModelList {
+  readonly models: readonly NativeModel[]
+  readonly active: string | null
+}
+
+/**
+ * Turns the native answer into the shape the port declares.
+ *
+ * The wire says null for absent and the port says absent, which under
+ * exactOptionalPropertyTypes are different types, so the key is left out
+ * rather than set to undefined.
+ */
+function listing(result: NativeModelList): AgentModelListing {
+  return {
+    models: result.models.map((model) => ({
+      id: model.id,
+      label: model.label,
+      ...(model.provider === null ? {} : { provider: model.provider }),
+    })),
+    ...(result.active === null ? {} : { activeModelId: result.active }),
+  }
+}
+
+export function createAgentModelBridge(): AgentModelBridge {
+  return {
+    list: async () => listing(await call(() => commands.agentModels())),
+
+    select: async (modelId) => listing(await call(() => commands.agentSelectModel({ modelId }))),
+  }
+}
+
 /** Ends the session and lets the agent process exit. */
 export async function shutdownAgent(): Promise<void> {
   await call(() => commands.agentShutdown())

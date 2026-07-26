@@ -11,8 +11,10 @@ import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
 import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
+import type { AgentModelsPort } from '../contracts/model-port'
 import type { TurnOutcome } from '../domain/timeline-selectors'
 import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
+import { useAgentModels } from '../application/useAgentModels'
 import { useAssistantSession } from '../application/useAssistantSession'
 
 export interface AssistantSurfaceProps {
@@ -25,6 +27,14 @@ export interface AssistantSurfaceProps {
    * supplies the real IPC-backed port.
    */
   readonly session?: AgentSessionPort
+  /**
+   * Where the model list is read from and written to.
+   *
+   * Optional for the same reason the session is: without it the picker has
+   * no list and draws nothing, rather than offering a choice this surface
+   * cannot carry out.
+   */
+  readonly models?: AgentModelsPort
 }
 
 /*
@@ -68,7 +78,7 @@ function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNod
  * whether a turn was ever sent: a state derived from the timeline cannot
  * disagree with it.
  */
-export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
+export function AssistantSurface({ endpoint, models, session }: AssistantSurfaceProps) {
   /*
    * Under exactOptionalPropertyTypes an absent property and a property set to
    * undefined are different types, so the key is omitted rather than passed
@@ -78,6 +88,9 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
     endpoint,
     ...(session === undefined ? {} : { session }),
   })
+
+  /* The choice belongs to the agent config, so it is loaded, not invented. */
+  const picker = useAgentModels(models)
 
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
@@ -129,8 +142,11 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
           <AssistantComposer
             agentLabel="Super Computer"
             isAgentNew
+            models={picker.models}
+            onSelectModel={picker.select}
             onSubmit={assistant.send}
             status={assistant.status}
+            {...(picker.activeModelId === undefined ? {} : { activeModelId: picker.activeModelId })}
           />
         </div>
 

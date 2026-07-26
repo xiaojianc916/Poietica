@@ -1,9 +1,10 @@
 import { createIpcSession } from '@poietica/features-ai/adapters'
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
+import type { AgentModelsPort, AgentSessionPort } from '@poietica/features-ai/contracts'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCommandBridge,
   createAgentEventSource,
+  createAgentModelBridge,
   shutdownAgent,
 } from '@poietica/platforms-desktop-ipc'
 
@@ -28,6 +29,22 @@ import {
  * It becomes real when the runtime learns to hold more than one session.
  */
 export const DEFAULT_THREAD_ID = 'thread_default'
+
+/*
+ * The model list, offered once for the whole process.
+ *
+ * The port holds no state; it is a file read behind a command, so one
+ * instance is enough. It is kept rather than rebuilt because the surface
+ * reads the list again whenever the port's identity changes, and a fresh
+ * object per render would mean a fresh read per render.
+ */
+let agentModels: AgentModelsPort | undefined
+
+export function desktopAgentModels(): AgentModelsPort {
+  agentModels ??= createAgentModelBridge()
+
+  return agentModels
+}
 
 export interface DesktopAgentSession {
   readonly port: AgentSessionPort

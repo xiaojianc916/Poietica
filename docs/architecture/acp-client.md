@@ -687,3 +687,42 @@ A model is decided when a session is created, not per turn, so selecting one
 ends the running session and lets the next prompt open a new one. Nothing is
 sent to the agent to announce the change, because there is nothing in
 protocol v1 to send it with.
+
+## The account is not the kind
+
+The real configuration file names an account, and the account names a kind:
+
+```toml
+default_model = "moonshot-cn/kimi-k2.6"
+
+[providers.moonshot-cn]
+type = "kimi"
+
+[models."moonshot-cn/kimi-k2.6"]
+provider = "moonshot-cn"
+model = "kimi-k2.6"
+```
+
+Three readings follow, and each one was wrong in the first version. The
+identifier is the section key, quoted because it holds a slash and a dot, and
+it is the only thing `default_model` may be set to. The readable name is the
+`model` value inside the section, not the key. And the mark to draw comes from
+`[providers.<account>].type`: an account named `moonshot-cn` is a provider of
+type `kimi`, so reading `provider` as if it were the kind sends every model to
+the fallback icon. The account name is used only when the provider section is
+missing, because a broken file should still show something recognisable.
+
+Everything else in that file belongs to the agent: `capabilities`,
+`support_efforts`, `max_context_size`, `[thinking]`, `[loop_control]`, the
+comments, and the key. None of it is read here, because nothing displays it
+yet, and none of it may be disturbed, which is what the switch test asserts
+line by line.
+
+## A list that is read is not a list that is shown
+
+The previous round made the file readable and writable and stopped there, so
+the picker stayed empty and the control stayed invisible -- the control returns
+nothing when it has no list, on purpose. Reaching the screen took the rest of
+the line: a port in the feature, a bridge on the desktop side that turns the
+wire null into an absent key, a hook that holds the answer, and one line in the
+composition root. A capability nobody can see has not been delivered.
