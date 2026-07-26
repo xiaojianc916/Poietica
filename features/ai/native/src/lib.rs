@@ -12,7 +12,7 @@ mod migrations;
 mod projections;
 mod store;
 
-pub use connection::{open_encrypted, DEFAULT_BUSY_TIMEOUT};
+pub use connection::{DEFAULT_BUSY_TIMEOUT, open_encrypted};
 pub use error::{Result, StoreError};
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};

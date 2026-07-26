@@ -9,7 +9,6 @@
 //! part that decides which run an update belongs to. Getting that wrong would
 //! attribute frames to the previous turn, which no compiler would catch.
 
-
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};

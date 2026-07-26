@@ -661,10 +661,12 @@ mod tests {
         );
 
         assert_eq!(decoded.assets.len(), 2);
-        assert!(decoded
-            .assets
-            .windows(2)
-            .all(|pair| { pair[0].content_hash < pair[1].content_hash }));
+        assert!(
+            decoded
+                .assets
+                .windows(2)
+                .all(|pair| { pair[0].content_hash < pair[1].content_hash })
+        );
     }
 
     /*
@@ -717,7 +719,10 @@ mod tests {
         let stored = encode_with("image/png");
         let deflated = encode_with("audio/wav");
 
-        assert_eq!(entry_method(&stored, "image/png"), CompressionMethod::Stored);
+        assert_eq!(
+            entry_method(&stored, "image/png"),
+            CompressionMethod::Stored
+        );
         assert_eq!(
             entry_method(&deflated, "audio/wav"),
             CompressionMethod::Deflated,

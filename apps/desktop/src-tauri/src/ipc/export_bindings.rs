@@ -35,6 +35,14 @@ const OUTPUT_PATH: &str = concat!(
 ///
 /// This function is intentionally called by the dedicated
 /// `export-ipc-bindings` binary, never on desktop application startup.
+/// # Panics
+///
+/// Panics when the TypeScript bindings cannot be written. That is a build
+/// fault rather than a runtime condition, so the build must stop here.
+#[allow(
+    clippy::expect_used,
+    reason = "a binding export that silently failed would ship a stale IPC surface"
+)]
 pub fn export_document_bindings() {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)

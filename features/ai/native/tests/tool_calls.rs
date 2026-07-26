@@ -8,10 +8,7 @@
 //! These run against a real encrypted file with a throwaway key, so nothing
 //! here touches the operating system credential store.
 
-
-use poietica_ai_persistence_native::{
-    AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus,
-};
+use poietica_ai_persistence_native::{AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus};
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -60,10 +57,7 @@ fn a_tool_call_moves_through_the_four_states() {
     assert_eq!(announced.len(), 1);
     assert_eq!(first.status, ToolCallStatus::Pending);
     assert_eq!(first.kind, "read");
-    assert!(
-        first.ended_at.is_none(),
-        "a pending call has not ended yet"
-    );
+    assert!(first.ended_at.is_none(), "a pending call has not ended yet");
 
     assert!(
         store
@@ -88,7 +82,11 @@ fn a_tool_call_moves_through_the_four_states() {
         .expect("the projection to be readable");
     let row = settled.first().expect("exactly one row");
 
-    assert_eq!(settled.len(), 1, "the states update one row, they do not append");
+    assert_eq!(
+        settled.len(),
+        1,
+        "the states update one row, they do not append"
+    );
     assert_eq!(row.status, ToolCallStatus::Completed);
     assert_eq!(row.title, "Read config.toml (3 KB)");
     assert!(
@@ -118,7 +116,11 @@ fn a_redelivered_announcement_folds_into_one_row() {
         .tool_calls_for_run(fixture.run_id)
         .expect("the projection to be readable");
 
-    assert_eq!(calls.len(), 1, "a redelivered announcement is not a new call");
+    assert_eq!(
+        calls.len(),
+        1,
+        "a redelivered announcement is not a new call"
+    );
 }
 
 #[test]
@@ -135,7 +137,10 @@ fn an_update_without_an_announcement_is_reported_to_the_caller() {
         )
         .expect("the statement to run");
 
-    assert!(!matched, "the caller must be able to see that nothing matched");
+    assert!(
+        !matched,
+        "the caller must be able to see that nothing matched"
+    );
 }
 
 #[test]
@@ -193,9 +198,17 @@ fn a_permission_request_is_recorded_once_and_settled_once() {
         .pending_permissions(fixture.run_id)
         .expect("the projection to be readable");
 
-    assert_eq!(outstanding.len(), 1, "a redelivered request is not a new one");
     assert_eq!(
-        outstanding.first().expect("one row").tool_call_id.as_deref(),
+        outstanding.len(),
+        1,
+        "a redelivered request is not a new one"
+    );
+    assert_eq!(
+        outstanding
+            .first()
+            .expect("one row")
+            .tool_call_id
+            .as_deref(),
         Some("call_001")
     );
 

@@ -6,7 +6,7 @@
 )]
 #![allow(
     clippy::print_stdout,
-    reason = "this turn is driven by hand against a real agent, and its printout is",
+    reason = "this turn is driven by hand against a real agent, and its printout is"
 )]
 #![allow(
     clippy::similar_names,
@@ -44,7 +44,6 @@
 //! about why, so each wait that comes back empty asks the driver thread for the
 //! actual failure before reporting anything.
 
-
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
@@ -55,8 +54,8 @@ use std::time::{Duration, Instant};
 use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_ai_acp_native::{
-    connect, AcpError, AgentConnection, AgentSpawn, PermissionDesk, RecordedEvent, Recorder,
-    RunSlot, RUN_FINISHED, RUN_STARTED,
+    AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
+    RecordedEvent, Recorder, RunSlot, connect,
 };
 use poietica_ai_persistence_native::{AiStore, DatabaseKey};
 use tempfile::TempDir;
@@ -203,7 +202,12 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let broadcast: Vec<RecordedEvent> = observed.try_iter().collect();
 
     for event in &broadcast {
-        println!("  {:>3} {:<12} {}", event.seq, event.kind, describe(&event.frame));
+        println!(
+            "  {:>3} {:<12} {}",
+            event.seq,
+            event.kind,
+            describe(&event.frame)
+        );
     }
 
     report(&broadcast);
@@ -292,10 +296,10 @@ fn require_expected(events: &[RecordedEvent]) {
     let wanted = setting("POIETICA_ACP_EXPECT", "");
 
     /* A capture overwrites the fixture other tests are judged against, and an
-       exported variable outlives the run that needed it, so a capture path
-       left in the shell is enough to replace a good recording with whatever
-       the next turn happened to be. Asking what the recording is for costs one
-       line and makes that impossible. */
+    exported variable outlives the run that needed it, so a capture path
+    left in the shell is enough to replace a good recording with whatever
+    the next turn happened to be. Asking what the recording is for costs one
+    line and makes that impossible. */
     assert!(
         setting("POIETICA_ACP_CAPTURE", "").is_empty() || !wanted.is_empty(),
         "POIETICA_ACP_CAPTURE would replace a fixture, so POIETICA_ACP_EXPECT must say what this recording is for"
@@ -354,9 +358,9 @@ fn capture(events: &[RecordedEvent]) {
     let path = PathBuf::from(path);
 
     /* The recording is source code, so it has to be named like source code. A
-       path with any other extension would be written all the same, and the test
-       that imports the module would go on reporting that it does not exist,
-       which is a long way to travel to learn that a variable was stale. */
+    path with any other extension would be written all the same, and the test
+    that imports the module would go on reporting that it does not exist,
+    which is a long way to travel to learn that a variable was stale. */
     assert!(
         path.extension().is_some_and(|extension| extension == "ts"),
         "POIETICA_ACP_CAPTURE must name a .ts module; got {}",

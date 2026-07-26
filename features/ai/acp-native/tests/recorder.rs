@@ -11,7 +11,6 @@
 //! named here is renamed there, one side fails loudly instead of silently
 //! dropping frames at the boundary.
 
-
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{
@@ -203,7 +202,11 @@ fn a_tool_call_reaches_a_terminal_state_in_the_projection() {
         .expect("the projection to be readable");
     let call = calls.first().expect("exactly one call");
 
-    assert_eq!(calls.len(), 1, "one announcement plus one update is one row");
+    assert_eq!(
+        calls.len(),
+        1,
+        "one announcement plus one update is one row"
+    );
     assert_eq!(
         call.status,
         poietica_ai_persistence_native::ToolCallStatus::Completed
@@ -233,7 +236,10 @@ fn a_permission_request_is_refused_and_recorded() {
 
     let request = RequestPermissionRequest::new(
         "sess_alpha",
-        ToolCallUpdate::new("call_005", ToolCallUpdateFields::new().title("Run cargo test")),
+        ToolCallUpdate::new(
+            "call_005",
+            ToolCallUpdateFields::new().title("Run cargo test"),
+        ),
         vec![
             PermissionOption::new("allow", "Allow", PermissionOptionKind::AllowOnce),
             PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),

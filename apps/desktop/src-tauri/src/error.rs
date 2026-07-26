@@ -165,6 +165,10 @@ impl Error {
     }
 }
 
+#[allow(
+    clippy::multiple_inherent_impl,
+    reason = "the public message table is kept in its own block, apart from the IPC mapping"
+)]
 impl Error {
     /// 返回给 `WebView` 的稳定、脱敏错误消息。
     ///
@@ -229,6 +233,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::as_conversions,
+        clippy::missing_panics_doc,
+        clippy::missing_errors_doc,
+        clippy::too_many_lines,
+        clippy::shadow_unrelated,
+        reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
+    )]
+
     use super::{Error, IpcErrorCode, IpcOperation};
 
     #[test]

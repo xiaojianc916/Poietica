@@ -26,8 +26,8 @@ mod revision;
 pub use asset_content_type::is_supported_asset_content_type;
 pub use atomic_write::atomic_write;
 pub use draw_document_codec::{
-    decode_draw_document, encode_draw_document, DecodedDrawDocument, DrawAssetInput,
-    DrawAssetOutput, DrawDocumentInput,
+    DecodedDrawDocument, DrawAssetInput, DrawAssetOutput, DrawDocumentInput, decode_draw_document,
+    encode_draw_document,
 };
 pub use error::{Error, Result};
-pub use revision::{document_revision, DocumentRevision};
+pub use revision::{DocumentRevision, document_revision};

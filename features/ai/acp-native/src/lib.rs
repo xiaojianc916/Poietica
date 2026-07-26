@@ -30,11 +30,11 @@ mod stderr;
 
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
-pub use permission::{answers, decide, Decision};
+pub use permission::{Decision, answers, decide};
 pub use recorder::{
-    RecordedEvent, Recorder, ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
-    RUN_FINISHED, RUN_STARTED,
+    ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED,
+    RecordedEvent, Recorder,
 };
 pub use run_slot::RunSlot;
-pub use session::{connect, AgentClient, AgentConnection, AgentSpawn};
+pub use session::{AgentClient, AgentConnection, AgentSpawn, connect};
 pub use stderr::StderrLog;

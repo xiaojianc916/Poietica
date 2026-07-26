@@ -93,7 +93,9 @@ impl DocumentRegistry {
     fn save_lock(&self, document_id: DocumentId) -> Result<Arc<Mutex<()>>> {
         let documents = self.read()?;
 
-        Ok(Arc::clone(&Self::handle(&documents, document_id)?.save_lock))
+        Ok(Arc::clone(
+            &Self::handle(&documents, document_id)?.save_lock,
+        ))
     }
 
     /// Publishes the outcome of a completed write.
@@ -112,11 +114,11 @@ impl DocumentRegistry {
     ) -> Result<()> {
         let mut documents = self.write()?;
 
-        let handle = documents.get_mut(&document_id).ok_or_else(|| {
-            Error::NotFound("document session was closed while saving".into())
-        })?;
+        let handle = documents
+            .get_mut(&document_id)
+            .ok_or_else(|| Error::NotFound("document session was closed while saving".into()))?;
 
-        handle.path = path.to_owned();
+        path.clone_into(&mut handle.path);
         handle.revision = revision;
         handle.container_len = container_len;
         handle.asset_session_token = asset_session_token;
@@ -197,7 +199,7 @@ impl DocumentRegistry {
             document_id,
             &path,
             revision.clone(),
-            encoded.len() as u64,
+            u64::try_from(encoded.len()).unwrap_or(u64::MAX),
             asset_session_token,
         )?;
 
@@ -268,7 +270,7 @@ impl DocumentRegistry {
             document_id,
             &plan.path,
             next_revision.clone(),
-            encoded.len() as u64,
+            u64::try_from(encoded.len()).unwrap_or(u64::MAX),
             asset_session_token,
         )?;
 
@@ -354,6 +356,11 @@ pub struct DocumentCloseRequest {
 /// Opens one .draw file selected by the native file dialog.
 ///
 /// No caller-controlled path is accepted.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn document_open(
@@ -413,6 +420,11 @@ pub async fn document_open(
 
 /// Creates a new document session or moves an existing session through a native
 /// Save As dialog. No filesystem path is accepted from the renderer.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn document_save_as(
@@ -421,7 +433,7 @@ pub async fn document_save_as(
     assets: State<'_, AssetProtocolRegistry>,
     request: DocumentSaveAsRequest,
 ) -> DocumentCommandResult<DocumentSaveAsResult> {
-    ensure_logical_document_size(request.content.len() as u64)?;
+    ensure_logical_document_size(u64::try_from(request.content.len()).unwrap_or(u64::MAX))?;
 
     if let Some(document_id) = request.document_id {
         let _ = documents.path(document_id)?;
@@ -456,9 +468,7 @@ pub async fn document_save_as(
             )
         })
         .await
-        .map_err(|_| {
-            Error::Internal("document Save As task terminated unexpectedly".into())
-        })??;
+        .map_err(|_| Error::Internal("document Save As task terminated unexpectedly".into()))??;
 
         (document_id, revision)
     } else {
@@ -495,6 +505,11 @@ pub async fn document_save_as(
 /// Saves content to the document already selected by a native dialog.
 ///
 /// The renderer supplies an opaque document ID, never a local path.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn document_save(
@@ -524,6 +539,11 @@ pub async fn document_save(
 }
 
 /// Ends the native document session and releases its private file handle.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub fn document_close(
@@ -534,10 +554,11 @@ pub fn document_close(
     let handle = documents.remove(request.document_id)?;
 
     if let Some(token) = &handle.asset_session_token
-        && let Err(error) = assets.remove_session(token) {
-            documents.restore(request.document_id, handle)?;
-            return Err(map_asset_error(error).into());
-        }
+        && let Err(error) = assets.remove_session(token)
+    {
+        documents.restore(request.document_id, handle)?;
+        return Err(map_asset_error(error).into());
+    }
 
     Ok(())
 }
@@ -589,10 +610,10 @@ async fn read_document(path: PathBuf) -> Result<(DecodedDocument, DocumentRevisi
     ensure_container_size(metadata.len())?;
 
     let bytes = tokio::fs::read(&path).await?;
-    ensure_container_size(bytes.len() as u64)?;
+    ensure_container_size(u64::try_from(bytes.len()).unwrap_or(u64::MAX))?;
 
     tokio::task::spawn_blocking(move || {
-        let container_len = bytes.len() as u64;
+        let container_len = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
         let revision = document_revision(&bytes);
         let decoded = decode_document(&bytes)?;
 
@@ -613,7 +634,10 @@ async fn write_document(
 
         atomic_write(&path, &encoded)?;
 
-        Ok((document_revision(&encoded), encoded.len() as u64))
+        Ok((
+            document_revision(&encoded),
+            u64::try_from(encoded.len()).unwrap_or(u64::MAX),
+        ))
     })
     .await
     .map_err(|_| Error::Internal("document save task terminated unexpectedly".into()))?
@@ -660,7 +684,7 @@ fn encode_document(
     created_at: &str,
     assets: &[AssetSessionSnapshotEntry],
 ) -> Result<Vec<u8>> {
-    ensure_logical_document_size(content.len() as u64)?;
+    ensure_logical_document_size(u64::try_from(content.len()).unwrap_or(u64::MAX))?;
 
     let saved_at = now_timestamp()?;
 
@@ -841,6 +865,19 @@ fn display_name(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::as_conversions,
+        clippy::missing_panics_doc,
+        clippy::missing_errors_doc,
+        clippy::too_many_lines,
+        clippy::shadow_unrelated,
+        reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
+    )]
+
     use super::*;
 
     fn logical_store_snapshot(marker: &str) -> String {
@@ -1011,7 +1048,11 @@ mod tests {
         let last = tampered.len() - 1;
         tampered[last] ^= 0xFF;
 
-        assert_eq!(tampered.len(), original.len(), "tampering must preserve length");
+        assert_eq!(
+            tampered.len(),
+            original.len(),
+            "tampering must preserve length"
+        );
         assert_ne!(tampered, original, "tampering must change the bytes");
 
         std::fs::write(&path, &tampered).expect("external edit should write");
@@ -1087,7 +1128,9 @@ mod tests {
             .expect("an unrelated held save lock must not block this save");
 
         assert_eq!(
-            registry.path(idle_id).expect("registry should stay readable"),
+            registry
+                .path(idle_id)
+                .expect("registry should stay readable"),
             idle_path,
         );
     }

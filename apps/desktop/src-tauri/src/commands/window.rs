@@ -37,6 +37,10 @@ pub struct WindowInfo {
     pub focused: bool,
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_create(app: AppHandle, options: WindowOptions) -> Result<WindowInfo> {
     if let Some(existing) = app.get_webview_window(&options.label) {
@@ -70,23 +74,31 @@ pub async fn window_create(app: AppHandle, options: WindowOptions) -> Result<Win
     window_info(builder.build()?)
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_get(app: AppHandle, label: String) -> Result<Option<WindowInfo>> {
-    app
-        .get_webview_window(&label)
-        .map(window_info)
-        .transpose()
+    app.get_webview_window(&label).map(window_info).transpose()
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_list(app: AppHandle) -> Result<Vec<WindowInfo>> {
-    app
-        .webview_windows()
+    app.webview_windows()
         .into_values()
         .map(window_info)
         .collect::<Result<Vec<_>>>()
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_show(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -95,6 +107,10 @@ pub async fn window_show(app: AppHandle, label: String) -> Result<()> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_focus(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -103,6 +119,10 @@ pub async fn window_focus(app: AppHandle, label: String) -> Result<()> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_close(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -111,6 +131,10 @@ pub async fn window_close(app: AppHandle, label: String) -> Result<()> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_destroy(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -122,6 +146,10 @@ pub async fn window_destroy(app: AppHandle, label: String) -> Result<()> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_open_devtools(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -131,6 +159,10 @@ pub async fn window_open_devtools(app: AppHandle, label: String) -> Result<()> {
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_set_title(app: AppHandle, label: String, title: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -139,6 +171,10 @@ pub async fn window_set_title(app: AppHandle, label: String, title: String) -> R
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[command]
 pub async fn window_save_state(app: AppHandle, _label: String) -> Result<()> {
     app.save_window_state(StateFlags::all())?;

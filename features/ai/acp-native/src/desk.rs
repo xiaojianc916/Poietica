@@ -5,7 +5,7 @@ use agent_client_protocol::schema::v1::RequestPermissionRequest;
 use futures::channel::oneshot;
 
 use crate::error::{AcpError, Result};
-use crate::permission::{answers, Decision};
+use crate::permission::{Decision, answers};
 
 const UNKNOWN_REQUEST: &str = "that permission request is not outstanding";
 const UNKNOWN_OPTION: &str = "that option was never offered for this permission request";

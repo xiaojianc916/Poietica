@@ -10,7 +10,6 @@
 //! ones: an answer nobody asked for, an option nobody offered, and a turn that
 //! ended before anyone answered at all.
 
-
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{

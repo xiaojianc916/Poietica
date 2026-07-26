@@ -19,14 +19,14 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use poietica_ai_acp_native::{
-    connect, AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RecordedEvent,
-    Recorder, RunSlot,
+    AcpError, AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RecordedEvent, Recorder,
+    RunSlot, connect,
 };
 use poietica_ai_persistence_native::{AiStore, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use tauri::{async_runtime, AppHandle, Emitter, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
 use crate::error::{Error, IpcError, Result};
@@ -55,6 +55,10 @@ const NO_SESSION_ID: &str = "the agent closed the connection before creating a s
 
 /// The live session, if one has been started.
 #[derive(Debug)]
+#[allow(
+    clippy::struct_field_names,
+    reason = "session_id is the ACP wire field name; renaming it would hide the protocol contract"
+)]
 struct Session {
     client: AgentClient,
     session_id: String,
@@ -457,8 +461,7 @@ fn executable(line: &str) -> String {
 /// Finds the file name, extension included, that a bare program name resolves to.
 #[cfg(windows)]
 fn on_path(program: &str) -> Option<String> {
-    let extensions =
-        std::env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
+    let extensions = std::env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
     let path = std::env::var_os("PATH")?;
 
     for directory in std::env::split_paths(&path) {

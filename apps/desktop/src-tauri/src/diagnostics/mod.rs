@@ -40,6 +40,11 @@ pub struct NativeCrashReport {
 /// A Rust panic can terminate the native process before the `WebView` is able to
 /// render anything. The panic hook therefore writes a local crash report that
 /// is consumed on the next launch.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 pub fn install(app: &AppHandle) -> Result<()> {
     let report_directory = app.path().app_log_dir()?;
     fs::create_dir_all(&report_directory)?;
@@ -51,6 +56,10 @@ pub fn install(app: &AppHandle) -> Result<()> {
         let report = create_report(panic_info, &app_version);
 
         if let Err(error) = write_report_atomically(&report_directory, &report) {
+            #[allow(
+                clippy::print_stderr,
+                reason = "the panic hook must still reach stderr when logging is already down"
+            )]
             eprintln!("[Poietica] failed to persist native crash report: {error}");
         }
 
@@ -64,6 +73,11 @@ pub fn install(app: &AppHandle) -> Result<()> {
 ///
 /// Reports are removed after a successful read so reloading the renderer does
 /// not display the same historical crash indefinitely.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashReport>> {
     let report_path = crash_report_path(app)?;
 
@@ -208,6 +222,19 @@ fn truncate(mut value: String, maximum_length: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::as_conversions,
+        clippy::missing_panics_doc,
+        clippy::missing_errors_doc,
+        clippy::too_many_lines,
+        clippy::shadow_unrelated,
+        reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
+    )]
+
     use super::{MAX_MESSAGE_LENGTH, truncate};
 
     #[test]

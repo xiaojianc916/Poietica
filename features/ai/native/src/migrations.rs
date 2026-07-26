@@ -3,8 +3,7 @@ use rusqlite::Connection;
 use crate::error::Result;
 
 /// Ordered migrations. Never edit one that has shipped; add the next.
-const MIGRATIONS: &[(i64, &str, &str)] =
-    &[(1, "initial", include_str!("schema/0001_initial.sql"))];
+const MIGRATIONS: &[(i64, &str, &str)] = &[(1, "initial", include_str!("schema/0001_initial.sql"))];
 
 /// Brings the database up to the current schema version.
 ///

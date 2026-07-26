@@ -51,6 +51,10 @@ pub struct AssetSessionCloseRequest {
     pub session_token: String,
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_open(
@@ -65,6 +69,10 @@ pub async fn asset_session_open(
     Ok(AssetSessionResult { session_token })
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_upload(
@@ -127,6 +135,10 @@ pub async fn asset_upload(
     })
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_remove(
@@ -144,6 +156,10 @@ pub async fn asset_remove(
     Ok(())
 }
 
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_close(
@@ -185,6 +201,19 @@ fn map_asset_error(error: AssetProtocolError) -> IpcError {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        clippy::indexing_slicing,
+        clippy::as_conversions,
+        clippy::missing_panics_doc,
+        clippy::missing_errors_doc,
+        clippy::too_many_lines,
+        clippy::shadow_unrelated,
+        reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
+    )]
+
     use super::*;
 
     #[test]

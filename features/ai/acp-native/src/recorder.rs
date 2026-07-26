@@ -7,7 +7,7 @@ use agent_client_protocol::schema::v1::{
 };
 use poietica_ai_persistence_native::{AiStore, PermissionOutcome, RunStatus, ToolCallStatus};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
@@ -338,9 +338,11 @@ impl Recorder {
         // selection as far as the protocol is concerned. Only an unanswered
         // request is cancelled.
         let (outcome, option_id, wire_outcome) = match decision {
-            Decision::Allow(option_id) => {
-                (PermissionOutcome::Allowed, option_id.to_string(), "selected")
-            }
+            Decision::Allow(option_id) => (
+                PermissionOutcome::Allowed,
+                option_id.to_string(),
+                "selected",
+            ),
             Decision::Reject(option_id) => {
                 (PermissionOutcome::Denied, option_id.to_string(), "selected")
             }
@@ -380,13 +382,7 @@ impl Recorder {
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn finish(
-        &mut self,
-        status: RunStatus,
-        kind: &str,
-        body: Value,
-        detail: &str,
-    ) -> Result<()> {
+    fn finish(&mut self, status: RunStatus, kind: &str, body: Value, detail: &str) -> Result<()> {
         self.store.finish_run(self.run_id, status, Some(detail))?;
 
         // A failure always carries the agent account of it. A turn that ended

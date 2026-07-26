@@ -35,8 +35,7 @@ pub fn open_encrypted(path: &Path, key: &DatabaseKey) -> Result<Connection> {
         .map_err(|_ignored| StoreError::WrongKey)?;
 
     // Write ahead logging lets the UI read while a run is being recorded.
-    let _mode: String =
-        connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
+    let _mode: String = connection.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
 
     connection.pragma_update(None, "synchronous", "NORMAL")?;
     connection.pragma_update(None, "foreign_keys", true)?;

@@ -43,17 +43,50 @@ pub struct AssetContentType {
 /// sanitizer and CSP policy before it may enter either the container or the
 /// delivery protocol.
 pub const ASSET_CONTENT_TYPES: &[AssetContentType] = &[
-    AssetContentType { mime: "image/png", entropy_coded: true },
-    AssetContentType { mime: "image/jpeg", entropy_coded: true },
-    AssetContentType { mime: "image/webp", entropy_coded: true },
-    AssetContentType { mime: "image/gif", entropy_coded: true },
-    AssetContentType { mime: "application/pdf", entropy_coded: false },
-    AssetContentType { mime: "video/mp4", entropy_coded: true },
-    AssetContentType { mime: "video/webm", entropy_coded: true },
-    AssetContentType { mime: "audio/mpeg", entropy_coded: true },
-    AssetContentType { mime: "audio/mp4", entropy_coded: true },
-    AssetContentType { mime: "audio/ogg", entropy_coded: true },
-    AssetContentType { mime: "audio/wav", entropy_coded: false },
+    AssetContentType {
+        mime: "image/png",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "image/jpeg",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "image/webp",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "image/gif",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "application/pdf",
+        entropy_coded: false,
+    },
+    AssetContentType {
+        mime: "video/mp4",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "video/webm",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "audio/mpeg",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "audio/mp4",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "audio/ogg",
+        entropy_coded: true,
+    },
+    AssetContentType {
+        mime: "audio/wav",
+        entropy_coded: false,
+    },
 ];
 
 /// Looks up a content type by its exact MIME string.
@@ -118,7 +151,9 @@ mod tests {
         assert!(is_supported_asset_content_type("image/png"));
 
         assert!(!is_supported_asset_content_type("Image/PNG"));
-        assert!(!is_supported_asset_content_type("image/png; charset=binary"));
+        assert!(!is_supported_asset_content_type(
+            "image/png; charset=binary"
+        ));
         assert!(!is_supported_asset_content_type(" image/png"));
         assert!(!is_supported_asset_content_type("image/png "));
     }

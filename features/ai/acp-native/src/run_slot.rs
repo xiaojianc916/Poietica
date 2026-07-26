@@ -82,8 +82,6 @@ impl RunSlot {
 
     /// Whether a run is currently being recorded.
     pub fn is_recording(&self) -> bool {
-        self.current
-            .lock()
-            .is_ok_and(|current| current.is_some())
+        self.current.lock().is_ok_and(|current| current.is_some())
     }
 }

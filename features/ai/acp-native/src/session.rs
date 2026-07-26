@@ -10,13 +10,13 @@ use agent_client_protocol::schema::v1::{
 };
 use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
-use futures::future::{select, BoxFuture, Either};
+use futures::future::{BoxFuture, Either, select};
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Result};
-use crate::permission::{decide, Decision};
+use crate::permission::{Decision, decide};
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
 use crate::stderr::StderrLog;

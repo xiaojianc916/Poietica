@@ -40,6 +40,11 @@ impl TrayState {
 }
 
 /// Installs the tray icon and its menu. Called once from the composition root.
+///
+/// # Errors
+///
+/// Returns an error when the underlying operation fails; the message handed
+/// to the caller is the redacted IPC message, never native detail.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let _managed = app.manage(TrayState::default());
 

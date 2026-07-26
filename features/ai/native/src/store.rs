@@ -2,8 +2,8 @@ use std::path::Path;
 
 use rusqlite::{Connection, ErrorCode};
 use serde::{Deserialize, Serialize};
-use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
 use crate::connection::open_encrypted;
@@ -178,14 +178,15 @@ impl AiStore {
               ORDER BY seq",
         )?;
 
-        let rows = statement.query_map(rusqlite::params![run_id.to_string(), after_seq], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })?;
+        let rows =
+            statement.query_map(rusqlite::params![run_id.to_string(), after_seq], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?;
 
         let mut events = Vec::new();
 

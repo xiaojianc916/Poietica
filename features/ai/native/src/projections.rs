@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{now, AiStore};
+use crate::store::{AiStore, now};
 
 /// The four tool call states defined by the Agent Client Protocol.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -103,7 +103,11 @@ struct UnknownValue {
 
 impl fmt::Display for UnknownValue {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "unrecognised {} value: {}", self.column, self.value)
+        write!(
+            formatter,
+            "unrecognised {} value: {}",
+            self.column, self.value
+        )
     }
 }
 
@@ -189,8 +193,7 @@ fn read_permission(row: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionRecord
 }
 
 const TOOL_CALL_COLUMNS: &str = "id, title, kind, status, started_at, ended_at";
-const PERMISSION_COLUMNS: &str =
-    "request_id, tool_call_id, outcome, requested_at, resolved_at";
+const PERMISSION_COLUMNS: &str = "request_id, tool_call_id, outcome, requested_at, resolved_at";
 
 #[expect(
     clippy::multiple_inherent_impl,
@@ -352,12 +355,7 @@ impl AiStore {
     /// # Errors
     ///
     /// Fails when the write is rejected.
-    pub fn rename_tool_call(
-        &self,
-        run_id: Uuid,
-        tool_call_id: &str,
-        title: &str,
-    ) -> Result<bool> {
+    pub fn rename_tool_call(&self, run_id: Uuid, tool_call_id: &str, title: &str) -> Result<bool> {
         let affected = self.connection.execute(
             "UPDATE tool_calls
                 SET title = ?3
@@ -404,11 +402,7 @@ impl AiStore {
     /// # Errors
     ///
     /// Fails when the write is rejected or the clock cannot be formatted.
-    pub fn resolve_permission(
-        &self,
-        request_id: &str,
-        outcome: PermissionOutcome,
-    ) -> Result<bool> {
+    pub fn resolve_permission(&self, request_id: &str, outcome: PermissionOutcome) -> Result<bool> {
         let timestamp = now()?;
 
         let affected = self.connection.execute(
