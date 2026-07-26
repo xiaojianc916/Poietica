@@ -108,9 +108,15 @@ export function AssistantThreadList({
                         <MoreIcon aria-hidden="true" />
                       </DropdownMenuTrigger>
 
+                      {/*
+                        DropdownMenuContent is rendered through a Portal. Reapply
+                        the AI skin at this DOM boundary so --cp-* tokens remain
+                        available after the popup leaves the sidebar subtree.
+                      */}
                       <DropdownMenuContent
                         align="end"
                         className="assistant-thread-menu"
+                        data-assistant-skin
                         side="bottom"
                         sideOffset={4}
                       >

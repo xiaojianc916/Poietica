@@ -600,10 +600,6 @@
   transform: scale(0.94);
 }
 
-.assistant-threads__create:active {
-  transform: scale(0.94);
-}
-
 .assistant-threads__create:focus-visible {
   outline: var(--cp-px) solid var(--cp-accent);
   outline-offset: var(--cp-px);
@@ -707,57 +703,87 @@
   color: var(--cp-ink);
 }
 
-.assistant-thread-menu {
-  min-inline-size: 224px;
+.assistant-thread-menu.assistant-thread-menu {
+  min-inline-size: 232px;
+  overflow: hidden;
+  border: var(--cp-px) solid var(--cp-hairline);
   border-radius: var(--cp-radius-menu);
   padding: var(--cp-optical);
   background: var(--cp-surface);
   box-shadow: var(--cp-lift-near), var(--cp-lift-far);
+  font-family: inherit;
+  font-size: var(--cp-font-label);
+  line-height: 1.25;
+  color: var(--cp-ink);
 }
 
-.assistant-thread-menu__item {
+/*
+ * The design-system dropdown supplies behavior, focus management and
+ * positioning. These selectors intentionally have higher specificity than
+ * its utility classes, because geometry and visual language belong to the
+ * compact AI thread sidebar.
+ */
+.assistant-thread-menu .assistant-thread-menu__item {
   display: flex;
   min-block-size: var(--cp-control);
   align-items: center;
   gap: var(--cp-pad-mid);
+  border: 0;
   border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-inset);
+  padding: 0 var(--cp-inset);
+  background: transparent;
+  font-family: inherit;
   font-size: var(--cp-font-label);
+  font-weight: 400;
+  line-height: 1.25;
   color: var(--cp-ink);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-thread-menu__item svg {
+.assistant-thread-menu .assistant-thread-menu__item svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
   flex: none;
   color: var(--cp-ink-muted);
+  stroke-width: 1.75;
 }
 
-.assistant-thread-menu__item[data-highlighted],
-.assistant-thread-menu__item:focus-visible {
+.assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
+.assistant-thread-menu .assistant-thread-menu__item:focus-visible {
+  outline: none;
   background: rgb(13 13 13 / 7%);
   color: var(--cp-ink);
 }
 
-.assistant-thread-menu__item--destructive[data-highlighted] {
+.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted],
+.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible {
   background: rgb(255 59 48 / 10%);
   color: #d70015;
 }
 
-.assistant-thread-menu__item--destructive[data-highlighted] svg {
+.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted] svg,
+.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible svg {
   color: currentcolor;
 }
 
-.assistant-thread-menu__separator {
-  margin-block: var(--cp-optical);
+.assistant-thread-menu .assistant-thread-menu__separator {
+  block-size: var(--cp-px);
+  margin: var(--cp-optical) var(--cp-inset);
   background: var(--cp-hairline);
 }
 
-.assistant-thread-menu__meta {
-  margin: var(--cp-optical) var(--cp-inset) 0;
-  padding-block-start: var(--cp-optical);
-  border-top: var(--cp-px) solid rgb(13 13 13 / 6%);
+.assistant-thread-menu .assistant-thread-menu__meta {
+  margin: 2px var(--cp-inset) 0;
+  padding: 0;
+  border: 0;
+  font-family: inherit;
   font-size: var(--cp-font-caption);
+  font-weight: 400;
+  line-height: 1.25;
   color: var(--cp-ink-subtle);
 }
 
