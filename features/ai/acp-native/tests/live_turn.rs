@@ -1,7 +1,16 @@
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
+    clippy::panic,
     reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
+#![allow(
+    clippy::print_stdout,
+    reason = "this turn is driven by hand against a real agent, and its printout is",
+)]
+#![allow(
+    clippy::similar_names,
+    reason = "the recorder writes the run, and the recorded frames are read back"
 )]
 //! One real turn against a real agent process.
 //!
@@ -128,8 +137,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let run_id = store.start_run(thread_id).expect("a run");
 
     let cwd = env::var("POIETICA_ACP_CWD")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_unset| directory.path().to_path_buf());
+        .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
 
     let spawn = AgentSpawn {
         command: setting("POIETICA_ACP_COMMAND", DEFAULT_COMMAND),

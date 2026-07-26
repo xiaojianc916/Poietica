@@ -76,7 +76,9 @@ fn updates_reach_the_installed_run() {
     slot.install(fixture.recorder).expect("an empty slot");
 
     assert!(slot.is_recording());
-    assert!(slot.record(|recorder| recorder.record_run_started("sess_alpha")));
+    assert!(slot.record(|recorder| {
+        recorder.record_run_started("sess_alpha", "what the run was asked");
+    }));
     assert!(slot.record(|recorder| recorder.record_session_update(&announcement())));
 
     let seen = observed.lock().expect("the sink");
