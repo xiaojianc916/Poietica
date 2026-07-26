@@ -218,6 +218,15 @@ export function WorkspaceShell({
 
   const inspectorContent = <InspectorHost>{inspector}</InspectorHost>
 
+  /*
+   * The inspector remains mounted while its grid column animates between its
+   * normal width and zero. This mirrors the left sidebar: the outer grid owns
+   * the geometry, while an inner clipping viewport reveals or hides the fixed
+   * width panel. Keeping it mounted prevents a visual jump on open and close.
+   *
+   * The canvas owns the single divider at this boundary via its border-right.
+   * InspectorHost deliberately has no competing border-left.
+   */
   const inspectorRegion =
     hasCanvas && inspectorAvailable ? (
       <>
@@ -230,26 +239,26 @@ export function WorkspaceShell({
             pointerEvents: dockInspector ? 'auto' : 'none',
           }}
         >
-          {dockInspector ? (
+          <div className="relative h-full min-h-0 w-full overflow-hidden">
             <div
-              className="absolute inset-y-0 right-0 overflow-visible"
+              className="absolute inset-y-0 right-0"
               style={{ width: WORKSPACE_LAYOUT.inspector.width }}
             >
-              <div className="relative h-full">
-                <Button
-                  aria-label="收起属性面板"
-                  className="absolute -left-8 top-3 z-30 size-7 rounded-r-none"
-                  onClick={() => setInspectorOpen(false)}
-                  size="icon"
-                  type="button"
-                  variant="outline"
-                >
-                  <PanelRightClose aria-hidden="true" className="size-3.5" />
-                </Button>
-
-                {inspectorContent}
-              </div>
+              {inspectorContent}
             </div>
+          </div>
+
+          {dockInspector ? (
+            <Button
+              aria-label="收起属性面板"
+              className="absolute -left-8 top-3 z-30 size-7 rounded-r-none"
+              onClick={() => setInspectorOpen(false)}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <PanelRightClose aria-hidden="true" className="size-3.5" />
+            </Button>
           ) : null}
         </aside>
 

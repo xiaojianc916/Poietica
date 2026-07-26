@@ -14,10 +14,7 @@ export interface InspectorHostProps {
  */
 export function InspectorHost({ children }: InspectorHostProps) {
   return (
-    <aside
-      aria-label="属性检查器"
-      className="flex h-full min-h-0 min-w-0 flex-col border-l border-divider bg-sidebar"
-    >
+    <aside aria-label="属性检查器" className="flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <ScrollArea className="min-h-0 flex-1">
         <div className="hc-properties-inspector-host">{children}</div>
       </ScrollArea>

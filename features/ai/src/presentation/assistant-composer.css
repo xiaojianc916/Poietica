@@ -677,7 +677,15 @@
   gap: 2px;
 }
 
-.assistant-thread:hover .assistant-thread__actions {
+/*
+ * DropdownMenuContent is Portal-rendered. When the pointer leaves the thread
+ * row and enters the popup, the row itself is no longer hovered. Keep the
+ * trigger visible while its menu is open, otherwise the positioning engine
+ * loses its anchor and the popup can jump.
+ */
+.assistant-thread:hover .assistant-thread__actions,
+.assistant-thread__actions:focus-within,
+.assistant-thread__actions:has([aria-expanded="true"]) {
   display: flex;
 }
 
