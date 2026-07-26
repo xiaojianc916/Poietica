@@ -33,6 +33,10 @@ pub use error::{Error, Result};
     clippy::exit,
     reason = "the generated Tauri context expands to an exit this crate never writes"
 )]
+#[allow(
+    clippy::expect_used,
+    reason = "the desktop entry point cannot recover from a failed Tauri event loop"
+)]
 pub fn run() {
     app::build()
         .run(tauri::generate_context!())

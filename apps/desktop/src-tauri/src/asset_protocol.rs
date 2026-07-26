@@ -35,6 +35,10 @@ const MAX_TOKEN_BYTES: usize = 128;
 pub struct AssetSessionSnapshotEntry {
     content_hash: String,
     content_type: String,
+    #[allow(
+        clippy::rc_buffer,
+        reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+    )]
     bytes: Arc<Vec<u8>>,
 }
 
@@ -52,6 +56,10 @@ impl AssetSessionSnapshotEntry {
     pub fn verify(
         content_hash: String,
         content_type: String,
+        #[allow(
+            clippy::rc_buffer,
+            reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+        )]
         bytes: Arc<Vec<u8>>,
     ) -> Result<Self, AssetProtocolError> {
         validate_content_hash(&content_hash)?;
@@ -91,6 +99,10 @@ impl AssetSessionSnapshotEntry {
     pub fn from_verified_container(
         content_hash: String,
         content_type: String,
+        #[allow(
+            clippy::rc_buffer,
+            reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+        )]
         bytes: Arc<Vec<u8>>,
     ) -> Result<Self, AssetProtocolError> {
         validate_content_hash(&content_hash)?;
@@ -111,6 +123,10 @@ impl AssetSessionSnapshotEntry {
         &self.content_type
     }
 
+    #[allow(
+        clippy::rc_buffer,
+        reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+    )]
     pub fn bytes(&self) -> &Arc<Vec<u8>> {
         &self.bytes
     }
@@ -118,6 +134,10 @@ impl AssetSessionSnapshotEntry {
 
 #[derive(Clone, Debug)]
 struct RegisteredAsset {
+    #[allow(
+        clippy::rc_buffer,
+        reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+    )]
     bytes: Arc<Vec<u8>>,
     content_type: String,
     references: u32,
@@ -828,6 +848,10 @@ mod tests {
         assert!(hashes.windows(2).all(|pair| { pair[0] < pair[1] }));
     }
 
+    #[allow(
+        clippy::rc_buffer,
+        reason = "the payload is produced as a Vec and shared read-only; Arc<[u8]> would force an extra copy"
+    )]
     fn entry(bytes: &Arc<Vec<u8>>) -> AssetSessionSnapshotEntry {
         AssetSessionSnapshotEntry::verify(
             hash(bytes.as_slice()),

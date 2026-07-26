@@ -144,24 +144,33 @@ unused_lifetimes = "deny"
 unused_qualifications = "warn"
 
 [workspace.lints.clippy]
+# lint policy grouped by intent (managed by refactor.mjs)
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
-allow_attributes_without_reason = "warn"
-as_conversions = "warn"
-clone_on_ref_ptr = "warn"
+
+# 真缺陷：不接受豁免。
 dbg_macro = "deny"
-empty_drop = "warn"
-empty_enum_variants_with_brackets = "warn"
 exit = "deny"
+mem_forget = "deny"
+todo = "deny"
+unimplemented = "deny"
+wildcard_dependencies = "deny"
+
+# panic 纪律：生产代码收紧，#[cfg(test)] 模块内层统一放开。
 expect_used = "warn"
-filetype_is_file = "warn"
 get_unwrap = "warn"
 indexing_slicing = "warn"
+panic = "warn"
+unwrap_used = "warn"
+
+# 工程卫生。
+allow_attributes_without_reason = "warn"
+clone_on_ref_ptr = "warn"
+empty_drop = "warn"
+empty_enum_variants_with_brackets = "warn"
+filetype_is_file = "warn"
 large_futures = "warn"
 lossy_float_literal = "warn"
-mem_forget = "deny"
-multiple_inherent_impl = "warn"
-panic = "warn"
 print_stderr = "warn"
 print_stdout = "warn"
 rc_buffer = "warn"
@@ -171,13 +180,16 @@ same_name_method = "warn"
 str_to_string = "warn"
 string_add = "warn"
 string_slice = "warn"
-todo = "deny"
-unimplemented = "deny"
-unwrap_used = "warn"
 verbose_file_reads = "warn"
-wildcard_dependencies = "deny"
 
-# Relaxed
+# 刻意关闭：收益低于噪音成本。
+#
+# as_conversions 一刀切禁止 `as`，而 pedantic 已提供更精确的
+# cast_possible_truncation / cast_precision_loss / cast_sign_loss；
+# 保留它只会把 `len() as u64` 逼成 try_from 样板。
+as_conversions = "allow"
+# multiple_inherent_impl 是纯风格偏好，多个 impl 块常常是刻意分组。
+multiple_inherent_impl = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 struct_excessive_bools = "allow"

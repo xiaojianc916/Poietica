@@ -45,6 +45,10 @@ pub struct NativeCrashReport {
 ///
 /// Returns an error when the underlying operation fails; the message handed
 /// to the caller is the redacted IPC message, never native detail.
+#[allow(
+    clippy::print_stderr,
+    reason = "the panic hook must still reach stderr when the logger is already down"
+)]
 pub fn install(app: &AppHandle) -> Result<()> {
     let report_directory = app.path().app_log_dir()?;
     fs::create_dir_all(&report_directory)?;
@@ -56,10 +60,6 @@ pub fn install(app: &AppHandle) -> Result<()> {
         let report = create_report(panic_info, &app_version);
 
         if let Err(error) = write_report_atomically(&report_directory, &report) {
-            #[allow(
-                clippy::print_stderr,
-                reason = "the panic hook must still reach stderr when logging is already down"
-            )]
             eprintln!("[Poietica] failed to persist native crash report: {error}");
         }
 
