@@ -103,9 +103,7 @@ jobs:
           cache: pnpm
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
-        with:
-          components: rustfmt, clippy
+        run: rustup show # honours rust-toolchain.toml
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
@@ -135,9 +133,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
-        with:
-          components: rustfmt, clippy
+        run: rustup show # honours rust-toolchain.toml
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
@@ -147,11 +143,21 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          $expected = "1.88.0"
-          $actual = ((rustc --version).Trim() -split "\s+")[1]
+          # rust-toolchain.toml pins the channel; Cargo.toml pins the floor.
+          # Assert the resolved compiler satisfies the Cargo rust-version floor
+          # instead of hardcoding a version that contradicts both files.
+          $pattern = '^rust-version\s*=\s*"([^"]+)"'
+          $found = Select-String -Path "Cargo.toml" -Pattern $pattern
 
-          if ($actual -ne $expected) {
-            throw "Expected Rust $expected, got $actual"
+          if (-not $found) {
+            throw "Could not read rust-version from Cargo.toml"
+          }
+
+          $floor = [version]$found.Matches[0].Groups[1].Value
+          $actual = [version](((rustc --version).Trim() -split "\s+")[1])
+
+          if ($actual -lt $floor) {
+            throw "Rust $actual is below the required floor $floor"
           }
 
       - name: Format
