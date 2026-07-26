@@ -37,7 +37,7 @@ pub struct NativeCrashReport {
 
 /// Installs the process-level panic recorder.
 ///
-/// A Rust panic can terminate the native process before the WebView is able to
+/// A Rust panic can terminate the native process before the `WebView` is able to
 /// render anything. The panic hook therefore writes a local crash report that
 /// is consumed on the next launch.
 pub fn install(app: &AppHandle) -> Result<()> {
@@ -74,7 +74,7 @@ pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashR
     let source = match fs::read_to_string(&report_path) {
         Ok(source) => source,
         Err(error) => {
-            log::error!("failed to read native crash report: {}", error);
+            log::error!("failed to read native crash report: {error}");
 
             let _ = fs::remove_file(&report_path);
             return Ok(None);
@@ -84,7 +84,7 @@ pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashR
     let report = match serde_json::from_str::<NativeCrashReport>(&source) {
         Ok(report) => report,
         Err(error) => {
-            log::error!("invalid native crash report was discarded: {}", error);
+            log::error!("invalid native crash report was discarded: {error}");
 
             let _ = fs::remove_file(&report_path);
             return Ok(None);

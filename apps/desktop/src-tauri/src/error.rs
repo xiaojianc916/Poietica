@@ -166,7 +166,7 @@ impl Error {
 }
 
 impl Error {
-    /// 返回给 WebView 的稳定、脱敏错误消息。
+    /// 返回给 `WebView` 的稳定、脱敏错误消息。
     ///
     /// 不得在这里使用 `self.to_string()`、底层 `source` 或文件路径：
     /// Rust/Tauri/插件错误可能包含绝对路径、用户名、权限信息或系统细节。

@@ -158,7 +158,7 @@ impl DocumentRegistry {
 
     /// Moves an existing session to a newly selected file.
     ///
-    /// Shares the per-document save lock with save_existing, so a Save As and a
+    /// Shares the per-document save lock with `save_existing`, so a Save As and a
     /// Save of the same document cannot interleave, while leaving the registry
     /// available to every other document throughout.
     fn save_as_existing(
@@ -324,7 +324,7 @@ pub struct DocumentSaveResult {
 pub struct DocumentSaveAsRequest {
     /// None creates a new native document session.
     ///
-    /// Some(document_id) moves the existing session to the newly selected file.
+    /// `Some(document_id)` moves the existing session to the newly selected file.
     pub document_id: Option<DocumentId>,
     pub content: String,
     pub asset_session_token: Option<String>,
@@ -440,50 +440,47 @@ pub async fn document_save_as(
     let path = selected_native_path(selected)?;
     ensure_draw_document_path(&path)?;
 
-    let (document_id, revision) = match request.document_id {
-        Some(document_id) => {
-            let registry = documents.inner().clone();
-            let save_path = path.clone();
-            let content = request.content;
-            let asset_session_token = request.asset_session_token;
+    let (document_id, revision) = if let Some(document_id) = request.document_id {
+        let registry = documents.inner().clone();
+        let save_path = path.clone();
+        let content = request.content;
+        let asset_session_token = request.asset_session_token;
 
-            let revision = tokio::task::spawn_blocking(move || {
-                registry.save_as_existing(
-                    document_id,
-                    save_path,
-                    &content,
-                    asset_session_token,
-                    &asset_snapshot,
-                )
-            })
-            .await
-            .map_err(|_| {
-                Error::Internal("document Save As task terminated unexpectedly".into())
-            })??;
-
-            (document_id, revision)
-        }
-        None => {
-            let created_at = now_timestamp()?;
-
-            let (revision, container_len) = write_document(
-                path.clone(),
-                request.content,
-                created_at.clone(),
-                asset_snapshot,
+        let revision = tokio::task::spawn_blocking(move || {
+            registry.save_as_existing(
+                document_id,
+                save_path,
+                &content,
+                asset_session_token,
+                &asset_snapshot,
             )
-            .await?;
+        })
+        .await
+        .map_err(|_| {
+            Error::Internal("document Save As task terminated unexpectedly".into())
+        })??;
 
-            let document_id = documents.insert(
-                path.clone(),
-                revision.clone(),
-                container_len,
-                created_at,
-                request.asset_session_token,
-            )?;
+        (document_id, revision)
+    } else {
+        let created_at = now_timestamp()?;
 
-            (document_id, revision)
-        }
+        let (revision, container_len) = write_document(
+            path.clone(),
+            request.content,
+            created_at.clone(),
+            asset_snapshot,
+        )
+        .await?;
+
+        let document_id = documents.insert(
+            path.clone(),
+            revision.clone(),
+            container_len,
+            created_at,
+            request.asset_session_token,
+        )?;
+
+        (document_id, revision)
     };
 
     Ok(DocumentSaveAsResult {
@@ -536,12 +533,11 @@ pub fn document_close(
 ) -> DocumentCommandResult<()> {
     let handle = documents.remove(request.document_id)?;
 
-    if let Some(token) = &handle.asset_session_token {
-        if let Err(error) = assets.remove_session(token) {
+    if let Some(token) = &handle.asset_session_token
+        && let Err(error) = assets.remove_session(token) {
             documents.restore(request.document_id, handle)?;
             return Err(map_asset_error(error).into());
         }
-    }
 
     Ok(())
 }
@@ -681,7 +677,7 @@ fn encode_document(
         created_at,
         saved_at: &saved_at,
         document_json: content.as_bytes(),
-        application_json: br#"{}"#,
+        application_json: br"{}",
         assets: &asset_inputs,
     })?)
 }

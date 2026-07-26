@@ -72,19 +72,19 @@ pub async fn window_create(app: AppHandle, options: WindowOptions) -> Result<Win
 
 #[command]
 pub async fn window_get(app: AppHandle, label: String) -> Result<Option<WindowInfo>> {
-    Ok(app
+    app
         .get_webview_window(&label)
         .map(window_info)
-        .transpose()?)
+        .transpose()
 }
 
 #[command]
 pub async fn window_list(app: AppHandle) -> Result<Vec<WindowInfo>> {
-    Ok(app
+    app
         .webview_windows()
         .into_values()
         .map(window_info)
-        .collect::<Result<Vec<_>>>()?)
+        .collect::<Result<Vec<_>>>()
 }
 
 #[command]
@@ -149,12 +149,12 @@ fn window_info(window: WebviewWindow) -> Result<WindowInfo> {
     let outer = window.outer_size()?;
     let pos = window.outer_position()?;
     Ok(WindowInfo {
-        label: window.label().to_string(),
+        label: window.label().to_owned(),
         title: window.title()?,
-        width: outer.width as f64,
-        height: outer.height as f64,
-        x: pos.x as f64,
-        y: pos.y as f64,
+        width: f64::from(outer.width),
+        height: f64::from(outer.height),
+        x: f64::from(pos.x),
+        y: f64::from(pos.y),
         fullscreen: window.is_fullscreen()?,
         resizable: window.is_resizable()?,
         minimized: window.is_minimized()?,

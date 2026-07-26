@@ -27,10 +27,10 @@ const MAX_TOKEN_BYTES: usize = 128;
 /// either by paying for the digest or by naming the check that already did.
 ///
 /// Bytes are held as Arc<Vec<u8>> rather than Arc<[u8]>. Arc stores a refcount
-/// ahead of its payload, so Arc::from(vec) cannot adopt the Vec's allocation
-/// and copies every byte; Arc::new boxes the Vec that already exists. The cost
+/// ahead of its payload, so `Arc::from(vec)` cannot adopt the Vec's allocation
+/// and copies every byte; `Arc::new` boxes the Vec that already exists. The cost
 /// is one extra pointer hop per access, not per byte, and nothing here needs
-/// the cheap subslicing that would justify a bytes::Bytes dependency.
+/// the cheap subslicing that would justify a `bytes::Bytes` dependency.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssetSessionSnapshotEntry {
     content_hash: String,
@@ -121,8 +121,8 @@ struct RegistryState {
 
 /// Process-local delivery registry for opened document sessions.
 ///
-/// The DocumentCodec owns durable bytes. This registry owns only the bounded
-/// runtime delivery cache used by the WebView custom protocol.
+/// The `DocumentCodec` owns durable bytes. This registry owns only the bounded
+/// runtime delivery cache used by the `WebView` custom protocol.
 #[derive(Clone, Debug, Default)]
 pub struct AssetProtocolRegistry {
     state: Arc<RwLock<RegistryState>>,
