@@ -382,3 +382,33 @@ frame a client has never seen is the frame most likely to break it.
 The rule this leaves behind: a fixture written by hand may illustrate a shape,
 but it may never be the reason to believe one. When a recorded frame and our
 schema disagree, the schema is what changes.
+
+## The question that was never answered
+
+The third recording was made by asking the agent to write a file and then
+letting nobody respond. After ninety seconds the watchdog cancelled the turn,
+the agent resolved its own request, and the run finished:
+
+```text
+65 permission_requested
+66 permission_resolved
+67 run_finished
+```
+
+The outcome is `cancelled`, never `selected`. That single value is the
+evidence behind a rule that is otherwise only an intention: nothing in this
+client answers a permission request. Not a default, not a remembered choice, not
+a convenience for tests. If an unattended recording ever resolves as
+`selected`, some code began deciding on the user behalf, and the reducer test
+turns red before the behaviour can reach anyone.
+
+The unanswered case is also the common one. A person steps away, a laptop
+sleeps, a window is closed. The recording proves the timeline survives it: the
+run sits in `awaiting_permission` while the question is open, the tool call
+that triggered it stays exactly at the status of its last update with no end
+time invented for it, and the run ends as cancelled rather than as a failure.
+
+Three recordings now cover the three shapes a turn can take — a plain answer, a
+turn that used a tool, and a turn interrupted by a question. Each was captured
+from a real agent, and each had to declare what it contained before it was
+allowed to become a fixture.

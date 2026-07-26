@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { recordedTurn as spokenTurn } from './__fixtures__/live-turn.generated'
+import { recordedTurn as permissionTurn } from './__fixtures__/permission-turn.generated'
 import { recordedTurn as toolTurn } from './__fixtures__/tool-turn.generated'
 import { parseRunEvent } from './acp-event-schema'
 
@@ -33,6 +34,7 @@ import { parseRunEvent } from './acp-event-schema'
 const recordings = [
   { name: 'a plain answer', frames: spokenTurn },
   { name: 'a turn that used a tool', frames: toolTurn },
+  { name: 'a turn that asked permission', frames: permissionTurn },
 ] as const
 
 describe.each(recordings)('a recorded turn: $name', ({ frames }) => {
