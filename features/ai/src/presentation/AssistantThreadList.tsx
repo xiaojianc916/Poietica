@@ -81,7 +81,12 @@ export function AssistantThreadList({
                       <PinIcon aria-hidden="true" />
                     </button>
 
-                    <button className="assistant-thread__action" title="更多" type="button">
+                    <button
+                      aria-label="更多操作"
+                      className="assistant-thread__action"
+                      title="更多操作"
+                      type="button"
+                    >
                       <MoreIcon aria-hidden="true" />
                     </button>
                   </span>

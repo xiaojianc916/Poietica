@@ -566,26 +566,22 @@ const AboutSettings = memo(function AboutSettings() {
       </div>
 
       <div className="settings-principles">
-        <ArchitecturePrinciple
-          description="Editor 与 TLStore 是画布文档唯一事实来源。"
-          index="01"
-          title="tldraw-first"
-        />
+        <ArchitecturePrinciple description="统一各类Agnet交互规范" index="01" title="ACP集成" />
 
         <ArchitecturePrinciple
-          description="文档和设置优先安全保存在当前设备。"
+          description="文档和设置优先安全保存在当前设备"
           index="02"
           title="本地优先"
         />
 
         <ArchitecturePrinciple
-          description="原子文件写入、明确边界和可恢复流程。"
+          description="原子文件写入、明确边界和可恢复流程"
           index="03"
           title="安全可靠"
         />
 
         <ArchitecturePrinciple
-          description="界面保持轻量，长任务不阻塞主线程。"
+          description="界面保持轻量，长任务不阻塞主线程"
           index="04"
           title="高性能"
         />

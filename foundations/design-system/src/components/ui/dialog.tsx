@@ -125,7 +125,6 @@ export function Dialog({
                   'flex min-h-14',
                   'shrink-0 items-start',
                   'justify-between gap-4',
-                  'border-b border-divider',
                   'px-5 py-4',
                 )}
               >

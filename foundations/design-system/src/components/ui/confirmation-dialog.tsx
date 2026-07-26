@@ -44,7 +44,7 @@ export function ConfirmationDialog({
       footer={
         <div className={cnFooter()}>
           <Button
-            className="px-3 hover:bg-muted"
+            className="bg-accent/55 px-3 hover:bg-accent"
             disabled={busy}
             onClick={onCancel}
             type="button"

@@ -575,13 +575,33 @@
   place-items: center;
   border: 0;
   border-radius: var(--cp-optical);
+  padding: 0;
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* Keep the Plus library glyph optically aligned with the group caption. */
+.assistant-threads__create svg {
+  block-size: var(--cp-icon-xs);
+  inline-size: var(--cp-icon-xs);
+  stroke-width: 1.75;
 }
 
 .assistant-threads__create:hover {
   background: var(--cp-hover);
+}
+
+.assistant-threads__create:active {
+  transform: scale(0.94);
+}
+
+.assistant-threads__create:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
 }
 
 .assistant-threads__list {
