@@ -6,6 +6,7 @@ import {
   EditorSessionHost,
   useCanvasInspectorAvailability,
 } from '@poietica/editor-core/react'
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import { ConfirmationDialog } from '@poietica/foundations-design-system'
 import type {
   CanvasCloseIntent,
@@ -18,6 +19,7 @@ import type {
   WorkbenchTabViewModel,
   WorkbenchTabId,
   WorkspaceShellActions,
+  WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
 import {
   NoCanvasSurface,
@@ -32,7 +34,7 @@ import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { reportFailure } from '../../application/failures/failure-policy'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 import { WORKSPACE_PANEL_RENDERERS } from './assistant-panel-renderers'
-import { WORKSPACE_SURFACE_RENDERERS } from './assistant-surface-renderers'
+import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
   pages: Object.freeze([]),
@@ -60,6 +62,7 @@ export interface WorkspaceUIPort {
 }
 
 export interface WorkspaceContainerProps {
+  readonly agentSession: AgentSessionPort
   readonly port: WorkspaceUIPort
   readonly degradedFeatures: readonly string[]
   readonly isWindowMaximized: boolean
@@ -73,6 +76,7 @@ export interface WorkspaceContainerProps {
 }
 
 export function WorkspaceContainer({
+  agentSession,
   port,
   degradedFeatures,
   isWindowMaximized,
@@ -315,8 +319,14 @@ export function WorkspaceContainer({
     [port.canvases, workbench.tabs],
   )
 
+  const surfaceRenderers = useMemo(
+    () => createAssistantSurfaceRenderers(agentSession),
+    [agentSession],
+  )
+
   const mainContent = renderActiveSurface({
     activeSurface: workbench.activeSurface,
+    surfaceRenderers,
     activeSessionId,
     hostedSessions,
     quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],
@@ -508,6 +518,7 @@ interface ActiveSurfaceRendererProps {
   readonly onSave: (sessionId: CanvasSessionId) => void
   readonly onSessionFailure: (failure: EditorSessionFailure) => void
   readonly renderSessionFailure: (sessionId: string) => ReactNode
+  readonly surfaceRenderers: WorkspaceSurfaceRenderers
 }
 
 function renderActiveSurface({
@@ -520,18 +531,14 @@ function renderActiveSurface({
   onSave,
   onSessionFailure,
   renderSessionFailure,
+  surfaceRenderers,
 }: ActiveSurfaceRendererProps) {
   switch (activeSurface.kind) {
     case 'start':
       return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />
 
     case 'workspace':
-      return (
-        <WorkspaceSurface
-          renderers={WORKSPACE_SURFACE_RENDERERS}
-          surfaceId={activeSurface.surfaceId}
-        />
-      )
+      return <WorkspaceSurface renderers={surfaceRenderers} surfaceId={activeSurface.surfaceId} />
 
     case 'canvas':
       return (

@@ -285,3 +285,19 @@ this surface needs.
 The thread on a prompt request is also still ignored natively — one session, one
 turn at a time — so the client sends a named placeholder rather than pretending
 to route.
+
+## The assistant has one seat, and the rail owns it
+
+The workspace shell offers surfaces through the activity rail, and `ai` has
+been one of them since before this client existed. A second mount point behind
+a shortcut looked convenient and was a mistake: two seats mean two lifetimes,
+two scroll positions, and two answers to "where did my run go".
+
+Ctrl+J therefore opens the workspace surface rather than a floating panel. The
+shortcut is a way to reach the seat, not a seat of its own.
+
+The renderer is a factory, not a constant. `features/workspace` declares the
+slot, `features/ai` declares the port, and neither imports the other; the
+application root is the only module that has both, so it is the only module
+that can join them. A module-level constant could not do this, because the
+session port does not exist until the runtime boots.

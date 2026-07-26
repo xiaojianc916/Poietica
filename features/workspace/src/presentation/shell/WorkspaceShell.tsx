@@ -88,7 +88,7 @@ export function WorkspaceShell({
       activeNavigationItem={activeNavigationItem}
       onActivatePage={actions.activatePage}
       onCreatePage={actions.createPage}
-      panelRenderers={panelRenderers}
+      {...(panelRenderers === undefined ? {} : { panelRenderers })}
       pages={pages}
     />
   )
