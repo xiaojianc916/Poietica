@@ -11,6 +11,7 @@ export interface DialogProps {
   readonly children?: ReactNode
   readonly footer?: ReactNode
   readonly showHeader?: boolean
+  readonly showCloseButton?: boolean
   readonly className?: string
   readonly contentClassName?: string
   readonly busy?: boolean
@@ -43,6 +44,7 @@ export function Dialog({
   children,
   footer,
   showHeader = true,
+  showCloseButton = true,
   className,
   contentClassName,
   busy = false,
@@ -73,8 +75,8 @@ export function Dialog({
           className={cn(
             'fixed inset-0',
             'z-[var(--ui-z-dialog)]',
-            'bg-black/40',
-            'backdrop-blur-[2px]',
+            'bg-black/16',
+            'backdrop-blur-[1px]',
             'transition-opacity',
             'duration-[var(--ui-duration-normal)]',
             'ease-[var(--ui-ease-standard)]',
@@ -116,7 +118,7 @@ export function Dialog({
               'max-sm:rounded-none',
               className,
             )}
-            initialFocus={showHeader ? closeButtonRef : undefined}
+            initialFocus={showHeader && showCloseButton ? closeButtonRef : undefined}
           >
             {showHeader ? (
               <header
@@ -140,19 +142,21 @@ export function Dialog({
                   ) : null}
                 </div>
 
-                <Button
-                  aria-label={closeLabel}
-                  disabled={busy}
-                  onClick={() => {
-                    requestOpenChange(false)
-                  }}
-                  ref={closeButtonRef}
-                  size="icon"
-                  type="button"
-                  variant="ghost"
-                >
-                  <X aria-hidden="true" className="size-4" />
-                </Button>
+                {showCloseButton ? (
+                  <Button
+                    aria-label={closeLabel}
+                    disabled={busy}
+                    onClick={() => {
+                      requestOpenChange(false)
+                    }}
+                    ref={closeButtonRef}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <X aria-hidden="true" className="size-4" />
+                  </Button>
+                ) : null}
               </header>
             ) : null}
 
