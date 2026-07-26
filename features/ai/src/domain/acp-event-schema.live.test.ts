@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { recordedTurn } from './__fixtures__/live-turn.generated'
+import { recordedTurn as spokenTurn } from './__fixtures__/live-turn.generated'
+import { recordedTurn as toolTurn } from './__fixtures__/tool-turn.generated'
 import { parseRunEvent } from './acp-event-schema'
 
 /**
@@ -21,15 +22,26 @@ import { parseRunEvent } from './acp-event-schema'
  *
  * A frame this validator rejects is a frame the timeline never sees, so a
  * rejection here is a feature that silently does not work, not a test detail.
+ *
+ * One recording is never enough, because it only proves the shapes the agent
+ * happened to send. The second was recorded deliberately against a prompt the
+ * agent cannot answer without reading a file, which is where tool calls come
+ * from. Each recording declares what it must contain when it is made, so a
+ * thin turn cannot quietly take the place of either.
  */
 
-describe('a recorded turn', () => {
+const recordings = [
+  { name: 'a plain answer', frames: spokenTurn },
+  { name: 'a turn that used a tool', frames: toolTurn },
+] as const
+
+describe.each(recordings)('a recorded turn: $name', ({ frames }) => {
   it('is not empty', () => {
-    expect(recordedTurn.length).toBeGreaterThan(0)
+    expect(frames.length).toBeGreaterThan(0)
   })
 
   it('is accepted frame by frame', () => {
-    const rejected = recordedTurn
+    const rejected = frames
       .map((captured) => ({ captured, parsed: parseRunEvent(captured.frame) }))
       .filter((entry) => !entry.parsed.ok)
       .map((entry) =>
@@ -44,21 +56,21 @@ describe('a recorded turn', () => {
   })
 
   it('opens and closes the way a turn is supposed to', () => {
-    const kinds = recordedTurn.map((captured) => captured.kind)
+    const kinds = frames.map((captured) => captured.kind)
 
     expect(kinds.at(0)).toBe('run_started')
     expect(kinds.at(-1)).toBe('run_finished')
   })
 
   it('numbers its frames densely from one', () => {
-    const sequence = recordedTurn.map((captured) => captured.seq)
+    const sequence = frames.map((captured) => captured.seq)
 
     expect(sequence).toEqual(sequence.map((_value, index) => index + 1))
   })
 
   it('reports which kinds of update the agent actually sends', () => {
     const kinds = new Set(
-      recordedTurn
+      frames
         .map((captured) => captured.frame)
         .filter(
           (frame): frame is { notification: { update: { sessionUpdate: string } } } =>

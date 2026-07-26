@@ -334,3 +334,24 @@ Capturing a permission request needs no auto-approval. Nobody answers, the
 watchdog cancels, and every outstanding request is settled as cancelled in the
 log, which yields real `permission_requested` and `permission_resolved` frames
 while leaving the rule that nothing approves on the user's behalf intact.
+
+## Two recordings, because one only proves what it happened to contain
+
+The first recording was a plain answer, and against it the tool call path is
+indistinguishable from a path that does not exist. The second was recorded
+against a prompt the agent cannot satisfy without reading a file: one hundred
+and twenty-one frames, one tool call, nine updates to it.
+
+Both are validated frame by frame, and the second also drives the reducer. Its
+assertions are computed from the recording rather than copied out of one run's
+output, so the tests say what the projection must preserve, not what a model
+said on a particular morning.
+
+A recording is evidence, so the formatter leaves it alone. Files named
+`*.generated.ts` are exempt: reformatting one buries the frames that changed
+under punctuation that did not, and a file whose header says not to edit it
+should not be edited by a tool either.
+
+Still missing is a turn in which the agent asks permission. Recording one needs
+no auto-approval: leave it unanswered, let the watchdog cancel, and the log
+keeps the request together with the cancellation.
