@@ -70,3 +70,24 @@ even when the identical compiler is already installed, and that download comes
 from `static.rust-lang.org`, which no cargo registry mirror covers. The real
 lower bound is `rust-version` under `[workspace.package]` in the root
 `Cargo.toml`; Cargo enforces it natively and reports a readable error.
+
+## Running the live ACP turn
+
+`cargo test -p poietica-ai-acp-native --test live_turn -- --ignored` starts a
+real agent, so it needs one on the machine. It is not part of `cargo test` and
+nothing else in the repository depends on it.
+
+Two prerequisites, in order:
+
+1. The agent has to be executable by name. The client spawns a program, not a
+   shell, so a launcher installed as a script must be named in full on Windows.
+   Check with `where.exe kimi` and override with `POIETICA_ACP_COMMAND` if the
+   resolved name differs from `kimi`.
+2. The agent has to be logged in. Kimi CLI requires `/login` to be completed in
+   an interactive session before it will serve ACP; without it the process
+   starts and then refuses to create a session, which looks like a protocol
+   failure but is not one.
+
+Neither is worked around in code. A client that silently rewrites the command it
+was given, or that treats a login failure as a transport error, hides exactly the
+information the person running it needs.

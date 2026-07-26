@@ -130,7 +130,7 @@ keyring = { version = "4.1.5", features = [
   "v1",
 ] }
 
-agent-client-protocol = "1.2.0"
+agent-client-protocol = "=1.3.0"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

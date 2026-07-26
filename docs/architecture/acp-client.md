@@ -134,3 +134,58 @@ When a turn ends, the desk is cleared before the recorder is taken back. Each
 waiting handler observes the dropped answer and replies with the protocol's
 cancellation, and the run's own recorder settles whatever requests were still
 open, so the log never keeps a request that nobody can ever answer.
+
+## Proving it against a real agent
+
+The offline tests cover recording, projection and the permission desk, and none
+of them start a process. The handshake, the session, the notification stream and
+cancellation are only proven by `tests/live_turn.rs`, which is ignored by
+default because it spawns an agent and spends tokens:
+
+```text
+cargo test -p poietica-ai-acp-native --test live_turn -- --ignored --nocapture
+```
+
+Its configuration lives in the environment, not in the repository:
+`POIETICA_ACP_COMMAND`, `POIETICA_ACP_PROMPT`, `POIETICA_ACP_CWD` and
+`POIETICA_ACP_TIMEOUT`.
+
+What it asserts is the one invariant that cannot be checked without a real
+agent: the frames read back out of the reopened database are the same frames, in
+the same order, that were broadcast while the turn was live. If forwarding ever
+overtook writing, that comparison is where it would show.
+
+Nobody answers a permission request during this test, so a request would block
+the turn indefinitely. The watchdog cancels instead of hanging, which also
+exercises the path where the desk is cleared and the handlers reply with the
+protocol's cancellation.
+
+### When the live turn fails immediately
+
+A connection that dies takes every channel with it, so the first symptom is
+always a cancelled wait rather than a description of the fault. The test asks
+the driver thread for its own error before reporting anything, which is what
+turns that silence into a sentence.
+
+The usual cause is that the command cannot be executed as written. A launcher
+installed as a script has to be named in full on Windows, and the client spawns
+a program rather than a shell, so `POIETICA_ACP_COMMAND` is the place to say
+so. The command line is never guessed at or rewritten for the caller: a client
+that quietly runs something other than what it was told to run is worse than one
+that fails.
+
+## The protocol version is pinned exactly
+
+`agent-client-protocol` is required as `=1.3.0` rather than by a caret.
+
+The reason is not caution in general, it is a specific failure that already
+happened here. The manifest asked for `1.2.0`, the lock file resolved
+`1.3.0`, and that version omits a tool call's status on the wire when the
+status holds the protocol's default. The frames the interface validates changed
+underneath a version requirement that claimed nothing had changed, and the only
+reason it was caught is that a test asserted the field.
+
+This dependency is not a library the client merely calls; it decides the bytes
+that cross the boundary and the shape of every frame the renderer will ever see.
+A change in it is a change in the contract, so it is made deliberately, with the
+frame tests run against the new version, rather than picked up by a resolver.
