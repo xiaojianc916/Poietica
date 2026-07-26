@@ -1,3 +1,4 @@
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import { createEditorSessionRegistry } from '@poietica/editor-core/application'
 import { createCanvasDocumentService } from '@poietica/editor-document'
 import {
@@ -14,6 +15,7 @@ import {
   createWorkbenchSessionController,
 } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
+import { createDesktopAgentSession } from '../application/ai/agent-session'
 import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'
 import {
   type ApplicationTerminationCoordinator,
@@ -31,6 +33,7 @@ export interface ApplicationRuntime {
   readonly termination: ApplicationTerminationCoordinator
   readonly mainWindow: MainWindowController
   readonly settings: SettingsStore
+  readonly agentSession: AgentSessionPort
   readonly tldrawLicenseKey: string
   readonly dispose: () => Promise<void>
 }
@@ -53,6 +56,13 @@ export function createApplicationRuntime({
 
   const canvases = createCanvasWorkflow(documents, workspace)
 
+  /*
+   * The agent session is constructed eagerly but connects lazily: no agent
+   * process is spawned until the first prompt, so an application that never
+   * opens the assistant pays nothing for it.
+   */
+  const agent = createDesktopAgentSession()
+
   const termination = createApplicationTerminationCoordinator(canvases, {
     terminate: () => mainWindow.forceClose(),
   })
@@ -64,11 +74,13 @@ export function createApplicationRuntime({
     termination,
     mainWindow,
     settings,
+    agentSession: agent.port,
     tldrawLicenseKey,
 
     async dispose() {
       termination.dispose()
       await canvases.dispose()
+      await agent.dispose()
     },
   }
 }

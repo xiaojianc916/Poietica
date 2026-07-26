@@ -260,3 +260,28 @@ user, and it is already in the recorded turn.
 ChatStatus moved to the contracts folder in the same pass. The hook that derives
 it may not import the button that renders it: presentation and application both
 depend on contracts, and never on each other.
+
+## The port is composed in the application, and nowhere else
+
+The feature package declares an agent session port. The platform package
+implements the two halves it needs — a command bridge over typed IPC and an
+event source over the run-frame channel. Neither package imports the other. The
+application is the single place they are joined, in one small factory, which is
+why swapping the desktop transport for a different one is a change to one file
+in the app rather than to the feature.
+
+The join needs no adapter. The desktop bridge accepts a narrower prompt request
+than the port declares, and that is the direction assignability already allows,
+so a translation layer would only be one more thing to drift.
+
+### What is composed but not yet answerable
+
+A run can enter awaiting_permission. The port can resolve a permission. There is
+no UI between them, so a real agent asking to use a tool will stop and wait until
+it times out. Nothing here auto-approves: deciding what an agent may do without
+being asked is a security decision, not a wiring detail, and it is the next thing
+this surface needs.
+
+The thread on a prompt request is also still ignored natively — one session, one
+turn at a time — so the client sends a named placeholder rather than pretending
+to route.

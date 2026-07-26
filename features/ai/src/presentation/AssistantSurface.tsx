@@ -7,24 +7,38 @@ import { AssistantComposer } from './AssistantComposer'
 import { TimelineItemPreview } from './TimelineItemPreview'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { AgentIcon } from './primitives/icons'
+import type { AgentSessionPort } from '../contracts/agent-session-port'
 import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
 import { useAssistantSession } from '../application/useAssistantSession'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string
+  /**
+   * The session this surface talks to.
+   *
+   * Optional on purpose: without one the surface renders against an inert
+   * stub, which is what fixtures and component work need. The desktop app
+   * supplies the real IPC-backed port.
+   */
+  readonly session?: AgentSessionPort
 }
 
 /**
  * Masthead, composer and quick actions are siblings in one column bound to
  * --cp-grid, so their edges align by construction.
- *
- * The masthead used to show the artwork of the selected model. There is no
- * selected model any more, so it shows the agent mark instead, on the same
- * class the stylesheet already sizes and animates.
  */
-export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
-  const session = useAssistantSession({ endpoint })
-  const rows = selectFeedRows(session.timeline)
+export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
+  /*
+   * Under exactOptionalPropertyTypes an absent property and a property set to
+   * undefined are different types, so the key is omitted rather than passed
+   * empty.
+   */
+  const assistant = useAssistantSession({
+    endpoint,
+    ...(session === undefined ? {} : { session }),
+  })
+
+  const rows = selectFeedRows(assistant.timeline)
 
   const columnId = `${useId()}-column`
 
@@ -39,7 +53,7 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
 
         {rows.length > 0 ? (
           <AgentActivityFeed
-            isBusy={selectIsBusy(session.timeline)}
+            isBusy={selectIsBusy(assistant.timeline)}
             renderRow={(row) => <TimelineItemPreview row={row} />}
             rows={rows}
           />
@@ -49,8 +63,8 @@ export function AssistantSurface({ endpoint }: AssistantSurfaceProps) {
           agentLabel="Super Computer"
           columnId={columnId}
           isAgentNew
-          onSubmit={session.send}
-          status={session.status}
+          onSubmit={assistant.send}
+          status={assistant.status}
         />
 
         <AssistantQuickActions onSelect={() => {}} />

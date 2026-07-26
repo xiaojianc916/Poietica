@@ -3,10 +3,13 @@ import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import type { SettingsStore } from '@poietica/features-settings'
 import { SettingsDialog } from '@poietica/features-settings/react'
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
+import { AssistantSurface } from '@poietica/features-ai/react'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { CommandPalette } from '@poietica/features-workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { DEFAULT_THREAD_ID } from '../application/ai/agent-session'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
@@ -21,6 +24,7 @@ export interface AppShellRuntime {
   readonly termination: ApplicationTerminationCoordinator
   readonly mainWindow: MainWindowController
   readonly settings: SettingsStore
+  readonly agentSession: AgentSessionPort
   readonly tldrawLicenseKey: string
 }
 
@@ -44,12 +48,19 @@ const GLOBAL_COMMAND_SHORTCUTS = [
     commandId: 'workspace.open-canvas',
     ctrlOrMeta: true,
   },
+  {
+    key: 'j',
+    commandId: 'ai.toggle-assistant',
+    ctrlOrMeta: true,
+  },
 ] as const
 
 export function AppShell({ runtime }: AppShellProps) {
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const [isSettingsOpen, setSettingsOpen] = useState(false)
+
+  const [isAssistantOpen, setAssistantOpen] = useState(false)
 
   const isWindowMaximized = useWindowMaximizedState(runtime.mainWindow)
 
@@ -78,6 +89,10 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [])
 
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
+
+  const toggleAssistant = useCallback(() => {
+    setAssistantOpen((open) => !open)
+  }, [])
 
   const openSettings = useCallback(() => {
     if (settingsUnavailable) {
@@ -162,7 +177,7 @@ export function AppShell({ runtime }: AppShellProps) {
     })
   }, [windowDraggingUnavailable, runtime.mainWindow])
 
-  useApplicationCommands(runtime, toggleCommandPalette, createCanvasWithFeedback)
+  useApplicationCommands(runtime, toggleCommandPalette, toggleAssistant, createCanvasWithFeedback)
 
   useEffect(() => {
     let active = true
@@ -234,6 +249,23 @@ export function AppShell({ runtime }: AppShellProps) {
         open={isSettingsOpen && !settingsUnavailable}
         store={runtime.settings}
       />
+
+      {isAssistantOpen ? (
+        <div className="app-assistant-overlay">
+          <button
+            aria-label="关闭助手"
+            className="app-assistant-overlay__scrim"
+            onClick={() => {
+              setAssistantOpen(false)
+            }}
+            type="button"
+          />
+
+          <div className="app-assistant-overlay__panel">
+            <AssistantSurface endpoint={DEFAULT_THREAD_ID} session={runtime.agentSession} />
+          </div>
+        </div>
+      ) : null}
 
       <UiFeedbackRegion />
 
@@ -359,6 +391,7 @@ function useMainWindowCloseRequest(
 function useApplicationCommands(
   runtime: AppShellRuntime,
   toggleCommandPalette: () => void,
+  toggleAssistant: () => void,
   createCanvas: (title: string) => Promise<void>,
 ): void {
   useEffect(() => {
@@ -388,6 +421,14 @@ function useApplicationCommands(
         shortcut: 'Ctrl+O',
         execute: runtime.canvases.open,
       }),
+
+      runtime.commands.register({
+        id: 'ai.toggle-assistant',
+        label: '切换助手',
+        category: '应用',
+        shortcut: 'Ctrl+J',
+        execute: toggleAssistant,
+      }),
     ]
 
     return () => {
@@ -395,5 +436,5 @@ function useApplicationCommands(
         unregister[index]?.()
       }
     }
-  }, [createCanvas, runtime, toggleCommandPalette])
+  }, [createCanvas, runtime, toggleAssistant, toggleCommandPalette])
 }

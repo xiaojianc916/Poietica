@@ -141,6 +141,9 @@ importers:
       '@poietica/foundations-observability':
         specifier: workspace:*
         version: link:../../foundations/observability
+      '@poietica/platforms-desktop-ipc':
+        specifier: workspace:*
+        version: link:../../platforms/desktop-ipc
       '@poietica/platforms-desktop-runtime':
         specifier: workspace:*
         version: link:../../platforms/desktop-runtime

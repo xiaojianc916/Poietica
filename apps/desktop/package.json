@@ -23,6 +23,7 @@
     "@poietica/editor-document": "workspace:*",
     "@poietica/foundations-kernel": "workspace:*",
     "@poietica/foundations-observability": "workspace:*",
+    "@poietica/platforms-desktop-ipc": "workspace:*",
     "@poietica/platforms-desktop-runtime": "workspace:*",
     "@poietica/features-settings": "workspace:*",
     "@poietica/features-workspace": "workspace:*",

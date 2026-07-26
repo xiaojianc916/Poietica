@@ -168,3 +168,39 @@ body {
   margin: 0 0 20px;
   object-fit: contain;
 }
+
+/* assistant overlay */
+/*
+ * The frame the assistant is presented in belongs to the application shell.
+ * Everything inside it is styled by the feature's own sheet, so this rule set
+ * deliberately sets position and nothing that could reach the skin.
+ */
+.app-assistant-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-areas: "stack";
+}
+
+.app-assistant-overlay > * {
+  grid-area: stack;
+}
+
+.app-assistant-overlay__scrim {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+  background: rgb(0 0 0 / 32%);
+}
+
+.app-assistant-overlay__panel {
+  place-self: stretch;
+  overflow: hidden auto;
+  pointer-events: none;
+}
+
+.app-assistant-overlay__panel > * {
+  pointer-events: auto;
+}
