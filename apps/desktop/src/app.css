@@ -4,6 +4,16 @@
 @import "@poietica/editor-core/tldraw-adapter.css";
 
 /*
+ * Streamdown ships utility classes inside its bundles.
+ *
+ * Tailwind does not scan node_modules on its own, and this workspace uses
+ * pnpm's isolated layout, so each package is named where it actually lives.
+ */
+@source "../../../features/ai/node_modules/streamdown/dist/*.js";
+@source "../../../features/ai/node_modules/@streamdown/cjk/dist/*.js";
+@source "../../../features/ai/node_modules/@streamdown/code/dist/*.js";
+
+/*
  * Desktop platform tokens.
  *
  * Platform-specific tokens may derive from the shared
