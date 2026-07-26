@@ -75,8 +75,7 @@ export function Dialog({
           className={cn(
             'fixed inset-0',
             'z-[var(--ui-z-dialog)]',
-            'bg-black/16',
-            'backdrop-blur-[1px]',
+            'bg-black/8',
             'transition-opacity',
             'duration-[var(--ui-duration-normal)]',
             'ease-[var(--ui-ease-standard)]',
@@ -166,11 +165,7 @@ export function Dialog({
               </div>
             ) : null}
 
-            {footer ? (
-              <footer className={cn('shrink-0', 'border-t border-divider', 'px-5 py-3')}>
-                {footer}
-              </footer>
-            ) : null}
+            {footer ? <footer className={cn('shrink-0', 'px-5 py-3')}>{footer}</footer> : null}
           </BaseDialog.Popup>
         </BaseDialog.Viewport>
       </BaseDialog.Portal>

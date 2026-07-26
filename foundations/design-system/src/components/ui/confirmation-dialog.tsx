@@ -43,7 +43,13 @@ export function ConfirmationDialog({
       description={description}
       footer={
         <div className={cnFooter()}>
-          <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
+          <Button
+            className="px-3 hover:bg-muted"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+            variant="ghost"
+          >
             {cancelLabel}
           </Button>
 
