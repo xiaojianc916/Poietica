@@ -124,7 +124,7 @@ export const ComboboxTrigger = forwardRef<HTMLButtonElement, ComboboxTriggerProp
     return (
       <BaseCombobox.Trigger
         className={cn(
-          'flex h-10 w-full items-center justify-between gap-2',
+          'flex h-[var(--ui-control-height-lg)] w-full items-center justify-between gap-2',
           'rounded-md border border-input',
           'bg-background px-3 text-left text-sm text-foreground',
           'shadow-sm outline-none',
@@ -215,7 +215,7 @@ export const ComboboxInput = forwardRef<HTMLInputElement, ComboboxInputProps>(
         <BaseCombobox.Input
           aria-label={props['aria-label'] ?? `搜索${type}`}
           className={cn(
-            'h-10 min-w-0 flex-1',
+            'h-[var(--ui-control-height-lg)] min-w-0 flex-1',
             'bg-transparent text-sm text-foreground',
             'outline-none',
             'placeholder:text-muted-foreground',

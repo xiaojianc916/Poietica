@@ -19,6 +19,26 @@ export const APPLICATION_FAILURE_CODES = [
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
 
+/**
+ * The features this application knows how to lose.
+ *
+ * A degraded feature is a promise withdrawn: something the interface offered
+ * a moment ago and cannot offer now. Listing them here means the set is
+ * reviewable in one place, and that a policy cannot disable a feature nobody
+ * ever declared — a typo would be a type error rather than a control that
+ * silently never comes back.
+ */
+export const DEGRADABLE_FEATURE_IDS = [
+  'developer-tools',
+  'settings',
+  'window-close-coordination',
+  'window-controls',
+  'window-dragging',
+  'window-state-sync',
+] as const
+
+export type DegradableFeatureId = (typeof DEGRADABLE_FEATURE_IDS)[number]
+
 export type FailureReportContext = Readonly<Record<string, unknown>>
 
 interface ApplicationFailurePolicy {
@@ -31,7 +51,7 @@ interface ApplicationFailurePolicy {
   readonly scope: (context: FailureReportContext) => FailureScope
 }
 
-const APPLICATION_FAILURE_POLICIES = {
+export const APPLICATION_FAILURE_POLICIES = {
   CANVAS_CREATE_FAILED: {
     impact: 'recoverable',
     userMessage: '无法新建画布，请重试。',
@@ -78,10 +98,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-controls',
-    }),
+    scope: featureScope('window-controls'),
   },
 
   WINDOW_MAXIMIZE_UNAVAILABLE: {
@@ -90,10 +107,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-controls',
-    }),
+    scope: featureScope('window-controls'),
   },
 
   WINDOW_DRAG_UNAVAILABLE: {
@@ -102,10 +116,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-dragging',
-    }),
+    scope: featureScope('window-dragging'),
   },
 
   DEVELOPER_TOOLS_UNAVAILABLE: {
@@ -114,10 +125,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'developer-tools',
-    }),
+    scope: featureScope('developer-tools'),
   },
 
   SETTINGS_LOAD_FAILED: {
@@ -126,10 +134,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'settings',
-    }),
+    scope: featureScope('settings'),
   },
 
   WINDOW_STATE_QUERY_UNAVAILABLE: {
@@ -138,10 +143,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-state-sync',
-    }),
+    scope: featureScope('window-state-sync'),
   },
 
   WINDOW_RESIZE_SYNC_UNAVAILABLE: {
@@ -150,10 +152,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-state-sync',
-    }),
+    scope: featureScope('window-state-sync'),
   },
 
   WINDOW_CLOSE_LISTENER_UNAVAILABLE: {
@@ -162,10 +161,7 @@ const APPLICATION_FAILURE_POLICIES = {
 
     recovery: 'disable-feature',
 
-    scope: () => ({
-      kind: 'feature',
-      featureId: 'window-close-coordination',
-    }),
+    scope: featureScope('window-close-coordination'),
   },
 
   DOCUMENT_EDITOR_SESSION_FATAL: {
@@ -220,6 +216,15 @@ export function reportFailure(
   }
 
   return failureCoordinator.report(signal)
+}
+
+function featureScope(
+  featureId: DegradableFeatureId,
+): (context: FailureReportContext) => FailureScope {
+  return (_context) => ({
+    kind: 'feature',
+    featureId,
+  })
 }
 
 function documentOrOperationScope(
