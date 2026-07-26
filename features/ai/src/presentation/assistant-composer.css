@@ -285,8 +285,7 @@
   }
 }
 
-[data-slot="prompt-input-action-menu-content"],
-[data-slot="prompt-input-model-select-content"] {
+[data-slot="prompt-input-action-menu-content"] {
   animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
   transform-origin: bottom center;
 }
@@ -296,101 +295,8 @@
   display: inline-flex;
 }
 
-.assistant-model-select__trigger {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  align-items: center;
-  gap: var(--cp-control-gap);
-  border: 0;
-  border-radius: 9999px;
-  padding-inline: var(--cp-optical);
-  background: transparent;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-model-select__trigger:hover {
-  background: var(--cp-hover);
-}
-
-.assistant-model-select__brand {
-  display: block;
-  block-size: var(--cp-icon-sm);
-  inline-size: var(--cp-icon-sm);
-  flex: none;
-  object-fit: contain;
-}
-
-.assistant-model-select__chevron {
-  block-size: var(--cp-icon-sm);
-  inline-size: var(--cp-icon-sm);
-  color: var(--cp-ink-subtle);
-  transition: transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-[aria-expanded="true"] .assistant-model-select__chevron {
-  transform: rotate(180deg);
-}
-
-.assistant-model-select__content {
-  position: absolute;
-  inset-block-end: calc(100% + var(--cp-pad-mid));
-  inset-inline-end: 0;
-  z-index: 20;
-  display: flex;
-  min-inline-size: var(--cp-menu-min);
-  flex-direction: column;
-  gap: 2px;
-  border: var(--cp-px) solid var(--cp-hairline);
-  border-radius: var(--cp-radius-menu);
-  padding: var(--cp-optical);
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift-far);
-}
-
-.assistant-model-select__item {
-  display: flex;
-  block-size: var(--cp-row);
-  align-items: center;
-  gap: var(--cp-pad-mid);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-inset);
-  background: transparent;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-model-select__item:hover,
-.assistant-model-select__item[aria-selected="true"] {
-  background: var(--cp-hover);
-}
-
 .assistant-model-select__label {
   flex: 1;
-}
-
-.assistant-model-select__check {
-  block-size: var(--cp-dot);
-  inline-size: var(--cp-dot);
-  flex: none;
-  border-radius: 9999px;
-  background: var(--cp-accent);
-  opacity: 0;
-  transform: scale(0.6);
-  transition:
-    opacity var(--cp-motion-swift) var(--cp-motion-ease),
-    transform var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-model-select__item[aria-selected="true"] .assistant-model-select__check {
-  opacity: 1;
-  transform: none;
 }
 
 .assistant-action-menu {
@@ -965,12 +871,6 @@
 
 /* --- round 73: the model list --- */
 
-.assistant-model-select__caret {
-  block-size: 1em;
-  inline-size: 1em;
-  opacity: 0.55;
-}
-
 .assistant-model-option {
   align-items: center;
   display: inline-flex;
@@ -991,9 +891,9 @@
  * control height, the optical inset, the label size. The mark is sized in em
  * so it rides the text baseline instead of dictating a box of its own.
  *
- * There is deliberately no hover rule here. A control that only reports a
- * fact does not need to light up when the pointer passes over it; the one
- * state worth showing is the menu being open, and that is the only one shown.
+ * Two states are worth showing and no more: the pointer is over it, and its
+ * menu is open. Both are painted on the capsule; nothing inside reacts on
+ * its own, because nothing inside can be aimed at separately.
  */
 .assistant-model-select__button {
   display: inline-flex;
@@ -1004,10 +904,25 @@
   border-radius: 9999px;
   padding-inline: var(--cp-optical);
   background: transparent;
-  font-size: var(--cp-font-label);
+  font-size: var(--cp-font-caption);
+  font-weight: 500;
   color: var(--cp-ink-muted);
   cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * The capsule is the target, not the mark inside it.
+ *
+ * A pointer aims at a control, so the control answers: one wash of the hover
+ * token across the whole capsule, and the label darkens with it. The mark
+ * carries no state of its own, which is why no rule here ever names it.
+ */
+.assistant-model-select__button:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
 }
 
 .assistant-model-select__button[aria-expanded="true"] {

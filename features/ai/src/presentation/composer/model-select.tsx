@@ -5,7 +5,6 @@ import {
   PromptInputActionMenuTrigger,
 } from './prompt-input'
 import type { AgentModel } from '../../contracts/model-contract'
-import { ChevronDownIcon } from '../primitives/icons'
 import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
@@ -74,8 +73,6 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
         {mark(active.provider)}
 
         <span className="assistant-model-select__label">{active.label}</span>
-
-        <ChevronDownIcon aria-hidden="true" className="assistant-model-select__caret" />
       </PromptInputActionMenuTrigger>
 
       <PromptInputActionMenuContent>

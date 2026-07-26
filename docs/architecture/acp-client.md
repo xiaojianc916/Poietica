@@ -752,3 +752,33 @@ recorded in the log, so the composer can offer a `/` menu built from what
 this particular agent advertises, and the chosen line is sent as ordinary
 prompt text for the agent to parse. Nothing here is a command surface of our
 own invention, and an agent that advertises nothing gets no menu.
+
+## Slash commands are a list the agent publishes
+
+Slash commands do exist in ACP mode. The agent publishes them: after the
+handshake it sends a `session/update` notification carrying an available
+commands update, and Kimi ships a fix whose stated purpose is to defer that
+update so the client "reliably receives and displays available slash
+commands". A client therefore does two things and nothing else:
+
+1. render the list the agent published, and
+2. send the chosen command as ordinary prompt text, which the agent parses.
+
+That is also why the earlier failure was a category error rather than a bug.
+Sending `/model` was wrong twice over: the text was sent as a message from a
+window that had no business speaking terminal, and the command was not in the
+published list, which is exactly what the agent answered — `Unknown ACP
+command: /model. Use /help to see available commands.` It parses slash
+commands; its ACP set is simply not the terminal set.
+
+Three sets must never be confused:
+
+- the TUI set, typed into the input box, which is the largest;
+- the shell-mode subset the docs enumerate (`/help`, `/exit`, `/version`,
+  `/editor`, `/theme`, `/changelog`, `/feedback`, `/export`, `/import`,
+  `/task`);
+- the ACP set, which is whatever arrives in the published update.
+
+Only the third one may drive our menus. Neither the documentation nor the
+terminal is evidence about it, so every switch and every completion entry we
+offer is built from recorded frames of that notification.
