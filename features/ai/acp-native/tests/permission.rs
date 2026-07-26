@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! The permission round-trip, without an agent process.
 //!
 //! The desk is the only thing standing between an answer typed by a user and a
@@ -5,7 +10,6 @@
 //! ones: an answer nobody asked for, an option nobody offered, and a turn that
 //! ended before anyone answered at all.
 
-#![allow(clippy::expect_used)]
 
 use std::sync::{Arc, Mutex};
 

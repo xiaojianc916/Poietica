@@ -27,6 +27,17 @@ export interface ModelSelectProps {
   readonly onSelect?: (modelId: string) => void
 }
 
+/*
+ * The mark is given a provider only when there is one.
+ *
+ * Under exactOptionalPropertyTypes an optional property is absent rather
+ * than undefined, so passing a possibly-undefined value is not the same as
+ * passing nothing. The fallback mark is the component own business.
+ */
+function mark(provider?: string) {
+  return provider === undefined ? <ProviderIcon /> : <ProviderIcon provider={provider} />
+}
+
 export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProps) {
   const active = models.find((model) => model.id === activeModelId) ?? models[0]
 
@@ -38,7 +49,7 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
         aria-label="切换模型"
         className="assistant-control--ghost assistant-model-select"
       >
-        <ProviderIcon provider={active.provider} />
+        {mark(active.provider)}
 
         <span className="assistant-model-select__label">{active.label}</span>
 
@@ -55,7 +66,7 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
             }}
           >
             <span className="assistant-model-option" data-active={model.id === active.id}>
-              <ProviderIcon provider={model.provider} />
+              {mark(model.provider)}
 
               <span className="assistant-model-option__label">{model.label}</span>
             </span>

@@ -42,7 +42,9 @@ pub struct AgentSpawn {
 enum Command {
     Prompt {
         text: String,
-        recorder: Recorder,
+        /// Boxed because a channel message is sized by its largest variant,
+        /// and stopping a turn should not be charged for starting one.
+        recorder: Box<Recorder>,
         reply: oneshot::Sender<Result<String>>,
     },
     Cancel,
@@ -83,7 +85,7 @@ impl AgentClient {
 
         self.send(Command::Prompt {
             text,
-            recorder,
+            recorder: Box::new(recorder),
             reply,
         })?;
 
@@ -273,7 +275,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                     // One turn at a time. A second prompt is refused here
                     // rather than allowed to interleave two runs on one log.
-                    if let Err(error) = slot.install(recorder) {
+                    if let Err(error) = slot.install(*recorder) {
                         let _ignored = reply_to.send(Err(error));
 
                         continue 'commands;
@@ -366,18 +368,17 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         // taken from serialisation rather than from a
                         // hand-written mapping.
                         Some(Ok(response)) => {
-                            match serde_json::to_value(&response.stop_reason) {
-                                Ok(Value::String(reason)) => {
-                                    recorder.record_run_finished(&reason);
+                            if let Ok(Value::String(reason)) =
+                                serde_json::to_value(response.stop_reason)
+                            {
+                                recorder.record_run_finished(&reason);
 
-                                    Ok(reason)
-                                }
-                                _ => {
-                                    let message = UNREADABLE.to_owned();
-                                    recorder.record_run_failed(&message);
+                                Ok(reason)
+                            } else {
+                                let message = UNREADABLE.to_owned();
+                                recorder.record_run_failed(&message);
 
-                                    Err(AcpError::Protocol { message })
-                                }
+                                Err(AcpError::Protocol { message })
                             }
                         }
                     };

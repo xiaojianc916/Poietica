@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 use std::path::PathBuf;
 
 use poietica_ai_persistence_native::{AiStore, DatabaseKey, RunStatus, StoreError};

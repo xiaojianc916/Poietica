@@ -1,9 +1,13 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! Projection behaviour of the tool call and permission tables.
 //!
 //! These run against a real encrypted file with a throwaway key, so nothing
 //! here touches the operating system credential store.
 
-#![allow(clippy::expect_used)]
 
 use poietica_ai_persistence_native::{
     AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus,

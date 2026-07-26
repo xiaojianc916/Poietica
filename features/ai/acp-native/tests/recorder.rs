@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! Recording, frame shape and projection behaviour, without an agent process.
 //!
 //! The updates here are built with the SDK's own constructors, so the shapes
@@ -6,7 +11,6 @@
 //! named here is renamed there, one side fails loudly instead of silently
 //! dropping frames at the boundary.
 
-#![allow(clippy::expect_used)]
 
 use std::sync::{Arc, Mutex};
 

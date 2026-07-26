@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! One real turn against a real agent process.
 //!
 //! Everything else in this crate is tested without a process, which proves the
@@ -30,7 +35,6 @@
 //! about why, so each wait that comes back empty asks the driver thread for the
 //! actual failure before reporting anything.
 
-#![allow(clippy::expect_used)]
 
 use std::collections::BTreeMap;
 use std::env;

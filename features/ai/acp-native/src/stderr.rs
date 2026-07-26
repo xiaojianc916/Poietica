@@ -52,7 +52,7 @@ impl StderrLog {
 
         let kept = match trimmed.char_indices().nth(LINE_WIDTH) {
             None => trimmed.to_owned(),
-            Some((cut, _char)) => trimmed[..cut].to_owned(),
+            Some((cut, _char)) => trimmed.get(..cut).unwrap_or_default().to_owned(),
         };
 
         if lines.len() >= LINE_LIMIT {

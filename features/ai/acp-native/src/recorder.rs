@@ -395,13 +395,14 @@ impl Recorder {
         let mut body = body;
         let telling = kind == RUN_FAILED || self.updates == 0;
 
-        if telling && !self.diagnostics.is_empty() {
-            if let Value::Object(fields) = &mut body {
-                let _absent = fields.insert(
-                    "diagnostics".to_owned(),
-                    Value::String(self.diagnostics.clone()),
-                );
-            }
+        if telling
+            && !self.diagnostics.is_empty()
+            && let Value::Object(fields) = &mut body
+        {
+            let _absent = fields.insert(
+                "diagnostics".to_owned(),
+                Value::String(self.diagnostics.clone()),
+            );
         }
 
         self.append(kind, body)
@@ -433,10 +434,10 @@ impl Recorder {
     }
 
     fn remember(&mut self, outcome: Result<()>) {
-        if let Err(error) = outcome {
-            if self.failure.is_none() {
-                self.failure = Some(error);
-            }
+        if let Err(error) = outcome
+            && self.failure.is_none()
+        {
+            self.failure = Some(error);
         }
     }
 }
@@ -450,10 +451,10 @@ impl Recorder {
 /// rather than inventing one, and a field the serialiser did emit is left
 /// exactly as it was.
 fn restore(update: &mut Value, field: &str, value: Value) {
-    if let Value::Object(fields) = update {
-        if !fields.contains_key(field) {
-            let _absent = fields.insert(field.to_owned(), value);
-        }
+    if let Value::Object(fields) = update
+        && !fields.contains_key(field)
+    {
+        let _absent = fields.insert(field.to_owned(), value);
     }
 }
 

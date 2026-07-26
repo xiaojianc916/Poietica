@@ -43,10 +43,10 @@ impl TrayState {
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let _managed = app.manage(TrayState::default());
 
-    let show = MenuItem::with_id(app, MENU_SHOW, "Show Poietica", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, MENU_HIDE, "Hide to tray", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, MENU_SHOW, "显示窗口", true, None::<&str>)?;
+    let hide = MenuItem::with_id(app, MENU_HIDE, "隐藏到托盘", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let quit = MenuItem::with_id(app, MENU_QUIT, "Quit Poietica", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, MENU_QUIT, "退出程序", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &hide, &separator, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)

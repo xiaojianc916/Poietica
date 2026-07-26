@@ -1,10 +1,14 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! The seam between a connection-lived handler and a run-lived recorder.
 //!
 //! The driver itself needs an agent process, so what is covered here is the
 //! part that decides which run an update belongs to. Getting that wrong would
 //! attribute frames to the previous turn, which no compiler would catch.
 
-#![allow(clippy::expect_used)]
 
 use std::sync::{Arc, Mutex};
 
