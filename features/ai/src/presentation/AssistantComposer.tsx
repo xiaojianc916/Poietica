@@ -204,11 +204,11 @@ export function AssistantComposer({
 
             {isAgentNew ? <span className="assistant-agent-pill__badge">New</span> : null}
           </PromptInputButton>
-
-          <ModelSelect activeModelId={activeModelId} models={models} onSelect={onSelectModel} />
         </PromptInputTools>
 
         <span className="assistant-toolbar__spacer" />
+
+        <ModelSelect activeModelId={activeModelId} models={models} onSelect={onSelectModel} />
 
         <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
           <MicIcon aria-hidden="true" />

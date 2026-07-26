@@ -55,7 +55,7 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
     return (
       <span
         aria-live="polite"
-        className="assistant-control--ghost assistant-model-select"
+        className="assistant-model-select assistant-model-select__button"
         data-empty="true"
       >
         {mark()}
@@ -66,10 +66,10 @@ export function ModelSelect({ models, activeModelId, onSelect }: ModelSelectProp
   }
 
   return (
-    <PromptInputActionMenu>
+    <PromptInputActionMenu className="assistant-model-select">
       <PromptInputActionMenuTrigger
         aria-label="切换模型"
-        className="assistant-control--ghost assistant-model-select"
+        className="assistant-model-select__button"
       >
         {mark(active.provider)}
 
