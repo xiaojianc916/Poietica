@@ -227,7 +227,6 @@ mod tests {
         clippy::unwrap_used,
         clippy::panic,
         clippy::indexing_slicing,
-        clippy::as_conversions,
         clippy::missing_panics_doc,
         clippy::missing_errors_doc,
         clippy::too_many_lines,
