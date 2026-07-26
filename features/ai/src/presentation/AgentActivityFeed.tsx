@@ -23,9 +23,17 @@ export interface AgentActivityFeedProps {
   readonly rows: readonly FeedRow[]
   readonly renderRow: (row: FeedRow) => ReactNode
   readonly isBusy: boolean
+  /**
+   * Rendered after the virtualised canvas, inside the same scroller.
+   *
+   * For what is true of the run rather than of an entry in it — a wait, for
+   * instance. Outside the canvas it is never measured as a row, so it cannot
+   * disturb the virtualiser.
+   */
+  readonly footer?: ReactNode
 }
 
-export function AgentActivityFeed({ rows, renderRow, isBusy }: AgentActivityFeedProps) {
+export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActivityFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
 
@@ -81,6 +89,10 @@ export function AgentActivityFeed({ rows, renderRow, isBusy }: AgentActivityFeed
           )
         })}
       </div>
+
+      {footer === null || footer === undefined ? null : (
+        <div className="agent-activity-feed__footer">{footer}</div>
+      )}
     </div>
   )
 }

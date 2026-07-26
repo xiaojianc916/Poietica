@@ -10,6 +10,9 @@
  * label, and capped so a pasted page still reads as a message.
  */
 .timeline-user {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
   margin: 0;
   margin-inline-start: auto;
   inline-size: fit-content;
@@ -17,8 +20,34 @@
   padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
   border-radius: var(--cp-timeline-radius, 0.75rem);
   background: var(--cp-timeline-user-surface, #f5f5f5);
+}
+
+.timeline-user__text {
+  margin: 0;
+  inline-size: 100%;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Clipped, never scrolled: overflow is clip, so this box cannot become a
+ * second scroller inside the one the transcript already has. The fade is a
+ * mask rather than an overlay, so it works on any bubble colour.
+ */
+.timeline-user[data-clamped="true"] .timeline-user__text {
+  max-block-size: var(--cp-timeline-said-max, 10.5rem);
+  overflow: clip;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.75rem), transparent);
+}
+
+.timeline-user__more {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
 }
 
 .timeline-message {
@@ -203,5 +232,53 @@
 
   .timeline-reasoning__chevron {
     transition: none;
+  }
+}
+
+/*
+ * Waiting is a state, so it is drawn.
+ *
+ * Between the question and the first frame there is nothing in the transcript
+ * to render, and an empty column there is indistinguishable from a product that
+ * swallowed the message.
+ */
+.timeline-pending {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.timeline-pending__dot {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 50%;
+  background: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  animation: timeline-pending-pulse 1200ms ease-in-out infinite;
+}
+
+.timeline-pending__dot:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.timeline-pending__dot:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+@keyframes timeline-pending-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-pending__dot {
+    animation: none;
+    opacity: 0.55;
   }
 }

@@ -48,6 +48,7 @@ export function createIpcSession({
         const parsed = parseRunEvent(payload)
         if (!parsed.ok) {
           onInvalidFrame?.(parsed.issue, payload)
+          listener(refusedFrame(parsed.issue))
           return
         }
         listener(parsed.event)
@@ -70,5 +71,28 @@ export function createIpcSession({
       }
       return events
     },
+  }
+}
+
+/*
+ * A refused frame is a failure of this client, and it belongs on screen.
+ *
+ * Reporting it to a log satisfies the developer and leaves the person waiting
+ * for an answer looking at a transcript in which the agent simply never spoke.
+ * So the refusal enters the timeline through the same channel every other
+ * failure uses.
+ *
+ * Sequence zero is deliberate. Real frames are numbered from one, so this can
+ * never collide with one, and the reducer keeps the first refusal of a turn and
+ * discards the rest: one visible failure, not a wall of them.
+ */
+const REFUSED = '助手发回了这个界面无法解析的数据，这一轮已经中断。'
+
+function refusedFrame(issue: string): RunEvent {
+  return {
+    kind: 'run_failed',
+    seq: 0,
+    at: Date.now(),
+    message: REFUSED + '（' + issue + '）',
   }
 }

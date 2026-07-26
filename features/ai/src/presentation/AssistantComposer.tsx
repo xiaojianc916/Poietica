@@ -19,6 +19,7 @@ import {
 } from './composer/prompt-input'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
+import { useEditorGrowth } from './useEditorGrowth'
 
 /*
  * The composer no longer offers a model picker.
@@ -54,17 +55,15 @@ export function AssistantComposer({
   const editorId = `${uid}-editor`
 
   /*
-   * The editor's height is not choreographed.
+   * The editor grows into its new height rather than jumping to it.
    *
-   * It is field-sizing: content, so pasting a paragraph makes the box the size
-   * of that paragraph in the same frame the text arrives, which is what every
-   * serious editor does. Replaying the previous box over the new one animated a
-   * length the stylesheet was resolving at the same time, and it also
-   * counter-translated the whole column to cancel a shove that no longer
-   * happens: the column is no longer centred by auto margins, it is held in
-   * place by flexible spacers. The compensation outlived what it compensated
-   * for, and all that was left of it was a visible jolt.
+   * The height itself stays a CSS fact; the hook only replays the previous box
+   * onto the new one. What used to jolt was never the growth: it was a
+   * counter-translate of the whole column, written for a centred layout that
+   * spacers replaced, and a resize observer that fed its own animation back to
+   * itself. Both are gone, so the growth can stay.
    */
+  useEditorGrowth(editorId)
 
   /* Ctrl/⌘+U is advertised in the menu, so it has to actually work. */
   useEffect(() => {

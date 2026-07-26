@@ -529,3 +529,52 @@ entire surface, on the same length the stylesheet was already resolving.
 
 The general rule this leaves behind: motion compensates for a layout, so it
 has to be deleted with that layout.
+
+## A failure that only reaches the log did not happen
+
+Every inbound frame is validated, and for a while a refused one was reported
+to the observability port and dropped. That is correct about the frame and
+wrong about the product: from the outside, a dropped frame and an agent that
+never answered are the same picture, and the log is not part of the interface.
+
+A client-side failure therefore enters the transcript as a `run_failed`, on
+sequence zero — real frames are numbered from one, so it cannot collide with
+one, and the reducer keeps the first refusal of a turn and discards the rest.
+The log entry stays; it is now the detail behind something visible rather than
+the only trace that anything went wrong.
+
+## Waiting is a state
+
+Between the moment a question is committed and the first frame of the answer
+there is nothing in the timeline to draw. Drawing nothing there makes a busy
+session and a swallowed message identical on screen.
+
+The wait is derived — the run is open and the transcript ends on the question —
+and it is rendered after the virtualised canvas rather than inside it. It is
+not an event, so it is not an entry: it has nothing to be replayed from, it
+cannot be persisted, and it disappears the moment a real frame arrives.
+
+## A message is clipped, never scrolled
+
+A pasted page arrives as one entry, and an entry taller than the viewport used
+to leave the transcript showing nothing else. A scrolling box inside a
+scrolling transcript is the wrong fix: it traps the wheel and hides where the
+message ends.
+
+So the bubble clips with a fade and offers to open. Whether to clip is decided
+from the text rather than from the layout, which means the clamp and the
+control that releases it are the same decision and cannot contradict each
+other — a control over text that was never clipped is the same defect as
+clipped text with no control.
+
+## Motion compensates for a layout, and dies with it
+
+The composer may animate its own growth, because the height it grows into is
+still resolved by CSS and the animation commits nothing. What it may not do is
+move anything else to make room: that compensation belonged to a centred
+column, and it outlived it by a full round as a visible jolt.
+
+The second rule is narrower and easier to get wrong: an observer must not
+treat the effects of its own animation as new input. Feeding a replay back
+into the measurement it started from is how a smooth growth becomes a shudder
+in the opposite direction.

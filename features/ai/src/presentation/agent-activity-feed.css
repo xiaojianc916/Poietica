@@ -24,3 +24,13 @@
     scroll-behavior: auto;
   }
 }
+
+/*
+ * Whatever is true of the run rather than of one entry in it sits here, after
+ * the canvas and inside the scroller, so it scrolls with the transcript
+ * without being part of the measured rows.
+ */
+.agent-activity-feed__footer {
+  position: relative;
+  padding-block: var(--cp-feed-row-gap, 0.5rem);
+}

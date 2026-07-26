@@ -5,6 +5,7 @@ import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
+import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import { selectFeedRows, selectIsBusy } from '../domain/timeline-selectors'
@@ -56,6 +57,16 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
 
+  /*
+   * The gap between the question and the first frame of the answer.
+   *
+   * Nothing exists to render there, and nothing rendered there is exactly how
+   * a working product and a broken one look the same. Derived from the run
+   * being open with the transcript ending on the question, so it cannot
+   * disagree with the timeline and cannot be left behind by one.
+   */
+  const isWaiting = assistant.status === 'streaming' && rows.at(-1)?.item.type === 'user_message'
+
   return (
     <section
       className="assistant-surface"
@@ -75,6 +86,7 @@ export function AssistantSurface({ endpoint, session }: AssistantSurfaceProps) {
 
         <div className="assistant-surface__feed">
           <AgentActivityFeed
+            footer={isWaiting ? <ThinkingIndicator /> : null}
             isBusy={selectIsBusy(assistant.timeline)}
             renderRow={(row) =>
               row.item.type === 'permission' ? (
