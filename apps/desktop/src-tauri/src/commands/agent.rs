@@ -43,6 +43,16 @@ const DATABASE_FILE: &str = "ai.sqlite3";
 /// The agent started when the caller does not name one.
 const DEFAULT_AGENT_COMMAND: &str = "kimi acp";
 
+/// Overrides the agent command line without a rebuild.
+///
+/// The live-turn test already reads this name, so the application and the test
+/// choose an agent the same way.
+const COMMAND_ENV: &str = "POIETICA_ACP_COMMAND";
+
+/// What Windows falls back to when PATHEXT is not set.
+#[cfg(windows)]
+const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
+
 /// Threads are named by the interface later; this is only a placeholder.
 const THREAD_TITLE: &str = "session";
 
@@ -322,7 +332,7 @@ async fn ensure_session(
     };
 
     let spawn = AgentSpawn {
-        command: command.unwrap_or_else(|| DEFAULT_AGENT_COMMAND.to_owned()),
+        command: resolve_command(command),
         cwd: working_directory,
     };
 
@@ -389,6 +399,68 @@ fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Sessio
     session
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
+}
+
+/// Decides which command line starts the agent.
+///
+/// An explicit request wins, then the environment, then the built-in default.
+fn resolve_command(requested: Option<String>) -> String {
+    let line = requested
+        .or_else(|| env::var(COMMAND_ENV).ok())
+        .unwrap_or_else(|| DEFAULT_AGENT_COMMAND.to_owned());
+
+    executable(&line)
+}
+
+/// Names the program in a way the operating system can actually launch.
+///
+/// A session is a spawned process, not a shell command, so nothing expands a
+/// bare name on our behalf. On Windows the agent is usually a package-manager
+/// shim named kimi.CMD, and spawning kimi fails outright, so the extension is
+/// resolved here instead of being left for the user to discover.
+#[cfg(windows)]
+fn executable(line: &str) -> String {
+    let (program, rest) = match line.find(char::is_whitespace) {
+        Some(index) => line.split_at(index),
+        None => (line, ""),
+    };
+
+    if std::path::Path::new(program).extension().is_some() {
+        return line.to_owned();
+    }
+
+    match on_path(program) {
+        // The name is left alone when nothing matches, so the failure the user
+        // reads still mentions what they actually asked for.
+        None => line.to_owned(),
+        Some(found) => format!("{found}{rest}"),
+    }
+}
+
+#[cfg(not(windows))]
+fn executable(line: &str) -> String {
+    line.to_owned()
+}
+
+/// Finds the file name, extension included, that a bare program name resolves to.
+#[cfg(windows)]
+fn on_path(program: &str) -> Option<String> {
+    let extensions = env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
+    let path = env::var_os("PATH")?;
+
+    for directory in env::split_paths(&path) {
+        for extension in extensions.split(';').filter(|entry| !entry.is_empty()) {
+            let candidate = directory.join(format!("{program}{extension}"));
+
+            if candidate.is_file() {
+                return candidate
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    None
 }
 
 fn persistence(error: StoreError) -> Error {

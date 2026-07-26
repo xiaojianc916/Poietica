@@ -36,6 +36,20 @@ export interface AssistantSession {
 
 const RUN_PLACEHOLDER = 'run_pending'
 
+/*
+ * What the user is told when a run never started.
+ *
+ * The native side keeps its own detail on its own side of the wire, so this is
+ * a fallback for a rejection that carries no message at all.
+ */
+const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
+
+function describeFailure(cause: unknown): string {
+  if (cause instanceof Error && cause.message.length > 0) return cause.message
+  if (typeof cause === 'string' && cause.length > 0) return cause
+  return FAILURE_FALLBACK
+}
+
 export function useAssistantSession({
   endpoint,
   session,
@@ -52,6 +66,25 @@ export function useAssistantSession({
     })
   }, [session])
 
+  /*
+   * A failure the log never saw.
+   *
+   * Spawning the agent, or answering a question it no longer waits for, fails
+   * before anything durable exists, so there is no frame to replay. The reducer
+   * already knows how to render a failed run, so the fact is handed to it as
+   * the run_failed event it is rather than by reaching into the state shape.
+   */
+  const fail = useCallback((cause: unknown) => {
+    setTimeline((current) =>
+      applyRunEvent(current, {
+        kind: 'run_failed',
+        seq: current.lastSeq + 1,
+        at: Date.now(),
+        message: describeFailure(cause),
+      }),
+    )
+  }, [])
+
   const send = useCallback(
     (submission: AssistantSubmission) => {
       if (!session) return
@@ -63,11 +96,11 @@ export function useAssistantSession({
         .then((handle) => {
           cancelRef.current = handle.cancel
         })
-        .catch(() => {
-          setTimeline((current) => ({ ...current, status: 'failed' }))
+        .catch((cause: unknown) => {
+          fail(cause)
         })
     },
-    [endpoint, session],
+    [endpoint, fail, session],
   )
 
   const cancel = useCallback(() => {
@@ -86,11 +119,11 @@ export function useAssistantSession({
     (requestId: string, optionId: string) => {
       if (!session) return
 
-      session.resolvePermission(requestId, optionId).catch(() => {
-        setTimeline((current) => ({ ...current, status: 'failed' }))
+      session.resolvePermission(requestId, optionId).catch((cause: unknown) => {
+        fail(cause)
       })
     },
-    [session],
+    [fail, session],
   )
 
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
