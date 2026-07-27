@@ -161,6 +161,39 @@ async agentSessions() : Promise<AgentSessionSummary[]> {
     return await TAURI_INVOKE("agent_sessions");
 },
 /**
+ * Lists the stored conversations, newest first.
+ * 
+ * Official names are the agent's own, so they are folded in first when
+ * the connection can answer. A refusal there is not a failure of this
+ * command: while a turn is in flight the agent will not list its
+ * sessions, and the right answer then is the names already stored, not
+ * an error where a list of conversations belongs.
+ * 
+ * # Errors
+ * 
+ * Fails when the database cannot be opened or read.
+ */
+async agentThreads() : Promise<AgentThread[]> {
+    return await TAURI_INVOKE("agent_threads");
+},
+/**
+ * Opens one more conversation: a session on the agent, and a row holding
+ * it.
+ * 
+ * The conversation is stored before it has a name, because a name is
+ * something that arrives later: the agent's own title if it sends one,
+ * otherwise whatever the interface can stand in with. Both are recorded
+ * as what they are, so a stand in never replaces a real name.
+ * 
+ * # Errors
+ * 
+ * Fails when the agent cannot be started, when a turn is in flight on
+ * the connection, or when the database rejects the write.
+ */
+async agentOpenThread(request: AgentNewSessionRequest) : Promise<AgentOpenedThread> {
+    return await TAURI_INVOKE("agent_open_thread", { request });
+},
+/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -436,6 +469,18 @@ sessionId: string;
  */
 selectors: AgentConfigControl[] }
 /**
+ * A conversation that was just opened, and what its session offers.
+ */
+export type AgentOpenedThread = { 
+/**
+ * The conversation itself.
+ */
+thread: AgentThread; 
+/**
+ * What may be chosen for this session, as the agent reported it.
+ */
+selectors: AgentConfigControl[] }
+/**
  * A prompt, and how to start the agent if it is not running yet.
  */
 export type AgentPromptRequest = { 
@@ -523,6 +568,30 @@ title: string | null;
  * When the agent last saw activity on it, as it reported it.
  */
 updatedAt: string | null }
+/**
+ * One conversation, as a list of conversations and a tab strip need it.
+ */
+export type AgentThread = { 
+/**
+ * The stored conversation.
+ */
+threadId: string; 
+/**
+ * The agent session it is holding, where it holds one.
+ */
+sessionId: string | null; 
+/**
+ * The name to show for it.
+ */
+title: string; 
+/**
+ * Where that name came from: official, message or fallback.
+ */
+titleSource: string; 
+/**
+ * When it was last touched, in RFC 3339.
+ */
+updatedAt: string }
 export type AppSettings = { theme: string; language: string; auto_save: boolean; 
 /**
  * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,
