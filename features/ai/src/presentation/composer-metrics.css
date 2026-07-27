@@ -22,7 +22,8 @@
   --cp-feed-row-gap: var(--cp-pad-mid);
   --cp-dock-gap: var(--cp-stack);
   --cp-dock-blur: 14px;
-  --cp-canvas-veil: rgb(251 251 250 / 72%);
+  --cp-dock-fade: 32px;
+  --cp-canvas-veil: color-mix(in srgb, var(--cp-canvas) 82%, transparent);
 
   --cp-font: 16px;
   --cp-line-ratio: 1.625;

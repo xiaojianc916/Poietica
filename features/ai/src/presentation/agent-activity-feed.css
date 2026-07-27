@@ -85,11 +85,32 @@
 .agent-activity-feed__dock {
   position: sticky;
   z-index: 1;
+  isolation: isolate;
   inset-block-end: 0;
   margin-block-start: var(--cp-dock-gap);
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
+}
+
+/*
+ * The layer, and why it has no edge.
+ *
+ * A veil the shape of the band is a rectangle, and a rectangle over a moving
+ * transcript is a visible line: content is sharp on one side of it and blurred
+ * on the other. So the veil and the blur are one layer that reaches above the
+ * band and is masked to nothing at its top — the same gradient drives both,
+ * because a mask hides the filter with the paint. Its colour is mixed from the
+ * canvas token rather than stated, so it can never disagree with the canvas.
+ */
+.agent-activity-feed__dock::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-inline: 0;
+  inset-block: calc(-1 * var(--cp-dock-fade)) 0;
   background: var(--cp-canvas-veil);
   backdrop-filter: blur(var(--cp-dock-blur));
+  mask-image: linear-gradient(to bottom, transparent 0, black var(--cp-dock-fade));
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
