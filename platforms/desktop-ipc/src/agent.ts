@@ -314,9 +314,7 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     },
 
     select: async (configId, value) => {
-      const offered = await call(() =>
-        commands.agentSetConfigOption({ configId, value }),
-      )
+      const offered = await call(() => commands.agentSetConfigOption({ configId, value }))
 
       return offered.map(controlOf)
     },
