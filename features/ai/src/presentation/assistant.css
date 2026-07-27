@@ -16,32 +16,20 @@
 }
 
 /*
- * The surface is a frame, not a scroller.
+ * The surface is the frame of one scroller.
  *
- * Exactly one box on this screen scrolls, and it is the transcript. While the
- * frame could scroll as well the wheel had two possible owners, and the
- * frame's own padding pushed the transcript's scrollbar inside the panel,
- * where it reads as a box within the page rather than as the page itself — a
- * message tall enough to fill the transcript then looked like a message with a
- * scrollbar of its own. The inset that used to live here is carried by the
- * parts instead.
+ * It gives the scroller the height of the panel and the paint of the canvas,
+ * and holds nothing else: the reading measure, the free space and the resting
+ * states all belong to the scroller, because they are all inside the scroll
+ * box. A frame that also scrolled would give the wheel two owners.
  */
 .assistant-surface {
   display: flex;
   block-size: 100%;
-  justify-content: center;
   overflow: hidden;
   background: var(--cp-canvas);
   color: var(--cp-ink);
   font-size: var(--cp-font);
-}
-
-.assistant-surface__column {
-  display: flex;
-  inline-size: min(100%, var(--cp-grid));
-  flex-direction: column;
-  gap: var(--cp-stack);
-  margin-block: auto;
 }
 
 .assistant-masthead {
@@ -56,17 +44,6 @@
   block-size: var(--cp-mark);
   inline-size: var(--cp-mark);
   object-fit: contain;
-}
-
-@keyframes assistant-mark-in {
-  from {
-    opacity: 0;
-    transform: scale(0.86) rotate(-6deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 .assistant-masthead__title {
@@ -292,10 +269,13 @@
 .assistant-model-select {
   position: relative;
   display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
 }
 
 .assistant-model-select__label {
   flex: 1;
+  white-space: nowrap;
 }
 
 .assistant-action-menu {
@@ -619,26 +599,16 @@
   visibility: hidden;
 }
 
+/*
+ * Laid out at all times; only the paint changes. The reveal rule, and the
+ * anchor problem that made it necessary, live with the sidebar popup further
+ * down.
+ */
 .assistant-thread__actions {
   position: absolute;
   inset-inline-end: var(--assistant-threads-row-trail);
-  display: none;
   align-items: center;
   gap: 2px;
-  margin-inline-end: 0;
-  padding-inline-end: 0;
-}
-
-/*
- * DropdownMenuContent is Portal-rendered. When the pointer leaves the thread
- * row and enters the popup, the row itself is no longer hovered. Keep the
- * trigger visible while its menu is open, otherwise the positioning engine
- * loses its anchor and the popup can jump.
- */
-.assistant-thread:hover .assistant-thread__actions,
-.assistant-thread__actions:focus-within,
-.assistant-thread__actions:has([aria-expanded="true"]) {
-  display: flex;
 }
 
 .assistant-thread__action {
@@ -759,97 +729,25 @@
   }
 }
 /*
- * The two resting states of the surface, and the travel between them.
+ * The two resting states of the surface, and what travels between them.
  *
- * The column always fills the surface, so the centring before the first turn
- * comes from two flexible spacers rather than from auto margins. Starting a
- * turn hands their share to the feed, and that is what carries the composer
- * down: no element is repositioned, the free space simply moves. flex-grow is
- * a number, so the browser interpolates it, and nothing has to be measured.
- *
- * The intro blocks collapse through a grid row, which is the one way an
- * intrinsic height can be animated, and they keep their space until they have
- * finished leaving. Every duration and curve is a token.
+ * The geometry — one scroller, the reading measure, the sticky composer, the
+ * free space before the first turn — lives with the scroller in
+ * agent-activity-feed.css, because all of it is inside the scroll box. What is
+ * left here is the departure of the two intro blocks: they collapse through a
+ * grid row, which is the one way an intrinsic height can be animated, and they
+ * keep their space until they have finished leaving.
  */
-
-.assistant-surface__column {
-  block-size: 100%;
-  inline-size: 100%;
-  gap: 0;
-  margin-block: 0;
-  padding-block: var(--cp-gutter);
-}
-
-/*
- * The reading measure belongs to the parts, not to the frame.
- *
- * Everything except the transcript is centred to the same width and carries
- * its own gutter. The transcript spans the whole panel instead and centres its
- * rows with its own padding, because padding sits inside a scroll box while
- * the scrollbar sits on its edge: narrow rows, wide scroller, one scrollbar,
- * against the side of the panel where a window scrollbar belongs.
- */
-.assistant-surface__intro,
-.assistant-surface__composer,
-.assistant-surface__starters {
-  box-sizing: border-box;
-  inline-size: min(100%, calc(var(--cp-grid) + 2 * var(--cp-gutter)));
-  margin-inline: auto;
-  padding-inline: var(--cp-gutter);
-}
-
-.assistant-surface__spacer {
-  block-size: 0;
-  flex: 1 1 0;
-  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
-}
-
-.assistant-surface__feed {
-  display: flex;
-  inline-size: 100%;
-  min-block-size: 0;
-  flex: 0 1 auto;
-  flex-direction: column;
-  overflow: hidden;
-  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
-}
-
-/*
- * The transcript fills this box on both axes.
- *
- * The scroller inside declares contain: strict, and that includes size
- * containment: the browser sizes it as if it had no contents at all. On a row
- * flex line the inline axis is the main axis, so its width resolved to zero and
- * every row was laid out at zero width — present, measured, scrolled and
- * completely invisible, error rows included. Column direction moves the inline
- * axis to the cross axis, where the default is to stretch.
- */
-.assistant-surface__feed > * {
-  inline-size: 100%;
-  min-block-size: 0;
-  flex: 1 1 auto;
-}
-
-.assistant-surface[data-started="true"] .assistant-surface__spacer {
-  flex-grow: 0;
-}
-
-.assistant-surface[data-started="true"] .assistant-surface__feed {
-  flex-grow: 1;
-}
 
 .assistant-surface__intro,
 .assistant-surface__starters {
   display: grid;
   min-block-size: 0;
   grid-template-rows: 1fr;
-  flex: none;
-  /* One departure, not four: the content fades over the first beat and the
-     space it held closes over the whole one. A translation on top of a
-     collapse says the same thing twice, on a different clock. */
   transition:
     grid-template-rows var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),;
+    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),
+    opacity var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
 .assistant-surface__intro > *,
@@ -872,9 +770,7 @@
 .assistant-surface__composer {
   display: flex;
   min-inline-size: 0;
-  flex: none;
   flex-direction: column;
-  margin-block-start: var(--cp-stack);
 }
 
 /* --- round 71: the provider mark --- */
@@ -894,16 +790,6 @@
 /* An unknown provider is quieter than a known one, and never invisible. */
 .assistant-provider-icon[data-fallback="true"] {
   opacity: 0.75;
-}
-
-.assistant-model-select {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-}
-
-.assistant-model-select__label {
-  white-space: nowrap;
 }
 
 /* --- round 73: the model list --- */
@@ -992,22 +878,6 @@
   inset-inline-end: 0;
 }
 
-/*
- * Round 98: the session selectors, in one menu.
- *
- * The border is the one professional menus use, and nothing more: a single
- * hairline of ink at low opacity, a half-pixel ring so the edge stays crisp
- * at a fractional device ratio, and one soft shadow cast downward. No bevel,
- * no gloss, no inset highlight. A menu is a sheet lifted off the page; only
- * a button is moulded.
- */
-
-/*
- * 这里原有一组 --sc-* 令牌:--sc-shade 与 --sc-gap 全文没有任何引用,
- * --sc-line 与 --sc-pad 被下面的规则整体覆盖 —— 一整块死代码,删除。
- * 菜单外框现在只有一个定义处:--am-* 与 .assistant-menu-surface。
- */
-
 /* ---------------------------------------------------------------------- */
 /* The session selectors: one menu, a row per selector, values on the right */
 /*                                                                        */
@@ -1029,10 +899,7 @@
  */
 .assistant-config-menu__panel[data-assistant-skin],
 .assistant-config-menu__submenu[data-assistant-skin] {
-  --sc-item: var(--am-item);
-  --sc-pad: var(--am-pad);
-
-  min-width: 184px;
+  min-inline-size: 184px;
 }
 
 [data-assistant-skin] .assistant-config-menu__row {
@@ -1043,7 +910,7 @@
   min-height: 28px;
   padding: 0 6px 0 8px;
   border: 0;
-  border-radius: var(--sc-item);
+  border-radius: var(--am-item);
   background: transparent;
   color: var(--cp-ink);
   font: inherit;
@@ -1075,7 +942,7 @@
  * ::before,以及平铺菜单才需要的段标题与空态,一并删除。
  */
 .assistant-config-menu__submenu[data-assistant-skin] {
-  min-width: 200px;
+  min-inline-size: 200px;
 }
 
 [data-assistant-skin] .assistant-config-option {
@@ -1085,7 +952,7 @@
   min-height: 28px;
   padding: 5px 26px 5px 8px;
   border: 0;
-  border-radius: var(--sc-item);
+  border-radius: var(--am-item);
   background: transparent;
   color: var(--cp-ink);
   font: inherit;
@@ -1163,11 +1030,6 @@
 }
 
 /*
- * 选择器面板的外框不再单独声明一遍:它带着 .assistant-menu-surface,
- * 边、圆角、内边距与投影都从那一个地方来。
- */
-
-/*
  * The sidebar popup, at menu scale.
  *
  * The design-system dropdown keeps behaviour, focus order and positioning.
@@ -1239,8 +1101,4 @@
   animation: none;
   opacity: 0;
   pointer-events: none;
-}
-
-.assistant-threads__group {
-  padding-inline: 0;
 }

@@ -1,40 +1,65 @@
 /*
- * The one scroller on the assistant surface.
+ * The one scroller on the assistant surface, and now the only one on screen.
  *
- * It spans the panel so its scrollbar lands on the edge of the panel. A row
- * must never look as though it scrolls, and the reliable way to guarantee that
- * is for no row to be a scroll box and for the scroller to be wider than any
- * row: the measure is kept by padding, which is inside the scroll box, while
- * the scrollbar is on its edge. The gutter is reserved so that arriving at a
- * scrollbar does not shift the text sideways.
+ * It spans the panel, so its scrollbar lands on the panel's edge rather than
+ * inside it, and the reading measure is kept by its padding: padding is inside
+ * a scroll box while the scrollbar sits on its edge, so narrow rows and a wide
+ * scroller need no second box. Size containment is deliberately absent — the
+ * browser must size this box from the flex line it sits on and lay its rows out
+ * at the real inline size.
  */
 .agent-activity-feed {
   position: relative;
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  contain: strict;
-  block-size: 100%;
-  min-block-size: 0;
+  contain: layout paint;
+  padding-block-start: var(--cp-gutter);
   padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
+/*
+ * The free space before the first turn, and no markup for it.
+ *
+ * Two generated boxes take equal shares of the scroller while the transcript
+ * is empty, so the masthead and the composer rest in the middle. A turn hands
+ * their share to the canvas: flex-grow is a number, so the browser interpolates
+ * the move, and the composer travels down with the space rather than with a
+ * script.
+ */
+.agent-activity-feed::before,
+.agent-activity-feed::after {
+  content: "";
+  flex: 1 1 0;
+  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
+}
+
+.assistant-surface[data-started="true"] .agent-activity-feed::before,
+.assistant-surface[data-started="true"] .agent-activity-feed::after {
+  flex-grow: 0;
+}
+
+/*
+ * The canvas is exactly as tall as the rows it holds, and taller when there is
+ * room: growing it is what keeps a short run's composer against the bottom
+ * edge instead of floating mid-panel. It never shrinks below the measured
+ * total, which is the height the virtualiser sets inline.
+ */
 .agent-activity-feed__canvas {
   position: relative;
   inline-size: 100%;
+  flex: 1 0 auto;
 }
 
 .agent-activity-feed__row {
   position: absolute;
   inset-inline: 0;
   inset-block-start: 0;
-  padding-block: var(--cp-feed-row-gap, 0.5rem);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-activity-feed {
-    scroll-behavior: auto;
-  }
+  padding-block: var(--cp-feed-row-gap);
 }
 
 /*
@@ -44,5 +69,36 @@
  */
 .agent-activity-feed__footer {
   position: relative;
-  padding-block: var(--cp-feed-row-gap, 0.5rem);
+  padding-block: var(--cp-feed-row-gap);
+}
+
+/*
+ * The composer, over the transcript.
+ *
+ * Sticky, not fixed and not absolutely placed: it keeps its place at the end of
+ * the flow, so the scrollbar measures the whole conversation and the transcript
+ * stops a stack above the band instead of hiding behind it. While the run is
+ * scrolled the transcript passes underneath, and the veil with the blur is what
+ * says this is a layer. A sticky offset is resolved against the scrollport,
+ * which is the padding box, so the band carries the bottom inset itself.
+ */
+.agent-activity-feed__dock {
+  position: sticky;
+  z-index: 1;
+  inset-block-end: 0;
+  margin-block-start: var(--cp-dock-gap);
+  padding-block: var(--cp-pad-mid) var(--cp-gutter);
+  background: var(--cp-canvas-veil);
+  backdrop-filter: blur(var(--cp-dock-blur));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-activity-feed {
+    scroll-behavior: auto;
+  }
+
+  .agent-activity-feed::before,
+  .agent-activity-feed::after {
+    transition: none;
+  }
 }

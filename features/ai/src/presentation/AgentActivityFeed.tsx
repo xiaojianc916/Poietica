@@ -6,14 +6,20 @@ import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 import type { FeedRow } from '../domain/timeline-selectors'
 
 /**
- * The agent activity feed.
+ * The scroller of the assistant surface.
  *
- * One flat, ordered, virtualised column. It knows nothing about entry types:
- * entries are supplied through a render slot, so reasoning chains and tool-call
- * cards can evolve without touching scrolling or measurement.
+ * It is the only box on the screen that scrolls, and everything on the screen
+ * is inside it: the masthead, the virtualised transcript, and the composer as
+ * a sticky band at the end of the flow. That is what puts one scrollbar on the
+ * edge of the panel over its whole height, the way a window has one, and what
+ * lets the composer float over the run without any height being measured.
  *
- * Stick-to-bottom is intent-driven, not position-driven. Once the user scrolls
- * up they are reading history, and a streaming run must never yank them back.
+ * It knows nothing about entry types: entries arrive through a render slot, so
+ * reasoning chains and tool-call cards evolve without touching scrolling.
+ *
+ * Stick-to-bottom is intent-driven, not position-driven. Once the user has
+ * scrolled up they are reading history, and a streaming run must never yank
+ * them back.
  */
 
 const BOTTOM_THRESHOLD_PX = 48
@@ -23,6 +29,8 @@ export interface AgentActivityFeedProps {
   readonly rows: readonly FeedRow[]
   readonly renderRow: (row: FeedRow) => ReactNode
   readonly isBusy: boolean
+  /** Above the transcript, and scrolling away with it. */
+  readonly header?: ReactNode
   /**
    * Rendered after the virtualised canvas, inside the same scroller.
    *
@@ -31,9 +39,18 @@ export interface AgentActivityFeedProps {
    * disturb the virtualiser.
    */
   readonly footer?: ReactNode
+  /** The band that sticks to the bottom of the scrollport: the composer. */
+  readonly dock?: ReactNode
 }
 
-export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActivityFeedProps) {
+export function AgentActivityFeed({
+  rows,
+  renderRow,
+  isBusy,
+  header,
+  footer,
+  dock,
+}: AgentActivityFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
 
@@ -61,24 +78,34 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
    */
   const totalSize = virtualizer.getTotalSize()
 
+  /*
+   * The end of the scroll range, not the end of the last row.
+   *
+   * Aligning a row to the end of the scrollport would park it under the dock,
+   * which occupies that edge. The bottom of the range already accounts for the
+   * dock, because the dock is part of the flow; the browser clamps the value,
+   * so nothing here has to.
+   */
   useEffect(() => {
-    if (!pinnedRef.current || rows.length === 0) {
+    const element = scrollRef.current
+    if (element === null || !pinnedRef.current) {
       return
     }
-    virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [rows.length, totalSize, virtualizer])
+    element.scrollTop = element.scrollHeight
+  }, [rows.length, totalSize])
 
   const virtualRows = virtualizer.getVirtualItems()
 
   return (
-    <div
-      aria-busy={isBusy}
-      className="agent-activity-feed"
-      onScroll={handleScroll}
-      ref={scrollRef}
-      role="log"
-    >
-      <div className="agent-activity-feed__canvas" style={{ height: totalSize }}>
+    <div className="agent-activity-feed" onScroll={handleScroll} ref={scrollRef}>
+      {header}
+
+      <div
+        aria-busy={isBusy}
+        className="agent-activity-feed__canvas"
+        role="log"
+        style={{ height: totalSize }}
+      >
         {virtualRows.map((virtualRow) => {
           const row = rows[virtualRow.index]
           if (!row) {
@@ -104,6 +131,8 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
       {footer === null || footer === undefined ? null : (
         <div className="agent-activity-feed__footer">{footer}</div>
       )}
+
+      {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
     </div>
   )
 }

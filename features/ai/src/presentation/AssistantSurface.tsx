@@ -59,13 +59,17 @@ const STARTERS: Readonly<Record<string, string>> = {
 }
 
 /*
- * Two resting states, and no script between them.
+ * One scroller, one dock.
  *
- * Before the first turn two flexible spacers split the free space, so the group
- * rests in the middle. Once a turn exists the spacers give up their share and
- * the feed takes it: flex-grow is a number, so the browser interpolates the
- * whole layout on its own. Which state applies is derived from the transcript
- * alone, so it cannot disagree with it.
+ * The panel scrolls, not a box inside it, so the intro, the transcript and the
+ * composer are all part of the same flow: the scrollbar runs the full height of
+ * the panel against its edge, and the composer floats over the run as a sticky
+ * band that still holds its own space at rest. The surface therefore composes
+ * three slots and owns no geometry of its own.
+ *
+ * Which resting state applies is derived from the transcript alone, so it
+ * cannot disagree with it; the travel between the two is a flex-grow
+ * interpolation in the stylesheet, with nothing measured in script.
  */
 export function AssistantSurface({ config, endpoint, models, session }: AssistantSurfaceProps) {
   /*
@@ -96,55 +100,51 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
       data-assistant-skin
       data-started={started ? 'true' : undefined}
     >
-      <div className="assistant-surface__column">
-        <div aria-hidden="true" className="assistant-surface__spacer" />
+      <AgentActivityFeed
+        dock={
+          <>
+            <div className="assistant-surface__composer">
+              <AssistantComposer
+                agentLabel="Super Computer"
+                controls={controls.controls}
+                controlsFailure={controls.failure}
+                isAgentNew
+                onCancel={assistant.cancel}
+                onSelectControl={controls.select}
+                onSubmit={assistant.send}
+                status={assistant.status}
+              />
+            </div>
 
-        <div className="assistant-surface__intro" inert={started}>
-          <header className="assistant-masthead">
-            <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
+            <div className="assistant-surface__starters" inert={started}>
+              <AssistantQuickActions
+                onSelect={(actionId) => {
+                  assistant.prefill(STARTERS[actionId] ?? '')
+                }}
+              />
+            </div>
+          </>
+        }
+        footer={renderFooter(isWaiting, outcome)}
+        header={
+          <div className="assistant-surface__intro" inert={started}>
+            <header className="assistant-masthead">
+              <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
-            <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
-          </header>
-        </div>
-
-        <div className="assistant-surface__feed">
-          <AgentActivityFeed
-            footer={renderFooter(isWaiting, outcome)}
-            isBusy={selectIsBusy(assistant.timeline)}
-            renderRow={(row) =>
-              row.item.type === 'permission' ? (
-                <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
-              ) : (
-                <TimelineRow row={row} />
-              )
-            }
-            rows={rows}
-          />
-        </div>
-
-        <div className="assistant-surface__composer">
-          <AssistantComposer
-            agentLabel="Super Computer"
-            controls={controls.controls}
-            controlsFailure={controls.failure}
-            isAgentNew
-            onCancel={assistant.cancel}
-            onSelectControl={controls.select}
-            onSubmit={assistant.send}
-            status={assistant.status}
-          />
-        </div>
-
-        <div className="assistant-surface__starters" inert={started}>
-          <AssistantQuickActions
-            onSelect={(actionId) => {
-              assistant.prefill(STARTERS[actionId] ?? '')
-            }}
-          />
-        </div>
-
-        <div aria-hidden="true" className="assistant-surface__spacer" />
-      </div>
+              <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
+            </header>
+          </div>
+        }
+        isBusy={selectIsBusy(assistant.timeline)}
+        renderRow={(row) =>
+          row.item.type === 'permission' ? (
+            <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
+          ) : (
+            <TimelineRow row={row} />
+          )
+        }
+        rows={rows}
+      />
     </section>
   )
 }
