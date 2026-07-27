@@ -1,0 +1,70 @@
+/*
+ * 设置界面的外框。
+ *
+ * 它盖住标题栏以下的整片区域；上边界由 apps/desktop 用 WORKSPACE_LAYOUT
+ * 的 chrome 高度作为内联样式给出，和外壳同一个来源，这里不再写一遍数字。
+ */
+.settings-surface {
+  position: fixed;
+  z-index: 60;
+  inset-inline: 0;
+  inset-block-end: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--background);
+}
+
+.settings-surface > .settings-shell {
+  block-size: 100%;
+  inline-size: 100%;
+  min-block-size: 0;
+}
+
+.settings-surface .settings-navigation {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  flex-direction: column;
+}
+
+.settings-surface .settings-navigation__items {
+  min-block-size: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.settings-surface__back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--muted-foreground, currentcolor);
+  font: inherit;
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.settings-surface__back:hover {
+  background: rgb(13 13 13 / 5%);
+}
+
+.settings-surface__back svg {
+  block-size: 16px;
+  inline-size: 16px;
+  flex: none;
+}
+
+.settings-surface__footer {
+  flex: none;
+}
+
+.settings-placeholder {
+  padding: 12px 16px;
+  color: var(--muted-foreground, currentcolor);
+  font-size: 12px;
+  line-height: 1.6;
+}

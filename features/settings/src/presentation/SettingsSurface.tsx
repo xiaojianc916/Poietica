@@ -1,6 +1,5 @@
 import {
   Button,
-  Dialog,
   ErrorState,
   LoadingState,
   Select,
@@ -21,18 +20,56 @@ import {
   useSettingsController,
 } from './useSettingsController'
 import './settings-dialog.css'
+import './settings-surface.css'
 
-type SettingsSection = 'general' | 'canvas' | 'export' | 'privacy' | 'about'
+type SettingsSection =
+  | 'general'
+  | 'appearance'
+  | 'models'
+  | 'keymap'
+  | 'hooks'
+  | 'plugins'
+  | 'canvas'
+  | 'export'
+  | 'privacy'
+  | 'about'
 
 interface SectionDefinition {
   readonly id: SettingsSection
   readonly label: string
 }
 
+/*
+ * 导航顺序照图二排，但没有删掉图二没画的三组。
+ *
+ * canvas / export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉
+ * 它们等于删功能。models / keymap / hooks / plugins 在 AppSettings 里还没有
+ * 任何字段，所以它们渲染明确的空状态，而不是拨得动却存不下的假开关。
+ */
 const SECTIONS: readonly SectionDefinition[] = [
   {
     id: 'general',
-    label: '常规',
+    label: '通用',
+  },
+  {
+    id: 'appearance',
+    label: '外观',
+  },
+  {
+    id: 'models',
+    label: '模型',
+  },
+  {
+    id: 'keymap',
+    label: '快捷键',
+  },
+  {
+    id: 'hooks',
+    label: 'Hook',
+  },
+  {
+    id: 'plugins',
+    label: '插件',
   },
   {
     id: 'canvas',
@@ -52,19 +89,38 @@ const SECTIONS: readonly SectionDefinition[] = [
   },
 ]
 
-export interface SettingsDialogProps {
-  readonly open: boolean
+export interface SettingsSurfaceProps {
   readonly store: SettingsStore
-  readonly onOpenChange: (open: boolean) => void
+  /**
+   * 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。
+   */
+  readonly onDismiss: () => void
+  /**
+   * 导航底部行，由应用组合根注入。
+   *
+   * features/settings 不依赖 features/workspace，因此这里只是一个插槽；
+   * 侧边栏底部行（帮助 + 齿轮）由 apps/desktop 传进来，齿轮在设置里保持高亮。
+   */
+  readonly footer: ReactNode
 }
 
-export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProps) {
+/**
+ * 设置界面。
+ *
+ * 它接管标题栏以下的整片区域，而不是叠一个模态框。窗口按钮留在标题栏里：
+ * 一个吞掉整窗的界面会连最小化和关闭一起吞掉，那是把用户锁在里面。
+ */
+export function SettingsSurface({ store, onDismiss, footer }: SettingsSurfaceProps) {
   const [section, setSection] = useState<SettingsSection>('general')
 
   const controller = useSettingsController({
-    open,
+    open: true,
     store,
-    onOpenChange,
+    onOpenChange: (nextOpen) => {
+      if (!nextOpen) {
+        onDismiss()
+      }
+    },
   })
 
   const selectSection = useCallback((nextSection: SettingsSection) => {
@@ -72,22 +128,14 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
   }, [])
 
   return (
-    <Dialog
-      busy={controller.saving}
-      className="settings-dialog"
-      closeOnOverlayClick={!controller.saving}
-      contentClassName="settings-dialog__viewport"
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) {
-          controller.requestClose()
-        }
-      }}
-      open={open}
-      showHeader={false}
-      title="设置"
-    >
+    <div aria-label="设置" className="settings-surface" role="region">
       <div className="settings-shell">
-        <SettingsNavigation activeSection={section} onSelect={selectSection} />
+        <SettingsNavigation
+          activeSection={section}
+          footer={footer}
+          onBack={controller.requestClose}
+          onSelect={selectSection}
+        />
 
         <main aria-live="polite" className="settings-content">
           {controller.loading ? (
@@ -121,21 +169,42 @@ export function SettingsDialog({ open, store, onOpenChange }: SettingsDialogProp
           ) : null}
         </main>
       </div>
-    </Dialog>
+    </div>
   )
 }
 
 interface SettingsNavigationProps {
   readonly activeSection: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
+  readonly onBack: () => void
+  readonly footer: ReactNode
 }
 
 const SettingsNavigation = memo(function SettingsNavigation({
   activeSection,
   onSelect,
+  onBack,
+  footer,
 }: SettingsNavigationProps) {
   return (
     <aside aria-label="设置分类" className="settings-navigation">
+      <button className="settings-surface__back" onClick={onBack} type="button">
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.7"
+          viewBox="0 0 24 24"
+        >
+          <path d="M19 12H5" />
+          <path d="m11 6-6 6 6 6" />
+        </svg>
+
+        <span>返回</span>
+      </button>
+
       <nav className="settings-navigation__items">
         {SECTIONS.map((item) => {
           const active = item.id === activeSection
@@ -160,6 +229,8 @@ const SettingsNavigation = memo(function SettingsNavigation({
           )
         })}
       </nav>
+
+      <div className="settings-surface__footer">{footer}</div>
     </aside>
   )
 })
@@ -174,6 +245,31 @@ function SettingsSectionContent({ section, settings, controller }: SettingsSecti
   switch (section) {
     case 'general':
       return <GeneralSettings controller={controller} settings={settings} />
+
+    case 'appearance':
+      return <AppearanceSettings controller={controller} settings={settings} />
+
+    case 'models':
+      return (
+        <SettingsPlaceholder
+          description="会话使用的模型目前在对话输入框右下角选择，尚未接入本地设置。"
+          title="模型"
+        />
+      )
+
+    case 'keymap':
+      return (
+        <SettingsPlaceholder
+          description="快捷键还不可改写。当前生效的绑定可在命令面板（Mod+K）中查看。"
+          title="快捷键"
+        />
+      )
+
+    case 'hooks':
+      return <SettingsPlaceholder description="Hook 尚未实现。" title="Hook" />
+
+    case 'plugins':
+      return <SettingsPlaceholder description="插件系统尚未实现。" title="插件" />
 
     case 'canvas':
       return <CanvasSettings controller={controller} settings={settings} />
@@ -200,43 +296,6 @@ const GeneralSettings = memo(function GeneralSettings({
 }: SettingsPanelProps) {
   return (
     <SettingsPage>
-      <SettingsGroup title="外观">
-        <SettingRow label="颜色模式">
-          <SettingsSelect
-            ariaLabel="颜色模式"
-            onChange={(theme) => {
-              controller.update((current) => ({
-                ...current,
-                theme,
-              }))
-            }}
-            options={[
-              ['light', '浅色'],
-              ['dark', '深色'],
-              ['system', '跟随系统'],
-            ]}
-            value={settings.theme}
-          />
-        </SettingRow>
-
-        <SettingRow label="界面语言">
-          <SettingsSelect
-            ariaLabel="界面语言"
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                language: value,
-              }))
-            }}
-            options={[
-              ['zh-CN', '简体中文'],
-              ['en', 'English'],
-            ]}
-            value={settings.language}
-          />
-        </SettingRow>
-      </SettingsGroup>
-
       <SettingsGroup title="保存">
         <ToggleRow
           checked={settings.autoSave}
@@ -773,6 +832,35 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
         <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
       </>
     ),
+    appearance: (
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+      </>
+    ),
+    models: (
+      <>
+        <rect height="12" rx="2" width="12" x="6" y="6" />
+        <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
+      </>
+    ),
+    keymap: (
+      <>
+        <rect height="12" rx="2" width="18" x="3" y="6" />
+        <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
+      </>
+    ),
+    hooks: (
+      <>
+        <path d="m8 6-5 6 5 6" />
+        <path d="m16 6 5 6-5 6" />
+      </>
+    ),
+    plugins: (
+      <>
+        <path d="M9 3v4H7a2 2 0 0 0-2 2v3h2.5a2 2 0 1 1 0 4H5v3a2 2 0 0 0 2 2h3v-2.5a2 2 0 1 1 4 0V21h3a2 2 0 0 0 2-2v-3h-2.5a2 2 0 1 1 0-4H19V9a2 2 0 0 0-2-2h-2V3Z" />
+      </>
+    ),
     canvas: (
       <>
         <rect height="16" rx="2" width="16" x="4" y="4" />
@@ -813,5 +901,72 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
     >
       {paths[section]}
     </svg>
+  )
+}
+
+const AppearanceSettings = memo(function AppearanceSettings({
+  settings,
+  controller,
+}: SettingsPanelProps) {
+  return (
+    <SettingsPage>
+      <SettingsGroup title="外观">
+        <SettingRow label="颜色模式">
+          <SettingsSelect
+            ariaLabel="颜色模式"
+            onChange={(theme) => {
+              controller.update((current) => ({
+                ...current,
+                theme,
+              }))
+            }}
+            options={[
+              ['light', '浅色'],
+              ['dark', '深色'],
+              ['system', '跟随系统'],
+            ]}
+            value={settings.theme}
+          />
+        </SettingRow>
+
+        <SettingRow label="界面语言">
+          <SettingsSelect
+            ariaLabel="界面语言"
+            onChange={(value) => {
+              controller.update((current) => ({
+                ...current,
+                language: value,
+              }))
+            }}
+            options={[
+              ['zh-CN', '简体中文'],
+              ['en', 'English'],
+            ]}
+            value={settings.language}
+          />
+        </SettingRow>
+      </SettingsGroup>
+    </SettingsPage>
+  )
+})
+
+interface SettingsPlaceholderProps {
+  readonly title: string
+  readonly description: string
+}
+
+/*
+ * 一个还没有数据的分组说自己没有数据。
+ *
+ * 这里刻意不放能拨动的控件：写不进 AppSettings 的开关会让人以为设置生效了，
+ * 比一句实话有害得多。
+ */
+function SettingsPlaceholder({ title, description }: SettingsPlaceholderProps) {
+  return (
+    <SettingsPage>
+      <SettingsGroup title={title}>
+        <div className="settings-placeholder">{description}</div>
+      </SettingsGroup>
+    </SettingsPage>
   )
 }

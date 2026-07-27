@@ -28,7 +28,4 @@ export type {
   WorkspaceShellProps,
 } from './contracts/shell-contract'
 
-export type {
-  WorkspacePanelRenderers,
-  WorkspaceSurfaceRenderers,
-} from './contracts/surface-contract'
+export type { WorkspaceSurfaceRenderers } from './contracts/surface-contract'

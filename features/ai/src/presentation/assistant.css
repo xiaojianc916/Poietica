@@ -468,7 +468,6 @@
   gap: var(--cp-pad-tile);
   overflow-y: auto;
   padding: var(--cp-mast-gap) var(--cp-pad-mid);
-  --assistant-threads-gutter: 8px;
   --assistant-threads-action-size: 20px;
   --assistant-threads-inset: 4px;
   --assistant-threads-icon-size: 16px;
@@ -487,16 +486,23 @@
   block-size: var(--cp-header);
   align-items: center;
   justify-content: space-between;
-  padding-inline: var(--assistant-threads-gutter);
   gap: 8px;
   padding-inline-start: var(--assistant-threads-row-lead);
   padding-inline-end: var(--assistant-threads-row-trail);
 }
 
+/*
+ * 这个类被「会话」（在 __header 里）和「今天／昨天」（在 __group 里）共用，
+ * 所以它只管字号和颜色。位置由容器给：__header 自己有缩进，__group 没有，
+ * 于是缩进补在 __group 的子选择器上。共用的类一带位置，两处就会不齐。
+ */
 .assistant-threads__caption {
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
-  padding-inline: var(--assistant-threads-row-lead);
+}
+
+.assistant-threads__group > .assistant-threads__caption {
+  padding-inline-start: var(--assistant-threads-row-lead);
 }
 
 .assistant-threads__create {
@@ -615,7 +621,7 @@
 
 .assistant-thread__actions {
   position: absolute;
-  inset-inline-end: var(--cp-optical);
+  inset-inline-end: var(--assistant-threads-row-trail);
   display: none;
   align-items: center;
   gap: 2px;

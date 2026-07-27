@@ -26,6 +26,13 @@ import type { SurfaceIcon } from './surface-registry'
 export interface SidebarFooterProps {
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
+  /**
+   * 当前是否停留在设置界面。
+   *
+   * 设置界面会盖住侧边栏，所以唯一看得见的齿轮是设置导航底部复用的这一个，
+   * 它在设置里保持背景亮起 —— 和导航项的选中态同一套视觉。
+   */
+  readonly settingsActive?: boolean
 }
 
 /**
@@ -35,14 +42,18 @@ export interface SidebarFooterProps {
  * 不放假的套餐名。右下角是全局入口（帮助 + 设置），它们原先挂在图标 rail 的
  * 底部，rail 移除后由这里承接，入口数量不变。
  */
-export function SidebarFooter({ onSettingsOpen, onDeveloperToolsOpen }: SidebarFooterProps) {
+export function SidebarFooter({
+  onSettingsOpen,
+  onDeveloperToolsOpen,
+  settingsActive = false,
+}: SidebarFooterProps) {
   return (
     <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
       <div aria-hidden="true" className="flex-1" />
 
       <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />
 
-      <FooterButton icon={Cog} label="设置" onClick={onSettingsOpen} />
+      <FooterButton active={settingsActive} icon={Cog} label="设置" onClick={onSettingsOpen} />
     </div>
   )
 }
@@ -51,15 +62,18 @@ interface FooterButtonProps {
   readonly label: string
   readonly icon: SurfaceIcon
   readonly onClick: () => void
+  readonly active?: boolean
 }
 
-function FooterButton({ label, icon: Icon, onClick }: FooterButtonProps) {
+function FooterButton({ label, icon: Icon, onClick, active = false }: FooterButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           aria-label={label}
-          className="size-7 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className={`size-7 hover:bg-sidebar-accent hover:text-foreground ${
+            active ? 'bg-sidebar-accent text-foreground' : 'text-muted-foreground'
+          }`}
           onClick={onClick}
           size="icon"
           type="button"

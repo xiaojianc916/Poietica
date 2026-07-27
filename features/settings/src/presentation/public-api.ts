@@ -1,4 +1,4 @@
 export {
-  SettingsDialog,
-  type SettingsDialogProps,
-} from './SettingsDialog'
+  SettingsSurface,
+  type SettingsSurfaceProps,
+} from './SettingsSurface'
