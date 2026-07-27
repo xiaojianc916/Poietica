@@ -128,6 +128,39 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
     return await TAURI_INVOKE("agent_set_config_option", { request });
 },
 /**
+ * Opens one more session on the running agent.
+ * 
+ * One agent process keeps many sessions, and every frame the agent sends
+ * names the session it belongs to, so a second session is a second
+ * conversation rather than a second process. The selectors come back with
+ * it because they belong to the session, not to the connection: what one
+ * session has chosen as its model or reasoning level says nothing about
+ * what another has chosen.
+ * 
+ * # Errors
+ * 
+ * Fails when the agent cannot be started, when a turn is in flight on the
+ * connection, or when the agent refuses to open a session.
+ */
+async agentNewSession(request: AgentNewSessionRequest) : Promise<AgentOpenedSession> {
+    return await TAURI_INVOKE("agent_new_session", { request });
+},
+/**
+ * Lists the sessions the agent itself keeps.
+ * 
+ * The title is the agent's own, which is the only honest source for one;
+ * a session it has not named yet reports none, and what to show in that
+ * case is a question for the interface, not for this command.
+ * 
+ * # Errors
+ * 
+ * Fails when no session is running, when a turn is in flight, or when the
+ * agent refuses to list its sessions.
+ */
+async agentSessions() : Promise<AgentSessionSummary[]> {
+    return await TAURI_INVOKE("agent_sessions");
+},
+/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -378,6 +411,31 @@ models: AgentModelDescriptor[];
  */
 active: string | null }
 /**
+ * Where a new session should be opened, and how to start the agent if it
+ * is not running yet.
+ */
+export type AgentNewSessionRequest = { 
+/**
+ * The agent command line; defaults to the Kimi ACP entry point.
+ */
+command: string | null; 
+/**
+ * The working directory the session is created against.
+ */
+cwd: string | null }
+/**
+ * A session the agent just opened, and what it offers for that session.
+ */
+export type AgentOpenedSession = { 
+/**
+ * The name every frame of this session carries.
+ */
+sessionId: string; 
+/**
+ * What may be chosen for this session, as the agent reported it.
+ */
+selectors: AgentConfigControl[] }
+/**
  * A prompt, and how to start the agent if it is not running yet.
  */
 export type AgentPromptRequest = { 
@@ -449,6 +507,22 @@ export type AgentSelectModelRequest = {
  * One of the identifiers the model list offered.
  */
 modelId: string }
+/**
+ * One line of the agent's own session list.
+ */
+export type AgentSessionSummary = { 
+/**
+ * The session this line describes.
+ */
+sessionId: string; 
+/**
+ * The title the agent gave it, if it has given one yet.
+ */
+title: string | null; 
+/**
+ * When the agent last saw activity on it, as it reported it.
+ */
+updatedAt: string | null }
 export type AppSettings = { theme: string; language: string; auto_save: boolean; 
 /**
  * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,

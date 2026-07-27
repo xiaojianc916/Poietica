@@ -58,6 +58,8 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_select_model,
             crate::commands::agent::agent_config_options,
             crate::commands::agent::agent_set_config_option,
+            crate::commands::agent::agent_new_session,
+            crate::commands::agent::agent_sessions,
             crate::commands::asset::asset_session_open,
             crate::commands::asset::asset_upload,
             crate::commands::asset::asset_remove,

@@ -762,3 +762,107 @@ fn translate(error: AcpError) -> Error {
         other => Error::Internal(other.to_string()),
     }
 }
+
+/// Where a new session should be opened, and how to start the agent if it
+/// is not running yet.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNewSessionRequest {
+    /// The agent command line; defaults to the Kimi ACP entry point.
+    pub command: Option<String>,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
+}
+
+/// A session the agent just opened, and what it offers for that session.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOpenedSession {
+    /// The name every frame of this session carries.
+    pub session_id: String,
+    /// What may be chosen for this session, as the agent reported it.
+    pub selectors: Vec<AgentConfigControl>,
+}
+
+/// One line of the agent's own session list.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionSummary {
+    /// The session this line describes.
+    pub session_id: String,
+    /// The title the agent gave it, if it has given one yet.
+    pub title: Option<String>,
+    /// When the agent last saw activity on it, as it reported it.
+    pub updated_at: Option<String>,
+}
+
+/// Opens one more session on the running agent.
+///
+/// One agent process keeps many sessions, and every frame the agent sends
+/// names the session it belongs to, so a second session is a second
+/// conversation rather than a second process. The selectors come back with
+/// it because they belong to the session, not to the connection: what one
+/// session has chosen as its model or reasoning level says nothing about
+/// what another has chosen.
+///
+/// # Errors
+///
+/// Fails when the agent cannot be started, when a turn is in flight on the
+/// connection, or when the agent refuses to open a session.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_new_session(
+    state: State<'_, AgentRuntime>,
+    request: AgentNewSessionRequest,
+) -> AgentCommandResult<AgentOpenedSession> {
+    let asked = request.cwd.clone();
+    let live = ensure_session(&state, request.command, request.cwd).await?;
+
+    // The session root is the platform's answer, not the process's, so a
+    // caller that names no directory gets the same one the first session
+    // was created against.
+    let working_directory = match asked {
+        Some(given) => PathBuf::from(given),
+        None => state.root.clone(),
+    };
+
+    let opened = live
+        .client
+        .new_session(working_directory)
+        .await
+        .map_err(translate)?;
+
+    Ok(AgentOpenedSession {
+        session_id: opened.session_id,
+        selectors: opened.selectors.into_iter().map(restate).collect(),
+    })
+}
+
+/// Lists the sessions the agent itself keeps.
+///
+/// The title is the agent's own, which is the only honest source for one;
+/// a session it has not named yet reports none, and what to show in that
+/// case is a question for the interface, not for this command.
+///
+/// # Errors
+///
+/// Fails when no session is running, when a turn is in flight, or when the
+/// agent refuses to list its sessions.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_sessions(
+    state: State<'_, AgentRuntime>,
+) -> AgentCommandResult<Vec<AgentSessionSummary>> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    let listed = live.client.sessions().await.map_err(translate)?;
+
+    Ok(listed
+        .into_iter()
+        .map(|info| AgentSessionSummary {
+            session_id: info.session_id,
+            title: info.title,
+            updated_at: info.updated_at,
+        })
+        .collect())
+}
