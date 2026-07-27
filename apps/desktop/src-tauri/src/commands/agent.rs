@@ -473,9 +473,15 @@ pub struct AgentSelectConfigRequest {
 pub async fn agent_config_options(
     state: State<'_, AgentRuntime>,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    let Some(live) = borrow(&state)? else {
-        return Ok(Vec::new());
-    };
+    // A selector belongs to a session, so asking what is on offer is what
+    // starts one. The alternative was to answer with nothing until the
+    // first prompt, which left the interface showing a model read from a
+    // file that the session, once it existed, might not be following.
+    //
+    // Opening this surface is the user opening the feature, which is not
+    // the same as paying for it at launch: nothing here runs until the
+    // interface asks.
+    let live = ensure_session(&state, None, None).await?;
 
     let answer = live.client.selectors().map_err(translate)?;
     let offered = answer
