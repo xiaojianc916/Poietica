@@ -31,7 +31,7 @@ export interface CanvasTabViewModel extends WorkbenchTabBase {
   readonly kind: 'canvas'
   readonly sessionId: CanvasSessionId
   readonly canvasId: CanvasId
-  readonly status?: CanvasTabStatus
+  readonly status: CanvasTabStatus
 }
 
 export interface WorkspaceTabViewModel extends WorkbenchTabBase {
@@ -91,6 +91,15 @@ export interface WorkbenchSessionCommands {
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
+
+  /**
+   * 画布保存状态的唯一写入口。
+   *
+   * 状态是标签视图模型的一部分，所以由拥有视图模型的这个 store 保管：
+   * 文档域经 canvas-workflow 上报，视图只读快照。此前它由组合根在读侧
+   * 装饰，契约声明了字段而投影函数从不赋值，等于两个所有者。
+   */
+  readonly setCanvasStatus: (sessionId: CanvasSessionId, status: CanvasTabStatus) => void
 
   /**
    * Document-boundary adapters.

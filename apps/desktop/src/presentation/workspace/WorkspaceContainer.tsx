@@ -6,11 +6,7 @@ import {
   EditorSessionHost,
   useCanvasInspectorAvailability,
 } from '@poietica/editor-core/react'
-import type {
-  CanvasCloseIntent,
-  CanvasCloseSnapshot,
-  CanvasSessionSnapshot,
-} from '@poietica/editor-document'
+import type { CanvasCloseIntent, CanvasCloseSnapshot } from '@poietica/editor-document'
 import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { SettingsStore } from '@poietica/features-settings'
 import {
@@ -22,7 +18,6 @@ import type {
   CanvasSessionId,
   WorkbenchSessionStore,
   WorkbenchTabId,
-  WorkbenchTabViewModel,
   WorkspaceShellActions,
   WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
@@ -59,8 +54,6 @@ export interface WorkspaceCanvasUIPort {
   readonly cancelCanvasClose: (sessionId: CanvasSessionId) => void
   readonly getCloseSnapshot: () => CanvasCloseSnapshot
   readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null
-  readonly getSessionSnapshot: (sessionId: CanvasSessionId) => CanvasSessionSnapshot | null
-  readonly getVersion: () => number
   readonly subscribe: (listener: () => void) => () => void
 }
 
@@ -290,31 +283,12 @@ export function WorkspaceContainer({
   )
 
   /*
-   * CanvasWorkflow may publish after any document transaction. Subscribing to
-   * its monotonically increasing version forced this entire composition root
-   * to render for shape movement, drawing and resizing.
+   * 标签已经带着保存状态到达：状态由工作台 store 投影，读侧不再有装饰层。
    *
-   * The selector below returns the previous array reference unless one of the
-   * tab-visible persistence states actually changed.
+   * 标题也直接取 activeCanvas —— projectSurface 早就把 title 放进去了，
+   * 原先那次 useMemo 加 find 是在重算一份算好的值。
    */
-  const tabs = useCanvasTabs(port.canvases, workbench.tabs)
-
-  const model = useMemo(
-    () => ({
-      ...workbench,
-      tabs,
-    }),
-    [tabs, workbench],
-  )
-
-  const activeCanvasTitle = useMemo(
-    () =>
-      activeSessionId === null
-        ? null
-        : (tabs.find((tab) => tab.kind === 'canvas' && tab.sessionId === activeSessionId)?.title ??
-          null),
-    [activeSessionId, tabs],
-  )
+  const activeCanvasTitle = workbench.activeCanvas?.title ?? null
 
   const hostedSessions = useMemo(
     () =>
@@ -362,7 +336,7 @@ export function WorkspaceContainer({
       inspectorAvailable={inspectorAvailable}
       mainContent={isSettingsOpen ? <SettingsContentRegion /> : mainContent}
       mainContentLabel={isSettingsOpen ? '设置' : undefined}
-      model={model}
+      model={workbench}
       overlays={
         <>
           <ConfirmationDialog
@@ -463,83 +437,6 @@ export function WorkspaceContainer({
       {shell}
     </SettingsProvider>
   )
-}
-
-function useCanvasTabs(
-  canvases: WorkspaceCanvasUIPort,
-  sourceTabs: readonly WorkbenchTabViewModel[],
-): readonly WorkbenchTabViewModel[] {
-  /*
-   * React compares external-store snapshots with Object.is. The selector is
-   * scoped to the current source tab array and caches its projected result.
-   *
-   * Canvas notifications still cause a cheap O(tab count) status check, but
-   * ordinary document changes return the exact previous array reference and
-   * therefore do not schedule a WorkspaceContainer render.
-   */
-  const getTabsSnapshot = useMemo(
-    () => createCanvasTabsSnapshotReader(canvases, sourceTabs),
-    [canvases, sourceTabs],
-  )
-
-  return useSyncExternalStore(canvases.subscribe, getTabsSnapshot, getTabsSnapshot)
-}
-
-function createCanvasTabsSnapshotReader(
-  canvases: WorkspaceCanvasUIPort,
-  sourceTabs: readonly WorkbenchTabViewModel[],
-): () => readonly WorkbenchTabViewModel[] {
-  type PersistenceState = CanvasSessionSnapshot['persistence'] | undefined
-
-  let cachedStatuses: ReadonlyMap<CanvasSessionId, PersistenceState> | null = null
-
-  let cachedTabs: readonly WorkbenchTabViewModel[] | null = null
-
-  return () => {
-    const nextStatuses = new Map<CanvasSessionId, PersistenceState>()
-
-    for (const tab of sourceTabs) {
-      if (tab.kind !== 'canvas') {
-        continue
-      }
-
-      nextStatuses.set(tab.sessionId, canvases.getSessionSnapshot(tab.sessionId)?.persistence)
-    }
-
-    if (cachedStatuses && cachedTabs && persistenceStatesEqual(cachedStatuses, nextStatuses)) {
-      return cachedTabs
-    }
-
-    cachedStatuses = nextStatuses
-    cachedTabs = sourceTabs.map((tab) => {
-      if (tab.kind !== 'canvas') {
-        return tab
-      }
-
-      const status = nextStatuses.get(tab.sessionId)
-
-      return status ? { ...tab, status } : tab
-    })
-
-    return cachedTabs
-  }
-}
-
-function persistenceStatesEqual(
-  previous: ReadonlyMap<CanvasSessionId, CanvasSessionSnapshot['persistence'] | undefined>,
-  next: ReadonlyMap<CanvasSessionId, CanvasSessionSnapshot['persistence'] | undefined>,
-): boolean {
-  if (previous.size !== next.size) {
-    return false
-  }
-
-  for (const [sessionId, status] of previous) {
-    if (!next.has(sessionId) || next.get(sessionId) !== status) {
-      return false
-    }
-  }
-
-  return true
 }
 
 interface ActiveSurfaceRendererProps {

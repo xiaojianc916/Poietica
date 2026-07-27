@@ -146,17 +146,17 @@ function TabEndAction({
     return null
   }
 
-  const status = model.kind === 'canvas' ? model.status : undefined
+  const status = model.kind === 'canvas' ? model.status : 'clean'
 
   return (
     <div className="chrome-workbench-tab__end">
-      {status && status !== 'clean' ? (
+      {status === 'clean' ? null : (
         <span
           aria-label={TAB_STATUS_LABELS[status]}
           className={`chrome-workbench-tab__status chrome-workbench-tab__status--${status}`}
           role="status"
         />
-      ) : null}
+      )}
 
       <button
         aria-label={`关闭 ${model.title}`}

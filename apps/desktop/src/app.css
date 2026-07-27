@@ -181,3 +181,44 @@ body {
   margin: 0 0 20px;
   object-fit: contain;
 }
+
+/*
+ * round 133: one scrollbar for the whole window.
+ *
+ * Applied globally on purpose. Styling one component leaves every other
+ * scroller with the platform default, which is exactly what happened: a
+ * thick bar with stepper arrows nobody clicks. The track stays transparent
+ * so a scroller always shows its own background, and the arrows are removed
+ * because nothing here is read one line at a time.
+ */
+
+html {
+  scrollbar-color: oklch(91.2% 0 0) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: oklch(91.2% 0 0);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(86% 0 0);
+}

@@ -1,6 +1,7 @@
 import type {
   ActiveCanvasViewModel,
   CanvasSessionId,
+  CanvasTabStatus,
   CanvasTabViewModel,
   CreateCanvasRequest,
   OpenWorkspaceSurfaceRequest,
@@ -32,6 +33,7 @@ interface CanvasEntry extends EntryBase {
   readonly kind: 'canvas'
   readonly sessionId: CanvasSessionId
   readonly canvasId: string
+  readonly status: CanvasTabStatus
 }
 
 interface WorkspaceEntry extends EntryBase {
@@ -124,6 +126,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       canClose: true,
       sessionId,
       canvasId,
+      status: 'clean',
     })
   }
 
@@ -144,6 +147,29 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       canClose: true,
       surfaceId: request.surfaceId,
     })
+  }
+
+  /*
+   * 同值直接返回。文档层在每次保存与脏状态跃迁时上报，等价快照不应该被
+   * 替换成新对象：useSyncExternalStore 用 Object.is 比较，换引用就等于
+   * 白渲染一次。判等放在这里，读侧因此不需要任何缓存层。
+   */
+  function setCanvasStatus(sessionId: CanvasSessionId, status: CanvasTabStatus): void {
+    const index = entries.findIndex(
+      (candidate) => candidate.kind === 'canvas' && candidate.sessionId === sessionId,
+    )
+
+    const entry = entries[index]
+
+    if (!entry || entry.kind !== 'canvas' || entry.status === status) {
+      return
+    }
+
+    entries = entries.map((candidate, candidateIndex) =>
+      candidateIndex === index ? { ...entry, status } : candidate,
+    )
+
+    emit()
   }
 
   function activateTab(tabId: WorkbenchTabId): void {
@@ -255,6 +281,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     activateTab,
     closeTab,
     moveTab,
+    setCanvasStatus,
     activateCanvas,
     closeCanvas,
   }
@@ -307,6 +334,7 @@ function projectTab(entry: WorkbenchEntry, activeTabId: WorkbenchTabId): Workben
         kind: 'canvas',
         sessionId: entry.sessionId,
         canvasId: entry.canvasId,
+        status: entry.status,
       }
 
       return tab

@@ -39,7 +39,6 @@ export interface CanvasWorkflow {
   readonly planApplicationClose: () => ApplicationClosePlan
   readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null
   readonly getSessionSnapshot: (sessionId: CanvasSessionId) => CanvasSessionSnapshot | null
-  readonly getVersion: () => number
   readonly subscribe: (listener: () => void) => () => void
   readonly dispose: () => Promise<void>
 }
@@ -52,14 +51,37 @@ export function createCanvasWorkflow(
   const closeOperations = new Map<CanvasSessionId, Promise<void>>()
   const closeStates = new Map<CanvasSessionId, CanvasCloseState>()
 
-  let version = 0
   let closeSnapshot = EMPTY_CLOSE_SNAPSHOT
 
-  const stopDocumentSubscription = documents.subscribe(emit)
+  /*
+   * 文档层的保存状态在这里推给工作台 store，而不是由视图去逐个标签拉取。
+   *
+   * 这个函数已经是文档域与工作台域之间唯一的桥——create 与 close 都走它。
+   * 保存状态是最后一件反向流动的事实，并进来之后管线只有一个方向。
+   *
+   * 拿不到快照就跳过：会话已释放但标签尚未移除是真实存在的一瞬（释放在
+   * await 之后才调 workspace.closeCanvas），不是兜底。
+   */
+  function synchronizeCanvasStatuses(): void {
+    for (const tab of workspace.getSnapshot().tabs) {
+      if (tab.kind !== 'canvas') {
+        continue
+      }
+
+      const snapshot = documents.getSessionSnapshot(tab.sessionId)
+
+      if (snapshot) {
+        workspace.setCanvasStatus(tab.sessionId, snapshot.persistence)
+      }
+    }
+  }
+
+  const stopDocumentSubscription = documents.subscribe(() => {
+    synchronizeCanvasStatuses()
+    emit()
+  })
 
   function emit(): void {
-    version += 1
-
     for (const listener of listeners) {
       listener()
     }
@@ -233,10 +255,6 @@ export function createCanvasWorkflow(
     planApplicationClose,
     getEditorSession: documents.getEditorSession,
     getSessionSnapshot: documents.getSessionSnapshot,
-
-    getVersion() {
-      return version
-    },
 
     subscribe(listener) {
       listeners.add(listener)
