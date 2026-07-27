@@ -68,6 +68,25 @@ async agentLoadRun(request: AgentLoadRunRequest) : Promise<AgentRunSnapshot> {
     return await TAURI_INVOKE("agent_load_run", { request });
 },
 /**
+ * Reads a whole conversation back out of the log.
+ * 
+ * Opening a conversation is reading one, so this is what the interface calls
+ * when the user picks one: the frames are the same values that were broadcast
+ * while each turn was live, which is why a conversation reopened cannot drift
+ * from having watched it happen.
+ * 
+ * A conversation the log has never seen has no frames. That is an empty
+ * transcript rather than a failure, which is what a conversation nobody has
+ * spoken in yet actually is.
+ * 
+ * # Errors
+ * 
+ * Fails when the log cannot be opened or read.
+ */
+async agentLoadThread(request: AgentLoadThreadRequest) : Promise<AgentThreadTranscript> {
+    return await TAURI_INVOKE("agent_load_thread", { request });
+},
+/**
  * Lists the models the agent has been configured with.
  * 
  * The list is read from the file the agent reads, every time it is asked
@@ -416,6 +435,14 @@ runId: string;
  */
 afterSeq: number | null }
 /**
+ * A request to replay a whole conversation from the log.
+ */
+export type AgentLoadThreadRequest = { 
+/**
+ * The conversation to read.
+ */
+threadId: string }
+/**
  * One model the agent has been configured with.
  */
 export type AgentModelDescriptor = { 
@@ -488,6 +515,10 @@ export type AgentPromptRequest = {
  * What the user typed.
  */
 text: string; 
+/**
+ * The conversation this turn belongs to, when the interface names one.
+ */
+threadId: string | null; 
 /**
  * The agent command line; defaults to the Kimi ACP entry point.
  */
@@ -592,6 +623,18 @@ titleSource: string;
  * When it was last touched, in RFC 3339.
  */
 updatedAt: string }
+/**
+ * A conversation as it was recorded.
+ */
+export type AgentThreadTranscript = { 
+/**
+ * The conversation the frames belong to.
+ */
+threadId: string; 
+/**
+ * Every frame of every turn, in the order they happened.
+ */
+events: JsonValue[] }
 export type AppSettings = { theme: string; language: string; auto_save: boolean; 
 /**
  * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,

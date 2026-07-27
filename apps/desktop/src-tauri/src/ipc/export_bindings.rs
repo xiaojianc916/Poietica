@@ -11,9 +11,9 @@ use crate::{
     commands::{
         agent::{
             AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentLoadRunRequest,
-            AgentLoadThreadRequest, AgentModelDescriptor, AgentModelList, AgentPromptRequest, AgentPromptResult,
-            AgentResolvePermissionRequest, AgentRunSnapshot, AgentSelectConfigRequest,
-            AgentSelectModelRequest, AgentThreadTranscript,
+            AgentLoadThreadRequest, AgentModelDescriptor, AgentModelList, AgentPromptRequest,
+            AgentPromptResult, AgentResolvePermissionRequest, AgentRunSnapshot,
+            AgentSelectConfigRequest, AgentSelectModelRequest, AgentThreadTranscript,
         },
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,

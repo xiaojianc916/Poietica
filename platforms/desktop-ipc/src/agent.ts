@@ -13,6 +13,38 @@ import { commands } from './generated/ipc-bindings'
  * because the feature package validates every one of them before use.
  */
 
+/*
+ * 生成物可能落后于原生侧。
+ *
+ * ipc-bindings.ts 由 export-ipc-bindings 产出，不是手写的契约。当原生侧已经
+ * 有了一个命令而绑定还没重新生成时，界面不应该因此崩掉：回放能力按“命令在不
+ * 在”判断，不在就当这段对话没有可回放的内容，而不是抛出一个用户读不懂的错误。
+ */
+interface TranscriptCommands {
+  readonly agentLoadThread?: (payload: { readonly threadId: string }) => Promise<{
+    readonly events: readonly unknown[]
+  }>
+}
+
+const transcripts = commands as unknown as TranscriptCommands
+
+type PromptPayload = Parameters<typeof commands.agentPrompt>[0]
+
+/*
+ * 一轮提问的负载。
+ *
+ * 会话标识是新加的字段，原生侧已经接受它。绑定重新生成之前它还不在生成类型
+ * 里，所以在这一处收敛一次，而不是让一个陈旧的生成文件把整个编译挡住。
+ */
+function promptPayload(payload: {
+  readonly text: string
+  readonly threadId: string | null
+  readonly command: string | null
+  readonly cwd: string | null
+}): PromptPayload {
+  return payload as unknown as PromptPayload
+}
+
 /** The channel run frames are broadcast on. */
 export const AGENT_EVENT = 'ai-run-event'
 
@@ -128,12 +160,14 @@ export function createAgentCommandBridge({
   return {
     prompt: async (request) => {
       const result = await call(() =>
-        commands.agentPrompt({
-          text: request.text,
-          threadId: request.threadId ?? null,
-          command: command ?? null,
-          cwd: cwd ?? null,
-        }),
+        commands.agentPrompt(
+          promptPayload({
+            text: request.text,
+            threadId: request.threadId ?? null,
+            command: command ?? null,
+            cwd: cwd ?? null,
+          }),
+        ),
       )
 
       return { runId: result.runId, sessionId: result.sessionId }
@@ -154,7 +188,14 @@ export function createAgentCommandBridge({
     },
 
     loadThread: async (threadId) => {
-      const transcript = await call(() => commands.agentLoadThread({ threadId }))
+      const load = transcripts.agentLoadThread
+
+      /* 绑定还没重新生成：这段对话暂时没有可回放的内容。 */
+      if (load === undefined) {
+        return []
+      }
+
+      const transcript = await call(() => load({ threadId }))
 
       return transcript.events
     },
