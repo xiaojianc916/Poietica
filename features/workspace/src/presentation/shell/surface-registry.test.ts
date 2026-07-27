@@ -28,7 +28,9 @@ const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
  * 而普通函数组件、forwardRef、memo 三者都满足这一点。
  */
 function isRenderableComponent(value: unknown): boolean {
-  if (typeof value === 'function') return true
+  if (typeof value === 'function') {
+    return true
+  }
 
   return typeof value === 'object' && value !== null && '$$typeof' in value
 }

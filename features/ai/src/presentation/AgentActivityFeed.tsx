@@ -86,6 +86,7 @@ export function AgentActivityFeed({
    * dock, because the dock is part of the flow; the browser clamps the value,
    * so nothing here has to.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rows.length 与 totalSize 是这个 effect 的触发源，而不是它读取的值——贴底只读 ref，删掉依赖流式回答就会滚出视野。
   useEffect(() => {
     const element = scrollRef.current
     if (element === null || !pinnedRef.current) {

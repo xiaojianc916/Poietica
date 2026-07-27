@@ -42,7 +42,7 @@ export function useScrollFade(): (node: HTMLElement | null) => void {
     const sync = () => {
       const above = node.scrollTop > SLACK
       const below = node.scrollHeight - node.clientHeight - node.scrollTop > SLACK
-      node.dataset.fade = edgesOf(above, below)
+      node.dataset['fade'] = edgesOf(above, below)
     }
 
     const observer = new ResizeObserver(sync)

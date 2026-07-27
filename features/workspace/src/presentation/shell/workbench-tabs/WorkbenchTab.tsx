@@ -68,6 +68,7 @@ export function WorkbenchTab({
    * “click 不受指针捕获影响”，它是错的。
    */
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: 这一层只承载几何与指针捕获会话，tablist 的可聚焦项必须是内层 role="tab" 按钮；给它一个交互 role 会多出一个假的 tab。
     <div
       className="chrome-workbench-tab"
       data-active={model.isActive ? 'true' : 'false'}

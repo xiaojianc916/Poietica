@@ -1,3 +1,8 @@
+export type {
+  AgentOpenedThreadDescription,
+  AgentThreadBridge,
+  AgentThreadDescription,
+} from './agent'
 export {
   AGENT_EVENT,
   type AgentBridgeOptions,
@@ -15,6 +20,7 @@ export {
   createAgentConfigBridge,
   createAgentEventSource,
   createAgentModelBridge,
+  createAgentThreadBridge,
   shutdownAgent,
 } from './agent'
 export {
@@ -24,10 +30,3 @@ export {
 } from './error'
 export { commands } from './generated/ipc-bindings'
 export { invoke } from './invoke'
-
-export type {
-  AgentOpenedThreadDescription,
-  AgentThreadBridge,
-  AgentThreadDescription,
-} from './agent'
-export { createAgentThreadBridge } from './agent'

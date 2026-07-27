@@ -57,6 +57,12 @@ export type {
 } from './session-config-contract'
 export type { SessionConfigPort } from './session-config-port'
 export type {
+  OpenedThread,
+  ThreadPort,
+  ThreadRecord,
+  ThreadTitleSource,
+} from './thread-port'
+export type {
   AgentTextItem,
   AgentThoughtItem,
   ErrorItem,
@@ -68,10 +74,3 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
-
-export type {
-  OpenedThread,
-  ThreadPort,
-  ThreadRecord,
-  ThreadTitleSource,
-} from './thread-port'

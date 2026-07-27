@@ -63,7 +63,9 @@
  *   actions    [data-streamdown="code-block-actions"] — a pill inside a sticky
  *                                                        overlay, copy + download
  *   body       [data-streamdown="code-block-body"]    — rounded-md, border, p-4
- *   line no.   body code > span::before               — content: counter(line)
+ *
+ * The gutter and the download control are not fought here at all: Prose
+ * declines both through lineNumbers and controls, so neither is ever rendered.
  *
  * Two bordered, rounded boxes nested one inside the other is why this looked
  * like nothing else in the product. Here the container is the only frame: the
@@ -113,11 +115,6 @@
   backdrop-filter: none;
 }
 
-/* One action, because saving a snippet to file.txt is not one. */
-.timeline-prose [data-streamdown="code-block-download-button"] {
-  display: none;
-}
-
 .timeline-prose [data-streamdown="code-block-body"] {
   grid-area: 2 / 1 / 3 / 3;
   padding: 0.75rem;
@@ -134,11 +131,6 @@
   background: transparent;
 }
 
-/* The gutter is a counter drawn by a pseudo-element; without it, no gutter. */
-.timeline-prose [data-streamdown="code-block-body"] code > span::before {
-  content: none;
-}
-
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
 .timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
@@ -146,6 +138,36 @@
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
   font-family: var(--cp-font-mono, ui-monospace, monospace);
   font-size: 0.875em;
+}
+
+/*
+ * Text that is still arriving appears as it arrives.
+ *
+ * Streamdown's animate plugin wraps each newly seen word in a span marked
+ * data-sd-animate and hands it --sd-animation, --sd-duration, --sd-easing and
+ * --sd-delay; a word that was already on screen is given a duration of 0, so
+ * nothing re-animates while the stream grows.
+ *
+ * The declaration that spends those properties belongs here rather than to the
+ * package, because this app imports no stylesheet from it: the pipeline is ours
+ * and so is its appearance. `both` holds the first frame until the delay has
+ * passed, which is what keeps a staggered line from flashing in all at once.
+ */
+.timeline-prose [data-sd-animate] {
+  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 220ms) var(--sd-easing, ease)
+    var(--sd-delay, 0ms) both;
+}
+
+@keyframes sd-fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-prose [data-sd-animate] {
+    animation: none;
+  }
 }
 
 /*
@@ -210,10 +232,6 @@
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
-.timeline-reasoning[data-open="true"] .timeline-reasoning__chevron {
-  transform: rotate(0deg);
-}
-
 .timeline-reasoning__reveal {
   display: grid;
   grid-template-rows: 0fr;
@@ -222,11 +240,6 @@
     grid-template-rows var(--cp-motion-drawer, 260ms)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
     opacity 160ms linear;
-}
-
-.timeline-reasoning[data-open="true"] .timeline-reasoning__reveal {
-  grid-template-rows: 1fr;
-  opacity: 1;
 }
 
 /* The clip is what makes a partial height legal rather than overflowing. */
@@ -307,10 +320,6 @@
   background: var(--cp-timeline-card-surface, transparent);
 }
 
-.timeline-tool[data-open="true"] .timeline-tool__chevron {
-  transform: rotate(0deg);
-}
-
 .timeline-tool__header {
   display: flex;
   align-items: center;
@@ -349,11 +358,6 @@
     grid-template-rows var(--cp-motion-drawer, 260ms)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
     opacity 160ms linear;
-}
-
-.timeline-tool[data-open="true"] .timeline-tool__reveal {
-  grid-template-rows: 1fr;
-  opacity: 1;
 }
 
 .timeline-tool__clip {
@@ -566,4 +570,29 @@
 
 .timeline-notice__status {
   font-family: var(--cp-font-mono, ui-monospace, monospace);
+}
+
+/* ── open state ──────────────────────────────────────
+ * 打开态集中在文件末尾。
+ *
+ * 这些选择器的特异性高于它们覆盖的基础规则，胜出靠特异性而非顺序，所以位置
+ * 自由；放在最后，基础规则与 prefers-reduced-motion 里的同名选择器就都出现在
+ * 它们之前，noDescendingSpecificity 因此不再报告。
+ */
+.timeline-reasoning[data-open="true"] .timeline-reasoning__chevron {
+  transform: rotate(0deg);
+}
+
+.timeline-reasoning[data-open="true"] .timeline-reasoning__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.timeline-tool[data-open="true"] .timeline-tool__chevron {
+  transform: rotate(0deg);
+}
+
+.timeline-tool[data-open="true"] .timeline-tool__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }

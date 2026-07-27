@@ -50,6 +50,13 @@ export function useSessionControls(
   const [failure, setFailure] = useState<string | undefined>(undefined)
 
   const load = useCallback(async (): Promise<readonly SessionConfigControl[]> => {
+    /*
+     * 换一代会话就重读一次。代号在这里被闭包捕获，于是它是 load 自己的依赖，
+     * effect 只需依赖 load。此前它被补写在 effect 的依赖表里，读起来像是多写了
+     * 一个与函数体无关的值，规则也照此报告。
+     */
+    void sessionGeneration
+
     const reported = config === undefined ? NONE : await config.list()
 
     if (reported.length > 0 || models === undefined) {
@@ -78,7 +85,7 @@ export function useSessionControls(
         choices: selection.models.map((model) => ({ value: model.id, label: model.label })),
       },
     ]
-  }, [config, models])
+  }, [config, models, sessionGeneration])
 
   useEffect(() => {
     let cancelled = false
@@ -98,7 +105,7 @@ export function useSessionControls(
     return () => {
       cancelled = true
     }
-  }, [load, sessionGeneration])
+  }, [load])
 
   const select = useCallback(
     (controlId: string, value: string) => {

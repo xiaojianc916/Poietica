@@ -95,16 +95,20 @@ export function PromptInput({
         const next = multiple ? [...current] : []
 
         for (const file of Array.from(incoming)) {
-          if (maxFiles !== undefined && next.length >= maxFiles) break
+          if (maxFiles !== undefined && next.length >= maxFiles) {
+            break
+          }
 
           next.push({
-            id: idPrefix + '-' + String(next.length) + '-' + file.name,
+            id: `${idPrefix}-${String(next.length)}-${file.name}`,
             file,
             filename: file.name,
             mediaType: file.type,
           })
 
-          if (!multiple) break
+          if (!multiple) {
+            break
+          }
         }
 
         return next
@@ -116,7 +120,9 @@ export function PromptInput({
   const focusTextarea = useCallback(() => {
     const editor = textareaRef.current
 
-    if (!editor) return
+    if (!editor) {
+      return
+    }
 
     editor.focus()
     editor.setSelectionRange(editor.value.length, editor.value.length)
@@ -128,7 +134,7 @@ export function PromptInput({
       setText,
       insertText: (token) => {
         setText((current) =>
-          current.length === 0 || current.endsWith(' ') ? current + token : current + ' ' + token,
+          current.length === 0 || current.endsWith(' ') ? current + token : `${current} ${token}`,
         )
         focusTextarea()
       },
@@ -157,7 +163,9 @@ export function PromptInput({
 
   /* Clicking the card is clicking the field, unless something else was hit. */
   const onFormMouseDown = (event: MouseEvent<HTMLFormElement>) => {
-    if ((event.target as HTMLElement).closest('button, a, input, textarea, [role]')) return
+    if ((event.target as HTMLElement).closest('button, a, input, textarea, [role]')) {
+      return
+    }
 
     event.preventDefault()
     focusTextarea()
@@ -169,10 +177,14 @@ export function PromptInput({
         className={cx('assistant-prompt-input', className)}
         data-slot="prompt-input"
         onDragOver={(event) => {
-          if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+          if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault()
+          }
         }}
         onDrop={(event) => {
-          if (!event.dataTransfer.files.length) return
+          if (!event.dataTransfer.files.length) {
+            return
+          }
 
           event.preventDefault()
           addFiles(event.dataTransfer.files)
@@ -184,7 +196,9 @@ export function PromptInput({
 
           const trimmed = text.trim()
 
-          if (trimmed.length === 0 && attachments.length === 0) return
+          if (trimmed.length === 0 && attachments.length === 0) {
+            return
+          }
 
           onSubmit({ text: trimmed, files: attachments.map((attachment) => attachment.file) })
           setText('')
@@ -198,7 +212,9 @@ export function PromptInput({
           className="assistant-visually-hidden"
           multiple={multiple}
           onChange={(event) => {
-            if (event.currentTarget.files) addFiles(event.currentTarget.files)
+            if (event.currentTarget.files) {
+              addFiles(event.currentTarget.files)
+            }
             event.currentTarget.value = ''
           }}
           ref={fileInputRef}
@@ -219,7 +235,9 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
 export function PromptInputAttachments({ className, ...props }: ComponentProps<'div'>) {
   const { attachments, removeAttachment } = usePromptInput()
 
-  if (attachments.length === 0) return null
+  if (attachments.length === 0) {
+    return null
+  }
 
   return (
     <div className={className} data-slot="prompt-input-attachments" {...props}>
@@ -240,7 +258,7 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
           </span>
 
           <button
-            aria-label={'移除 ' + attachment.filename}
+            aria-label={`移除 ${attachment.filename}`}
             className="assistant-attachment__remove"
             onClick={() => {
               removeAttachment(attachment.id)

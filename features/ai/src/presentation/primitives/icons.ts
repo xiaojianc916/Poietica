@@ -8,7 +8,6 @@
 
 export {
   ArrowUp as SubmitIcon,
-  Brain as ThinkingIcon,
   ChevronDown as ChevronDownIcon,
   Dots as MoreIcon,
   File as FileIcon,
@@ -22,6 +21,7 @@ export {
   Search as SearchIcon,
   Send as AgentIcon,
   Sparkles as ModelIcon,
+  Sparkles as ThinkingIcon,
   Spinner as SpinnerIcon,
   Square as StopIcon,
   X as CloseIcon,

@@ -199,7 +199,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
 
     const entry = entries[index]
 
-    if (!entry || entry.kind !== 'canvas' || entry.status === status) {
+    if (entry?.kind !== 'canvas' || entry.status === status) {
       return
     }
 
@@ -258,7 +258,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
 
     const entry = entries[index]
 
-    if (!entry || entry.kind !== 'conversation' || entry.title === title) {
+    if (entry?.kind !== 'conversation' || entry.title === title) {
       return
     }
 
