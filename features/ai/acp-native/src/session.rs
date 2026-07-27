@@ -23,6 +23,7 @@ use crate::error::{AcpError, Result};
 use crate::permission::{Decision, decide};
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
+use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
 
 const BUSY: &str = "a turn is already in flight on this session";
@@ -191,6 +192,12 @@ impl AgentClient {
 pub struct AgentConnection {
     /// Sends prompts, cancellation and shutdown to the session.
     pub client: AgentClient,
+    /// The sessions of this connection, keyed by the name the agent gave
+    /// them.
+    ///
+    /// Held by the caller so a session opened later is entered in the same
+    /// book the protocol handlers already read from.
+    pub book: SessionBook,
     /// Resolves with the session identifier once the agent has created it.
     pub session_id: oneshot::Receiver<String>,
     /// Must be spawned; the session only lives while this future is polled.
@@ -229,9 +236,12 @@ fn reply(decision: &Decision) -> RequestPermissionResponse {
 
 /// Spawns the agent, creates one session, and keeps it open for many turns.
 ///
-/// Updates are routed through the slot: a turn installs its recorder for the
-/// duration of the run, so a notification that arrives between turns is dropped
-/// instead of being attributed to the run that came before it.
+/// Updates are routed through the book. Every frame the agent sends names
+/// its session; the book turns that name into that session's slot, and the
+/// slot holds a recorder only for as long as that session's turn is in
+/// flight. A frame for a session this client never opened, and a frame that
+/// arrives between turns, are both dropped rather than attributed to the run
+/// that came before them.
 ///
 /// Permission requests are routed through the desk: the handler records the
 /// request, waits for an answer that arrives on a different call entirely, and
@@ -273,8 +283,12 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let (commands, receiver) = mpsc::unbounded::<Command>();
     let (ready, session_id) = oneshot::channel::<String>();
 
-    let updates = slot.clone();
-    let permissions = slot.clone();
+    // One book per connection. The handlers live as long as the connection
+    // and read it by name; the driver writes to it as sessions are created.
+    let book = SessionBook::new();
+    let updates = book.clone();
+    let permissions = book.clone();
+    let first = book.clone();
     let waiting = desk.clone();
 
     let driver = async move {
@@ -283,9 +297,16 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .name("poietica")
             .on_receive_notification(
                 async move |notification: SessionNotification, _cx| {
-                    let _routed = updates.record(|recorder| {
-                        recorder.record_session_update(&notification);
-                    });
+                    let named = notification.session_id.to_string();
+
+                    // A frame naming a session this client never opened is
+                    // not ours to record, so it is dropped here rather than
+                    // written against whichever session happens to be open.
+                    if let Ok(Some(slot)) = updates.slot(&named) {
+                        let _routed = slot.record(|recorder| {
+                            recorder.record_session_update(&notification);
+                        });
+                    }
 
                     Ok(())
                 },
@@ -294,10 +315,15 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .on_receive_request(
                 async move |request: RequestPermissionRequest, responder, _connection| {
                     let mut opened = None;
+                    let named = request.session_id.to_string();
 
-                    let _routed = permissions.record(|recorder| {
-                        opened = Some(recorder.record_permission_requested(&request));
-                    });
+                    // A question belongs to the session that asked it, and
+                    // is recorded there or nowhere.
+                    if let Ok(Some(slot)) = permissions.slot(&named) {
+                        let _routed = slot.record(|recorder| {
+                            opened = Some(recorder.record_permission_requested(&request));
+                        });
+                    }
 
                     // A request arriving outside a turn has nowhere to be
                     // recorded and nobody to answer it. Refusing is the only
@@ -346,6 +372,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 // Nobody may still be waiting for the identifier, and that is
                 // not a failure of the session.
                 let _ignored = ready.send(session_id.to_string());
+
+                // The book is what turns a name into a slot, so this session
+                // is entered in it before any frame of it can arrive.
+                first.adopt(&session_id.to_string(), slot.clone())?;
 
                 'commands: loop {
                     let Some(message) = receiver.next().await else {
@@ -549,6 +579,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     .boxed();
 
     Ok(AgentConnection {
+        book,
         client: AgentClient { commands },
         session_id,
         driver,
