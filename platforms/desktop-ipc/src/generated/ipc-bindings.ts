@@ -97,6 +97,37 @@ async agentSelectModel(request: AgentSelectModelRequest) : Promise<AgentModelLis
     return await TAURI_INVOKE("agent_select_model", { request });
 },
 /**
+ * Lists the selectors the running session offers.
+ * 
+ * The agent reports these when the session is created, so an empty list
+ * means no session is running yet rather than a session without choices.
+ * Nothing is invented here: a model, a reasoning level or a mode appears
+ * in this list only because the agent named it.
+ * 
+ * # Errors
+ * 
+ * Fails when the session lock was poisoned or the driver has stopped.
+ */
+async agentConfigOptions() : Promise<AgentConfigControl[]> {
+    return await TAURI_INVOKE("agent_config_options");
+},
+/**
+ * Changes one selector on the running session.
+ * 
+ * The change applies to the session in flight, so nothing is restarted
+ * and nothing is written to the agent configuration file. The answer is
+ * the whole list as the agent reports it afterwards, because one change
+ * may add or remove another selector.
+ * 
+ * # Errors
+ * 
+ * Fails when no session is running, when a turn is in flight, or when
+ * the agent refuses the value.
+ */
+async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentConfigControl[]> {
+    return await TAURI_INVOKE("agent_set_config_option", { request });
+},
+/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -235,6 +266,73 @@ async settingsReset() : Promise<AppSettings> {
 /** user-defined types **/
 
 /**
+ * One value a selector will accept.
+ */
+export type AgentConfigChoice = { 
+/**
+ * The value sent back when this one is picked.
+ */
+value: string; 
+/**
+ * The name the agent gave it.
+ */
+label: string; 
+/**
+ * The explanation the agent gave, where it gave one.
+ */
+detail: string | null }
+/**
+ * One selector the running session offers.
+ */
+export type AgentConfigControl = { 
+/**
+ * The identifier the agent answers to when the value is changed.
+ */
+id: string; 
+/**
+ * The name the agent gave this selector.
+ */
+label: string; 
+/**
+ * The explanation the agent gave, where it gave one.
+ */
+detail: string | null; 
+/**
+ * Where this selector belongs on screen.
+ */
+purpose: AgentConfigPurpose; 
+/**
+ * The value in force right now.
+ */
+current: string; 
+/**
+ * Every value on offer.
+ */
+choices: AgentConfigChoice[] }
+/**
+ * What a session selector is for.
+ * 
+ * These are the categories the protocol defines. A category the agent
+ * invents beyond them arrives as other and is still shown.
+ */
+export type AgentConfigPurpose = 
+/**
+ * How much freedom the agent takes during a turn.
+ */
+"mode" | 
+/**
+ * Which model answers.
+ */
+"model" | 
+/**
+ * How long the model deliberates before answering.
+ */
+"thought" | 
+/**
+ * Something the agent named itself.
+ */
+"other"
+/**
  * A request to replay a run from the log.
  */
 export type AgentLoadRunRequest = { 
@@ -331,6 +429,18 @@ runId: string;
  * The frames, in order, exactly as they were broadcast when live.
  */
 events: JsonValue[] }
+/**
+ * A change made in the interface.
+ */
+export type AgentSelectConfigRequest = { 
+/**
+ * One of the selector identifiers the session reported.
+ */
+configId: string; 
+/**
+ * One of the values that selector offered.
+ */
+value: string }
 /**
  * A choice made in the interface.
  */

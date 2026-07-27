@@ -370,7 +370,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 .send_request(SetSessionConfigOptionRequest::new(
                                     session_id.clone(),
                                     config_id,
-                                    value,
+                                    // The request takes a value the schema
+                                    // can convert, and it converts a
+                                    // borrowed string, not an owned one.
+                                    value.as_str(),
                                 ))
                                 .block_task()
                                 .await;
