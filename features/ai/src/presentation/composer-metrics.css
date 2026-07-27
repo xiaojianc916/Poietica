@@ -93,6 +93,13 @@
   --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
   --cp-hairline: var(--ui-divider);
 
+  /* 卡片、确认条与代码块共用的一条实线边,一处定义。 */
+  --cp-card-line: #e5e5e5;
+
+  /* 抽屉:思考过程的开合,时长与曲线在这里定一次。 */
+  --cp-motion-drawer: 260ms;
+  --cp-motion-drawer-ease: cubic-bezier(0.2, 0, 0, 1);
+
   --cp-accent: var(--ui-primary);
   --cp-accent-foreground: var(--ui-primary-foreground);
   --cp-accent-hover: color-mix(in srgb, var(--ui-primary) 88%, var(--ui-foreground));

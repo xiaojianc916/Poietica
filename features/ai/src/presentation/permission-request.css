@@ -1,62 +1,85 @@
 /*
  * The request must read as an interruption, not as another paragraph, so it
- * carries a border and its own block. Every custom property has a literal
- * fallback: the component renders correctly even when hosted outside the
- * assistant skin, which is how fixtures and isolated component work run it.
+ * carries its own card. Every custom property has a literal fallback: the
+ * component renders correctly even when hosted outside the assistant skin,
+ * which is how fixtures and isolated component work run it.
+ *
+ * The edge is a stated hairline, never the text colour: a border that follows
+ * the ink turns into a black frame the moment the card sits in body copy.
+ *
+ * An answered request keeps this card and this edge. Fading the whole block out
+ * would make the record of what was approved the least legible thing on screen;
+ * only the outcome line is quiet.
  */
 
 .assistant-permission {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--cp-permission-border, currentColor);
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border: 1px solid var(--cp-card-line, #e5e5e5);
   border-radius: var(--cp-permission-radius, 0.625rem);
   background: var(--cp-permission-surface, transparent);
-}
-
-.assistant-permission[data-resolved="true"] {
-  opacity: 0.72;
 }
 
 .assistant-permission__title {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .assistant-permission__outcome {
   margin: 0;
   font-size: 0.75rem;
   line-height: 1.4;
-  opacity: 0.78;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
 }
 
+/*
+ * The answer sits where an answer is looked for: at the trailing edge, with the
+ * action being asked for last in reading order.
+ */
 .assistant-permission__options {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .assistant-permission__option {
-  min-block-size: var(--ui-control-height-sm, 1.75rem);
-  padding-inline: 0.75rem;
-  border: 1px solid var(--cp-permission-border, currentColor);
-  border-radius: var(--cp-permission-radius, 0.5rem);
-  background: transparent;
+  min-block-size: var(--ui-control-height-sm, 2rem);
+  padding-inline: 0.875rem;
+  border: 1px solid var(--cp-card-line, #e5e5e5);
+  border-radius: 0.5rem;
+  background: var(--cp-permission-surface, transparent);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: inherit;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
+.assistant-permission__option:hover:not(:disabled) {
+  background: var(--cp-hover, rgb(0 0 0 / 5%));
+}
+
+/* One option is what the agent is asking for, and it is the only one painted. */
 .assistant-permission__option[data-kind="allow_once"],
 .assistant-permission__option[data-kind="allow_always"] {
+  border-color: transparent;
+  background: var(--cp-accent, #2563eb);
+  color: var(--cp-accent-foreground, #fff);
   font-weight: 600;
 }
 
+.assistant-permission__option[data-kind="allow_once"]:hover:not(:disabled),
+.assistant-permission__option[data-kind="allow_always"]:hover:not(:disabled) {
+  background: var(--cp-accent-hover, #1d4ed8);
+}
+
 .assistant-permission__option[data-pending="true"] {
-  opacity: 0.6;
+  opacity: 0.72;
 }
 
 .assistant-permission__option:disabled {
@@ -64,6 +87,6 @@
 }
 
 .assistant-permission__option:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid var(--cp-accent, #2563eb);
   outline-offset: 2px;
 }
