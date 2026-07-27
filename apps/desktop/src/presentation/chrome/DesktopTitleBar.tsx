@@ -47,34 +47,37 @@ export function DesktopTitleBar({
       {/*
        * 左上角一个区域，不是两个。
        *
-       * 它的宽度就是侧边栏列宽，所以右边界那条竖线与"侧边栏／主界面"的分隔线
-       * 是同一个 x 坐标，并且跟着同一条动画时间轴滑动、收起时一起消失。原先
-       * 竖线画在一个独立的填充块上、按钮另占一格 rail 宽，两者的位置各自成立
-       * 却互不相干，对齐只能靠巧合。
+       * 宽度 = max(侧边栏列宽, 开合按钮容器宽)。展开时列宽胜出，右边界与
+       * "侧边栏／主界面"分隔线是同一个 x 坐标，竖线因此天然对齐而不是靠手调；
+       * 收起时列宽归零、由按钮容器托底，开合按钮永远有落脚点。
        *
-       * 开合按钮绝对定位、不参与这个宽度：列宽收起时归零，跟着流布局会被裁掉。
-       * 横向位置锚在 --workspace-sidebar-nav-icon-center 上，与下方导航项的图标
-       * 共用一条中线。
+       * 两个诉求不冲突的前提是：竖线在收起时本来就不存在，所以对齐这个约束
+       * 只需要在展开时成立。
+       *
+       * 按钮留在正常流里。绝对定位同样能固定位置，但列宽归零后它会溢出到右侧
+       * 标签条的地盘，被标签条的层叠上下文和不透明底色盖住——按钮还在、只是
+       * 点不到，这正是上一版的故障。
+       *
+       * 宽度直接读 motion 正在驱动的 --workspace-sidebar-column-width，收缩过程
+       * 跟着面板同一条时间轴、到兜底宽度自然刹停，不需要另写一套动画。
        *
        * 这里不标注 data-tauri-drag-region：原生拖拽一旦开始就吞掉 click，把它挂
        * 在含按钮的容器上会让按钮静默失灵。
        */}
       <div
-        className="relative shrink-0 overflow-visible border-b border-divider"
+        className="relative flex shrink-0 items-center border-b border-divider"
         style={{
-          borderRightStyle: 'solid',
-          borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,
-          width: 'var(--workspace-sidebar-column-width, 0px)',
+          paddingLeft:
+            'calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)',
+          width:
+            'max(var(--workspace-sidebar-column-width, 0px), var(--workspace-sidebar-toggle-zone))',
         }}
       >
         <Button
           aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-          className="absolute top-1/2 size-[var(--ui-control-height-sm)] -translate-y-1/2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
           onClick={onSidebarToggle}
           size="icon"
-          style={{
-            left: 'calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)',
-          }}
           type="button"
           variant="ghost"
         >
@@ -84,6 +87,20 @@ export function DesktopTitleBar({
             <PanelLeftOpen aria-hidden="true" className="size-4" />
           )}
         </Button>
+
+        {/*
+         * 竖线是一个独立元素而不是容器的 border-right：border 宽度在 1px 和 0
+         * 之间只能硬切，而这条线该跟着面板一起淡出。它贴在容器右边界上，所以
+         * 位置仍然由上面那个 max() 唯一决定，没有第二份坐标。
+         */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-0 border-r border-divider"
+          style={{
+            opacity: isSidebarOpen ? 1 : 0,
+            transition: 'opacity var(--workspace-layout-duration, 0.18s) ease',
+          }}
+        />
       </div>
 
       <div className="flex min-w-0 flex-1 items-stretch">{children}</div>

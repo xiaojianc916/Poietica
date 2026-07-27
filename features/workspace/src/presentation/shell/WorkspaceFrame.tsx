@@ -6,6 +6,13 @@ type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
   '--workspace-sidebar-nav-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
+  '--workspace-sidebar-toggle-zone': `${WORKSPACE_LAYOUT.sidebar.toggleZoneWidth}px`,
+
+  /*
+   * 布局动画时长同时给 motion 的 transition 和 CSS 侧的过渡使用，两边共用
+   * 一条时间轴：否则标题栏的竖线渐隐会和面板滑动各跑各的节奏。
+   */
+  '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
   '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,
