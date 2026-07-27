@@ -12,6 +12,8 @@ const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
   'ai',
   'assets',
   'extensions',
+  'automations',
+  'hooks',
 ]
 
 /*

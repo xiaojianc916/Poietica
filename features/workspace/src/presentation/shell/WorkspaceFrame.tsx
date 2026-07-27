@@ -5,7 +5,6 @@ import { WORKSPACE_LAYOUT } from './workspace-layout'
 type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
-  '--activity-rail-width': `${WORKSPACE_LAYOUT.activityRail.width}px`,
   '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,
@@ -14,7 +13,6 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
 export interface WorkspaceFrameProps {
   readonly rootRef?: Ref<HTMLDivElement>
   readonly chrome: ReactNode
-  readonly rail: ReactNode
   readonly sidebar: ReactNode
   readonly canvas: ReactNode
   readonly inspector: ReactNode
@@ -30,7 +28,6 @@ export interface WorkspaceFrameProps {
 export function WorkspaceFrame({
   rootRef,
   chrome,
-  rail,
   sidebar,
   canvas,
   inspector,
@@ -77,7 +74,6 @@ export function WorkspaceFrame({
     >
       {/* Layout ownership lives here so borders stay single-source and predictable. */}
       {chrome}
-      {rail}
       {sidebar}
       {canvas}
       {inspector}

@@ -1,4 +1,14 @@
-import { Box, ChartNetwork, FolderTwo, Grid, Image, LayersThree, Search } from '@mynaui/icons-react'
+import {
+  Box,
+  ChartNetwork,
+  Code,
+  FolderTwo,
+  Grid,
+  Image,
+  LayersThree,
+  RefreshAlt,
+  Search,
+} from '@mynaui/icons-react'
 import type { ComponentType } from 'react'
 
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
@@ -64,21 +74,31 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
     description: '管理为编辑器提供能力的扩展。',
     icon: Box,
   },
+  automations: {
+    title: '自动化',
+    description: '编排在后台自动运行的创作流程。',
+    icon: RefreshAlt,
+  },
+  hooks: {
+    title: 'Hook',
+    description: '在关键节点挂载可编程的扩展点。',
+    icon: Code,
+  },
 }
 
 /**
- * 活动栏的展示顺序。
+ * 侧边栏顶部导航的展示顺序。
  *
  * 顺序是产品决策，与描述符分离；未列出的表面仍可通过命令面板或标签页打开。
+ *
+ * 「新建对话」不在此列：它是一个动作而不是一个 surface，由 SidebarNav 单独
+ * 渲染，避免在注册表里塞一个没有面板的假 surface。
  */
 export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = [
-  'ai',
   'search',
   'pages',
-  'relations',
-  'assets',
-  'extensions',
-  'documents',
+  'automations',
+  'hooks',
 ]
 
 export function describeWorkspaceSurface(

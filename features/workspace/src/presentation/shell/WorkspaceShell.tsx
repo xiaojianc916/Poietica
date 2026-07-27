@@ -5,7 +5,6 @@ import type { WorkspaceShellProps } from '../../contracts/shell-contract'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
-import { ActivityRail } from './ActivityRail'
 import { InspectorRegion } from './InspectorRegion'
 import { SidebarRegion } from './SidebarRegion'
 import { describeWorkspaceSurface } from './surface-registry'
@@ -17,7 +16,6 @@ import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 
 const WORKSPACE_GRID_COLUMNS = [
-  'var(--activity-rail-width)',
   'var(--workspace-sidebar-column-width, 0px)',
   'minmax(0, 1fr)',
   'var(--workspace-inspector-column-width, 0px)',
@@ -70,7 +68,7 @@ export function WorkspaceShell({
           <section
             aria-label="内容区"
             className="relative z-10 row-2 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
-            style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 3 }}
+            style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 2 }}
           >
             <main
               aria-labelledby={`workbench-tab-${activeTabDomId}`}
@@ -116,22 +114,6 @@ export function WorkspaceShell({
             {overlays}
           </>
         }
-        rail={
-          <div
-            className="row-[2/-1] min-h-0 border-r border-divider bg-sidebar"
-            style={{ gridColumn: 1 }}
-          >
-            <ActivityRail
-              activeItemId={activeSurfaceId}
-              onDeveloperToolsOpen={actions.openDeveloperTools}
-              onItemActivate={(surfaceId) => {
-                actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
-                setSidebarOpen(true)
-              }}
-              onSettingsOpen={actions.openSettingsWindow}
-            />
-          </div>
-        }
         sidebar={
           <SidebarRegion
             isOpen={sidebarOpen}
@@ -151,7 +133,17 @@ export function WorkspaceShell({
             <WorkspaceSidebar
               activeNavigationItem={activeSurfaceId}
               onActivatePage={actions.activatePage}
+              onCreateConversation={() => {
+                actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
+                setSidebarOpen(true)
+              }}
               onCreatePage={actions.createPage}
+              onDeveloperToolsOpen={actions.openDeveloperTools}
+              onSettingsOpen={actions.openSettingsWindow}
+              onSurfaceActivate={(surfaceId) => {
+                actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
+                setSidebarOpen(true)
+              }}
               {...(panelRenderers === undefined ? {} : { panelRenderers })}
               pages={pages}
             />
@@ -162,7 +154,7 @@ export function WorkspaceShell({
           hasCanvas ? (
             <div
               className="relative z-10 min-w-0 border-r border-divider bg-background"
-              style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 3, gridRow: 3 }}
+              style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 2, gridRow: 3 }}
             >
               <StatusBarHost>{statusContent}</StatusBarHost>
             </div>

@@ -67,7 +67,7 @@ export function SidebarRegion({
         className="relative z-20 row-[2/-1] min-h-0 min-w-0 overflow-visible border-r border-divider bg-sidebar"
         style={{
           borderRightWidth: isDocked ? 1 : 0,
-          gridColumn: 2,
+          gridColumn: 1,
           pointerEvents: isDocked ? 'auto' : 'none',
         }}
       >
@@ -103,7 +103,7 @@ export function SidebarRegion({
 
           <aside
             aria-label="工作区导航"
-            className="relative ml-[var(--activity-rail-width)] h-full w-[min(82vw,320px)] border-r border-divider bg-sidebar shadow-2xl"
+            className="relative h-full w-[min(82vw,320px)] border-r border-divider bg-sidebar shadow-2xl"
           >
             {children}
 

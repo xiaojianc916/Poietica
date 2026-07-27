@@ -13,6 +13,8 @@ export type WorkspaceSurfaceId =
   | 'ai'
   | 'assets'
   | 'extensions'
+  | 'automations'
+  | 'hooks'
 
 interface WorkbenchTabBase {
   readonly id: WorkbenchTabId

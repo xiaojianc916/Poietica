@@ -25,7 +25,7 @@ export function InspectorRegion({ isDocked, onOpenChange, children }: InspectorR
         aria-label="属性检查器"
         className="relative row-[2/-1] min-h-0 min-w-0 overflow-visible"
         style={{
-          gridColumn: 4,
+          gridColumn: 3,
           pointerEvents: isDocked ? 'auto' : 'none',
         }}
       >

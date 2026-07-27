@@ -15,7 +15,6 @@ export { NoCanvasSurface } from './empty/NoCanvasSurface'
 
 export { InspectorHost } from './inspector/InspectorHost'
 
-export { ActivityRail } from './shell/ActivityRail'
 export { nextUntitledCanvasTitle } from './shell/untitled-canvas-title'
 export {
   WorkbenchTabs,

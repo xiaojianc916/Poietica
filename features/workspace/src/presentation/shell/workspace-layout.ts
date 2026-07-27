@@ -7,10 +7,6 @@
  * cross-feature design system.
  */
 export const WORKSPACE_LAYOUT = {
-  activityRail: {
-    width: 48,
-  },
-
   sidebar: {
     minWidth: 220,
     maxWidth: 420,
