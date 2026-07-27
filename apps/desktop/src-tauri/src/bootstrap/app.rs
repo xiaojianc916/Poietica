@@ -64,6 +64,8 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::agent::agent_set_config_option,
             commands::agent::agent_new_session,
             commands::agent::agent_sessions,
+            commands::agent::agent_threads,
+            commands::agent::agent_open_thread,
             commands::asset::asset_session_open,
             commands::asset::asset_upload,
             commands::asset::asset_remove,

@@ -866,3 +866,150 @@ pub async fn agent_sessions(
         })
         .collect())
 }
+
+/// The name a conversation carries before anything has named it.
+const FALLBACK_THREAD_TITLE: &str = "新建对话";
+
+/// Reported when a thread was written but could not be read back.
+const NO_THREAD: &str = "the conversation was created but could not be read back";
+
+/// One conversation, as a list of conversations and a tab strip need it.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThread {
+    /// The stored conversation.
+    pub thread_id: String,
+    /// The agent session it is holding, where it holds one.
+    pub session_id: Option<String>,
+    /// The name to show for it.
+    pub title: String,
+    /// Where that name came from: official, message or fallback.
+    pub title_source: String,
+    /// When it was last touched, in RFC 3339.
+    pub updated_at: String,
+}
+
+/// A conversation that was just opened, and what its session offers.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOpenedThread {
+    /// The conversation itself.
+    pub thread: AgentThread,
+    /// What may be chosen for this session, as the agent reported it.
+    pub selectors: Vec<AgentConfigControl>,
+}
+
+/// Lists the stored conversations, newest first.
+///
+/// Official names are the agent's own, so they are folded in first when
+/// the connection can answer. A refusal there is not a failure of this
+/// command: while a turn is in flight the agent will not list its
+/// sessions, and the right answer then is the names already stored, not
+/// an error where a list of conversations belongs.
+///
+/// # Errors
+///
+/// Fails when the database cannot be opened or read.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_threads(
+    state: State<'_, AgentRuntime>,
+) -> AgentCommandResult<Vec<AgentThread>> {
+    let store = poietica_ai_persistence_native::AiStore::open(&state.database)
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    if let Ok(Some(live)) = borrow(&state)
+        && let Ok(listed) = live.client.sessions().await
+    {
+        for info in listed {
+            let Some(title) = info.title else { continue };
+            let Ok(Some(thread)) = store.thread_for_session(&info.session_id) else {
+                continue;
+            };
+            let Ok(id) = Uuid::parse_str(&thread) else { continue };
+
+            let official = poietica_ai_persistence_native::TitleSource::Official;
+
+            store
+                .rename_thread(id, &title, official)
+                .map_err(|failure| Error::Internal(failure.to_string()))?;
+        }
+    }
+
+    let stored = store
+        .list_threads()
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    Ok(stored.into_iter().map(retitle).collect())
+}
+
+/// Opens one more conversation: a session on the agent, and a row holding
+/// it.
+///
+/// The conversation is stored before it has a name, because a name is
+/// something that arrives later: the agent's own title if it sends one,
+/// otherwise whatever the interface can stand in with. Both are recorded
+/// as what they are, so a stand in never replaces a real name.
+///
+/// # Errors
+///
+/// Fails when the agent cannot be started, when a turn is in flight on
+/// the connection, or when the database rejects the write.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_open_thread(
+    state: State<'_, AgentRuntime>,
+    request: AgentNewSessionRequest,
+) -> AgentCommandResult<AgentOpenedThread> {
+    let asked = request.cwd.clone();
+    let live = ensure_session(&state, request.command, request.cwd).await?;
+
+    let working_directory = match asked {
+        Some(given) => PathBuf::from(given),
+        None => state.root.clone(),
+    };
+
+    let opened = live
+        .client
+        .new_session(working_directory)
+        .await
+        .map_err(translate)?;
+
+    let store = poietica_ai_persistence_native::AiStore::open(&state.database)
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    let thread_id = store
+        .create_thread(FALLBACK_THREAD_TITLE)
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    store
+        .attach_session(thread_id, &opened.session_id)
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    let named = thread_id.to_string();
+    let stored = store
+        .list_threads()
+        .map_err(|failure| Error::Internal(failure.to_string()))?;
+
+    let thread = stored
+        .into_iter()
+        .find(|entry| entry.id == named)
+        .map(retitle)
+        .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
+
+    Ok(AgentOpenedThread {
+        thread,
+        selectors: opened.selectors.into_iter().map(restate).collect(),
+    })
+}
+
+/// Restates one stored conversation in the shape the bindings carry.
+fn retitle(thread: poietica_ai_persistence_native::ThreadSummary) -> AgentThread {
+    AgentThread {
+        thread_id: thread.id,
+        session_id: thread.session_id,
+        title: thread.title,
+        title_source: thread.title_source,
+        updated_at: thread.updated_at,
+    }
+}

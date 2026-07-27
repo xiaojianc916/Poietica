@@ -17,3 +17,5 @@ pub use error::{Result, StoreError};
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};
 pub use store::{AiStore, RunStatus, StoredEvent};
+
+pub use crate::store::{ThreadSummary, TitleSource};
