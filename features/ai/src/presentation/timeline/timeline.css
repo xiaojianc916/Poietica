@@ -72,7 +72,7 @@
  * than floating over the first line of code. Nothing renames a class of theirs
  * and nothing is patched in script — this is the whole styling.
  */
-.timeline-message [data-streamdown="code-block"] {
+.timeline-prose [data-streamdown="code-block"] {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0;
@@ -84,20 +84,20 @@
   background: var(--cp-timeline-card-surface, transparent);
 }
 
-.timeline-message [data-streamdown="code-block-header"],
-.timeline-message [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+.timeline-prose [data-streamdown="code-block-header"],
+.timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   border-block-end: 1px solid var(--cp-card-line, #e5e5e5);
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
 }
 
-.timeline-message [data-streamdown="code-block-header"] {
+.timeline-prose [data-streamdown="code-block-header"] {
   grid-area: 1 / 1;
   padding-inline-start: 0.75rem;
   color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
 }
 
 /* The actions leave their overlay and take their place in the bar. */
-.timeline-message [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+.timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   grid-area: 1 / 2;
   position: static;
   margin: 0;
@@ -106,7 +106,7 @@
   pointer-events: auto;
 }
 
-.timeline-message [data-streamdown="code-block-actions"] {
+.timeline-prose [data-streamdown="code-block-actions"] {
   border: 0;
   padding: 0;
   background: none;
@@ -114,11 +114,11 @@
 }
 
 /* One action, because saving a snippet to file.txt is not one. */
-.timeline-message [data-streamdown="code-block-download-button"] {
+.timeline-prose [data-streamdown="code-block-download-button"] {
   display: none;
 }
 
-.timeline-message [data-streamdown="code-block-body"] {
+.timeline-prose [data-streamdown="code-block-body"] {
   grid-area: 2 / 1 / 3 / 3;
   padding: 0.75rem;
   border: 0;
@@ -129,18 +129,18 @@
   line-height: 1.55;
 }
 
-.timeline-message [data-streamdown="code-block-body"] pre {
+.timeline-prose [data-streamdown="code-block-body"] pre {
   margin: 0;
   background: transparent;
 }
 
 /* The gutter is a counter drawn by a pseudo-element; without it, no gutter. */
-.timeline-message [data-streamdown="code-block-body"] code > span::before {
+.timeline-prose [data-streamdown="code-block-body"] code > span::before {
   content: none;
 }
 
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
-.timeline-message :not(pre) > code {
+.timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
   border-radius: 0.3125rem;
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
@@ -187,7 +187,7 @@
 }
 
 .timeline-reasoning__label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .timeline-reasoning__chevron {
@@ -223,10 +223,27 @@
   overflow: hidden;
 }
 
+/*
+ * The thinking is prose, one notch down and held to a narrower measure.
+ *
+ * No pre-wrap: the text is markdown and is rendered as markdown, so line
+ * breaks belong to the blocks Streamdown produces. Only the outermost margins
+ * are trimmed, so the chain sits tight under its own label while paragraphs,
+ * lists and fences keep the rhythm they have everywhere else.
+ */
 .timeline-reasoning__body {
-  margin: 0;
-  white-space: pre-wrap;
+  max-inline-size: var(--cp-timeline-thought-max, 40rem);
+  font-size: 0.8125rem;
+  line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+.timeline-reasoning__body > :first-child {
+  margin-block-start: 0;
+}
+
+.timeline-reasoning__body > :last-child {
+  margin-block-end: 0;
 }
 
 .timeline-tool {
@@ -311,15 +328,36 @@
   color: var(--cp-timeline-danger-text, rgb(180 35 24));
 }
 
+/*
+ * Open, the output is the card's floor — not a panel parked inside the card.
+ *
+ * It used to be a rounded, tinted box inset by the body's padding, inside an
+ * already rounded and bordered card: two frames, with a strip of the parent
+ * showing on every side. Now the card's border is the only frame. The output
+ * runs edge to edge, its corners come from the card's own `overflow: hidden`,
+ * and structure is carried by hairlines instead of by gaps: one under the
+ * header, one between each block. Collapsed, none of it is on screen — the
+ * drawer clips it — so the row reads exactly as it did.
+ */
 .timeline-tool__body {
-  padding: 0 0.75rem 0.75rem;
   display: grid;
-  gap: 0.5rem;
+  gap: 0;
+  border-block-start: 1px solid var(--cp-card-line, #e5e5e5);
+}
+
+.timeline-tool__body > * + *,
+.timeline-tool__diff > * + * {
+  border-block-start: 1px solid var(--cp-card-line, #e5e5e5);
+}
+
+/* A diff is one unit: its parts stack flush and share its edges. */
+.timeline-tool__diff {
+  display: grid;
 }
 
 .timeline-tool__locations {
   margin: 0;
-  padding: 0;
+  padding: 0.5rem 0.75rem;
   list-style: none;
   color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
   font-size: 0.8125rem;
@@ -331,8 +369,7 @@
   margin: 0;
   max-block-size: var(--cp-timeline-output-max, 18rem);
   overflow: auto;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
   font-family: var(--cp-font-mono, ui-monospace, monospace);
   font-size: 0.8125rem;
@@ -354,6 +391,7 @@
 .timeline-tool__opaque,
 .timeline-tool__empty {
   margin: 0;
+  padding: 0.5rem 0.75rem;
   color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
   font-size: 0.8125rem;
 }
