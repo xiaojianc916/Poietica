@@ -1,5 +1,5 @@
-import { Separator } from '@poietica/foundations-design-system'
 import { Box, Component, Move } from '@mynaui/icons-react'
+import { Separator } from '@poietica/foundations-design-system'
 import { useValue } from 'tldraw'
 
 import { useEditor, useExtensionRegistration } from '../../react/editor-context'

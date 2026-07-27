@@ -1,5 +1,5 @@
-import { Button, cn } from '@poietica/foundations-design-system'
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
+import { Button, cn } from '@poietica/foundations-design-system'
 import type { MouseEvent, ReactNode } from 'react'
 import { shouldStartWindowDragging } from './window-drag-intent'
 

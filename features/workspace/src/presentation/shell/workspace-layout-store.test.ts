@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-
-import { workspaceLayoutStore } from './workspace-layout-store'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { workspaceLayoutStore } from './workspace-layout-store'
 
 /*
  * 这个 store 驱动产品里点击频率最高的控件之一，此前完全没有测试覆盖，

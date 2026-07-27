@@ -1,5 +1,5 @@
-import { Button, TooltipProvider } from '@poietica/foundations-design-system'
 import { PanelLeftClose, PanelRightClose, PanelRightOpen } from '@mynaui/icons-react'
+import { Button, TooltipProvider } from '@poietica/foundations-design-system'
 import { useState } from 'react'
 
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
@@ -8,10 +8,10 @@ import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
 import { ActivityRail } from './ActivityRail'
 import { SidebarSplitter } from './SidebarSplitter'
+import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
-import { describeWorkspaceSurface } from './surface-registry'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 

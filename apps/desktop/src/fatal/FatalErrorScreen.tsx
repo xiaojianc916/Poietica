@@ -1,8 +1,8 @@
 import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
-import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 import errorRobotIllustration from './assets/error-robot.svg'
+import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
 export interface FatalErrorScreenProps {
   readonly incident: TerminalFailureIncident

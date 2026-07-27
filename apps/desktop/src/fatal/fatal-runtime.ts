@@ -1,7 +1,7 @@
 import type { FailureRecovery, TerminalFailureImpact } from '@poietica/foundations-kernel'
 import {
-  failureCoordinator,
   type FailureIncident,
+  failureCoordinator,
 } from '../application/failures/failure-coordinator'
 
 export type FailureKind =

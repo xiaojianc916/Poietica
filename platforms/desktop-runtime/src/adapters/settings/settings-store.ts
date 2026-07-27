@@ -1,8 +1,8 @@
+import type { AppSettings, SettingsStore, ThemeMode } from '@poietica/features-settings'
 import {
   type AppSettings as AppSettingsDto,
   commands,
 } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
-import type { AppSettings, SettingsStore, ThemeMode } from '@poietica/features-settings'
 
 export function createDesktopSettingsStore(): SettingsStore {
   return {

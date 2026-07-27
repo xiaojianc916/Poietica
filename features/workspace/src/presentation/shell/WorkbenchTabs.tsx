@@ -1,9 +1,9 @@
 import { Plus } from '@mynaui/icons-react'
 import { useCallback, useMemo, useRef } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../contracts/workbench-contract'
-import { WorkbenchTab } from './workbench-tabs/WorkbenchTab'
 import { useWorkbenchTabsInteractions } from './workbench-tabs/use-workbench-tabs-interactions'
 import { useWorkbenchTabsViewport } from './workbench-tabs/use-workbench-tabs-viewport'
+import { WorkbenchTab } from './workbench-tabs/WorkbenchTab'
 
 import './chrome-workbench-tabs.css'
 

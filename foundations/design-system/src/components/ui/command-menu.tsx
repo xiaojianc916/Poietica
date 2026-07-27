@@ -59,8 +59,8 @@ export function CommandMenu({
       filter={null}
       inline
       inputValue={query}
-      itemToStringLabel={(value) => itemMap.get(value)?.label ?? value}
       items={itemValues}
+      itemToStringLabel={(value) => itemMap.get(value)?.label ?? value}
       onInputValueChange={(nextQuery) => {
         onQueryChange(nextQuery)
       }}

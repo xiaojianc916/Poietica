@@ -1,10 +1,10 @@
 import {
   type RefObject,
-  type WheelEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
+  type WheelEvent,
 } from 'react'
 import type { WorkbenchTabId } from '../../../contracts/workbench-contract'
 

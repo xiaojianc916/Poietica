@@ -2,12 +2,17 @@ export {
   AGENT_EVENT,
   type AgentBridgeOptions,
   type AgentCommandBridge,
+  type AgentConfigBridge,
+  type AgentConfigChoiceDescription,
+  type AgentConfigControlDescription,
+  type AgentConfigPurposeName,
   type AgentEventSource,
   type AgentEventSourceOptions,
   type AgentModelBridge,
   type AgentModelDescription,
   type AgentModelListing,
   createAgentCommandBridge,
+  createAgentConfigBridge,
   createAgentEventSource,
   createAgentModelBridge,
   shutdownAgent,
@@ -19,11 +24,3 @@ export {
 } from './error'
 export { commands } from './generated/ipc-bindings'
 export { invoke } from './invoke'
-
-export {
-  type AgentConfigBridge,
-  type AgentConfigChoiceDescription,
-  type AgentConfigControlDescription,
-  type AgentConfigPurposeName,
-  createAgentConfigBridge,
-} from './agent'

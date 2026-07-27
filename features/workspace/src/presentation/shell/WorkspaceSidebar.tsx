@@ -1,4 +1,3 @@
-import { Button, cn, ScrollArea } from '@poietica/foundations-design-system'
 import {
   Box,
   ChartNetwork,
@@ -10,6 +9,7 @@ import {
   Plus,
   Search,
 } from '@mynaui/icons-react'
+import { Button, cn, ScrollArea } from '@poietica/foundations-design-system'
 import type { CanvasPageViewModel } from '../../contracts/shell-contract'
 import type { WorkspacePanelRenderers } from '../../contracts/surface-contract'
 import type { CanvasNavigationItemId } from './ActivityRail'

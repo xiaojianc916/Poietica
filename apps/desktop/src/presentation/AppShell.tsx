@@ -1,19 +1,27 @@
 import { EditorProvider } from '@poietica/editor-core/react'
-import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-design-system'
-import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { SettingsStore } from '@poietica/features-settings'
 import { SettingsDialog } from '@poietica/features-settings/react'
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
-import { CommandPalette, workspaceLayoutStore } from '@poietica/features-workspace/react'
+import {
+  CommandPalette,
+  nextUntitledCanvasTitle,
+  useCommandKeybindings,
+  workspaceLayoutStore,
+} from '@poietica/features-workspace/react'
+import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-design-system'
+import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
-import { useGlobalCommandShortcuts } from './commands/useGlobalCommandShortcuts'
 import { UiFeedbackRegion } from './ui/ui-feedback'
-import { type WorkspaceCanvasUIPort, WorkspaceContainer } from './workspace/WorkspaceContainer'
+import {
+  type AppCapabilities,
+  type WorkspaceCanvasUIPort,
+  WorkspaceContainer,
+} from './workspace/WorkspaceContainer'
 
 export interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -30,34 +38,6 @@ export interface AppShellProps {
   readonly runtime: AppShellRuntime
 }
 
-const GLOBAL_COMMAND_SHORTCUTS = [
-  {
-    key: 'k',
-    commandId: 'application.toggle-command-palette',
-    ctrlOrMeta: true,
-  },
-  {
-    key: 'n',
-    commandId: 'workspace.create-canvas',
-    ctrlOrMeta: true,
-  },
-  {
-    key: 'o',
-    commandId: 'workspace.open-canvas',
-    ctrlOrMeta: true,
-  },
-  {
-    key: 'b',
-    commandId: 'workspace.toggle-sidebar',
-    ctrlOrMeta: true,
-  },
-  {
-    key: 'j',
-    commandId: 'ai.open-assistant',
-    ctrlOrMeta: true,
-  },
-] as const
-
 export function AppShell({ runtime }: AppShellProps) {
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
@@ -71,13 +51,21 @@ export function AppShell({ runtime }: AppShellProps) {
     failureCoordinator.getSnapshot,
   )
 
-  const settingsUnavailable = failureSnapshot.degradedFeatures.has('settings')
+  /*
+   * 降级判断只在这里派生一次，并且是稳定引用：它此前既在本文件的五个回调里
+   * 各写一遍，又以每次渲染新建的字符串数组传给工作区容器再算一遍，下游任何
+   * 记忆化都被这个数组打掉。
+   */
+  const capabilities = useMemo<AppCapabilities>(() => {
+    const degraded = failureSnapshot.degradedFeatures
 
-  const developerToolsUnavailable = failureSnapshot.degradedFeatures.has('developer-tools')
-
-  const windowControlsUnavailable = failureSnapshot.degradedFeatures.has('window-controls')
-
-  const windowDraggingUnavailable = failureSnapshot.degradedFeatures.has('window-dragging')
+    return {
+      settings: !degraded.has('settings'),
+      developerTools: !degraded.has('developer-tools'),
+      windowControls: !degraded.has('window-controls'),
+      windowDragging: !degraded.has('window-dragging'),
+    }
+  }, [failureSnapshot.degradedFeatures])
 
   const termination = useSyncExternalStore(
     runtime.termination.subscribe,
@@ -96,12 +84,10 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.workspace])
 
   const openSettings = useCallback(() => {
-    if (settingsUnavailable) {
-      return
+    if (capabilities.settings) {
+      setSettingsOpen(true)
     }
-
-    setSettingsOpen(true)
-  }, [settingsUnavailable])
+  }, [capabilities])
 
   const createCanvasWithFeedback = useCallback(
     async (title: string): Promise<void> => {
@@ -123,7 +109,7 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.termination])
 
   const minimizeWindow = useCallback(() => {
-    if (windowControlsUnavailable) {
+    if (!capabilities.windowControls) {
       return
     }
 
@@ -134,10 +120,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [windowControlsUnavailable, runtime.mainWindow])
+  }, [capabilities, runtime.mainWindow])
 
   const maximizeWindow = useCallback(() => {
-    if (windowControlsUnavailable) {
+    if (!capabilities.windowControls) {
       return
     }
 
@@ -148,10 +134,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [windowControlsUnavailable, runtime.mainWindow])
+  }, [capabilities, runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
-    if (developerToolsUnavailable) {
+    if (!capabilities.developerTools) {
       return
     }
 
@@ -162,10 +148,10 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [developerToolsUnavailable, runtime.mainWindow])
+  }, [capabilities, runtime.mainWindow])
 
   const startWindowDragging = useCallback(() => {
-    if (windowDraggingUnavailable) {
+    if (!capabilities.windowDragging) {
       return
     }
 
@@ -176,7 +162,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [windowDraggingUnavailable, runtime.mainWindow])
+  }, [capabilities, runtime.mainWindow])
 
   useApplicationCommands(
     runtime,
@@ -214,7 +200,7 @@ export function AppShell({ runtime }: AppShellProps) {
     }
   }, [runtime.settings])
 
-  useGlobalCommandShortcuts(runtime.commands, GLOBAL_COMMAND_SHORTCUTS)
+  useCommandKeybindings(runtime.commands)
 
   useMainWindowCloseRequest(runtime.mainWindow, requestApplicationClose)
 
@@ -233,7 +219,7 @@ export function AppShell({ runtime }: AppShellProps) {
     <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
       <WorkspaceContainer
         agentSession={runtime.agentSession}
-        degradedFeatures={[...failureSnapshot.degradedFeatures.keys()]}
+        capabilities={capabilities}
         isWindowMaximized={isWindowMaximized}
         onCommandPaletteOpen={openCommandPalette}
         onDeveloperToolsOpen={openDeveloperTools}
@@ -253,7 +239,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
       <SettingsDialog
         onOpenChange={setSettingsOpen}
-        open={isSettingsOpen && !settingsUnavailable}
+        open={isSettingsOpen && capabilities.settings}
         store={runtime.settings}
       />
 
@@ -390,7 +376,7 @@ function useApplicationCommands(
         id: 'application.toggle-command-palette',
         label: '切换命令面板',
         category: '应用',
-        shortcut: 'Ctrl+K',
+        shortcut: 'Mod+K',
         execute: toggleCommandPalette,
       }),
 
@@ -398,9 +384,9 @@ function useApplicationCommands(
         id: 'workspace.create-canvas',
         label: '新建画布',
         category: '文件',
-        shortcut: 'Ctrl+N',
+        shortcut: 'Mod+N',
         execute() {
-          void createCanvas('未命名画布')
+          void createCanvas(nextUntitledCanvasTitle(runtime.workspace.getSnapshot().tabs))
         },
       }),
 
@@ -408,7 +394,7 @@ function useApplicationCommands(
         id: 'workspace.open-canvas',
         label: '打开画布',
         category: '文件',
-        shortcut: 'Ctrl+O',
+        shortcut: 'Mod+O',
         execute: runtime.canvases.open,
       }),
 
@@ -416,7 +402,7 @@ function useApplicationCommands(
         id: 'workspace.toggle-sidebar',
         label: '切换侧边栏',
         category: '视图',
-        shortcut: 'Ctrl+B',
+        shortcut: 'Mod+B',
         execute: workspaceLayoutStore.toggleSidebar,
       }),
 
@@ -431,7 +417,7 @@ function useApplicationCommands(
         id: 'ai.open-assistant',
         label: '打开 AI 助手',
         category: '应用',
-        shortcut: 'Ctrl+J',
+        shortcut: 'Mod+J',
         execute: openAssistantSurface,
       }),
     ]

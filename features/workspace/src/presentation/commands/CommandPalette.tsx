@@ -1,8 +1,9 @@
-import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/foundations-design-system'
 import { Command } from '@mynaui/icons-react'
+import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/foundations-design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { CommandRegistry } from '../../application/public-api'
 import type { RegisteredCommand } from '../../contracts/public-api'
+import { formatKeybinding } from './keybinding'
 
 export interface CommandPaletteProps {
   readonly open: boolean
@@ -31,11 +32,11 @@ export function CommandPalette({ open, registry, onOpenChange }: CommandPaletteP
               category: command.category,
             }
           : {}),
-        ...(command.shortcut !== undefined
-          ? {
-              shortcut: command.shortcut,
-            }
-          : {}),
+        ...(command.shortcut === undefined
+          ? {}
+          : {
+              shortcut: formatKeybinding(command.shortcut),
+            }),
         leading: <Command aria-hidden="true" className="size-4" />,
       })),
     [filteredCommands],

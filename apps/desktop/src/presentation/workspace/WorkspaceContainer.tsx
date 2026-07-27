@@ -6,35 +6,36 @@ import {
   EditorSessionHost,
   useCanvasInspectorAvailability,
 } from '@poietica/editor-core/react'
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
-import { ConfirmationDialog } from '@poietica/foundations-design-system'
 import type {
   CanvasCloseIntent,
   CanvasCloseSnapshot,
   CanvasSessionSnapshot,
 } from '@poietica/editor-document'
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type {
   CanvasSessionId,
   WorkbenchSessionStore,
-  WorkbenchTabViewModel,
   WorkbenchTabId,
+  WorkbenchTabViewModel,
   WorkspaceShellActions,
   WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
 import {
   NoCanvasSurface,
+  nextUntitledCanvasTitle,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSurface,
 } from '@poietica/features-workspace/react'
+import { ConfirmationDialog } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
-import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { reportFailure } from '../../application/failures/failure-policy'
-import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
+import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { WORKSPACE_PANEL_RENDERERS } from './assistant-panel-renderers'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
+import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
   pages: Object.freeze([]),
@@ -56,6 +57,20 @@ export interface WorkspaceCanvasUIPort {
   readonly subscribe: (listener: () => void) => () => void
 }
 
+/**
+ * 运行期能力开关。
+ *
+ * 降级判断由 AppShell 从 failureCoordinator 派生一次，向下作为稳定引用传递；
+ * UI 只把它映射成控件的 disabled，不在事件处理器里重复守卫——控件禁用之后
+ * onClick 不会触发，那层守卫是死代码。
+ */
+export interface AppCapabilities {
+  readonly settings: boolean
+  readonly developerTools: boolean
+  readonly windowControls: boolean
+  readonly windowDragging: boolean
+}
+
 export interface WorkspaceUIPort {
   readonly canvases: WorkspaceCanvasUIPort
   readonly workspace: WorkbenchSessionStore
@@ -64,7 +79,7 @@ export interface WorkspaceUIPort {
 export interface WorkspaceContainerProps {
   readonly agentSession: AgentSessionPort
   readonly port: WorkspaceUIPort
-  readonly degradedFeatures: readonly string[]
+  readonly capabilities: AppCapabilities
   readonly isWindowMaximized: boolean
   readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -78,7 +93,7 @@ export interface WorkspaceContainerProps {
 export function WorkspaceContainer({
   agentSession,
   port,
-  degradedFeatures,
+  capabilities,
   isWindowMaximized,
   onCommandPaletteOpen,
   onDeveloperToolsOpen,
@@ -89,14 +104,6 @@ export function WorkspaceContainer({
   onWindowStartDragging,
 }: WorkspaceContainerProps) {
   const inspectorAvailable = useCanvasInspectorAvailability()
-
-  const windowControlsDisabled = degradedFeatures.includes('window-controls')
-
-  const windowDraggingDisabled = degradedFeatures.includes('window-dragging')
-
-  const developerToolsDisabled = degradedFeatures.includes('developer-tools')
-
-  const settingsDisabled = degradedFeatures.includes('settings')
 
   const workbench = useSyncExternalStore(
     port.workspace.subscribe,
@@ -207,12 +214,8 @@ export function WorkspaceContainer({
   const actions = useMemo<WorkspaceShellActions>(
     () => ({
       createCanvas() {
-        const existingTitles = workbench.tabs
-          .filter((tab) => tab.kind === 'canvas')
-          .map((tab) => tab.title)
-
         void port.canvases
-          .create(createUntitledCanvasTitle(existingTitles))
+          .create(nextUntitledCanvasTitle(workbench.tabs))
           .catch((cause: unknown) => {
             reportFailure('CANVAS_CREATE_FAILED', {
               scope: 'workspace',
@@ -259,13 +262,12 @@ export function WorkspaceContainer({
 
       openCommandPalette: onCommandPaletteOpen,
 
-      openDeveloperTools: developerToolsDisabled ? () => {} : onDeveloperToolsOpen,
+      openDeveloperTools: onDeveloperToolsOpen,
 
-      openSettingsWindow: settingsDisabled ? () => {} : onSettingsOpen,
+      openSettingsWindow: onSettingsOpen,
     }),
     [
       activeEditorSession,
-      developerToolsDisabled,
       handleCloseTab,
       onCommandPaletteOpen,
       onDeveloperToolsOpen,
@@ -273,7 +275,6 @@ export function WorkspaceContainer({
       pages.length,
       port.canvases,
       port.workspace,
-      settingsDisabled,
       workbench.tabs,
     ],
   )
@@ -390,8 +391,8 @@ export function WorkspaceContainer({
           />
         </>
       }
-      panelRenderers={WORKSPACE_PANEL_RENDERERS}
       pages={pages}
+      panelRenderers={WORKSPACE_PANEL_RENDERERS}
       renderChrome={({
         isSidebarOpen,
         sidebarWidth,
@@ -411,8 +412,8 @@ export function WorkspaceContainer({
           onSidebarToggle={onSidebarToggle}
           onStartDragging={onWindowStartDragging}
           sidebarWidth={sidebarWidth}
-          windowControlsDisabled={windowControlsDisabled}
-          windowDraggingDisabled={windowDraggingDisabled}
+          windowControlsDisabled={!capabilities.windowControls}
+          windowDraggingDisabled={!capabilities.windowDragging}
         >
           <WorkbenchTabs
             onActivate={onActivateTab}
@@ -562,20 +563,4 @@ function renderActiveSurface({
         />
       )
   }
-}
-
-function createUntitledCanvasTitle(existingTitles: readonly string[]): string {
-  const baseTitle = '未命名画布'
-
-  if (!existingTitles.includes(baseTitle)) {
-    return baseTitle
-  }
-
-  let suffix = 2
-
-  while (existingTitles.includes(`${baseTitle} ${String(suffix)}`)) {
-    suffix += 1
-  }
-
-  return `${baseTitle} ${String(suffix)}`
 }

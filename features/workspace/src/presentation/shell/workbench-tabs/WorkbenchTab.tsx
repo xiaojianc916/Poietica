@@ -1,8 +1,8 @@
 import { FilePlus, FileText, X } from '@mynaui/icons-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
-import type { WorkbenchTabDragBindings } from './use-workbench-tabs-interactions'
 import { describeWorkspaceSurface } from '../surface-registry'
+import type { WorkbenchTabDragBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
 type TabIcon = ComponentType<{

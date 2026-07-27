@@ -3,7 +3,7 @@ export type {
   UICommand,
   UICommandHandler,
 } from './command-contract'
-
+export type { WorkspacePanelRenderers, WorkspaceSurfaceRenderers } from './surface-contract'
 export {
   type ActiveCanvasViewModel,
   type CanvasId,
@@ -26,5 +26,3 @@ export {
   type WorkspaceSurfaceViewModel,
   type WorkspaceTabViewModel,
 } from './workbench-contract'
-
-export type { WorkspacePanelRenderers, WorkspaceSurfaceRenderers } from './surface-contract'

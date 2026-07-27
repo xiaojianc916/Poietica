@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* biome-ignore-all lint/suspicious/noConsole: Architecture checks are command-line programs that report diagnostics to stdout and stderr. */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 

@@ -1,5 +1,5 @@
-import { Button } from '@poietica/foundations-design-system'
 import { FilePlus, Folder } from '@mynaui/icons-react'
+import { Button } from '@poietica/foundations-design-system'
 
 export interface NoCanvasSurfaceProps {
   readonly onCreateDocument: () => void

@@ -1,7 +1,7 @@
 import {
+  type DiagnosticLogEntry,
   formatDiagnosticLogs,
   getRecentLogEntries,
-  type DiagnosticLogEntry,
 } from '@poietica/foundations-observability'
 
 export interface FailureDiagnosticHint {

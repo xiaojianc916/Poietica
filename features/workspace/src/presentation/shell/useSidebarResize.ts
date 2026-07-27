@@ -1,11 +1,4 @@
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type KeyboardEvent, type MouseEvent, type PointerEvent, useRef, useState } from 'react'
 
 export interface SidebarResizeOptions {
   readonly width: number
@@ -17,54 +10,34 @@ export interface SidebarResizeOptions {
   readonly onCollapse: () => void
 }
 
-interface SidebarResizeCallbacks {
-  /*
-   * These keys always exist in callbacksRef.current.
-   * Their values may be undefined when the public
-   * options were omitted.
-   */
-  readonly onResizeStart: (() => void) | undefined
-
-  readonly onResize: (width: number) => void
-
-  readonly onResizeEnd: (() => void) | undefined
-
-  readonly onCollapse: () => void
-}
-
 interface SidebarDragSession {
   readonly pointerId: number
   readonly element: HTMLHRElement
   readonly startX: number
   readonly startWidth: number
-  readonly previousBodyCursor: string
-  readonly previousBodyUserSelect: string
 }
 
 export interface SidebarResizeBindings {
   readonly isResizing: boolean
-
-  readonly onDoubleClick: (event: React.MouseEvent<HTMLHRElement>) => void
-
+  readonly onDoubleClick: (event: MouseEvent<HTMLHRElement>) => void
   readonly onKeyDown: (event: KeyboardEvent<HTMLHRElement>) => void
-
   readonly onLostPointerCapture: (event: PointerEvent<HTMLHRElement>) => void
-
   readonly onPointerCancel: (event: PointerEvent<HTMLHRElement>) => void
-
   readonly onPointerDown: (event: PointerEvent<HTMLHRElement>) => void
-
   readonly onPointerMove: (event: PointerEvent<HTMLHRElement>) => void
-
   readonly onPointerUp: (event: PointerEvent<HTMLHRElement>) => void
 }
 
 /**
- * Owns the complete sidebar resize session.
+ * 侧边栏分隔条的拖拽会话。
  *
- * Pointer capture is required because a resize may
- * cross the tldraw canvas, another panel, or the
- * visible bounds of the separator.
+ * 指针捕获交给平台：一次 setPointerCapture 之后，move / up / cancel 都会派发到
+ * 分隔条本身，即使指针越过画布或离开窗口，所以不需要 document 上的全局监听，
+ * 也不需要接管 body 的光标与选区——分隔条自身的 cursor-col-resize 与
+ * select-none 在捕获期间持续生效。
+ *
+ * 这里也不再叠加节流：pointermove 由浏览器与显示帧对齐派发（合并事件），
+ * 而宽度写盘已经在 workspaceLayoutStore 里合并到一帧。
  */
 export function useSidebarResize({
   width,
@@ -75,258 +48,121 @@ export function useSidebarResize({
   onResizeEnd,
   onCollapse,
 }: SidebarResizeOptions): SidebarResizeBindings {
-  const dragSessionRef = useRef<SidebarDragSession | null>(null)
-
-  /*
-   * Pointer events can arrive faster than the display refresh rate. Keep the
-   * newest requested width and publish at most once per animation frame.
-   */
-  const resizeFrameRef = useRef<number | null>(null)
-  const pendingWidthRef = useRef<number | null>(null)
+  const sessionRef = useRef<SidebarDragSession | null>(null)
 
   const [isResizing, setResizing] = useState(false)
 
-  const widthRef = useRef(width)
-  const minRef = useRef(min)
-  const maxRef = useRef(max)
+  const clamp = (next: number): number => Math.max(min, Math.min(max, Math.round(next)))
 
-  widthRef.current = width
-  minRef.current = min
-  maxRef.current = max
-
-  const callbacksRef = useRef<SidebarResizeCallbacks>({
-    onResizeStart,
-    onResize,
-    onResizeEnd,
-    onCollapse,
-  })
-
-  callbacksRef.current = {
-    onResizeStart,
-    onResize,
-    onResizeEnd,
-    onCollapse,
-  }
-
-  const clamp = useCallback((nextWidth: number) => {
-    return Math.max(minRef.current, Math.min(maxRef.current, nextWidth))
-  }, [])
-
-  const restoreBodyInteraction = useCallback((session: SidebarDragSession) => {
-    document.body.style.cursor = session.previousBodyCursor
-
-    document.body.style.userSelect = session.previousBodyUserSelect
-  }, [])
-
-  const flushPendingResize = useCallback((publish: boolean) => {
-    if (resizeFrameRef.current !== null) {
-      cancelAnimationFrame(resizeFrameRef.current)
-      resizeFrameRef.current = null
-    }
-
-    const pendingWidth = pendingWidthRef.current
-    pendingWidthRef.current = null
-
-    if (publish && pendingWidth !== null) {
-      callbacksRef.current.onResize(pendingWidth)
-    }
-  }, [])
-
-  const scheduleResize = useCallback((nextWidth: number) => {
-    pendingWidthRef.current = nextWidth
-
-    if (resizeFrameRef.current !== null) {
-      return
-    }
-
-    resizeFrameRef.current = requestAnimationFrame(() => {
-      resizeFrameRef.current = null
-
-      const pendingWidth = pendingWidthRef.current
-      pendingWidthRef.current = null
-
-      if (pendingWidth !== null) {
-        callbacksRef.current.onResize(pendingWidth)
-      }
-    })
-  }, [])
-
-  const finishResize = useCallback(() => {
-    const session = dragSessionRef.current
-
-    if (!session) {
-      return
-    }
-
-    /*
-     * Commit the last pointer position synchronously. This preserves the exact
-     * final width even when pointerup happens before the scheduled frame.
-     *
-     * Clear the drag session before releasing capture because
-     * releasePointerCapture may synchronously dispatch lostpointercapture.
-     */
-    flushPendingResize(true)
-    dragSessionRef.current = null
+  const settle = (session: SidebarDragSession, finalWidth: number): void => {
+    sessionRef.current = null
     setResizing(false)
 
     if (session.element.hasPointerCapture(session.pointerId)) {
       session.element.releasePointerCapture(session.pointerId)
     }
 
-    restoreBodyInteraction(session)
+    onResize(finalWidth)
+    onResizeEnd?.()
+  }
 
-    callbacksRef.current.onResizeEnd?.()
-  }, [flushPendingResize, restoreBodyInteraction])
-
-  useEffect(() => {
-    return () => {
-      flushPendingResize(false)
-
-      const session = dragSessionRef.current
-
-      if (!session) {
-        return
-      }
-
-      dragSessionRef.current = null
-      restoreBodyInteraction(session)
+  const handlePointerDown = (event: PointerEvent<HTMLHRElement>): void => {
+    if (event.button !== 0 || sessionRef.current !== null) {
+      return
     }
-  }, [flushPendingResize, restoreBodyInteraction])
 
-  const handlePointerDown = useCallback(
-    (event: PointerEvent<HTMLHRElement>) => {
-      if (event.button !== 0) {
-        return
-      }
-
-      event.preventDefault()
-      event.stopPropagation()
-
-      finishResize()
-
-      const element = event.currentTarget
-
-      const session: SidebarDragSession = {
-        pointerId: event.pointerId,
-        element,
-        startX: event.clientX,
-        startWidth: widthRef.current,
-        previousBodyCursor: document.body.style.cursor,
-        previousBodyUserSelect: document.body.style.userSelect,
-      }
-
-      dragSessionRef.current = session
-
-      setResizing(true)
-
-      document.body.style.cursor = 'col-resize'
-
-      document.body.style.userSelect = 'none'
-
-      element.setPointerCapture(event.pointerId)
-
-      callbacksRef.current.onResizeStart?.()
-    },
-    [finishResize],
-  )
-
-  const handlePointerMove = useCallback(
-    (event: PointerEvent<HTMLHRElement>) => {
-      const session = dragSessionRef.current
-
-      if (!session || session.pointerId !== event.pointerId) {
-        return
-      }
-
-      event.preventDefault()
-
-      const deltaX = event.clientX - session.startX
-
-      scheduleResize(clamp(session.startWidth + deltaX))
-    },
-    [clamp, scheduleResize],
-  )
-
-  const handlePointerEnd = useCallback(
-    (event: PointerEvent<HTMLHRElement>) => {
-      const session = dragSessionRef.current
-
-      if (!session || session.pointerId !== event.pointerId) {
-        return
-      }
-
-      event.preventDefault()
-      finishResize()
-    },
-    [finishResize],
-  )
-
-  const handlePointerCancel = useCallback(
-    (event: PointerEvent<HTMLHRElement>) => {
-      const session = dragSessionRef.current
-
-      if (!session || session.pointerId !== event.pointerId) {
-        return
-      }
-
-      finishResize()
-    },
-    [finishResize],
-  )
-
-  const handleLostPointerCapture = useCallback(
-    (event: PointerEvent<HTMLHRElement>) => {
-      const session = dragSessionRef.current
-
-      if (!session || session.pointerId !== event.pointerId) {
-        return
-      }
-
-      finishResize()
-    },
-    [finishResize],
-  )
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLHRElement>) => {
-      switch (event.key) {
-        case 'ArrowLeft':
-          event.preventDefault()
-          callbacksRef.current.onResize(clamp(widthRef.current - 16))
-          break
-
-        case 'ArrowRight':
-          event.preventDefault()
-          callbacksRef.current.onResize(clamp(widthRef.current + 16))
-          break
-
-        case 'Home':
-          event.preventDefault()
-          callbacksRef.current.onResize(minRef.current)
-          break
-
-        case 'End':
-          event.preventDefault()
-          callbacksRef.current.onResize(maxRef.current)
-          break
-      }
-    },
-    [clamp],
-  )
-
-  const handleDoubleClick = useCallback((event: React.MouseEvent<HTMLHRElement>) => {
     event.preventDefault()
     event.stopPropagation()
 
-    callbacksRef.current.onCollapse()
-  }, [])
+    const element = event.currentTarget
+
+    sessionRef.current = {
+      pointerId: event.pointerId,
+      element,
+      startX: event.clientX,
+      startWidth: width,
+    }
+
+    setResizing(true)
+    element.setPointerCapture(event.pointerId)
+
+    /* 取得焦点后，拖拽中的 Esc 与拖拽后的方向键微调才能落到分隔条上。 */
+    element.focus()
+
+    onResizeStart?.()
+  }
+
+  const handlePointerMove = (event: PointerEvent<HTMLHRElement>): void => {
+    const session = sessionRef.current
+
+    if (session?.pointerId !== event.pointerId) {
+      return
+    }
+
+    onResize(clamp(session.startWidth + event.clientX - session.startX))
+  }
+
+  const handlePointerEnd = (event: PointerEvent<HTMLHRElement>): void => {
+    const session = sessionRef.current
+
+    if (session?.pointerId !== event.pointerId) {
+      return
+    }
+
+    settle(session, clamp(session.startWidth + event.clientX - session.startX))
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLHRElement>): void => {
+    const session = sessionRef.current
+
+    /* 拖拽中按 Esc 放弃本次调整并回到起始宽度，与通用拖拽语义一致。 */
+    if (event.key === 'Escape') {
+      if (session !== null) {
+        event.preventDefault()
+        settle(session, session.startWidth)
+      }
+
+      return
+    }
+
+    const step = event.shiftKey ? 64 : 16
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        event.preventDefault()
+        onResize(clamp(width - step))
+        break
+
+      case 'ArrowRight':
+        event.preventDefault()
+        onResize(clamp(width + step))
+        break
+
+      case 'Home':
+        event.preventDefault()
+        onResize(min)
+        break
+
+      case 'End':
+        event.preventDefault()
+        onResize(max)
+        break
+    }
+  }
+
+  const handleDoubleClick = (event: MouseEvent<HTMLHRElement>): void => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    onCollapse()
+  }
 
   return {
     isResizing,
     onDoubleClick: handleDoubleClick,
     onKeyDown: handleKeyDown,
-    onLostPointerCapture: handleLostPointerCapture,
-    onPointerCancel: handlePointerCancel,
+    onLostPointerCapture: handlePointerEnd,
+    onPointerCancel: handlePointerEnd,
     onPointerDown: handlePointerDown,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerEnd,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /* biome-ignore-all lint/suspicious/noConsole: Architecture checks are command-line programs that report diagnostics to stdout and stderr. */
 
 /**
@@ -9,8 +10,8 @@
  * adapters stay free of React, and presentation stays free of platform access.
  */
 
-import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'

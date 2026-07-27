@@ -1,6 +1,12 @@
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import { createEditorSessionRegistry } from '@poietica/editor-core/application'
 import { createCanvasDocumentService } from '@poietica/editor-document'
+import type { AgentSessionPort } from '@poietica/features-ai/contracts'
+import {
+  type CommandRegistry,
+  createCommandRegistry,
+  createWorkbenchSessionController,
+} from '@poietica/features-workspace/application'
+import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import {
   createDesktopSettingsStore,
   createDocumentFileCommands,
@@ -9,12 +15,6 @@ import {
   type MainWindowController,
   type SettingsStore,
 } from '@poietica/platforms-desktop-runtime'
-import {
-  type CommandRegistry,
-  createCommandRegistry,
-  createWorkbenchSessionController,
-} from '@poietica/features-workspace/application'
-import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { createDesktopAgentSession } from '../application/ai/agent-session'
 import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'
 import {

@@ -36,10 +36,6 @@ function getSnapshot(): WorkspaceLayoutMode {
   return 'narrow'
 }
 
-function getServerSnapshot(): WorkspaceLayoutMode {
-  return 'wide'
-}
-
 function subscribe(listener: () => void): () => void {
   const queries = [
     mediaQuery(WORKSPACE_LAYOUT.breakpoints.wide),
@@ -58,5 +54,5 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useWorkspaceLayoutMode(): WorkspaceLayoutMode {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+  return useSyncExternalStore(subscribe, getSnapshot)
 }

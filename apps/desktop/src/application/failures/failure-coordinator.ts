@@ -1,20 +1,20 @@
 import {
-  createClassifiedFailure,
-  createFailureScopeKey,
-  isTerminalFailureImpact,
   type ClassifiedFailure,
   type ClassifiedFailureInput,
+  createClassifiedFailure,
+  createFailureScopeKey,
   type FailureScope,
+  isTerminalFailureImpact,
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
 } from '@poietica/foundations-kernel'
 import { error as reportDiagnosticError } from '@poietica/foundations-observability'
 import {
   createFailureDiagnostic,
-  normalizeFailureCause,
-  sanitizeFailureContext,
   type FailureDiagnostic,
   type FailureDiagnosticHint,
+  normalizeFailureCause,
+  sanitizeFailureContext,
 } from './failure-diagnostic'
 
 export interface FailureIncident extends ClassifiedFailure {

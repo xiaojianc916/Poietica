@@ -1,17 +1,4 @@
 import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@poietica/foundations-design-system'
-import {
   BookOpen,
   Box,
   ChartNetwork,
@@ -26,6 +13,19 @@ import {
   RefreshAlt,
   Search,
 } from '@mynaui/icons-react'
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
 
 import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
