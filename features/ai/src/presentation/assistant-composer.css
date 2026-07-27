@@ -1143,3 +1143,116 @@
     animation: none;
   }
 }
+
+/* --- round 103: one menu chrome, reused --- */
+
+/*
+ * A menu is a menu wherever it opens.
+ *
+ * The sidebar overflow popup and the composer session selector draw the same
+ * frame from the same four values, declared once here. They are deliberately
+ * tighter than --cp-radius-menu and --cp-radius-item: those are card radii,
+ * and a card radius on a 28px row reads as a bubble, not as a menu.
+ */
+[data-assistant-skin] {
+  --am-radius: 8px;
+  --am-item: 5px;
+  --am-pad: 4px;
+  --am-line: rgb(13 13 13 / 8%);
+  --am-shadow:
+    0 0 0 0.5px rgb(13 13 13 / 3%), 0 1px 2px rgb(13 13 13 / 5%),
+    0 8px 24px -8px rgb(13 13 13 / 14%);
+}
+
+/* The reusable frame. Anything that opens as a menu carries this class. */
+.assistant-menu-surface {
+  border: 1px solid var(--am-line);
+  border-radius: var(--am-radius);
+  padding: var(--am-pad);
+  background: var(--cp-surface);
+  box-shadow: var(--am-shadow);
+}
+
+/* The session selector keeps its own names, now fed by the shared values. */
+[data-assistant-skin] .assistant-config-menu__panel,
+[data-assistant-skin] .assistant-config-menu__submenu {
+  --sc-radius: var(--am-radius);
+  --sc-item: var(--am-item);
+  --sc-pad: var(--am-pad);
+  --sc-line: var(--am-line);
+  box-shadow: var(--am-shadow);
+}
+
+/*
+ * The sidebar popup, at menu scale.
+ *
+ * The design-system dropdown keeps behaviour, focus order and positioning.
+ * Chrome and geometry are ours, and they are the same ones the selector uses.
+ */
+[data-assistant-skin] .assistant-thread-menu.assistant-thread-menu {
+  min-inline-size: 216px;
+  border: 1px solid var(--am-line);
+  border-radius: var(--am-radius);
+  padding: var(--am-pad);
+  box-shadow: var(--am-shadow);
+  font-size: var(--cp-font-caption);
+}
+
+[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__item {
+  min-block-size: 28px;
+  gap: 8px;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  font-size: var(--cp-font-caption);
+}
+
+[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__item svg {
+  block-size: var(--cp-icon-2xs);
+  inline-size: var(--cp-icon-2xs);
+}
+
+[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__separator {
+  margin: var(--am-pad) 8px;
+}
+
+[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__meta {
+  margin: 2px 8px 0;
+  font-size: var(--cp-font-micro);
+}
+
+/*
+ * Why the popup used to flash at the top left of the window.
+ *
+ * The row actions were laid out with display: none and revealed on hover.
+ * The dropdown drops aria-expanded to false at the start of the close, while
+ * its portalled content is still mounted for the exit, so the trigger left
+ * the layout and the positioning engine measured an anchor with no box: for
+ * one frame the content was placed at the origin. An anchor may not appear
+ * and disappear. The actions are always laid out now and only their paint
+ * changes, and a closing menu paints nothing at all.
+ */
+[data-assistant-skin] .assistant-thread__actions {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-assistant-skin] .assistant-thread:hover .assistant-thread__actions,
+[data-assistant-skin] .assistant-thread__actions:focus-within,
+[data-assistant-skin] .assistant-thread__actions:has([aria-expanded="true"]),
+[data-assistant-skin] .assistant-thread__actions:has([data-state="open"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+[data-assistant-skin] .assistant-thread-menu[data-state="open"] {
+  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
+}
+
+/* No exit paint, and no animation left to wait on, so the popup unmounts at once. */
+[data-assistant-skin] .assistant-thread-menu[data-state="closed"] {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+}

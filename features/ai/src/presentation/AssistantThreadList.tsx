@@ -115,7 +115,7 @@ export function AssistantThreadList({
                       */}
                       <DropdownMenuContent
                         align="end"
-                        className="assistant-thread-menu"
+                        className="assistant-thread-menu assistant-menu-surface"
                         data-assistant-skin
                         side="bottom"
                         sideOffset={4}
