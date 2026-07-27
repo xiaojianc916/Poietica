@@ -954,3 +954,171 @@
   inset-inline-start: auto;
   inset-inline-end: 0;
 }
+
+/*
+ * Round 98: the session selectors, in one menu.
+ *
+ * The border is the one professional menus use, and nothing more: a single
+ * hairline of ink at low opacity, a half-pixel ring so the edge stays crisp
+ * at a fractional device ratio, and one soft shadow cast downward. No bevel,
+ * no gloss, no inset highlight. A menu is a sheet lifted off the page; only
+ * a button is moulded.
+ */
+
+[data-assistant-skin] {
+  --sc-line: rgb(13 13 13 / 12%);
+  --sc-ring: rgb(13 13 13 / 4%);
+  --sc-shade:
+    0 0 0 0.5px var(--sc-ring), 0 1px 2px rgb(13 13 13 / 5%), 0 10px 28px -8px rgb(13 13 13 / 16%);
+  --sc-pad: 6px;
+  --sc-gap: 4px;
+}
+
+[data-assistant-skin] .assistant-config-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+[data-assistant-skin] .assistant-config-menu__panel,
+[data-assistant-skin] .assistant-config-menu__submenu {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: var(--sc-pad);
+  border: 1px solid var(--sc-line);
+  border-radius: var(--cp-radius-menu);
+  background: var(--cp-surface);
+  box-shadow: var(--sc-shade);
+  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-assistant-skin] .assistant-config-menu__panel {
+  inset-block-end: calc(100% + 8px);
+  inset-inline-end: 0;
+  min-inline-size: var(--cp-menu-min);
+}
+
+/*
+ * Values open to the left, because the control sits at the right edge of the
+ * composer and there is no room on that side.
+ */
+[data-assistant-skin] .assistant-config-menu__submenu {
+  inset-inline-end: calc(100% + var(--sc-gap));
+  inset-block-start: calc(var(--sc-pad) * -1);
+  min-inline-size: var(--cp-menu-min-wide);
+  max-inline-size: 300px;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The pointer may cross the gap diagonally, so the gap belongs to the row. */
+[data-assistant-skin] .assistant-config-menu__bridge {
+  position: absolute;
+  inset-block: -8px;
+  inset-inline-end: 100%;
+  inline-size: calc(var(--sc-gap) + 4px);
+}
+
+[data-assistant-skin] .assistant-config-menu__separator {
+  block-size: 0;
+  margin-block: var(--sc-gap);
+  margin-inline: 4px;
+  border-block-start: 1px solid var(--sc-line);
+}
+
+[data-assistant-skin] .assistant-config-menu__row,
+[data-assistant-skin] .assistant-config-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: var(--cp-row);
+  padding-inline: 10px;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-label);
+  text-align: start;
+  cursor: default;
+}
+
+[data-assistant-skin] .assistant-config-menu__row:hover,
+[data-assistant-skin] .assistant-config-menu__row[aria-expanded="true"],
+[data-assistant-skin] .assistant-config-option:hover {
+  background: var(--cp-hover);
+}
+
+[data-assistant-skin] .assistant-config-menu__row:focus-visible,
+[data-assistant-skin] .assistant-config-option:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-value {
+  max-inline-size: 14ch;
+  overflow: hidden;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-chevron {
+  flex: none;
+  inline-size: var(--cp-icon-2xs);
+  block-size: var(--cp-icon-2xs);
+  color: var(--cp-ink-subtle);
+  transform: rotate(90deg);
+}
+
+[data-assistant-skin] .assistant-config-option {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding-block: 7px;
+  padding-inline-end: 28px;
+}
+
+[data-assistant-skin] .assistant-config-option__label {
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-config-option__detail {
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  line-height: 1.45;
+  white-space: normal;
+}
+
+/* The tick is drawn, so no icon set is added for the sake of one glyph. */
+[data-assistant-skin] .assistant-config-option[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 11px;
+  inset-block-start: calc(50% - 6px);
+  inline-size: 5px;
+  block-size: 9px;
+  border-inline-end: 1.5px solid var(--cp-accent);
+  border-block-end: 1.5px solid var(--cp-accent);
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-assistant-skin] .assistant-config-menu__panel,
+  [data-assistant-skin] .assistant-config-menu__submenu {
+    animation: none;
+  }
+}

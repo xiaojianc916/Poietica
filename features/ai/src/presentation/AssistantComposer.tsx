@@ -18,23 +18,24 @@ import {
   PromptInputTools,
 } from './composer/prompt-input'
 import { ModelSelect } from './composer/model-select'
+import { SessionConfigMenu } from './composer/session-config-menu'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { AgentModel } from '../contracts/model-contract'
+import type { SessionConfigControl } from '../contracts/session-config-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
 import { useEditorGrowth } from './useEditorGrowth'
 
 /*
- * The model is offered as a list, because this is a window.
+ * The choices are offered as a menu, because this is a window.
  *
- * The pinned ACP surface has no model API, so the choice is not a protocol
- * operation and cannot be sent down this connection at all; and the command a
- * terminal would accept is, through a prompt, merely a sentence addressed to
- * the agent. The composer therefore shows what it is given and reports what
- * was picked, and the work of making it true happens where the agent reads
- * its own configuration.
+ * The session itself publishes what can be changed and accepts a change to
+ * any of it, so one menu carries the model, the reasoning level and the mode
+ * together and reports which value was picked. The earlier claim that the
+ * protocol had no model API was mistaken: it publishes them as session
+ * config options, which is what the menu now reads.
  *
- * With no list, there is no control: an empty picker would be a promise this
- * surface cannot keep.
+ * The older list, read from the agent configuration file, remains for the
+ * moment a fallback for the time before a session exists.
  */
 
 export interface AssistantComposerProps {
@@ -47,6 +48,9 @@ export interface AssistantComposerProps {
   readonly models?: readonly AgentModel[]
   readonly activeModelId?: string
   readonly onSelectModel?: (modelId: string) => void
+  /** Selectors the running session reports. Absent until a session exists. */
+  readonly selectors?: readonly SessionConfigControl[]
+  readonly onSelectConfig?: (configId: string, value: string) => void
 }
 
 export function AssistantComposer({
@@ -58,6 +62,8 @@ export function AssistantComposer({
   models = [],
   activeModelId,
   onSelectModel,
+  selectors = [],
+  onSelectConfig,
 }: AssistantComposerProps) {
   const [text, setText] = useState('')
 
@@ -218,7 +224,11 @@ export function AssistantComposer({
 
         <span className="assistant-toolbar__spacer" />
 
-        <ModelSelect activeModelId={activeModelId} models={models} onSelect={onSelectModel} />
+        {selectors.length > 0 ? (
+          <SessionConfigMenu controls={selectors} onSelect={onSelectConfig} />
+        ) : (
+          <ModelSelect activeModelId={activeModelId} models={models} onSelect={onSelectModel} />
+        )}
 
         <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
           <MicIcon aria-hidden="true" />
