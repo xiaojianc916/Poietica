@@ -1,151 +1,194 @@
-=== 1. the config commands, verbatim ===
-440      pub label: String,
-441      /// The explanation the agent gave, where it gave one.
-442      pub detail: Option<String>,
-443      /// Where this selector belongs on screen.
-444      pub purpose: AgentConfigPurpose,
-445      /// The value in force right now.
-446      pub current: String,
-447      /// Every value on offer.
-448      pub choices: Vec<AgentConfigChoice>,
-449  }
-450  
-451  /// A change made in the interface.
-452  #[derive(Debug, Deserialize, Type)]
-453  #[serde(rename_all = "camelCase")]
-454  pub struct AgentSelectConfigRequest {
-455      /// One of the selector identifiers the session reported.
-456      pub config_id: String,
-457      /// One of the values that selector offered.
-458      pub value: String,
-459  }
-460  
-461  /// Lists the selectors the running session offers.
-462  ///
-463  /// The agent reports these when the session is created, so an empty list
-464  /// means no session is running yet rather than a session without choices.
-465  /// Nothing is invented here: a model, a reasoning level or a mode appears
-466  /// in this list only because the agent named it.
-467  ///
-468  /// # Errors
-469  ///
-470  /// Fails when the session lock was poisoned or the driver has stopped.
-471  #[tauri::command]
-472  #[specta::specta]
-473  pub async fn agent_config_options(
-474      state: State<'_, AgentRuntime>,
-475  ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-476      // A selector belongs to a session, so asking what is on offer is what
-477      // starts one. The alternative was to answer with nothing until the
-478      // first prompt, which left the interface showing a model read from a
-479      // file that the session, once it existed, might not be following.
-480      //
-481      // Opening this surface is the user opening the feature, which is not
-482      // the same as paying for it at launch: nothing here runs until the
-483      // interface asks.
-484      let live = ensure_session(&state, None, None).await?;
-485  
-486      let answer = live.client.selectors().map_err(translate)?;
-487      let offered = answer
-488          .await
-489          .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-490          .map_err(translate)?;
-491  
-492      Ok(offered.into_iter().map(restate).collect())
-493  }
-494  
-495  /// Changes one selector on the running session.
-496  ///
-497  /// The change applies to the session in flight, so nothing is restarted
-498  /// and nothing is written to the agent configuration file. The answer is
-499  /// the whole list as the agent reports it afterwards, because one change
-500  /// may add or remove another selector.
-501  ///
-502  /// # Errors
-503  ///
-504  /// Fails when no session is running, when a turn is in flight, or when
-505  /// the agent refuses the value.
-506  #[tauri::command]
-507  #[specta::specta]
-508  pub async fn agent_set_config_option(
-509      state: State<'_, AgentRuntime>,
-510      request: AgentSelectConfigRequest,
-511  ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-512      let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
-513  
-514      let answer = live
-515          .client
-516          .select(request.config_id, request.value)
-517          .map_err(translate)?;
-518      let offered = answer
-519          .await
-520          .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-521          .map_err(translate)?;
-522  
-523      Ok(offered.into_iter().map(restate).collect())
-524  }
-525  
-526  /// Restates one selector in the shape the generated bindings carry.
-527  fn restate(control: ConfigControl) -> AgentConfigControl {
-528      AgentConfigControl {
-529          id: control.id,
-530          label: control.label,
-531          detail: control.detail,
-532          purpose: match control.purpose {
-533              ConfigPurpose::Mode => AgentConfigPurpose::Mode,
-534              ConfigPurpose::Model => AgentConfigPurpose::Model,
-535              ConfigPurpose::Thought => AgentConfigPurpose::Thought,
-536              ConfigPurpose::Other => AgentConfigPurpose::Other,
-537          },
-538          current: control.current,
-539          choices: control
-540              .choices
-541              .into_iter()
-542              .map(|choice| AgentConfigChoice {
-543                  value: choice.value,
-544                  label: choice.label,
-545                  detail: choice.detail,
-546              })
-547              .collect(),
-548      }
-549  }
-550  
-551  /// Restates the list in the shape the generated bindings carry.
-552  fn describe(list: ModelList) -> AgentModelList {
-553      AgentModelList {
-554          active: list.active,
-555          models: list
-556              .models
-557              .into_iter()
-558              .map(|model| AgentModelDescriptor {
-559                  id: model.id,
-560                  label: model.label,
-=== 2. app.rs :: agent lines ===
-56  commands::agent::agent_prompt,
-57  commands::agent::agent_cancel,
-58  commands::agent::agent_resolve_permission,
-59  commands::agent::agent_shutdown,
-60  commands::agent::agent_load_run,
-61  commands::agent::agent_models,
-62  commands::agent::agent_select_model,
-63  commands::agent::agent_config_options,
-64  commands::agent::agent_set_config_option,
-=== 3. export_bindings.rs :: agent lines ===
-52  crate::commands::agent::agent_prompt,
-53  crate::commands::agent::agent_cancel,
-54  crate::commands::agent::agent_resolve_permission,
-55  crate::commands::agent::agent_shutdown,
-56  crate::commands::agent::agent_load_run,
-57  crate::commands::agent::agent_models,
-58  crate::commands::agent::agent_select_model,
-59  crate::commands::agent::agent_config_options,
-60  crate::commands::agent::agent_set_config_option,
-=== 4. the thread store ===
--- features\ai\native\src\store.rs
-   74  pub fn open(path: &Path) -> Result<Self> {
-   85  pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
-   96  pub fn create_thread(&self, title: &str) -> Result<Uuid> {
-   114  pub fn start_run(&self, thread_id: Uuid) -> Result<Uuid> {
-   138  pub fn append_event(
-   173  pub fn events_since(&self, run_id: Uuid, after_seq: i64) -> Result<Vec<StoredEvent>> {
-   212  pub fn finish_run(
+=== 1. migrations.rs (whole) ===
+1  use rusqlite::Connection;
+2  
+3  use crate::error::Result;
+4  
+5  /// Ordered migrations. Never edit one that has shipped; add the next.
+6  const MIGRATIONS: &[(i64, &str, &str)] = &[(1, "initial", include_str!("schema/0001_initial.sql"))];
+7  
+8  /// Brings the database up to the current schema version.
+9  ///
+10  /// Each migration runs inside a transaction together with the row that records
+11  /// it, so a failure leaves no half applied schema behind.
+12  ///
+13  /// # Errors
+14  ///
+15  /// Fails when a migration statement is rejected.
+16  pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
+17      connection.execute_batch(
+18          "CREATE TABLE IF NOT EXISTS schema_migrations (
+19              version    INTEGER PRIMARY KEY,
+20              name       TEXT    NOT NULL,
+21              applied_at TEXT    NOT NULL
+22           ) STRICT;",
+23      )?;
+24  
+25      let applied: i64 = connection.query_row(
+26          "SELECT coalesce(max(version), 0) FROM schema_migrations",
+27          [],
+28          |row| row.get(0),
+29      )?;
+30  
+31      for (version, name, sql) in MIGRATIONS {
+32          if *version <= applied {
+33              continue;
+34          }
+35  
+36          let transaction = connection.transaction()?;
+37          transaction.execute_batch(sql)?;
+38          transaction.execute(
+39              "INSERT INTO schema_migrations (version, name, applied_at)
+40               VALUES (?1, ?2, datetime('now'))",
+41              rusqlite::params![version, name],
+42          )?;
+43          transaction.commit()?;
+44      }
+45  
+46      Ok(())
+47  }
+48  
+=== 2. store.rs 1-140 ===
+1  use std::path::Path;
+2  
+3  use rusqlite::{Connection, ErrorCode};
+4  use serde::{Deserialize, Serialize};
+5  use time::OffsetDateTime;
+6  use time::format_description::well_known::Rfc3339;
+7  use uuid::Uuid;
+8  
+9  use crate::connection::open_encrypted;
+10  use crate::error::{Result, StoreError};
+11  use crate::key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
+12  use crate::migrations::migrate;
+13  
+14  /// Lifecycle of a single agent run.
+15  #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+16  #[serde(rename_all = "snake_case")]
+17  pub enum RunStatus {
+18      /// The agent is still producing updates.
+19      Running,
+20      /// The agent stopped on its own terms.
+21      Finished,
+22      /// The agent or the transport failed.
+23      Failed,
+24      /// The user stopped it.
+25      Cancelled,
+26  }
+27  
+28  impl RunStatus {
+29      const fn as_str(self) -> &'static str {
+30          match self {
+31              Self::Running => "running",
+32              Self::Finished => "finished",
+33              Self::Failed => "failed",
+34              Self::Cancelled => "cancelled",
+35          }
+36      }
+37  }
+38  
+39  /// One recorded entry of the event log.
+40  #[derive(Clone, Debug, Deserialize, Serialize)]
+41  pub struct StoredEvent {
+42      /// Position within the run, starting at one.
+43      pub seq: i64,
+44      /// Discriminator carried by the event payload.
+45      pub kind: String,
+46      /// The event itself, as it was received.
+47      pub payload: serde_json::Value,
+48      /// When the event was written, in RFC 3339.
+49      pub recorded_at: String,
+50  }
+51  
+52  /// Owns the encrypted database.
+53  ///
+54  /// A single writer is intentional. The log is the contention point and its
+55  /// ordering is what everything else relies on, so serialising writes here is
+56  /// simpler and safer than reconciling interleaved sequence numbers later.
+57  #[derive(Debug)]
+58  pub struct AiStore {
+59      pub(crate) connection: Connection,
+60  }
+61  
+62  pub(crate) fn now() -> Result<String> {
+63      Ok(OffsetDateTime::now_utc().format(&Rfc3339)?)
+64  }
+65  
+66  impl AiStore {
+67      /// Opens the store with the key held in the operating system credential
+68      /// store.
+69      ///
+70      /// # Errors
+71      ///
+72      /// Fails when the credential store is unavailable, the key does not fit
+73      /// the file, or a migration is rejected.
+74      pub fn open(path: &Path) -> Result<Self> {
+75          let key = DatabaseKey::load_or_create(KEY_SERVICE, KEY_ACCOUNT)?;
+76          Self::open_with_key(path, &key)
+77      }
+78  
+79      /// Opens the store with a caller supplied key, which is how the tests run
+80      /// without touching a real credential store.
+81      ///
+82      /// # Errors
+83      ///
+84      /// Fails when the key does not fit the file or a migration is rejected.
+85      pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
+86          let mut connection = open_encrypted(path, key)?;
+87          migrate(&mut connection)?;
+88          Ok(Self { connection })
+89      }
+90  
+91      /// Creates a thread and returns its identifier.
+92      ///
+93      /// # Errors
+94      ///
+95      /// Fails when the insert is rejected.
+96      pub fn create_thread(&self, title: &str) -> Result<Uuid> {
+97          let id = Uuid::now_v7();
+98          let timestamp = now()?;
+99  
+100          self.connection.execute(
+101              "INSERT INTO threads (id, title, created_at, updated_at)
+102               VALUES (?1, ?2, ?3, ?3)",
+103              rusqlite::params![id.to_string(), title, timestamp],
+104          )?;
+105  
+106          Ok(id)
+107      }
+108  
+109      /// Starts a run inside a thread and returns its identifier.
+110      ///
+111      /// # Errors
+112      ///
+113      /// Fails when the insert is rejected.
+114      pub fn start_run(&self, thread_id: Uuid) -> Result<Uuid> {
+115          let id = Uuid::now_v7();
+116          let timestamp = now()?;
+117  
+118          self.connection.execute(
+119              "INSERT INTO runs (id, thread_id, status, started_at)
+120               VALUES (?1, ?2, ?3, ?4)",
+121              rusqlite::params![
+122                  id.to_string(),
+123                  thread_id.to_string(),
+124                  RunStatus::Running.as_str(),
+125                  timestamp,
+126              ],
+127          )?;
+128  
+129          Ok(id)
+130      }
+131  
+132      /// Appends an event to a run.
+133      ///
+134      /// # Errors
+135      ///
+136      /// Returns [`StoreError::DuplicateSeq`] when the sequence number was
+137      /// already recorded, which is how a redelivered session update is rejected.
+138      pub fn append_event(
+139          &self,
+140          run_id: Uuid,
+=== 3. where the fake threads live ===
+features\ai\src\presentation\AssistantThreadList.tsx:13  export interface AssistantThreadSummary {
+features\ai\src\presentation\AssistantThreadList.tsx:22  readonly threads: readonly AssistantThreadSummary[]
+features\ai\src\presentation\public-api.ts:7  export type { AssistantThreadListProps, AssistantThreadSummary } from './AssistantThreadList'

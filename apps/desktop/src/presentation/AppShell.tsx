@@ -86,7 +86,7 @@ export function AppShell({ runtime }: AppShellProps) {
     if (capabilities.settings) {
       setSettingsOpen(true)
     }
-  }, [capabilities])
+  }, [capabilities.settings])
 
   const createCanvasWithFeedback = useCallback(
     async (title: string): Promise<void> => {
@@ -139,7 +139,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [capabilities, runtime.mainWindow])
+  }, [capabilities.developerTools, runtime.mainWindow])
 
   useApplicationCommands(
     runtime,

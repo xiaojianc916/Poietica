@@ -33,11 +33,18 @@
   --desktop-window-close-foreground: #ffffff;
 }
 
+/*
+ * 这里只保留 border-color。
+ *
+ * box-sizing 由 Tailwind preflight 对 *、::before、::after 设过，重复。
+ * 两条字体平滑是继承属性，写在 * 上等于为文档里每个元素各匹配计算一次，写在
+ * body 上一次即可，渲染结果相同。
+ *
+ * border-color 必须留：Tailwind v4 把默认边框色改成了 currentColor，这条是
+ * 有意的行为覆盖，不是重复。
+ */
 * {
-  box-sizing: border-box;
   border-color: var(--color-divider);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
@@ -50,11 +57,11 @@ body,
 }
 
 body {
-  margin: 0;
-  width: 100%;
   overflow: hidden;
   font-family: var(--ui-font-sans);
   color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .bootstrap-error {
@@ -126,18 +133,15 @@ body {
 }
 
 .fatal-icon-button:hover {
-  background: transparent;
   opacity: 1;
 }
 
 .fatal-icon-button:active {
-  background: transparent;
   opacity: 1;
   transform: scale(0.9);
 }
 
 .fatal-icon-button:focus-visible {
-  background: transparent;
   opacity: 1;
   outline: 2px solid var(--color-foreground);
   outline-offset: 2px;
@@ -147,7 +151,6 @@ body {
   display: block;
   width: 18px;
   height: 18px;
-  overflow: visible;
 }
 
 .fatal-details,
