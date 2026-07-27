@@ -63,13 +63,19 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
         >
           {tabs.map((tab, index) => (
             <WorkbenchTab
-              drag={interactions.drag}
+              dropSide={
+                interactions.reorderState.insertion?.targetId === tab.id
+                  ? interactions.reorderState.insertion.side
+                  : null
+              }
+              isDragging={interactions.reorderState.draggingTabId === tab.id}
               key={tab.id}
               model={tab}
               onActivate={onActivate}
               onKeyDown={interactions.onKeyDown}
               onRequestClose={interactions.requestClose}
               registerTab={viewport.registerTab}
+              reorder={interactions.reorder}
               targetIndex={index}
             />
           ))}

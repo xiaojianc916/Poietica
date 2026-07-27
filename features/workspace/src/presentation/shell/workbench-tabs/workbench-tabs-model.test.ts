@@ -3,9 +3,10 @@ import type { WorkbenchTabId } from '../../../contracts/workbench-contract'
 import {
   encodeWorkbenchTabDomId,
   resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabDrop,
+  resolveWorkbenchTabInsertion,
   resolveWorkbenchTabKeyboardAction,
   type WorkbenchTabModelItem,
+  type WorkbenchTabSlot,
 } from './workbench-tabs-model'
 
 describe('Workbench Tabs model', () => {
@@ -15,6 +16,14 @@ describe('Workbench Tabs model', () => {
     createTab('second'),
 
     createTab('fixed', false),
+  ]
+
+  const slots: readonly WorkbenchTabSlot[] = [
+    slot('first', 0, 100),
+
+    slot('second', 100, 200),
+
+    slot('fixed', 200, 300),
   ]
 
   it('moves and wraps keyboard navigation', () => {
@@ -62,49 +71,40 @@ describe('Workbench Tabs model', () => {
     expect(resolveWorkbenchTabCloseTarget([createTab('only', true)], id('only'))).toBeNull()
   })
 
-  it('resolves a local drag session', () => {
-    expect(
-      resolveWorkbenchTabDrop({
-        sessionTabId: id('first'),
-
-        transferredTabId: '',
-
-        targetIndex: 2,
-        tabCount: 3,
-      }),
-    ).toEqual({
-      tabId: id('first'),
-      targetIndex: 2,
+  it('inserts after the last tab when the pointer passes its midpoint', () => {
+    expect(resolveWorkbenchTabInsertion(slots, 0, 260)).toEqual({
+      targetId: id('fixed'),
+      side: 'after',
+      index: 2,
     })
   })
 
-  it('uses a transferred drag identity as fallback', () => {
-    expect(
-      resolveWorkbenchTabDrop({
-        sessionTabId: null,
-
-        transferredTabId: ' second ',
-
-        targetIndex: 1,
-        tabCount: 3,
-      }),
-    ).toEqual({
-      tabId: id('second'),
-      targetIndex: 1,
+  it('inserts before the first tab when the pointer moves left', () => {
+    expect(resolveWorkbenchTabInsertion(slots, 2, 40)).toEqual({
+      targetId: id('first'),
+      side: 'before',
+      index: 0,
     })
   })
 
-  it.each([-1, 3, 1.5, Number.NaN])('rejects invalid drop target %s', (targetIndex) => {
-    expect(
-      resolveWorkbenchTabDrop({
-        sessionTabId: id('first'),
+  it('resolves a slot beyond the neighbour midpoint', () => {
+    expect(resolveWorkbenchTabInsertion(slots, 0, 160)).toEqual({
+      targetId: id('second'),
+      side: 'after',
+      index: 1,
+    })
+  })
 
-        transferredTabId: '',
+  it('ignores a pointer that stays inside its own slot', () => {
+    expect(resolveWorkbenchTabInsertion(slots, 0, 120)).toBeNull()
+  })
 
-        targetIndex,
-        tabCount: 3,
-      }),
-    ).toBeNull()
+  it.each([-1, 3])('rejects an out-of-range source index %s', (fromIndex) => {
+    expect(resolveWorkbenchTabInsertion(slots, fromIndex, 120)).toBeNull()
+  })
+
+  it('rejects an empty strip', () => {
+    expect(resolveWorkbenchTabInsertion([], 0, 0)).toBeNull()
   })
 
   it('encodes stable DOM identifiers', () => {
@@ -116,6 +116,14 @@ function createTab(value: string, canClose = true): WorkbenchTabModelItem {
   return {
     id: id(value),
     canClose,
+  }
+}
+
+function slot(value: string, start: number, end: number): WorkbenchTabSlot {
+  return {
+    id: id(value),
+    start,
+    end,
   }
 }
 

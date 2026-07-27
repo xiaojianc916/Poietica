@@ -18,20 +18,23 @@ export type WorkbenchTabKeyboardAction =
       readonly tabId: WorkbenchTabId
     }
 
-export interface WorkbenchTabDropInput {
-  readonly sessionTabId: WorkbenchTabId | null
+/** 一个标签在标签条上占据的横向区间，拖拽开始时快照一次。 */
+export interface WorkbenchTabSlot {
+  readonly id: WorkbenchTabId
 
-  readonly transferredTabId: string
+  readonly start: number
 
-  readonly targetIndex: number
-
-  readonly tabCount: number
+  readonly end: number
 }
 
-export interface WorkbenchTabDrop {
-  readonly tabId: WorkbenchTabId
+export interface WorkbenchTabInsertion {
+  /** 指示器画在哪个标签的哪一侧。 */
+  readonly targetId: WorkbenchTabId
 
-  readonly targetIndex: number
+  readonly side: 'before' | 'after'
+
+  /** 结果列表中的目标位置，与 onMove 的既有契约一致。 */
+  readonly index: number
 }
 
 export function resolveWorkbenchTabKeyboardAction(
@@ -89,25 +92,45 @@ export function resolveWorkbenchTabCloseTarget(
   return tabs[closingIndex + 1]?.id ?? tabs[closingIndex - 1]?.id ?? null
 }
 
-export function resolveWorkbenchTabDrop({
-  sessionTabId,
-  transferredTabId,
-  targetIndex,
-  tabCount,
-}: WorkbenchTabDropInput): WorkbenchTabDrop | null {
-  if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= tabCount) {
+/*
+ * 指针落在哪两个标签之间，由各标签中线决定；越过最后一条中线就是排到末尾。
+ * 指针不必落在某个标签上——这正是 HTML5 拖放做不到的那一点。
+ */
+export function resolveWorkbenchTabInsertion(
+  slots: readonly WorkbenchTabSlot[],
+  fromIndex: number,
+  pointerX: number,
+): WorkbenchTabInsertion | null {
+  if (slots.length === 0 || fromIndex < 0 || fromIndex >= slots.length) {
     return null
   }
 
-  const tabId = sessionTabId ?? normalizeTransferredTabId(transferredTabId)
+  let insertBefore = slots.length
 
-  if (!tabId) {
+  for (const [index, slot] of slots.entries()) {
+    if (pointerX < (slot.start + slot.end) / 2) {
+      insertBefore = index
+
+      break
+    }
+  }
+
+  const index = insertBefore > fromIndex ? insertBefore - 1 : insertBefore
+
+  if (index === fromIndex) {
+    return null
+  }
+
+  const target = slots[index]
+
+  if (!target) {
     return null
   }
 
   return {
-    tabId,
-    targetIndex,
+    targetId: target.id,
+    side: index > fromIndex ? 'after' : 'before',
+    index,
   }
 }
 
@@ -132,14 +155,4 @@ function resolveTargetIndex(key: string, currentIndex: number, tabCount: number)
     default:
       return null
   }
-}
-
-function normalizeTransferredTabId(value: string): WorkbenchTabId | null {
-  const normalized = value.trim()
-
-  if (normalized.length === 0) {
-    return null
-  }
-
-  return normalized as WorkbenchTabId
 }

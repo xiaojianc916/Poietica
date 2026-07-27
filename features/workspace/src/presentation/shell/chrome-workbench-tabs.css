@@ -9,11 +9,6 @@
  * - The baseline under the active tab is intentionally not drawn.
  */
 
-.chrome-workbench-tabs,
-.chrome-workbench-tabs * {
-  box-sizing: border-box;
-}
-
 .chrome-workbench-tabs {
   --chrome-tab-height: 32px;
   --chrome-tab-min-width: 88px;
@@ -92,9 +87,6 @@
   overflow-y: hidden;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
-  scroll-padding-inline: 4px 34px;
-  scroll-snap-type: x proximity;
-  overscroll-behavior-inline: contain;
 }
 
 .chrome-workbench-tabs__scroller::-webkit-scrollbar {
@@ -118,8 +110,6 @@
   overflow: visible;
   isolation: isolate;
   user-select: none;
-  scroll-snap-align: start;
-  scroll-snap-stop: normal;
 }
 
 .chrome-workbench-tab:first-child {
@@ -132,13 +122,6 @@
 
 .chrome-workbench-tab:hover:not([data-active="true"]) {
   z-index: 3;
-}
-
-.chrome-workbench-tab[data-active="true"]::before,
-.chrome-workbench-tab[data-active="true"]::after {
-  display: none;
-  content: none;
-  box-shadow: none;
 }
 
 .chrome-workbench-tab__active-shape {
@@ -198,16 +181,11 @@
 }
 
 /*
- * 一个选择器一处定义。
+ * transition 在 __activation：变色发生在那里，不在这里。
  *
- * 这里原本有四条规则写同一个元素：基础块，加一组三选择器（元素本身、活动态、
- * 非活动态——三者匹配的是同一批元素），再加一条悬停规则和一条抑制悬停规则，
- * 后两条设的值与基础块逐字相同。删掉的是重复，不是样式。
- *
- * transition 搬到了 __activation：变色发生在那里，不在这里。
- *
- * border / border-radius / outline / box-shadow 的归零保留。无法确认全局层
- * 是否给 div 加过边框，留这四行比赌一次渲染便宜。
+ * 不再对 border / outline / box-shadow / background 做归零：Tailwind preflight
+ * 已对 *、::before、::after 设 border-width: 0，其余三项的初始值本就是空，
+ * 全仓也没有命中这个元素的全局规则。
  */
 .chrome-workbench-tab__content {
   position: absolute;
@@ -218,11 +196,6 @@
   min-width: 0;
   padding: 0 8px;
   overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .chrome-workbench-tab__separator {
@@ -243,11 +216,8 @@
   z-index: 3;
   inset: 2px 3px;
   display: block;
-  border: 0;
   border-radius: var(--ui-radius-md);
-  outline: 0;
   background: var(--chrome-tab-hover);
-  box-shadow: none;
   content: "";
   opacity: 0;
   pointer-events: none;
@@ -319,10 +289,6 @@
   line-height: 16px;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.chrome-workbench-tab[data-active="true"] .chrome-workbench-tab__title {
-  font-weight: var(--ui-font-weight-regular);
 }
 
 .chrome-workbench-tab__end {
@@ -403,7 +369,15 @@
   opacity: 0;
 }
 
+/*
+ * 新建按钮只有一种形态：常驻标签条右端，滚动时贴边，所以底色必须是不透明的
+ * 条底色，否则滚过它下面的标签会透出来。原先拆成基类 + --sticky 两个类，而
+ * 两者在唯一的调用点上总是同时出现，其中五条声明还逐字重复。
+ */
 .chrome-workbench-tabs__new-tab {
+  position: sticky;
+  z-index: 8;
+  right: 4px;
   align-self: center;
   display: grid;
   width: 26px;
@@ -415,16 +389,17 @@
   border: 0;
   border-radius: var(--ui-radius-sm);
   color: var(--color-muted-foreground);
-  background: transparent;
+  background: var(--chrome-tab-strip);
+  isolation: isolate;
 }
 
 .chrome-workbench-tabs__new-tab:hover {
   color: var(--color-foreground);
-  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  background: color-mix(in srgb, var(--color-foreground) 8%, var(--chrome-tab-strip));
 }
 
 .chrome-workbench-tabs__new-tab:active {
-  background: color-mix(in srgb, var(--color-foreground) 14%, transparent);
+  background: color-mix(in srgb, var(--color-foreground) 14%, var(--chrome-tab-strip));
 }
 
 .chrome-workbench-tabs__new-tab:focus-visible {
@@ -441,26 +416,33 @@
   pointer-events: auto;
 }
 
-.chrome-workbench-tabs__new-tab--sticky {
-  position: sticky;
-  z-index: 8;
-  right: 4px;
-  align-self: center;
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  margin: 0 3px 1px 2px;
-  background: var(--chrome-tab-strip);
-  isolation: isolate;
+/*
+ * 重排会话的两个视觉信号：被拖动的标签降透明度，插入位置用一条竖线画在目标
+ * 标签的对应边。指示器用的是 ::after —— 这个伪元素上原本挂着一条把它显式关掉
+ * 的死规则（它从来没有定义过），现在它有了真正的用途。
+ */
+.chrome-workbench-tab[data-dragging="true"] {
+  opacity: 0.45;
 }
 
-.chrome-workbench-tabs__new-tab--sticky:hover {
-  color: var(--color-foreground);
-  background: color-mix(in srgb, var(--color-foreground) 8%, var(--chrome-tab-strip));
+.chrome-workbench-tab[data-drop-side]::after {
+  position: absolute;
+  z-index: 9;
+  top: 4px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-primary);
+  content: "";
+  pointer-events: none;
 }
 
-.chrome-workbench-tabs__new-tab--sticky:active {
-  background: color-mix(in srgb, var(--color-foreground) 14%, var(--chrome-tab-strip));
+.chrome-workbench-tab[data-drop-side="before"]::after {
+  left: 2px;
+}
+
+.chrome-workbench-tab[data-drop-side="after"]::after {
+  right: 2px;
 }
 
 @keyframes chrome-workbench-saving {

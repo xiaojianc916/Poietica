@@ -9,7 +9,6 @@ export interface MainWindowController {
   close(): Promise<void>
   forceClose(): void
   onCloseRequested(handler: () => void): Promise<() => void>
-  startDragging(): Promise<void>
   setTitle(title: string): Promise<void>
   saveState(): Promise<void>
 }
@@ -81,10 +80,6 @@ export function createMainWindowController(): MainWindowController {
         event.preventDefault()
         handler()
       })
-    },
-    async startDragging() {
-      const window = await getMainWindow()
-      await window.startDragging()
     },
     setTitle: (title) => invoke('window_set_title', { label: MAIN_WINDOW_LABEL, title }),
     saveState: () => invoke('window_save_state'),

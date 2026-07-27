@@ -2,7 +2,7 @@ import { FilePlus, FileText, X } from '@mynaui/icons-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import { describeWorkspaceSurface } from '../surface-registry'
-import type { WorkbenchTabDragBindings } from './use-workbench-tabs-interactions'
+import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
 type TabIcon = ComponentType<{
@@ -26,7 +26,11 @@ interface WorkbenchTabProps {
 
   readonly targetIndex: number
 
-  readonly drag: WorkbenchTabDragBindings
+  readonly reorder: WorkbenchTabReorderBindings
+
+  readonly isDragging: boolean
+
+  readonly dropSide: 'before' | 'after' | null
 
   readonly onActivate: (tabId: WorkbenchTabId) => void
 
@@ -40,7 +44,9 @@ interface WorkbenchTabProps {
 export function WorkbenchTab({
   model,
   targetIndex,
-  drag,
+  reorder,
+  isDragging,
+  dropSide,
   onActivate,
   onRequestClose,
   onKeyDown,
@@ -52,21 +58,18 @@ export function WorkbenchTab({
 
   /*
    * role="presentation"：tablist 的拥有元素必须是 tab。这层容器只承载几何与
-   * 拖拽绑定，把它从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
+   * 指针会话，把它从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
+   *
+   * 指针捕获挂在这一层，所以拖动越过其它标签时事件仍然回到这里；click 不受
+   * 指针捕获影响，阈值以下的按压照常激活标签。
    */
   return (
     <div
       className="chrome-workbench-tab"
       data-active={model.isActive ? 'true' : 'false'}
-      draggable={model.canClose}
-      onDragEnd={drag.onDragEnd}
-      onDragOver={drag.onDragOver}
-      onDragStart={(event) => {
-        drag.onDragStart(event, model)
-      }}
-      onDrop={(event) => {
-        drag.onDrop(event, targetIndex)
-      }}
+      {...(isDragging ? { 'data-dragging': 'true' } : {})}
+      {...(dropSide ? { 'data-drop-side': dropSide } : {})}
+      onLostPointerCapture={reorder.onLostPointerCapture}
       onMouseDown={(event) => {
         if (event.button === 1 && model.canClose) {
           event.preventDefault()
@@ -74,9 +77,15 @@ export function WorkbenchTab({
           onRequestClose(model.id)
         }
       }}
+      onPointerCancel={reorder.onPointerCancel}
+      onPointerDown={(event) => {
+        reorder.onPointerDown(event, model, targetIndex)
+      }}
       onPointerLeave={(event) => {
         event.currentTarget.removeAttribute('data-suppress-hover')
       }}
+      onPointerMove={reorder.onPointerMove}
+      onPointerUp={reorder.onPointerUp}
       role="presentation"
     >
       <div aria-hidden="true" className="chrome-workbench-tab__active-shape">

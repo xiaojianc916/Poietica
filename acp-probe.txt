@@ -1,72 +1,151 @@
---- \schema\client_to_agent\requests.rs (whole) ---
-1  use crate::schema::v1::{
-2      AuthenticateRequest, AuthenticateResponse, CloseSessionRequest, CloseSessionResponse,
-3      DeleteSessionRequest, DeleteSessionResponse, InitializeRequest, InitializeResponse,
-4      ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
-5      LogoutRequest, LogoutResponse, NewSessionRequest, NewSessionResponse, PromptRequest,
-6      PromptResponse, ResumeSessionRequest, ResumeSessionResponse, SetSessionConfigOptionRequest,
-7      SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
-8  };
-9  #[cfg(feature = "unstable_session_fork")]
-10  use crate::schema::v1::{ForkSessionRequest, ForkSessionResponse};
-11  
-12  impl_jsonrpc_request!(InitializeRequest, InitializeResponse, "initialize");
-13  impl_jsonrpc_request!(AuthenticateRequest, AuthenticateResponse, "authenticate");
-14  impl_jsonrpc_request!(LogoutRequest, LogoutResponse, "logout");
-15  impl_jsonrpc_request!(LoadSessionRequest, LoadSessionResponse, "session/load");
-16  impl_jsonrpc_request!(ListSessionsRequest, ListSessionsResponse, "session/list");
-17  impl_jsonrpc_request!(
-18      DeleteSessionRequest,
-19      DeleteSessionResponse,
-20      "session/delete"
-21  );
-22  impl_jsonrpc_request!(NewSessionRequest, NewSessionResponse, "session/new");
-23  impl_jsonrpc_request!(PromptRequest, PromptResponse, "session/prompt");
-24  impl_jsonrpc_request!(
-25      SetSessionModeRequest,
-26      SetSessionModeResponse,
-27      "session/set_mode"
-28  );
-29  impl_jsonrpc_request!(
-30      SetSessionConfigOptionRequest,
-31      SetSessionConfigOptionResponse,
-32      "session/set_config_option"
-33  );
-34  
-35  #[cfg(feature = "unstable_session_fork")]
-36  impl_jsonrpc_request!(ForkSessionRequest, ForkSessionResponse, "session/fork");
-37  impl_jsonrpc_request!(
-38      ResumeSessionRequest,
-39      ResumeSessionResponse,
-40      "session/resume"
-41  );
-42  impl_jsonrpc_request!(CloseSessionRequest, CloseSessionResponse, "session/close");
-43  
---- src\lib.rs :: re-exports ---
-81  pub mod component;
-83  pub mod concepts;
-87  pub mod mcp_server;
-89  pub mod role;
-91  pub mod schema;
-93  pub mod util;
-95  pub use capabilities::*;
-97  pub use jsonrpc::{
-105  pub use jsonrpc::{RequestCancellation, is_cancel_request_notification};
-108  pub use role::acp::AgentProtocolRouter;
-110  pub use role::acp::ClientProtocolConnector;
-111  pub use role::{
-116  pub use component::{ConnectTo, DynConnectTo};
-119  pub use futures::future::BoxFuture;
-122  pub use schema::v1::{Error, ErrorCode, Result};
-125  pub use agent_client_protocol_derive::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
-128  pub use session::*;
-131  pub use acp_agent::{AcpAgent, LineDirection};
-134  pub use stdio::Stdio;
---- src\schema\mod.rs :: re-exports ---
-318  pub mod v1 {
-319  pub use agent_client_protocol_schema::v1::*;
-324  pub mod v2 {
-325  pub use agent_client_protocol_schema::v2::*;
-328  pub use agent_client_protocol_schema::{
-333  pub use proxy_protocol::*;
---- src\schema\client_to_agent\mod.rs :: re-exports ---
+=== 1. the config commands, verbatim ===
+440      pub label: String,
+441      /// The explanation the agent gave, where it gave one.
+442      pub detail: Option<String>,
+443      /// Where this selector belongs on screen.
+444      pub purpose: AgentConfigPurpose,
+445      /// The value in force right now.
+446      pub current: String,
+447      /// Every value on offer.
+448      pub choices: Vec<AgentConfigChoice>,
+449  }
+450  
+451  /// A change made in the interface.
+452  #[derive(Debug, Deserialize, Type)]
+453  #[serde(rename_all = "camelCase")]
+454  pub struct AgentSelectConfigRequest {
+455      /// One of the selector identifiers the session reported.
+456      pub config_id: String,
+457      /// One of the values that selector offered.
+458      pub value: String,
+459  }
+460  
+461  /// Lists the selectors the running session offers.
+462  ///
+463  /// The agent reports these when the session is created, so an empty list
+464  /// means no session is running yet rather than a session without choices.
+465  /// Nothing is invented here: a model, a reasoning level or a mode appears
+466  /// in this list only because the agent named it.
+467  ///
+468  /// # Errors
+469  ///
+470  /// Fails when the session lock was poisoned or the driver has stopped.
+471  #[tauri::command]
+472  #[specta::specta]
+473  pub async fn agent_config_options(
+474      state: State<'_, AgentRuntime>,
+475  ) -> AgentCommandResult<Vec<AgentConfigControl>> {
+476      // A selector belongs to a session, so asking what is on offer is what
+477      // starts one. The alternative was to answer with nothing until the
+478      // first prompt, which left the interface showing a model read from a
+479      // file that the session, once it existed, might not be following.
+480      //
+481      // Opening this surface is the user opening the feature, which is not
+482      // the same as paying for it at launch: nothing here runs until the
+483      // interface asks.
+484      let live = ensure_session(&state, None, None).await?;
+485  
+486      let answer = live.client.selectors().map_err(translate)?;
+487      let offered = answer
+488          .await
+489          .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+490          .map_err(translate)?;
+491  
+492      Ok(offered.into_iter().map(restate).collect())
+493  }
+494  
+495  /// Changes one selector on the running session.
+496  ///
+497  /// The change applies to the session in flight, so nothing is restarted
+498  /// and nothing is written to the agent configuration file. The answer is
+499  /// the whole list as the agent reports it afterwards, because one change
+500  /// may add or remove another selector.
+501  ///
+502  /// # Errors
+503  ///
+504  /// Fails when no session is running, when a turn is in flight, or when
+505  /// the agent refuses the value.
+506  #[tauri::command]
+507  #[specta::specta]
+508  pub async fn agent_set_config_option(
+509      state: State<'_, AgentRuntime>,
+510      request: AgentSelectConfigRequest,
+511  ) -> AgentCommandResult<Vec<AgentConfigControl>> {
+512      let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+513  
+514      let answer = live
+515          .client
+516          .select(request.config_id, request.value)
+517          .map_err(translate)?;
+518      let offered = answer
+519          .await
+520          .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+521          .map_err(translate)?;
+522  
+523      Ok(offered.into_iter().map(restate).collect())
+524  }
+525  
+526  /// Restates one selector in the shape the generated bindings carry.
+527  fn restate(control: ConfigControl) -> AgentConfigControl {
+528      AgentConfigControl {
+529          id: control.id,
+530          label: control.label,
+531          detail: control.detail,
+532          purpose: match control.purpose {
+533              ConfigPurpose::Mode => AgentConfigPurpose::Mode,
+534              ConfigPurpose::Model => AgentConfigPurpose::Model,
+535              ConfigPurpose::Thought => AgentConfigPurpose::Thought,
+536              ConfigPurpose::Other => AgentConfigPurpose::Other,
+537          },
+538          current: control.current,
+539          choices: control
+540              .choices
+541              .into_iter()
+542              .map(|choice| AgentConfigChoice {
+543                  value: choice.value,
+544                  label: choice.label,
+545                  detail: choice.detail,
+546              })
+547              .collect(),
+548      }
+549  }
+550  
+551  /// Restates the list in the shape the generated bindings carry.
+552  fn describe(list: ModelList) -> AgentModelList {
+553      AgentModelList {
+554          active: list.active,
+555          models: list
+556              .models
+557              .into_iter()
+558              .map(|model| AgentModelDescriptor {
+559                  id: model.id,
+560                  label: model.label,
+=== 2. app.rs :: agent lines ===
+56  commands::agent::agent_prompt,
+57  commands::agent::agent_cancel,
+58  commands::agent::agent_resolve_permission,
+59  commands::agent::agent_shutdown,
+60  commands::agent::agent_load_run,
+61  commands::agent::agent_models,
+62  commands::agent::agent_select_model,
+63  commands::agent::agent_config_options,
+64  commands::agent::agent_set_config_option,
+=== 3. export_bindings.rs :: agent lines ===
+52  crate::commands::agent::agent_prompt,
+53  crate::commands::agent::agent_cancel,
+54  crate::commands::agent::agent_resolve_permission,
+55  crate::commands::agent::agent_shutdown,
+56  crate::commands::agent::agent_load_run,
+57  crate::commands::agent::agent_models,
+58  crate::commands::agent::agent_select_model,
+59  crate::commands::agent::agent_config_options,
+60  crate::commands::agent::agent_set_config_option,
+=== 4. the thread store ===
+-- features\ai\native\src\store.rs
+   74  pub fn open(path: &Path) -> Result<Self> {
+   85  pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
+   96  pub fn create_thread(&self, title: &str) -> Result<Uuid> {
+   114  pub fn start_run(&self, thread_id: Uuid) -> Result<Uuid> {
+   138  pub fn append_event(
+   173  pub fn events_since(&self, run_id: Uuid, after_seq: i64) -> Result<Vec<StoredEvent>> {
+   212  pub fn finish_run(

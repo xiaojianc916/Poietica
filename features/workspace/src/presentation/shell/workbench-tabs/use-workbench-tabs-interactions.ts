@@ -1,12 +1,32 @@
-import { type DragEvent, type KeyboardEvent, useCallback, useEffect, useRef } from 'react'
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import {
   resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabDrop,
+  resolveWorkbenchTabInsertion,
   resolveWorkbenchTabKeyboardAction,
+  type WorkbenchTabInsertion,
+  type WorkbenchTabSlot,
 } from './workbench-tabs-model'
 
-const WORKBENCH_TAB_MIME = 'application/x-poietica-workbench-tab'
+/*
+ * 重排是一次指针会话，不是 HTML5 拖放。
+ *
+ * 拖放那套的三个缺陷都不是调参能补的：落点只在标签本身生效（拖到新建按钮、
+ * 尾部填充区或标签条空白处松手一律无事发生），拖动过程没有插入位置提示，
+ * Escape 无法可靠取消。专业标签条一律用指针捕获 + 实时指示器。
+ *
+ * 这里与侧边栏缩放同一范式：setPointerCapture 拿到整段指针序列，几何在越过
+ * 阈值时快照一次，插入位置由纯函数从指针坐标算出，Escape / pointercancel /
+ * lostpointercapture 三条路径统一收尾。
+ */
+const DRAG_THRESHOLD = 4
 
 interface PendingCloseFocus {
   readonly closingTabId: WorkbenchTabId
@@ -14,14 +34,47 @@ interface PendingCloseFocus {
   readonly fallbackTabId: WorkbenchTabId | null
 }
 
-export interface WorkbenchTabDragBindings {
-  readonly onDragStart: (event: DragEvent<HTMLElement>, tab: WorkbenchTabViewModel) => void
+interface ReorderSession {
+  readonly pointerId: number
 
-  readonly onDragEnd: () => void
+  readonly tabId: WorkbenchTabId
 
-  readonly onDragOver: (event: DragEvent<HTMLElement>) => void
+  readonly fromIndex: number
 
-  readonly onDrop: (event: DragEvent<HTMLElement>, targetIndex: number) => void
+  readonly originX: number
+
+  readonly element: HTMLElement
+
+  active: boolean
+
+  target: WorkbenchTabInsertion | null
+}
+
+export interface WorkbenchTabReorderBindings {
+  readonly onPointerDown: (
+    event: PointerEvent<HTMLElement>,
+    tab: WorkbenchTabViewModel,
+    index: number,
+  ) => void
+
+  readonly onPointerMove: (event: PointerEvent<HTMLElement>) => void
+
+  readonly onPointerUp: (event: PointerEvent<HTMLElement>) => void
+
+  readonly onPointerCancel: () => void
+
+  readonly onLostPointerCapture: () => void
+}
+
+export interface WorkbenchTabReorderState {
+  readonly draggingTabId: WorkbenchTabId | null
+
+  readonly insertion: WorkbenchTabInsertion | null
+}
+
+const IDLE_REORDER: WorkbenchTabReorderState = {
+  draggingTabId: null,
+  insertion: null,
 }
 
 interface UseWorkbenchTabsInteractionsOptions {
@@ -46,9 +99,13 @@ export function useWorkbenchTabsInteractions({
   getTabElement,
   focusNewTab,
 }: UseWorkbenchTabsInteractionsOptions) {
-  const draggedTabIdRef = useRef<WorkbenchTabId | null>(null)
+  const sessionRef = useRef<ReorderSession | null>(null)
+
+  const slotsRef = useRef<readonly WorkbenchTabSlot[]>([])
 
   const pendingCloseFocusRef = useRef<PendingCloseFocus | null>(null)
+
+  const [reorderState, setReorderState] = useState<WorkbenchTabReorderState>(IDLE_REORDER)
 
   const requestClose = useCallback(
     (tabId: WorkbenchTabId) => {
@@ -134,67 +191,175 @@ export function useWorkbenchTabsInteractions({
     [getTabElement, onActivate, requestClose, tabs],
   )
 
-  const onDragStart = useCallback((event: DragEvent<HTMLElement>, tab: WorkbenchTabViewModel) => {
-    if (!tab.canClose) {
-      event.preventDefault()
-      return
+  const endSession = useCallback(() => {
+    const session = sessionRef.current
+
+    if (session?.element.hasPointerCapture(session.pointerId)) {
+      session.element.releasePointerCapture(session.pointerId)
     }
 
-    draggedTabIdRef.current = tab.id
+    sessionRef.current = null
 
-    event.dataTransfer.effectAllowed = 'move'
+    slotsRef.current = []
 
-    event.dataTransfer.setData(WORKBENCH_TAB_MIME, tab.id)
+    setReorderState(IDLE_REORDER)
   }, [])
 
-  const onDragEnd = useCallback(() => {
-    draggedTabIdRef.current = null
-  }, [])
-
-  const onDragOver = useCallback((event: DragEvent<HTMLElement>) => {
-    if (!draggedTabIdRef.current) {
-      return
-    }
-
-    event.preventDefault()
-
-    event.dataTransfer.dropEffect = 'move'
-  }, [])
-
-  const onDrop = useCallback(
-    (event: DragEvent<HTMLElement>, targetIndex: number) => {
-      event.preventDefault()
-
-      const drop = resolveWorkbenchTabDrop({
-        sessionTabId: draggedTabIdRef.current,
-
-        transferredTabId: event.dataTransfer.getData(WORKBENCH_TAB_MIME),
-
-        targetIndex,
-        tabCount: tabs.length,
-      })
-
-      draggedTabIdRef.current = null
-
-      if (!drop) {
+  const onPointerDown = useCallback(
+    (event: PointerEvent<HTMLElement>, tab: WorkbenchTabViewModel, index: number) => {
+      if (event.button !== 0 || !tab.canClose || sessionRef.current) {
         return
       }
 
-      onMove(drop.tabId, drop.targetIndex)
+      const element = event.currentTarget
+
+      element.setPointerCapture(event.pointerId)
+
+      sessionRef.current = {
+        pointerId: event.pointerId,
+        tabId: tab.id,
+        fromIndex: index,
+        originX: event.clientX,
+        element,
+        active: false,
+        target: null,
+      }
     },
-    [onMove, tabs.length],
+    [],
   )
 
-  const drag: WorkbenchTabDragBindings = {
-    onDragStart,
-    onDragEnd,
-    onDragOver,
-    onDrop,
+  const onPointerMove = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const session = sessionRef.current
+
+      if (!session || session.pointerId !== event.pointerId) {
+        return
+      }
+
+      /*
+       * 阈值以下不进入拖拽，普通点击仍然只是点击。越过阈值时快照几何：标签在
+       * 一次拖拽内不会改变尺寸，每帧重测只会白白触发布局。
+       */
+      if (!session.active) {
+        if (Math.abs(event.clientX - session.originX) < DRAG_THRESHOLD) {
+          return
+        }
+
+        session.active = true
+
+        slotsRef.current = measureSlots(tabs, getTabElement)
+      }
+
+      session.target = resolveWorkbenchTabInsertion(
+        slotsRef.current,
+        session.fromIndex,
+        event.clientX,
+      )
+
+      const next: WorkbenchTabReorderState = {
+        draggingTabId: session.tabId,
+        insertion: session.target,
+      }
+
+      setReorderState((previous) =>
+        previous.draggingTabId === next.draggingTabId &&
+        previous.insertion?.targetId === next.insertion?.targetId &&
+        previous.insertion?.side === next.insertion?.side
+          ? previous
+          : next,
+      )
+    },
+    [getTabElement, tabs],
+  )
+
+  const onPointerUp = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const session = sessionRef.current
+
+      if (!session || session.pointerId !== event.pointerId) {
+        return
+      }
+
+      const target = session.active ? session.target : null
+
+      const tabId = session.tabId
+
+      endSession()
+
+      if (target) {
+        onMove(tabId, target.index)
+      }
+    },
+    [endSession, onMove],
+  )
+
+  useEffect(() => {
+    if (!reorderState.draggingTabId) {
+      return
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent): void {
+      if (event.key !== 'Escape') {
+        return
+      }
+
+      const session = sessionRef.current
+
+      if (session) {
+        session.target = null
+      }
+
+      endSession()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [endSession, reorderState.draggingTabId])
+
+  const reorder: WorkbenchTabReorderBindings = {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel: endSession,
+    onLostPointerCapture: endSession,
   }
 
   return {
     requestClose,
     onKeyDown,
-    drag,
+    reorder,
+    reorderState,
   }
+}
+
+function measureSlots(
+  tabs: readonly WorkbenchTabViewModel[],
+  getTabElement: (tabId: WorkbenchTabId) => HTMLButtonElement | undefined,
+): readonly WorkbenchTabSlot[] {
+  const slots: WorkbenchTabSlot[] = []
+
+  for (const tab of tabs) {
+    const element = getTabElement(tab.id)?.closest<HTMLElement>('.chrome-workbench-tab')
+
+    if (!element) {
+      continue
+    }
+
+    const rect = element.getBoundingClientRect()
+
+    slots.push({
+      id: tab.id,
+      start: rect.left,
+      end: rect.right,
+    })
+  }
+
+  /*
+   * 槽位索引必须与 tabs 索引一一对应，否则算出来的目标位置会指向别的标签。
+   * 缺任何一个就整体作废，宁可这次拖拽不生效。
+   */
+  return slots.length === tabs.length ? slots : []
 }

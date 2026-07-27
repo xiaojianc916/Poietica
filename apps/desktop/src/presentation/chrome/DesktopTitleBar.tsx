@@ -19,7 +19,7 @@ export interface DesktopTitleBarProps {
  * 窗口拖拽与双击最大化由 Tauri 原生处理：标注 data-tauri-drag-region 的元素
  * 交给 webview（capabilities 已声明 core:window:allow-start-dragging），前端
  * 不再监听 mousedown、不再维护"哪些元素算交互元素"的黑名单、也不再有一条会
- * 失败的 startDragging 调用需要降级。
+ * 失败的原生拖拽调用需要降级。
  *
  * 只有不含交互子元素的填充区域才标注。原生拖拽一旦开始就吞掉 click，把标注
  * 挂在包含按钮的容器上会让按钮静默失灵——这正是黑名单方案要兜的底，而结构
