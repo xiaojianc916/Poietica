@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
 import type {
+  SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPurpose,
 } from '../../contracts/session-config-contract'
@@ -8,52 +9,51 @@ import { ChevronDownIcon } from '../primitives/icons'
 import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
- * One control for everything the session lets us change.
+ * One menu for everything the session lets us change.
  *
- * A separate switch per selector would multiply controls every time the
- * agent grows one, so the row of selectors lives inside a single menu and
- * each row opens its own values. A reasoning level appears only when the
- * model in force offers one, and leaves with it.
+ * Nothing here is named by this file. The rows are whatever the agent
+ * reported, in the order it reported them, grouped only by what each one is
+ * for; a category this build has never heard of still gets a row.
+ *
+ * The hover rules are the whole point of the rewrite. A submenu belongs to
+ * its row in the document, not merely beside it on screen, so a pointer that
+ * has walked into the submenu has not left the row and nothing has to be
+ * kept alive by a timer. The submenu changes when another row is entered and
+ * at no other time; the menu itself closes on a choice, on Escape, on a
+ * press outside, or on the trigger being pressed again. Leaving the panel is
+ * not one of them, which is how every desktop menu behaves.
  */
 
-/* The order rows are laid out in. What the agent adds beyond these trails it. */
 const ORDER: readonly SessionConfigPurpose[] = ['model', 'thought', 'mode', 'other']
 
-/* How long a pointer rests on a row before its values open. */
-const OPEN_DELAY = 120
-
-/* How long they stay open after the pointer leaves, so the gap forgives a diagonal. */
-const CLOSE_DELAY = 220
-
-/*
- * What the control says with no session behind it.
- *
- * Vanishing is the one thing it must not do: an absent control and an empty
- * list look the same once both render nothing.
- */
 const NOTHING_TO_OFFER = '会话未就绪'
 
-function rank(purpose: SessionConfigPurpose) {
+/** Where a purpose sits; anything unrecognised sorts last rather than away. */
+function rank(purpose: SessionConfigPurpose): number {
   const found = ORDER.indexOf(purpose)
 
-  return found === -1 ? ORDER.length : found
+  return found < 0 ? ORDER.length : found
 }
 
-/* The agent order is kept within a purpose, so its own ordering survives. */
-function laidOut(controls: readonly SessionConfigControl[]) {
-  return [...controls].sort((left, right) => rank(left.purpose) - rank(right.purpose))
+/* Sorting is stable, so the agent order survives inside each purpose. */
+function laidOut(controls: readonly SessionConfigControl[]): SessionConfigControl[] {
+  const held = [...controls]
+
+  held.sort((left, right) => rank(left.purpose) - rank(right.purpose))
+
+  return held
 }
 
-/* The name the agent gave the value in force, falling back to the value itself. */
-function chosen(control: SessionConfigControl) {
+/** The name the agent gave the value in force, falling back to the value. */
+function chosen(control: SessionConfigControl): string {
   const held = control.choices.find((choice) => choice.value === control.current)
 
   return held?.label ?? control.current
 }
 
-/* A model value carries its provider ahead of a slash, and that is all we read from it. */
-function provider(control: SessionConfigControl) {
-  if (control.purpose !== 'model') {
+/* Model values are provider-qualified, and the provider is the mark shown. */
+function markOf(control: SessionConfigControl | undefined): string | undefined {
+  if (control === undefined || control.purpose !== 'model') {
     return undefined
   }
 
@@ -62,96 +62,71 @@ function provider(control: SessionConfigControl) {
   return named === undefined || named.length === 0 ? undefined : named
 }
 
-interface ConfigRowProps {
-  readonly control: SessionConfigControl
-  readonly isFirst: boolean
-  readonly isOpen: boolean
-  readonly onOpen: (wanted: boolean) => void
+interface ChoiceButtonProps {
+  readonly choice: SessionConfigChoice
+  readonly isActive: boolean
   readonly onPick: (value: string) => void
 }
 
-function ConfigRow({ control, isFirst, isOpen, onOpen, onPick }: ConfigRowProps) {
-  const timer = useRef<number | undefined>(undefined)
-
-  useEffect(
-    () => () => {
-      window.clearTimeout(timer.current)
-    },
-    [],
-  )
-
-  const schedule = (wanted: boolean, delay: number) => {
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      onOpen(wanted)
-    }, delay)
-  }
-
-  const now = (wanted: boolean) => {
-    window.clearTimeout(timer.current)
-    onOpen(wanted)
-  }
-
+function ChoiceButton({ choice, isActive, onPick }: ChoiceButtonProps) {
   return (
-    <div
-      className="assistant-config-menu__row-group"
-      onPointerEnter={() => {
-        schedule(true, OPEN_DELAY)
-      }}
-      onPointerLeave={() => {
-        schedule(false, CLOSE_DELAY)
-      }}
+    <button
+      aria-checked={isActive}
+      className="assistant-config-option"
+      data-active={isActive ? 'true' : undefined}
+      onClick={() => onPick(choice.value)}
+      role="menuitemradio"
+      type="button"
     >
-      {isFirst ? null : <span aria-hidden="true" className="assistant-config-menu__separator" />}
+      <span className="assistant-config-option__label">{choice.label}</span>
 
+      {choice.detail === undefined ? null : (
+        <span className="assistant-config-option__detail">{choice.detail}</span>
+      )}
+    </button>
+  )
+}
+
+interface MenuRowProps {
+  readonly control: SessionConfigControl
+  readonly isOpen: boolean
+  readonly onOpen: (configId: string) => void
+  readonly onPick: (value: string) => void
+}
+
+function MenuRow({ control, isOpen, onOpen, onPick }: MenuRowProps) {
+  return (
+    <div className="assistant-config-menu__row-holder" onPointerEnter={() => onOpen(control.id)}>
       <button
         aria-expanded={isOpen}
         aria-haspopup="menu"
         className="assistant-config-menu__row"
-        onClick={() => {
-          now(!isOpen)
-        }}
+        data-open={isOpen ? 'true' : undefined}
+        onClick={() => onOpen(control.id)}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowRight') {
-            now(true)
-          }
-
-          if (event.key === 'ArrowLeft') {
-            now(false)
+          if (event.key === 'ArrowLeft' || event.key === 'Enter') {
+            onOpen(control.id)
           }
         }}
         role="menuitem"
         type="button"
       >
         <span className="assistant-config-menu__row-label">{control.label}</span>
-
         <span className="assistant-config-menu__row-value">{chosen(control)}</span>
-
-        <ChevronDownIcon aria-hidden="true" className="assistant-config-menu__row-chevron" />
+        <ChevronDownIcon aria-hidden="true" className="assistant-config-menu__row-mark" />
       </button>
-
-      {isOpen ? <span aria-hidden="true" className="assistant-config-menu__bridge" /> : null}
 
       {isOpen ? (
         <div className="assistant-config-menu__submenu" role="menu">
-          {control.choices.map((choice) => (
-            <button
-              aria-checked={choice.value === control.current}
-              className="assistant-config-option"
-              data-active={choice.value === control.current}
-              key={choice.value}
-              onClick={() => {
-                onPick(choice.value)
-              }}
-              role="menuitemradio"
-              type="button"
-            >
-              <span className="assistant-config-option__label">{choice.label}</span>
+          <p className="assistant-config-menu__caption">{control.label}</p>
 
-              {choice.detail === undefined ? null : (
-                <span className="assistant-config-option__detail">{choice.detail}</span>
-              )}
-            </button>
+          {control.choices.map((choice) => (
+            <ChoiceButton
+              choice={choice}
+              isActive={choice.value === control.current}
+              key={choice.value}
+              onPick={onPick}
+            />
           ))}
         </div>
       ) : null}
@@ -161,107 +136,100 @@ function ConfigRow({ control, isFirst, isOpen, onOpen, onPick }: ConfigRowProps)
 
 export interface SessionConfigMenuProps {
   readonly controls: readonly SessionConfigControl[]
-  readonly onSelect?: ((configId: string, value: string) => void) | undefined
+  readonly onSelect?: (configId: string, value: string) => void
 }
 
 export function SessionConfigMenu({ controls, onSelect }: SessionConfigMenuProps) {
-  const [isOpen, setOpen] = useState(false)
-  const [openRow, setOpenRow] = useState<string | null>(null)
-  const root = useRef<HTMLDivElement | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [openId, setOpenId] = useState<string | undefined>(undefined)
+  const holder = useRef<HTMLDivElement | null>(null)
+  const panelId = useId()
 
-  useEffect(() => {
-    const shut = () => {
-      setOpen(false)
-      setOpenRow(null)
-    }
-
-    const onPointerDown = (event: PointerEvent) => {
-      const inside = root.current?.contains(event.target as Node) ?? true
-
-      if (inside) {
-        return
-      }
-
-      shut()
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') {
-        return
-      }
-
-      shut()
-    }
-
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
+  const close = useCallback(() => {
+    setIsOpen(false)
+    setOpenId(undefined)
   }, [])
 
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    const onPress = (event: PointerEvent) => {
+      const node = event.target
+
+      if (node instanceof Node && holder.current?.contains(node) === true) {
+        return
+      }
+
+      close()
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close()
+      }
+    }
+
+    document.addEventListener('pointerdown', onPress, true)
+    document.addEventListener('keydown', onKey)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPress, true)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [close, isOpen])
+
   const rows = laidOut(controls)
-  const headline = rows.find((row) => row.purpose === 'model') ?? rows[0]
-
-  if (headline === undefined) {
-    return (
-      <span
-        aria-live="polite"
-        className="assistant-model-select assistant-model-select__button"
-        data-empty="true"
-      >
-        <ProviderIcon />
-
-        <span className="assistant-model-select__label">{NOTHING_TO_OFFER}</span>
-      </span>
-    )
-  }
-
-  const badge = provider(headline)
+  const model = controls.find((control) => control.purpose === 'model')
+  const mark = markOf(model)
+  const headline = model === undefined ? NOTHING_TO_OFFER : chosen(model)
 
   return (
-    <div className="assistant-config-menu assistant-model-select" ref={root}>
+    <div className="assistant-config-menu" ref={holder}>
       <button
+        aria-controls={panelId}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label="会话设置"
         className="assistant-model-select__button"
+        data-empty={rows.length === 0 ? 'true' : undefined}
         onClick={() => {
-          setOpen((current) => !current)
-          setOpenRow(null)
+          if (isOpen) {
+            close()
+
+            return
+          }
+
+          setIsOpen(true)
         }}
         type="button"
       >
-        {badge === undefined ? <ProviderIcon /> : <ProviderIcon provider={badge} />}
+        <ProviderIcon {...(mark === undefined ? {} : { provider: mark })} />
 
-        <span className="assistant-model-select__label">{chosen(headline)}</span>
+        <span className="assistant-model-select__label">{headline}</span>
       </button>
 
       {isOpen ? (
-        <div className="assistant-config-menu__panel" role="menu">
-          {rows.map((row, index) => (
-            <ConfigRow
-              control={row}
-              isFirst={index === 0}
-              isOpen={openRow === row.id}
-              key={row.id}
-              onOpen={(wanted) => {
-                setOpenRow(wanted ? row.id : null)
-              }}
-              onPick={(value) => {
-                setOpen(false)
-                setOpenRow(null)
-
-                if (value === row.current) {
-                  return
-                }
-
-                onSelect?.(row.id, value)
-              }}
-            />
-          ))}
+        <div className="assistant-config-menu__panel" id={panelId} role="menu">
+          {rows.length === 0 ? (
+            <p className="assistant-config-menu__empty" data-empty="true">
+              {NOTHING_TO_OFFER}
+            </p>
+          ) : (
+            rows.map((control) => (
+              <MenuRow
+                control={control}
+                isOpen={openId === control.id}
+                key={control.id}
+                onOpen={setOpenId}
+                onPick={(value) => {
+                  onSelect?.(control.id, value)
+                  close()
+                }}
+              />
+            ))
+          )}
         </div>
       ) : null}
     </div>
