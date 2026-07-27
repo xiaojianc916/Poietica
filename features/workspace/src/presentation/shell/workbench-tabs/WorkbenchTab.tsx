@@ -11,6 +11,16 @@ type TabIcon = ComponentType<{
   readonly 'aria-hidden'?: boolean | 'true' | 'false'
 }>
 
+/*
+ * 保存状态的可读文案。用查表而不是嵌套三元：新增一个状态时缺少条目是类型
+ * 错误，不会静默落进"保存失败"。
+ */
+const TAB_STATUS_LABELS = {
+  dirty: '未保存',
+  saving: '正在保存',
+  failed: '保存失败',
+} as const
+
 interface WorkbenchTabProps {
   readonly model: WorkbenchTabViewModel
 
@@ -40,8 +50,12 @@ export function WorkbenchTab({
 
   const encodedId = encodeWorkbenchTabDomId(model.id)
 
+  /*
+   * role="presentation"：tablist 的拥有元素必须是 tab。这层容器只承载几何与
+   * 拖拽绑定，把它从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
+   */
   return (
-    <article
+    <div
       className="chrome-workbench-tab"
       data-active={model.isActive ? 'true' : 'false'}
       draggable={model.canClose}
@@ -63,8 +77,15 @@ export function WorkbenchTab({
       onPointerLeave={(event) => {
         event.currentTarget.removeAttribute('data-suppress-hover')
       }}
+      role="presentation"
     >
-      <ChromeActiveTabShape />
+      <div aria-hidden="true" className="chrome-workbench-tab__active-shape">
+        <ActiveTabCap side="left" />
+
+        <span className="chrome-workbench-tab__active-center" />
+
+        <ActiveTabCap side="right" />
+      </div>
 
       <span aria-hidden="true" className="chrome-workbench-tab__separator" />
 
@@ -94,7 +115,7 @@ export function WorkbenchTab({
 
         <TabEndAction model={model} onRequestClose={onRequestClose} />
       </div>
-    </article>
+    </div>
   )
 }
 
@@ -116,11 +137,8 @@ function TabEndAction({
     <div className="chrome-workbench-tab__end">
       {status && status !== 'clean' ? (
         <span
-          aria-label={status === 'dirty' ? '未保存' : status === 'saving' ? '正在保存' : '保存失败'}
-          className={[
-            'chrome-workbench-tab__status',
-            `chrome-workbench-tab__status--${status}`,
-          ].join(' ')}
+          aria-label={TAB_STATUS_LABELS[status]}
+          className={`chrome-workbench-tab__status chrome-workbench-tab__status--${status}`}
           role="status"
         />
       ) : null}
@@ -142,53 +160,28 @@ function TabEndAction({
   )
 }
 
-function ChromeActiveTabShape() {
+/*
+ * 活动标签页的左右圆角轮廓是同一条路径，左右差异由 CSS 镜像。装饰性图形显式
+ * aria-hidden，不用 <title> —— <title> 在浏览器里会渲染成原生 tooltip。
+ */
+function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
   return (
-    <div aria-hidden="true" className="chrome-workbench-tab__active-shape">
-      <svg
-        className={[
-          'chrome-workbench-tab__active-cap',
-          'chrome-workbench-tab__active-cap--left',
-        ].join(' ')}
-        preserveAspectRatio="xMinYMin meet"
-        viewBox="0 0 20 32"
-      >
-        <title>活动标签页左侧轮廓</title>
+    <svg
+      aria-hidden="true"
+      className={`chrome-workbench-tab__active-cap chrome-workbench-tab__active-cap--${side}`}
+      preserveAspectRatio="xMinYMin meet"
+      viewBox="0 0 20 32"
+    >
+      <path
+        className="chrome-workbench-tab__active-cap-fill"
+        d="M0 32C5.5 32 9.5 28 9.5 23V10C9.5 5.6 13.1 2 17.5 2H20V32Z"
+      />
 
-        <path
-          className="chrome-workbench-tab__active-cap-fill"
-          d="M0 32C5.5 32 9.5 28 9.5 23V10C9.5 5.6 13.1 2 17.5 2H20V32Z"
-        />
-
-        <path
-          className="chrome-workbench-tab__active-cap-outline"
-          d="M0 31.5C5.5 31.5 9.5 27.7 9.5 23V10C9.5 5.9 13.1 2.5 17.5 2.5H20"
-        />
-      </svg>
-
-      <span className="chrome-workbench-tab__active-center" />
-
-      <svg
-        className={[
-          'chrome-workbench-tab__active-cap',
-          'chrome-workbench-tab__active-cap--right',
-        ].join(' ')}
-        preserveAspectRatio="xMinYMin meet"
-        viewBox="0 0 20 32"
-      >
-        <title>活动标签页右侧轮廓</title>
-
-        <path
-          className="chrome-workbench-tab__active-cap-fill"
-          d="M0 32C5.5 32 9.5 28 9.5 23V10C9.5 5.6 13.1 2 17.5 2H20V32Z"
-        />
-
-        <path
-          className="chrome-workbench-tab__active-cap-outline"
-          d="M0 31.5C5.5 31.5 9.5 27.7 9.5 23V10C9.5 5.9 13.1 2.5 17.5 2.5H20"
-        />
-      </svg>
-    </div>
+      <path
+        className="chrome-workbench-tab__active-cap-outline"
+        d="M0 31.5C5.5 31.5 9.5 27.7 9.5 23V10C9.5 5.9 13.1 2.5 17.5 2.5H20"
+      />
+    </svg>
   )
 }
 

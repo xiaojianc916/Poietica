@@ -12,6 +12,7 @@ import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
+import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 
@@ -60,7 +61,7 @@ export function WorkspaceShell({
   const dockSidebar = mode !== 'narrow' && sidebarOpen
   const dockInspector = inspectorAvailable && inspectorOpen && hasCanvas
 
-  const activeTabDomId = toDomIdentifier(model.activeTabId)
+  const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
   return (
     <TooltipProvider delayDuration={450}>
@@ -170,12 +171,4 @@ export function WorkspaceShell({
       />
     </TooltipProvider>
   )
-}
-
-/*
- * 标签页与其面板的 ARIA 关联依赖同一个标识符。转义只做一次，避免两处正则
- * 各自演化后 aria-labelledby 与 id 悄悄失配。
- */
-function toDomIdentifier(value: string): string {
-  return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-')
 }

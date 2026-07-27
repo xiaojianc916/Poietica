@@ -24,8 +24,8 @@ use crate::permission::{Decision, decide};
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
 use crate::sessions::SessionBook;
-use agent_client_protocol::schema::v1::ListSessionsRequest;
 use crate::stderr::StderrLog;
+use agent_client_protocol::schema::v1::ListSessionsRequest;
 
 const BUSY: &str = "a turn is already in flight on this session";
 const GONE: &str = "the agent connection is no longer running";
