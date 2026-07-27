@@ -24,6 +24,7 @@ use crate::permission::{Decision, decide};
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
 use crate::sessions::SessionBook;
+use agent_client_protocol::schema::v1::ListSessionsRequest;
 use crate::stderr::StderrLog;
 
 const BUSY: &str = "a turn is already in flight on this session";
@@ -31,8 +32,7 @@ const GONE: &str = "the agent connection is no longer running";
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
 const CHANGING: &str = "a selector cannot be changed while a turn is in flight";
-const AWAITING: &str =
-    "a turn is running, so no session can be created or listed until it ends";
+const AWAITING: &str = "a turn is running, so no session can be created or listed until it ends";
 
 /// Names the file every line of the conversation is copied to, when set.
 ///
@@ -476,7 +476,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }
                         Command::Sessions { reply } => {
                             let listed = connection
-                                .send_request(agent_client_protocol::ListSessionsRequest::new())
+                                .send_request(ListSessionsRequest::new())
                                 .block_task()
                                 .await;
 

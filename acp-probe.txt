@@ -1,0 +1,72 @@
+--- \schema\client_to_agent\requests.rs (whole) ---
+1  use crate::schema::v1::{
+2      AuthenticateRequest, AuthenticateResponse, CloseSessionRequest, CloseSessionResponse,
+3      DeleteSessionRequest, DeleteSessionResponse, InitializeRequest, InitializeResponse,
+4      ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+5      LogoutRequest, LogoutResponse, NewSessionRequest, NewSessionResponse, PromptRequest,
+6      PromptResponse, ResumeSessionRequest, ResumeSessionResponse, SetSessionConfigOptionRequest,
+7      SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
+8  };
+9  #[cfg(feature = "unstable_session_fork")]
+10  use crate::schema::v1::{ForkSessionRequest, ForkSessionResponse};
+11  
+12  impl_jsonrpc_request!(InitializeRequest, InitializeResponse, "initialize");
+13  impl_jsonrpc_request!(AuthenticateRequest, AuthenticateResponse, "authenticate");
+14  impl_jsonrpc_request!(LogoutRequest, LogoutResponse, "logout");
+15  impl_jsonrpc_request!(LoadSessionRequest, LoadSessionResponse, "session/load");
+16  impl_jsonrpc_request!(ListSessionsRequest, ListSessionsResponse, "session/list");
+17  impl_jsonrpc_request!(
+18      DeleteSessionRequest,
+19      DeleteSessionResponse,
+20      "session/delete"
+21  );
+22  impl_jsonrpc_request!(NewSessionRequest, NewSessionResponse, "session/new");
+23  impl_jsonrpc_request!(PromptRequest, PromptResponse, "session/prompt");
+24  impl_jsonrpc_request!(
+25      SetSessionModeRequest,
+26      SetSessionModeResponse,
+27      "session/set_mode"
+28  );
+29  impl_jsonrpc_request!(
+30      SetSessionConfigOptionRequest,
+31      SetSessionConfigOptionResponse,
+32      "session/set_config_option"
+33  );
+34  
+35  #[cfg(feature = "unstable_session_fork")]
+36  impl_jsonrpc_request!(ForkSessionRequest, ForkSessionResponse, "session/fork");
+37  impl_jsonrpc_request!(
+38      ResumeSessionRequest,
+39      ResumeSessionResponse,
+40      "session/resume"
+41  );
+42  impl_jsonrpc_request!(CloseSessionRequest, CloseSessionResponse, "session/close");
+43  
+--- src\lib.rs :: re-exports ---
+81  pub mod component;
+83  pub mod concepts;
+87  pub mod mcp_server;
+89  pub mod role;
+91  pub mod schema;
+93  pub mod util;
+95  pub use capabilities::*;
+97  pub use jsonrpc::{
+105  pub use jsonrpc::{RequestCancellation, is_cancel_request_notification};
+108  pub use role::acp::AgentProtocolRouter;
+110  pub use role::acp::ClientProtocolConnector;
+111  pub use role::{
+116  pub use component::{ConnectTo, DynConnectTo};
+119  pub use futures::future::BoxFuture;
+122  pub use schema::v1::{Error, ErrorCode, Result};
+125  pub use agent_client_protocol_derive::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+128  pub use session::*;
+131  pub use acp_agent::{AcpAgent, LineDirection};
+134  pub use stdio::Stdio;
+--- src\schema\mod.rs :: re-exports ---
+318  pub mod v1 {
+319  pub use agent_client_protocol_schema::v1::*;
+324  pub mod v2 {
+325  pub use agent_client_protocol_schema::v2::*;
+328  pub use agent_client_protocol_schema::{
+333  pub use proxy_protocol::*;
+--- src\schema\client_to_agent\mod.rs :: re-exports ---
