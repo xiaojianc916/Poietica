@@ -7,4 +7,5 @@ export { AssistantSurface } from './AssistantSurface'
 export type { AssistantThreadListProps, AssistantThreadSummary } from './AssistantThreadList'
 export { AssistantThreadList } from './AssistantThreadList'
 
+export type { SessionControlsProps } from './composer/session-controls'
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'

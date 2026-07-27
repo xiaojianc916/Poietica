@@ -56,7 +56,6 @@
   block-size: var(--cp-mark);
   inline-size: var(--cp-mark);
   object-fit: contain;
-  animation: assistant-mark-in var(--cp-motion-grow) var(--cp-motion-ease) both;
 }
 
 @keyframes assistant-mark-in {
@@ -811,8 +810,7 @@
      collapse says the same thing twice, on a different clock. */
   transition:
     grid-template-rows var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    opacity var(--cp-motion-grow) var(--cp-motion-settle-ease);
+    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),;
 }
 
 .assistant-surface__intro > *,

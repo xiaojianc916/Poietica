@@ -37,6 +37,14 @@ export interface AssistantSession {
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, optionId: string) => void
+  /**
+   * Puts a starting phrase in the composer and leaves the user to finish it.
+   *
+   * A starter that sends a prompt on the user's behalf would be the assistant
+   * deciding what was asked, which this product does not do.
+   */
+  readonly prefill: (text: string) => void
+  readonly draft: string
 }
 
 const RUN_PLACEHOLDER = 'run_pending'
@@ -73,6 +81,7 @@ export function useAssistantSession({
   const [timeline, setTimeline] = useState<TimelineState>(() =>
     createTimelineState(RUN_PLACEHOLDER),
   )
+  const [draft, setDraft] = useState('')
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
   useEffect(() => {
@@ -161,7 +170,7 @@ export function useAssistantSession({
 
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
 
-  return { status, timeline, send, cancel, resolvePermission }
+  return { status, timeline, send, cancel, resolvePermission, prefill: setDraft, draft }
 }
 
 function toChatStatus(status: TimelineState['status']): ChatStatus {

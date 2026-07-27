@@ -1,9 +1,8 @@
-import './assistant-composer.css'
+import './assistant.css'
 
 import type { ReactNode } from 'react'
-import { useAgentModels } from '../application/useAgentModels'
 import { useAssistantSession } from '../application/useAssistantSession'
-import { useSessionConfig } from '../application/useSessionConfig'
+import { useSessionControls } from '../application/useSessionControls'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { AgentModelsPort } from '../contracts/model-port'
 import type { SessionConfigPort } from '../contracts/session-config-port'
@@ -28,22 +27,9 @@ export interface AssistantSurfaceProps {
    * supplies the real IPC-backed port.
    */
   readonly session?: AgentSessionPort
-  /**
-   * Where the model list is read from and written to.
-   *
-   * Optional for the same reason the session is: without it the picker has
-   * no list and draws nothing, rather than offering a choice this surface
-   * cannot carry out.
-   */
+  /** Where the model list is read from before a session exists. */
   readonly models?: AgentModelsPort
-  /**
-   * The selectors the running session offers.
-   *
-   * Optional for the same reason as the others, and empty until a session
-   * exists: the agent reports these per session, so before the first turn
-   * there is nothing to report and the composer keeps to the model list
-   * read from the file.
-   */
+  /** The selectors the running session offers. */
   readonly config?: SessionConfigPort
 }
 
@@ -51,21 +37,20 @@ export interface AssistantSurfaceProps {
  * What the feed shows when the transcript has nothing to show.
  *
  * Two states have no entries to render and are not nothing: the wait before
- * the first frame, and a turn that ended without producing anything. Drawing
- * an empty column for either is what made a working session and a broken one
- * look the same. Neither is a timeline entry — both are derived, and both live
- * outside the virtualised canvas.
+ * the first frame, and a turn that ended without producing anything. Both are
+ * derived, and both live outside the virtualised canvas.
  */
 function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNode {
-  if (isWaiting) {
-    return <ThinkingIndicator />
-  }
-
-  if (outcome !== null) {
-    return <TurnOutcomeNotice outcome={outcome} />
-  }
+  if (isWaiting) return <ThinkingIndicator />
+  if (outcome !== null) return <TurnOutcomeNotice outcome={outcome} />
 
   return null
+}
+
+const STARTERS: Readonly<Record<string, string>> = {
+  create: '帮我创建 ',
+  find: '帮我查找 ',
+  research: '帮我研究 ',
 }
 
 /*
@@ -73,20 +58,9 @@ function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNod
  *
  * Before the first turn two flexible spacers split the free space, so the group
  * rests in the middle. Once a turn exists the spacers give up their share and
- * the feed takes it, which is what carries the composer down: flex-grow is a
- * number, so the browser interpolates the whole layout on its own. The intro
- * blocks collapse through a grid row rather than through a height nobody can
- * animate, and they stay mounted so that nothing can be left behind by an
- * interrupted transition.
- *
- * This is deliberately not a layout animation. Projecting one over a
- * virtualised, contain: strict scroller means measuring it mid-transition,
- * which is what made the previous version stutter and, worse, occasionally
- * leave the feed at zero opacity.
- *
- * Which state applies is derived from the transcript alone. Nothing here tracks
- * whether a turn was ever sent: a state derived from the timeline cannot
- * disagree with it.
+ * the feed takes it: flex-grow is a number, so the browser interpolates the
+ * whole layout on its own. Which state applies is derived from the transcript
+ * alone, so it cannot disagree with it.
  */
 export function AssistantSurface({ config, endpoint, models, session }: AssistantSurfaceProps) {
   /*
@@ -99,26 +73,14 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
     ...(session === undefined ? {} : { session }),
   })
 
-  /* The choice belongs to the agent config, so it is loaded, not invented. */
-  const picker = useAgentModels(models)
-
-  /*
-   * The selectors belong to the session, so they are read again whenever
-   * the run changes state. There is no session before the first turn, and
-   * an answer given then would be an empty list for the rest of the run.
-   */
-  const selectors = useSessionConfig(config, assistant.status)
+  const controls = useSessionControls(config, models, assistant.status)
 
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
 
   /*
-   * The gap between the question and the first frame of the answer.
-   *
-   * Nothing exists to render there, and nothing rendered there is exactly how
-   * a working product and a broken one look the same. Derived from the run
-   * being open with the transcript ending on the question, so it cannot
-   * disagree with the timeline and cannot be left behind by one.
+   * The gap between the question and the first frame of the answer. Derived
+   * from the run being open with the transcript ending on the question.
    */
   const isWaiting = assistant.status === 'streaming' && rows.at(-1)?.item.type === 'user_message'
   const outcome = selectSilentOutcome(assistant.timeline)
@@ -158,19 +120,22 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
         <div className="assistant-surface__composer">
           <AssistantComposer
             agentLabel="Super Computer"
+            controls={controls.controls}
+            controlsFailure={controls.failure}
             isAgentNew
-            models={picker.models}
-            onSelectConfig={selectors.select}
-            onSelectModel={picker.select}
+            onCancel={assistant.cancel}
+            onSelectControl={controls.select}
             onSubmit={assistant.send}
-            selectors={selectors.controls}
             status={assistant.status}
-            {...(picker.activeModelId === undefined ? {} : { activeModelId: picker.activeModelId })}
           />
         </div>
 
         <div className="assistant-surface__starters" inert={started}>
-          <AssistantQuickActions onSelect={() => {}} />
+          <AssistantQuickActions
+            onSelect={(actionId) => {
+              assistant.prefill(STARTERS[actionId] ?? '')
+            }}
+          />
         </div>
 
         <div aria-hidden="true" className="assistant-surface__spacer" />

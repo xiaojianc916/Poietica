@@ -1,4 +1,4 @@
-import './assistant-composer.css'
+import './assistant.css'
 
 import { Edit, ExternalLink, Link, Trash } from '@mynaui/icons-react'
 import {
@@ -9,6 +9,15 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
 import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+
+/*
+ * The thread list.
+ *
+ * Creating a thread is a property of the list, not of whichever group happens
+ * to sort first, so the button lives in the list header and survives an empty
+ * list. Grouping is one pass: filtering the whole array once per group was
+ * quadratic in the number of threads, which is exactly the axis that grows.
+ */
 
 export interface AssistantThreadSummary {
   readonly id: string
@@ -31,6 +40,19 @@ export interface AssistantThreadListProps {
   readonly onOpenInNewTab?: (threadId: string) => void
 }
 
+function group(threads: readonly AssistantThreadSummary[]) {
+  const grouped = new Map<string, AssistantThreadSummary[]>()
+
+  for (const thread of threads) {
+    const held = grouped.get(thread.group)
+
+    if (held === undefined) grouped.set(thread.group, [thread])
+    else held.push(thread)
+  }
+
+  return [...grouped]
+}
+
 export function AssistantThreadList({
   threads,
   activeThreadId,
@@ -43,35 +65,36 @@ export function AssistantThreadList({
   onDelete,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
-  const groups = [...new Set(threads.map((thread) => thread.group))]
+  const groups = group(threads)
 
   return (
     <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
-      {groups.map((group) => (
-        <section className="assistant-threads__group" key={group}>
-          <header className="assistant-threads__header">
-            <span className="assistant-threads__caption">{group}</span>
+      <header className="assistant-threads__header">
+        <span className="assistant-threads__caption">会话</span>
 
-            {group === groups[0] ? (
-              <button
-                aria-label="新建会话"
-                className="assistant-threads__create"
-                onClick={onCreate}
-                type="button"
-              >
-                <PlusIcon aria-hidden="true" />
-              </button>
-            ) : null}
-          </header>
+        <button
+          aria-label="新建会话"
+          className="assistant-threads__create"
+          onClick={onCreate}
+          type="button"
+        >
+          <PlusIcon aria-hidden="true" />
+        </button>
+      </header>
 
-          <ul className="assistant-threads__list">
-            {threads
-              .filter((thread) => thread.group === group)
-              .map((thread) => (
+      {groups.length === 0 ? (
+        <p className="assistant-threads__empty">还没有会话。</p>
+      ) : (
+        groups.map(([name, members]) => (
+          <section className="assistant-threads__group" key={name}>
+            <span className="assistant-threads__caption">{name}</span>
+
+            <ul className="assistant-threads__list">
+              {members.map((thread) => (
                 <li
                   className="assistant-thread"
-                  data-active={thread.id === activeThreadId ? 'true' : 'false'}
-                  data-muted={thread.isMuted ? 'true' : 'false'}
+                  data-active={thread.id === activeThreadId ? 'true' : undefined}
+                  data-muted={thread.isMuted === true ? 'true' : undefined}
                   key={thread.id}
                 >
                   <button
@@ -122,9 +145,7 @@ export function AssistantThreadList({
                       >
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onClick={() => {
-                            onCopyLink?.(thread.id)
-                          }}
+                          onSelect={() => onCopyLink?.(thread.id)}
                         >
                           <Link aria-hidden="true" />
                           <span>拷贝链接</span>
@@ -132,9 +153,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onClick={() => {
-                            onPin(thread.id)
-                          }}
+                          onSelect={() => onPin(thread.id)}
                         >
                           <PinIcon aria-hidden="true" />
                           <span>固定</span>
@@ -142,9 +161,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onClick={() => {
-                            onMarkUnread?.(thread.id)
-                          }}
+                          onSelect={() => onMarkUnread?.(thread.id)}
                         >
                           <ThreadIcon aria-hidden="true" />
                           <span>标记为未读</span>
@@ -152,9 +169,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onClick={() => {
-                            onRename?.(thread.id)
-                          }}
+                          onSelect={() => onRename?.(thread.id)}
                         >
                           <Edit aria-hidden="true" />
                           <span>重命名</span>
@@ -162,9 +177,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
-                          onClick={() => {
-                            onDelete?.(thread.id)
-                          }}
+                          onSelect={() => onDelete?.(thread.id)}
                         >
                           <Trash aria-hidden="true" />
                           <span>删除</span>
@@ -174,25 +187,20 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onClick={() => {
-                            onOpenInNewTab?.(thread.id)
-                          }}
+                          onSelect={() => onOpenInNewTab?.(thread.id)}
                         >
                           <ExternalLink aria-hidden="true" />
                           <span>在新选项卡中打开</span>
                         </DropdownMenuItem>
-
-                        <p className="assistant-thread-menu__meta">
-                          上次更新时间为 {thread.relativeTime}前
-                        </p>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </span>
                 </li>
               ))}
-          </ul>
-        </section>
-      ))}
+            </ul>
+          </section>
+        ))
+      )}
     </nav>
   )
 }

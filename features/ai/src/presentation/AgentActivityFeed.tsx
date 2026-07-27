@@ -54,14 +54,19 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
     pinnedRef.current = distance <= BOTTOM_THRESHOLD_PX
   }, [])
 
-  const tailKey = rows.at(-1)?.item.id ?? ''
+  /*
+   * The tail grows while its id stays the same, so following the identity of
+   * the last row leaves a streaming answer scrolling out of view. The measured
+   * total is the only value that changes with the content itself.
+   */
+  const totalSize = virtualizer.getTotalSize()
 
   useEffect(() => {
-    if (!pinnedRef.current || tailKey === '') {
+    if (!pinnedRef.current || rows.length === 0) {
       return
     }
     virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
-  }, [rows.length, tailKey, virtualizer])
+  }, [rows.length, totalSize, virtualizer])
 
   const virtualRows = virtualizer.getVirtualItems()
 
@@ -73,7 +78,7 @@ export function AgentActivityFeed({ rows, renderRow, isBusy, footer }: AgentActi
       ref={scrollRef}
       role="log"
     >
-      <div className="agent-activity-feed__canvas" style={{ height: virtualizer.getTotalSize() }}>
+      <div className="agent-activity-feed__canvas" style={{ height: totalSize }}>
         {virtualRows.map((virtualRow) => {
           const row = rows[virtualRow.index]
           if (!row) {
