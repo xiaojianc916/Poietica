@@ -101,13 +101,26 @@
   flex: 1 0 24px;
 }
 
+/*
+ * 首选宽度必须是明确的 width，不能只写进 flex-basis。
+ *
+ * 滚动容器是 flex: 0 1 auto，宽度取自它的 max-content。按 Flexbox 内在尺寸
+ * 算法，一个可收缩项（flex-shrink: 1）的 max-content 贡献取的是内容贡献而不是
+ * flex-basis；而标签的全部内容——__active-shape / __separator / __content——都是
+ * 绝对定位，内容贡献为 0，于是贡献被 min-width 夹成 88px，滚动容器按 88px×标签数
+ * 定宽，标签再收缩到最小宽度。明确 width 与内容无关，贡献恢复为 168px。
+ *
+ * flex-shrink 与 min-width 保留：溢出时先压到 88px 再开始横向滚动，与 Chrome、
+ * VS Code 的标签条一致。
+ */
 .chrome-workbench-tab {
   position: relative;
   z-index: 1;
+  width: var(--chrome-tab-preferred-width);
   height: var(--chrome-tab-height);
   min-width: var(--chrome-tab-min-width);
   max-width: var(--chrome-tab-max-width);
-  flex: 0 1 var(--chrome-tab-preferred-width);
+  flex: 0 1 auto;
   margin-left: -4px;
   isolation: isolate;
   user-select: none;

@@ -912,9 +912,7 @@ pub struct AgentOpenedThread {
 /// Fails when the database cannot be opened or read.
 #[tauri::command]
 #[specta::specta]
-pub async fn agent_threads(
-    state: State<'_, AgentRuntime>,
-) -> AgentCommandResult<Vec<AgentThread>> {
+pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
     let store = poietica_ai_persistence_native::AiStore::open(&state.database)
         .map_err(|failure| Error::Internal(failure.to_string()))?;
 
@@ -926,7 +924,9 @@ pub async fn agent_threads(
             let Ok(Some(thread)) = store.thread_for_session(&info.session_id) else {
                 continue;
             };
-            let Ok(id) = Uuid::parse_str(&thread) else { continue };
+            let Ok(id) = Uuid::parse_str(&thread) else {
+                continue;
+            };
 
             let official = poietica_ai_persistence_native::TitleSource::Official;
 

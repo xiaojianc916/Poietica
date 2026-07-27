@@ -1,10 +1,10 @@
-import type { ComponentProps, KeyboardEvent, ReactNode } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
+import type { ComponentProps, KeyboardEvent, ReactNode } from 'react'
 import { createContext, useCallback, useContext, useId, useMemo, useRef, useState } from 'react'
 
 import type { ChatStatus } from '../../contracts/chat-status-contract'

@@ -60,8 +60,12 @@ export function WorkbenchTab({
    * role="presentation"：tablist 的拥有元素必须是 tab。这层容器只承载几何与
    * 指针会话，把它从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
    *
-   * 指针捕获挂在这一层，所以拖动越过其它标签时事件仍然回到这里；click 不受
-   * 指针捕获影响，阈值以下的按压照常激活标签。
+   * 指针捕获挂在这一层，所以拖动越过其它标签时事件仍然回到这里。
+   *
+   * 捕获在越过拖拽阈值时才建立。原先在 pointerdown 就抢捕获，而捕获期间
+   * mousedown 与 mouseup 都被重定向到捕获元素，click 于是在这个没有 onClick 的
+   * 容器上派发，内层的激活按钮与关闭按钮双双收不到点击——此处原本有一句断言
+   * “click 不受指针捕获影响”，它是错的。
    */
   return (
     <div
@@ -83,6 +87,8 @@ export function WorkbenchTab({
       }}
       onPointerLeave={(event) => {
         event.currentTarget.removeAttribute('data-suppress-hover')
+
+        reorder.onPointerLeave(event)
       }}
       onPointerMove={reorder.onPointerMove}
       onPointerUp={reorder.onPointerUp}

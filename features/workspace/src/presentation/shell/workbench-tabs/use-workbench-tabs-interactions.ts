@@ -25,6 +25,12 @@ import {
  * 这里与侧边栏缩放同一范式：setPointerCapture 拿到整段指针序列，几何在越过
  * 阈值时快照一次，插入位置由纯函数从指针坐标算出，Escape / pointercancel /
  * lostpointercapture 三条路径统一收尾。
+ *
+ * 捕获在越过阈值时才建立，不在 pointerdown。捕获期间 Chromium 会把 mousedown 与
+ * mouseup 一并重定向到捕获元素，click 随之在承载会话的容器上派发——它没有
+ * onClick，于是标签内两个真正的按钮（激活与关闭）会双双失灵。捕获的唯一用途是
+ * 让拖动越过其它标签时事件仍回到源标签，阈值之前并不需要它。这也是 VS Code 与
+ * Chrome 的拖拽实现方式。
  */
 const DRAG_THRESHOLD = 4
 
@@ -60,6 +66,12 @@ export interface WorkbenchTabReorderBindings {
   readonly onPointerMove: (event: PointerEvent<HTMLElement>) => void
 
   readonly onPointerUp: (event: PointerEvent<HTMLElement>) => void
+
+  /**
+   * 未越过阈值时指针移出标签：此时还没有捕获，松手的 pointerup 不会回到标签，
+   * 会话必须在这里收尾，否则会残留并挡住下一次按压。
+   */
+  readonly onPointerLeave: (event: PointerEvent<HTMLElement>) => void
 
   readonly onPointerCancel: () => void
 
@@ -213,8 +225,6 @@ export function useWorkbenchTabsInteractions({
 
       const element = event.currentTarget
 
-      element.setPointerCapture(event.pointerId)
-
       sessionRef.current = {
         pointerId: event.pointerId,
         tabId: tab.id,
@@ -246,6 +256,8 @@ export function useWorkbenchTabsInteractions({
         }
 
         session.active = true
+
+        session.element.setPointerCapture(session.pointerId)
 
         slotsRef.current = measureSlots(tabs, getTabElement)
       }
@@ -293,6 +305,19 @@ export function useWorkbenchTabsInteractions({
     [endSession, onMove],
   )
 
+  const onPointerLeave = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const session = sessionRef.current
+
+      if (!session || session.pointerId !== event.pointerId || session.active) {
+        return
+      }
+
+      endSession()
+    },
+    [endSession],
+  )
+
   useEffect(() => {
     if (!reorderState.draggingTabId) {
       return
@@ -323,6 +348,7 @@ export function useWorkbenchTabsInteractions({
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerLeave,
     onPointerCancel: endSession,
     onLostPointerCapture: endSession,
   }

@@ -1,6 +1,5 @@
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { SessionConfigControl } from '../contracts/session-config-contract'
-import { SessionControls } from './composer/session-controls'
 import {
   PromptInput,
   PromptInputActionMenu,
@@ -16,6 +15,7 @@ import {
   PromptInputTools,
   usePromptInput,
 } from './composer/prompt-input'
+import { SessionControls } from './composer/session-controls'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
 
 /*

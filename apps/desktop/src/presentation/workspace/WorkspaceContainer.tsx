@@ -402,20 +402,6 @@ export function WorkspaceContainer({
           />
         </>
       }
-      sidebarOverride={
-        isSettingsOpen ? (
-          <SettingsNavigationRegion
-            footer={
-              <SidebarFooter
-                onDeveloperToolsOpen={onDeveloperToolsOpen}
-                onSettingsOpen={onSettingsClose}
-                settingsActive
-              />
-            }
-          />
-        ) : null
-      }
-      sidebarPanel={<AssistantSidebarPanel />}
       renderChrome={({
         isSidebarOpen,
         tabs: chromeTabs,
@@ -446,6 +432,20 @@ export function WorkspaceContainer({
           )}
         </DesktopTitleBar>
       )}
+      sidebarOverride={
+        isSettingsOpen ? (
+          <SettingsNavigationRegion
+            footer={
+              <SidebarFooter
+                onDeveloperToolsOpen={onDeveloperToolsOpen}
+                onSettingsOpen={onSettingsClose}
+                settingsActive
+              />
+            }
+          />
+        ) : null
+      }
+      sidebarPanel={<AssistantSidebarPanel />}
       statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}
     />
   )
