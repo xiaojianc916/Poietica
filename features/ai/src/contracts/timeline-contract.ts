@@ -40,6 +40,12 @@ export interface AgentThoughtItem {
   readonly at: number
   readonly text: string
   readonly sealed: boolean
+  /**
+   * When the chain was sealed, so how long it took is a recorded fact rather
+   * than something the view times for itself. A chain still arriving has no end
+   * time, exactly as a tool call still running has none.
+   */
+  readonly endedAt?: number
 }
 
 export interface ToolCallTimelineItem {

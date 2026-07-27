@@ -1,28 +1,32 @@
 import { useState } from 'react'
 
-import { ChevronDownIcon } from '../primitives/icons'
+import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 
 export interface ReasoningPanelProps {
   readonly text: string
   readonly isStreaming: boolean
+  /** How long the chain took, once the reducer has sealed it. */
+  readonly durationMs?: number
 }
 
 /**
- * The thought chain, as a drawer.
+ * The thought chain.
+ *
+ * Not a card: a card would give a passing remark the same weight as an answer.
+ * One quiet line that can be opened, and the thinking underneath it.
  *
  * Open while the agent is thinking, closed once it has moved on — that is what
  * a reader wants without asking. A click is an opinion, and from then on it
  * outranks the default, which is why the override is state and the default is
  * derived rather than synchronised in an effect.
  *
- * The text is always mounted. Unmounting it on close is why the panel used to
- * snap: there is nothing to animate between a node and no node. It lives inside
- * a grid row that travels between 0fr and 1fr instead, which is the one way an
- * intrinsic height animates without being measured in script. Closed, the row
- * is inert, so its content is out of reach of the keyboard and of a screen
- * reader while it is not visible.
+ * The text is always mounted: unmounting it is why the panel used to snap open,
+ * as there is nothing to animate between a node and no node. It lives in a grid
+ * row that travels between 0fr and 1fr, the one way an intrinsic height
+ * animates without being measured in script. Closed, the row is inert, so its
+ * content is out of reach of the keyboard and of a screen reader.
  */
-export function ReasoningPanel({ text, isStreaming }: ReasoningPanelProps) {
+export function ReasoningPanel({ durationMs, isStreaming, text }: ReasoningPanelProps) {
   const [override, setOverride] = useState<boolean | null>(null)
   const isOpen = override ?? isStreaming
 
@@ -34,7 +38,9 @@ export function ReasoningPanel({ text, isStreaming }: ReasoningPanelProps) {
         onClick={() => setOverride(!isOpen)}
         type="button"
       >
-        <span className="timeline-reasoning__label">{isStreaming ? '正在思考' : '思考过程'}</span>
+        <ThinkingIcon aria-hidden="true" className="timeline-reasoning__mark" />
+
+        <span className="timeline-reasoning__label">{labelOf(isStreaming, durationMs)}</span>
 
         <ChevronDownIcon aria-hidden="true" className="timeline-reasoning__chevron" />
       </button>
@@ -46,4 +52,18 @@ export function ReasoningPanel({ text, isStreaming }: ReasoningPanelProps) {
       </div>
     </div>
   )
+}
+
+/*
+ * A duration is stated only when one was recorded, and never as `0 秒`: the
+ * shortest chain still took a moment, so it rounds up to one second.
+ */
+function labelOf(isStreaming: boolean, durationMs?: number): string {
+  if (isStreaming) {
+    return '正在思考'
+  }
+  if (durationMs === undefined) {
+    return '思考过程'
+  }
+  return `思考了 ${String(Math.max(1, Math.round(durationMs / 1000)))} 秒`
 }

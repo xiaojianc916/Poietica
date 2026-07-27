@@ -8,6 +8,7 @@
 
 export {
   ArrowUp as SubmitIcon,
+  Brain as ThinkingIcon,
   ChevronDown as ChevronDownIcon,
   Dots as MoreIcon,
   File as FileIcon,

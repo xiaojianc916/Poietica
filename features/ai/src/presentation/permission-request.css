@@ -22,6 +22,11 @@
   background: var(--cp-permission-surface, transparent);
 }
 
+/* Answered: the question, then the answer. Two lines, one card, one edge. */
+.assistant-permission[data-resolved="true"] {
+  gap: 0.25rem;
+}
+
 .assistant-permission__title {
   margin: 0;
   font-size: 0.8125rem;

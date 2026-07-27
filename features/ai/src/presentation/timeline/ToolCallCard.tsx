@@ -48,6 +48,10 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  *
  * Collapsed by default, because a finished read of a file is a fact and not a
  * story. A failure opens itself: nobody has to hunt for the reason.
+ *
+ * Opening is the same drawer the thought chain uses: the body stays mounted and
+ * a grid row travels between 0fr and 1fr, so a card that opens by itself on
+ * failure travels rather than jumps. Closed, the body is inert.
  */
 export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
   const [override, setOverride] = useState<boolean | null>(null)
@@ -56,7 +60,11 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
   return (
-    <section className="timeline-tool" data-status={item.status}>
+    <section
+      className="timeline-tool"
+      data-open={isOpen ? 'true' : undefined}
+      data-status={item.status}
+    >
       <button
         aria-expanded={isOpen}
         className="timeline-tool__header"
@@ -74,64 +82,66 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
         <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron" />
       </button>
 
-      {isOpen ? (
-        <div className="timeline-tool__body">
-          {item.locations.length > 0 ? (
-            <ul className="timeline-tool__locations">
-              {item.locations.map((location) => (
-                <li className="timeline-tool__location" key={location.path}>
-                  {location.path}
-                  {location.line === undefined ? null : `:${String(location.line)}`}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+      <div className="timeline-tool__reveal" inert={!isOpen}>
+        <div className="timeline-tool__clip">
+          <div className="timeline-tool__body">
+            {item.locations.length > 0 ? (
+              <ul className="timeline-tool__locations">
+                {item.locations.map((location) => (
+                  <li className="timeline-tool__location" key={location.path}>
+                    {location.path}
+                    {location.line === undefined ? null : `:${String(location.line)}`}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
 
-          {parts.length === 0 ? (
-            <p className="timeline-tool__empty">这次调用没有返回内容。</p>
-          ) : null}
+            {parts.length === 0 ? (
+              <p className="timeline-tool__empty">这次调用没有返回内容。</p>
+            ) : null}
 
-          {parts.map((part, index) => {
-            const key = `${part.type}:${String(index)}`
+            {parts.map((part, index) => {
+              const key = `${part.type}:${String(index)}`
 
-            if (part.type === 'text') {
+              if (part.type === 'text') {
+                return (
+                  <pre className="timeline-tool__text" key={key}>
+                    {part.text}
+                  </pre>
+                )
+              }
+
+              if (part.type === 'diff') {
+                return (
+                  <div className="timeline-tool__diff" key={key}>
+                    <p className="timeline-tool__diff-path">{part.path}</p>
+                    {part.oldText === null ? (
+                      <p className="timeline-tool__diff-note">新建文件</p>
+                    ) : (
+                      <pre className="timeline-tool__diff-old">{part.oldText}</pre>
+                    )}
+                    <pre className="timeline-tool__diff-new">{part.newText}</pre>
+                  </div>
+                )
+              }
+
+              if (part.type === 'terminal') {
+                return (
+                  <p className="timeline-tool__terminal" key={key}>
+                    终端 {part.terminalId}
+                  </p>
+                )
+              }
+
               return (
-                <pre className="timeline-tool__text" key={key}>
-                  {part.text}
-                </pre>
-              )
-            }
-
-            if (part.type === 'diff') {
-              return (
-                <div className="timeline-tool__diff" key={key}>
-                  <p className="timeline-tool__diff-path">{part.path}</p>
-                  {part.oldText === null ? (
-                    <p className="timeline-tool__diff-note">新建文件</p>
-                  ) : (
-                    <pre className="timeline-tool__diff-old">{part.oldText}</pre>
-                  )}
-                  <pre className="timeline-tool__diff-new">{part.newText}</pre>
-                </div>
-              )
-            }
-
-            if (part.type === 'terminal') {
-              return (
-                <p className="timeline-tool__terminal" key={key}>
-                  终端 {part.terminalId}
+                <p className="timeline-tool__opaque" key={key}>
+                  {part.label}
                 </p>
               )
-            }
-
-            return (
-              <p className="timeline-tool__opaque" key={key}>
-                {part.label}
-              </p>
-            )
-          })}
+            })}
+          </div>
         </div>
-      ) : null}
+      </div>
     </section>
   )
 }

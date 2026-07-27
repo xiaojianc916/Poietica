@@ -55,40 +55,71 @@
 }
 
 /*
- * The code block, in the same frame as every other card.
+ * The code block, styled against what Streamdown actually renders.
  *
- * The block is rendered by Streamdown, so nothing here names one of its
- * classes: a container that holds a <pre> is the block, whatever it puts first
- * that is not the <pre> is the bar above the code, and the <pre> is the code
- * itself. Element and structure only — a library upgrade can rename its classes
- * without silently dropping the chrome.
+ * From streamdown/lib/code-block:
+ *   container  [data-streamdown="code-block"]         — rounded-xl, border, p-2, gap-2
+ *   header     [data-streamdown="code-block-header"]  — h-8, holds the language
+ *   actions    [data-streamdown="code-block-actions"] — a pill inside a sticky
+ *                                                        overlay, copy + download
+ *   body       [data-streamdown="code-block-body"]    — rounded-md, border, p-4
+ *   line no.   body code > span::before               — content: counter(line)
  *
- * The frame owns the edge and the corners and clips its contents, so the bar
- * and the code need no radius of their own and cannot paint over it.
+ * Two bordered, rounded boxes nested one inside the other is why this looked
+ * like nothing else in the product. Here the container is the only frame: the
+ * body gives up its edge, its radius and its outer padding, the header becomes
+ * the bar across the top, and one grid puts the actions in that same bar rather
+ * than floating over the first line of code. Nothing renames a class of theirs
+ * and nothing is patched in script — this is the whole styling.
  */
-.timeline-message :where(div, figure, section):has(> pre) {
+.timeline-message [data-streamdown="code-block"] {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0;
   overflow: hidden;
   margin-block: 0.75rem;
+  padding: 0;
   border: 1px solid var(--cp-card-line, #e5e5e5);
   border-radius: var(--cp-timeline-radius, 0.75rem);
   background: var(--cp-timeline-card-surface, transparent);
 }
 
-.timeline-message :where(div, figure, section):has(> pre) > :first-child:not(pre) {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-block-size: var(--ui-control-height-sm, 2rem);
-  padding: 0.25rem 0.75rem;
+.timeline-message [data-streamdown="code-block-header"],
+.timeline-message [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
   border-block-end: 1px solid var(--cp-card-line, #e5e5e5);
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
-  font-size: 0.8125rem;
 }
 
-.timeline-message pre {
+.timeline-message [data-streamdown="code-block-header"] {
+  grid-area: 1 / 1;
+  padding-inline-start: 0.75rem;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+}
+
+/* The actions leave their overlay and take their place in the bar. */
+.timeline-message [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
+  grid-area: 1 / 2;
+  position: static;
   margin: 0;
-  overflow-x: auto;
+  padding-inline-end: 0.5rem;
+  block-size: auto;
+  pointer-events: auto;
+}
+
+.timeline-message [data-streamdown="code-block-actions"] {
+  border: 0;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+}
+
+/* One action, because saving a snippet to file.txt is not one. */
+.timeline-message [data-streamdown="code-block-download-button"] {
+  display: none;
+}
+
+.timeline-message [data-streamdown="code-block-body"] {
+  grid-area: 2 / 1 / 3 / 3;
   padding: 0.75rem;
   border: 0;
   border-radius: 0;
@@ -96,6 +127,16 @@
   font-family: var(--cp-font-mono, ui-monospace, monospace);
   font-size: 0.8125rem;
   line-height: 1.55;
+}
+
+.timeline-message [data-streamdown="code-block-body"] pre {
+  margin: 0;
+  background: transparent;
+}
+
+/* The gutter is a counter drawn by a pseudo-element; without it, no gutter. */
+.timeline-message [data-streamdown="code-block-body"] code > span::before {
+  content: none;
 }
 
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
@@ -108,39 +149,45 @@
 }
 
 /*
- * The thought chain is a card that opens like a drawer.
+ * The thought chain is a line, not a card.
  *
- * A grid row from 0fr to 1fr is the whole mechanism: the browser interpolates
- * between two definite track sizes, the inner box clips what does not fit yet,
- * and nothing is measured, so a chain still streaming in animates as correctly
- * as a finished one. The chevron turns on the same clock and the same curve, so
- * the two read as one movement.
+ * A frame would announce it, and it is an aside. So: a quiet label, a chevron,
+ * and the thinking underneath in the same quiet colour.
+ *
+ * The drawer is one mechanism, shared with the tool call. A grid row from 0fr
+ * to 1fr is all of it: the browser interpolates between two definite track
+ * sizes, the inner box clips what does not fit yet, and nothing is measured, so
+ * a chain still streaming in animates as correctly as a finished one. The
+ * chevron turns on the same clock and the same curve, so the two read as one
+ * movement.
  */
 .timeline-reasoning {
-  border: 1px solid var(--cp-card-line, #e5e5e5);
-  border-radius: var(--cp-timeline-radius, 0.75rem);
-  background: var(--cp-timeline-card-surface, transparent);
+  display: grid;
+  gap: 0.375rem;
   color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
 }
 
 .timeline-reasoning__toggle {
-  display: flex;
-  inline-size: 100%;
+  display: inline-flex;
+  justify-self: start;
   align-items: center;
-  gap: 0.5rem;
-  min-block-size: var(--ui-control-height-sm, 2rem);
+  gap: 0.375rem;
   border: 0;
-  border-radius: inherit;
-  padding: 0.5rem 0.875rem;
+  padding: 0;
   background: none;
   color: inherit;
   font: inherit;
-  text-align: start;
   cursor: pointer;
 }
 
+.timeline-reasoning__mark {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
 .timeline-reasoning__label {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .timeline-reasoning__chevron {
@@ -178,16 +225,19 @@
 
 .timeline-reasoning__body {
   margin: 0;
-  padding: 0 0.875rem 0.75rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .timeline-tool {
-  border: 1px solid var(--cp-timeline-card-border, rgb(0 0 0 / 10%));
+  overflow: hidden;
+  border: 1px solid var(--cp-card-line, #e5e5e5);
   border-radius: var(--cp-timeline-radius, 0.75rem);
   background: var(--cp-timeline-card-surface, transparent);
-  overflow: hidden;
+}
+
+.timeline-tool[data-open="true"] .timeline-tool__chevron {
+  transform: rotate(180deg);
 }
 
 .timeline-tool__header {
@@ -211,6 +261,32 @@
   flex: none;
   inline-size: 1rem;
   block-size: 1rem;
+}
+
+.timeline-tool__chevron {
+  transition: transform var(--cp-motion-drawer, 260ms)
+    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* The same drawer as the thought chain, from the same two tokens. */
+.timeline-tool__reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--cp-motion-drawer, 260ms)
+    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
+    opacity 160ms linear;
+}
+
+.timeline-tool[data-open="true"] .timeline-tool__reveal {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.timeline-tool__clip {
+  min-block-size: 0;
+  overflow: hidden;
 }
 
 .timeline-tool__spinner {
@@ -326,7 +402,9 @@
   }
 
   .timeline-reasoning__chevron,
-  .timeline-reasoning__reveal {
+  .timeline-reasoning__reveal,
+  .timeline-tool__chevron,
+  .timeline-tool__reveal {
     transition: none;
   }
 }
