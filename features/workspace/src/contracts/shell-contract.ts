@@ -57,8 +57,14 @@ export interface WorkspaceShellProps {
    * 所以进出设置不会跳宽度，分隔条在设置界面里照样能拖。
    */
   readonly sidebarOverride?: ReactNode
-  /** 主区域不再是标签面板时的无障碍名称（例如设置界面）。 */
-  readonly mainContentLabel?: string
+  /*
+   * 主区域不再是标签面板时的无障碍名称（例如设置界面）。
+   *
+   * 显式写出 undefined 是因为仓库开了 exactOptionalPropertyTypes：只写 ?: 时，
+   * 组合根的三元表达式在工作台态传 undefined 会被判为类型错误，而“这个插槽
+   * 在工作台态没有值”本来就是真实语义，契约直说比在 JSX 里做条件展开更清楚。
+   */
+  readonly mainContentLabel?: string | undefined
   readonly renderChrome: (props: WorkspaceChromeRenderProps) => ReactNode
   readonly mainContent: ReactNode
   readonly inspector: ReactNode
