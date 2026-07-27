@@ -106,15 +106,7 @@ class WorkspaceLayoutStore {
     this.#commit({ inspectorOpen: !this.#state.inspectorOpen })
   }
 
-  /*
-   * 窄视口降级不是用户意图，因此不写回存储：窗口重新变宽时，用户此前
-   * 选择的侧边栏状态必须原样回来。
-   */
-  collapseForNarrowViewport = (): void => {
-    this.#commit({ sidebarOpen: false }, false)
-  }
-
-  #commit(patch: Partial<WorkspaceLayoutState>, persist = true): void {
+  #commit(patch: Partial<WorkspaceLayoutState>): void {
     const next: WorkspaceLayoutState = { ...this.#state, ...patch }
 
     if (
@@ -131,9 +123,7 @@ class WorkspaceLayoutStore {
       listener()
     }
 
-    if (persist) {
-      this.#schedulePersist()
-    }
+    this.#schedulePersist()
   }
 
   /*
@@ -158,26 +148,18 @@ class WorkspaceLayoutStore {
   }
 }
 
-export const workspaceLayoutStore = new WorkspaceLayoutStore()
-
 /*
- * 窄视口下侧边栏是遮罩抽屉。进入窄视口时收起，避免抽屉在冷启动或窗口
- * 缩小后直接盖住画布。这条策略属于布局本身，所以绑定在 store 的媒体
- * 查询边界上，而不是散落在渲染组件的 effect 里 —— 后者在首帧无法生效。
+ * 本模块只拥有用户意图，不拥有视口。
+ *
+ * 窄视口下侧边栏改为遮罩抽屉，这属于呈现降级，由 WorkspaceShell 从布局
+ * 模式派生（dockSidebar 与抽屉分支）。曾经在这里追加过一份视口策略，它在
+ * 模块求值阶段就执行，而那时 WebView 还没完成首次布局、宽度查询不匹配，
+ * 于是每次冷启动都把侧边栏误判为应当收起，并且此后再也不会恢复。
+ *
+ * 把视口写进意图是方向性错误：意图一旦被环境覆盖就丢了，窗口变宽也无从
+ * 还原。派生状态留在渲染层，这里只记录用户按过什么。
  */
-if (typeof window !== 'undefined') {
-  const compact = window.matchMedia(WORKSPACE_LAYOUT.breakpoints.compact)
-
-  const applyNarrowPolicy = () => {
-    if (!compact.matches) {
-      workspaceLayoutStore.collapseForNarrowViewport()
-    }
-  }
-
-  applyNarrowPolicy()
-
-  compact.addEventListener('change', applyNarrowPolicy)
-}
+export const workspaceLayoutStore = new WorkspaceLayoutStore()
 
 export function useWorkspaceLayoutState(): WorkspaceLayoutState {
   return useSyncExternalStore(
