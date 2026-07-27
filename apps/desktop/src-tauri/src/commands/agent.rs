@@ -913,8 +913,8 @@ pub struct AgentOpenedThread {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
-    let store = poietica_ai_persistence_native::AiStore::open(&state.database)
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
+    let store =
+        AiStore::open(&state.database).map_err(|failure| Error::Internal(failure.to_string()))?;
 
     if let Ok(Some(live)) = borrow(&state)
         && let Ok(listed) = live.client.sessions().await
@@ -975,8 +975,8 @@ pub async fn agent_open_thread(
         .await
         .map_err(translate)?;
 
-    let store = poietica_ai_persistence_native::AiStore::open(&state.database)
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
+    let store =
+        AiStore::open(&state.database).map_err(|failure| Error::Internal(failure.to_string()))?;
 
     let thread_id = store
         .create_thread(FALLBACK_THREAD_TITLE)
