@@ -1,17 +1,11 @@
 import {
   BookOpen,
-  Box,
-  ChartNetwork,
   Code,
   Cog,
   ExternalLink,
-  FolderTwo,
-  Grid,
-  Image,
   Message,
   QuestionCircle,
   RefreshAlt,
-  Search,
 } from '@mynaui/icons-react'
 import {
   Button,
@@ -26,105 +20,50 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@poietica/foundations-design-system'
-import type { ComponentType } from 'react'
 
-import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
-
-type NavigationIcon = ComponentType<{
-  className?: string
-  'aria-hidden'?: boolean | 'true' | 'false'
-}>
-
-export type CanvasNavigationItemId =
-  | 'pages'
-  | 'documents'
-  | 'search'
-  | 'layers'
-  | 'relations'
-  | 'ai'
-  | 'assets'
-  | 'extensions'
-
-export interface CanvasNavigationItem {
-  readonly id: CanvasNavigationItemId
-  readonly label: string
-  readonly icon: NavigationIcon
-}
+import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import {
+  describeWorkspaceSurface,
+  type SurfaceIcon,
+  WORKSPACE_NAVIGATION_ORDER,
+} from './surface-registry'
 
 export interface ActivityRailProps {
-  readonly activeItemId?: CanvasNavigationItemId
-
-  readonly items?: readonly CanvasNavigationItem[]
-
-  readonly onItemActivate?: (itemId: CanvasNavigationItemId) => void
-
+  readonly activeItemId: WorkspaceSurfaceId
+  readonly onItemActivate: (surfaceId: WorkspaceSurfaceId) => void
   readonly onDeveloperToolsOpen: () => void
-
   readonly onSettingsOpen: () => void
 }
 
-const DEFAULT_NAVIGATION: readonly CanvasNavigationItem[] = [
-  {
-    id: 'ai',
-    label: 'AI',
-    icon: AiSurfaceIcon,
-  },
-  {
-    id: 'search',
-    label: '搜索',
-    icon: Search,
-  },
-  {
-    id: 'pages',
-    label: '画布',
-    icon: Grid,
-  },
-  {
-    id: 'relations',
-    label: '关系',
-    icon: ChartNetwork,
-  },
-  {
-    id: 'assets',
-    label: '素材',
-    icon: Image,
-  },
-  {
-    id: 'extensions',
-    label: '插件',
-    icon: Box,
-  },
-  {
-    id: 'documents',
-    label: '恢复',
-    icon: FolderTwo,
-  },
-]
-
+/**
+ * 主导航。
+ *
+ * 图标与标题一律来自 surface 注册表：这里不维护第二份 id → 展示 映射。
+ */
 export function ActivityRail({
-  activeItemId = 'pages',
-  items = DEFAULT_NAVIGATION,
+  activeItemId,
   onItemActivate,
   onDeveloperToolsOpen,
   onSettingsOpen,
 }: ActivityRailProps) {
   return (
-    <nav
-      aria-label="主导航"
-      className={['flex h-full min-h-0', 'flex-col items-center', 'bg-sidebar py-2'].join(' ')}
-    >
-      <div className={['flex flex-col gap-1'].join(' ')}>
-        {items.map((item) => (
-          <RailButton
-            active={item.id === activeItemId}
-            icon={item.icon}
-            key={item.id}
-            label={item.label}
-            onClick={() => {
-              onItemActivate?.(item.id)
-            }}
-          />
-        ))}
+    <nav aria-label="主导航" className="flex h-full min-h-0 flex-col items-center bg-sidebar py-2">
+      <div className="flex flex-col gap-1">
+        {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
+          const { title, icon } = describeWorkspaceSurface(surfaceId)
+
+          return (
+            <RailButton
+              active={surfaceId === activeItemId}
+              icon={icon}
+              key={surfaceId}
+              label={title}
+              onClick={() => {
+                onItemActivate(surfaceId)
+              }}
+            />
+          )
+        })}
       </div>
 
       <div className="flex-1" />
@@ -140,40 +79,30 @@ export function ActivityRail({
 
 interface RailButtonProps {
   readonly label: string
-  readonly icon: NavigationIcon
+  readonly icon: SurfaceIcon
   readonly active?: boolean
-  readonly onClick?: () => void
+  readonly onClick: () => void
 }
 
 function RailButton({ label, icon: Icon, active = false, onClick }: RailButtonProps) {
-  const className = active
-    ? [
-        'relative size-9',
-        'bg-sidebar-accent',
-        'text-muted-foreground',
-        'hover:bg-sidebar-accent',
-      ].join(' ')
-    : ['size-9', 'text-muted-foreground', 'hover:bg-sidebar-accent', 'hover:text-foreground'].join(
-        ' ',
-      )
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           aria-current={active ? 'page' : undefined}
           aria-label={label}
-          className={className}
+          className={
+            active
+              ? 'relative size-9 bg-sidebar-accent text-muted-foreground hover:bg-sidebar-accent'
+              : 'size-9 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+          }
           onClick={onClick}
           size="icon"
           type="button"
           variant="ghost"
         >
           {active ? (
-            <span
-              aria-hidden="true"
-              className={['absolute -left-2', 'h-4 w-0.5', 'rounded-r', 'bg-primary'].join(' ')}
-            />
+            <span aria-hidden="true" className="absolute -left-2 h-4 w-0.5 rounded-r bg-primary" />
           ) : null}
 
           <Icon aria-hidden="true" className="size-4" />
@@ -190,16 +119,7 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="帮助"
-        className={[
-          'grid size-9 place-items-center',
-          'rounded-md',
-          'text-muted-foreground',
-          'transition-colors',
-          'hover:bg-sidebar-accent',
-          'hover:text-foreground',
-          'data-[popup-open]:bg-sidebar-accent',
-          'data-[popup-open]:text-foreground',
-        ].join(' ')}
+        className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground data-[popup-open]:bg-sidebar-accent data-[popup-open]:text-foreground"
       >
         <QuestionCircle aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
@@ -225,21 +145,14 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
 
 interface HelpMenuItemProps {
   readonly label: string
-  readonly icon: NavigationIcon
+  readonly icon: SurfaceIcon
   readonly external?: boolean
-  readonly disabled?: boolean
   readonly onClick?: () => void
 }
 
-function HelpMenuItem({
-  label,
-  icon: Icon,
-  external = false,
-  disabled = false,
-  onClick,
-}: HelpMenuItemProps) {
+function HelpMenuItem({ label, icon: Icon, external = false, onClick }: HelpMenuItemProps) {
   return (
-    <DropdownMenuItem disabled={disabled} onClick={onClick}>
+    <DropdownMenuItem onClick={onClick}>
       <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
 
       <span className="flex-1">{label}</span>

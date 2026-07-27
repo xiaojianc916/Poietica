@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
-import { WORKSPACE_SURFACE_REGISTRY } from './surface-registry'
+import { WORKSPACE_NAVIGATION_ORDER, WORKSPACE_SURFACE_REGISTRY } from './surface-registry'
 
 const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
   'pages',
@@ -36,10 +36,19 @@ describe('WORKSPACE_SURFACE_REGISTRY', () => {
       expect(descriptor, `missing descriptor for ${id}`).toBeDefined()
       expect(isRenderableComponent(descriptor.icon), `icon for ${id} is not renderable`).toBe(true)
       expect(descriptor.title.length).toBeGreaterThan(0)
+      expect(descriptor.description.length).toBeGreaterThan(0)
     }
   })
 
   it('不包含已废弃的 data 表面', () => {
     expect(Object.keys(WORKSPACE_SURFACE_REGISTRY)).not.toContain('data')
+  })
+
+  it('导航顺序只引用注册表中存在的表面，且不重复', () => {
+    for (const surfaceId of WORKSPACE_NAVIGATION_ORDER) {
+      expect(WORKSPACE_SURFACE_REGISTRY[surfaceId]).toBeDefined()
+    }
+
+    expect(new Set(WORKSPACE_NAVIGATION_ORDER).size).toBe(WORKSPACE_NAVIGATION_ORDER.length)
   })
 })

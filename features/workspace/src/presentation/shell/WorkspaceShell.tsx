@@ -1,5 +1,4 @@
-import { PanelLeftClose, PanelRightClose, PanelRightOpen } from '@mynaui/icons-react'
-import { Button, TooltipProvider } from '@poietica/foundations-design-system'
+import { TooltipProvider } from '@poietica/foundations-design-system'
 import { useState } from 'react'
 
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
@@ -7,7 +6,8 @@ import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
 import { ActivityRail } from './ActivityRail'
-import { SidebarSplitter } from './SidebarSplitter'
+import { InspectorRegion } from './InspectorRegion'
+import { SidebarRegion } from './SidebarRegion'
 import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
@@ -22,7 +22,12 @@ const WORKSPACE_GRID_COLUMNS = [
   'var(--workspace-inspector-column-width, 0px)',
 ].join(' ')
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 工作区外壳集中编排响应式区域及其条件渲染
+/**
+ * 工作区外壳。
+ *
+ * 职责只有一件事：决定栅格几何，并把各区域装进 WorkspaceFrame。每个区域的
+ * 内部形态（停靠列 / 覆盖抽屉 / 开合控件）由区域组件自己拥有。
+ */
 export function WorkspaceShell({
   model,
   actions,
@@ -39,268 +44,138 @@ export function WorkspaceShell({
   const mode = useWorkspaceLayoutMode()
 
   /*
-   * 侧边栏与属性栏的可见性、宽度由 workspaceLayoutStore 拥有：它跨会话
-   * 保留，并且要能被命令面板与快捷键驱动。isResizing 是单次拖拽内的
-   * 瞬时状态，留在组件本地。
+   * 侧边栏与属性栏的可见性、宽度由 workspaceLayoutStore 拥有：它跨会话保留，
+   * 并且要能被命令面板与快捷键驱动。isResizing 是单次拖拽内的瞬时状态。
    */
-  const {
-    sidebarOpen: isSidebarOpen,
-    sidebarWidth,
-    inspectorOpen: isInspectorOpen,
-  } = useWorkspaceLayoutState()
+  const { sidebarOpen, sidebarWidth, inspectorOpen } = useWorkspaceLayoutState()
 
   const { setSidebarOpen, setSidebarWidth, setInspectorOpen } = workspaceLayoutStore
 
   const [isResizing, setResizing] = useState(false)
 
-  const activeNavigationItem: WorkspaceSurfaceId =
+  const activeSurfaceId: WorkspaceSurfaceId =
     model.activeSurface.kind === 'workspace' ? model.activeSurface.surfaceId : 'pages'
 
   const hasCanvas = model.activeSurface.kind === 'canvas'
-  const dockSidebar = mode !== 'narrow' && isSidebarOpen
-  const dockInspector = inspectorAvailable && isInspectorOpen && hasCanvas
-
-  const sidebarColumnWidth = dockSidebar ? sidebarWidth : 0
-  const inspectorColumnWidth = dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0
-
-  const rows = hasCanvas
-    ? ['var(--chrome-height)', 'minmax(0, 1fr)', 'var(--status-height)'].join(' ')
-    : ['var(--chrome-height)', 'minmax(0, 1fr)'].join(' ')
-
-  const sidebarContent = (
-    <WorkspaceSidebar
-      activeNavigationItem={activeNavigationItem}
-      onActivatePage={actions.activatePage}
-      onCreatePage={actions.createPage}
-      {...(panelRenderers === undefined ? {} : { panelRenderers })}
-      pages={pages}
-    />
-  )
-
-  const chrome = (
-    <header className="col-span-full row-1 min-h-0 min-w-0 bg-chrome">
-      {renderChrome({
-        isSidebarOpen,
-        sidebarWidth: dockSidebar ? sidebarWidth : 0,
-        tabs: model.tabs,
-        onSidebarToggle: workspaceLayoutStore.toggleSidebar,
-        onActivateTab: actions.activateTab,
-        onCloseTab: actions.closeTab,
-        onMoveTab: actions.moveTab,
-        onCreateCanvas: actions.createCanvas,
-      })}
-    </header>
-  )
-
-  const rail = (
-    <div
-      className="row-[2/-1] min-h-0 border-r border-divider bg-sidebar"
-      style={{ gridColumn: 1 }}
-    >
-      <ActivityRail
-        activeItemId={activeNavigationItem}
-        onDeveloperToolsOpen={actions.openDeveloperTools}
-        onItemActivate={(surfaceId) => {
-          actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
-          setSidebarOpen(true)
-        }}
-        onSettingsOpen={actions.openSettingsWindow}
-      />
-    </div>
-  )
-
-  const sidebar = (
-    <>
-      <div
-        aria-hidden={!dockSidebar}
-        className="relative z-20 row-[2/-1] min-h-0 min-w-0 overflow-visible border-r border-divider bg-sidebar"
-        style={{
-          borderRightWidth: dockSidebar ? 1 : 0,
-          gridColumn: 2,
-          pointerEvents: dockSidebar ? 'auto' : 'none',
-        }}
-      >
-        {mode !== 'narrow' ? (
-          <div className="h-full min-h-0 w-full overflow-hidden">
-            <div className="h-full min-h-0" style={{ width: sidebarWidth }}>
-              {sidebarContent}
-            </div>
-          </div>
-        ) : null}
-
-        {dockSidebar ? (
-          <SidebarSplitter
-            max={WORKSPACE_LAYOUT.sidebar.maxWidth}
-            min={WORKSPACE_LAYOUT.sidebar.minWidth}
-            onCollapse={() => setSidebarOpen(false)}
-            onResize={setSidebarWidth}
-            onResizeEnd={() => setResizing(false)}
-            onResizeStart={() => setResizing(true)}
-            width={sidebarWidth}
-          />
-        ) : null}
-      </div>
-
-      {mode === 'narrow' && isSidebarOpen ? (
-        <div className="fixed inset-x-0 bottom-0 top-[var(--chrome-height)] z-[var(--ui-z-popover)]">
-          <button
-            aria-label="关闭工作区导航"
-            className="absolute inset-0 cursor-default bg-black/35"
-            onClick={() => setSidebarOpen(false)}
-            type="button"
-          />
-
-          <aside
-            aria-label="工作区导航"
-            className="relative ml-[var(--activity-rail-width)] h-full w-[min(82vw,320px)] border-r border-divider bg-sidebar shadow-2xl"
-          >
-            <div className="relative h-full">
-              {sidebarContent}
-
-              <Button
-                aria-label="关闭侧边栏"
-                className="absolute right-2 top-2"
-                onClick={() => setSidebarOpen(false)}
-                size="icon"
-                type="button"
-                variant="ghost"
-              >
-                <PanelLeftClose aria-hidden="true" className="size-4" />
-              </Button>
-            </div>
-          </aside>
-        </div>
-      ) : null}
-    </>
-  )
+  const dockSidebar = mode !== 'narrow' && sidebarOpen
+  const dockInspector = inspectorAvailable && inspectorOpen && hasCanvas
 
   const activeTabDomId = toDomIdentifier(model.activeTabId)
-
-  const canvas = (
-    <section
-      aria-label="内容区"
-      className="relative z-10 row-2 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
-      style={{
-        borderRightWidth: dockInspector ? 1 : 0,
-        gridColumn: 3,
-      }}
-    >
-      <main
-        aria-labelledby={`workbench-tab-${activeTabDomId}`}
-        className="relative h-full min-h-0 min-w-0 overflow-hidden"
-        id={`workbench-panel-${activeTabDomId}`}
-        role="tabpanel"
-      >
-        {mainContent}
-      </main>
-    </section>
-  )
-
-  const inspectorContent = <InspectorHost>{inspector}</InspectorHost>
-
-  /*
-   * The inspector remains mounted while its grid column animates between its
-   * normal width and zero. This mirrors the left sidebar: the outer grid owns
-   * the geometry, while an inner clipping viewport reveals or hides the fixed
-   * width panel. Keeping it mounted prevents a visual jump on open and close.
-   *
-   * The canvas owns the single divider at this boundary via its border-right.
-   * InspectorHost deliberately has no competing border-left.
-   */
-  const inspectorRegion =
-    hasCanvas && inspectorAvailable ? (
-      <>
-        <aside
-          aria-hidden={!dockInspector}
-          aria-label="属性检查器"
-          className="relative row-[2/-1] min-h-0 min-w-0 overflow-visible"
-          style={{
-            gridColumn: 4,
-            pointerEvents: dockInspector ? 'auto' : 'none',
-          }}
-        >
-          <div className="relative h-full min-h-0 w-full overflow-hidden">
-            <div
-              className="absolute inset-y-0 right-0"
-              style={{ width: WORKSPACE_LAYOUT.inspector.width }}
-            >
-              {inspectorContent}
-            </div>
-          </div>
-
-          {dockInspector ? (
-            <Button
-              aria-label="收起属性面板"
-              className="absolute -left-8 top-3 z-30 size-7 rounded-r-none"
-              onClick={() => setInspectorOpen(false)}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <PanelRightClose aria-hidden="true" className="size-3.5" />
-            </Button>
-          ) : null}
-        </aside>
-
-        {!dockInspector ? (
-          <Button
-            aria-expanded={false}
-            aria-label="展开属性面板"
-            className="fixed right-0 top-[calc(var(--chrome-height)+12px)] z-30 rounded-r-none"
-            onClick={() => {
-              setInspectorOpen(true)
-            }}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <PanelRightOpen aria-hidden="true" className="size-4" />
-          </Button>
-        ) : null}
-      </>
-    ) : null
-
-  const status = hasCanvas ? (
-    <div
-      className="relative z-10 min-w-0 border-r border-divider bg-background"
-      style={{
-        borderRightWidth: dockInspector ? 1 : 0,
-        gridColumn: 3,
-        gridRow: 3,
-      }}
-    >
-      <StatusBarHost>{statusContent}</StatusBarHost>
-    </div>
-  ) : null
 
   return (
     <TooltipProvider delayDuration={450}>
       <WorkspaceFrame
-        canvas={canvas}
-        chrome={chrome}
+        canvas={
+          <section
+            aria-label="内容区"
+            className="relative z-10 row-2 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
+            style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 3 }}
+          >
+            <main
+              aria-labelledby={`workbench-tab-${activeTabDomId}`}
+              className="relative h-full min-h-0 min-w-0 overflow-hidden"
+              id={`workbench-panel-${activeTabDomId}`}
+              role="tabpanel"
+            >
+              {mainContent}
+            </main>
+          </section>
+        }
+        chrome={
+          <header className="col-span-full row-1 min-h-0 min-w-0 bg-chrome">
+            {renderChrome({
+              isSidebarOpen: sidebarOpen,
+              sidebarWidth: dockSidebar ? sidebarWidth : 0,
+              tabs: model.tabs,
+              onSidebarToggle: workspaceLayoutStore.toggleSidebar,
+              onActivateTab: actions.activateTab,
+              onCloseTab: actions.closeTab,
+              onMoveTab: actions.moveTab,
+              onCreateCanvas: actions.createCanvas,
+            })}
+          </header>
+        }
         disableLayoutAnimation={isResizing}
         gridTemplateColumns={WORKSPACE_GRID_COLUMNS}
-        gridTemplateRows={rows}
-        inspector={inspectorRegion}
-        inspectorColumnWidth={inspectorColumnWidth}
+        gridTemplateRows={
+          hasCanvas
+            ? 'var(--chrome-height) minmax(0, 1fr) var(--status-height)'
+            : 'var(--chrome-height) minmax(0, 1fr)'
+        }
+        inspector={
+          hasCanvas && inspectorAvailable ? (
+            <InspectorRegion isDocked={dockInspector} onOpenChange={setInspectorOpen}>
+              <InspectorHost>{inspector}</InspectorHost>
+            </InspectorRegion>
+          ) : null
+        }
+        inspectorColumnWidth={dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0}
         overlays={
           <>
             {assistantOverlay}
             {overlays}
           </>
         }
-        rail={rail}
-        sidebar={sidebar}
-        sidebarColumnWidth={sidebarColumnWidth}
-        statusBar={status}
+        rail={
+          <div
+            className="row-[2/-1] min-h-0 border-r border-divider bg-sidebar"
+            style={{ gridColumn: 1 }}
+          >
+            <ActivityRail
+              activeItemId={activeSurfaceId}
+              onDeveloperToolsOpen={actions.openDeveloperTools}
+              onItemActivate={(surfaceId) => {
+                actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
+                setSidebarOpen(true)
+              }}
+              onSettingsOpen={actions.openSettingsWindow}
+            />
+          </div>
+        }
+        sidebar={
+          <SidebarRegion
+            isOpen={sidebarOpen}
+            mode={mode}
+            onClose={() => {
+              setSidebarOpen(false)
+            }}
+            onResize={setSidebarWidth}
+            onResizeEnd={() => {
+              setResizing(false)
+            }}
+            onResizeStart={() => {
+              setResizing(true)
+            }}
+            width={sidebarWidth}
+          >
+            <WorkspaceSidebar
+              activeNavigationItem={activeSurfaceId}
+              onActivatePage={actions.activatePage}
+              onCreatePage={actions.createPage}
+              {...(panelRenderers === undefined ? {} : { panelRenderers })}
+              pages={pages}
+            />
+          </SidebarRegion>
+        }
+        sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
+        statusBar={
+          hasCanvas ? (
+            <div
+              className="relative z-10 min-w-0 border-r border-divider bg-background"
+              style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 3, gridRow: 3 }}
+            >
+              <StatusBarHost>{statusContent}</StatusBarHost>
+            </div>
+          ) : null
+        }
       />
     </TooltipProvider>
   )
 }
 
 /*
- * 标签页与其面板的 ARIA 关联依赖同一个标识符。转义只做一次，避免两处
- * 正则各自演化后 aria-labelledby 与 id 悄悄失配。
+ * 标签页与其面板的 ARIA 关联依赖同一个标识符。转义只做一次，避免两处正则
+ * 各自演化后 aria-labelledby 与 id 悄悄失配。
  */
 function toDomIdentifier(value: string): string {
   return value.replaceAll(/[^a-zA-Z0-9_-]/g, '-')

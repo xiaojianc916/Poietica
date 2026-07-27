@@ -1,58 +1,6 @@
-import { Box, ChartNetwork, FolderTwo, Grid, Image, LayersThree, Search } from '@mynaui/icons-react'
-import type { ComponentType } from 'react'
-
 import type { WorkspaceSurfaceRenderers } from '../../contracts/surface-contract'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
-import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
-
-interface WorkspaceSurfaceDefinition {
-  readonly title: string
-  readonly description: string
-  readonly icon: ComponentType<{ readonly className?: string }>
-}
-
-const SURFACES: Record<WorkspaceSurfaceId, WorkspaceSurfaceDefinition> = {
-  pages: {
-    title: '画布',
-    description: '浏览当前文档中的画布页面。',
-    icon: Grid,
-  },
-  search: {
-    title: '搜索',
-    description: '搜索工作区中的画布、对象和文本内容。',
-    icon: Search,
-  },
-  layers: {
-    title: '图层',
-    description: '浏览、选择和组织当前画布中的对象层级。',
-    icon: LayersThree,
-  },
-  relations: {
-    title: '关系',
-    description: '查看并维护画布内容之间的结构化关系。',
-    icon: ChartNetwork,
-  },
-  assets: {
-    title: '素材',
-    description: '统一管理图片、附件和可复用素材。',
-    icon: Image,
-  },
-  extensions: {
-    title: '插件',
-    description: '管理为编辑器提供能力的扩展。',
-    icon: Box,
-  },
-  ai: {
-    title: 'AI',
-    description: '与 AI 协作生成、整理并驱动画布内容。',
-    icon: AiSurfaceIcon,
-  },
-  documents: {
-    title: '恢复',
-    description: '恢复最近打开的画布和本地文件。',
-    icon: FolderTwo,
-  },
-}
+import { describeWorkspaceSurface } from './surface-registry'
 
 export interface WorkspaceSurfaceProps {
   readonly surfaceId: WorkspaceSurfaceId
@@ -61,19 +9,19 @@ export interface WorkspaceSurfaceProps {
    * 由 apps 组合根注入的表面渲染器。
    *
    * workspace 不得依赖任何 feature 包；具体表面（如 AI）通过此扩展点接入。
+   * 组合根恒定注入，因此这里不是可选项。
    */
-  readonly renderers?: WorkspaceSurfaceRenderers
+  readonly renderers: WorkspaceSurfaceRenderers
 }
 
 export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps) {
-  const render = renderers?.[surfaceId]
+  const render = renderers[surfaceId]
 
   if (render) {
     return <>{render()}</>
   }
 
-  const definition = SURFACES[surfaceId]
-  const Icon = definition.icon
+  const { title, description, icon: Icon } = describeWorkspaceSurface(surfaceId)
 
   return (
     <section
@@ -87,17 +35,17 @@ export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps
 
       <div className="relative max-w-md text-center">
         <div className="mx-auto grid size-12 place-items-center rounded-xl border border-divider bg-background shadow-sm">
-          <Icon className="size-5 text-muted-foreground" />
+          <Icon aria-hidden="true" className="size-5 text-muted-foreground" />
         </div>
 
         <h1
           className="mt-4 text-base font-semibold tracking-tight"
           id={`workspace-surface-title-${surfaceId}`}
         >
-          {definition.title}
+          {title}
         </h1>
 
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">{definition.description}</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
       </div>
     </section>
   )
