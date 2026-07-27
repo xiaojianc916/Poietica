@@ -124,7 +124,11 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     }
     try {
       const opened = await port.open()
-      setThreads((known) => [opened.thread, ...known])
+      /*
+       * A conversation joins the list once something has been said in it,
+       * so this only opens a tab. Adding it here left a record of every
+       * conversation that never happened.
+       */
       setOpenIds((open) => [...open, opened.thread.threadId])
       setActiveThreadId(opened.thread.threadId)
       setFailure(null)
