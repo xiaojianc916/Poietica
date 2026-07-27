@@ -129,6 +129,94 @@ impl AiStore {
         Ok(id)
     }
 
+    /// Lists every thread, most recently touched first.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, session_id, title, title_source, updated_at
+               FROM threads
+              ORDER BY updated_at DESC",
+        )?;
+
+        let found = statement
+            .query_map([], |row| {
+                Ok(ThreadSummary {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    title: row.get(2)?,
+                    title_source: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(found)
+    }
+
+    /// Names a thread, recording where the name came from.
+    ///
+    /// An official name is the agent's own. Anything else is a stand in the
+    /// interface chose while waiting, and recording which is which is what
+    /// stops a stand in from replacing a real name that arrived first.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the update is rejected.
+    pub fn rename_thread(&self, id: Uuid, title: &str, source: TitleSource) -> Result<()> {
+        let timestamp = now()?;
+
+        self.connection.execute(
+            "UPDATE threads
+                SET title = ?2, title_source = ?3, updated_at = ?4
+              WHERE id = ?1",
+            rusqlite::params![id.to_string(), title, source.as_str(), timestamp],
+        )?;
+
+        Ok(())
+    }
+
+    /// Records which agent session a thread is holding.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the update is rejected.
+    pub fn attach_session(&self, id: Uuid, session_id: &str) -> Result<()> {
+        let timestamp = now()?;
+
+        self.connection.execute(
+            "UPDATE threads
+                SET session_id = ?2, updated_at = ?3
+              WHERE id = ?1",
+            rusqlite::params![id.to_string(), session_id, timestamp],
+        )?;
+
+        Ok(())
+    }
+
+    /// Finds the thread holding one agent session.
+    ///
+    /// Every frame the agent sends names its session, so this is how a frame
+    /// finds the conversation it belongs to.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn thread_for_session(&self, session_id: &str) -> Result<Option<String>> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id FROM threads WHERE session_id = ?1")?;
+
+        let mut rows = statement.query(rusqlite::params![session_id])?;
+
+        match rows.next()? {
+            Some(row) => Ok(Some(row.get(0)?)),
+            None => Ok(None),
+        }
+    }
+
     /// Appends an event to a run.
     ///
     /// # Errors
@@ -225,5 +313,43 @@ impl AiStore {
         )?;
 
         Ok(())
+    }
+}
+
+/// One conversation, as a list of conversations needs it.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ThreadSummary {
+    /// The thread identifier, as text.
+    pub id: String,
+    /// The agent session it is holding, where it holds one.
+    pub session_id: Option<String>,
+    /// The name currently shown for it.
+    pub title: String,
+    /// Where that name came from.
+    pub title_source: String,
+    /// When it was last touched, in RFC 3339.
+    pub updated_at: String,
+}
+
+/// Where a thread name came from.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TitleSource {
+    /// The agent named it. This is the only name that is really the
+    /// conversation's own.
+    Official,
+    /// A stand in taken from the first thing the user said.
+    Message,
+    /// A stand in shown before there was anything to take one from.
+    Fallback,
+}
+
+impl TitleSource {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Official => "official",
+            Self::Message => "message",
+            Self::Fallback => "fallback",
+        }
     }
 }
