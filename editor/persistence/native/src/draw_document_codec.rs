@@ -645,7 +645,7 @@ mod tests {
     }
 
     #[test]
-    fn round_trips_draw_document_and_assets() {    #[test]
+    fn round_trips_draw_document_and_assets() {
     fn round_trips_draw_document_and_assets() {
         let encoded = encode_fixture_document();
 
