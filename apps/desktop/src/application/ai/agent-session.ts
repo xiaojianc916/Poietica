@@ -119,3 +119,49 @@ export function createDesktopAgentSession(): DesktopAgentSession {
     },
   }
 }
+
+import type { ThreadPort, ThreadTitleSource } from '@poietica/features-ai/contracts'
+import { createAgentThreadBridge } from '@poietica/platforms-desktop-ipc'
+
+/**
+ * Narrows the recorded origin of a name.
+ *
+ * A value this build does not recognise is treated as a fallback rather
+ * than trusted: showing AI is honest, whereas calling an unknown string
+ * official would claim the agent named a conversation it never named.
+ */
+function sourceOf(value: string): ThreadTitleSource {
+  if (value === 'official' || value === 'message') {
+    return value
+  }
+
+  return 'fallback'
+}
+
+/** The desktop implementation of the conversation port. */
+export function desktopThreads(): ThreadPort {
+  const bridge = createAgentThreadBridge()
+
+  return {
+    list: async () => {
+      const found = await bridge.list()
+
+      return found.map((thread) => ({
+        ...thread,
+        titleSource: sourceOf(thread.titleSource),
+      }))
+    },
+
+    open: async () => {
+      const opened = await bridge.open()
+
+      return {
+        thread: {
+          ...opened.thread,
+          titleSource: sourceOf(opened.thread.titleSource),
+        },
+        selectors: opened.selectors,
+      }
+    },
+  }
+}
