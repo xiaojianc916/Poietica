@@ -2,6 +2,9 @@ export type CanvasId = string
 export type CanvasSessionId = string
 export type WorkbenchTabId = string
 
+/** 一条对话的身份就是它的 thread id：一条对话最多一格。 */
+export type ConversationId = string
+
 export type CanvasTabStatus = 'clean' | 'dirty' | 'saving' | 'failed'
 
 export type WorkspaceSurfaceId =
@@ -33,12 +36,21 @@ export interface CanvasTabViewModel extends WorkbenchTabBase {
   readonly status: CanvasTabStatus
 }
 
+export interface ConversationTabViewModel extends WorkbenchTabBase {
+  readonly kind: 'conversation'
+  readonly threadId: ConversationId
+}
+
 export interface WorkspaceTabViewModel extends WorkbenchTabBase {
   readonly kind: 'workspace'
   readonly surfaceId: WorkspaceSurfaceId
 }
 
-export type WorkbenchTabViewModel = StartTabViewModel | CanvasTabViewModel | WorkspaceTabViewModel
+export type WorkbenchTabViewModel =
+  | StartTabViewModel
+  | CanvasTabViewModel
+  | ConversationTabViewModel
+  | WorkspaceTabViewModel
 
 export interface StartSurfaceViewModel {
   readonly kind: 'start'
@@ -53,6 +65,13 @@ export interface ActiveCanvasViewModel {
   readonly title: string
 }
 
+export interface ActiveConversationViewModel {
+  readonly kind: 'conversation'
+  readonly tabId: WorkbenchTabId
+  readonly threadId: ConversationId
+  readonly title: string
+}
+
 export interface WorkspaceSurfaceViewModel {
   readonly kind: 'workspace'
   readonly tabId: WorkbenchTabId
@@ -63,6 +82,7 @@ export interface WorkspaceSurfaceViewModel {
 export type WorkbenchSurfaceViewModel =
   | StartSurfaceViewModel
   | ActiveCanvasViewModel
+  | ActiveConversationViewModel
   | WorkspaceSurfaceViewModel
 
 export interface WorkbenchViewModel {
@@ -84,9 +104,29 @@ export interface OpenWorkspaceSurfaceRequest {
   readonly title: string
 }
 
+export interface OpenConversationRequest {
+  readonly threadId: ConversationId
+  readonly title: string
+}
+
 export interface WorkbenchSessionCommands {
   readonly createCanvas: (request: CreateCanvasRequest) => void
   readonly openWorkspaceSurface: (request: OpenWorkspaceSurfaceRequest) => void
+
+  /**
+   * 打开一条已有对话。
+   *
+   * id 固定为 conversation:<threadId>，所以一条对话最多只有一格，已经开着时
+   * 只激活它。正在看的那一格本身就是 AI 时就地替换：侧栏是导航，不是标签
+   * 工厂。其它形态一律插在活动标签右侧。
+   */
+  readonly openConversation: (request: OpenConversationRequest) => void
+
+  /** 「在新标签页打开」：永远追加一格，从不顶掉正在看的那一格。 */
+  readonly openConversationInNewTab: (request: OpenConversationRequest) => void
+
+  /** 官方标题到达后改写标签标题；同值直接返回。 */
+  readonly setConversationTitle: (threadId: ConversationId, title: string) => void
 
   /**
    * 打开画布槽的空态。

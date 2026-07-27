@@ -43,6 +43,17 @@ describe('document dirty ledger', () => {
   it('reports a record restored to its saved value as clean across object identity', () => {
     const ledger = createDocumentDirtyLedger()
 
+    /*
+     * 「回到已保存的值」只有相对保存点才有意义，所以这里必须先建立保存点。
+     * 原先它在空保存点上做 update：x 改回 1 之后，内容依然是「存在一条保存点里
+     * 没有的记录」，判脏是正确的。它旧日能过，靠的是旧账本逐 diff 折叠
+     * before/after 的语义，那套语义已随保存点比对一起删除。
+     *
+     * 建立保存点之后，这条用例才真的在测结构相等 vs 引用相等：恢复出来的对象
+     * 是新的对象标识，若按引用比较就会误报「有未保存的改动」。
+     */
+    ledger.setSavePoint({ 'shape:a': { x: 1, meta: { tag: 'n' } } })
+
     ledger.apply(updated('shape:a', { x: 1, meta: { tag: 'n' } }, { x: 2, meta: { tag: 'n' } }))
 
     expect(ledger.isDirty()).toBe(true)

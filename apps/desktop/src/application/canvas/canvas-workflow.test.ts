@@ -31,7 +31,6 @@ function createDocumentPort(
     getLifecycleSnapshot: vi.fn(getLifecycleSnapshot),
     getEditorSession: vi.fn(() => null),
     getSessionSnapshot: vi.fn(() => null),
-    getVersion: vi.fn(() => 0),
     subscribe: vi.fn(() => () => {}),
     dispose: vi.fn(),
   } as unknown as CanvasDocumentService

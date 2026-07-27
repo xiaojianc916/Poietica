@@ -80,7 +80,6 @@ export interface CanvasDocumentService {
   readonly getLifecycleSnapshot: () => CanvasDocumentLifecycleSnapshot
   readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null
   readonly getSessionSnapshot: (sessionId: CanvasSessionId) => CanvasSessionSnapshot | null
-  readonly getVersion: () => number
   readonly subscribe: (listener: () => void) => () => void
   readonly dispose: () => Promise<void>
 }
@@ -146,11 +145,8 @@ export function createCanvasDocumentService({
 }: CreateCanvasDocumentServiceDependencies): CanvasDocumentService {
   const sessions = new Map<CanvasSessionId, OwnedCanvasSession>()
   const listeners = new Set<() => void>()
-  let version = 0
 
   function emit() {
-    version += 1
-
     for (const listener of listeners) {
       listener()
     }
@@ -517,10 +513,6 @@ export function createCanvasDocumentService({
             persistence: owned.document.getSnapshot().persistence,
           }
         : null
-    },
-
-    getVersion() {
-      return version
     },
 
     subscribe(listener) {
