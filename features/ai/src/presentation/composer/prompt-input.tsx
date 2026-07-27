@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
-import type { ComponentProps, KeyboardEvent, ReactNode } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { createContext, useCallback, useContext, useId, useMemo, useRef, useState } from 'react'
 
 import type { ChatStatus } from '../../contracts/chat-status-contract'
@@ -156,7 +156,7 @@ export function PromptInput({
   }
 
   /* Clicking the card is clicking the field, unless something else was hit. */
-  const onFormMouseDown = (event: import('react').MouseEvent<HTMLFormElement>) => {
+  const onFormMouseDown = (event: MouseEvent<HTMLFormElement>) => {
     if ((event.target as HTMLElement).closest('button, a, input, textarea, [role]')) return
 
     event.preventDefault()
@@ -327,12 +327,27 @@ export function PromptInputActionMenuContent({ className, ...props }: ComponentP
   )
 }
 
+/*
+ * className 在这里只接受字符串。
+ *
+ * 设计系统的菜单项允许把 className 写成 (state) => string，而这个包装组件的
+ * 职责是往类名里拼一个固定的 BEM 类，只能兑现字符串形式：函数原样进 cx 会被
+ * filter(Boolean) 留下、再被 join 成一整段源码当类名，是静默的错误行为。收窄
+ * 之后，真需要函数形式时报错会出现在调用点，由那里决定怎么合成。
+ *
+ * cx 不换成设计系统的 cn：cn 是 clsx + tailwind-merge，而这里拼的全是
+ * assistant-* 这类 BEM 类名，没有 Tailwind 的属性冲突可解，换过去只是白跑一遍
+ * 冲突表解析。
+ */
 export function PromptInputActionMenuItem({
   children,
   className,
   hint,
   ...props
-}: ComponentProps<typeof DropdownMenuItem> & { readonly hint?: string }) {
+}: Omit<ComponentProps<typeof DropdownMenuItem>, 'className'> & {
+  readonly className?: string
+  readonly hint?: string
+}) {
   return (
     <DropdownMenuItem className={cx('assistant-action-menu__item', className)} {...props}>
       <span>{children}</span>

@@ -51,14 +51,21 @@ export function useSessionControls(
 
     const selection = await models.list()
 
-    if (selection.models.length === 0) return NONE
+    /*
+     * 析构而不是先判 length 再索引：长度检查与索引访问之间没有类型层面的联系，
+     * 编译器不会因为前者收窄后者。析构判空它能跟随，而且不必用非空断言把检查
+     * 关掉。
+     */
+    const [firstModel] = selection.models
+
+    if (firstModel === undefined) return NONE
 
     return [
       {
         id: MODEL_CONTROL_ID,
         label: '模型',
         purpose: 'model',
-        current: selection.activeModelId ?? selection.models[0].id,
+        current: selection.activeModelId ?? firstModel.id,
         choices: selection.models.map((model) => ({ value: model.id, label: model.label })),
       },
     ]

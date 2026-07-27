@@ -323,18 +323,12 @@ function SettingsSectionContent({ section, settings, controller }: SettingsSecti
 
     case 'models':
       return (
-        <SettingsPlaceholder
-          description="会话使用的模型目前在对话输入框右下角选择，尚未接入本地设置。"
-          title="模型"
-        />
+        <SettingsPlaceholder description="会话使用的模型目前在对话输入框右下角选择，尚未接入本地设置。" />
       )
 
     case 'keymap':
       return (
-        <SettingsPlaceholder
-          description="快捷键还不可改写。当前生效的绑定可在命令面板（Mod+K）中查看。"
-          title="快捷键"
-        />
+        <SettingsPlaceholder description="快捷键还不可改写。当前生效的绑定可在命令面板（Mod+K）中查看。" />
       )
 
     case 'hooks':
@@ -1044,6 +1038,9 @@ interface SettingsPlaceholderProps {
  *
  * 这里刻意不放能拨动的控件：写不进 AppSettings 的开关会让人以为设置生效了，
  * 比一句实话有害得多。
+ *
+ * 也刻意没有标题。分类标题由 SettingsContentRegion 从 SECTIONS 渲染，这里再画
+ * 一个只会让同一句文案出现两遍、并且多出第二个来源。
  */
 function SettingsPlaceholder({ description }: SettingsPlaceholderProps) {
   return (

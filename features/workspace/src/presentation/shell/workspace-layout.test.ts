@@ -1,6 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
+/*
+ * 一份清单，两处断言。
+ *
+ * 这份像素令牌清单原先在两个测试里各手抄一遍，两遍都写着
+ * WORKSPACE_LAYOUT.activityRail.width —— 那个令牌已经不在契约里（活动栏宽度由
+ * CSS 自定义属性 --activity-rail-width 持有），于是同一处漂移报两次。抄两遍的
+ * 代价还不止于此：sidebar.navIconCenter 与 sidebar.toggleZoneWidth 这两个真实的
+ * 像素令牌从来没有被覆盖过，因为补充覆盖要改两个地方。
+ *
+ * motion 不在清单里：它是秒与贝塞尔控制点，既非像素也非整数，由下面两个专门的
+ * 测试覆盖。
+ */
+const PIXEL_DIMENSION_TOKENS: readonly number[] = [
+  WORKSPACE_LAYOUT.sidebar.navIconCenter,
+  WORKSPACE_LAYOUT.sidebar.toggleZoneWidth,
+  WORKSPACE_LAYOUT.sidebar.minWidth,
+  WORKSPACE_LAYOUT.sidebar.defaultWidth,
+  WORKSPACE_LAYOUT.sidebar.maxWidth,
+  WORKSPACE_LAYOUT.inspector.width,
+  WORKSPACE_LAYOUT.chrome.height,
+  WORKSPACE_LAYOUT.statusBar.height,
+]
+
 describe('WORKSPACE_LAYOUT', () => {
   it('keeps the default sidebar width inside its bounds', () => {
     const { minWidth, defaultWidth, maxWidth } = WORKSPACE_LAYOUT.sidebar
@@ -11,17 +34,7 @@ describe('WORKSPACE_LAYOUT', () => {
   })
 
   it('uses positive finite dimensions', () => {
-    const dimensions = [
-      WORKSPACE_LAYOUT.activityRail.width,
-      WORKSPACE_LAYOUT.sidebar.minWidth,
-      WORKSPACE_LAYOUT.sidebar.defaultWidth,
-      WORKSPACE_LAYOUT.sidebar.maxWidth,
-      WORKSPACE_LAYOUT.inspector.width,
-      WORKSPACE_LAYOUT.chrome.height,
-      WORKSPACE_LAYOUT.statusBar.height,
-    ]
-
-    for (const dimension of dimensions) {
+    for (const dimension of PIXEL_DIMENSION_TOKENS) {
       expect(Number.isFinite(dimension)).toBe(true)
 
       expect(dimension).toBeGreaterThan(0)
@@ -29,17 +42,7 @@ describe('WORKSPACE_LAYOUT', () => {
   })
 
   it('uses integer pixel dimensions', () => {
-    const dimensions = [
-      WORKSPACE_LAYOUT.activityRail.width,
-      WORKSPACE_LAYOUT.sidebar.minWidth,
-      WORKSPACE_LAYOUT.sidebar.defaultWidth,
-      WORKSPACE_LAYOUT.sidebar.maxWidth,
-      WORKSPACE_LAYOUT.inspector.width,
-      WORKSPACE_LAYOUT.chrome.height,
-      WORKSPACE_LAYOUT.statusBar.height,
-    ]
-
-    for (const dimension of dimensions) {
+    for (const dimension of PIXEL_DIMENSION_TOKENS) {
       expect(Number.isInteger(dimension)).toBe(true)
     }
   })

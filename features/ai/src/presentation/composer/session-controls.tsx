@@ -52,7 +52,10 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
   const model = controls.find((control) => control.purpose === 'model')
   const provider = model?.current.split('/')[0]
 
-  if (rows.length === 0) {
+  /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
+  const [firstRow] = rows
+
+  if (firstRow === undefined) {
     return (
       <span
         aria-live="polite"
@@ -76,9 +79,7 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
       >
         <ProviderIcon {...(provider === undefined || provider === '' ? {} : { provider })} />
 
-        <span className="assistant-model-select__label">
-          {model === undefined ? chosen(rows[0]) : chosen(model)}
-        </span>
+        <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
