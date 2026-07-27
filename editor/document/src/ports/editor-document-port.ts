@@ -9,6 +9,12 @@ export interface EditorDocumentChanges {
 export type EditorDocumentEvent =
   | {
       readonly kind: 'ready'
+
+      /**
+       * 保存点内容，取 tldraw 官方快照的 store 部分——与持久化写入的是同一份，
+       * 所以"干净"精确等于"与磁盘一致"。
+       */
+      readonly records: Readonly<Record<string, unknown>>
     }
   | {
       readonly kind: 'changed'
@@ -25,11 +31,12 @@ export interface EditorDocumentPort {
   readonly captureDocument: () => TLStoreSnapshot
 
   /**
-   * 在编辑器挂载时投递 ready，其后转发 tldraw 官方的 Store diff，作用域为
-   * document、来源为 user。
+   * 在编辑器挂载时投递携带完整记录的 ready，其后转发 tldraw 官方的 Store diff，
+   * 作用域为 document、来源为 user。
    *
-   * ready 标记干净基线。挂载是"初始文档记录已存在"这个事实的最早可观测点：
-   * 新建画布不传快照，默认记录由 tldraw 的 Editor 补齐。
+   * ready 交付的是保存点内容，不是"基线时刻"。diff 由 Store 节流后异步冲刷，
+   * 描述初始化的批次可能在 ready 之后才到达并重报已存在的记录，脏判定因此只能
+   * 依据内容比较。
    */
   readonly subscribeDocumentEvents: (listener: (event: EditorDocumentEvent) => void) => () => void
 }

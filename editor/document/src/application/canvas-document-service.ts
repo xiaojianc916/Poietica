@@ -246,7 +246,7 @@ export function createCanvasDocumentService({
          * 刚打开的文档按定义就是干净的：脏状态是相对保存点的 diff。
          */
         if (!document.isInitialized()) {
-          document.initialize()
+          document.initialize(event.records)
           emit()
         }
 
@@ -304,7 +304,12 @@ export function createCanvasDocumentService({
     }
 
     const documentSnapshot = owned.editorDocument.captureDocument()
-    const ticket = owned.document.beginSave()
+
+    /*
+     * 交给账本的正是即将序列化落盘的那份记录，提交时它整体成为新的保存点。
+     * 快照已经捕获，这里没有额外成本。
+     */
+    const ticket = owned.document.beginSave(documentSnapshot.store)
 
     emit()
 

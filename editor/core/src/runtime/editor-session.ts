@@ -85,6 +85,12 @@ export interface EditorDocumentChanges {
 export type EditorDocumentEvent =
   | {
       readonly kind: 'ready'
+
+      /**
+       * 保存点内容，取 tldraw 官方快照的 store 部分——与持久化写入的是同一份，
+       * 所以"干净"精确等于"与磁盘一致"。
+       */
+      readonly records: Readonly<Record<string, unknown>>
     }
   | {
       readonly kind: 'changed'
@@ -164,10 +170,10 @@ export function createEditorSession(
   /*
    * 文档观察的布防位。
    *
-   * 它存在的理由是可以证明的：create() 不传 initialSnapshot，createTLStore
-   * 构造出的是空 store，document:document 与 page:page 由 tldraw 的 Editor
-   * 在初始化时补齐。因此"文档内容已确定"这个事实的最早可观测点是 onMount，
-   * 不是 store 构造完成。把基线提前到构造时会把补齐动作记成用户编辑。
+   * 它只负责一件事：在保存点还不存在时不要向文档域投递 diff。它不再承担
+   * "区分用户编辑与初始化"的职责——那个职责本来就无法用时刻表达，现在由脏
+   * 账本的内容比较承担。因此布防位之前被丢弃的批次现在是无害的：它们描述的
+   * 变化已经体现在 ready 交付的保存点内容里。
    */
   let documentReady = false
 
@@ -277,27 +283,9 @@ export function createEditorSession(
    * 它还有反向漏洞——标签未激活时 documentReady 为 false，那期间的文档写入
    * 被静默丢弃，标签显示"已保存"而内存文档已与磁盘不同。
    */
-  /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
-  let tracedBatches = 0
-  /* @poietica-dirty-trace 结束 */
 
   const stopObservingDocument = store.listen(
     ({ changes }) => {
-      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
-      if (tracedBatches < 6) {
-        tracedBatches += 1
-
-        console.warn('[dirty-trace] 文档 diff 到达', {
-          sessionId: options.sessionId,
-          documentReady,
-          state,
-          added: Object.keys(changes.added),
-          updated: Object.keys(changes.updated),
-          removed: Object.keys(changes.removed),
-        })
-      }
-      /* @poietica-dirty-trace 结束 */
-
       if (!documentReady) {
         return
       }
@@ -354,16 +342,15 @@ export function createEditorSession(
        */
       documentReady = true
 
-      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
-      console.warn('[dirty-trace] ready 投递', {
-        sessionId: options.sessionId,
-        recordCount: store.allRecords().length,
-      })
-      /* @poietica-dirty-trace 结束 */
-
       publishSessionSnapshot()
+
+      /*
+       * 保存点用官方快照的 store 部分表示，与 captureDocument 落盘的是同一份
+       * 内容。这是打开文档时一次性的 O(N) 成本，与保存时的 JSON.stringify 同阶。
+       */
       publishDocumentEvent({
         kind: 'ready',
+        records: store.getStoreSnapshot().store,
       })
     },
 

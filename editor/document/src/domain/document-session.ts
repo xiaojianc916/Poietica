@@ -36,13 +36,14 @@ export interface DocumentSessionSnapshot {
 
 export interface DocumentSession {
   /**
-   * Declares the document open and clean.
+   * 用文档当前的完整记录声明保存点，文档随即是干净的。
    *
-   * No snapshot is required. A freshly opened document has nothing to compare
-   * against itself, so the previous full-document capture here was pure cost
-   * on the open path.
+   * 必须传入记录：脏状态是"当前内容与保存点内容"的比较，不是"自某时刻起是否
+   * 收到过 diff"。tldraw 的 Store 会把历史 diff 节流后异步冲刷，初始化产生的
+   * diff 可能在此之后才到达，并把已经存在的记录重报为 added。只有内容比较对
+   * 这种到达顺序免疫。
    */
-  readonly initialize: () => void
+  readonly initialize: (records: Readonly<Record<string, unknown>>) => void
 
   /**
    * Folds a tldraw Store diff into dirty tracking.
@@ -52,7 +53,11 @@ export interface DocumentSession {
    */
   readonly recordDocumentChange: (changes: DocumentRecordChanges) => void
 
-  readonly beginSave: () => DocumentSaveTicket
+  /**
+   * 开始一次保存。传入的必须是调用方即将写入磁盘的那份记录，它会在提交时整体
+   * 成为新的保存点。调用方本来就已经捕获了它，因此这里没有额外成本。
+   */
+  readonly beginSave: (savedRecords: Readonly<Record<string, unknown>>) => DocumentSaveTicket
 
   readonly completeSave: (ticket: DocumentSaveTicket, documentId: string) => void
 
@@ -112,14 +117,14 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
   }
 
   return {
-    initialize() {
+    initialize(records) {
       assertNotClosed()
 
       if (phase !== 'initializing') {
         throw new Error('DOCUMENT_SESSION_ALREADY_INITIALIZED')
       }
 
-      ledger.reset()
+      ledger.setSavePoint(records)
       initialized = true
       phase = 'ready'
     },
@@ -135,7 +140,7 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       }
     },
 
-    beginSave() {
+    beginSave(savedRecords) {
       assertNotClosed()
       requireInitialized()
 
@@ -144,12 +149,10 @@ export function createDocumentSession(initialDocumentId: string | null): Documen
       }
 
       /*
-       * The caller serialises the document as it stands right now, so right
-       * now is the pending save point. Opening the window is O(1); the
-       * previous implementation captured a snapshot, built two full record
-       * Maps from it and structurally compared the whole document.
+       * 传进来的就是即将落盘的那份记录，所以它正是待定保存点。窗口期间的并发
+       * 编辑照旧相对当前保存点维护，提交时再按新保存点核对一遍。
        */
-      ledger.openSaveWindow()
+      ledger.openSaveWindow(savedRecords)
 
       const ticket: DocumentSaveTicket = { id: nextSaveId }
 

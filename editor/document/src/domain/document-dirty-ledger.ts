@@ -1,39 +1,44 @@
 /**
- * Dirty tracking for an open document.
+ * 打开文档的脏状态跟踪。
  *
- * This replaces a pair of full-document checkpoints. That design kept two
- * Maps mirroring every record in the store — one for the current document and
- * one for the last saved document — for the entire lifetime of an open
- * document, in order to answer a single boolean. Every save additionally
- * rebuilt both Maps from a fresh snapshot and ran a structural comparison over
- * the whole document.
+ * 唯一判据是一次内容比较：当前记录值与保存点记录值是否相等。
  *
- * The store diff already carries, for every record it touches, both the value
- * before the change and the value after it. That is sufficient. The ledger
- * lazily records the value each touched record held at the last save point and
- * compares only those records. A document that has just been saved holds no
- * entries at all.
+ * 此前的判据是"自基线时刻起是否收到过 diff"。那个地基是错的，运行时证据：
  *
- * Undo can recreate a record carrying equivalent data under a different object
- * identity, so a record that returns to its saved value is detected
- * structurally and drops out of the ledger. Dirty state therefore remains
- * exact, not conservative.
+ *   ready 投递      { recordCount: 7 }
+ *   文档 diff 到达  { added: ['document:document', 'page:page', 'user:…'] }
+ *   首次脏跃迁      { id: 'document:document', before: ABSENT,
+ *                     after: { gridSize: 10, name: '', meta: {} } }
+ *   栈: _flushHistory @ Store.mjs:186 <- EffectScheduler <- throttle.mjs:26
  *
- * A save marker on tldraw's undo stack was considered and rejected. tldraw's
- * HistoryManager keeps its stacks private and exposes only getNumUndos and
- * getNumRedos, and its history interceptor clears the redo stack on any new
- * user edit. Stack depth therefore does not identify a document state: undoing
- * once and then making a different edit returns the depth to its value at the
- * save point while leaving the document different. That failure mode reports a
- * modified document as clean, which loses work.
+ * 基线建立时 store 里已经有 7 条记录，document:document 就在其中。但 tldraw 的
+ * Store 把历史 diff 节流后异步冲刷，于是描述初始化的那批 diff 在基线之后才到达，
+ * 把已经存在的记录重报为 added。
+ *
+ * 到达顺序不是因果顺序。因此任何基于时刻的判据都修不好它：布防位往前挪会漏掉
+ * 真实编辑，往后挪则挪不过一个长度不确定的节流窗口，只能退化成定时器猜测。
+ * source: 'user' 也拦不住——这批写入本身就是 user 来源。
+ *
+ * 内容比较天然免疫：重报的 after 与保存点里的值相等，直接判干净。
+ *
+ * 保存点表示"磁盘上的内容"，所以它只在两个时刻被整体替换：打开文档，以及一次
+ * 保存成功提交。两处都是 O(N)，且都与已有成本同阶——保存本身要把整份文档
+ * JSON.stringify。除此之外跟踪规模只与未保存的工作量成正比：divergent 仅保存
+ * 与保存点不同的记录，回到保存点值的记录立即移出。
+ *
+ * 撤销可能以不同的对象标识重建出等价数据，所以比较是结构性的，脏状态精确而非
+ * 保守。
+ *
+ * tldraw 撤销栈打保存标记的方案仍然不可行，理由未变：HistoryManager 只暴露
+ * getNumUndos 与 getNumRedos，撤销一次再做一次不同的编辑会让深度回到保存点的值，
+ * 而文档已经不同。那会把改过的文档报成干净的，丢工作。
  */
 
 /**
- * A structural subset of tldraw's RecordsDiff.
+ * tldraw RecordsDiff 的结构子集。
  *
- * The document domain depends on the diff contract rather than on the Store
- * implementation. Values stay unknown here because migration and record
- * validation belong to tldraw's schema boundary.
+ * 文档域依赖 diff 契约而不是 Store 实现。值保持 unknown：迁移与记录校验属于
+ * tldraw 的 schema 边界。
  */
 export interface DocumentRecordChanges {
   readonly added: Readonly<Record<string, unknown>>
@@ -41,88 +46,67 @@ export interface DocumentRecordChanges {
   readonly removed: Readonly<Record<string, unknown>>
 }
 
-/**
- * Marks the absence of a record, so that creation and deletion are ordinary
- * value transitions rather than special cases.
- */
+/** 记录不存在的标记，使创建与删除成为普通的值变化。 */
 const ABSENT = Symbol('document-record-absent')
 
 export interface DocumentDirtyLedger {
-  /** Folds one store diff into the ledger. Cost is linear in the diff, not in the document. */
+  /** 用一份完整记录声明保存点。文档随即是干净的。 */
+  readonly setSavePoint: (records: Readonly<Record<string, unknown>>) => void
+
+  /** 折入一批 store diff。代价与 diff 成正比，与文档规模无关。 */
   readonly apply: (changes: DocumentRecordChanges) => void
 
-  /** Declares the current document state as the pending save point. */
-  readonly openSaveWindow: () => void
+  /** 声明"正在写入磁盘的那份记录"，由调用方传入它已经捕获的快照。 */
+  readonly openSaveWindow: (savedRecords: Readonly<Record<string, unknown>>) => void
 
-  /** Promotes the pending save point to the save point. */
+  /** 待定保存点晋升为保存点。 */
   readonly commitSaveWindow: () => void
 
-  /** Abandons the pending save point; the previous save point still stands. */
+  /** 放弃待定保存点；原保存点依然成立。 */
   readonly discardSaveWindow: () => void
-
-  /** Declares the current document state clean with no history. */
-  readonly reset: () => void
 
   readonly isDirty: () => boolean
 }
 
 export function createDocumentDirtyLedger(): DocumentDirtyLedger {
-  /** Value held at the save point, recorded on first touch, for touched records only. */
-  const baseline = new Map<string, unknown>()
-  const dirty = new Set<string>()
+  /** 保存点的完整记录，即磁盘上的内容。 */
+  let savePoint = new Map<string, unknown>()
 
-  /** Value held at the moment openSaveWindow was called, for records touched since. */
-  const pendingBaseline = new Map<string, unknown>()
-  const pendingCurrent = new Map<string, unknown>()
-  let saveWindowOpen = false
+  /** 与保存点不同的记录及其当前值。规模与未保存工作量成正比。 */
+  const divergent = new Map<string, unknown>()
 
-  function touch(id: string, before: unknown, after: unknown): void {
-    if (!baseline.has(id)) {
-      baseline.set(id, before)
-    }
+  /** beginSave 交出的、正在写盘的那份记录；提交后成为新的保存点。 */
+  let pendingSavePoint: Map<string, unknown> | null = null
 
-    if (recordsEqual(baseline.get(id), after)) {
-      /*
-       * The record is back at its saved value, so it stops being tracked. This
-       * is what keeps the ledger's footprint proportional to genuine unsaved
-       * work rather than to session length.
-       */
-      baseline.delete(id)
-      dirty.delete(id)
-    } else {
-      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
-      if (dirty.size === 0) {
-        console.warn('[dirty-trace] 首次脏跃迁', {
-          id,
-          before: baseline.get(id),
-          after,
-        })
-      }
-      /* @poietica-dirty-trace 结束 */
-
-      dirty.add(id)
-    }
-
-    if (saveWindowOpen) {
-      if (!pendingBaseline.has(id)) {
-        pendingBaseline.set(id, before)
-      }
-
-      pendingCurrent.set(id, after)
-    }
+  function toRecordMap(records: Readonly<Record<string, unknown>>): Map<string, unknown> {
+    return new Map(Object.entries(records))
   }
 
-  function closeSaveWindow(): void {
-    saveWindowOpen = false
-    pendingBaseline.clear()
-    pendingCurrent.clear()
+  function savedValueOf(id: string): unknown {
+    return savePoint.has(id) ? savePoint.get(id) : ABSENT
+  }
+
+  /** 用一次内容比较决定这条记录是否偏离保存点。 */
+  function reconcile(id: string, value: unknown): void {
+    if (recordsEqual(savedValueOf(id), value)) {
+      divergent.delete(id)
+      return
+    }
+
+    divergent.set(id, value)
   }
 
   return {
+    setSavePoint(records) {
+      savePoint = toRecordMap(records)
+      divergent.clear()
+      pendingSavePoint = null
+    },
+
     apply(changes) {
       for (const id in changes.added) {
         if (Object.hasOwn(changes.added, id)) {
-          touch(id, ABSENT, changes.added[id])
+          reconcile(id, changes.added[id])
         }
       }
 
@@ -133,70 +117,54 @@ export function createDocumentDirtyLedger(): DocumentDirtyLedger {
 
         const update = changes.updated[id]
 
-        if (!update) {
-          continue
+        if (update) {
+          reconcile(id, update[1])
         }
-
-        touch(id, update[0], update[1])
       }
 
       for (const id in changes.removed) {
         if (Object.hasOwn(changes.removed, id)) {
-          touch(id, changes.removed[id], ABSENT)
+          reconcile(id, ABSENT)
         }
       }
     },
 
-    openSaveWindow() {
-      closeSaveWindow()
-      saveWindowOpen = true
+    openSaveWindow(savedRecords) {
+      pendingSavePoint = toRecordMap(savedRecords)
     },
 
     commitSaveWindow() {
-      /*
-       * Persistence accepted the document as it stood when the window opened.
-       * Every record untouched since then is clean by construction. The only
-       * candidates are the records the window recorded, so the new save point
-       * is established in time linear in concurrent edits — and in constant
-       * time when there were none.
-       */
-      baseline.clear()
-      dirty.clear()
-
-      for (const [id, valueAtSavePoint] of pendingBaseline) {
-        if (!recordsEqual(valueAtSavePoint, pendingCurrent.get(id))) {
-          baseline.set(id, valueAtSavePoint)
-          dirty.add(id)
-        }
+      if (!pendingSavePoint) {
+        throw new Error('DOCUMENT_LEDGER_NO_PENDING_SAVE_POINT')
       }
 
-      closeSaveWindow()
+      savePoint = pendingSavePoint
+      pendingSavePoint = null
+
+      /*
+       * 保存点整体换成了刚写入磁盘的那份内容，所以只需要把仍在 divergent 里的
+       * 记录按新保存点重新核对一遍。窗口期间未被触碰的记录，其值已经在新保存点
+       * 里，核对后自然移出。代价与并发编辑量成正比。
+       */
+      for (const [id, value] of [...divergent]) {
+        reconcile(id, value)
+      }
     },
 
     discardSaveWindow() {
-      /*
-       * The save point did not move. baseline and dirty were maintained
-       * against it throughout the window, so they are already correct.
-       */
-      closeSaveWindow()
-    },
-
-    reset() {
-      baseline.clear()
-      dirty.clear()
-      closeSaveWindow()
+      /* 保存点没有移动，divergent 全程都是相对它维护的，已经正确。 */
+      pendingSavePoint = null
     },
 
     isDirty() {
-      return dirty.size > 0
+      return divergent.size > 0
     },
   }
 }
 
 /**
- * Structural comparison, allocation-free and short-circuiting on the first
- * difference. The ABSENT marker compares by identity, so record creation and
- * deletion fall out of the same code path.
+ * 结构比较，无分配，遇到第一个差异即短路。ABSENT 按标识比较，因此记录的创建与
+ * 删除落在同一条代码路径上。
  */
 function recordsEqual(left: unknown, right: unknown): boolean {
   if (Object.is(left, right)) {
@@ -236,7 +204,7 @@ function arraysEqual(left: readonly unknown[], right: readonly unknown[]): boole
   return true
 }
 
-/** An explicitly present `undefined` value is treated as an absent key. */
+/** 显式存在的 undefined 值等同于键不存在。 */
 function objectsEqual(left: Record<string, unknown>, right: Record<string, unknown>): boolean {
   let leftDefinedKeys = 0
 
