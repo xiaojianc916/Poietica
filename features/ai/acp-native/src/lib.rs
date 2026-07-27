@@ -20,6 +20,7 @@
 //! the desk for a real answer, and the fallback refusal is used only where
 //! there is nobody to ask.
 
+mod config;
 mod desk;
 mod error;
 mod models;
@@ -29,6 +30,7 @@ mod run_slot;
 mod session;
 mod stderr;
 
+pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
 pub use models::{

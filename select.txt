@@ -1,0 +1,239 @@
+files searched 24
+
+--- SessionConfigId  (line 2029) ---
+  pub struct SessionConfigId(pub Arc<str>);
+  impl SessionConfigId {
+      #[must_use]
+      pub fn new(id: impl Into<Arc<str>>) -> Self {
+          Self(id.into())
+      }
+  }
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, From, Display)]
+  #[serde(transparent)]
+  #[from(Arc<str>, String, &'static str)]
+  #[non_exhaustive]
+  pub struct SessionConfigValueId(pub Arc<str>);
+  impl SessionConfigValueId {
+      #[must_use]
+      pub fn new(id: impl Into<Arc<str>>) -> Self {
+          Self(id.into())
+      }
+  }
+
+--- SessionConfigValueId  (line 2043) ---
+  pub struct SessionConfigValueId(pub Arc<str>);
+  impl SessionConfigValueId {
+      #[must_use]
+      pub fn new(id: impl Into<Arc<str>>) -> Self {
+          Self(id.into())
+      }
+  }
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, From, Display)]
+  #[serde(transparent)]
+  #[from(Arc<str>, String, &'static str)]
+  #[non_exhaustive]
+  pub struct SessionConfigGroupId(pub Arc<str>);
+  impl SessionConfigGroupId {
+      #[must_use]
+      pub fn new(id: impl Into<Arc<str>>) -> Self {
+          Self(id.into())
+      }
+  }
+
+--- SessionConfigGroupId  (line 2057) ---
+  pub struct SessionConfigGroupId(pub Arc<str>);
+  impl SessionConfigGroupId {
+      #[must_use]
+      pub fn new(id: impl Into<Arc<str>>) -> Self {
+          Self(id.into())
+      }
+  }
+  #[skip_serializing_none]
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+  #[serde(rename_all = "camelCase")]
+  #[non_exhaustive]
+  pub struct SessionConfigSelectOption {
+      pub value: SessionConfigValueId,
+      pub name: String,
+      #[serde(default)]
+      pub description: Option<String>,
+
+--- SessionConfigSelectOption  (line 2071) ---
+  pub struct SessionConfigSelectOption {
+      pub value: SessionConfigValueId,
+      pub name: String,
+      #[serde(default)]
+      pub description: Option<String>,
+      #[serde(rename = "_meta")]
+      pub meta: Option<Meta>,
+  }
+  impl SessionConfigSelectOption {
+      #[must_use]
+      pub fn new(value: impl Into<SessionConfigValueId>, name: impl Into<String>) -> Self {
+          Self {
+              value: value.into(),
+              name: name.into(),
+              description: None,
+
+--- SessionConfigSelectGroup  (line 2122) ---
+  pub struct SessionConfigSelectGroup {
+      pub group: SessionConfigGroupId,
+      pub name: String,
+      pub options: Vec<SessionConfigSelectOption>,
+      #[serde(rename = "_meta")]
+      pub meta: Option<Meta>,
+  }
+  impl SessionConfigSelectGroup {
+      #[must_use]
+      pub fn new(
+          group: impl Into<SessionConfigGroupId>,
+          name: impl Into<String>,
+          options: Vec<SessionConfigSelectOption>,
+      ) -> Self {
+          Self {
+
+--- SessionConfigSelectOptions  (line 2169) ---
+  pub enum SessionConfigSelectOptions {
+      Ungrouped(Vec<SessionConfigSelectOption>),
+      Grouped(Vec<SessionConfigSelectGroup>),
+  }
+  impl From<Vec<SessionConfigSelectOption>> for SessionConfigSelectOptions {
+      fn from(options: Vec<SessionConfigSelectOption>) -> Self {
+          SessionConfigSelectOptions::Ungrouped(options)
+      }
+  }
+  impl From<Vec<SessionConfigSelectGroup>> for SessionConfigSelectOptions {
+      fn from(groups: Vec<SessionConfigSelectGroup>) -> Self {
+          SessionConfigSelectOptions::Grouped(groups)
+      }
+  }
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+  #[serde(rename_all = "camelCase")]
+  #[non_exhaustive]
+  pub struct SessionConfigSelect {
+
+--- SessionConfigSelect  (line 2192) ---
+  pub struct SessionConfigSelect {
+      pub current_value: SessionConfigValueId,
+      pub options: SessionConfigSelectOptions,
+  }
+  impl SessionConfigSelect {
+      #[must_use]
+      pub fn new(
+          current_value: impl Into<SessionConfigValueId>,
+          options: impl Into<SessionConfigSelectOptions>,
+      ) -> Self {
+          Self {
+              current_value: current_value.into(),
+              options: options.into(),
+          }
+      }
+  }
+
+--- SessionConfigBoolean  (line 2221) ---
+  pub struct SessionConfigBoolean {
+      pub current_value: bool,
+  }
+  #[cfg(feature = "unstable_boolean_config")]
+  impl SessionConfigBoolean {
+      #[must_use]
+      pub fn new(current_value: bool) -> Self {
+          Self { current_value }
+      }
+  }
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+  #[serde(rename_all = "snake_case")]
+
+--- SessionConfigOptionCategory  (line 2246) ---
+  pub enum SessionConfigOptionCategory {
+      Mode,
+      Model,
+      ThoughtLevel,
+      #[serde(untagged)]
+      Other(String),
+  }
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+  #[serde(tag = "type", rename_all = "snake_case")]
+  #[schemars(extend("discriminator" = {"propertyName": "type"}))]
+  #[non_exhaustive]
+  pub enum SessionConfigKind {
+      Select(SessionConfigSelect),
+
+--- SessionConfigKind  (line 2263) ---
+  pub enum SessionConfigKind {
+      Select(SessionConfigSelect),
+      #[cfg(feature = "unstable_boolean_config")]
+      Boolean(SessionConfigBoolean),
+  }
+  #[serde_as]
+  #[skip_serializing_none]
+  #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+  #[serde(rename_all = "camelCase")]
+  #[non_exhaustive]
+  pub struct SessionConfigOption {
+      pub id: SessionConfigId,
+      pub name: String,
+
+--- SessionConfigOption  (line 2281) ---
+  pub struct SessionConfigOption {
+      pub id: SessionConfigId,
+      pub name: String,
+      #[serde(default)]
+      pub description: Option<String>,
+      #[serde_as(deserialize_as = "DefaultOnError")]
+      #[schemars(extend("x-deserialize-default-on-error" = true))]
+      #[serde(default)]
+      pub category: Option<SessionConfigOptionCategory>,
+      #[serde(flatten)]
+      pub kind: SessionConfigKind,
+      #[serde(rename = "_meta")]
+      pub meta: Option<Meta>,
+  }
+
+--- SessionConfigOptionValue  (line 2396) ---
+  pub enum SessionConfigOptionValue {
+      Boolean {
+          value: bool,
+      },
+      #[serde(untagged)]
+      ValueId {
+          value: SessionConfigValueId,
+      },
+  }
+  #[cfg(feature = "unstable_boolean_config")]
+  impl SessionConfigOptionValue {
+      #[must_use]
+      pub fn value_id(id: impl Into<SessionConfigValueId>) -> Self {
+          Self::ValueId { value: id.into() }
+
+--- SetSessionConfigOptionRequest  (line 2477) ---
+  pub struct SetSessionConfigOptionRequest {
+      pub session_id: SessionId,
+      pub config_id: SessionConfigId,
+      #[cfg(feature = "unstable_boolean_config")]
+      #[serde(flatten)]
+      pub value: SessionConfigOptionValue,
+      #[cfg(not(feature = "unstable_boolean_config"))]
+      pub value: SessionConfigValueId,
+      #[serde(rename = "_meta")]
+      pub meta: Option<Meta>,
+  }
+
+--- SetSessionConfigOptionResponse  (line 2551) ---
+  pub struct SetSessionConfigOptionResponse {
+      #[serde_as(deserialize_as = "DefaultOnError<VecSkipError<_, SkipListener>>")]
+      #[schemars(extend("x-deserialize-default-on-error" = true, "x-deserialize-skip-invalid-items" = true))]
+      pub config_options: Vec<SessionConfigOption>,
+      #[serde(rename = "_meta")]
+      pub meta: Option<Meta>,
+  }
+  impl SetSessionConfigOptionResponse {
+      #[must_use]
+      pub fn new(config_options: Vec<SessionConfigOption>) -> Self {
+          Self {
+              config_options,
+              meta: None,
+          }
+      }
+
+probe finished, nothing written
