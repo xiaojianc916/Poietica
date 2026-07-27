@@ -357,12 +357,21 @@ export function PromptInputActionMenuContent({ className, ...props }: ComponentP
  * assistant-* 这类 BEM 类名，没有 Tailwind 的属性冲突可解，换过去只是白跑一遍
  * 冲突表解析。
  */
+/*
+ * onSelect is refused at the type level.
+ *
+ * The row underneath is Base UI's Menu.Item, whose callback is onClick, while
+ * onSelect is a React DOM event about text selection inside a field. Written
+ * here it satisfies the checker, survives the build, and is never called on a
+ * click. A silent failure has to become a compile error, and the place to make
+ * it one is the wrapper every caller goes through.
+ */
 export function PromptInputActionMenuItem({
   children,
   className,
   hint,
   ...props
-}: Omit<ComponentProps<typeof DropdownMenuItem>, 'className'> & {
+}: Omit<ComponentProps<typeof DropdownMenuItem>, 'className' | 'onSelect'> & {
   readonly className?: string
   readonly hint?: string
 }) {

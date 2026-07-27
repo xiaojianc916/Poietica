@@ -978,9 +978,13 @@
   line-height: 1.35;
 }
 
-/* Drawn rather than imported: two borders and a rotation are a tick. */
-[data-assistant-skin] .assistant-config-option[data-active="true"]::after {
-  content: "";
+/*
+ * The tick: two borders and a rotation, drawn rather than imported.
+ *
+ * It is the indicator element itself, which the radio group mounts only for the
+ * row whose value is in force, so no rule here has to know which row that is.
+ */
+[data-assistant-skin] .assistant-config-option__indicator {
   position: absolute;
   inset-block-start: 50%;
   inset-inline-end: 10px;

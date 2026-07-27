@@ -62,15 +62,15 @@ function ComposerToolbar({
           <PromptInputActionMenuContent>
             <AttachmentsItem />
 
-            <PromptInputActionMenuItem hint="/" onSelect={() => insertText('/')}>
+            <PromptInputActionMenuItem hint="/" onClick={() => insertText('/')}>
               命令
             </PromptInputActionMenuItem>
 
-            <PromptInputActionMenuItem hint="@" onSelect={() => insertText('@')}>
+            <PromptInputActionMenuItem hint="@" onClick={() => insertText('@')}>
               上下文
             </PromptInputActionMenuItem>
 
-            <PromptInputActionMenuItem hint="!" onSelect={() => insertText('!')}>
+            <PromptInputActionMenuItem hint="!" onClick={() => insertText('!')}>
               终端命令
             </PromptInputActionMenuItem>
           </PromptInputActionMenuContent>
@@ -106,7 +106,7 @@ function AttachmentsItem() {
   const { openFilePicker } = usePromptInput()
 
   return (
-    <PromptInputActionMenuItem hint="Ctrl+U" onSelect={openFilePicker}>
+    <PromptInputActionMenuItem hint="Ctrl+U" onClick={openFilePicker}>
       图片与文件
     </PromptInputActionMenuItem>
   )

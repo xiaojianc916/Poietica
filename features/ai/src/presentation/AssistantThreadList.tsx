@@ -148,7 +148,7 @@ export function AssistantThreadList({
                       >
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onSelect={() => onCopyLink?.(thread.id)}
+                          onClick={() => onCopyLink?.(thread.id)}
                         >
                           <Link aria-hidden="true" />
                           <span>拷贝链接</span>
@@ -156,7 +156,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onSelect={() => onPin(thread.id)}
+                          onClick={() => onPin(thread.id)}
                         >
                           <PinIcon aria-hidden="true" />
                           <span>固定</span>
@@ -164,7 +164,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onSelect={() => onMarkUnread?.(thread.id)}
+                          onClick={() => onMarkUnread?.(thread.id)}
                         >
                           <ThreadIcon aria-hidden="true" />
                           <span>标记为未读</span>
@@ -172,7 +172,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onSelect={() => onRename?.(thread.id)}
+                          onClick={() => onRename?.(thread.id)}
                         >
                           <Edit aria-hidden="true" />
                           <span>重命名</span>
@@ -180,7 +180,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
-                          onSelect={() => onDelete?.(thread.id)}
+                          onClick={() => onDelete?.(thread.id)}
                         >
                           <Trash aria-hidden="true" />
                           <span>删除</span>
@@ -190,7 +190,7 @@ export function AssistantThreadList({
 
                         <DropdownMenuItem
                           className="assistant-thread-menu__item"
-                          onSelect={() => onOpenInNewTab?.(thread.id)}
+                          onClick={() => onOpenInNewTab?.(thread.id)}
                         >
                           <ExternalLink aria-hidden="true" />
                           <span>在新选项卡中打开</span>

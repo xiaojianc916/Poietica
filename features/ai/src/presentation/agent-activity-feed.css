@@ -44,14 +44,27 @@
 }
 
 /*
- * The canvas is exactly as tall as the rows it holds, and taller when there is
- * room: growing it is what keeps a short run's composer against the bottom
- * edge instead of floating mid-panel. It never shrinks below the measured
- * total, which is the height the virtualiser sets inline.
+ * The canvas takes the room only once there is something in it.
+ *
+ * Before the first turn the two spacers are the only boxes that grow, which is
+ * what puts the masthead and the composer in the middle of the panel. A canvas
+ * that grew as well would take a third of that free space and open it between
+ * them: that was the gap under the title, and the reason the pair read as
+ * sitting high. After the first turn the canvas is the one that grows, which is
+ * what holds a short conversation's composer against the bottom edge instead of
+ * leaving it mid-panel, and it never shrinks below the total height the
+ * virtualiser sets inline.
+ *
+ * The switch is the same data-started the spacers already read, so the two can
+ * never disagree about who owns the space.
  */
 .agent-activity-feed__canvas {
   position: relative;
   inline-size: 100%;
+  flex: none;
+}
+
+.assistant-surface[data-started="true"] .agent-activity-feed__canvas {
   flex: 1 0 auto;
 }
 

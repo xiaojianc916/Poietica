@@ -1,8 +1,10 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -111,26 +113,41 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
                 data-assistant-skin
                 side="left"
               >
-                {control.choices.map((choice) => (
-                  <DropdownMenuItem
-                    className="assistant-config-option"
-                    data-active={choice.value === control.current ? 'true' : undefined}
-                    key={choice.value}
-                    onSelect={() => {
-                      if (choice.value === control.current) {
-                        return
-                      }
+                {/*
+                  One value is in force per selector, which is a radio group and
+                  not a list of commands: the group owns the value, the role and
+                  aria-checked, and it mounts the indicator on the row that
+                  matches. The guard stays because a group promises a value, not
+                  a change, and re-sending the value in force would be a request
+                  to the agent for nothing.
+                */}
+                <DropdownMenuRadioGroup
+                  onValueChange={(value: string) => {
+                    if (value === control.current) {
+                      return
+                    }
 
-                      onSelect(control.id, choice.value)
-                    }}
-                  >
-                    <span className="assistant-config-option__label">{choice.label}</span>
+                    onSelect(control.id, value)
+                  }}
+                  value={control.current}
+                >
+                  {control.choices.map((choice) => (
+                    <DropdownMenuRadioItem
+                      className="assistant-config-option"
+                      closeOnClick
+                      key={choice.value}
+                      value={choice.value}
+                    >
+                      <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
 
-                    {choice.detail === undefined ? null : (
-                      <span className="assistant-config-option__detail">{choice.detail}</span>
-                    )}
-                  </DropdownMenuItem>
-                ))}
+                      <span className="assistant-config-option__label">{choice.label}</span>
+
+                      {choice.detail === undefined ? null : (
+                        <span className="assistant-config-option__detail">{choice.detail}</span>
+                      )}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>

@@ -26,7 +26,15 @@ export default defineConfig({
     // Tauri v2 renamed these: TAURI_PLATFORM/TAURI_DEBUG are v1 names, and
     // reading them silently downgraded the target and killed debug sourcemaps.
     target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
-    minify: process.env.TAURI_ENV_DEBUG ? false : 'esbuild',
+    /*
+     * 压缩器是 oxc，因为打包器已经是 rolldown。
+     *
+     * Vite 8 不再依赖 esbuild：写 'esbuild' 只会把 vite:esbuild-transpile 拉进
+     * renderChunk，然后在全部模块转换完之后因为找不到这个包而崩掉。为它单独装
+     * 一个 esbuild 也不对——那是在 rolldown 旁边再养一条平行的转换实现，产物的
+     * 语义来源就有了两个。降级仍由下面的 target 决定，oxc 照它工作。
+     */
+    minify: process.env.TAURI_ENV_DEBUG ? false : 'oxc',
     sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
   },
 })
