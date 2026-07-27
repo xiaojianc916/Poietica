@@ -5,6 +5,10 @@
  *   1. a number lives here or it does not exist;
  *   2. a number that can be derived MUST be derived;
  *   3. the skin and the motion hook consume tokens only.
+ *
+ * 颜色在这里只被命名,取值一律来自设计系统的语义令牌。此前这一节是一套写死
+ * 的浅色私有色板,而主题控制器只做一件事:在 :root 上写 data-theme。两套系统
+ * 没有交点,深色模式下这个界面因此整片保持浅色、文字保持黑色。
  */
 
 [data-assistant-skin] {
@@ -70,24 +74,31 @@
   --cp-motion-settle: 320ms;
   --cp-motion-settle-ease: cubic-bezier(0.2, 0, 0, 1);
 
-  --cp-ink: #0d0d0d;
-  --cp-ink-muted: #5d5d63;
-  --cp-ink-subtle: #86868b;
-  --cp-placeholder: #a1a1a6;
-  --cp-surface: #fff;
-  --cp-canvas: #fbfbfa;
-  --cp-hover: #f5f5f5;
-  --cp-hairline: rgb(13 13 13 / 10%);
-  --cp-accent: #0a84ff;
-  --cp-accent-hover: #0071e3;
-  --cp-accent-idle: #cfe6ff;
-  --cp-accent-wash: #e8f1ff;
+  /* 墨色与底色:直接就是语义令牌,深浅两套主题各自给值。 */
+  --cp-ink: var(--ui-foreground);
+  --cp-ink-muted: var(--ui-muted-foreground);
+  --cp-ink-subtle: color-mix(in srgb, var(--ui-foreground) 55%, transparent);
+  --cp-placeholder: color-mix(in srgb, var(--ui-foreground) 40%, transparent);
+  --cp-surface: var(--ui-surface);
+  --cp-canvas: var(--ui-background);
 
-  --cp-edge-top: rgb(13 13 13 / 7%);
-  --cp-edge-bottom: rgb(13 13 13 / 11%);
+  /* 悬停是一层墨,不是一个固定的灰:深色下它必须变亮而不是变暗。 */
+  --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
+  --cp-hairline: var(--ui-divider);
+
+  --cp-accent: var(--ui-primary);
+  --cp-accent-foreground: var(--ui-primary-foreground);
+  --cp-accent-hover: color-mix(in srgb, var(--ui-primary) 88%, var(--ui-foreground));
+  --cp-accent-idle: color-mix(in srgb, var(--ui-primary) 35%, var(--ui-surface));
+  --cp-accent-wash: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-surface));
+
+  --cp-edge-top: color-mix(in srgb, var(--ui-foreground) 7%, transparent);
+  --cp-edge-bottom: color-mix(in srgb, var(--ui-foreground) 11%, transparent);
   --cp-edge-weight: 1.25px;
-  --cp-gloss: inset 0 1px 0 rgb(255 255 255 / 90%);
-  --cp-seat: inset 0 -1px 0 rgb(13 13 13 / 3%);
-  --cp-lift-near: 0 1px 1px rgb(16 24 40 / 4%);
-  --cp-lift-far: 0 6px 16px -12px rgb(16 24 40 / 12%);
+
+  /* 顶部高光由表面色推出:浅色下偏白,深色下只是比表面亮一档,不再是纯白。 */
+  --cp-gloss: inset 0 1px 0 color-mix(in srgb, var(--ui-surface) 85%, white);
+  --cp-seat: inset 0 -1px 0 color-mix(in srgb, var(--ui-foreground) 3%, transparent);
+  --cp-lift-near: 0 1px 1px color-mix(in srgb, var(--ui-foreground) 6%, transparent);
+  --cp-lift-far: 0 6px 16px -12px color-mix(in srgb, var(--ui-foreground) 16%, transparent);
 }

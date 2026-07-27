@@ -233,10 +233,10 @@
   border-radius: 9999px;
   padding: 0;
   background: var(--cp-accent);
-  color: #fff;
+  color: var(--cp-accent-foreground);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 28%),
-    0 1px 2px rgb(10 132 255 / 28%);
+    inset 0 1px 0 color-mix(in srgb, var(--cp-accent-foreground) 28%, transparent),
+    0 1px 2px color-mix(in srgb, var(--cp-accent) 32%, transparent);
   cursor: pointer;
   transition:
     background-color var(--cp-motion-swift) var(--cp-motion-ease),
@@ -531,11 +531,11 @@
 }
 
 .assistant-threads__create:hover {
-  background: rgb(13 13 13 / 10%);
+  background: var(--cp-hover);
 }
 
 .assistant-threads__create:active {
-  background: rgb(13 13 13 / 14%);
+  background: color-mix(in srgb, var(--ui-foreground) 12%, transparent);
   transform: scale(0.94);
 }
 
@@ -571,7 +571,7 @@
 
 .assistant-thread:hover,
 .assistant-thread[data-active="true"] {
-  background: rgb(13 13 13 / 5%);
+  background: var(--cp-hover);
 }
 
 .assistant-thread[data-muted="true"] {
@@ -661,7 +661,7 @@
 }
 
 .assistant-thread__action:hover {
-  background: rgb(13 13 13 / 8%);
+  background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
@@ -717,14 +717,14 @@
 .assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
 .assistant-thread-menu .assistant-thread-menu__item:focus-visible {
   outline: none;
-  background: rgb(13 13 13 / 7%);
+  background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
 .assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted],
 .assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible {
-  background: rgb(255 59 48 / 10%);
-  color: #d70015;
+  background: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  color: var(--ui-destructive);
 }
 
 .assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted] svg,
@@ -1002,14 +1002,11 @@
  * a button is moulded.
  */
 
-[data-assistant-skin] {
-  --sc-line: rgb(13 13 13 / 12%);
-  --sc-ring: rgb(13 13 13 / 4%);
-  --sc-shade:
-    0 0 0 0.5px var(--sc-ring), 0 1px 2px rgb(13 13 13 / 5%), 0 10px 28px -8px rgb(13 13 13 / 16%);
-  --sc-pad: 6px;
-  --sc-gap: 4px;
-}
+/*
+ * 这里原有一组 --sc-* 令牌:--sc-shade 与 --sc-gap 全文没有任何引用,
+ * --sc-line 与 --sc-pad 被下面的规则整体覆盖 —— 一整块死代码,删除。
+ * 菜单外框现在只有一个定义处:--am-* 与 .assistant-menu-surface。
+ */
 
 /* ---------------------------------------------------------------------- */
 /* The session selectors: one menu, a row per selector, values on the right */
@@ -1019,39 +1016,23 @@
 /* own radii and its own edge rather than borrowing either.                */
 /* ---------------------------------------------------------------------- */
 
-[data-assistant-skin] .assistant-config-menu {
-  position: relative;
-  display: flex;
-}
+/*
+ * 面板与子面板不再自己定位,也不再自己画外框。
+ *
+ * 它们是 Base UI 的 Popup,位置由 Menu.Positioner 计算(side / align /
+ * sideOffset 都从组件传入),这里再写一次 position: absolute 加 inset 等于
+ * 两套坐标打架;外框统一来自 .assistant-menu-surface。这里只剩尺寸。
+ *
+ * 前缀由后代改成自身限定:面板是 Portal 渲染到 body 的,data-assistant-skin
+ * 挂在它自己身上,它没有带该属性的祖先 —— 原先的后代选择器一条都没命中过,
+ * 菜单一直在用设计系统的默认皮肤。两个类名的特异性也压得住工具类。
+ */
+.assistant-config-menu__panel[data-assistant-skin],
+.assistant-config-menu__submenu[data-assistant-skin] {
+  --sc-item: var(--am-item);
+  --sc-pad: var(--am-pad);
 
-[data-assistant-skin] .assistant-config-menu__panel,
-[data-assistant-skin] .assistant-config-menu__submenu {
-  --sc-radius: 8px;
-  --sc-item: 5px;
-  --sc-pad: 4px;
-  --sc-line: rgb(13 13 13 / 8%);
-
-  position: absolute;
-  z-index: 40;
-  padding: var(--sc-pad);
-  border: 1px solid var(--sc-line);
-  border-radius: var(--sc-radius);
-  background: var(--cp-surface);
-  box-shadow:
-    0 0 0 0.5px rgb(13 13 13 / 3%),
-    0 1px 2px rgb(13 13 13 / 5%),
-    0 8px 24px -8px rgb(13 13 13 / 14%);
-  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-[data-assistant-skin] .assistant-config-menu__panel {
-  inset-block-end: calc(100% + 6px);
-  inset-inline-end: 0;
   min-width: 184px;
-}
-
-[data-assistant-skin] .assistant-config-menu__row-holder {
-  position: relative;
 }
 
 [data-assistant-skin] .assistant-config-menu__row {
@@ -1088,43 +1069,13 @@
   text-overflow: ellipsis;
 }
 
-/* Down, turned a quarter clockwise: the submenu opens toward the left. */
-[data-assistant-skin] .assistant-config-menu__row-mark {
-  flex: none;
-  width: var(--cp-icon-2xs);
-  height: var(--cp-icon-2xs);
-  color: var(--cp-ink-subtle);
-  transform: rotate(90deg);
-}
-
-/* Toward the middle of the window, because the trigger sits at its edge. */
-[data-assistant-skin] .assistant-config-menu__submenu {
-  inset-block-start: calc(var(--sc-pad) * -1);
-  inset-inline-end: calc(100% + 4px);
+/*
+ * 箭头由 DropdownMenuSubTrigger 自带,子面板的位置、悬停意图与安全三角归
+ * Base UI —— 于是手绘的旋转箭头、手写的 inset 定位、那条给指针过桥用的
+ * ::before,以及平铺菜单才需要的段标题与空态,一并删除。
+ */
+.assistant-config-menu__submenu[data-assistant-skin] {
   min-width: 200px;
-}
-
-/* The strip the pointer crosses on its way in; nothing is timed shut. */
-[data-assistant-skin] .assistant-config-menu__submenu::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-end: -6px;
-  width: 6px;
-}
-
-[data-assistant-skin] .assistant-config-menu__caption {
-  margin: 0;
-  padding: 3px 8px 5px;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-micro);
-}
-
-[data-assistant-skin] .assistant-config-menu__empty {
-  margin: 0;
-  padding: 5px 8px;
-  color: var(--cp-ink-subtle);
-  font-size: var(--cp-font-caption);
 }
 
 [data-assistant-skin] .assistant-config-option {
@@ -1195,10 +1146,11 @@
   --am-radius: 8px;
   --am-item: 5px;
   --am-pad: 4px;
-  --am-line: rgb(13 13 13 / 8%);
+  --am-line: var(--ui-divider);
   --am-shadow:
-    0 0 0 0.5px rgb(13 13 13 / 3%), 0 1px 2px rgb(13 13 13 / 5%),
-    0 8px 24px -8px rgb(13 13 13 / 14%);
+    0 0 0 0.5px color-mix(in srgb, var(--ui-foreground) 4%, transparent),
+    0 1px 2px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
+    0 8px 24px -8px color-mix(in srgb, var(--ui-foreground) 18%, transparent);
 }
 
 /* The reusable frame. Anything that opens as a menu carries this class. */
@@ -1210,15 +1162,10 @@
   box-shadow: var(--am-shadow);
 }
 
-/* The session selector keeps its own names, now fed by the shared values. */
-[data-assistant-skin] .assistant-config-menu__panel,
-[data-assistant-skin] .assistant-config-menu__submenu {
-  --sc-radius: var(--am-radius);
-  --sc-item: var(--am-item);
-  --sc-pad: var(--am-pad);
-  --sc-line: var(--am-line);
-  box-shadow: var(--am-shadow);
-}
+/*
+ * 选择器面板的外框不再单独声明一遍:它带着 .assistant-menu-surface,
+ * 边、圆角、内边距与投影都从那一个地方来。
+ */
 
 /*
  * The sidebar popup, at menu scale.

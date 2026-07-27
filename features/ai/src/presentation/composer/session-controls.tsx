@@ -2,7 +2,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
 
@@ -10,16 +13,19 @@ import type { SessionConfigControl } from '../../contracts/session-config-contra
 import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
- * Everything the session lets us change, in one control.
+ * 会话能改的每一项,一个入口,两级菜单。
  *
- * There is no second control for the model. A model is one of the purposes the
- * session reports, and before a session exists the agent config supplies the
- * same shape, so the pipeline is the same either way. Two controls swapping
- * places at the first turn was a compatibility seam, and the user watched the
- * toolbar change shape underneath them.
+ * 一级是选择器本身:一行一个,右侧写着当前生效的值;二级才是取值列表。这是
+ * 桌面软件菜单的通行做法 —— 一级可扫读,二级按需展开,菜单高度不随取值个数
+ * 膨胀。上一版把三个选择器的全部取值平铺在同一个面板里,行数由代理返回多少
+ * 个模型决定,于是只有两三个取值的 Thinking / Mode 被埋在十几行之后。
  *
- * The popup is the design system's menu: arrow keys, typeahead, Escape and
- * focus return are the standard's job, not this file's.
+ * 子菜单用设计系统的 DropdownMenuSub(底层是 Base UI 的 Menu.SubmenuRoot):
+ * 方向键、悬停意图的安全三角、Escape 逐层关闭、焦点归位,都是标准的职责,
+ * 不是这个文件的。上一版留下的手写子菜单定位、过桥条与旋转箭头已随之删除。
+ *
+ * 面板与子面板都要带 data-assistant-skin:它们是 Portal 渲染到 body 的,
+ * 不在 AI 界面的子树里,皮肤令牌只能由它们自己携带。
  */
 
 const NOTHING_TO_OFFER = '会话未就绪'
@@ -52,7 +58,7 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
   const model = controls.find((control) => control.purpose === 'model')
   const provider = model?.current.split('/')[0]
 
-  /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
+  /* 析构判空同时给出空状态判据与首行,索引访问不再需要断言。 */
   const [firstRow] = rows
 
   if (firstRow === undefined) {
@@ -89,35 +95,45 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
         side="top"
         sideOffset={6}
       >
-        {rows.map((control, index) => (
-          <div key={control.id}>
-            {index === 0 ? null : (
-              <DropdownMenuSeparator className="assistant-config-menu__separator" />
-            )}
+        {rows.map((control) => (
+          <DropdownMenuSub key={control.id}>
+            <DropdownMenuSubTrigger className="assistant-config-menu__row">
+              <span className="assistant-config-menu__row-label">{control.label}</span>
 
-            <p className="assistant-config-menu__caption">{control.label}</p>
+              <span className="assistant-config-menu__row-value">{chosen(control)}</span>
+            </DropdownMenuSubTrigger>
 
-            {control.choices.map((choice) => (
-              <DropdownMenuItem
-                className="assistant-config-option"
-                data-active={choice.value === control.current ? 'true' : undefined}
-                key={choice.value}
-                onSelect={() => {
-                  if (choice.value === control.current) {
-                    return
-                  }
-
-                  onSelect(control.id, choice.value)
-                }}
+            {/* 子面板要自己进 Portal:SubContent 只是 Positioner + Popup。 */}
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent
+                align="start"
+                className="assistant-config-menu__submenu assistant-menu-surface"
+                data-assistant-skin
+                side="left"
               >
-                <span className="assistant-config-option__label">{choice.label}</span>
+                {control.choices.map((choice) => (
+                  <DropdownMenuItem
+                    className="assistant-config-option"
+                    data-active={choice.value === control.current ? 'true' : undefined}
+                    key={choice.value}
+                    onSelect={() => {
+                      if (choice.value === control.current) {
+                        return
+                      }
 
-                {choice.detail === undefined ? null : (
-                  <span className="assistant-config-option__detail">{choice.detail}</span>
-                )}
-              </DropdownMenuItem>
-            ))}
-          </div>
+                      onSelect(control.id, choice.value)
+                    }}
+                  >
+                    <span className="assistant-config-option__label">{choice.label}</span>
+
+                    {choice.detail === undefined ? null : (
+                      <span className="assistant-config-option__detail">{choice.detail}</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
