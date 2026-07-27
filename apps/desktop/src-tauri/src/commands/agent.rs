@@ -610,10 +610,15 @@ async fn ensure_session(
         cwd: working_directory,
     };
 
+    // The book that files frames under the session that names them belongs
+    // to the connection, and the driver holds its own handle to it, so
+    // routing works while this side leaves it alone. The runtime takes it
+    // over once it keeps more than one session at a time.
     let AgentConnection {
         client,
         session_id,
         driver,
+        book: _,
     } = connect(spawn, state.slot.clone(), state.desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,

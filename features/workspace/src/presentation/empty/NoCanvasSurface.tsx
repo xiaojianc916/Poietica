@@ -1,5 +1,6 @@
 import { FilePlus, Folder } from '@mynaui/icons-react'
 import { Button } from '@poietica/foundations-design-system'
+import { formatKeybinding } from '../commands/keybinding'
 
 export interface NoCanvasSurfaceProps {
   readonly onCreateDocument: () => void
@@ -15,8 +16,16 @@ export interface NoCanvasSurfaceProps {
  *
  * This component only owns the empty-state presentation and never creates a
  * second document or persistence path.
+ *
+ * 快捷键写作与平台无关的逻辑形式，交给 formatKeybinding 渲染：macOS 得到 ⌘N，
+ * 其余平台得到 Ctrl+N，与命令面板里同一条命令的显示保持一致。
  */
 export function NoCanvasSurface({ onCreateDocument, onOpenDocument }: NoCanvasSurfaceProps) {
+  const actions = [
+    { icon: FilePlus, label: '创建新画布', shortcut: 'Mod+N', onClick: onCreateDocument },
+    { icon: Folder, label: '打开画布文件', shortcut: 'Mod+O', onClick: onOpenDocument },
+  ]
+
   return (
     <section
       aria-labelledby="no-canvas-title"
@@ -41,31 +50,21 @@ export function NoCanvasSurface({ onCreateDocument, onOpenDocument }: NoCanvasSu
         </p>
 
         <div className="mx-auto mt-6 flex w-fit flex-col items-center gap-1">
-          <Button
-            className="h-9 gap-2 px-3 text-primary hover:bg-primary/10 hover:text-primary"
-            onClick={onCreateDocument}
-            type="button"
-            variant="ghost"
-          >
-            <FilePlus aria-hidden="true" className="size-4" />
-            <span>创建新画布</span>
-            <kbd className="ml-1 rounded border border-primary/15 bg-primary/5 px-1.5 py-0.5 text-micro font-normal text-primary/75">
-              Ctrl + N
-            </kbd>
-          </Button>
-
-          <Button
-            className="h-9 gap-2 px-3 text-primary hover:bg-primary/10 hover:text-primary"
-            onClick={onOpenDocument}
-            type="button"
-            variant="ghost"
-          >
-            <Folder aria-hidden="true" className="size-4" />
-            <span>打开画布文件</span>
-            <kbd className="ml-1 rounded border border-primary/15 bg-primary/5 px-1.5 py-0.5 text-micro font-normal text-primary/75">
-              Ctrl + O
-            </kbd>
-          </Button>
+          {actions.map(({ icon: Icon, label, shortcut, onClick }) => (
+            <Button
+              className="h-9 gap-2 px-3 text-primary hover:bg-primary/10 hover:text-primary"
+              key={label}
+              onClick={onClick}
+              type="button"
+              variant="ghost"
+            >
+              <Icon aria-hidden="true" className="size-4" />
+              <span>{label}</span>
+              <kbd className="ml-1 rounded border border-primary/15 bg-primary/5 px-1.5 py-0.5 text-micro font-normal text-primary/75">
+                {formatKeybinding(shortcut)}
+              </kbd>
+            </Button>
+          ))}
         </div>
       </div>
     </section>

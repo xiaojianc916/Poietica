@@ -31,6 +31,8 @@ const GONE: &str = "the agent connection is no longer running";
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
 const CHANGING: &str = "a selector cannot be changed while a turn is in flight";
+const AWAITING: &str =
+    "a turn is running, so no session can be created or listed until it ends";
 
 /// Names the file every line of the conversation is copied to, when set.
 ///
@@ -52,6 +54,15 @@ pub struct AgentSpawn {
 
 /// What the driver is asked to do next.
 enum Command {
+    /// Open one more session on the connection that is already running.
+    NewSession {
+        cwd: PathBuf,
+        reply: oneshot::Sender<Result<OpenedSession>>,
+    },
+    /// Ask the agent which sessions it keeps, and what it calls them.
+    Sessions {
+        reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
+    },
     Prompt {
         text: String,
         /// Boxed because a channel message is sized by its largest variant,
@@ -89,6 +100,39 @@ impl fmt::Debug for AgentClient {
 }
 
 impl AgentClient {
+    /// Opens one more session on the running connection.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, when the agent refuses to open a
+    /// session, or when the book cannot record the one it opened.
+    pub async fn new_session(&self, cwd: PathBuf) -> Result<OpenedSession> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::NewSession { cwd, reply })?;
+
+        answer.await.map_err(|_dropped| AcpError::Protocol {
+            message: GONE.to_owned(),
+        })?
+    }
+
+    /// Asks the agent which sessions it keeps, and what it calls them.
+    ///
+    /// The title is the agent's own, so it is the only honest source for
+    /// one; a session it has not named yet reports none.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone or the agent refuses to list.
+    pub async fn sessions(&self) -> Result<Vec<SessionEntry>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Sessions { reply })?;
+
+        answer.await.map_err(|_dropped| AcpError::Protocol {
+            message: GONE.to_owned(),
+        })?
+    }
     /// Starts a turn, recording it with the recorder handed in.
     ///
     /// The answer resolves to the stop reason the agent reported once the turn
@@ -289,6 +333,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let updates = book.clone();
     let permissions = book.clone();
     let first = book.clone();
+    let ledger = book.clone();
     let waiting = desk.clone();
 
     let driver = async move {
@@ -394,6 +439,66 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     };
 
                     let (text, recorder, reply_to) = match message {
+                        Command::NewSession { cwd, reply } => {
+                            let started = connection
+                                .send_request(NewSessionRequest::new(cwd))
+                                .block_task()
+                                .await;
+
+                            let opened = match started {
+                                Ok(session) => {
+                                    let name = session.session_id.to_string();
+                                    // The session is entered in the book before its
+                                    // name is handed out, so its first frame has
+                                    // somewhere to go.
+                                    let filed = ledger.open(&name);
+                                    let offered = match session.config_options.as_deref() {
+                                        Some(options) => controls(options),
+                                        None => Vec::new(),
+                                    };
+
+                                    match filed {
+                                        Ok(_slot) => Ok(OpenedSession {
+                                            session_id: name,
+                                            selectors: offered,
+                                        }),
+                                        Err(error) => Err(error),
+                                    }
+                                }
+                                Err(error) => Err(AcpError::Protocol {
+                                    message: error.to_string(),
+                                }),
+                            };
+
+                            let _ignored = reply.send(opened);
+
+                            continue 'commands;
+                        }
+                        Command::Sessions { reply } => {
+                            let listed = connection
+                                .send_request(agent_client_protocol::ListSessionsRequest::new())
+                                .block_task()
+                                .await;
+
+                            let answer = match listed {
+                                Ok(response) => Ok(response
+                                    .sessions
+                                    .iter()
+                                    .map(|info| SessionEntry {
+                                        session_id: info.session_id.to_string(),
+                                        title: info.title.clone(),
+                                        updated_at: info.updated_at.clone(),
+                                    })
+                                    .collect()),
+                                Err(error) => Err(AcpError::Protocol {
+                                    message: error.to_string(),
+                                }),
+                            };
+
+                            let _ignored = reply.send(answer);
+
+                            continue 'commands;
+                        }
                         Command::Shutdown => break 'commands,
                         // Nothing is in flight, so there is nothing to stop.
                         Command::Cancel => continue 'commands,
@@ -474,6 +579,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         match select(pending, receiver.next()).await {
                             Either::Left((result, _)) => break Some(result),
                             Either::Right((message, in_flight)) => match message {
+                                // Opening or listing a session takes a request of our own,
+                                // and this task is already awaiting one.
+                                Some(Command::NewSession { reply, .. }) => {
+                                    let _ignored = reply.send(Err(AcpError::Protocol {
+                                        message: AWAITING.to_owned(),
+                                    }));
+                                    pending = in_flight;
+                                }
+                                Some(Command::Sessions { reply }) => {
+                                    let _ignored = reply.send(Err(AcpError::Protocol {
+                                        message: AWAITING.to_owned(),
+                                    }));
+                                    pending = in_flight;
+                                }
                                 // Dropping the request handle before the
                                 // response arrives is how the SDK sends
                                 // the protocol's cancellation notification,
@@ -595,4 +714,24 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         session_id,
         driver,
     })
+}
+
+/// A session the agent just opened, and the selectors it offers for it.
+#[derive(Debug, Clone)]
+pub struct OpenedSession {
+    /// The name every frame of this session will carry.
+    pub session_id: String,
+    /// What may be chosen for this session, as the agent reported it.
+    pub selectors: Vec<ConfigControl>,
+}
+
+/// One line of the agent's own session list.
+#[derive(Debug, Clone)]
+pub struct SessionEntry {
+    /// The session this line describes.
+    pub session_id: String,
+    /// The title the agent gave it, if it has given one.
+    pub title: Option<String>,
+    /// When the agent last saw activity on it, as it reported it.
+    pub updated_at: Option<String>,
 }

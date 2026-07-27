@@ -33,6 +33,7 @@ mod stderr;
 
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
+pub use session::{OpenedSession, SessionEntry};
 pub use error::{AcpError, Result};
 pub use models::{
     AgentModel, ModelError, ModelList, config_path as model_config_path, read_models, select_model,

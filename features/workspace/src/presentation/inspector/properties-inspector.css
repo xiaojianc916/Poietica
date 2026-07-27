@@ -15,8 +15,6 @@
   --hc-inspector-opacity-height: 1.875rem;
 }
 
-/* poietica:properties-inspector-v1 */
-
 .hc-properties-inspector-host,
 .hc-properties-sidebar {
   width: 100%;
@@ -207,8 +205,6 @@
   outline-offset: 1px;
 }
 
-/* poietica:properties-sidebar-v2 */
-
 .hc-properties-sidebar__opacity {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -260,8 +256,6 @@
   outline-offset: -2px;
 }
 
-/* poietica:properties-sidebar-v4 */
-
 /*
  * Mixed 值不伪装成普通未选中状态。
  */
@@ -295,9 +289,6 @@
   font-weight: var(--ui-font-weight-semibold);
 }
 
-/*
- * Tooltip 接管可见标签后，不依赖浏览器 title。
- */
 .hc-properties-sidebar__action,
 .hc-properties-sidebar__segment,
 .hc-properties-sidebar__color-button,
