@@ -158,6 +158,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         client,
         session_id,
         driver,
+        book: _,
     } = connect(spawn, slot, desk).expect("the command line to be usable");
 
     let mut driver = Driver::spawn(driver);

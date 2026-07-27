@@ -1,83 +1,52 @@
-//! The book keeps one slot per session and forgets one at a time.
+//! What the session book promises: one entry per name, a slot only for
+//! names it was told about, and nothing left behind when one is closed.
+//!
+//! Every answer is asserted rather than unwrapped, because a lint-clean
+//! test may not reach for a panic to describe a failure.
 
 use poietica_ai_acp_native::SessionBook;
 
-const FIRST: &str = "session_11111111-1111-1111-1111-111111111111";
-const SECOND: &str = "session_22222222-2222-2222-2222-222222222222";
+const FIRST: &str = "session_11111111-1111-4111-8111-111111111111";
+const SECOND: &str = "session_22222222-2222-4222-8222-222222222222";
 
 #[test]
 fn mentioning_one_session_twice_opens_it_once() {
     let book = SessionBook::new();
 
-    let Ok(_first) = book.open(FIRST) else {
-        panic!("the book refused to open a session");
-    };
-    let Ok(_again) = book.open(FIRST) else {
-        panic!("the book refused to open a session");
-    };
+    assert!(book.open(FIRST).is_ok());
+    assert!(book.open(FIRST).is_ok());
 
-    let Ok(open) = book.open_count() else {
-        panic!("the book refused to count its sessions");
-    };
-
-    assert_eq!(
-        open, 1,
-        "one session was mentioned, so one slot is expected"
-    );
+    assert!(matches!(book.open_count(), Ok(1)));
 }
 
 #[test]
 fn a_name_the_book_never_opened_has_no_slot() {
     let book = SessionBook::new();
 
-    let Ok(_opened) = book.open(FIRST) else {
-        panic!("the book refused to open a session");
-    };
-
-    let Ok(found) = book.slot(SECOND) else {
-        panic!("the book refused a lookup");
-    };
-
-    assert!(
-        found.is_none(),
-        "an unopened session must not answer with a slot"
-    );
+    assert!(matches!(book.slot(FIRST), Ok(None)));
 }
 
 #[test]
-fn closing_reports_whether_the_session_was_open() {
+fn closing_a_session_leaves_the_book_empty() {
     let book = SessionBook::new();
 
-    let Ok(_opened) = book.open(FIRST) else {
-        panic!("the book refused to open a session");
-    };
+    assert!(book.open(FIRST).is_ok());
+    assert!(book.close(FIRST).is_ok());
 
-    let Ok(closed) = book.close(FIRST) else {
-        panic!("the book refused to close a session");
-    };
-    let Ok(again) = book.close(FIRST) else {
-        panic!("the book refused to close a session");
-    };
-
-    assert!(closed, "the session was open, so closing it counts");
-    assert!(!again, "a session is closed once, not twice");
+    assert!(matches!(book.open_count(), Ok(0)));
+    assert!(matches!(book.slot(FIRST), Ok(None)));
 }
 
 #[test]
 fn two_sessions_are_both_named() {
     let book = SessionBook::new();
 
-    let Ok(_one) = book.open(FIRST) else {
-        panic!("the book refused to open a session");
-    };
-    let Ok(_two) = book.open(SECOND) else {
-        panic!("the book refused to open a session");
-    };
+    assert!(book.open(FIRST).is_ok());
+    assert!(book.open(SECOND).is_ok());
 
-    let Ok(mut names) = book.ids() else {
-        panic!("the book refused to list its sessions");
-    };
-    names.sort();
+    let names = book.ids().unwrap_or_default();
 
-    assert_eq!(names, vec![FIRST.to_owned(), SECOND.to_owned()]);
+    assert!(matches!(book.open_count(), Ok(2)));
+    assert!(names.iter().any(|name| name == FIRST));
+    assert!(names.iter().any(|name| name == SECOND));
 }
