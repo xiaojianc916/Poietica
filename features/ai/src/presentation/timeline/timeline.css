@@ -167,25 +167,19 @@
 }
 
 /*
- * How a fenced block is set — the part no stylesheet in this app had declared.
+ * A fenced block keeps the layout the package gives it: lines are its business,
+ * and it is the only party that knows the shape of the tree Shiki produced.
+ * What is set here is what this app has an opinion about — the tab, at the width
+ * every editor uses, which no stylesheet upstream declares.
  *
- * Without these, pre keeps the user agent's defaults, and the defaults are
- * wrong for a chat transcript: white-space: pre means a two-hundred-character
- * line stays one line, which in a box that clips its overflow is simply lost,
- * and tab-size 8 opens the gaps that made minified markup look shredded.
- *
- * Soft wrap rather than a horizontal scroller, because a snippet in a
- * conversation is read, not edited, and a second scroll axis inside a column
- * that already scrolls is a trap. Nothing reformats the code: reflowing it
- * would rewrite what is inside its string literals, which is why professional
- * editors keep formatting an explicit action and never a rendering step.
+ * Nothing reformats the code, then or now. Reflowing it would rewrite what is
+ * inside its string literals, which is why a professional editor keeps
+ * formatting an explicit action and never a rendering step.
  */
 .timeline-prose [data-streamdown="code-block-body"] pre {
   margin: 0;
   background: transparent;
   tab-size: 2;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
