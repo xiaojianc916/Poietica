@@ -158,6 +158,11 @@ export function WorkspaceShell({
  * 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。
  */
 function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceNavigationId | null {
+  /* 对话就是 AI 那一格：导航项因此照常高亮。 */
+  if (surface.kind === 'conversation') {
+    return 'ai'
+  }
+
   switch (surface.kind) {
     case 'workspace':
       return surface.surfaceId

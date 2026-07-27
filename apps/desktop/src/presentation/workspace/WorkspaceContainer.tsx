@@ -37,6 +37,7 @@ import { reportFailure } from '../../application/failures/failure-policy'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
+import { ConversationSurface } from './ConversationSurface'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
@@ -294,6 +295,10 @@ export function WorkspaceContainer({
    */
   const activeCanvasTitle = workbench.activeCanvas?.title ?? null
 
+  /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
+  const activeConversationId =
+    workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
+
   const hostedSessions = useMemo(
     () =>
       workbench.tabs.flatMap((tab) => {
@@ -316,6 +321,9 @@ export function WorkspaceContainer({
   const mainContent = renderActiveSurface({
     activeSurface: workbench.activeSurface,
     surfaceRenderers,
+    renderConversation: (threadId) => (
+      <ConversationSurface session={agentSession} threadId={threadId} />
+    ),
     activeSessionId,
     hostedSessions,
     quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],
@@ -423,7 +431,17 @@ export function WorkspaceContainer({
           />
         ) : null
       }
-      sidebarPanel={<AssistantSidebarPanel />}
+      sidebarPanel={
+        <AssistantSidebarPanel
+          activeThreadId={activeConversationId}
+          onOpen={(threadId, title) => {
+            port.workspace.openConversation({ threadId, title })
+          }}
+          onOpenInNewTab={(threadId, title) => {
+            port.workspace.openConversationInNewTab({ threadId, title })
+          }}
+        />
+      }
       statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}
     />
   )
@@ -456,6 +474,7 @@ interface ActiveSurfaceRendererProps {
   readonly onSave: (sessionId: CanvasSessionId) => void
   readonly onSessionFailure: (failure: EditorSessionFailure) => void
   readonly renderSessionFailure: (sessionId: string) => ReactNode
+  readonly renderConversation: (threadId: string) => ReactNode
   readonly surfaceRenderers: WorkspaceSurfaceRenderers
 }
 
@@ -469,6 +488,7 @@ function renderActiveSurface({
   onSave,
   onSessionFailure,
   renderSessionFailure,
+  renderConversation,
   surfaceRenderers,
 }: ActiveSurfaceRendererProps) {
   switch (activeSurface.kind) {
@@ -477,6 +497,9 @@ function renderActiveSurface({
 
     case 'workspace':
       return <WorkspaceSurface renderers={surfaceRenderers} surfaceId={activeSurface.surfaceId} />
+
+    case 'conversation':
+      return renderConversation(activeSurface.threadId)
 
     case 'canvas':
       return (

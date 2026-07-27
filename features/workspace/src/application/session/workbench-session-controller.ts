@@ -16,8 +16,14 @@ import type {
   WorkspaceTabViewModel,
 } from '../../contracts/public-api'
 import { START_TAB_ID, START_TAB_TITLE } from '../../contracts/public-api'
+import type {
+  ActiveConversationViewModel,
+  ConversationId,
+  ConversationTabViewModel,
+  OpenConversationRequest,
+} from '../../contracts/workbench-contract'
 
-type WorkbenchEntry = StartEntry | CanvasEntry | WorkspaceEntry
+type WorkbenchEntry = StartEntry | CanvasEntry | ConversationEntry | WorkspaceEntry
 
 interface EntryBase {
   readonly id: WorkbenchTabId
@@ -34,6 +40,11 @@ interface CanvasEntry extends EntryBase {
   readonly sessionId: CanvasSessionId
   readonly canvasId: string
   readonly status: CanvasTabStatus
+}
+
+interface ConversationEntry extends EntryBase {
+  readonly kind: 'conversation'
+  readonly threadId: ConversationId
 }
 
 interface WorkspaceEntry extends EntryBase {
@@ -199,6 +210,65 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     emit()
   }
 
+  /*
+   * 会话槽：正在看的那一格如果本身就是 AI，就地变成这条对话。
+   *
+   * 启动时的 workspace:ai 也算 AI 那一格，所以点侧栏第一行不会并排开出第二
+   * 格；已经开着的对话只激活，列表点两次不会有两格同名。
+   */
+  function openConversation(request: OpenConversationRequest): void {
+    const existing = findConversationEntry(entries, request.threadId)
+
+    if (existing) {
+      activateTab(existing.id)
+      return
+    }
+
+    const entry = conversationEntry(request)
+    const slot = entries.findIndex((candidate) => candidate.id === activeTabId)
+    const active = entries[slot]
+    const replaceable =
+      active?.kind === 'conversation' || (active?.kind === 'workspace' && active.surfaceId === 'ai')
+
+    if (!active || !replaceable) {
+      insertToActiveRight(entry)
+      return
+    }
+
+    entries = entries.map((candidate, index) => (index === slot ? entry : candidate))
+    activeTabId = entry.id
+    emit()
+  }
+
+  function openConversationInNewTab(request: OpenConversationRequest): void {
+    const existing = findConversationEntry(entries, request.threadId)
+
+    if (existing) {
+      activateTab(existing.id)
+      return
+    }
+
+    insertToActiveRight(conversationEntry(request))
+  }
+
+  function setConversationTitle(threadId: ConversationId, title: string): void {
+    const index = entries.findIndex(
+      (candidate) => candidate.kind === 'conversation' && candidate.threadId === threadId,
+    )
+
+    const entry = entries[index]
+
+    if (!entry || entry.kind !== 'conversation' || entry.title === title) {
+      return
+    }
+
+    entries = entries.map((candidate, candidateIndex) =>
+      candidateIndex === index ? { ...entry, title } : candidate,
+    )
+
+    emit()
+  }
+
   function activateTab(tabId: WorkbenchTabId): void {
     if (tabId === activeTabId || !entries.some((entry) => entry.id === tabId)) {
       return
@@ -308,6 +378,9 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     createCanvas,
     openWorkspaceSurface,
     openCanvasStart,
+    openConversation,
+    openConversationInNewTab,
+    setConversationTitle,
     activateTab,
     closeTab,
     moveTab,
@@ -370,6 +443,16 @@ function projectTab(entry: WorkbenchEntry, activeTabId: WorkbenchTabId): Workben
       return tab
     }
 
+    case 'conversation': {
+      const tab: ConversationTabViewModel = {
+        ...common,
+        kind: 'conversation',
+        threadId: entry.threadId,
+      }
+
+      return tab
+    }
+
     case 'workspace': {
       const tab: WorkspaceTabViewModel = {
         ...common,
@@ -405,6 +488,17 @@ function projectSurface(entry: WorkbenchEntry): WorkbenchSurfaceViewModel {
       return surface
     }
 
+    case 'conversation': {
+      const surface: ActiveConversationViewModel = {
+        kind: 'conversation',
+        tabId: entry.id,
+        threadId: entry.threadId,
+        title: entry.title,
+      }
+
+      return surface
+    }
+
     case 'workspace': {
       const surface: WorkspaceSurfaceViewModel = {
         kind: 'workspace',
@@ -416,6 +510,26 @@ function projectSurface(entry: WorkbenchEntry): WorkbenchSurfaceViewModel {
       return surface
     }
   }
+}
+
+function conversationEntry(request: OpenConversationRequest): ConversationEntry {
+  return {
+    id: `conversation:${request.threadId}`,
+    kind: 'conversation',
+    title: request.title,
+    canClose: true,
+    threadId: request.threadId,
+  }
+}
+
+function findConversationEntry(
+  entries: readonly WorkbenchEntry[],
+  threadId: ConversationId,
+): ConversationEntry | undefined {
+  return entries.find(
+    (entry): entry is ConversationEntry =>
+      entry.kind === 'conversation' && entry.threadId === threadId,
+  )
 }
 
 function findCanvasEntry(

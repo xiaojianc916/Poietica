@@ -44,7 +44,18 @@ function describe(updatedAt: string, now: number) {
   return { relativeTime: `${days} 天`, group }
 }
 
-export function AssistantSidebarPanel() {
+export interface AssistantSidebarPanelProps {
+  readonly activeThreadId: string | null
+  readonly onOpen: (threadId: string, title: string) => void
+  readonly onOpenInNewTab: (threadId: string, title: string) => void
+}
+
+/* 列表是导航：点一行替换正在看的那一格，「在新标签页打开」才追加一格。 */
+export function AssistantSidebarPanel({
+  activeThreadId,
+  onOpen,
+  onOpenInNewTab,
+}: AssistantSidebarPanelProps) {
   const threads = useSharedThreads()
   const now = Date.now()
 
@@ -61,12 +72,17 @@ export function AssistantSidebarPanel() {
 
   return (
     <AssistantThreadList
-      activeThreadId={threads.activeThreadId}
-      onActivate={threads.activate}
+      activeThreadId={activeThreadId}
+      onActivate={(threadId) => {
+        threads.activate(threadId)
+        onOpen(threadId, threads.titleOf(threadId))
+      }}
       onCreate={() => {
         void threads.create()
       }}
-      onOpenInNewTab={threads.openInNewTab}
+      onOpenInNewTab={(threadId) => {
+        onOpenInNewTab(threadId, threads.titleOf(threadId))
+      }}
       onPin={() => {}}
       threads={summaries}
     />

@@ -210,5 +210,10 @@ function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
     return FileText
   }
 
+  /* 对话标签沿用 AI 表面的图标：同一个目标只允许有一个样子。 */
+  if (model.kind === 'conversation') {
+    return describeWorkspaceSurface('ai').icon
+  }
+
   return describeWorkspaceSurface(model.surfaceId).icon
 }
