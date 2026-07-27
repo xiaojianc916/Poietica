@@ -1,7 +1,14 @@
 import './assistant-composer.css'
 
 import type { ReactNode } from 'react'
-
+import { useAgentModels } from '../application/useAgentModels'
+import { useAssistantSession } from '../application/useAssistantSession'
+import { useSessionConfig } from '../application/useSessionConfig'
+import type { AgentSessionPort } from '../contracts/agent-session-port'
+import type { AgentModelsPort } from '../contracts/model-port'
+import type { SessionConfigPort } from '../contracts/session-config-port'
+import type { TurnOutcome } from '../domain/timeline-selectors'
+import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
@@ -10,14 +17,6 @@ import { AgentIcon } from './primitives/icons'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
 import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
-import type { AgentSessionPort } from '../contracts/agent-session-port'
-import type { AgentModelsPort } from '../contracts/model-port'
-import type { SessionConfigPort } from '../contracts/session-config-port'
-import type { TurnOutcome } from '../domain/timeline-selectors'
-import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
-import { useAgentModels } from '../application/useAgentModels'
-import { useAssistantSession } from '../application/useAssistantSession'
-import { useSessionConfig } from '../application/useSessionConfig'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string

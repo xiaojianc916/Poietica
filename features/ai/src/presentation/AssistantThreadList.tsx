@@ -1,5 +1,6 @@
 import './assistant-composer.css'
 
+import { Edit, ExternalLink, Link, Trash } from '@mynaui/icons-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +8,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
-import { Edit, ExternalLink, Link, Trash } from '@mynaui/icons-react'
 import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 
 export interface AssistantThreadSummary {

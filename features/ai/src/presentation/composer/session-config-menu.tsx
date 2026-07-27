@@ -102,7 +102,7 @@ function ConfigRow({ control, isFirst, isOpen, onOpen, onPick }: ConfigRowProps)
         schedule(false, CLOSE_DELAY)
       }}
     >
-      {isFirst ? null : <span className="assistant-config-menu__separator" role="separator" />}
+      {isFirst ? null : <span aria-hidden="true" className="assistant-config-menu__separator" />}
 
       <button
         aria-expanded={isOpen}

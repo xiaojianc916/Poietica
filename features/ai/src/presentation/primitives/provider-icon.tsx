@@ -22,8 +22,8 @@ export function ProviderIcon({ provider, label = '' }: ProviderIconProps) {
       alt={label}
       aria-hidden={label.length === 0}
       className="assistant-provider-icon"
-      data-provider={provider ?? 'unknown'}
       data-fallback={source === PROVIDER_ICON_FALLBACK}
+      data-provider={provider ?? 'unknown'}
       draggable={false}
       src={source}
     />

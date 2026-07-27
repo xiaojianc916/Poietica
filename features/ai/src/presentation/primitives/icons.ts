@@ -6,20 +6,22 @@
  * glyph fails the script instead of the runtime.
  */
 
-export { Paperclip as AttachIcon } from '@mynaui/icons-react'
-export { Puzzle as ToolsIcon } from '@mynaui/icons-react'
-export { Send as AgentIcon } from '@mynaui/icons-react'
-export { Microphone as MicIcon } from '@mynaui/icons-react'
-export { ArrowUp as SubmitIcon } from '@mynaui/icons-react'
-export { Square as StopIcon } from '@mynaui/icons-react'
-export { Spinner as SpinnerIcon } from '@mynaui/icons-react'
-export { ChevronDown as ChevronDownIcon } from '@mynaui/icons-react'
-export { X as CloseIcon } from '@mynaui/icons-react'
-export { File as FileIcon } from '@mynaui/icons-react'
-export { Plus as PlusIcon } from '@mynaui/icons-react'
-export { Search as SearchIcon } from '@mynaui/icons-react'
-export { Globe as GlobeIcon } from '@mynaui/icons-react'
-export { Message as ThreadIcon } from '@mynaui/icons-react'
-export { Pin as PinIcon } from '@mynaui/icons-react'
-export { Dots as MoreIcon } from '@mynaui/icons-react'
-export { Sparkles as ModelIcon } from '@mynaui/icons-react'
+export {
+  ArrowUp as SubmitIcon,
+  ChevronDown as ChevronDownIcon,
+  Dots as MoreIcon,
+  File as FileIcon,
+  Globe as GlobeIcon,
+  Message as ThreadIcon,
+  Microphone as MicIcon,
+  Paperclip as AttachIcon,
+  Pin as PinIcon,
+  Plus as PlusIcon,
+  Puzzle as ToolsIcon,
+  Search as SearchIcon,
+  Send as AgentIcon,
+  Sparkles as ModelIcon,
+  Spinner as SpinnerIcon,
+  Square as StopIcon,
+  X as CloseIcon,
+} from '@mynaui/icons-react'

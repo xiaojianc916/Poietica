@@ -1,11 +1,11 @@
+import type { AgentModel } from '../../contracts/model-contract'
+import { ProviderIcon } from '../primitives/provider-icon'
 import {
   PromptInputActionMenu,
   PromptInputActionMenuContent,
   PromptInputActionMenuItem,
   PromptInputActionMenuTrigger,
 } from './prompt-input'
-import type { AgentModel } from '../../contracts/model-contract'
-import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
  * The model control of a graphical interface.

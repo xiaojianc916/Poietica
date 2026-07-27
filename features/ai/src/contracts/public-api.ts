@@ -13,22 +13,17 @@ export type {
   AcpToolKind,
 } from './acp-session-contract'
 export type {
-  AgentPromptHandle,
-  AgentPromptRequest,
-  AgentSessionPort,
-} from './agent-session-port'
-export type { AgentModel } from './model-contract'
-export type {
-  AgentModelSelection,
-  AgentModelsPort,
-} from './model-port'
-export type {
   AgentCapability,
   AgentDefinition,
   AgentId,
   AgentRegistryPort,
   AgentToolDescriptor,
 } from './agent-contract'
+export type {
+  AgentPromptHandle,
+  AgentPromptRequest,
+  AgentSessionPort,
+} from './agent-session-port'
 export type {
   AttachmentSourceId,
   ComposerAttachment,
@@ -43,6 +38,11 @@ export type {
   AssistantRole,
   AssistantStatus,
 } from './conversation-contract'
+export type { AgentModel } from './model-contract'
+export type {
+  AgentModelSelection,
+  AgentModelsPort,
+} from './model-port'
 export type {
   PermissionOption,
   RunEvent,
@@ -50,6 +50,12 @@ export type {
   RunStatus,
   ThreadId,
 } from './run-contract'
+export type {
+  SessionConfigChoice,
+  SessionConfigControl,
+  SessionConfigPurpose,
+} from './session-config-contract'
+export type { SessionConfigPort } from './session-config-port'
 export type {
   AgentTextItem,
   AgentThoughtItem,
@@ -62,10 +68,3 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
-
-export type {
-  SessionConfigChoice,
-  SessionConfigControl,
-  SessionConfigPurpose,
-} from './session-config-contract'
-export type { SessionConfigPort } from './session-config-port'

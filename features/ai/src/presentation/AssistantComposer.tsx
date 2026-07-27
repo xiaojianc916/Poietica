@@ -1,6 +1,9 @@
-import { useEffect, useId, useState } from 'react'
 import type { MouseEvent } from 'react'
-
+import { useEffect, useId, useState } from 'react'
+import type { ChatStatus } from '../contracts/chat-status-contract'
+import type { AgentModel } from '../contracts/model-contract'
+import type { SessionConfigControl } from '../contracts/session-config-contract'
+import { ModelSelect } from './composer/model-select'
 import {
   PromptInput,
   PromptInputActionAddAttachments,
@@ -17,11 +20,7 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from './composer/prompt-input'
-import { ModelSelect } from './composer/model-select'
 import { SessionConfigMenu } from './composer/session-config-menu'
-import type { ChatStatus } from '../contracts/chat-status-contract'
-import type { AgentModel } from '../contracts/model-contract'
-import type { SessionConfigControl } from '../contracts/session-config-contract'
 import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
 import { useEditorGrowth } from './useEditorGrowth'
 

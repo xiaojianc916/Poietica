@@ -1,3 +1,4 @@
+import type { ComponentProps, FormEvent, KeyboardEvent, ReactNode } from 'react'
 import {
   createContext,
   useCallback,
@@ -8,7 +9,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ComponentProps, FormEvent, KeyboardEvent, ReactNode } from 'react'
 
 import type { ChatStatus } from '../../contracts/chat-status-contract'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'

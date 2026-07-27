@@ -1,12 +1,10 @@
-export { AssistantComposer } from './AssistantComposer'
 export type { AssistantComposerProps } from './AssistantComposer'
+export { AssistantComposer } from './AssistantComposer'
 
 export { AssistantQuickActions } from './AssistantQuickActions'
-
-export { AssistantSurface } from './AssistantSurface'
 export type { AssistantSurfaceProps } from './AssistantSurface'
-
-export { AssistantThreadList } from './AssistantThreadList'
+export { AssistantSurface } from './AssistantSurface'
 export type { AssistantThreadListProps, AssistantThreadSummary } from './AssistantThreadList'
+export { AssistantThreadList } from './AssistantThreadList'
 
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
