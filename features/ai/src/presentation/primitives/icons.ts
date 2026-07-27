@@ -21,8 +21,14 @@ export {
   Search as SearchIcon,
   Send as AgentIcon,
   Sparkles as ModelIcon,
-  Sparkles as ThinkingIcon,
   Spinner as SpinnerIcon,
   Square as StopIcon,
   X as CloseIcon,
 } from '@mynaui/icons-react'
+
+/*
+ * 思考过程的字形不在图标库里：库中没有 lightbulb，所以它是设计系统里的一个
+ * 本地字形（见 components/icons/local-glyphs.tsx 的说明）。别名层在这里，
+ * 所以调用点一个字都不用改。
+ */
+export { LightbulbIcon as ThinkingIcon } from '@poietica/foundations-design-system'

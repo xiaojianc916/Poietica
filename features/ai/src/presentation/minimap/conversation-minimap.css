@@ -1,0 +1,116 @@
+/*
+ * The turn rail.
+ *
+ * It stands on the trailing edge of the panel, over the scrollport and outside
+ * it, so it never moves with the run. Its own metrics are the only numbers it
+ * declares, and they are declared once, at the top: everything below is a
+ * calc() over them and over the surface tokens.
+ *
+ * The fisheye is one multiplication. A hook writes a weight between 0 and 1
+ * per bar; length and thickness are that weight interpolated between rest and
+ * gain. No script sets a pixel, so the resting geometry stays readable here.
+ */
+.conversation-minimap {
+  --cp-rail-hit: 10px;
+  --cp-rail-len: 14px;
+  --cp-rail-gain: 12px;
+  --cp-rail-weight-line: 2px;
+  --cp-rail-weight-gain: 1px;
+
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 50%;
+  inset-inline-end: var(--cp-optical);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  translate: 0 -50%;
+  opacity: 0.5;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * Quiet until aimed at, and never invisible: a marker that vanishes cannot be
+ * found, and one that shouts competes with the transcript it indexes.
+ */
+.conversation-minimap:hover,
+.conversation-minimap:focus-within {
+  opacity: 1;
+}
+
+.conversation-minimap__turn {
+  --cp-rail-weight: 0;
+
+  position: relative;
+  display: flex;
+  block-size: var(--cp-rail-hit);
+  align-items: center;
+  justify-content: flex-end;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.conversation-minimap__turn:focus-visible {
+  outline: none;
+}
+
+/*
+ * The bar. Its two lengths are the same weight, so a bar can never grow long
+ * without growing thick, and the transition is short enough that a per-frame
+ * target still reads as one continuous pull rather than as steps.
+ */
+.conversation-minimap__bar {
+  block-size: calc(var(--cp-rail-weight-line) + var(--cp-rail-weight) * var(--cp-rail-weight-gain));
+  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
+  border-radius: 9999px;
+  background: var(--cp-ink-subtle);
+  transition:
+    inline-size var(--cp-motion-swift) var(--cp-motion-ease),
+    block-size var(--cp-motion-swift) var(--cp-motion-ease),
+    background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* The turn being read is stated, not merely implied by position. */
+.conversation-minimap__turn[aria-current="true"] .conversation-minimap__bar,
+.conversation-minimap__turn:hover .conversation-minimap__bar,
+.conversation-minimap__turn:focus-visible .conversation-minimap__bar {
+  background: var(--cp-ink);
+}
+
+/*
+ * The label comes from the question itself, through the attribute the button
+ * already carries for its accessible name — one source, no second element.
+ */
+.conversation-minimap__turn::after {
+  content: attr(data-label);
+  position: absolute;
+  inset-inline-end: calc(100% + var(--cp-pad-mid));
+  max-inline-size: 24ch;
+  overflow: hidden;
+  border-radius: var(--am-item);
+  padding: 2px var(--cp-optical);
+  background: var(--cp-surface);
+  box-shadow: var(--am-shadow);
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.conversation-minimap__turn:hover::after,
+.conversation-minimap__turn:focus-visible::after {
+  opacity: 1;
+}
+
+/* No pull and no travel: the weight is neutralised at the source. */
+@media (prefers-reduced-motion: reduce) {
+  .conversation-minimap__turn {
+    --cp-rail-weight: 0;
+  }
+}

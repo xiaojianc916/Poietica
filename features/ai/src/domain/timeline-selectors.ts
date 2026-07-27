@@ -1,4 +1,9 @@
-import type { PermissionItem, TimelineItem, TimelineState } from '../contracts/timeline-contract'
+import type {
+  PermissionItem,
+  TimelineItem,
+  TimelineItemId,
+  TimelineState,
+} from '../contracts/timeline-contract'
 
 /**
  * Read models for the activity feed.
@@ -23,6 +28,37 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
     item,
     isStreamingTail: live && index === lastIndex && isGrowable(item),
   }))
+}
+
+/**
+ * The turns of the conversation, as the rail reads them.
+ *
+ * A turn opens where the user speaks: everything after a question belongs to
+ * the answer to it, so the questions alone are the table of contents. The
+ * position of a turn is a feed row index, because the scrollport addresses
+ * rows and nothing else — no pixel is measured to build this.
+ */
+export interface ConversationTurn {
+  readonly id: TimelineItemId
+  readonly rowIndex: number
+  /** The first line of the question: what the rail labels the turn with. */
+  readonly label: string
+}
+
+export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
+  const turns: ConversationTurn[] = []
+
+  rows.forEach((row, rowIndex) => {
+    if (row.item.type === 'user_message') {
+      turns.push({ id: row.item.id, label: firstLine(row.item.text), rowIndex })
+    }
+  })
+
+  return turns
+}
+
+function firstLine(text: string): string {
+  return text.trim().split('\n', 1)[0] ?? ''
 }
 
 export function selectActiveToolCalls(state: TimelineState): readonly TimelineItem[] {

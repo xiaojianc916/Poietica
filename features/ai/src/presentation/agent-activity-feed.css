@@ -13,6 +13,22 @@
   display: flex;
   min-inline-size: 0;
   flex: 1;
+}
+
+/*
+ * The scrollport: the one box on the screen that scrolls.
+ *
+ * It fills the frame, so its scrollbar still lands on the panel's edge rather
+ * than inside it, and the reading measure is still kept by its padding —
+ * padding is inside a scroll box while the scrollbar sits on its edge, so
+ * narrow rows and a wide scroller need no second box. What the frame adds is
+ * a place to stand for anything painted over the run: an overlay inside this
+ * box would scroll with the run and would have to compensate for it.
+ */
+.agent-activity-feed__viewport {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -31,15 +47,15 @@
  * the move, and the composer travels down with the space rather than with a
  * script.
  */
-.agent-activity-feed::before,
-.agent-activity-feed::after {
+.agent-activity-feed__viewport::before,
+.agent-activity-feed__viewport::after {
   content: "";
   flex: 1 1 0;
   transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
-.assistant-surface[data-started="true"] .agent-activity-feed::before,
-.assistant-surface[data-started="true"] .agent-activity-feed::after {
+.assistant-surface[data-started="true"] .agent-activity-feed__viewport::before,
+.assistant-surface[data-started="true"] .agent-activity-feed__viewport::after {
   flex-grow: 0;
 }
 
@@ -127,12 +143,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-activity-feed {
-    scroll-behavior: auto;
-  }
-
-  .agent-activity-feed::before,
-  .agent-activity-feed::after {
+  .agent-activity-feed__viewport::before,
+  .agent-activity-feed__viewport::after {
     transition: none;
   }
 }

@@ -1,14 +1,9 @@
-import {
-  Box,
-  ChartNetwork,
-  Code,
-  FolderTwo,
-  Grid,
-  Image,
-  LayersThree,
-  RefreshAlt,
-  Search,
-} from '@mynaui/icons-react'
+import { Box, ChartNetwork, FolderTwo, Image, LayersThree, Search } from '@mynaui/icons-react'
+/*
+ * clock-10 / pencil-ruler / webhook 不在图标库里，是设计系统的本地字形；
+ * 它们与库图标同框同粗细，原因见 components/icons/local-glyphs.tsx。
+ */
+import { ClockTenIcon, PencilRulerIcon, WebhookIcon } from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
 
 import { START_TAB_TITLE, type WorkspaceSurfaceId } from '../../contracts/workbench-contract'
@@ -74,12 +69,12 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
   automations: {
     title: '自动化',
     description: '编排在后台自动运行的创作流程。',
-    icon: RefreshAlt,
+    icon: ClockTenIcon,
   },
   hooks: {
     title: 'Hook',
     description: '在关键节点挂载可编程的扩展点。',
-    icon: Code,
+    icon: WebhookIcon,
   },
 }
 
@@ -97,7 +92,7 @@ export type WorkspaceNavigationId = WorkspaceSurfaceId | typeof CANVAS_START_NAV
 export const CANVAS_START_DESCRIPTOR: WorkspaceSurfaceDescriptor = {
   title: START_TAB_TITLE,
   description: '创建一张新画布，或打开已有的画布文件。',
-  icon: Grid,
+  icon: PencilRulerIcon,
 }
 
 /**

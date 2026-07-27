@@ -8,11 +8,12 @@ import type { FeedRow } from '../domain/timeline-selectors'
 /**
  * The scroller of the assistant surface.
  *
- * It is the only box on the screen that scrolls, and everything on the screen
- * is inside it: the masthead, the virtualised transcript, and the composer as
- * a sticky band at the end of the flow. That is what puts one scrollbar on the
- * edge of the panel over its whole height, the way a window has one, and what
- * lets the composer float over the run without any height being measured.
+ * Two layers, and the split is the point: the scrollport holds everything that
+ * scrolls — the masthead, the virtualised transcript, the composer as a sticky
+ * band at the end of the flow — and the frame around it holds what is painted
+ * over the scrollport without moving with it. That is how an editor mounts its
+ * minimap, and the only way an overlay can stay put without a sticky offset or
+ * a negative margin compensating for the scroll.
  *
  * It knows nothing about entry types: entries arrive through a render slot, so
  * reasoning chains and tool-call cards evolve without touching scrolling.
@@ -25,6 +26,19 @@ import type { FeedRow } from '../domain/timeline-selectors'
 const BOTTOM_THRESHOLD_PX = 48
 const ESTIMATED_ROW_PX = 96
 
+/**
+ * What an overlay may ask of the scrollport.
+ *
+ * Rows, not pixels. Both values come from the virtualiser, which is the only
+ * thing that knows where a row sits — under virtualisation the rows outside
+ * the viewport have no box to measure, so an overlay must never try.
+ */
+export interface FeedPort {
+  /** The first row of the scrollport, overscan excluded. */
+  readonly activeRow: number
+  readonly scrollToRow: (index: number) => void
+}
+
 export interface AgentActivityFeedProps {
   readonly rows: readonly FeedRow[]
   readonly renderRow: (row: FeedRow) => ReactNode
@@ -32,7 +46,7 @@ export interface AgentActivityFeedProps {
   /** Above the transcript, and scrolling away with it. */
   readonly header?: ReactNode
   /**
-   * Rendered after the virtualised canvas, inside the same scroller.
+   * Rendered after the virtualised canvas, inside the scrollport.
    *
    * For what is true of the run rather than of an entry in it — a wait, for
    * instance. Outside the canvas it is never measured as a row, so it cannot
@@ -41,6 +55,8 @@ export interface AgentActivityFeedProps {
   readonly footer?: ReactNode
   /** The band that sticks to the bottom of the scrollport: the composer. */
   readonly dock?: ReactNode
+  /** Painted over the scrollport, outside everything that scrolls. */
+  readonly overlay?: (port: FeedPort) => ReactNode
 }
 
 export function AgentActivityFeed({
@@ -50,6 +66,7 @@ export function AgentActivityFeed({
   header,
   footer,
   dock,
+  overlay,
 }: AgentActivityFeedProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
@@ -98,42 +115,53 @@ export function AgentActivityFeed({
   const virtualRows = virtualizer.getVirtualItems()
 
   return (
-    <div className="agent-activity-feed" onScroll={handleScroll} ref={scrollRef}>
-      {header}
+    <div className="agent-activity-feed">
+      <div className="agent-activity-feed__viewport" onScroll={handleScroll} ref={scrollRef}>
+        {header}
 
-      <div
-        aria-busy={isBusy}
-        className="agent-activity-feed__canvas"
-        role="log"
-        style={{ height: totalSize }}
-      >
-        {virtualRows.map((virtualRow) => {
-          const row = rows[virtualRow.index]
-          if (!row) {
-            return null
-          }
+        <div
+          aria-busy={isBusy}
+          className="agent-activity-feed__canvas"
+          role="log"
+          style={{ height: totalSize }}
+        >
+          {virtualRows.map((virtualRow) => {
+            const row = rows[virtualRow.index]
+            if (!row) {
+              return null
+            }
 
-          return (
-            <div
-              className="agent-activity-feed__row"
-              data-index={virtualRow.index}
-              data-streaming={row.isStreamingTail ? 'true' : undefined}
-              data-type={row.item.type}
-              key={virtualRow.key}
-              ref={virtualizer.measureElement}
-              style={{ transform: `translateY(${String(virtualRow.start)}px)` }}
-            >
-              {renderRow(row)}
-            </div>
-          )
-        })}
+            return (
+              <div
+                className="agent-activity-feed__row"
+                data-index={virtualRow.index}
+                data-streaming={row.isStreamingTail ? 'true' : undefined}
+                data-type={row.item.type}
+                key={virtualRow.key}
+                ref={virtualizer.measureElement}
+                style={{ transform: `translateY(${String(virtualRow.start)}px)` }}
+              >
+                {renderRow(row)}
+              </div>
+            )
+          })}
+        </div>
+
+        {footer === null || footer === undefined ? null : (
+          <div className="agent-activity-feed__footer">{footer}</div>
+        )}
+
+        {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
       </div>
 
-      {footer === null || footer === undefined ? null : (
-        <div className="agent-activity-feed__footer">{footer}</div>
-      )}
-
-      {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
+      {overlay === undefined
+        ? null
+        : overlay({
+            activeRow: virtualizer.range?.startIndex ?? 0,
+            scrollToRow: (index) => {
+              virtualizer.scrollToIndex(index, { align: 'start' })
+            },
+          })}
     </div>
   )
 }

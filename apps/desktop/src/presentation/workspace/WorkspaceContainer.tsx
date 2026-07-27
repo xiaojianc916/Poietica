@@ -18,6 +18,7 @@ import type {
   CanvasSessionId,
   WorkbenchSessionStore,
   WorkbenchTabId,
+  WorkbenchTabViewModel,
   WorkspaceShellActions,
   WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
@@ -34,7 +35,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore }
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
 import { reportFailure } from '../../application/failures/failure-policy'
-import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
+import { type ActiveTabOrdering, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
 import { ConversationSurface } from './ConversationSurface'
@@ -398,6 +399,7 @@ export function WorkspaceContainer({
         onCreateCanvas,
       }) => (
         <DesktopTitleBar
+          activeTabOrdering={describeActiveTabOrdering(chromeTabs, onMoveTab)}
           isMaximized={isWindowMaximized}
           isSidebarOpen={isSidebarOpen}
           onClose={onWindowClose}
@@ -459,6 +461,35 @@ export function WorkspaceContainer({
       {shell}
     </SettingsProvider>
   )
+}
+
+/*
+ * 箭头的可用性与动作都从标签列表派生：索引只在这里算一次，移动仍旧走
+ * store 的 moveTab（拖拽与键盘重排用的是同一个入口）。
+ *
+ * 设置界面不渲染标签，此时列表里找不到活动标签，两个箭头自然都是禁用的。
+ */
+function describeActiveTabOrdering(
+  tabs: readonly WorkbenchTabViewModel[],
+  onMoveTab: (tabId: WorkbenchTabId, targetIndex: number) => void,
+): ActiveTabOrdering {
+  const index = tabs.findIndex((tab) => tab.isActive)
+  const activeTab = index === -1 ? null : tabs[index]
+
+  return {
+    canMoveEarlier: activeTab !== null && index > 0,
+    canMoveLater: activeTab !== null && index < tabs.length - 1,
+    moveEarlier() {
+      if (activeTab) {
+        onMoveTab(activeTab.id, index - 1)
+      }
+    },
+    moveLater() {
+      if (activeTab) {
+        onMoveTab(activeTab.id, index + 1)
+      }
+    },
+  }
 }
 
 interface ActiveSurfaceRendererProps {

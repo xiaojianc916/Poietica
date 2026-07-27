@@ -7,11 +7,17 @@ import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { AgentModelsPort } from '../contracts/model-port'
 import type { SessionConfigPort } from '../contracts/session-config-port'
 import type { TurnOutcome } from '../domain/timeline-selectors'
-import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
+import {
+  selectFeedRows,
+  selectIsBusy,
+  selectSilentOutcome,
+  selectTurns,
+} from '../domain/timeline-selectors'
 import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import { PermissionRequest } from './PermissionRequest'
+import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { AgentIcon } from './primitives/icons'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
@@ -88,6 +94,13 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
   const started = rows.length > 0
 
   /*
+   * The rail indexes turns, so before the first one there is nothing to index
+   * and it is not mounted at all: the resting state carries no overlay, no
+   * listener and no markup for one.
+   */
+  const turns = selectTurns(rows)
+
+  /*
    * The gap between the question and the first frame of the answer. Derived
    * from the run being open with the transcript ending on the question.
    */
@@ -136,6 +149,15 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
           </div>
         }
         isBusy={selectIsBusy(assistant.timeline)}
+        overlay={(port) =>
+          turns.length === 0 ? null : (
+            <ConversationMinimap
+              activeRow={port.activeRow}
+              onSelect={port.scrollToRow}
+              turns={turns}
+            />
+          )
+        }
         renderRow={(row) =>
           row.item.type === 'permission' ? (
             <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />

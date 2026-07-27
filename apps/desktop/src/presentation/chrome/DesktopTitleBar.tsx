@@ -1,10 +1,41 @@
-import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Minus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Square,
+  X,
+} from '@mynaui/icons-react'
 import { Button, cn } from '@poietica/foundations-design-system'
 import type { ReactNode } from 'react'
 
 const WINDOW_CONTROLS_DISABLED_TITLE = '窗口控制暂时不可用'
 
+/*
+ * 开合按钮与两个箭头共用一套尺寸与配色：它们是同一组 chrome 控件，样式只有
+ * 一份来源，不是三处各写一串。
+ */
+const CHROME_ICON_BUTTON_CLASS =
+  'size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+
+/**
+ * 移动当前标签页的能力。
+ *
+ * 能否移动由标签列表决定，所以在拥有列表的那一层派生；标题栏只把它映射成按钮
+ * 的 disabled 与 onClick，不认识标签、也不算索引——重排本身仍然只有工作台
+ * store 的 moveTab 一条实现，拖拽、键盘和这两个箭头走的是同一条。
+ */
+export interface ActiveTabOrdering {
+  readonly canMoveEarlier: boolean
+  readonly canMoveLater: boolean
+  readonly moveEarlier: () => void
+  readonly moveLater: () => void
+}
+
 export interface DesktopTitleBarProps {
+  readonly activeTabOrdering: ActiveTabOrdering
   readonly children: ReactNode
   readonly onMinimize: () => void
   readonly onMaximize: () => void
@@ -33,6 +64,7 @@ export interface DesktopTitleBarProps {
  * 角色比不声明更糟：按钮和标签条各自的名字已经足够被读出。
  */
 export function DesktopTitleBar({
+  activeTabOrdering,
   children,
   onMinimize,
   onMaximize,
@@ -75,7 +107,7 @@ export function DesktopTitleBar({
       >
         <Button
           aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-          className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className={CHROME_ICON_BUTTON_CLASS}
           onClick={onSidebarToggle}
           size="icon"
           type="button"
@@ -87,6 +119,39 @@ export function DesktopTitleBar({
             <PanelLeftOpen aria-hidden="true" className="size-4" />
           )}
         </Button>
+
+        {/*
+         * 移动标签页的两个箭头。
+         *
+         * ml-auto 把它们顶到本区域的右边界，而这个边界就是"侧边栏／主界面"
+         * 分隔线所在的 x —— 上面那个 max() 是它唯一的来源，箭头因此没有第二
+         * 份坐标要维护。
+         *
+         * 侧边栏收起时不渲染：那时列宽归零，本区域缩到只容得下开合按钮，
+         * 箭头没有落脚点。用户要的"关闭时消失"与布局的约束在这里是同一件事。
+         *
+         * 首/末标签时按钮禁用。禁用之后 onClick 不会触发，所以处理器里不再
+         * 补一层守卫——那会是死代码。
+         */}
+        {isSidebarOpen ? (
+          <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1.5">
+            <TabOrderButton
+              ariaLabel="将当前标签页左移"
+              disabled={!activeTabOrdering.canMoveEarlier}
+              onClick={activeTabOrdering.moveEarlier}
+            >
+              <ChevronLeft aria-hidden="true" className="size-4" />
+            </TabOrderButton>
+
+            <TabOrderButton
+              ariaLabel="将当前标签页右移"
+              disabled={!activeTabOrdering.canMoveLater}
+              onClick={activeTabOrdering.moveLater}
+            >
+              <ChevronRight aria-hidden="true" className="size-4" />
+            </TabOrderButton>
+          </div>
+        ) : null}
 
         {/*
          * 竖线是一个独立元素而不是容器的 border-right：border 宽度在 1px 和 0
@@ -133,6 +198,31 @@ export function DesktopTitleBar({
         </WindowControlButton>
       </div>
     </div>
+  )
+}
+
+interface TabOrderButtonProps {
+  readonly ariaLabel: string
+  readonly children: ReactNode
+  readonly disabled: boolean
+  readonly onClick: () => void
+}
+
+/* 名字即提示：aria-label 与 title 同一份文案，不存在两处要同步的说明。 */
+function TabOrderButton({ ariaLabel, children, disabled, onClick }: TabOrderButtonProps) {
+  return (
+    <Button
+      aria-label={ariaLabel}
+      className={cn(CHROME_ICON_BUTTON_CLASS, disabled && 'cursor-not-allowed opacity-40')}
+      disabled={disabled}
+      onClick={onClick}
+      size="icon"
+      title={ariaLabel}
+      type="button"
+      variant="ghost"
+    >
+      {children}
+    </Button>
   )
 }
 
