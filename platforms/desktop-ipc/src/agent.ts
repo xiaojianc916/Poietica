@@ -328,3 +328,65 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     },
   }
 }
+
+/*
+ * Conversations, reached through two ordinary commands.
+ *
+ * A conversation and an agent session are opened together, so no
+ * identifier is invented here: both come back from the native side, and a
+ * tab therefore always stands for something the agent knows about.
+ */
+
+/** One conversation as the native side reports it. */
+export interface AgentThreadDescription {
+  readonly threadId: string
+  readonly sessionId: string | null
+  readonly title: string
+  /** official, message or fallback, as recorded. */
+  readonly titleSource: string
+  readonly updatedAt: string
+}
+
+export interface AgentOpenedThreadDescription {
+  readonly thread: AgentThreadDescription
+  readonly selectors: readonly AgentConfigControlDescription[]
+}
+
+export interface AgentThreadBridge {
+  readonly list: () => Promise<readonly AgentThreadDescription[]>
+  readonly open: () => Promise<AgentOpenedThreadDescription>
+}
+
+function threadOf(native: AgentThreadDescription): AgentThreadDescription {
+  return {
+    threadId: native.threadId,
+    sessionId: native.sessionId,
+    title: native.title,
+    titleSource: native.titleSource,
+    updatedAt: native.updatedAt,
+  }
+}
+
+export function createAgentThreadBridge({
+  command,
+  cwd,
+}: AgentBridgeOptions = {}): AgentThreadBridge {
+  return {
+    list: async () => {
+      const found = await call(() => commands.agentThreads())
+
+      return found.map(threadOf)
+    },
+
+    open: async () => {
+      const opened = await call(() =>
+        commands.agentOpenThread({ command: command ?? null, cwd: cwd ?? null }),
+      )
+
+      return {
+        thread: threadOf(opened.thread),
+        selectors: opened.selectors.map(controlOf),
+      }
+    },
+  }
+}

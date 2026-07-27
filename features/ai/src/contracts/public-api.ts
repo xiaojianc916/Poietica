@@ -68,3 +68,10 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
+
+export type {
+  OpenedThread,
+  ThreadPort,
+  ThreadRecord,
+  ThreadTitleSource,
+} from './thread-port'

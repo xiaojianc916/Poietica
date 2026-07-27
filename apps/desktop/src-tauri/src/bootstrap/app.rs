@@ -1,5 +1,6 @@
 use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
@@ -83,6 +84,25 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
+
+            /*
+             * 承接 skip_initial_state：初始几何恢复的责任在这里，不在插件。
+             *
+             * 窗口此刻还不可见（tauri.conf.json 的 visible: false），所以恢复位置和
+             * 尺寸不会被看到，用户第一次看见它时它已经在正确的地方。restore_state
+             * 期间插件持有恢复锁，其间产生的 Moved / Resized 不会被当成用户操作写
+             * 回缓存 —— 这也是宁可调插件自己的恢复、而不是手写 set_position 的原因。
+             *
+             * 首次启动没有状态文件，恢复是空操作，此时生效的正是 center: true。
+             */
+            let main_window = app
+                .get_webview_window(MAIN_WINDOW)
+                .ok_or("tauri.conf.json 未声明 main 窗口")?;
+
+            main_window.restore_state(WINDOW_STATE_FLAGS)?;
+            main_window.show()?;
+            main_window.set_focus()?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
