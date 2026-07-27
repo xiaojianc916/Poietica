@@ -41,7 +41,16 @@ export interface WorkspaceChromeRenderProps {
 export interface WorkspaceShellProps {
   readonly model: WorkbenchViewModel
   readonly actions: WorkspaceShellActions
-  readonly pages: readonly CanvasPageViewModel[]
+  /**
+   * 侧边栏下半部分的固定内容。
+   *
+   * 一个插槽，不是一张按 surface 索引的表：侧边栏的结构是固定的（上导航、
+   * 下会话记录），导航项只在主区域打开表面。原先的 panelRenderers 是一张
+   * 只有 ai 一个有效键的 map，点其余导航项就把侧边栏换成占位符。
+   *
+   * 具体面板由 apps 组合根注入，features/workspace 不依赖 features/ai。
+   */
+  readonly sidebarPanel: ReactNode
   readonly renderChrome: (props: WorkspaceChromeRenderProps) => ReactNode
   readonly mainContent: ReactNode
   readonly inspector: ReactNode
@@ -58,7 +67,6 @@ export interface WorkspaceShellProps {
    * features/* 之间不得互相依赖，因此外壳只声明插槽，具体面板（如 AI 会话
    * 记录）由 apps/desktop 提供。
    */
-  readonly panelRenderers?: WorkspacePanelRenderers
   readonly assistantOverlay?: ReactNode
   readonly overlays?: ReactNode
 }

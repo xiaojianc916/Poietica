@@ -33,7 +33,7 @@ import { reportDocumentFatal } from '../../application/failures/document-failure
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
 import { reportFailure } from '../../application/failures/failure-policy'
 import { DesktopTitleBar } from '../chrome/DesktopTitleBar'
-import { WORKSPACE_PANEL_RENDERERS } from './assistant-panel-renderers'
+import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
@@ -388,8 +388,7 @@ export function WorkspaceContainer({
           />
         </>
       }
-      pages={pages}
-      panelRenderers={WORKSPACE_PANEL_RENDERERS}
+      sidebarPanel={<AssistantSidebarPanel />}
       renderChrome={({
         isSidebarOpen,
         tabs: chromeTabs,

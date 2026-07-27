@@ -29,14 +29,13 @@ const WORKSPACE_GRID_COLUMNS = [
  */
 export function WorkspaceShell({
   model,
+  sidebarPanel,
   actions,
-  pages,
   renderChrome,
   mainContent,
   inspector,
   inspectorAvailable,
   statusContent,
-  panelRenderers,
   assistantOverlay,
   overlays,
 }: WorkspaceShellProps) {
@@ -131,21 +130,18 @@ export function WorkspaceShell({
             width={sidebarWidth}
           >
             <WorkspaceSidebar
-              activeNavigationItem={activeSurfaceId}
-              onActivatePage={actions.activatePage}
+              activeSurfaceId={activeSurfaceId}
               onCreateConversation={() => {
                 actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
                 setSidebarOpen(true)
               }}
-              onCreatePage={actions.createPage}
               onDeveloperToolsOpen={actions.openDeveloperTools}
               onSettingsOpen={actions.openSettingsWindow}
               onSurfaceActivate={(surfaceId) => {
                 actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
                 setSidebarOpen(true)
               }}
-              {...(panelRenderers === undefined ? {} : { panelRenderers })}
-              pages={pages}
+              panel={sidebarPanel}
             />
           </SidebarRegion>
         }

@@ -30,8 +30,18 @@ export function SidebarNav({
   return (
     <nav aria-label="主导航" className="shrink-0 px-1 pb-1 pt-2">
       <ul className="flex flex-col gap-px">
+        {/*
+         * 「新建对话」是动作而非 surface，但它打开的就是 ai 表面，所以选中态
+         * 直接由当前表面推出，并且走与其余导航项同一个 NavRow 的 active——高亮
+         * 只有一处真相，不会出现两个导航项同时亮或都不亮。
+         */}
         <li>
-          <NavRow icon={Message} label="新建对话" onClick={onCreateConversation} />
+          <NavRow
+            active={activeSurfaceId === 'ai'}
+            icon={Message}
+            label="新建对话"
+            onClick={onCreateConversation}
+          />
         </li>
 
         {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {

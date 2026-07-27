@@ -470,6 +470,16 @@
   padding: var(--cp-mast-gap) var(--cp-pad-mid);
   --assistant-threads-gutter: 8px;
   --assistant-threads-action-size: 20px;
+  --assistant-threads-inset: 4px;
+  --assistant-threads-icon-size: 16px;
+  --assistant-threads-row-lead: calc(
+    var(--workspace-sidebar-nav-icon-center, 24px) -
+    var(--assistant-threads-inset) -
+    var(--assistant-threads-icon-size) /
+    2
+  );
+  --assistant-threads-row-trail: 8px;
+  padding-inline: var(--assistant-threads-inset);
 }
 
 .assistant-threads__header {
@@ -478,12 +488,15 @@
   align-items: center;
   justify-content: space-between;
   padding-inline: var(--assistant-threads-gutter);
-  gap: 4px;
+  gap: 8px;
+  padding-inline-start: var(--assistant-threads-row-lead);
+  padding-inline-end: var(--assistant-threads-row-trail);
 }
 
 .assistant-threads__caption {
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
+  padding-inline: var(--assistant-threads-row-lead);
 }
 
 .assistant-threads__create {
@@ -541,8 +554,13 @@
   display: flex;
   block-size: var(--cp-control);
   align-items: center;
-  border-radius: var(--cp-radius-item);
+  border-radius: 6px;
   padding-inline: 0;
+  gap: 8px;
+  min-block-size: var(--ui-control-height-sm);
+  padding-inline-start: var(--assistant-threads-row-lead);
+  padding-inline-end: var(--assistant-threads-row-trail);
+  font-size: 12px;
 }
 
 .assistant-thread:hover,
@@ -559,18 +577,22 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: var(--cp-pad-mid);
+  gap: 8px;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: pointer;
+  padding-inline: 0;
+  margin-inline: 0;
+  font-size: inherit;
 }
 
 .assistant-thread__icon {
-  block-size: var(--cp-icon-xs);
-  inline-size: var(--cp-icon-xs);
+  block-size: var(--assistant-threads-icon-size);
+  inline-size: var(--assistant-threads-icon-size);
   flex: none;
   color: var(--cp-ink-muted);
+  flex-shrink: 0;
 }
 
 .assistant-thread__title {
@@ -1267,5 +1289,5 @@
 }
 
 .assistant-threads__group {
-  padding-inline: var(--assistant-threads-gutter);
+  padding-inline: 0;
 }
