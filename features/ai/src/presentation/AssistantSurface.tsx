@@ -33,6 +33,13 @@ export interface AssistantSurfaceProps {
    * supplies the real IPC-backed port.
    */
   readonly session?: AgentSessionPort
+  /**
+   * What the user just said.
+   *
+   * The conversation list names a conversation from its first message,
+   * and the surface does not own the list, so it reports it outwards.
+   */
+  readonly onUserMessage?: (text: string) => void
   /** Where the model list is read from before a session exists. */
   readonly models?: AgentModelsPort
   /** The selectors the running session offers. */
@@ -77,7 +84,13 @@ const STARTERS: Readonly<Record<string, string>> = {
  * cannot disagree with it; the travel between the two is a flex-grow
  * interpolation in the stylesheet, with nothing measured in script.
  */
-export function AssistantSurface({ config, endpoint, models, session }: AssistantSurfaceProps) {
+export function AssistantSurface({
+  config,
+  endpoint,
+  models,
+  onUserMessage,
+  session,
+}: AssistantSurfaceProps) {
   /*
    * Under exactOptionalPropertyTypes an absent property and a property set to
    * undefined are different types, so the key is omitted rather than passed
@@ -85,6 +98,7 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
    */
   const assistant = useAssistantSession({
     endpoint,
+    ...(onUserMessage === undefined ? {} : { onUserMessage }),
     ...(session === undefined ? {} : { session }),
   })
 
@@ -107,11 +121,21 @@ export function AssistantSurface({ config, endpoint, models, session }: Assistan
   const isWaiting = assistant.status === 'streaming' && rows.at(-1)?.item.type === 'user_message'
   const outcome = selectSilentOutcome(assistant.timeline)
 
+  /*
+   * 正在读一条已有对话时也按“已开始”排版。
+   *
+   * 列表里的对话必然说过话，所以最终形态是已知的：先按它排，回放到达时
+   * 没有任何状态翻转，也就没有“内容从上面掉下来”和输入框那一抖。真的读出
+   * 空记录时才回落到起始态，而那几帧的过渡由 data-restoring 关掉。
+   */
+  const settled = started || assistant.isRestoring
+
   return (
     <section
       className="assistant-surface"
       data-assistant-skin
-      data-started={started ? 'true' : undefined}
+      data-restoring={assistant.isRestoring ? 'true' : undefined}
+      data-started={settled ? 'true' : undefined}
     >
       <AgentActivityFeed
         dock={

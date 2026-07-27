@@ -125,7 +125,13 @@ export function AssistantThreadList({
                       <PinIcon aria-hidden="true" />
                     </button>
 
-                    <DropdownMenu>
+                    {/*
+                      Not modal: a modal menu locks pointer events outside
+                      itself, so the click that dismissed it was swallowed
+                      instead of landing on the row it was aimed at. That
+                      was every “clicking does nothing” report.
+                    */}
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger
                         aria-label="更多操作"
                         className="assistant-thread__action"

@@ -158,9 +158,15 @@ export function WorkspaceShell({
  * 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。
  */
 function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceNavigationId | null {
-  /* 对话就是 AI 那一格：导航项因此照常高亮。 */
+  /*
+   * 对话不是导航目的地。
+   *
+   * 「新建对话」是入口——按下去开一条新会话，它自己不驻留；一条已有会话
+   * 是目的地，高亮属于左侧会话列表里的那一行。此前这里返回 'ai'，于是停在
+   * 某条会话上时「新建对话」也亮着，两处同时高亮就是这么来的。
+   */
   if (surface.kind === 'conversation') {
-    return 'ai'
+    return null
   }
 
   switch (surface.kind) {

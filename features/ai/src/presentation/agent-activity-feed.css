@@ -142,6 +142,17 @@
   pointer-events: none;
 }
 
+/*
+ * 读取一条已有对话的那几帧不要动画。
+ *
+ * 排版本来就按最终形态给出；万一读出的是空记录，回落到起始态是一次校正，
+ * 不是一段动效——补间它就成了“内容从上面掉下来”。
+ */
+.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport::before,
+.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport::after {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agent-activity-feed__viewport::before,
   .agent-activity-feed__viewport::after {

@@ -33,6 +33,14 @@ export interface AssistantSubmission {
 export interface AssistantSessionOptions {
   /** Thread this surface is bound to. */
   readonly endpoint: string
+  /**
+   * What the user just said, before the agent is asked anything.
+   *
+   * The conversation list names a conversation from its first message,
+   * and the list is not this hook to keep, so the fact is handed out
+   * rather than reached for.
+   */
+  readonly onUserMessage?: (text: string) => void
   readonly session?: AgentSessionPort
 }
 
@@ -50,9 +58,22 @@ export interface AssistantSession {
    */
   readonly prefill: (text: string) => void
   readonly draft: string
+  /** True while a conversation is still being read out of the log. */
+  readonly isRestoring: boolean
 }
 
 const RUN_PLACEHOLDER = 'run_pending'
+
+/*
+ * What has already been read out of the log, per conversation.
+ *
+ * Frames are immutable history, so coming back to a conversation must not
+ * go blank and then fill in: the snapshot from the last read is shown in
+ * the same commit as the switch, and the fresh read replaces it silently
+ * when it lands. Module scope, so it outlives a surface unmounted with its
+ * tab.
+ */
+const restored = new Map<string, readonly RunEvent[]>()
 
 /*
  * What the user is told when a run never started.
@@ -81,13 +102,29 @@ function describeFailure(cause: unknown): string {
 
 export function useAssistantSession({
   endpoint,
+  onUserMessage,
   session,
 }: AssistantSessionOptions): AssistantSession {
-  const [timeline, setTimeline] = useState<TimelineState>(() =>
-    createTimelineState(RUN_PLACEHOLDER),
-  )
+  const [timeline, setTimeline] = useState<TimelineState>(() => opening(endpoint))
   const [draft, setDraft] = useState('')
+  const [shown, setShown] = useState(endpoint)
+  const [isRestoring, setIsRestoring] = useState(() => !restored.has(endpoint))
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
+
+  /*
+   * The conversation on screen changes during render, not a paint later.
+   *
+   * Adjusting state while rendering is the answer React itself gives for
+   * state derived from a prop. The alternative is an effect, and an effect
+   * runs after the browser has already painted the conversation the user
+   * left under the tab of the one they chose. That paint is the flicker,
+   * and no amount of easing hides it.
+   */
+  if (shown !== endpoint) {
+    setShown(endpoint)
+    setTimeline(opening(endpoint))
+    setIsRestoring(!restored.has(endpoint))
+  }
 
   useEffect(() => {
     if (!session) {
@@ -130,9 +167,9 @@ export function useAssistantSession({
    * belongs to the conversation the user has already left.
    */
   useEffect(() => {
-    setTimeline(createTimelineState(RUN_PLACEHOLDER))
-
     if (session?.loadThread === undefined) {
+      setIsRestoring(false)
+
       return undefined
     }
 
@@ -141,12 +178,16 @@ export function useAssistantSession({
     void session
       .loadThread(endpoint)
       .then((events) => {
+        restored.set(endpoint, events)
+
         if (current) {
           setTimeline(replayThreadEvents(RUN_PLACEHOLDER, events))
+          setIsRestoring(false)
         }
       })
       .catch((cause: unknown) => {
         if (current) {
+          setIsRestoring(false)
           fail(cause)
         }
       })
@@ -162,6 +203,10 @@ export function useAssistantSession({
 
       /* The question is on screen before anything is asked of the agent. */
       setTimeline((current) => appendUserMessage(current, submission.text, at))
+
+      /* The list names a conversation from this, which is why it leaves
+         before the turn does: a turn that fails was still asked. */
+      onUserMessage?.(submission.text)
 
       if (!session) {
         fail(new Error(NO_SESSION))
@@ -184,7 +229,7 @@ export function useAssistantSession({
           fail(cause)
         })
     },
-    [endpoint, fail, session],
+    [endpoint, fail, onUserMessage, session],
   )
 
   const cancel = useCallback(() => {
@@ -214,7 +259,25 @@ export function useAssistantSession({
 
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
 
-  return { status, timeline, send, cancel, resolvePermission, prefill: setDraft, draft }
+  return {
+    status,
+    timeline,
+    send,
+    cancel,
+    resolvePermission,
+    prefill: setDraft,
+    draft,
+    isRestoring,
+  }
+}
+
+/** The transcript a conversation opens with: its last read, or an empty one. */
+function opening(threadId: string): TimelineState {
+  const held = restored.get(threadId)
+
+  return held === undefined
+    ? createTimelineState(RUN_PLACEHOLDER)
+    : replayThreadEvents(RUN_PLACEHOLDER, held)
 }
 
 function toChatStatus(status: TimelineState['status']): ChatStatus {
