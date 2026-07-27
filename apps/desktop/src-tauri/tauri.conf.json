@@ -23,7 +23,7 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": false,
-        "visible": true,
+        "visible": false,
         "backgroundColor": "#f3f3f3"
       }
     ],

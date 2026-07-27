@@ -2,7 +2,9 @@ use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager, WebviewWindow, command};
-use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+use tauri_plugin_window_state::AppHandleExt;
+
+use crate::bootstrap::app::WINDOW_STATE_FLAGS;
 
 #[derive(Debug, Deserialize, Type)]
 pub struct WindowOptions {
@@ -176,8 +178,13 @@ pub async fn window_set_title(app: AppHandle, label: String, title: String) -> R
 /// Returns an error when the underlying operation fails; the message handed
 /// to the caller is the redacted IPC message, never native detail.
 #[command]
-pub async fn window_save_state(app: AppHandle, _label: String) -> Result<()> {
-    app.save_window_state(StateFlags::all())?;
+pub async fn window_save_state(app: AppHandle) -> Result<()> {
+    /*
+     * 这个命令没有 label 参数：save_window_state 经 AppHandle 保存全部窗口，标签
+     * 无处可用。它此前要求一个 String，而前端 saveState() 一个参数都不传，于是这
+     * 条 IPC 从未成功过一次。
+     */
+    app.save_window_state(WINDOW_STATE_FLAGS)?;
     Ok(())
 }
 

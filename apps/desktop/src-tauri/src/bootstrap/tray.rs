@@ -13,10 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Window, WindowEvent};
-use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+use tauri_plugin_window_state::AppHandleExt;
 
-/// Label of the window the tray controls. Matches tauri.conf.json.
-const MAIN_WINDOW: &str = "main";
+use super::app::{MAIN_WINDOW, WINDOW_STATE_FLAGS};
 
 const TRAY_ID: &str = "poietica-tray";
 const MENU_SHOW: &str = "poietica-tray-show";
@@ -160,7 +159,7 @@ fn hide_main(app: &AppHandle) {
 }
 
 fn persist_window_state(app: &AppHandle) {
-    if let Err(error) = app.save_window_state(StateFlags::all()) {
+    if let Err(error) = app.save_window_state(WINDOW_STATE_FLAGS) {
         log::debug!("tray: could not save window state: {error}");
     }
 }

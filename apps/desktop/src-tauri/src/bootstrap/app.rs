@@ -6,6 +6,24 @@ use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
 use crate::commands::document::DocumentRegistry;
 
+/// Label of the only window this application declares. Matches tauri.conf.json.
+pub const MAIN_WINDOW: &str = "main";
+
+/// 被持久化、也被恢复的那一份窗口几何。
+///
+/// 保存与恢复必须用同一个集合，否则磁盘上会留下没人读的字段，或者读到没人写的
+/// 字段。这个常量是唯一的声明处：托盘与窗口命令都消费它，不再各写一遍 all()。
+///
+/// 刻意不含 VISIBLE：可见性归托盘状态机。隐藏到托盘时存下的 visible: false 若被
+/// 当成恢复目标，下一次启动窗口就打不开了。
+///
+/// 刻意不含 DECORATIONS：边框归 tauri.conf.json（decorations: false + 自绘标题
+/// 栏）。让磁盘上的旧值有机会把原生边框装回来，收益为零。
+pub const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
+    .union(StateFlags::POSITION)
+    .union(StateFlags::MAXIMIZED)
+    .union(StateFlags::FULLSCREEN);
+
 pub fn build() -> tauri::Builder<Wry> {
     let asset_protocol = AssetProtocolRegistry::default();
     let protocol_registry = asset_protocol.clone();
@@ -40,7 +58,22 @@ pub fn build() -> tauri::Builder<Wry> {
         )
         .plugin(logging::plugin().build())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        /*
+         * 初始几何恢复由下面的 setup 显式驱动，插件不做。
+         *
+         * 插件默认在 on_window_ready 里 restore_state，那已经晚于窗口按
+         * center: true 创建并显示的时刻，于是每次启动都能看见窗口从屏幕中央被磁盘
+         * 上的坐标挪走。窗口现在以 visible: false 创建，恢复完位置和尺寸才呈现:
+         * 一次定位，一次呈现。
+         *
+         * 首次启动没有状态文件，恢复是空操作，此时生效的正是 center: true。
+         */
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(WINDOW_STATE_FLAGS)
+                .skip_initial_state(MAIN_WINDOW)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
