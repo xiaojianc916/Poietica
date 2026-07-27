@@ -90,6 +90,16 @@ export function createDocumentDirtyLedger(): DocumentDirtyLedger {
       baseline.delete(id)
       dirty.delete(id)
     } else {
+      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
+      if (dirty.size === 0) {
+        console.warn('[dirty-trace] 首次脏跃迁', {
+          id,
+          before: baseline.get(id),
+          after,
+        })
+      }
+      /* @poietica-dirty-trace 结束 */
+
       dirty.add(id)
     }
 

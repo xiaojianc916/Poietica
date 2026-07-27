@@ -25,11 +25,11 @@ export interface EditorDocumentPort {
   readonly captureDocument: () => TLStoreSnapshot
 
   /**
-   * 订阅时同步投递一次 ready，其后转发 tldraw 官方的 Store diff，作用域为
-   * document、来源为 user。',
+   * 在编辑器挂载时投递 ready，其后转发 tldraw 官方的 Store diff，作用域为
+   * document、来源为 user。
    *
-   * ready 标记干净基线。它绑定的是文档内容就绪，与编辑器是否挂载无关：
-   * 挂载是渲染时序，不是文档语义。
+   * ready 标记干净基线。挂载是"初始文档记录已存在"这个事实的最早可观测点：
+   * 新建画布不传快照，默认记录由 tldraw 的 Editor 补齐。
    */
   readonly subscribeDocumentEvents: (listener: (event: EditorDocumentEvent) => void) => () => void
 }

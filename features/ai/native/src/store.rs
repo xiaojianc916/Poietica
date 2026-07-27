@@ -134,10 +134,15 @@ impl AiStore {
     /// # Errors
     ///
     /// Fails when the query is rejected.
+    // A conversation with no run has never been spoken in, so it is not a
+    // record of anything and is left out. A run is written when a prompt is
+    // sent, whether the turn then succeeds or fails, which is exactly the
+    // line between a conversation that happened and one that did not.
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare(
             "SELECT id, session_id, title, title_source, updated_at
                FROM threads
+              WHERE EXISTS (SELECT 1 FROM runs WHERE runs.thread_id = threads.id)
               ORDER BY updated_at DESC",
         )?;
 

@@ -242,11 +242,13 @@ export function createCanvasDocumentService({
     owned.stopObservingDocument = editorDocument.subscribeDocumentEvents((event) => {
       if (event.kind === 'ready') {
         /*
-         * 订阅契约保证 ready 恰好投递一次，所以不需要再判一次是否已初始化。
+         * 标签反复激活会重新挂载编辑器并再次投递 ready，所以这里判一次。
          * 刚打开的文档按定义就是干净的：脏状态是相对保存点的 diff。
          */
-        document.initialize()
-        emit()
+        if (!document.isInitialized()) {
+          document.initialize()
+          emit()
+        }
 
         return
       }

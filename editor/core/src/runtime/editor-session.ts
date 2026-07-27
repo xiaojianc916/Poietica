@@ -161,6 +161,16 @@ export function createEditorSession(
   let attachedEditor: Editor | null = null
   let state: EditorSessionState = 'created'
 
+  /*
+   * 文档观察的布防位。
+   *
+   * 它存在的理由是可以证明的：create() 不传 initialSnapshot，createTLStore
+   * 构造出的是空 store，document:document 与 page:page 由 tldraw 的 Editor
+   * 在初始化时补齐。因此"文档内容已确定"这个事实的最早可观测点是 onMount，
+   * 不是 store 构造完成。把基线提前到构造时会把补齐动作记成用户编辑。
+   */
+  let documentReady = false
+
   const sessionListeners = new Set<() => void>()
 
   const documentListeners = new Set<(event: EditorDocumentEvent) => void>()
@@ -267,8 +277,31 @@ export function createEditorSession(
    * 它还有反向漏洞——标签未激活时 documentReady 为 false，那期间的文档写入
    * 被静默丢弃，标签显示"已保存"而内存文档已与磁盘不同。
    */
+  /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
+  let tracedBatches = 0
+  /* @poietica-dirty-trace 结束 */
+
   const stopObservingDocument = store.listen(
     ({ changes }) => {
+      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
+      if (tracedBatches < 6) {
+        tracedBatches += 1
+
+        console.warn('[dirty-trace] 文档 diff 到达', {
+          sessionId: options.sessionId,
+          documentReady,
+          state,
+          added: Object.keys(changes.added),
+          updated: Object.keys(changes.updated),
+          removed: Object.keys(changes.removed),
+        })
+      }
+      /* @poietica-dirty-trace 结束 */
+
+      if (!documentReady) {
+        return
+      }
+
       /*
        * 转发官方增量 diff。指针驱动路径上不构造完整 TLStoreSnapshot。
        */
@@ -278,6 +311,14 @@ export function createEditorSession(
       })
     },
     {
+      /*
+       * scope: 'document' 排除 camera / instance / pointer 等 session 记录。
+       *
+       * source: 'user' 排除经 store.mergeRemoteChanges 应用的写入。这一条是
+       * 独立的正确加固（远端合并不应标脏），但它与"新建画布立刻显示未保存"
+       * 无关：tldraw 自身 Editor 初始化期的 store 写入同样是 user 来源。
+       * 不要把它当作那个 bug 的解。
+       */
       scope: 'document',
       source: 'user',
     },
@@ -308,10 +349,22 @@ export function createEditorSession(
       state = 'attached'
 
       /*
-       * 挂载只影响页面投影。文档的干净基线由 subscribeDocumentEvents 建立，
-       * 与编辑器是否挂载无关。
+       * tldraw 只在它的 Editor 与初始文档记录都已存在之后才调用 onMount，
+       * 所以这次挂载是明确的初始化边界。
        */
+      documentReady = true
+
+      /* @poietica-dirty-trace 开始 —— refactor.mjs --remove-trace 可移除 */
+      console.warn('[dirty-trace] ready 投递', {
+        sessionId: options.sessionId,
+        recordCount: store.allRecords().length,
+      })
+      /* @poietica-dirty-trace 结束 */
+
       publishSessionSnapshot()
+      publishDocumentEvent({
+        kind: 'ready',
+      })
     },
 
     detachEditor(editor) {
@@ -319,6 +372,7 @@ export function createEditorSession(
         return
       }
 
+      documentReady = false
       attachedEditor = null
       state = 'detached'
       publishSessionSnapshot()
@@ -331,22 +385,10 @@ export function createEditorSession(
       return assetStoreSession.getPersistenceToken()
     },
 
-    /*
-     * ready 在订阅的同一个 tick 内同步投递，每个订阅者恰好一次。
-     *
-     * 干净基线的正确时点是文档内容被确定的那一刻，而
-     * createValidatedEditorStore 已经在会话存在之前完成了 schema 迁移与
-     * 快照加载——store 一构造完成，文档就与磁盘一致。此前基线建立在
-     * attachEditor，也就是 React useEffect 里，让脏状态的正确性依赖渲染时序。
-     */
     subscribeDocumentEvents(listener) {
       assertActive()
 
       documentListeners.add(listener)
-
-      listener({
-        kind: 'ready',
-      })
 
       return () => {
         documentListeners.delete(listener)
@@ -401,6 +443,7 @@ export function createEditorSession(
       sessionListeners.clear()
       documentListeners.clear()
 
+      documentReady = false
       attachedEditor = null
       state = 'disposed'
     },
