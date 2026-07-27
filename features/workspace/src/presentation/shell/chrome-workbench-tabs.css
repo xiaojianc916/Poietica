@@ -197,39 +197,32 @@
   background: var(--chrome-tab-surface);
 }
 
+/*
+ * 一个选择器一处定义。
+ *
+ * 这里原本有四条规则写同一个元素：基础块，加一组三选择器（元素本身、活动态、
+ * 非活动态——三者匹配的是同一批元素），再加一条悬停规则和一条抑制悬停规则，
+ * 后两条设的值与基础块逐字相同。删掉的是重复，不是样式。
+ *
+ * transition 搬到了 __activation：变色发生在那里，不在这里。
+ *
+ * border / border-radius / outline / box-shadow 的归零保留。无法确认全局层
+ * 是否给 div 加过边框，留这四行比赌一次渲染便宜。
+ */
 .chrome-workbench-tab__content {
   position: absolute;
   z-index: 4;
+  inset: 2px 12px 0;
   display: flex;
   align-items: center;
   min-width: 0;
-  overflow: hidden;
-  background: transparent;
-  transition: color var(--ui-duration-fast) var(--ui-ease-exit);
-}
-
-.chrome-workbench-tab .chrome-workbench-tab__content,
-.chrome-workbench-tab[data-active="true"] .chrome-workbench-tab__content,
-.chrome-workbench-tab:not([data-active="true"]) .chrome-workbench-tab__content {
-  inset: 2px 12px 0;
   padding: 0 8px;
+  overflow: hidden;
   border: 0;
   border-radius: 0;
   outline: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.chrome-workbench-tab:hover:not([data-active="true"]) .chrome-workbench-tab__content,
-.chrome-workbench-tab:hover:not([data-active="true"]):not([data-suppress-hover="true"])
-  .chrome-workbench-tab__content {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.chrome-workbench-tab[data-suppress-hover="true"] .chrome-workbench-tab__content {
-  transition: none;
 }
 
 .chrome-workbench-tab__separator {
@@ -243,11 +236,6 @@
   opacity: 1;
   pointer-events: none;
   transition: opacity var(--ui-duration-fast) var(--ui-ease-exit);
-}
-
-.chrome-workbench-tab[data-suppress-hover="true"] .chrome-workbench-tab__separator {
-  opacity: 0;
-  transition: none;
 }
 
 .chrome-workbench-tab:not([data-active="true"])::before {
@@ -275,11 +263,6 @@
   transition: none;
 }
 
-.chrome-workbench-tab[data-active="true"]::before {
-  display: none;
-  content: none;
-}
-
 .chrome-workbench-tab__activation {
   display: flex;
   align-items: center;
@@ -295,10 +278,20 @@
   background: transparent;
   text-align: left;
   cursor: default;
+  transition: color var(--ui-duration-fast) var(--ui-ease-exit);
 }
 
+/*
+ * 抑制悬停原本只做了一半。
+ *
+ * 键盘切换标签时指针可能仍停在原活动标签上，那个标签会在指针完全没有移动的
+ * 情况下自己亮起悬停态，所以要压住它，直到 onPointerLeave 清除该属性。背景
+ * 色块那条压住了，而文字变色这条漏了抑制条件，于是文字照样自己变亮——抑制的
+ * 净效果反而更接近悬停。补齐。
+ */
 .chrome-workbench-tab[data-active="true"] .chrome-workbench-tab__activation,
-.chrome-workbench-tab:hover:not([data-active="true"]) .chrome-workbench-tab__activation {
+.chrome-workbench-tab:hover:not([data-active="true"]):not([data-suppress-hover="true"])
+  .chrome-workbench-tab__activation {
   color: var(--color-foreground);
 }
 
@@ -481,8 +474,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chrome-workbench-tab__content,
-  .chrome-workbench-tab[data-active] .chrome-workbench-tab__separator,
+  /*
+   * __content 换成 __activation：过渡已经搬到真正会变色的元素上。
+   *
+   * [data-active] 去掉：该属性恒存在（true 与 false 都会写出），这个选择器
+   * 从来就等价于不带属性的后代选择器，写成 [data-active] 只会让人误读成
+   * 「仅活动标签」。
+   */
+  .chrome-workbench-tab__activation,
+  .chrome-workbench-tab__separator,
   .chrome-workbench-tab__status,
   .chrome-workbench-tab::before {
     transition: none;

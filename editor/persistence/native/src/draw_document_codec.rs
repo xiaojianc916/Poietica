@@ -290,7 +290,7 @@ pub fn decode_draw_document(bytes: &[u8]) -> Result<DecodedDrawDocument> {
         // Deflate. Keeping the check means save succeeds and open fails — data loss,
         // not security.
 
-                let capacity = usize::try_from(uncompressed)
+        let capacity = usize::try_from(uncompressed)
             .map_err(|_| corrupted("document entry size cannot be represented"))?;
 
         let mut content = Vec::with_capacity(capacity);
@@ -771,14 +771,14 @@ mod tests {
         })
         .expect("fixture should encode");
 
-        let decoded = decode_draw_document(&encoded)
-            .expect("a highly compressible container must decode");
+        let decoded =
+            decode_draw_document(&encoded).expect("a highly compressible container must decode");
 
         assert_eq!(decoded.assets.len(), 1);
         assert_eq!(decoded.assets[0].bytes.as_slice(), payload.as_slice());
     }
 
-        /// An unlisted type must fall back to compression, never to Stored.
+    /// An unlisted type must fall back to compression, never to Stored.
     #[test]
     fn unknown_content_types_stay_compressible() {
         assert_eq!(

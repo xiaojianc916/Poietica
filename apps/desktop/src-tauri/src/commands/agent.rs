@@ -19,8 +19,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use poietica_ai_acp_native::{
-    AcpError, AgentClient, AgentConnection, AgentSpawn, ModelError, ModelList, PermissionDesk,
-    RecordedEvent, Recorder, RunSlot, connect, model_config_path, read_models, select_model,
+    AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose, ModelError,
+    ModelList, PermissionDesk, RecordedEvent, Recorder, RunSlot, connect, model_config_path,
+    read_models, select_model,
 };
 use poietica_ai_persistence_native::{AiStore, StoreError};
 use serde::{Deserialize, Serialize};
@@ -52,6 +53,7 @@ const THREAD_TITLE: &str = "session";
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
+const NO_ANSWER: &str = "the agent session ended before answering";
 
 /// The live session, if one has been started.
 #[derive(Debug)]
@@ -397,6 +399,147 @@ pub async fn agent_select_model(
     state.desk.clear();
 
     Ok(describe(list))
+}
+
+/// What a session selector is for.
+///
+/// These are the categories the protocol defines. A category the agent
+/// invents beyond them arrives as other and is still shown.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentConfigPurpose {
+    /// How much freedom the agent takes during a turn.
+    Mode,
+    /// Which model answers.
+    Model,
+    /// How long the model deliberates before answering.
+    Thought,
+    /// Something the agent named itself.
+    Other,
+}
+
+/// One value a selector will accept.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConfigChoice {
+    /// The value sent back when this one is picked.
+    pub value: String,
+    /// The name the agent gave it.
+    pub label: String,
+    /// The explanation the agent gave, where it gave one.
+    pub detail: Option<String>,
+}
+
+/// One selector the running session offers.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConfigControl {
+    /// The identifier the agent answers to when the value is changed.
+    pub id: String,
+    /// The name the agent gave this selector.
+    pub label: String,
+    /// The explanation the agent gave, where it gave one.
+    pub detail: Option<String>,
+    /// Where this selector belongs on screen.
+    pub purpose: AgentConfigPurpose,
+    /// The value in force right now.
+    pub current: String,
+    /// Every value on offer.
+    pub choices: Vec<AgentConfigChoice>,
+}
+
+/// A change made in the interface.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSelectConfigRequest {
+    /// One of the selector identifiers the session reported.
+    pub config_id: String,
+    /// One of the values that selector offered.
+    pub value: String,
+}
+
+/// Lists the selectors the running session offers.
+///
+/// The agent reports these when the session is created, so an empty list
+/// means no session is running yet rather than a session without choices.
+/// Nothing is invented here: a model, a reasoning level or a mode appears
+/// in this list only because the agent named it.
+///
+/// # Errors
+///
+/// Fails when the session lock was poisoned or the driver has stopped.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_config_options(
+    state: State<'_, AgentRuntime>,
+) -> AgentCommandResult<Vec<AgentConfigControl>> {
+    let Some(live) = borrow(&state)? else {
+        return Ok(Vec::new());
+    };
+
+    let answer = live.client.selectors().map_err(translate)?;
+    let offered = answer
+        .await
+        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+        .map_err(translate)?;
+
+    Ok(offered.into_iter().map(restate).collect())
+}
+
+/// Changes one selector on the running session.
+///
+/// The change applies to the session in flight, so nothing is restarted
+/// and nothing is written to the agent configuration file. The answer is
+/// the whole list as the agent reports it afterwards, because one change
+/// may add or remove another selector.
+///
+/// # Errors
+///
+/// Fails when no session is running, when a turn is in flight, or when
+/// the agent refuses the value.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_set_config_option(
+    state: State<'_, AgentRuntime>,
+    request: AgentSelectConfigRequest,
+) -> AgentCommandResult<Vec<AgentConfigControl>> {
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
+    let answer = live
+        .client
+        .select(request.config_id, request.value)
+        .map_err(translate)?;
+    let offered = answer
+        .await
+        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+        .map_err(translate)?;
+
+    Ok(offered.into_iter().map(restate).collect())
+}
+
+/// Restates one selector in the shape the generated bindings carry.
+fn restate(control: ConfigControl) -> AgentConfigControl {
+    AgentConfigControl {
+        id: control.id,
+        label: control.label,
+        detail: control.detail,
+        purpose: match control.purpose {
+            ConfigPurpose::Mode => AgentConfigPurpose::Mode,
+            ConfigPurpose::Model => AgentConfigPurpose::Model,
+            ConfigPurpose::Thought => AgentConfigPurpose::Thought,
+            ConfigPurpose::Other => AgentConfigPurpose::Other,
+        },
+        current: control.current,
+        choices: control
+            .choices
+            .into_iter()
+            .map(|choice| AgentConfigChoice {
+                value: choice.value,
+                label: choice.label,
+                detail: choice.detail,
+            })
+            .collect(),
+    }
 }
 
 /// Restates the list in the shape the generated bindings carry.

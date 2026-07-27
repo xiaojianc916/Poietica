@@ -9,7 +9,7 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionNotification, TextContent,
+    SessionNotification, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -17,6 +17,7 @@ use futures::future::{BoxFuture, Either, select};
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 
+use crate::config::{ConfigControl, controls};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Result};
 use crate::permission::{Decision, decide};
@@ -28,6 +29,7 @@ const BUSY: &str = "a turn is already in flight on this session";
 const GONE: &str = "the agent connection is no longer running";
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
+const CHANGING: &str = "a selector cannot be changed while a turn is in flight";
 
 /// Names the file every line of the conversation is copied to, when set.
 ///
@@ -58,6 +60,16 @@ enum Command {
     },
     Cancel,
     Shutdown,
+    /// Answers with the selectors the session is currently offering.
+    Selectors {
+        reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
+    },
+    /// Asks the agent to change one selector, and adopts its answer.
+    Select {
+        config_id: String,
+        value: String,
+        reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
+    },
 }
 
 /// A handle onto a live session. Cheap to clone, safe to hold anywhere.
@@ -120,6 +132,47 @@ impl AgentClient {
     /// Fails when the driver is no longer running.
     pub fn shutdown(&self) -> Result<()> {
         self.send(Command::Shutdown)
+    }
+
+    /// Asks which selectors the session is offering.
+    ///
+    /// The list is whatever the agent reported. This crate never adds a
+    /// model, a reasoning level or a mode of its own.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the driver is no longer running.
+    pub fn selectors(&self) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Selectors { reply })?;
+
+        Ok(answer)
+    }
+
+    /// Changes one selector to one of the values it offered.
+    ///
+    /// The answer is the whole list again, because changing one selector
+    /// may add or remove another: a model with no reasoning levels takes
+    /// that selector away with it.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the driver is no longer running.
+    pub fn select(
+        &self,
+        config_id: String,
+        value: String,
+    ) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::Select {
+            config_id,
+            value,
+            reply,
+        })?;
+
+        Ok(answer)
     }
 
     fn send(&self, command: Command) -> Result<()> {
@@ -282,6 +335,12 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     .send_request(NewSessionRequest::new(cwd))
                     .block_task()
                     .await?;
+                // The agent reports its selectors here and nowhere else,
+                // so a list that is dropped now cannot be recovered.
+                let mut selectors = match session.config_options.as_deref() {
+                    Some(offered) => controls(offered),
+                    None => Vec::new(),
+                };
                 let session_id = session.session_id.clone();
 
                 // Nobody may still be waiting for the identifier, and that is
@@ -297,6 +356,40 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Command::Shutdown => break 'commands,
                         // Nothing is in flight, so there is nothing to stop.
                         Command::Cancel => continue 'commands,
+                        Command::Selectors { reply } => {
+                            let _ignored = reply.send(Ok(selectors.clone()));
+
+                            continue 'commands;
+                        }
+                        Command::Select {
+                            config_id,
+                            value,
+                            reply,
+                        } => {
+                            let changed = connection
+                                .send_request(SetSessionConfigOptionRequest::new(
+                                    session_id.clone(),
+                                    config_id,
+                                    value,
+                                ))
+                                .block_task()
+                                .await;
+
+                            let outcome = match changed {
+                                Ok(response) => {
+                                    selectors = controls(&response.config_options);
+
+                                    Ok(selectors.clone())
+                                }
+                                Err(error) => Err(AcpError::Protocol {
+                                    message: error.to_string(),
+                                }),
+                            };
+
+                            let _ignored = reply.send(outcome);
+
+                            continue 'commands;
+                        }
                         Command::Prompt {
                             text,
                             recorder,
@@ -355,6 +448,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 Some(Command::Prompt { reply: refused, .. }) => {
                                     let _ignored = refused.send(Err(AcpError::Protocol {
                                         message: BUSY.to_owned(),
+                                    }));
+                                    pending = in_flight;
+                                }
+                                Some(Command::Selectors { reply }) => {
+                                    let _ignored = reply.send(Ok(selectors.clone()));
+                                    pending = in_flight;
+                                }
+                                // Changing a selector takes a request of
+                                // our own, and this task is already
+                                // awaiting one, so it is refused out loud.
+                                Some(Command::Select { reply, .. }) => {
+                                    let _ignored = reply.send(Err(AcpError::Protocol {
+                                        message: CHANGING.to_owned(),
                                     }));
                                     pending = in_flight;
                                 }
