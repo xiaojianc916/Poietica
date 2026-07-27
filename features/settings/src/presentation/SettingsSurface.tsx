@@ -11,7 +11,15 @@ import {
   SelectTrigger,
   Switch,
 } from '@poietica/foundations-design-system'
-import { memo, type ReactNode, useCallback, useState } from 'react'
+import {
+  createContext,
+  memo,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 import {
@@ -19,7 +27,6 @@ import {
   type SettingsOperation,
   useSettingsController,
 } from './useSettingsController'
-import './settings-dialog.css'
 import './settings-surface.css'
 
 type SettingsSection =
@@ -89,85 +96,147 @@ const SECTIONS: readonly SectionDefinition[] = [
   },
 ]
 
-export interface SettingsSurfaceProps {
-  readonly store: SettingsStore
-  /**
-   * 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。
-   */
-  readonly onDismiss: () => void
-  /**
-   * 导航底部行，由应用组合根注入。
-   *
-   * features/settings 不依赖 features/workspace，因此这里只是一个插槽；
-   * 侧边栏底部行（帮助 + 齿轮）由 apps/desktop 传进来，齿轮在设置里保持高亮。
-   */
-  readonly footer: ReactNode
+/**
+ * 导航分组。图二用间距而不是标题分隔分组，所以这里只描述分组关系，
+ * 标签仍然来自 SECTIONS，避免同一份文案出现两处。
+ */
+const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
+  ['general', 'appearance'],
+  ['models', 'keymap', 'hooks', 'plugins'],
+  ['canvas', 'export', 'privacy'],
+  ['about'],
+]
+
+function findSection(id: SettingsSection): SectionDefinition {
+  const section = SECTIONS.find((item) => item.id === id)
+
+  if (!section) {
+    throw new Error(`未知的设置分类：${id}`)
+  }
+
+  return section
 }
 
-/**
- * 设置界面。
+/*
+ * 设置导航与设置内容是外壳栅格里两个互不嵌套的格子（第 1 列与第 2 列）。
  *
- * 它接管标题栏以下的整片区域，而不是叠一个模态框。窗口按钮留在标题栏里：
- * 一个吞掉整窗的界面会连最小化和关闭一起吞掉，那是把用户锁在里面。
+ * 它们没有父子关系，所以控制器与当前分类只能由共同祖先持有。这就是这个
+ * context 存在的唯一理由：不是为了解耦，而是因为 DOM 上没有别的地方可放。
+ * 侧边栏的宽度、拖拽与开合仍然只有 workspaceLayoutStore 一个来源。
  */
-export function SettingsSurface({ store, onDismiss, footer }: SettingsSurfaceProps) {
+interface SettingsSurfaceContextValue {
+  readonly controller: SettingsController
+  readonly section: SettingsSection
+  readonly onSelect: (section: SettingsSection) => void
+  readonly onBack: () => void
+}
+
+const SettingsSurfaceContext = createContext<SettingsSurfaceContextValue | null>(null)
+
+function useSettingsSurface(): SettingsSurfaceContextValue {
+  const value = useContext(SettingsSurfaceContext)
+
+  if (!value) {
+    throw new Error('设置区域必须渲染在 SettingsProvider 内部。')
+  }
+
+  return value
+}
+
+export interface SettingsProviderProps {
+  readonly store: SettingsStore
+  /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
+  readonly onDismiss: () => void
+  readonly children: ReactNode
+}
+
+export function SettingsProvider({ store, onDismiss, children }: SettingsProviderProps) {
   const [section, setSection] = useState<SettingsSection>('general')
 
-  const controller = useSettingsController({
-    open: true,
-    store,
-    onOpenChange: (nextOpen) => {
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
       if (!nextOpen) {
         onDismiss()
       }
     },
+    [onDismiss],
+  )
+
+  // open 恒为 true：Provider 只在设置打开时挂载，开合由外壳决定。
+  const controller = useSettingsController({
+    open: true,
+    store,
+    onOpenChange: handleOpenChange,
   })
 
-  const selectSection = useCallback((nextSection: SettingsSection) => {
-    setSection(nextSection)
-  }, [])
+  const value = useMemo<SettingsSurfaceContextValue>(
+    () => ({
+      controller,
+      section,
+      onSelect: setSection,
+      onBack: controller.requestClose,
+    }),
+    [controller, section],
+  )
+
+  return <SettingsSurfaceContext.Provider value={value}>{children}</SettingsSurfaceContext.Provider>
+}
+
+export interface SettingsNavigationRegionProps {
+  /** 侧边栏底部行，由应用组合根注入，齿轮在设置里保持高亮。 */
+  readonly footer?: ReactNode
+}
+
+export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionProps) {
+  const { section, onSelect, onBack } = useSettingsSurface()
 
   return (
-    <div aria-label="设置" className="settings-surface" role="region">
-      <div className="settings-shell">
-        <SettingsNavigation
-          activeSection={section}
-          footer={footer}
-          onBack={controller.requestClose}
-          onSelect={selectSection}
-        />
+    <SettingsNavigation
+      activeSection={section}
+      footer={footer}
+      onBack={onBack}
+      onSelect={onSelect}
+    />
+  )
+}
 
-        <main aria-live="polite" className="settings-content">
-          {controller.loading ? (
-            <div className="settings-state">
-              <LoadingState label="正在读取本地设置…" />
-            </div>
-          ) : null}
+export function SettingsContentRegion() {
+  const { controller, section } = useSettingsSurface()
 
-          {!controller.loading && controller.error && !controller.settings ? (
-            <div className="settings-state">
-              <ErrorState message={controller.error} onRetry={controller.retry} />
-            </div>
-          ) : null}
+  return (
+    <div aria-live="polite" className="settings-content">
+      <div className="settings-content__inner">
+        <h2 className="settings-content__title">{findSection(section).label}</h2>
 
-          {controller.settings ? (
-            <>
-              {controller.error ? (
-                <SettingsErrorBanner
-                  message={controller.error}
-                  onRetry={controller.retry}
-                  operation={controller.operation}
-                />
-              ) : null}
+        {controller.loading ? (
+          <div className="settings-state">
+            <LoadingState label="正在读取本地设置…" />
+          </div>
+        ) : null}
 
-              <SettingsSectionContent
-                controller={controller}
-                section={section}
-                settings={controller.settings}
+        {!controller.loading && controller.error && !controller.settings ? (
+          <div className="settings-state">
+            <ErrorState message={controller.error} onRetry={controller.retry} />
+          </div>
+        ) : null}
+
+        {controller.settings ? (
+          <>
+            {controller.error ? (
+              <SettingsErrorBanner
+                message={controller.error}
+                onRetry={controller.retry}
+                operation={controller.operation}
               />
-            </>
-          ) : null}
-        </main>
+            ) : null}
+
+            <SettingsSectionContent
+              controller={controller}
+              section={section}
+              settings={controller.settings}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   )
@@ -177,7 +246,7 @@ interface SettingsNavigationProps {
   readonly activeSection: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
-  readonly footer: ReactNode
+  readonly footer?: ReactNode
 }
 
 const SettingsNavigation = memo(function SettingsNavigation({
@@ -187,10 +256,11 @@ const SettingsNavigation = memo(function SettingsNavigation({
   footer,
 }: SettingsNavigationProps) {
   return (
-    <aside aria-label="设置分类" className="settings-navigation">
-      <button className="settings-surface__back" onClick={onBack} type="button">
+    <section aria-label="设置分类" className="settings-navigation">
+      <button className="settings-navigation__back" onClick={onBack} type="button">
         <svg
           aria-hidden="true"
+          className="settings-navigation__icon"
           fill="none"
           stroke="currentColor"
           strokeLinecap="round"
@@ -205,33 +275,35 @@ const SettingsNavigation = memo(function SettingsNavigation({
         <span>返回</span>
       </button>
 
-      <nav className="settings-navigation__items">
-        {SECTIONS.map((item) => {
-          const active = item.id === activeSection
+      <div className="settings-navigation__scroll">
+        {SECTION_GROUPS.map((group) => (
+          <nav className="settings-navigation__items" key={group.join('-')}>
+            {group.map((id) => {
+              const active = id === activeSection
 
-          return (
-            <button
-              aria-current={active ? 'page' : undefined}
-              className="settings-navigation__item"
-              data-active={active ? 'true' : 'false'}
-              key={item.id}
-              onClick={() => {
-                onSelect(item.id)
-              }}
-              type="button"
-            >
-              <SectionIcon section={item.id} />
+              return (
+                <button
+                  aria-current={active ? 'page' : undefined}
+                  className="settings-navigation__item"
+                  data-active={active ? 'true' : 'false'}
+                  key={id}
+                  onClick={() => {
+                    onSelect(id)
+                  }}
+                  type="button"
+                >
+                  <SectionIcon section={id} />
 
-              <span className="settings-navigation__copy">
-                <strong>{item.label}</strong>
-              </span>
-            </button>
-          )
-        })}
-      </nav>
+                  <span>{findSection(id).label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        ))}
+      </div>
 
-      <div className="settings-surface__footer">{footer}</div>
-    </aside>
+      {footer ? <div className="settings-navigation__footer">{footer}</div> : null}
+    </section>
   )
 })
 
@@ -266,10 +338,10 @@ function SettingsSectionContent({ section, settings, controller }: SettingsSecti
       )
 
     case 'hooks':
-      return <SettingsPlaceholder description="Hook 尚未实现。" title="Hook" />
+      return <SettingsPlaceholder description="Hook 尚未实现。" />
 
     case 'plugins':
-      return <SettingsPlaceholder description="插件系统尚未实现。" title="插件" />
+      return <SettingsPlaceholder description="插件系统尚未实现。" />
 
     case 'canvas':
       return <CanvasSettings controller={controller} settings={settings} />
@@ -299,6 +371,7 @@ const GeneralSettings = memo(function GeneralSettings({
       <SettingsGroup title="保存">
         <ToggleRow
           checked={settings.autoSave}
+          description="画布变更后自动写入本地文件"
           label="自动保存"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -309,7 +382,7 @@ const GeneralSettings = memo(function GeneralSettings({
         />
 
         {settings.autoSave ? (
-          <SettingRow label="保存间隔">
+          <SettingRow description="距上次变更多久触发一次写入" label="保存间隔">
             <SettingsSelect
               ariaLabel="自动保存间隔"
               onChange={(value) => {
@@ -329,7 +402,7 @@ const GeneralSettings = memo(function GeneralSettings({
           </SettingRow>
         ) : null}
 
-        <SettingRow label="恢复默认设置">
+        <SettingRow description="把全部设置项还原为初始值" label="恢复默认设置">
           <Button
             disabled={controller.saving}
             onClick={controller.reset}
@@ -350,6 +423,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
       <SettingsGroup title="视图">
         <ToggleRow
           checked={settings.canvas.infiniteCanvas}
+          description="关闭后画布限制在固定边界内"
           label="无限画布"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -364,6 +438,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.canvas.showRulers}
+          description="在画布边缘显示刻度"
           label="显示标尺"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -376,7 +451,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
           }}
         />
 
-        <SettingRow label="默认缩放">
+        <SettingRow description="新建画布时的初始缩放比例" label="默认缩放">
           <SettingsSelect
             ariaLabel="默认画布缩放"
             onChange={(value) => {
@@ -402,6 +477,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
       <SettingsGroup title="网格与吸附">
         <ToggleRow
           checked={settings.canvas.showGrid}
+          description="在画布背景绘制网格"
           label="显示网格"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -416,6 +492,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.canvas.snapToGrid}
+          description="移动图形时对齐到网格交点"
           label="吸附到网格"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -428,7 +505,7 @@ const CanvasSettings = memo(function CanvasSettings({ settings, controller }: Se
           }}
         />
 
-        <SettingRow label="网格尺寸">
+        <SettingRow description="网格线之间的像素间距" label="网格尺寸">
           <SettingsSelect
             ariaLabel="画布网格尺寸"
             disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}
@@ -461,7 +538,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
   return (
     <SettingsPage>
       <SettingsGroup title="默认输出">
-        <SettingRow label="文件格式">
+        <SettingRow description="导出时默认选中的格式" label="文件格式">
           <SettingsSelect
             ariaLabel="默认导出格式"
             onChange={(value) => {
@@ -482,7 +559,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
           />
         </SettingRow>
 
-        <SettingRow label="PNG 清晰度">
+        <SettingRow description="位图导出的分辨率" label="PNG 清晰度">
           <SettingsSelect
             ariaLabel="PNG 导出清晰度"
             onChange={(value) => {
@@ -504,7 +581,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
           />
         </SettingRow>
 
-        <SettingRow label="PDF 质量">
+        <SettingRow description="矢量转位图时的压缩质量" label="PDF 质量">
           <SettingsSelect
             ariaLabel="PDF 导出质量"
             onChange={(value) => {
@@ -529,6 +606,7 @@ const ExportSettings = memo(function ExportSettings({ settings, controller }: Se
 
         <ToggleRow
           checked={settings.export.includeMetadata}
+          description="在导出文件中写入创建信息"
           label="包含元数据"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -565,6 +643,7 @@ const PrivacySettings = memo(function PrivacySettings({
       <SettingsGroup title="诊断与更新">
         <ToggleRow
           checked={settings.privacy.telemetry}
+          description="上报不含文档内容的功能使用统计"
           label="匿名使用数据"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -579,6 +658,7 @@ const PrivacySettings = memo(function PrivacySettings({
 
         <ToggleRow
           checked={settings.privacy.crashReporting}
+          description="崩溃时上报堆栈以便定位问题"
           label="崩溃报告"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -593,6 +673,7 @@ const PrivacySettings = memo(function PrivacySettings({
 
         <ToggleRow
           checked={settings.privacy.updateCheck}
+          description="启动时向更新服务查询新版本"
           label="自动检查更新"
           onChange={(checked) => {
             controller.update((current) => ({
@@ -702,14 +783,16 @@ function SettingsGroup({ title, children }: SettingsGroupProps) {
 
 interface SettingRowProps {
   readonly label: string
+  readonly description?: string
   readonly children: ReactNode
 }
 
-function SettingRow({ label, children }: SettingRowProps) {
+function SettingRow({ label, description, children }: SettingRowProps) {
   return (
     <div className="settings-row">
       <div className="settings-row__copy">
         <strong>{label}</strong>
+        {description ? <p>{description}</p> : null}
       </div>
 
       <div className="settings-row__control">{children}</div>
@@ -720,14 +803,16 @@ function SettingRow({ label, children }: SettingRowProps) {
 interface ToggleRowProps {
   readonly checked: boolean
   readonly label: string
+  readonly description?: string
   readonly onChange: (checked: boolean) => void
 }
 
-function ToggleRow({ checked, label, onChange }: ToggleRowProps) {
+function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
   return (
     <div className="settings-row">
       <div className="settings-row__copy">
         <strong>{label}</strong>
+        {description ? <p>{description}</p> : null}
       </div>
 
       <div className="settings-row__control">
@@ -910,8 +995,8 @@ const AppearanceSettings = memo(function AppearanceSettings({
 }: SettingsPanelProps) {
   return (
     <SettingsPage>
-      <SettingsGroup title="外观">
-        <SettingRow label="颜色模式">
+      <SettingsGroup title="主题与语言">
+        <SettingRow description="浅色、深色或跟随系统" label="颜色模式">
           <SettingsSelect
             ariaLabel="颜色模式"
             onChange={(theme) => {
@@ -929,7 +1014,7 @@ const AppearanceSettings = memo(function AppearanceSettings({
           />
         </SettingRow>
 
-        <SettingRow label="界面语言">
+        <SettingRow description="界面文案使用的语言" label="界面语言">
           <SettingsSelect
             ariaLabel="界面语言"
             onChange={(value) => {
@@ -951,7 +1036,6 @@ const AppearanceSettings = memo(function AppearanceSettings({
 })
 
 interface SettingsPlaceholderProps {
-  readonly title: string
   readonly description: string
 }
 
@@ -961,12 +1045,10 @@ interface SettingsPlaceholderProps {
  * 这里刻意不放能拨动的控件：写不进 AppSettings 的开关会让人以为设置生效了，
  * 比一句实话有害得多。
  */
-function SettingsPlaceholder({ title, description }: SettingsPlaceholderProps) {
+function SettingsPlaceholder({ description }: SettingsPlaceholderProps) {
   return (
     <SettingsPage>
-      <SettingsGroup title={title}>
-        <div className="settings-placeholder">{description}</div>
-      </SettingsGroup>
+      <p className="settings-placeholder">{description}</p>
     </SettingsPage>
   )
 }

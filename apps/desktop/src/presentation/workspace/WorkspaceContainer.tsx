@@ -12,6 +12,12 @@ import type {
   CanvasSessionSnapshot,
 } from '@poietica/editor-document'
 import type { AgentSessionPort } from '@poietica/features-ai/contracts'
+import type { SettingsStore } from '@poietica/features-settings'
+import {
+  SettingsContentRegion,
+  SettingsNavigationRegion,
+  SettingsProvider,
+} from '@poietica/features-settings/react'
 import type {
   CanvasSessionId,
   WorkbenchSessionStore,
@@ -23,6 +29,7 @@ import type {
 import {
   NoCanvasSurface,
   nextUntitledCanvasTitle,
+  SidebarFooter,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSurface,
@@ -79,6 +86,9 @@ export interface WorkspaceContainerProps {
   readonly agentSession: AgentSessionPort
   readonly port: WorkspaceUIPort
   readonly capabilities: AppCapabilities
+  readonly isSettingsOpen: boolean
+  readonly onSettingsClose: () => void
+  readonly settingsStore: SettingsStore
   readonly isWindowMaximized: boolean
   readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -92,6 +102,9 @@ export function WorkspaceContainer({
   agentSession,
   port,
   capabilities,
+  isSettingsOpen,
+  onSettingsClose,
+  settingsStore,
   isWindowMaximized,
   onCommandPaletteOpen,
   onDeveloperToolsOpen,
@@ -342,12 +355,13 @@ export function WorkspaceContainer({
     ),
   })
 
-  return (
+  const shell = (
     <WorkspaceShell
       actions={actions}
       inspector={<CanvasInspectorRightSidebar />}
       inspectorAvailable={inspectorAvailable}
-      mainContent={mainContent}
+      mainContent={isSettingsOpen ? <SettingsContentRegion /> : mainContent}
+      mainContentLabel={isSettingsOpen ? '设置' : undefined}
       model={model}
       overlays={
         <>
@@ -388,6 +402,19 @@ export function WorkspaceContainer({
           />
         </>
       }
+      sidebarOverride={
+        isSettingsOpen ? (
+          <SettingsNavigationRegion
+            footer={
+              <SidebarFooter
+                onDeveloperToolsOpen={onDeveloperToolsOpen}
+                onSettingsOpen={onSettingsClose}
+                settingsActive
+              />
+            }
+          />
+        ) : null
+      }
       sidebarPanel={<AssistantSidebarPanel />}
       renderChrome={({
         isSidebarOpen,
@@ -407,17 +434,34 @@ export function WorkspaceContainer({
           onSidebarToggle={onSidebarToggle}
           windowControlsDisabled={!capabilities.windowControls}
         >
-          <WorkbenchTabs
-            onActivate={onActivateTab}
-            onClose={onCloseTab}
-            onCreate={onCreateCanvas}
-            onMove={onMoveTab}
-            tabs={chromeTabs}
-          />
+          {/* 设置界面没有标签：标签属于工作台，不属于设置。 */}
+          {isSettingsOpen ? null : (
+            <WorkbenchTabs
+              onActivate={onActivateTab}
+              onClose={onCloseTab}
+              onCreate={onCreateCanvas}
+              onMove={onMoveTab}
+              tabs={chromeTabs}
+            />
+          )}
         </DesktopTitleBar>
       )}
       statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}
     />
+  )
+
+  if (!isSettingsOpen) {
+    return shell
+  }
+
+  /*
+   * 设置不是浮层：Provider 只提供状态，界面本身就是外壳栅格里的两个格子。
+   * 工作区留在下面不卸载，返回要回到进入设置前的那个标签页。
+   */
+  return (
+    <SettingsProvider onDismiss={onSettingsClose} store={settingsStore}>
+      {shell}
+    </SettingsProvider>
   )
 }
 

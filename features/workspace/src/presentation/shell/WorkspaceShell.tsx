@@ -30,6 +30,8 @@ const WORKSPACE_GRID_COLUMNS = [
 export function WorkspaceShell({
   model,
   sidebarPanel,
+  sidebarOverride,
+  mainContentLabel,
   actions,
   renderChrome,
   mainContent,
@@ -70,10 +72,13 @@ export function WorkspaceShell({
             style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 2 }}
           >
             <main
-              aria-labelledby={`workbench-tab-${activeTabDomId}`}
+              aria-label={mainContentLabel}
+              aria-labelledby={
+                mainContentLabel === undefined ? `workbench-tab-${activeTabDomId}` : undefined
+              }
               className="relative h-full min-h-0 min-w-0 overflow-hidden"
-              id={`workbench-panel-${activeTabDomId}`}
-              role="tabpanel"
+              id={mainContentLabel === undefined ? `workbench-panel-${activeTabDomId}` : undefined}
+              role={mainContentLabel === undefined ? 'tabpanel' : 'region'}
             >
               {mainContent}
             </main>
@@ -129,20 +134,22 @@ export function WorkspaceShell({
             }}
             width={sidebarWidth}
           >
-            <WorkspaceSidebar
-              activeSurfaceId={activeSurfaceId}
-              onCreateConversation={() => {
-                actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
-                setSidebarOpen(true)
-              }}
-              onDeveloperToolsOpen={actions.openDeveloperTools}
-              onSettingsOpen={actions.openSettingsWindow}
-              onSurfaceActivate={(surfaceId) => {
-                actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
-                setSidebarOpen(true)
-              }}
-              panel={sidebarPanel}
-            />
+            {sidebarOverride ?? (
+              <WorkspaceSidebar
+                activeSurfaceId={activeSurfaceId}
+                onCreateConversation={() => {
+                  actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
+                  setSidebarOpen(true)
+                }}
+                onDeveloperToolsOpen={actions.openDeveloperTools}
+                onSettingsOpen={actions.openSettingsWindow}
+                onSurfaceActivate={(surfaceId) => {
+                  actions.openWorkspaceSurface(surfaceId, describeWorkspaceSurface(surfaceId).title)
+                  setSidebarOpen(true)
+                }}
+                panel={sidebarPanel}
+              />
+            )}
           </SidebarRegion>
         }
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}

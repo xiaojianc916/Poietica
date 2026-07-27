@@ -1,13 +1,10 @@
 import { EditorProvider } from '@poietica/editor-core/react'
 import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { SettingsStore } from '@poietica/features-settings'
-import { SettingsSurface } from '@poietica/features-settings/react'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import {
   CommandPalette,
-  SidebarFooter,
-  WORKSPACE_LAYOUT,
   nextUntitledCanvasTitle,
   useCommandKeybindings,
   workspaceLayoutStore,
@@ -200,18 +197,20 @@ export function AppShell({ runtime }: AppShellProps) {
 
   return (
     <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
-      <style>{`.settings-surface { inset-block-start: ${WORKSPACE_LAYOUT.chrome.height}px; }`}</style>
       <WorkspaceContainer
         agentSession={runtime.agentSession}
         capabilities={capabilities}
+        isSettingsOpen={isSettingsOpen && capabilities.settings}
         isWindowMaximized={isWindowMaximized}
         onCommandPaletteOpen={openCommandPalette}
         onDeveloperToolsOpen={openDeveloperTools}
+        onSettingsClose={closeSettings}
         onSettingsOpen={openSettings}
         onWindowClose={requestApplicationClose}
         onWindowMaximize={maximizeWindow}
         onWindowMinimize={minimizeWindow}
         port={workspacePort}
+        settingsStore={runtime.settings}
       />
 
       <CommandPalette
@@ -219,25 +218,6 @@ export function AppShell({ runtime }: AppShellProps) {
         open={isCommandPaletteOpen}
         registry={runtime.commands}
       />
-
-      {/*
-        设置接管标题栏以下的整片区域，工作区留在下面不卸载：返回要回到进入
-        设置前的那个标签页，画布状态不能因为看了一眼设置就重建。上边界取自
-        WORKSPACE_LAYOUT，与外壳同源。
-      */}
-      {isSettingsOpen && capabilities.settings ? (
-        <SettingsSurface
-          footer={
-            <SidebarFooter
-              onDeveloperToolsOpen={openDeveloperTools}
-              onSettingsOpen={closeSettings}
-              settingsActive
-            />
-          }
-          onDismiss={closeSettings}
-          store={runtime.settings}
-        />
-      ) : null}
 
       <UiFeedbackRegion />
 

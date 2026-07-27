@@ -1,4 +1,7 @@
 export {
-  SettingsSurface,
-  type SettingsSurfaceProps,
+  SettingsContentRegion,
+  SettingsNavigationRegion,
+  type SettingsNavigationRegionProps,
+  SettingsProvider,
+  type SettingsProviderProps,
 } from './SettingsSurface'
