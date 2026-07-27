@@ -48,10 +48,13 @@ export interface AgentBridgeOptions {
 export interface AgentCommandBridge {
   readonly prompt: (request: {
     readonly text: string
+    /** The conversation the turn belongs to, where the interface named one. */
+    readonly threadId?: string
   }) => Promise<{ readonly runId: string; readonly sessionId: string }>
   readonly cancel: (runId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   readonly loadRun: (runId: string) => Promise<readonly unknown[]>
+  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
 }
 
 /**
@@ -127,6 +130,7 @@ export function createAgentCommandBridge({
       const result = await call(() =>
         commands.agentPrompt({
           text: request.text,
+          threadId: request.threadId ?? null,
           command: command ?? null,
           cwd: cwd ?? null,
         }),
@@ -147,6 +151,12 @@ export function createAgentCommandBridge({
       const snapshot = await call(() => commands.agentLoadRun({ runId, afterSeq: null }))
 
       return snapshot.events
+    },
+
+    loadThread: async (threadId) => {
+      const transcript = await call(() => commands.agentLoadThread({ threadId }))
+
+      return transcript.events
     },
   }
 }

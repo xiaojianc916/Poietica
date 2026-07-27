@@ -111,6 +111,7 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::agent::agent_resolve_permission,
             commands::agent::agent_shutdown,
             commands::agent::agent_load_run,
+            commands::agent::agent_load_thread,
             commands::agent::agent_models,
             commands::agent::agent_select_model,
             commands::agent::agent_config_options,

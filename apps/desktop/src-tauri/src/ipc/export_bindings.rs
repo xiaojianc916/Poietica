@@ -11,9 +11,9 @@ use crate::{
     commands::{
         agent::{
             AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentLoadRunRequest,
-            AgentModelDescriptor, AgentModelList, AgentPromptRequest, AgentPromptResult,
+            AgentLoadThreadRequest, AgentModelDescriptor, AgentModelList, AgentPromptRequest, AgentPromptResult,
             AgentResolvePermissionRequest, AgentRunSnapshot, AgentSelectConfigRequest,
-            AgentSelectModelRequest,
+            AgentSelectModelRequest, AgentThreadTranscript,
         },
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
@@ -54,6 +54,7 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_resolve_permission,
             crate::commands::agent::agent_shutdown,
             crate::commands::agent::agent_load_run,
+            crate::commands::agent::agent_load_thread,
             crate::commands::agent::agent_models,
             crate::commands::agent::agent_select_model,
             crate::commands::agent::agent_config_options,
@@ -80,6 +81,8 @@ pub fn export_document_bindings() {
         .typ::<AgentLoadRunRequest>()
         .typ::<AgentResolvePermissionRequest>()
         .typ::<AgentRunSnapshot>()
+        .typ::<AgentLoadThreadRequest>()
+        .typ::<AgentThreadTranscript>()
         .typ::<AgentModelDescriptor>()
         .typ::<AgentModelList>()
         .typ::<AgentSelectModelRequest>()

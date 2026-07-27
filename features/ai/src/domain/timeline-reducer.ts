@@ -51,6 +51,33 @@ export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): Time
 }
 
 /**
+ * Replays a whole conversation: several turns, one transcript.
+ *
+ * Every run numbers its own frames from one, so a stored conversation is a
+ * sequence of segments rather than one long run. A turn beginning therefore
+ * opens a new segment, which is what stops the second turn from being
+ * discarded frame by frame as a duplicate of the first.
+ */
+export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
+  let state = createTimelineState(runId)
+
+  for (const event of events) {
+    if (event.kind === 'run_started') {
+      state = {
+        ...state,
+        lastSeq: -1,
+        appliedSeqs: new Set<number>(),
+        runIndex: state.runIndex + 1,
+      }
+    }
+
+    state = applyRunEvent(state, event)
+  }
+
+  return state
+}
+
+/**
  * Opens a turn with what the user said.
  *
  * The message is a local fact: they typed it, they committed it, and no process,

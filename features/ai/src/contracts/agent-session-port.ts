@@ -28,4 +28,12 @@ export interface AgentSessionPort {
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   /** Replays a persisted run out of the encrypted event log. */
   readonly loadRun: (runId: RunId) => Promise<readonly RunEvent[]>
+  /**
+   * Replays a whole conversation out of the encrypted event log.
+   *
+   * Optional because a port that has no log behind it — a recorded replay,
+   * a fixture — has no conversation to read, and a surface built against
+   * one must still render.
+   */
+  readonly loadThread?: (threadId: ThreadId) => Promise<readonly RunEvent[]>
 }

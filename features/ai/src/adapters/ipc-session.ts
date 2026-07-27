@@ -29,6 +29,7 @@ export interface AgentCommandBridge {
   readonly cancel: (runId: RunId) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   readonly loadRun: (runId: RunId) => Promise<readonly unknown[]>
+  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
 }
 
 export interface IpcSessionOptions {
@@ -61,19 +62,9 @@ export function createIpcSession({
 
     resolvePermission: (requestId, optionId) => bridge.resolvePermission(requestId, optionId),
 
-    loadRun: async (runId) => {
-      const raw = await bridge.loadRun(runId)
-      const events: RunEvent[] = []
-      for (const payload of raw) {
-        const parsed = parseRunEvent(payload)
-        if (parsed.ok) {
-          events.push(parsed.event)
-        } else {
-          onInvalidFrame?.(parsed.issue, payload)
-        }
-      }
-      return events
-    },
+    loadRun: async (runId) => accept(await bridge.loadRun(runId), onInvalidFrame),
+
+    loadThread: async (threadId) => accept(await bridge.loadThread(threadId), onInvalidFrame),
   }
 }
 
@@ -89,6 +80,32 @@ export function createIpcSession({
  * never collide with one, and the reducer keeps the first refusal of a turn and
  * discards the rest: one visible failure, not a wall of them.
  */
+/*
+ * Validates a batch of recorded frames.
+ *
+ * A single turn and a whole conversation are read back the same way, and a
+ * frame this build refuses is reported and left out rather than allowed into
+ * the transcript.
+ */
+function accept(
+  raw: readonly unknown[],
+  onInvalidFrame?: (issue: string, payload: unknown) => void,
+): readonly RunEvent[] {
+  const events: RunEvent[] = []
+
+  for (const payload of raw) {
+    const parsed = parseRunEvent(payload)
+
+    if (parsed.ok) {
+      events.push(parsed.event)
+    } else {
+      onInvalidFrame?.(parsed.issue, payload)
+    }
+  }
+
+  return events
+}
+
 const REFUSED = '助手发回了这个界面无法解析的数据，这一轮已经中断。'
 
 function refusedFrame(issue: string): RunEvent {

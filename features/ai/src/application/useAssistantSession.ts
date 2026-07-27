@@ -4,7 +4,12 @@ import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { RunEvent } from '../contracts/run-contract'
 import type { TimelineState } from '../contracts/timeline-contract'
-import { appendUserMessage, applyRunEvent, createTimelineState } from '../domain/timeline-reducer'
+import {
+  appendUserMessage,
+  applyRunEvent,
+  createTimelineState,
+  replayThreadEvents,
+} from '../domain/timeline-reducer'
 
 /*
  * The surface depends on the agent session PORT, never on a protocol client.
@@ -111,6 +116,45 @@ export function useAssistantSession({
       }),
     )
   }, [])
+
+  /*
+   * Switching conversation is reading one.
+   *
+   * The transcript on screen belongs to a conversation, so a different
+   * endpoint means a different conversation has to be read out of the log
+   * rather than an empty one shown. The frames are the ones that were
+   * broadcast while each turn was live, so reopening a conversation cannot
+   * disagree with having watched it.
+   *
+   * An answer that arrives after the endpoint moved on is dropped: it
+   * belongs to the conversation the user has already left.
+   */
+  useEffect(() => {
+    setTimeline(createTimelineState(RUN_PLACEHOLDER))
+
+    if (session?.loadThread === undefined) {
+      return undefined
+    }
+
+    let current = true
+
+    void session
+      .loadThread(endpoint)
+      .then((events) => {
+        if (current) {
+          setTimeline(replayThreadEvents(RUN_PLACEHOLDER, events))
+        }
+      })
+      .catch((cause: unknown) => {
+        if (current) {
+          fail(cause)
+        }
+      })
+
+    return () => {
+      current = false
+    }
+  }, [endpoint, fail, session])
 
   const send = useCallback(
     (submission: AssistantSubmission) => {

@@ -80,5 +80,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
     resolvePermission: () => Promise.resolve(),
 
     loadRun: () => Promise.resolve(events),
+
+    loadThread: () => Promise.resolve(events),
   }
 }

@@ -88,7 +88,7 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
       if (found === undefined) {
         return FALLBACK_TITLE
       }
-      return found.titleSource === 'fallback' ? FALLBACK_TITLE : found.title
+      return found.titleSource === 'fallback' ? FALLBACK_TITLE : shorten(found.title)
     },
     [provisional, threads],
   )

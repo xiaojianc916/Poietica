@@ -297,6 +297,77 @@ impl AiStore {
         Ok(events)
     }
 
+    /// Reads every frame of a conversation, turn by turn.
+    ///
+    /// A conversation is more than its last turn, so opening one has to read
+    /// all of them. Runs are ordered by when they started and frames by their
+    /// position inside the run, which is the order they happened in.
+    ///
+    /// # Errors
+    ///
+    /// Fails when a row cannot be read or a payload cannot be decoded.
+    pub fn thread_events(&self, thread_id: Uuid) -> Result<Vec<StoredEvent>> {
+        let mut statement = self.connection.prepare(
+            "SELECT run_events.seq, run_events.kind, run_events.payload, run_events.recorded_at
+               FROM run_events
+               JOIN runs ON runs.id = run_events.run_id
+              WHERE runs.thread_id = ?1
+              ORDER BY runs.started_at, runs.id, run_events.seq",
+        )?;
+
+        let rows = statement.query_map(rusqlite::params![thread_id.to_string()], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
+
+        let mut events = Vec::new();
+
+        for row in rows {
+            let (seq, kind, payload, recorded_at) = row?;
+
+            events.push(StoredEvent {
+                kind,
+                payload: serde_json::from_str(&payload)?,
+                recorded_at,
+                seq,
+            });
+        }
+
+        Ok(events)
+    }
+
+    /// Names a conversation after the first thing said in it.
+    ///
+    /// A stand in only ever replaces a stand in: the update is refused by the
+    /// statement itself once a name exists, so an official title cannot be
+    /// overwritten by a race rather than by a decision.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the update is rejected.
+    pub fn name_from_message(&self, id: Uuid, title: &str) -> Result<()> {
+        let timestamp = now()?;
+
+        self.connection.execute(
+            "UPDATE threads
+                SET title = ?2, title_source = ?3, updated_at = ?4
+              WHERE id = ?1 AND title_source = ?5",
+            rusqlite::params![
+                id.to_string(),
+                title,
+                TitleSource::Message.as_str(),
+                timestamp,
+                TitleSource::Fallback.as_str(),
+            ],
+        )?;
+
+        Ok(())
+    }
+
     /// Marks a run as no longer running.
     ///
     /// # Errors

@@ -50,6 +50,9 @@ const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
 /// Threads are named by the interface later; this is only a placeholder.
 const THREAD_TITLE: &str = "session";
 
+/// How much of the first message stands in as a conversation name.
+const TITLE_CHARS: usize = 60;
+
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
@@ -114,6 +117,8 @@ impl AgentRuntime {
 pub struct AgentPromptRequest {
     /// What the user typed.
     pub text: String,
+    /// The conversation this turn belongs to, when the interface names one.
+    pub thread_id: Option<String>,
     /// The agent command line; defaults to the Kimi ACP entry point.
     pub command: Option<String>,
     /// The working directory the session is created against.
@@ -194,7 +199,26 @@ pub async fn agent_prompt(
     // thing that must exist before the turn does, so it is done inline rather
     // than handed to a thread whose failure would arrive after the fact.
     let store = AiStore::open(&state.database).map_err(persistence)?;
-    let run_id = store.start_run(session.thread_id).map_err(persistence)?;
+
+    // The turn is recorded under the conversation on screen. The interface
+    // names it, because the interface is what the user is looking at; a
+    // request naming none is a surface that has not opened one yet, which is
+    // still the session's own conversation.
+    let thread_id = match request.thread_id.as_deref().map(Uuid::parse_str) {
+        Some(Ok(named)) => named,
+        _unnamed => session.thread_id,
+    };
+
+    let run_id = store.start_run(thread_id).map_err(persistence)?;
+
+    // The first thing said names the conversation. It is a stand in and is
+    // recorded as one, so the agent's own title still replaces it later, and a
+    // conversation in the list reads as what was asked in it.
+    let opener: String = text.chars().take(TITLE_CHARS).collect();
+
+    store
+        .name_from_message(thread_id, &opener)
+        .map_err(persistence)?;
 
     let handle = app.clone();
     let recorder = Recorder::new(
@@ -317,6 +341,60 @@ pub fn agent_load_run(
 
     Ok(AgentRunSnapshot {
         run_id: request.run_id,
+        events: events.into_iter().map(|event| event.payload).collect(),
+    })
+}
+
+/// A request to replay a whole conversation from the log.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentLoadThreadRequest {
+    /// The conversation to read.
+    pub thread_id: String,
+}
+
+/// A conversation as it was recorded.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThreadTranscript {
+    /// The conversation the frames belong to.
+    pub thread_id: String,
+    /// Every frame of every turn, in the order they happened.
+    pub events: Vec<Value>,
+}
+
+/// Reads a whole conversation back out of the log.
+///
+/// Opening a conversation is reading one, so this is what the interface calls
+/// when the user picks one: the frames are the same values that were broadcast
+/// while each turn was live, which is why a conversation reopened cannot drift
+/// from having watched it happen.
+///
+/// A conversation the log has never seen has no frames. That is an empty
+/// transcript rather than a failure, which is what a conversation nobody has
+/// spoken in yet actually is.
+///
+/// # Errors
+///
+/// Fails when the log cannot be opened or read.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_load_thread(
+    state: State<'_, AgentRuntime>,
+    request: AgentLoadThreadRequest,
+) -> AgentCommandResult<AgentThreadTranscript> {
+    let Ok(thread_id) = Uuid::parse_str(&request.thread_id) else {
+        return Ok(AgentThreadTranscript {
+            thread_id: request.thread_id,
+            events: Vec::new(),
+        });
+    };
+
+    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let events = store.thread_events(thread_id).map_err(persistence)?;
+
+    Ok(AgentThreadTranscript {
+        thread_id: request.thread_id,
         events: events.into_iter().map(|event| event.payload).collect(),
     })
 }
