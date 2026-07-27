@@ -2,7 +2,7 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --ui-background: var(--ui-palette-neutral-25);
+  --ui-background: var(--ui-palette-neutral-50);
   --ui-foreground: var(--ui-palette-neutral-850);
   --ui-surface: var(--ui-palette-white);
   --ui-chrome: var(--ui-palette-neutral-75);

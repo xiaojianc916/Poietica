@@ -1,194 +1,543 @@
-=== 1. migrations.rs (whole) ===
-1  use rusqlite::Connection;
-2  
-3  use crate::error::Result;
-4  
-5  /// Ordered migrations. Never edit one that has shipped; add the next.
-6  const MIGRATIONS: &[(i64, &str, &str)] = &[(1, "initial", include_str!("schema/0001_initial.sql"))];
-7  
-8  /// Brings the database up to the current schema version.
-9  ///
-10  /// Each migration runs inside a transaction together with the row that records
-11  /// it, so a failure leaves no half applied schema behind.
-12  ///
-13  /// # Errors
-14  ///
-15  /// Fails when a migration statement is rejected.
-16  pub(crate) fn migrate(connection: &mut Connection) -> Result<()> {
-17      connection.execute_batch(
-18          "CREATE TABLE IF NOT EXISTS schema_migrations (
-19              version    INTEGER PRIMARY KEY,
-20              name       TEXT    NOT NULL,
-21              applied_at TEXT    NOT NULL
-22           ) STRICT;",
-23      )?;
-24  
-25      let applied: i64 = connection.query_row(
-26          "SELECT coalesce(max(version), 0) FROM schema_migrations",
-27          [],
-28          |row| row.get(0),
-29      )?;
-30  
-31      for (version, name, sql) in MIGRATIONS {
-32          if *version <= applied {
-33              continue;
-34          }
-35  
-36          let transaction = connection.transaction()?;
-37          transaction.execute_batch(sql)?;
-38          transaction.execute(
-39              "INSERT INTO schema_migrations (version, name, applied_at)
-40               VALUES (?1, ?2, datetime('now'))",
-41              rusqlite::params![version, name],
-42          )?;
-43          transaction.commit()?;
-44      }
-45  
-46      Ok(())
-47  }
-48  
-=== 2. store.rs 1-140 ===
-1  use std::path::Path;
-2  
-3  use rusqlite::{Connection, ErrorCode};
-4  use serde::{Deserialize, Serialize};
-5  use time::OffsetDateTime;
-6  use time::format_description::well_known::Rfc3339;
-7  use uuid::Uuid;
-8  
-9  use crate::connection::open_encrypted;
-10  use crate::error::{Result, StoreError};
-11  use crate::key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
-12  use crate::migrations::migrate;
-13  
-14  /// Lifecycle of a single agent run.
-15  #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-16  #[serde(rename_all = "snake_case")]
-17  pub enum RunStatus {
-18      /// The agent is still producing updates.
-19      Running,
-20      /// The agent stopped on its own terms.
-21      Finished,
-22      /// The agent or the transport failed.
-23      Failed,
-24      /// The user stopped it.
-25      Cancelled,
-26  }
-27  
-28  impl RunStatus {
-29      const fn as_str(self) -> &'static str {
-30          match self {
-31              Self::Running => "running",
-32              Self::Finished => "finished",
-33              Self::Failed => "failed",
-34              Self::Cancelled => "cancelled",
-35          }
-36      }
-37  }
-38  
-39  /// One recorded entry of the event log.
-40  #[derive(Clone, Debug, Deserialize, Serialize)]
-41  pub struct StoredEvent {
-42      /// Position within the run, starting at one.
-43      pub seq: i64,
-44      /// Discriminator carried by the event payload.
-45      pub kind: String,
-46      /// The event itself, as it was received.
-47      pub payload: serde_json::Value,
-48      /// When the event was written, in RFC 3339.
-49      pub recorded_at: String,
-50  }
-51  
-52  /// Owns the encrypted database.
-53  ///
-54  /// A single writer is intentional. The log is the contention point and its
-55  /// ordering is what everything else relies on, so serialising writes here is
-56  /// simpler and safer than reconciling interleaved sequence numbers later.
-57  #[derive(Debug)]
-58  pub struct AiStore {
-59      pub(crate) connection: Connection,
-60  }
-61  
-62  pub(crate) fn now() -> Result<String> {
-63      Ok(OffsetDateTime::now_utc().format(&Rfc3339)?)
-64  }
-65  
-66  impl AiStore {
-67      /// Opens the store with the key held in the operating system credential
-68      /// store.
-69      ///
-70      /// # Errors
-71      ///
-72      /// Fails when the credential store is unavailable, the key does not fit
-73      /// the file, or a migration is rejected.
-74      pub fn open(path: &Path) -> Result<Self> {
-75          let key = DatabaseKey::load_or_create(KEY_SERVICE, KEY_ACCOUNT)?;
-76          Self::open_with_key(path, &key)
-77      }
-78  
-79      /// Opens the store with a caller supplied key, which is how the tests run
-80      /// without touching a real credential store.
-81      ///
-82      /// # Errors
-83      ///
-84      /// Fails when the key does not fit the file or a migration is rejected.
-85      pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
-86          let mut connection = open_encrypted(path, key)?;
-87          migrate(&mut connection)?;
-88          Ok(Self { connection })
-89      }
+=== desktop-ipc/agent.ts (whole) ===
+1  import { IpcInvocationError, isIpcError } from './error'
+2  import { commands } from './generated/ipc-bindings'
+3  
+4  /**
+5   * The desktop implementation of the agent session port's two dependencies.
+6   *
+7   * It lives here rather than in the feature package because the feature layer
+8   * declares ports and must stay free of a desktop runtime. The application
+9   * composes the two.
+10   *
+11   * Frame shapes are never redefined here. Command payloads come from the
+12   * generated bindings, and the frames themselves are handed onwards as unknown
+13   * because the feature package validates every one of them before use.
+14   */
+15  
+16  /** The channel run frames are broadcast on. */
+17  export const AGENT_EVENT = 'ai-run-event'
+18  
+19  /**
+20   * The envelope the native side broadcasts.
+21   *
+22   * Only the frame is part of the event contract; the run identifier rides
+23   * outside it because it is routing, not content.
+24   */
+25  interface AgentEventEnvelope {
+26    readonly runId: string
+27    readonly seq: number
+28    readonly kind: string
+29    readonly frame: unknown
+30  }
+31  
+32  export interface AgentEventSourceOptions {
+33    /** Reports a transport failure; listening is best-effort by design. */
+34    readonly onListenFailure?: (error: unknown) => void
+35  }
+36  
+37  export interface AgentEventSource {
+38    readonly listen: (handler: (payload: unknown) => void) => () => void
+39  }
+40  
+41  export interface AgentBridgeOptions {
+42    /** The agent command line; the native side defaults to the Kimi ACP entry point. */
+43    readonly command?: string
+44    /** The working directory the session is created against. */
+45    readonly cwd?: string
+46  }
+47  
+48  export interface AgentCommandBridge {
+49    readonly prompt: (request: {
+50      readonly text: string
+51    }) => Promise<{ readonly runId: string; readonly sessionId: string }>
+52    readonly cancel: (runId: string) => Promise<void>
+53    readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
+54    readonly loadRun: (runId: string) => Promise<readonly unknown[]>
+55  }
+56  
+57  /**
+58   * Subscribes to run frames.
+59   *
+60   * Unsubscribing has to be synchronous for the port, while Tauri's listener
+61   * registration is asynchronous, so a handle that arrives after the caller has
+62   * already given up is torn down immediately instead of leaking.
+63   */
+64  export function createAgentEventSource({
+65    onListenFailure,
+66  }: AgentEventSourceOptions = {}): AgentEventSource {
+67    return {
+68      listen: (handler) => {
+69        let cancelled = false
+70        let stop: (() => void) | null = null
+71  
+72        void import('@tauri-apps/api/event')
+73          .then((module) =>
+74            module.listen<AgentEventEnvelope>(AGENT_EVENT, (event) => {
+75              // The frame is the contract; the envelope is not.
+76              handler(event.payload.frame)
+77            }),
+78          )
+79          .then((unlisten) => {
+80            if (cancelled) {
+81              unlisten()
+82              return
+83            }
+84  
+85            stop = unlisten
+86          })
+87          .catch((error: unknown) => {
+88            onListenFailure?.(error)
+89          })
 90  
-91      /// Creates a thread and returns its identifier.
-92      ///
-93      /// # Errors
-94      ///
-95      /// Fails when the insert is rejected.
-96      pub fn create_thread(&self, title: &str) -> Result<Uuid> {
-97          let id = Uuid::now_v7();
-98          let timestamp = now()?;
+91        return () => {
+92          cancelled = true
+93          stop?.()
+94          stop = null
+95        }
+96      },
+97    }
+98  }
 99  
-100          self.connection.execute(
-101              "INSERT INTO threads (id, title, created_at, updated_at)
-102               VALUES (?1, ?2, ?3, ?3)",
-103              rusqlite::params![id.to_string(), title, timestamp],
-104          )?;
-105  
-106          Ok(id)
+100  /** Turns a thrown IPC error into the package's error type. */
+101  async function call<T>(operation: () => Promise<T>): Promise<T> {
+102    try {
+103      return await operation()
+104    } catch (error) {
+105      if (isIpcError(error)) {
+106        throw new IpcInvocationError(error)
 107      }
 108  
-109      /// Starts a run inside a thread and returns its identifier.
-110      ///
-111      /// # Errors
-112      ///
-113      /// Fails when the insert is rejected.
-114      pub fn start_run(&self, thread_id: Uuid) -> Result<Uuid> {
-115          let id = Uuid::now_v7();
-116          let timestamp = now()?;
-117  
-118          self.connection.execute(
-119              "INSERT INTO runs (id, thread_id, status, started_at)
-120               VALUES (?1, ?2, ?3, ?4)",
-121              rusqlite::params![
-122                  id.to_string(),
-123                  thread_id.to_string(),
-124                  RunStatus::Running.as_str(),
-125                  timestamp,
-126              ],
-127          )?;
-128  
-129          Ok(id)
-130      }
-131  
-132      /// Appends an event to a run.
-133      ///
-134      /// # Errors
-135      ///
-136      /// Returns [`StoreError::DuplicateSeq`] when the sequence number was
-137      /// already recorded, which is how a redelivered session update is rejected.
-138      pub fn append_event(
-139          &self,
-140          run_id: Uuid,
-=== 3. where the fake threads live ===
-features\ai\src\presentation\AssistantThreadList.tsx:13  export interface AssistantThreadSummary {
-features\ai\src\presentation\AssistantThreadList.tsx:22  readonly threads: readonly AssistantThreadSummary[]
-features\ai\src\presentation\public-api.ts:7  export type { AssistantThreadListProps, AssistantThreadSummary } from './AssistantThreadList'
+109      throw error
+110    }
+111  }
+112  
+113  /**
+114   * The command half of the port.
+115   *
+116   * Cancellation ignores the run identifier because a session runs one turn at a
+117   * time, so there is exactly one turn to stop. Answering a permission request
+118   * is checked natively: an answer naming an option the agent never offered is
+119   * refused rather than acted on.
+120   */
+121  export function createAgentCommandBridge({
+122    command,
+123    cwd,
+124  }: AgentBridgeOptions = {}): AgentCommandBridge {
+125    return {
+126      prompt: async (request) => {
+127        const result = await call(() =>
+128          commands.agentPrompt({
+129            text: request.text,
+130            command: command ?? null,
+131            cwd: cwd ?? null,
+132          }),
+133        )
+134  
+135        return { runId: result.runId, sessionId: result.sessionId }
+136      },
+137  
+138      cancel: async (_runId) => {
+139        await call(() => commands.agentCancel())
+140      },
+141  
+142      resolvePermission: async (requestId, optionId) => {
+143        await call(() => commands.agentResolvePermission({ requestId, optionId }))
+144      },
+145  
+146      loadRun: async (runId) => {
+147        const snapshot = await call(() => commands.agentLoadRun({ runId, afterSeq: null }))
+148  
+149        return snapshot.events
+150      },
+151    }
+152  }
+153  
+154  /*
+155   * The model list is a file, reached through two ordinary commands.
+156   *
+157   * Nothing is cached and nothing is merged here: the native side reads the
+158   * agent's own configuration file, and a switch answers with the state that
+159   * file is in afterwards.
+160   */
+161  
+162  /** One model the agent's configuration declares. */
+163  export interface AgentModelDescription {
+164    readonly id: string
+165    readonly label: string
+166    readonly provider?: string
+167  }
+168  
+169  export interface AgentModelListing {
+170    readonly models: readonly AgentModelDescription[]
+171    readonly activeModelId?: string
+172  }
+173  
+174  export interface AgentModelBridge {
+175    readonly list: () => Promise<AgentModelListing>
+176    readonly select: (modelId: string) => Promise<AgentModelListing>
+177  }
+178  
+179  interface NativeModel {
+180    readonly id: string
+181    readonly label: string
+182    readonly provider: string | null
+183  }
+184  
+185  interface NativeModelList {
+186    readonly models: readonly NativeModel[]
+187    readonly active: string | null
+188  }
+189  
+190  /**
+191   * Turns the native answer into the shape the port declares.
+192   *
+193   * The wire says null for absent and the port says absent, which under
+194   * exactOptionalPropertyTypes are different types, so the key is left out
+195   * rather than set to undefined.
+196   */
+197  function listing(result: NativeModelList): AgentModelListing {
+198    return {
+199      models: result.models.map((model) => ({
+200        id: model.id,
+201        label: model.label,
+202        ...(model.provider === null ? {} : { provider: model.provider }),
+203      })),
+204      ...(result.active === null ? {} : { activeModelId: result.active }),
+205    }
+206  }
+207  
+208  export function createAgentModelBridge(): AgentModelBridge {
+209    return {
+210      list: async () => listing(await call(() => commands.agentModels())),
+211  
+212      select: async (modelId) => listing(await call(() => commands.agentSelectModel({ modelId }))),
+213    }
+214  }
+215  
+216  /** Ends the session and lets the agent process exit. */
+217  export async function shutdownAgent(): Promise<void> {
+218    await call(() => commands.agentShutdown())
+219  }
+220  
+221  /*
+222   * The selectors the live session offers, reached through two commands.
+223   *
+224   * Nothing the protocol defines is redefined here. The categories are the
+225   * agent, and an empty list means no session has been created yet rather
+226   * than an agent with nothing to offer.
+227   */
+228  
+229  /** What a selector is for, as far as the interface is concerned. */
+230  export type AgentConfigPurposeName = 'mode' | 'model' | 'other' | 'thought'
+231  
+232  export interface AgentConfigChoiceDescription {
+233    readonly value: string
+234    readonly label: string
+235    readonly detail?: string
+236  }
+237  
+238  export interface AgentConfigControlDescription {
+239    readonly id: string
+240    readonly label: string
+241    readonly detail?: string
+242    readonly purpose: AgentConfigPurposeName
+243    readonly current: string
+244    readonly choices: readonly AgentConfigChoiceDescription[]
+245  }
+246  
+247  export interface AgentConfigBridge {
+248    readonly list: () => Promise<readonly AgentConfigControlDescription[]>
+249    readonly select: (
+250      configId: string,
+251      value: string,
+252    ) => Promise<readonly AgentConfigControlDescription[]>
+253  }
+254  
+255  interface NativeChoice {
+256    readonly value: string
+257    readonly label: string
+258    readonly detail: string | null
+259  }
+260  
+261  interface NativeControl {
+262    readonly id: string
+263    readonly label: string
+264    readonly detail: string | null
+265    readonly purpose: string
+266    readonly current: string
+267    readonly choices: readonly NativeChoice[]
+268  }
+269  
+270  /**
+271   * Names the purpose without trusting this build to know every category.
+272   *
+273   * A category nobody here has heard of is carried as other rather than
+274   * dropped: the protocol allows one, and the user should still be able to
+275   * change it.
+276   */
+277  function purposeOf(value: string): AgentConfigPurposeName {
+278    /*
+279     * Case is a serialisation detail, not a decision the interface should
+280     * be at the mercy of. A category the native side spells with a capital
+281     * would otherwise land in other, and every row would be filed under a
+282     * heading none of them belongs to.
+283     */
+284    const named = value.toLowerCase()
+285  
+286    if (named === 'model' || named === 'thought' || named === 'mode') {
+287      return named
+288    }
+289  
+290    return 'other'
+291  }
+292  
+293  /*
+294   * The wire says null for absent and the port says absent, which under
+295   * exactOptionalPropertyTypes are different types, so the key is left out.
+296   */
+297  function choiceOf(native: NativeChoice): AgentConfigChoiceDescription {
+298    return {
+299      value: native.value,
+300      label: native.label,
+301      ...(native.detail === null ? {} : { detail: native.detail }),
+302    }
+303  }
+304  
+305  function controlOf(native: NativeControl): AgentConfigControlDescription {
+306    return {
+307      id: native.id,
+308      label: native.label,
+309      purpose: purposeOf(native.purpose),
+310      current: native.current,
+311      choices: native.choices.map(choiceOf),
+312      ...(native.detail === null ? {} : { detail: native.detail }),
+313    }
+314  }
+315  
+316  export function createAgentConfigBridge(): AgentConfigBridge {
+317    return {
+318      list: async () => {
+319        const offered = await call(() => commands.agentConfigOptions())
+320  
+321        return offered.map(controlOf)
+322      },
+323  
+324      select: async (configId, value) => {
+325        const offered = await call(() => commands.agentSetConfigOption({ configId, value }))
+326  
+327        return offered.map(controlOf)
+328      },
+329    }
+330  }
+331  
+=== desktop-ipc/agent-session.ts (whole) ===
+[missing] platforms/desktop-ipc/src/agent-session.ts
+=== AssistantThreadList.tsx (whole) ===
+1  import './assistant.css'
+2  
+3  import { Edit, ExternalLink, Link, Trash } from '@mynaui/icons-react'
+4  import {
+5    DropdownMenu,
+6    DropdownMenuContent,
+7    DropdownMenuItem,
+8    DropdownMenuSeparator,
+9    DropdownMenuTrigger,
+10  } from '@poietica/foundations-design-system'
+11  import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+12  
+13  /*
+14   * The thread list.
+15   *
+16   * Creating a thread is a property of the list, not of whichever group happens
+17   * to sort first, so the button lives in the list header and survives an empty
+18   * list. Grouping is one pass: filtering the whole array once per group was
+19   * quadratic in the number of threads, which is exactly the axis that grows.
+20   */
+21  
+22  export interface AssistantThreadSummary {
+23    readonly id: string
+24    readonly title: string
+25    readonly relativeTime: string
+26    readonly group: string
+27    readonly isMuted?: boolean
+28  }
+29  
+30  export interface AssistantThreadListProps {
+31    readonly threads: readonly AssistantThreadSummary[]
+32    readonly activeThreadId: string | null
+33    readonly onActivate: (threadId: string) => void
+34    readonly onCreate: () => void
+35    readonly onPin: (threadId: string) => void
+36    readonly onCopyLink?: (threadId: string) => void
+37    readonly onMarkUnread?: (threadId: string) => void
+38    readonly onRename?: (threadId: string) => void
+39    readonly onDelete?: (threadId: string) => void
+40    readonly onOpenInNewTab?: (threadId: string) => void
+41  }
+42  
+43  function group(threads: readonly AssistantThreadSummary[]) {
+44    const grouped = new Map<string, AssistantThreadSummary[]>()
+45  
+46    for (const thread of threads) {
+47      const held = grouped.get(thread.group)
+48  
+49      if (held === undefined) grouped.set(thread.group, [thread])
+50      else held.push(thread)
+51    }
+52  
+53    return [...grouped]
+54  }
+55  
+56  export function AssistantThreadList({
+57    threads,
+58    activeThreadId,
+59    onActivate,
+60    onCreate,
+61    onPin,
+62    onCopyLink,
+63    onMarkUnread,
+64    onRename,
+65    onDelete,
+66    onOpenInNewTab,
+67  }: AssistantThreadListProps) {
+68    const groups = group(threads)
+69  
+70    return (
+71      <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
+72        <header className="assistant-threads__header">
+73          <span className="assistant-threads__caption">会话</span>
+74  
+75          <button
+76            aria-label="新建会话"
+77            className="assistant-threads__create"
+78            onClick={onCreate}
+79            type="button"
+80          >
+81            <PlusIcon aria-hidden="true" />
+82          </button>
+83        </header>
+84  
+85        {groups.length === 0 ? (
+86          <p className="assistant-threads__empty">还没有会话。</p>
+87        ) : (
+88          groups.map(([name, members]) => (
+89            <section className="assistant-threads__group" key={name}>
+90              <span className="assistant-threads__caption">{name}</span>
+91  
+92              <ul className="assistant-threads__list">
+93                {members.map((thread) => (
+94                  <li
+95                    className="assistant-thread"
+96                    data-active={thread.id === activeThreadId ? 'true' : undefined}
+97                    data-muted={thread.isMuted === true ? 'true' : undefined}
+98                    key={thread.id}
+99                  >
+100                    <button
+101                      className="assistant-thread__open"
+102                      onClick={() => {
+103                        onActivate(thread.id)
+104                      }}
+105                      type="button"
+106                    >
+107                      <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
+108                      <span className="assistant-thread__title">{thread.title}</span>
+109                    </button>
+110  
+111                    <span className="assistant-thread__time">{thread.relativeTime}</span>
+112  
+113                    <span className="assistant-thread__actions">
+114                      <button
+115                        className="assistant-thread__action"
+116                        onClick={() => {
+117                          onPin(thread.id)
+118                        }}
+119                        title="固定"
+120                        type="button"
+121                      >
+122                        <PinIcon aria-hidden="true" />
+123                      </button>
+124  
+125                      <DropdownMenu>
+126                        <DropdownMenuTrigger
+127                          aria-label="更多操作"
+128                          className="assistant-thread__action"
+129                          title="更多操作"
+130                        >
+131                          <MoreIcon aria-hidden="true" />
+132                        </DropdownMenuTrigger>
+133  
+134                        {/*
+135                          DropdownMenuContent is rendered through a Portal. Reapply
+136                          the AI skin at this DOM boundary so --cp-* tokens remain
+137                          available after the popup leaves the sidebar subtree.
+138                        */}
+139                        <DropdownMenuContent
+140                          align="end"
+141                          className="assistant-thread-menu assistant-menu-surface"
+142                          data-assistant-skin
+143                          side="bottom"
+144                          sideOffset={4}
+145                        >
+146                          <DropdownMenuItem
+147                            className="assistant-thread-menu__item"
+148                            onSelect={() => onCopyLink?.(thread.id)}
+149                          >
+150                            <Link aria-hidden="true" />
+151                            <span>拷贝链接</span>
+152                          </DropdownMenuItem>
+153  
+154                          <DropdownMenuItem
+155                            className="assistant-thread-menu__item"
+156                            onSelect={() => onPin(thread.id)}
+157                          >
+158                            <PinIcon aria-hidden="true" />
+159                            <span>固定</span>
+160                          </DropdownMenuItem>
+161  
+162                          <DropdownMenuItem
+163                            className="assistant-thread-menu__item"
+164                            onSelect={() => onMarkUnread?.(thread.id)}
+165                          >
+166                            <ThreadIcon aria-hidden="true" />
+167                            <span>标记为未读</span>
+168                          </DropdownMenuItem>
+169  
+170                          <DropdownMenuItem
+171                            className="assistant-thread-menu__item"
+172                            onSelect={() => onRename?.(thread.id)}
+173                          >
+174                            <Edit aria-hidden="true" />
+175                            <span>重命名</span>
+176                          </DropdownMenuItem>
+177  
+178                          <DropdownMenuItem
+179                            className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
+180                            onSelect={() => onDelete?.(thread.id)}
+181                          >
+182                            <Trash aria-hidden="true" />
+183                            <span>删除</span>
+184                          </DropdownMenuItem>
+185  
+186                          <DropdownMenuSeparator className="assistant-thread-menu__separator" />
+187  
+188                          <DropdownMenuItem
+189                            className="assistant-thread-menu__item"
+190                            onSelect={() => onOpenInNewTab?.(thread.id)}
+191                          >
+192                            <ExternalLink aria-hidden="true" />
+193                            <span>在新选项卡中打开</span>
+194                          </DropdownMenuItem>
+195                        </DropdownMenuContent>
+196                      </DropdownMenu>
+197                    </span>
+198                  </li>
+199                ))}
+200              </ul>
+201            </section>
+202          ))
+203        )}
+204      </nav>
+205    )
+206  }
+207  
+=== AssistantSurface.tsx :: thread lines ===
