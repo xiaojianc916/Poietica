@@ -30,7 +30,7 @@ describe('replay session', () => {
 })
 
 describe('ipc session', () => {
-  it('drops malformed frames instead of forwarding them', () => {
+  it('把畸形帧变成一条可见的拒绝，而不是原样转发', () => {
     let emit: (payload: unknown) => void = () => {}
     const issues: string[] = []
 
@@ -56,7 +56,17 @@ describe('ipc session', () => {
     emit({ kind: 'nonsense' })
     emit(SAMPLE_RUN_EVENTS.at(0))
 
+    /*
+     * 适配器先把畸形帧报告出去，再在它的位置上发出一条 run_failed 拒绝，
+     * 这样时间线呈现的是「这一轮被中断了」，而不是「助手根本没说话」。
+     * seq 为 0 是刻意的：真实帧从 1 开始编号，永不碰撞，reducer 只保留每轮
+     * 第一条拒绝。详见 ipc-session.ts 里 refusedFrame 上方的论证。
+     *
+     * 旧断言要求畸形帧不留痕迹地消失，那正是这个适配器明确放弃的策略。
+     */
     expect(issues).toHaveLength(1)
-    expect(received).toHaveLength(1)
+    expect(received).toHaveLength(2)
+    expect(received.at(0)).toMatchObject({ kind: 'run_failed', seq: 0 })
+    expect(received.at(1)).toEqual(SAMPLE_RUN_EVENTS.at(0))
   })
 })

@@ -207,12 +207,20 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
+    /*
+     * targetIndex 是这个标签最终应当所在的位置，不是它挤掉的那个邻居。
+     *
+     * 先移除源元素，数组就已经变短；在短数组的 targetIndex 处插入，落点正好
+     * 是结果里的 targetIndex。之前这里在向右拖动时额外减一，于是每次向右拖
+     * 都少落一格，而上一行 maximumIndex = entries.length - 1 明确允许的最后
+     * 一格永远无法到达。夹紧上界和那个补偿不可能同时正确。
+     *
+     * boundedTarget 已经夹在 [minimumIndex, maximumIndex] 内，插入位置无需
+     * 再取一次 max。
+     */
     const mutableEntries = [...entries]
     mutableEntries.splice(sourceIndex, 1)
-
-    const adjustedTarget = sourceIndex < boundedTarget ? boundedTarget - 1 : boundedTarget
-
-    mutableEntries.splice(Math.max(minimumIndex, adjustedTarget), 0, source)
+    mutableEntries.splice(boundedTarget, 0, source)
 
     entries = mutableEntries
     emit()

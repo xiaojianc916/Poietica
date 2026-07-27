@@ -148,16 +148,21 @@ export function commitSelectionTransform({
 /*
  * One walk over the selection.
  *
- * This previously took five separate walks, three of which called
- * editor.getShapeUtil(shape) independently, so every shape was looked up three
- * times on every frame of a drag. A sixth walk built a rotations array that was
- * read once for its first element and then discarded, allocating an N-element
- * array per frame for nothing.
+ * This previously took five separate walks, three of which resolved the same
+ * shape's ShapeUtil independently, so every shape was looked up three times on
+ * every frame of a drag. A sixth walk built a rotations array that was read
+ * once for its first element and then discarded, allocating an N-element array
+ * per frame for nothing.
  *
- * The three ShapeUtil predicates short-circuit individually today. Fusing them
- * means all three have to settle before the loop can stop, so the loop breaks as
- * soon as they have. In the ordinary case, where everything is resizable and
- * rotatable, the old code walked all three to completion anyway.
+ * The comment this replaces claimed the loop "breaks as soon as" the three
+ * capability predicates settle. It never did, and still does not — settling
+ * only lets the body skip one ShapeUtil lookup. Nothing here can stop early,
+ * because rotation and lock state have to be read for every shape regardless.
+ *
+ * The pass below is still single, and each shape still resolves its ShapeUtil
+ * at most once. What the two observe helpers buy is that the condition allowing
+ * a lookup to be skipped now sits beside the three predicates that depend on
+ * it, instead of being something the reader has to re-derive.
  */
 /*
  * 遍历期间累加的可变状态。

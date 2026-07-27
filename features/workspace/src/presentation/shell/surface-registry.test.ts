@@ -14,13 +14,27 @@ const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
   'extensions',
 ]
 
+/*
+ * React 的组件类型不一定是函数。
+ *
+ * 这张注册表里的图标来自 @mynaui/icons-react，每个都被 forwardRef 包过一层，
+ * 因此 typeof 是 'object'。旧断言要求它是函数，于是循环里第一个图标就失败，
+ * 而所有图标其实渲染得好好的。这个测试真正关心的是 React 能否渲染这个值，
+ * 而普通函数组件、forwardRef、memo 三者都满足这一点。
+ */
+function isRenderableComponent(value: unknown): boolean {
+  if (typeof value === 'function') return true
+
+  return typeof value === 'object' && value !== null && '$$typeof' in value
+}
+
 describe('WORKSPACE_SURFACE_REGISTRY', () => {
   it('为每个表面提供可渲染的图标与标题', () => {
     for (const id of SURFACE_IDS) {
       const descriptor = WORKSPACE_SURFACE_REGISTRY[id]
 
       expect(descriptor, `missing descriptor for ${id}`).toBeDefined()
-      expect(typeof descriptor.icon).toBe('function')
+      expect(isRenderableComponent(descriptor.icon), `icon for ${id} is not renderable`).toBe(true)
       expect(descriptor.title.length).toBeGreaterThan(0)
     }
   })

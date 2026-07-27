@@ -618,11 +618,13 @@ mod tests {
         let first_hash = sha256(&first_bytes);
         let second_hash = sha256(&second_bytes);
 
-        // Deliberately out of hash order — sorting is the encoder's responsibility,
-        // and the round-trip test asserts it.
+        // Deliberately out of hash order — sorting is the encoder's job, and
+        // the round-trip test below asserts it.
         //
-        // The hashes are owned by this frame and borrowed by the input, so no
-        // Box::leak is needed to satisfy the lifetime.
+        // Both hashes are owned by this frame and merely borrowed by the input,
+        // so the lifetime works out without pushing anything into 'static. The
+        // helper this replaces widened the borrow by leaking one heap
+        // allocation per asset, on every test run, for no benefit.
         encode_draw_document(DrawDocumentInput {
             created_at: "2026-07-23T00:00:00.000Z",
             saved_at: "2026-07-23T01:00:00.000Z",
@@ -645,7 +647,6 @@ mod tests {
     }
 
     #[test]
-    fn round_trips_draw_document_and_assets() {
     fn round_trips_draw_document_and_assets() {
         let encoded = encode_fixture_document();
 

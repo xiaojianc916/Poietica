@@ -4,9 +4,9 @@
  * 本文件只有一层：一个选择器一处定义。
  *
  * 之前它是三层叠出来的：基础层定义了页脚、状态区、品牌区与操作条，后两层
- * 又用 display: none !important 把它们盖掉。而 SettingsDialog.tsx 里这些
- * 节点早就不再渲染了，所以那两条 !important 隐藏的是不存在的 DOM。删除的
- * 是化石，不是样式。
+ * 再用带 !important 的 none 声明把它们整片盖掉。而这些节点在 SettingsDialog
+ * 里早就不再渲染了，所以那两条覆盖隐藏的是不存在的 DOM。删除的是化石，
+ * 不是样式。
  *
  * 唯一保留的 !important 在文件末尾的 prefers-reduced-motion 块里：那是覆盖
  * 第三方动效的正当用法，逐条附了抑制说明。
@@ -436,15 +436,11 @@
   }
 }
 
-/* Settings refinement: compact,
-quiet and task-focused. */
-
 .settings-dialog {
   height: min(680px, calc(100dvh - 32px));
 }
 
-/* The content still scrolls,
-but no scrollbar track or thumb is shown. */
+/* The content still scrolls, but no scrollbar track or thumb is shown. */
 .settings-content {
   position: relative;
   scrollbar-width: none;
@@ -546,9 +542,6 @@ but no scrollbar track or thumb is shown. */
  * implementation,
 but remove the entire visual header region.
  */
-/* No Save {
-  display: none !important;
-}
 
 /* Content now occupies the full dialog height. */
 .settings-dialog__viewport {
