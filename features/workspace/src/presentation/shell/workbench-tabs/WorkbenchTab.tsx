@@ -1,7 +1,7 @@
-import { FilePlus, FileText, X } from '@mynaui/icons-react'
+import { FileText, X } from '@mynaui/icons-react'
 import type { ComponentType, KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
-import { describeWorkspaceSurface } from '../surface-registry'
+import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
@@ -201,8 +201,9 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
+  /* 与侧栏「画布」同一个图标：用户点进来的入口和留下的标签必须看起来是一回事。 */
   if (model.kind === 'start') {
-    return FilePlus
+    return CANVAS_START_DESCRIPTOR.icon
   }
 
   if (model.kind === 'canvas') {

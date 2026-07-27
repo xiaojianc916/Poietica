@@ -15,7 +15,7 @@ import type {
   WorkspaceSurfaceViewModel,
   WorkspaceTabViewModel,
 } from '../../contracts/public-api'
-import { START_TAB_ID } from '../../contracts/public-api'
+import { START_TAB_ID, START_TAB_TITLE } from '../../contracts/public-api'
 
 type WorkbenchEntry = StartEntry | CanvasEntry | WorkspaceEntry
 
@@ -74,21 +74,26 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       listener()
     }
   }
-  /**
-   * The start tab is the canvas surface's empty state, not a permanent fixture.
-   * Opening a canvas — or any workspace surface — turns that placeholder into
-   * the thing that was opened, in the very slot it occupied, so the strip never
-   * carries a stale empty tab beside a real one.
+  /*
+   * 起始页就是画布本身的空态：它占的那一格是「画布槽」。
+   *
+   * 因此只有画布可以就地顶掉它——新建或打开成功后，用户正看着的那一格直接
+   * 变成画布，标签总数不变。这是专业软件的行为（VS Code 的欢迎页被真实编辑器
+   * 接管，Figma 的空文档区被文档接管），而不是并排再开一个。
+   *
+   * 其它工作区表面一律走 insertToActiveRight：点侧栏的「搜索」不应该悄悄吃掉
+   * 用户的画布槽。此前这里对任何表面都做替换，而当时没有任何代码构造 start
+   * 条目，findIndex 恒为 -1，整段替换分支不可达——原注释描述的行为从未发生过。
    */
-  function openEntry(entry: WorkbenchEntry): void {
-    const placeholder = entries.findIndex((candidate) => candidate.kind === 'start')
+  function openInCanvasSlot(entry: WorkbenchEntry): void {
+    const slot = entries.findIndex((candidate) => candidate.kind === 'start')
 
-    if (placeholder < 0) {
+    if (slot < 0) {
       insertToActiveRight(entry)
       return
     }
 
-    entries = entries.map((candidate, index) => (index === placeholder ? entry : candidate))
+    entries = entries.map((candidate, index) => (index === slot ? entry : candidate))
 
     activeTabId = entry.id
     emit()
@@ -119,7 +124,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
-    openEntry({
+    openInCanvasSlot({
       id: `canvas:${sessionId}`,
       kind: 'canvas',
       title: request.title,
@@ -140,12 +145,34 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return
     }
 
-    openEntry({
+    insertToActiveRight({
       id: tabId,
       kind: 'workspace',
       title: request.title,
       canClose: true,
       surfaceId: request.surfaceId,
+    })
+  }
+
+  /*
+   * 画布槽的入口：侧栏「画布」打开的就是这一格。
+   *
+   * id 固定为 START_TAB_ID，所以最多只会存在一个起始页；已经有一个时只激活它，
+   * 不必再去比对标题或形态。
+   */
+  function openCanvasStart(): void {
+    const existing = entries.find((entry) => entry.id === START_TAB_ID)
+
+    if (existing) {
+      activateTab(existing.id)
+      return
+    }
+
+    insertToActiveRight({
+      id: START_TAB_ID,
+      kind: 'start',
+      title: START_TAB_TITLE,
+      canClose: true,
     })
   }
 
@@ -221,13 +248,16 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
 
     const source = entries[sourceIndex]
 
-    if (!source || source.kind === 'start') {
+    if (!source) {
       return
     }
 
-    const minimumIndex = entries.some((candidate) => candidate.kind === 'start') ? 1 : 0
-    const maximumIndex = entries.length - 1
-    const boundedTarget = Math.max(minimumIndex, Math.min(maximumIndex, targetIndex))
+    /*
+     * 没有被钉住的标签。起始页与画布是同一格的两种形态，把空态钉在首位之后，
+     * 用户就永远无法把刚打开的画布拖到最左——那两道守卫是为一个不可达的形态
+     * 写的，现在形态活了，钉住反而成了产品缺陷。
+     */
+    const boundedTarget = Math.max(0, Math.min(entries.length - 1, targetIndex))
 
     if (sourceIndex === boundedTarget) {
       return
@@ -238,11 +268,10 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
      *
      * 先移除源元素，数组就已经变短；在短数组的 targetIndex 处插入，落点正好
      * 是结果里的 targetIndex。之前这里在向右拖动时额外减一，于是每次向右拖
-     * 都少落一格，而上一行 maximumIndex = entries.length - 1 明确允许的最后
-     * 一格永远无法到达。夹紧上界和那个补偿不可能同时正确。
+     * 都少落一格，而上界 entries.length - 1 明确允许的最后一格永远无法到达。
+     * 夹紧上界和那个补偿不可能同时正确。
      *
-     * boundedTarget 已经夹在 [minimumIndex, maximumIndex] 内，插入位置无需
-     * 再取一次 max。
+     * boundedTarget 已经夹在 [0, entries.length - 1] 内，插入位置无需再取一次 max。
      */
     const mutableEntries = [...entries]
     mutableEntries.splice(sourceIndex, 1)
@@ -278,6 +307,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
 
     createCanvas,
     openWorkspaceSurface,
+    openCanvasStart,
     activateTab,
     closeTab,
     moveTab,
@@ -398,8 +428,9 @@ function findCanvasEntry(
 }
 
 function assertInvariants(snapshot: WorkbenchViewModel): void {
+  /* 判的是"至少有一个标签"，与起始页无关；旧名字描述的是另一条不存在的规则。 */
   if (snapshot.tabs.length === 0) {
-    throw new Error('WORKBENCH_REQUIRES_START_TAB')
+    throw new Error('WORKBENCH_REQUIRES_TAB')
   }
 
   const ids = new Set(snapshot.tabs.map((tab) => tab.id))
@@ -410,7 +441,8 @@ function assertInvariants(snapshot: WorkbenchViewModel): void {
 
   const startTab = snapshot.tabs.find((tab) => tab.id === START_TAB_ID)
 
-  if (startTab && (startTab.kind !== 'start' || startTab.canClose)) {
+  /* 只校验 id 与形态一致；能否关闭是产品决定，起始页当然可关。 */
+  if (startTab && startTab.kind !== 'start') {
     throw new Error('WORKBENCH_INVALID_START_TAB')
   }
 

@@ -255,6 +255,10 @@ export function WorkspaceContainer({
         })
       },
 
+      openCanvasStart() {
+        port.workspace.openCanvasStart()
+      },
+
       activatePage(pageId) {
         activeEditorSession?.activatePage(pageId)
       },
@@ -472,16 +476,6 @@ function renderActiveSurface({
       return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />
 
     case 'workspace':
-      /*
-       * "pages" is the canvas/workspace landing surface. It must render the
-       * actionable empty canvas state instead of WorkspaceSurface's generic
-       * fallback placeholder. The callbacks already create a real canvas or
-       * open the platform file workflow.
-       */
-      if (activeSurface.surfaceId === 'pages') {
-        return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />
-      }
-
       return <WorkspaceSurface renderers={surfaceRenderers} surfaceId={activeSurface.surfaceId} />
 
     case 'canvas':

@@ -3,11 +3,13 @@ import type { ReactNode } from 'react'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'
+import type { WorkspaceNavigationId } from './surface-registry'
 
 export interface WorkspaceSidebarProps {
-  readonly activeSurfaceId: WorkspaceSurfaceId
+  readonly activeNavigationId: WorkspaceNavigationId | null
   readonly panel: ReactNode
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
+  readonly onCanvasStartActivate: () => void
   readonly onCreateConversation: () => void
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -27,9 +29,10 @@ export interface WorkspaceSidebarProps {
  * 面板本体由 apps 组合根注入，features/* 之间不互相依赖这条规则不变。
  */
 export function WorkspaceSidebar({
-  activeSurfaceId,
+  activeNavigationId,
   panel,
   onSurfaceActivate,
+  onCanvasStartActivate,
   onCreateConversation,
   onSettingsOpen,
   onDeveloperToolsOpen,
@@ -37,7 +40,8 @@ export function WorkspaceSidebar({
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <SidebarNav
-        activeSurfaceId={activeSurfaceId}
+        activeNavigationId={activeNavigationId}
+        onCanvasStartActivate={onCanvasStartActivate}
         onCreateConversation={onCreateConversation}
         onSurfaceActivate={onSurfaceActivate}
       />

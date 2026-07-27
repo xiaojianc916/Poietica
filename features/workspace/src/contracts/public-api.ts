@@ -14,6 +14,7 @@ export {
   EMPTY_WORKBENCH_VIEW_MODEL,
   type OpenWorkspaceSurfaceRequest,
   START_TAB_ID,
+  START_TAB_TITLE,
   type StartSurfaceViewModel,
   type StartTabViewModel,
   type WorkbenchSessionCommands,

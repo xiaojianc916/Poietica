@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
-import { WORKSPACE_NAVIGATION_ORDER, WORKSPACE_SURFACE_REGISTRY } from './surface-registry'
+import {
+  describeWorkspaceNavigation,
+  WORKSPACE_NAVIGATION_ORDER,
+  WORKSPACE_SURFACE_REGISTRY,
+} from './surface-registry'
 
 const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
-  'pages',
   'documents',
   'search',
   'layers',
@@ -42,13 +45,20 @@ describe('WORKSPACE_SURFACE_REGISTRY', () => {
     }
   })
 
-  it('不包含已废弃的 data 表面', () => {
+  it('不包含已废弃的 data / pages 表面', () => {
     expect(Object.keys(WORKSPACE_SURFACE_REGISTRY)).not.toContain('data')
+
+    /* 画布不是 surface：它是被文档占据的那一格，空态是一等的 start 标签。 */
+    expect(Object.keys(WORKSPACE_SURFACE_REGISTRY)).not.toContain('pages')
   })
 
   it('导航顺序只引用注册表中存在的表面，且不重复', () => {
-    for (const surfaceId of WORKSPACE_NAVIGATION_ORDER) {
-      expect(WORKSPACE_SURFACE_REGISTRY[surfaceId]).toBeDefined()
+    for (const navigationId of WORKSPACE_NAVIGATION_ORDER) {
+      const descriptor = describeWorkspaceNavigation(navigationId)
+
+      expect(descriptor).toBeDefined()
+      expect(descriptor.title.length).toBeGreaterThan(0)
+      expect(descriptor.description.length).toBeGreaterThan(0)
     }
 
     expect(new Set(WORKSPACE_NAVIGATION_ORDER).size).toBe(WORKSPACE_NAVIGATION_ORDER.length)

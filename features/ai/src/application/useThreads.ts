@@ -93,10 +93,31 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     [provisional, threads],
   )
 
-  const activate = useCallback((threadId: string) => {
-    setOpenIds((open) => (open.includes(threadId) ? open : [...open, threadId]))
-    setActiveThreadId(threadId)
-  }, [])
+  const activate = useCallback(
+    (threadId: string) => {
+      /*
+       * Opening a conversation from the list replaces the one on screen.
+       * The list is navigation, not a tab factory: piling up a tab per
+       * click was why switching looked like it did nothing. A conversation
+       * already open is brought forward rather than duplicated.
+       */
+      setOpenIds((open) => {
+        if (open.includes(threadId)) {
+          return open
+        }
+
+        const at = activeThreadId === null ? -1 : open.indexOf(activeThreadId)
+
+        if (at === -1) {
+          return [...open, threadId]
+        }
+
+        return open.map((id, index) => (index === at ? threadId : id))
+      })
+      setActiveThreadId(threadId)
+    },
+    [activeThreadId],
+  )
 
   const openInNewTab = useCallback((threadId: string) => {
     setOpenIds((open) => (open.includes(threadId) ? open : [...open, threadId]))

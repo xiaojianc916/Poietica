@@ -3,58 +3,66 @@ import { cn } from '@poietica/foundations-design-system'
 
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import {
-  describeWorkspaceSurface,
+  CANVAS_START_NAV_ID,
+  describeWorkspaceNavigation,
   type SurfaceIcon,
   WORKSPACE_NAVIGATION_ORDER,
+  type WorkspaceNavigationId,
 } from './surface-registry'
 
 export interface SidebarNavProps {
-  readonly activeSurfaceId: WorkspaceSurfaceId
+  /** 当前高亮的导航项。画布态为 null——画布是文档，不是导航目的地。 */
+  readonly activeNavigationId: WorkspaceNavigationId | null
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
+  readonly onCanvasStartActivate: () => void
   readonly onCreateConversation: () => void
 }
 
 /**
  * 侧边栏顶部导航。
  *
- * 取代原先的窄图标 rail：同一列内的文字 + 图标条目，不再有独立的图标栏。
- *
- * 标题与图标一律来自 surface 注册表，这里不维护第二份 id → 展示 映射。
- * 「新建对话」是唯一的例外，因为它是动作而非 surface。
+ * 标题与图标一律来自导航描述表，这里不维护第二份 id → 展示 映射。
+ * 「新建对话」是唯一的例外，因为它是动作而非导航目标。
  */
 export function SidebarNav({
-  activeSurfaceId,
+  activeNavigationId,
   onSurfaceActivate,
+  onCanvasStartActivate,
   onCreateConversation,
 }: SidebarNavProps) {
   return (
     <nav aria-label="主导航" className="shrink-0 px-1 pb-1 pt-2">
       <ul className="flex flex-col gap-px">
         {/*
-         * 「新建对话」是动作而非 surface，但它打开的就是 ai 表面，所以选中态
-         * 直接由当前表面推出，并且走与其余导航项同一个 NavRow 的 active——高亮
-         * 只有一处真相，不会出现两个导航项同时亮或都不亮。
+         * 「新建对话」是动作而非表面，但它打开的就是 ai 表面，所以选中态直接由
+         * 当前导航项推出，并且走与其余导航项同一个 NavRow 的 active——高亮只有
+         * 一处真相，不会出现两个导航项同时亮或都不亮。
          */}
         <li>
           <NavRow
-            active={activeSurfaceId === 'ai'}
+            active={activeNavigationId === 'ai'}
             icon={Message}
             label="新建对话"
             onClick={onCreateConversation}
           />
         </li>
 
-        {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
-          const { title, icon } = describeWorkspaceSurface(surfaceId)
+        {WORKSPACE_NAVIGATION_ORDER.map((navigationId) => {
+          const { title, icon } = describeWorkspaceNavigation(navigationId)
 
           return (
-            <li key={surfaceId}>
+            <li key={navigationId}>
               <NavRow
-                active={surfaceId === activeSurfaceId}
+                active={navigationId === activeNavigationId}
                 icon={icon}
                 label={title}
                 onClick={() => {
-                  onSurfaceActivate(surfaceId)
+                  if (navigationId === CANVAS_START_NAV_ID) {
+                    onCanvasStartActivate()
+                    return
+                  }
+
+                  onSurfaceActivate(navigationId)
                 }}
               />
             </li>

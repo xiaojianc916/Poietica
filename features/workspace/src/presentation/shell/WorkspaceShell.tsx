@@ -1,12 +1,16 @@
 import { TooltipProvider } from '@poietica/foundations-design-system'
 
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
-import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import type { WorkbenchSurfaceViewModel } from '../../contracts/workbench-contract'
 import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
 import { InspectorRegion } from './InspectorRegion'
 import { SidebarRegion } from './SidebarRegion'
-import { describeWorkspaceSurface } from './surface-registry'
+import {
+  CANVAS_START_NAV_ID,
+  describeWorkspaceSurface,
+  type WorkspaceNavigationId,
+} from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
@@ -41,8 +45,7 @@ export function WorkspaceShell({
 
   const { setSidebarOpen, setSidebarWidth, setInspectorOpen } = workspaceLayoutStore
 
-  const activeSurfaceId: WorkspaceSurfaceId =
-    model.activeSurface.kind === 'workspace' ? model.activeSurface.surfaceId : 'pages'
+  const activeNavigationId = resolveNavigationId(model.activeSurface)
 
   const hasCanvas = model.activeSurface.kind === 'canvas'
   const dockSidebar = mode !== 'narrow' && sidebarOpen
@@ -114,7 +117,11 @@ export function WorkspaceShell({
           >
             {sidebarOverride ?? (
               <WorkspaceSidebar
-                activeSurfaceId={activeSurfaceId}
+                activeNavigationId={activeNavigationId}
+                onCanvasStartActivate={() => {
+                  actions.openCanvasStart()
+                  setSidebarOpen(true)
+                }}
                 onCreateConversation={() => {
                   actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
                   setSidebarOpen(true)
@@ -141,4 +148,24 @@ export function WorkspaceShell({
       />
     </TooltipProvider>
   )
+}
+
+/**
+ * 当前高亮的导航项。
+ *
+ * switch 穷尽三种表面形态，没有兜底值：画布态返回 null，因为画布是文档而不是
+ * 导航目的地，此时任何导航项都不该亮。此前这里在非工作区表面时兜底成 'pages'，
+ * 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。
+ */
+function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceNavigationId | null {
+  switch (surface.kind) {
+    case 'workspace':
+      return surface.surfaceId
+
+    case 'start':
+      return CANVAS_START_NAV_ID
+
+    case 'canvas':
+      return null
+  }
 }

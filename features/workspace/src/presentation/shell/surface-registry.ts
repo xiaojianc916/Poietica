@@ -11,7 +11,7 @@ import {
 } from '@mynaui/icons-react'
 import type { ComponentType } from 'react'
 
-import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import { START_TAB_TITLE, type WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
 export type SurfaceIcon = ComponentType<{
@@ -31,14 +31,11 @@ export interface WorkspaceSurfaceDescriptor {
  * Record<WorkspaceSurfaceId, …> 强制穷尽：新增或重命名 surface 时缺失项会在
  * typecheck 阶段失败，而不是在运行时渲染出 undefined。
  *
- * 消费者（活动栏、侧栏面板占位、主区表面占位）只读本表，不得再抄第二份。
+ * 「画布」不在这张表里：它不是一个可以并排打开的表面，而是被文档占据的那一格，
+ * 其空态是一等的 start 标签。此前它作为 'pages' 混在这里，于是视图层不得不为它
+ * 写一个 if 特例，而工作台又无法把它识别成可被画布顶替的槽位。
  */
 export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSurfaceDescriptor> = {
-  pages: {
-    title: '画布',
-    description: '浏览当前文档中的画布页面。',
-    icon: Grid,
-  },
   documents: {
     title: '恢复',
     description: '恢复最近打开的画布和本地文件。',
@@ -87,16 +84,32 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
 }
 
 /**
+ * 「画布」导航项的标识。
+ *
+ * 它不是 WorkspaceSurfaceId，因为它打开的不是表面而是画布槽；把两者放进同一个
+ * 联合类型，导航列表才能保持一张表、一次遍历，而不用在组件里插一个手写特例行。
+ */
+export const CANVAS_START_NAV_ID = 'canvas-start'
+
+export type WorkspaceNavigationId = WorkspaceSurfaceId | typeof CANVAS_START_NAV_ID
+
+/** 起始页的展示信息。侧栏导航项与起始页标签共用它，标题与图标只有一份。 */
+export const CANVAS_START_DESCRIPTOR: WorkspaceSurfaceDescriptor = {
+  title: START_TAB_TITLE,
+  description: '创建一张新画布，或打开已有的画布文件。',
+  icon: Grid,
+}
+
+/**
  * 侧边栏顶部导航的展示顺序。
  *
  * 顺序是产品决策，与描述符分离；未列出的表面仍可通过命令面板或标签页打开。
  *
- * 「新建对话」不在此列：它是一个动作而不是一个 surface，由 SidebarNav 单独
- * 渲染，避免在注册表里塞一个没有面板的假 surface。
+ * 「新建对话」不在此列：它是一个动作而不是一个导航目标，由 SidebarNav 单独渲染。
  */
-export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = [
+export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceNavigationId[] = [
   'search',
-  'pages',
+  CANVAS_START_NAV_ID,
   'automations',
   'hooks',
 ]
@@ -105,4 +118,12 @@ export function describeWorkspaceSurface(
   surfaceId: WorkspaceSurfaceId,
 ): WorkspaceSurfaceDescriptor {
   return WORKSPACE_SURFACE_REGISTRY[surfaceId]
+}
+
+export function describeWorkspaceNavigation(
+  navigationId: WorkspaceNavigationId,
+): WorkspaceSurfaceDescriptor {
+  return navigationId === CANVAS_START_NAV_ID
+    ? CANVAS_START_DESCRIPTOR
+    : WORKSPACE_SURFACE_REGISTRY[navigationId]
 }

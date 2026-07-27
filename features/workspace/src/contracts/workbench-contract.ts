@@ -5,7 +5,6 @@ export type WorkbenchTabId = string
 export type CanvasTabStatus = 'clean' | 'dirty' | 'saving' | 'failed'
 
 export type WorkspaceSurfaceId =
-  | 'pages'
   | 'documents'
   | 'search'
   | 'layers'
@@ -88,6 +87,16 @@ export interface OpenWorkspaceSurfaceRequest {
 export interface WorkbenchSessionCommands {
   readonly createCanvas: (request: CreateCanvasRequest) => void
   readonly openWorkspaceSurface: (request: OpenWorkspaceSurfaceRequest) => void
+
+  /**
+   * 打开画布槽的空态。
+   *
+   * 画布不是一个 surface：它是被文档占据的那一格。空态因此是一等的标签形态
+   * （kind: 'start'），而不是某个 surfaceId 在视图层的 if 特例。id 固定为
+   * START_TAB_ID，所以起始页天然最多只有一个。
+   */
+  readonly openCanvasStart: () => void
+
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
@@ -117,6 +126,14 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
 }
 
 export const START_TAB_ID: WorkbenchTabId = 'workbench:start'
+
+/**
+ * 起始页（画布槽空态）的标签标题。
+ *
+ * 与侧栏「画布」导航项同名同图标：同一个目标只允许有一个名字，标签与导航
+ * 因此不可能对不上。
+ */
+export const START_TAB_TITLE = '画布'
 
 export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = 'workspace:ai'
 
