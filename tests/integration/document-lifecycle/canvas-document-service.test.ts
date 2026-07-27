@@ -20,7 +20,16 @@ function recordAdded(recordId: string) {
 }
 
 function createHarness() {
-  const currentSnapshot = validSnapshot()
+  const baseSnapshot = validSnapshot()
+
+  /*
+   * 脏状态按内容与保存点比对，所以这个编辑器替身必须像真的那样：change() 既
+   * 发布 diff，也真的改变 captureDocument() 的内容。
+   *
+   * 原先它返回一份恒定快照，于是保存时写回的内容永远不含刚才那次改动，账本
+   * 按内容判定当然仍是脏——那不是实现的问题，是替身表达不出被测的因果。
+   */
+  const records: Record<string, unknown> = { ...baseSnapshot.store }
 
   const documentListeners = new Set<(event: EditorDocumentEvent) => void>()
   const closeEditorSession = vi.fn().mockResolvedValue(undefined)
@@ -39,7 +48,7 @@ function createHarness() {
     documentId: 'editor-document',
 
     captureDocument() {
-      return currentSnapshot
+      return { ...baseSnapshot, store: { ...records } }
     },
 
     captureAssetPersistenceToken() {
@@ -72,11 +81,13 @@ function createHarness() {
 
     ready() {
       for (const listener of documentListeners) {
-        listener({ kind: 'ready' })
+        listener({ kind: 'ready', records: { ...records } })
       }
     },
 
     change(recordId = 'shape:1') {
+      records[recordId] = { id: recordId }
+
       for (const listener of documentListeners) {
         listener({ kind: 'changed', changes: recordAdded(recordId) })
       }
