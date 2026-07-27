@@ -25,7 +25,10 @@ pub struct SessionBook {
 /// The contents are recorders, which are not printable, so the count is.
 impl fmt::Debug for SessionBook {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let open = self.slots.lock().map(HashMap::len).ok();
+        let open = match self.slots.lock() {
+            Ok(ledger) => Some(ledger.len()),
+            Err(_poisoned) => None,
+        };
 
         formatter
             .debug_struct("SessionBook")
@@ -48,7 +51,9 @@ impl SessionBook {
     /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn open(&self, session_id: &str) -> Result<RunSlot> {
         let mut ledger = self.book()?;
-        let opened = ledger.entry(session_id.to_owned()).or_insert_with(RunSlot::new);
+        let opened = ledger
+            .entry(session_id.to_owned())
+            .or_insert_with(RunSlot::new);
 
         Ok(opened.clone())
     }
@@ -135,7 +140,10 @@ mod tests {
             panic!("the book refused a lookup");
         };
 
-        assert!(found.is_some(), "an adopted session must answer with its slot");
+        assert!(
+            found.is_some(),
+            "an adopted session must answer with its slot"
+        );
     }
 
     #[test]

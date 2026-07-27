@@ -31,7 +31,6 @@ mod session;
 mod sessions;
 mod stderr;
 
-pub use sessions::SessionBook;
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
@@ -45,4 +44,5 @@ pub use recorder::{
 };
 pub use run_slot::RunSlot;
 pub use session::{AgentClient, AgentConnection, AgentSpawn, connect};
+pub use sessions::SessionBook;
 pub use stderr::StderrLog;

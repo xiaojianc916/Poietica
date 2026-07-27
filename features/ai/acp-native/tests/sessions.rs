@@ -20,7 +20,10 @@ fn mentioning_one_session_twice_opens_it_once() {
         panic!("the book refused to count its sessions");
     };
 
-    assert_eq!(open, 1, "one session was mentioned, so one slot is expected");
+    assert_eq!(
+        open, 1,
+        "one session was mentioned, so one slot is expected"
+    );
 }
 
 #[test]
@@ -35,7 +38,10 @@ fn a_name_the_book_never_opened_has_no_slot() {
         panic!("the book refused a lookup");
     };
 
-    assert!(found.is_none(), "an unopened session must not answer with a slot");
+    assert!(
+        found.is_none(),
+        "an unopened session must not answer with a slot"
+    );
 }
 
 #[test]

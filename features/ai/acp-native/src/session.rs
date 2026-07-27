@@ -341,9 +341,13 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Err(_unusable) => decide(&request),
                     };
 
-                    let _routed = permissions.record(|recorder| {
-                        recorder.record_permission_resolved(&request_id, &decision);
-                    });
+                    // The answer belongs to the same session as the
+                    // question, and is recorded there or nowhere.
+                    if let Ok(Some(slot)) = permissions.slot(&named) {
+                        let _routed = slot.record(|recorder| {
+                            recorder.record_permission_resolved(&request_id, &decision);
+                        });
+                    }
 
                     responder.respond(reply(&decision))
                 },
@@ -369,13 +373,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 };
                 let session_id = session.session_id.clone();
 
+                // The book is what turns a name into a slot, so this session
+                // is entered in it before any frame of it can arrive.
+                //
+                // A book that cannot be written to could never record this
+                // session, so its name is never published: the caller is
+                // told by the dropped sender instead of being handed a
+                // session that quietly records nothing.
+                if first.adopt(&session_id.to_string(), slot.clone()).is_err() {
+                    return Ok(());
+                }
+
                 // Nobody may still be waiting for the identifier, and that is
                 // not a failure of the session.
                 let _ignored = ready.send(session_id.to_string());
-
-                // The book is what turns a name into a slot, so this session
-                // is entered in it before any frame of it can arrive.
-                first.adopt(&session_id.to_string(), slot.clone())?;
 
                 'commands: loop {
                     let Some(message) = receiver.next().await else {
