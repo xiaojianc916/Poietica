@@ -89,7 +89,7 @@ function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNod
  * whether a turn was ever sent: a state derived from the timeline cannot
  * disagree with it.
  */
-export function AssistantSurface({ endpoint, models, session }: AssistantSurfaceProps) {
+export function AssistantSurface({ config, endpoint, models, session }: AssistantSurfaceProps) {
   /*
    * Under exactOptionalPropertyTypes an absent property and a property set to
    * undefined are different types, so the key is omitted rather than passed

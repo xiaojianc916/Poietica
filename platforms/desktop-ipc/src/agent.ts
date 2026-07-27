@@ -275,8 +275,16 @@ interface NativeControl {
  * change it.
  */
 function purposeOf(value: string): AgentConfigPurposeName {
-  if (value === 'model' || value === 'thought' || value === 'mode') {
-    return value
+  /*
+   * Case is a serialisation detail, not a decision the interface should
+   * be at the mercy of. A category the native side spells with a capital
+   * would otherwise land in other, and every row would be filed under a
+   * heading none of them belongs to.
+   */
+  const named = value.toLowerCase()
+
+  if (named === 'model' || named === 'thought' || named === 'mode') {
+    return named
   }
 
   return 'other'
