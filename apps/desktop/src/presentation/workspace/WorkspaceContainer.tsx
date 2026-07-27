@@ -68,7 +68,6 @@ export interface AppCapabilities {
   readonly settings: boolean
   readonly developerTools: boolean
   readonly windowControls: boolean
-  readonly windowDragging: boolean
 }
 
 export interface WorkspaceUIPort {
@@ -87,7 +86,6 @@ export interface WorkspaceContainerProps {
   readonly onWindowMinimize: () => void
   readonly onWindowMaximize: () => void
   readonly onWindowClose: () => void
-  readonly onWindowStartDragging: () => void
 }
 
 export function WorkspaceContainer({
@@ -101,7 +99,6 @@ export function WorkspaceContainer({
   onWindowMinimize,
   onWindowMaximize,
   onWindowClose,
-  onWindowStartDragging,
 }: WorkspaceContainerProps) {
   const inspectorAvailable = useCanvasInspectorAvailability()
 
@@ -395,7 +392,6 @@ export function WorkspaceContainer({
       panelRenderers={WORKSPACE_PANEL_RENDERERS}
       renderChrome={({
         isSidebarOpen,
-        sidebarWidth,
         tabs: chromeTabs,
         onSidebarToggle,
         onActivateTab,
@@ -410,10 +406,7 @@ export function WorkspaceContainer({
           onMaximize={onWindowMaximize}
           onMinimize={onWindowMinimize}
           onSidebarToggle={onSidebarToggle}
-          onStartDragging={onWindowStartDragging}
-          sidebarWidth={sidebarWidth}
           windowControlsDisabled={!capabilities.windowControls}
-          windowDraggingDisabled={!capabilities.windowDragging}
         >
           <WorkbenchTabs
             onActivate={onActivateTab}

@@ -30,7 +30,6 @@ export interface WorkspaceShellActions {
 
 export interface WorkspaceChromeRenderProps {
   readonly isSidebarOpen: boolean
-  readonly sidebarWidth: number
   readonly tabs: readonly WorkbenchTabViewModel[]
   readonly onSidebarToggle: () => void
   readonly onActivateTab: (tabId: WorkbenchTabId) => void

@@ -126,41 +126,22 @@ mod tests {
     use super::SessionBook;
     use crate::run_slot::RunSlot;
 
-    const NAME: &str = "session_33333333-3333-3333-3333-333333333333";
+    const NAME: &str = "session_33333333-3333-4333-8333-333333333333";
 
     #[test]
     fn an_adopted_slot_answers_under_its_session_name() {
         let book = SessionBook::new();
 
-        let Ok(()) = book.adopt(NAME, RunSlot::new()) else {
-            panic!("the book refused to adopt a slot");
-        };
-
-        let Ok(found) = book.slot(NAME) else {
-            panic!("the book refused a lookup");
-        };
-
-        assert!(
-            found.is_some(),
-            "an adopted session must answer with its slot"
-        );
+        assert!(book.adopt(NAME, RunSlot::new()).is_ok());
+        assert!(matches!(book.slot(NAME), Ok(Some(_))));
     }
 
     #[test]
     fn adopting_a_known_name_does_not_open_a_second_session() {
         let book = SessionBook::new();
 
-        let Ok(_opened) = book.open(NAME) else {
-            panic!("the book refused to open a session");
-        };
-        let Ok(()) = book.adopt(NAME, RunSlot::new()) else {
-            panic!("the book refused to adopt a slot");
-        };
-
-        let Ok(open) = book.open_count() else {
-            panic!("the book refused to count its sessions");
-        };
-
-        assert_eq!(open, 1, "one name is one session, however it was filed");
+        assert!(book.open(NAME).is_ok());
+        assert!(book.adopt(NAME, RunSlot::new()).is_ok());
+        assert!(matches!(book.open_count(), Ok(1)));
     }
 }

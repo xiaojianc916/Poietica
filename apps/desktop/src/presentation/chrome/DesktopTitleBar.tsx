@@ -1,70 +1,45 @@
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
 import { Button, cn } from '@poietica/foundations-design-system'
-import type { MouseEvent, ReactNode } from 'react'
-import { shouldStartWindowDragging } from './window-drag-intent'
+import type { ReactNode } from 'react'
 
 export interface DesktopTitleBarProps {
   readonly children: ReactNode
   readonly onMinimize: () => void
   readonly onMaximize: () => void
   readonly onClose: () => void
-  readonly onStartDragging: () => void
   readonly onSidebarToggle: () => void
   readonly isSidebarOpen: boolean
   readonly isMaximized: boolean
-  readonly sidebarWidth: number
   readonly windowControlsDisabled?: boolean
-  readonly windowDraggingDisabled?: boolean
 }
 
 /**
  * Desktop platform chrome.
  *
- * Window semantics and platform-specific visuals
- * remain local to the desktop application. Generic
- * button, focus and disabled behavior come from the
- * shared design system.
+ * 窗口拖拽与双击最大化由 Tauri 原生处理：标注 data-tauri-drag-region 的元素
+ * 交给 webview（capabilities 已声明 core:window:allow-start-dragging），前端
+ * 不再监听 mousedown、不再维护"哪些元素算交互元素"的黑名单、也不再有一条会
+ * 失败的 startDragging 调用需要降级。
+ *
+ * 只有不含交互子元素的填充区域才标注。原生拖拽一旦开始就吞掉 click，把标注
+ * 挂在包含按钮的容器上会让按钮静默失灵——这正是黑名单方案要兜的底，而结构
+ * 上不可能误命中就不需要兜底。
  */
 export function DesktopTitleBar({
   children,
   onMinimize,
   onMaximize,
   onClose,
-  onStartDragging,
   onSidebarToggle,
   isSidebarOpen,
   isMaximized,
   windowControlsDisabled = false,
-  windowDraggingDisabled = false,
 }: DesktopTitleBarProps) {
-  function handleDragMouseDown(event: MouseEvent<HTMLElement>) {
-    if (windowDraggingDisabled || event.button !== 0) {
-      return
-    }
-
-    if (!shouldStartWindowDragging(event.target)) {
-      return
-    }
-
-    event.preventDefault()
-
-    if (event.detail === 2) {
-      if (!windowControlsDisabled) {
-        onMaximize()
-      }
-
-      return
-    }
-
-    onStartDragging()
-  }
-
   return (
     <div className={cn('flex h-full', 'min-h-0 min-w-0', 'bg-chrome')}>
       <div
         aria-label="窗口标题栏"
         className={cn('flex h-full', 'min-h-0 w-full', 'items-stretch')}
-        onMouseDownCapture={handleDragMouseDown}
         role="toolbar"
       >
         <div
@@ -75,7 +50,6 @@ export function DesktopTitleBar({
             'justify-center',
             'border-b border-divider',
           )}
-          data-window-drag-region
         >
           <Button
             aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
@@ -100,7 +74,7 @@ export function DesktopTitleBar({
 
         <div
           className={cn('shrink-0', 'border-b border-divider')}
-          data-window-drag-region
+          data-tauri-drag-region
           style={{
             borderRightStyle: 'solid',
             borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,

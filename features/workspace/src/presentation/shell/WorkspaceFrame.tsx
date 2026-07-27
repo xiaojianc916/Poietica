@@ -6,9 +6,6 @@ type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
   '--activity-rail-width': `${WORKSPACE_LAYOUT.activityRail.width}px`,
-  '--workspace-sidebar-min': `${WORKSPACE_LAYOUT.sidebar.minWidth}px`,
-  '--workspace-sidebar-max': `${WORKSPACE_LAYOUT.sidebar.maxWidth}px`,
-  '--workspace-sidebar-default': `${WORKSPACE_LAYOUT.sidebar.defaultWidth}px`,
   '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,

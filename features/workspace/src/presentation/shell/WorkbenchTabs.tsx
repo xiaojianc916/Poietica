@@ -80,7 +80,6 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
               'chrome-workbench-tabs__new-tab',
               'chrome-workbench-tabs__new-tab--sticky',
             ].join(' ')}
-            data-window-drag-exclude
             onClick={onCreate}
             ref={newTabRef}
             type="button"
@@ -91,7 +90,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
           <div
             aria-hidden="true"
             className="chrome-workbench-tabs__drag-region"
-            data-window-drag-region
+            data-tauri-drag-region
           />
         </div>
       </div>

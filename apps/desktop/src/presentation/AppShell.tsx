@@ -63,7 +63,6 @@ export function AppShell({ runtime }: AppShellProps) {
       settings: !degraded.has('settings'),
       developerTools: !degraded.has('developer-tools'),
       windowControls: !degraded.has('window-controls'),
-      windowDragging: !degraded.has('window-dragging'),
     }
   }, [failureSnapshot.degradedFeatures])
 
@@ -109,10 +108,6 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.termination])
 
   const minimizeWindow = useCallback(() => {
-    if (!capabilities.windowControls) {
-      return
-    }
-
     void runtime.mainWindow.minimize().catch((cause: unknown) => {
       reportFailure('WINDOW_MINIMIZE_UNAVAILABLE', {
         scope: 'app-shell',
@@ -120,13 +115,9 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [capabilities, runtime.mainWindow])
+  }, [runtime.mainWindow])
 
   const maximizeWindow = useCallback(() => {
-    if (!capabilities.windowControls) {
-      return
-    }
-
     void runtime.mainWindow.toggleMaximize().catch((cause: unknown) => {
       reportFailure('WINDOW_MAXIMIZE_UNAVAILABLE', {
         scope: 'app-shell',
@@ -134,7 +125,7 @@ export function AppShell({ runtime }: AppShellProps) {
         cause,
       })
     })
-  }, [capabilities, runtime.mainWindow])
+  }, [runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
     if (!capabilities.developerTools) {
@@ -145,20 +136,6 @@ export function AppShell({ runtime }: AppShellProps) {
       reportFailure('DEVELOPER_TOOLS_UNAVAILABLE', {
         scope: 'app-shell',
         operation: 'open-developer-tools',
-        cause,
-      })
-    })
-  }, [capabilities, runtime.mainWindow])
-
-  const startWindowDragging = useCallback(() => {
-    if (!capabilities.windowDragging) {
-      return
-    }
-
-    void runtime.mainWindow.startDragging().catch((cause: unknown) => {
-      reportFailure('WINDOW_DRAG_UNAVAILABLE', {
-        scope: 'app-shell',
-        operation: 'start-window-dragging',
         cause,
       })
     })
@@ -227,7 +204,6 @@ export function AppShell({ runtime }: AppShellProps) {
         onWindowClose={requestApplicationClose}
         onWindowMaximize={maximizeWindow}
         onWindowMinimize={minimizeWindow}
-        onWindowStartDragging={startWindowDragging}
         port={workspacePort}
       />
 

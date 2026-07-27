@@ -85,7 +85,6 @@ export function WorkspaceShell({
           <header className="col-span-full row-1 min-h-0 min-w-0 bg-chrome">
             {renderChrome({
               isSidebarOpen: sidebarOpen,
-              sidebarWidth: dockSidebar ? sidebarWidth : 0,
               tabs: model.tabs,
               onSidebarToggle: workspaceLayoutStore.toggleSidebar,
               onActivateTab: actions.activateTab,

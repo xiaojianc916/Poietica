@@ -55,7 +55,6 @@ export function SidebarSplitter({
         'data-[resizing=true]:bg-primary/25',
       ].join(' ')}
       data-resizing={resize.isResizing ? 'true' : 'false'}
-      data-window-drag-exclude
       onDoubleClick={resize.onDoubleClick}
       onKeyDown={resize.onKeyDown}
       onLostPointerCapture={resize.onLostPointerCapture}
