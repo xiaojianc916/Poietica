@@ -28,8 +28,10 @@ mod permission;
 mod recorder;
 mod run_slot;
 mod session;
+mod sessions;
 mod stderr;
 
+pub use sessions::SessionBook;
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
