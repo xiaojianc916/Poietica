@@ -103,7 +103,9 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
                 data-active={choice.value === control.current ? 'true' : undefined}
                 key={choice.value}
                 onSelect={() => {
-                  if (choice.value === control.current) return
+                  if (choice.value === control.current) {
+                    return
+                  }
 
                   onSelect(control.id, choice.value)
                 }}

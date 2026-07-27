@@ -46,8 +46,11 @@ function group(threads: readonly AssistantThreadSummary[]) {
   for (const thread of threads) {
     const held = grouped.get(thread.group)
 
-    if (held === undefined) grouped.set(thread.group, [thread])
-    else held.push(thread)
+    if (held === undefined) {
+      grouped.set(thread.group, [thread])
+    } else {
+      held.push(thread)
+    }
   }
 
   return [...grouped]

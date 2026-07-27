@@ -3,18 +3,14 @@ import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { SettingsStore } from '@poietica/features-settings'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
-import {
-  CommandPalette,
-  nextUntitledCanvasTitle,
-  useCommandKeybindings,
-  workspaceLayoutStore,
-} from '@poietica/features-workspace/react'
+import { CommandPalette, useCommandKeybindings } from '@poietica/features-workspace/react'
 import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-design-system'
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
+import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
 import { UiFeedbackRegion } from './ui/ui-feedback'
 import {
   type AppCapabilities,
@@ -144,11 +140,27 @@ export function AppShell({ runtime }: AppShellProps) {
     })
   }, [capabilities.developerTools, runtime.mainWindow])
 
-  useApplicationCommands(
-    runtime,
-    toggleCommandPalette,
-    openAssistantSurface,
-    createCanvasWithFeedback,
+  const commandContext = useMemo<ApplicationCommandContext>(
+    () => ({
+      workspace: runtime.workspace,
+      canvases: runtime.canvases,
+      createCanvas: createCanvasWithFeedback,
+      toggleCommandPalette,
+      openAssistantSurface,
+    }),
+    [
+      createCanvasWithFeedback,
+      openAssistantSurface,
+      runtime.canvases,
+      runtime.workspace,
+      toggleCommandPalette,
+    ],
+  )
+
+  /* 依赖是具体引用，不是整个 runtime：否则任一无关字段变化都会全量重注册。 */
+  useEffect(
+    () => registerApplicationCommands(runtime.commands, commandContext),
+    [commandContext, runtime.commands],
   )
 
   useEffect(() => {
@@ -338,70 +350,4 @@ function useMainWindowCloseRequest(
       unsubscribe?.()
     }
   }, [mainWindow, onCloseRequested])
-}
-
-function useApplicationCommands(
-  runtime: AppShellRuntime,
-  toggleCommandPalette: () => void,
-  openAssistantSurface: () => void,
-  createCanvas: (title: string) => Promise<void>,
-): void {
-  useEffect(() => {
-    const unregister = [
-      runtime.commands.register({
-        id: 'application.toggle-command-palette',
-        label: '切换命令面板',
-        category: '应用',
-        shortcut: 'Mod+K',
-        execute: toggleCommandPalette,
-      }),
-
-      runtime.commands.register({
-        id: 'workspace.create-canvas',
-        label: '新建画布',
-        category: '文件',
-        shortcut: 'Mod+N',
-        execute() {
-          void createCanvas(nextUntitledCanvasTitle(runtime.workspace.getSnapshot().tabs))
-        },
-      }),
-
-      runtime.commands.register({
-        id: 'workspace.open-canvas',
-        label: '打开画布',
-        category: '文件',
-        shortcut: 'Mod+O',
-        execute: runtime.canvases.open,
-      }),
-
-      runtime.commands.register({
-        id: 'workspace.toggle-sidebar',
-        label: '切换侧边栏',
-        category: '视图',
-        shortcut: 'Mod+B',
-        execute: workspaceLayoutStore.toggleSidebar,
-      }),
-
-      runtime.commands.register({
-        id: 'workspace.toggle-inspector',
-        label: '切换属性面板',
-        category: '视图',
-        execute: workspaceLayoutStore.toggleInspector,
-      }),
-
-      runtime.commands.register({
-        id: 'ai.open-assistant',
-        label: '打开 AI 助手',
-        category: '应用',
-        shortcut: 'Mod+J',
-        execute: openAssistantSurface,
-      }),
-    ]
-
-    return () => {
-      for (let index = unregister.length - 1; index >= 0; index -= 1) {
-        unregister[index]?.()
-      }
-    }
-  }, [createCanvas, openAssistantSurface, runtime, toggleCommandPalette])
 }

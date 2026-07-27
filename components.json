@@ -10,7 +10,7 @@
     "cssVariables": true
   },
   "aliases": {
-    "components": "features/ai/src/presentation",
+    "components": "foundations/design-system/src/components",
     "ui": "foundations/design-system/src/components/ui",
     "lib": "foundations/design-system/src/lib",
     "utils": "foundations/design-system/src/lib/utils",

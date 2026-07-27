@@ -34,14 +34,14 @@ function describe(updatedAt: string, now: number) {
   }
 
   if (since < HOUR) {
-    return { relativeTime: Math.floor(since / MINUTE) + ' 分钟', group }
+    return { relativeTime: `${Math.floor(since / MINUTE)} 分钟`, group }
   }
 
   if (since < DAY) {
-    return { relativeTime: Math.floor(since / HOUR) + ' 小时', group }
+    return { relativeTime: `${Math.floor(since / HOUR)} 小时`, group }
   }
 
-  return { relativeTime: days + ' 天', group }
+  return { relativeTime: `${days} 天`, group }
 }
 
 export function AssistantSidebarPanel() {

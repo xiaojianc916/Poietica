@@ -1,6 +1,5 @@
-import { PanelLeftClose } from '@mynaui/icons-react'
-import { Button } from '@poietica/foundations-design-system'
-import { type ReactNode, useEffect } from 'react'
+import { Drawer } from '@poietica/foundations-design-system'
+import type { ReactNode } from 'react'
 
 import { SidebarSplitter } from './SidebarSplitter'
 import type { WorkspaceLayoutMode } from './useWorkspaceLayout'
@@ -12,19 +11,20 @@ export interface SidebarRegionProps {
   readonly width: number
   readonly onClose: () => void
   readonly onResize: (width: number) => void
-  readonly onResizeStart: () => void
-  readonly onResizeEnd: () => void
   readonly children: ReactNode
 }
 
 /**
  * 侧边栏区域。
  *
- * 宽屏是栅格内的可拖拽列，窄屏是覆盖抽屉。两种形态共用同一份可见性状态，
- * 所以不会出现"两个侧边栏各自记住自己开没开"的情况。
+ * 宽屏是栅格内的可拖拽列，窄屏是模态抽屉，两种形态共用同一份可见性状态。
  *
- * 定位一律相对于工作区外壳（外壳是 relative），不使用视口定位：抽屉与栅格
- * 必须共享同一个坐标系，否则外壳不铺满视口时会错位。
+ * 抽屉的模态语义（焦点陷阱、初始与归还焦点、Escape、外部点击、滚动锁、
+ * aria-modal）由设计系统 Drawer 交给 Base UI。此前这里自己监听 window
+ * keydown 兜 Escape，并用一个铺满的 <button> 冒充遮罩：那样只挡住鼠标路径，
+ * 键盘焦点仍会 Tab 到抽屉背后的画布上，aside 也没有任何对话框角色。
+ *
+ * 栅格格位与空列的指针穿透由 workspace-shell.css 拥有，这里不再内联坐标。
  */
 export function SidebarRegion({
   mode,
@@ -32,44 +32,15 @@ export function SidebarRegion({
   width,
   onClose,
   onResize,
-  onResizeStart,
-  onResizeEnd,
   children,
 }: SidebarRegionProps) {
   const isDocked = mode !== 'narrow' && isOpen
-  const isDrawer = mode === 'narrow' && isOpen
-
-  /*
-   * 覆盖抽屉是模态形态，Escape 必须能关闭它。遮罩按钮只覆盖鼠标路径。
-   */
-  useEffect(() => {
-    if (!isDrawer) {
-      return
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isDrawer, onClose])
 
   return (
     <>
       <div
         aria-hidden={!isDocked}
-        className="relative z-20 row-[2/-1] min-h-0 min-w-0 overflow-visible border-r border-divider bg-sidebar"
-        style={{
-          borderRightWidth: isDocked ? 1 : 0,
-          gridColumn: 1,
-          pointerEvents: isDocked ? 'auto' : 'none',
-        }}
+        className="workspace-shell__sidebar relative z-20 min-h-0 min-w-0 overflow-visible border-r border-divider bg-sidebar"
       >
         {mode === 'narrow' ? null : (
           <div className="h-full min-h-0 w-full overflow-hidden">
@@ -85,41 +56,23 @@ export function SidebarRegion({
             min={WORKSPACE_LAYOUT.sidebar.minWidth}
             onCollapse={onClose}
             onResize={onResize}
-            onResizeEnd={onResizeEnd}
-            onResizeStart={onResizeStart}
             width={width}
           />
         ) : null}
       </div>
 
-      {isDrawer ? (
-        <div className="absolute inset-x-0 bottom-0 top-[var(--chrome-height)] z-[var(--ui-z-popover)]">
-          <button
-            aria-label="关闭工作区导航"
-            className="absolute inset-0 cursor-default bg-black/35"
-            onClick={onClose}
-            type="button"
-          />
-
-          <aside
-            aria-label="工作区导航"
-            className="relative h-full w-[min(82vw,320px)] border-r border-divider bg-sidebar shadow-2xl"
-          >
-            {children}
-
-            <Button
-              aria-label="关闭侧边栏"
-              className="absolute right-2 top-2"
-              onClick={onClose}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              <PanelLeftClose aria-hidden="true" className="size-4" />
-            </Button>
-          </aside>
-        </div>
-      ) : null}
+      <Drawer
+        closeLabel="关闭侧边栏"
+        onOpenChange={(open) => {
+          if (!open) {
+            onClose()
+          }
+        }}
+        open={mode === 'narrow' && isOpen}
+        title="工作区导航"
+      >
+        {children}
+      </Drawer>
     </>
   )
 }

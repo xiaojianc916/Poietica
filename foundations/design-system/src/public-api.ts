@@ -30,6 +30,7 @@ export {
   type ConfirmationDialogProps,
 } from './components/ui/confirmation-dialog'
 export { Dialog, type DialogProps } from './components/ui/dialog'
+export { Drawer, type DrawerProps } from './components/ui/drawer'
 export {
   DropdownMenu,
   DropdownMenuContent,

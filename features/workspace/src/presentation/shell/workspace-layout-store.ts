@@ -1,17 +1,21 @@
 import { useSyncExternalStore } from 'react'
+import * as v from 'valibot'
 
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 /**
  * 工作区布局状态的唯一所有者。
  *
- * 侧边栏与属性栏的可见性、宽度是跨会话保留的产品状态，并且必须能被
- * 命令面板和快捷键驱动，因此它不属于任何一个渲染组件的 useState。
+ * 可见性与宽度是跨会话保留的产品状态，isResizing 是单次拖拽内的瞬时状态。
+ * 两者都在这里：拖拽态曾经同时存在于 useSidebarResize 与 WorkspaceShell 的
+ * 两个 useState 里，靠 onResizeStart / onResizeEnd 两个 prop 手工对齐，
+ * 那是两份真相而不是一份加一个通道。
  */
 export interface WorkspaceLayoutState {
   readonly sidebarOpen: boolean
   readonly sidebarWidth: number
   readonly inspectorOpen: boolean
+  readonly isResizing: boolean
 }
 
 const STORAGE_KEY = 'poietica.workspace.layout.v1'
@@ -20,6 +24,7 @@ const DEFAULT_STATE: WorkspaceLayoutState = {
   sidebarOpen: true,
   sidebarWidth: WORKSPACE_LAYOUT.sidebar.defaultWidth,
   inspectorOpen: true,
+  isResizing: false,
 }
 
 function clampSidebarWidth(width: number): number {
@@ -29,6 +34,19 @@ function clampSidebarWidth(width: number): number {
   )
 }
 
+/*
+ * 持久化形状由 schema 声明，逐字段兜底交给 valibot。
+ * 此前是三个手写的 typeof 三元，每加一个字段就多一段同构的校验代码。
+ */
+const PersistedLayoutSchema = v.object({
+  sidebarOpen: v.fallback(v.boolean(), DEFAULT_STATE.sidebarOpen),
+  sidebarWidth: v.fallback(
+    v.pipe(v.number(), v.finite(), v.transform(clampSidebarWidth)),
+    DEFAULT_STATE.sidebarWidth,
+  ),
+  inspectorOpen: v.fallback(v.boolean(), DEFAULT_STATE.inspectorOpen),
+})
+
 function readPersistedState(): WorkspaceLayoutState {
   const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
 
@@ -36,36 +54,13 @@ function readPersistedState(): WorkspaceLayoutState {
     return DEFAULT_STATE
   }
 
-  let parsed: unknown
-
   try {
-    parsed = JSON.parse(raw)
+    return { ...v.parse(PersistedLayoutSchema, JSON.parse(raw)), isResizing: false }
   } catch (cause) {
     // 存储内容不可信时回退到产品默认布局，而不是让整个外壳启动失败。
     console.warn('[workspace-layout] 忽略无法解析的持久化布局', cause)
 
     return DEFAULT_STATE
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) {
-    return DEFAULT_STATE
-  }
-
-  const candidate = parsed as Partial<Record<keyof WorkspaceLayoutState, unknown>>
-
-  return {
-    sidebarOpen:
-      typeof candidate.sidebarOpen === 'boolean'
-        ? candidate.sidebarOpen
-        : DEFAULT_STATE.sidebarOpen,
-    sidebarWidth:
-      typeof candidate.sidebarWidth === 'number' && Number.isFinite(candidate.sidebarWidth)
-        ? clampSidebarWidth(candidate.sidebarWidth)
-        : DEFAULT_STATE.sidebarWidth,
-    inspectorOpen:
-      typeof candidate.inspectorOpen === 'boolean'
-        ? candidate.inspectorOpen
-        : DEFAULT_STATE.inspectorOpen,
   }
 }
 
@@ -73,8 +68,6 @@ class WorkspaceLayoutStore {
   #state: WorkspaceLayoutState = readPersistedState()
 
   #listeners = new Set<() => void>()
-
-  #persistFrame: number | null = null
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener)
@@ -106,13 +99,18 @@ class WorkspaceLayoutStore {
     this.#commit({ inspectorOpen: !this.#state.inspectorOpen })
   }
 
+  setResizing = (resizing: boolean): void => {
+    this.#commit({ isResizing: resizing })
+  }
+
   #commit(patch: Partial<WorkspaceLayoutState>): void {
     const next: WorkspaceLayoutState = { ...this.#state, ...patch }
 
     if (
       next.sidebarOpen === this.#state.sidebarOpen &&
       next.sidebarWidth === this.#state.sidebarWidth &&
-      next.inspectorOpen === this.#state.inspectorOpen
+      next.inspectorOpen === this.#state.inspectorOpen &&
+      next.isResizing === this.#state.isResizing
     ) {
       return
     }
@@ -123,41 +121,32 @@ class WorkspaceLayoutStore {
       listener()
     }
 
-    this.#schedulePersist()
+    /*
+     * 只在离散的用户意图落定时写盘。拖拽期间每一帧都会提交宽度，但松手那一次
+     * 提交本身就把 isResizing 置回 false，最终宽度随之落盘——因此不需要
+     * requestAnimationFrame 合并、不需要定时器、也不需要"无 rAF 环境"分支。
+     * 那个分支此前会让持久化在该环境下永久静默失效。
+     */
+    if (!next.isResizing) {
+      this.#persist()
+    }
   }
 
-  /*
-   * 拖动分隔条时每一帧都会提交宽度。写盘合并到一帧，避免同步存储 I/O
-   * 落在指针事件的关键路径上。
-   */
-  #schedulePersist(): void {
-    if (this.#persistFrame !== null || typeof requestAnimationFrame !== 'function') {
-      return
+  #persist(): void {
+    const { isResizing: _isResizing, ...persisted } = this.#state
+
+    try {
+      globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(persisted))
+    } catch (cause) {
+      // 存储不可用（配额或隐私模式）只影响下次启动的还原，不影响本次会话。
+      console.warn('[workspace-layout] 无法持久化布局', cause)
     }
-
-    this.#persistFrame = requestAnimationFrame(() => {
-      this.#persistFrame = null
-
-      try {
-        globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(this.#state))
-      } catch (cause) {
-        // 存储不可用（配额或隐私模式）只影响下次启动的还原，不影响本次会话。
-        console.warn('[workspace-layout] 无法持久化布局', cause)
-      }
-    })
   }
 }
 
 /*
- * 本模块只拥有用户意图，不拥有视口。
- *
- * 窄视口下侧边栏改为遮罩抽屉，这属于呈现降级，由 WorkspaceShell 从布局
- * 模式派生（dockSidebar 与抽屉分支）。曾经在这里追加过一份视口策略，它在
- * 模块求值阶段就执行，而那时 WebView 还没完成首次布局、宽度查询不匹配，
- * 于是每次冷启动都把侧边栏误判为应当收起，并且此后再也不会恢复。
- *
- * 把视口写进意图是方向性错误：意图一旦被环境覆盖就丢了，窗口变宽也无从
- * 还原。派生状态留在渲染层，这里只记录用户按过什么。
+ * 本模块只拥有用户意图，不拥有视口：窄视口改用抽屉属于呈现降级，由渲染层
+ * 从布局模式派生。意图一旦被环境覆盖就再也还原不回来。
  */
 export const workspaceLayoutStore = new WorkspaceLayoutStore()
 

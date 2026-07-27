@@ -31,9 +31,10 @@
     "clean": "rimraf .turbo *.tsbuildinfo"
   },
   "dependencies": {
-    "@poietica/foundations-design-system": "workspace:*",
     "@mynaui/icons-react": "catalog:",
-    "motion": "catalog:"
+    "@poietica/foundations-design-system": "workspace:*",
+    "motion": "catalog:",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

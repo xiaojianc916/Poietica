@@ -1,0 +1,78 @@
+/*
+ * 工作区外壳栅格的唯一真相。
+ *
+ * 坐标只在这里出现一次：区域组件只声明自己属于哪个命名区域，不再各自内联
+ * gridColumn / gridRow。此前列宽由 CSS 自定义属性声明，而具体格位又在
+ * WorkspaceShell、SidebarRegion、InspectorRegion 三个文件里各写一遍，
+ * 任何一处调整都会静默错位。
+ *
+ * 列宽由 WorkspaceFrame 的 motion 驱动的两个自定义属性提供，行高由布局令牌
+ * 提供，两者仍然只有一个所有者。
+ */
+.workspace-shell {
+  grid-template-columns:
+    var(--workspace-sidebar-column-width, 0px)
+    minmax(0, 1fr)
+    var(--workspace-inspector-column-width, 0px);
+}
+
+/* 状态栏只属于画布界面，因此行数与区域表随之切换。 */
+.workspace-shell[data-has-status="false"] {
+  grid-template-rows: var(--chrome-height) minmax(0, 1fr);
+  grid-template-areas:
+    "chrome chrome chrome"
+    "sidebar canvas inspector";
+}
+
+.workspace-shell[data-has-status="true"] {
+  grid-template-rows: var(--chrome-height) minmax(0, 1fr) var(--status-height);
+  grid-template-areas:
+    "chrome chrome chrome"
+    "sidebar canvas inspector"
+    "sidebar status inspector";
+}
+
+.workspace-shell__chrome {
+  grid-area: chrome;
+}
+
+.workspace-shell__sidebar {
+  grid-area: sidebar;
+}
+
+.workspace-shell__canvas {
+  grid-area: canvas;
+}
+
+.workspace-shell__status {
+  grid-area: status;
+}
+
+.workspace-shell__inspector {
+  grid-area: inspector;
+}
+
+/*
+ * 列宽归零后的空列不吃指针事件。此前由各区域内联 pointerEvents 表达，
+ * 与"是否停靠"这个判据分居两处。
+ */
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar,
+.workspace-shell[data-inspector-docked="false"] .workspace-shell__inspector {
+  pointer-events: none;
+}
+
+/*
+ * 分隔竖线跟着面板一起淡出，而不是在 1px 与 0 之间硬切。
+ * 此前写作内联 borderRightWidth: docked ? 1 : 0，视觉上是瞬变。
+ */
+.workspace-shell__sidebar,
+.workspace-shell__canvas,
+.workspace-shell__status {
+  transition: border-color var(--workspace-layout-duration, 0.18s) ease;
+}
+
+.workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar,
+.workspace-shell[data-inspector-docked="false"] .workspace-shell__canvas,
+.workspace-shell[data-inspector-docked="false"] .workspace-shell__status {
+  border-inline-end-color: transparent;
+}

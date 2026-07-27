@@ -1,12 +1,12 @@
-import { type KeyboardEvent, type MouseEvent, type PointerEvent, useRef, useState } from 'react'
+import { type KeyboardEvent, type MouseEvent, type PointerEvent, useRef } from 'react'
+
+import { workspaceLayoutStore } from './workspace-layout-store'
 
 export interface SidebarResizeOptions {
   readonly width: number
   readonly min: number
   readonly max: number
-  readonly onResizeStart?: () => void
   readonly onResize: (width: number) => void
-  readonly onResizeEnd?: () => void
   readonly onCollapse: () => void
 }
 
@@ -18,7 +18,6 @@ interface SidebarDragSession {
 }
 
 export interface SidebarResizeBindings {
-  readonly isResizing: boolean
   readonly onDoubleClick: (event: MouseEvent<HTMLHRElement>) => void
   readonly onKeyDown: (event: KeyboardEvent<HTMLHRElement>) => void
   readonly onLostPointerCapture: (event: PointerEvent<HTMLHRElement>) => void
@@ -32,38 +31,32 @@ export interface SidebarResizeBindings {
  * 侧边栏分隔条的拖拽会话。
  *
  * 指针捕获交给平台：一次 setPointerCapture 之后，move / up / cancel 都会派发到
- * 分隔条本身，即使指针越过画布或离开窗口，所以不需要 document 上的全局监听，
- * 也不需要接管 body 的光标与选区——分隔条自身的 cursor-col-resize 与
- * select-none 在捕获期间持续生效。
+ * 分隔条本身，即使指针越过画布或离开窗口，所以不需要 document 上的全局监听。
  *
- * 这里也不再叠加节流：pointermove 由浏览器与显示帧对齐派发（合并事件），
- * 而宽度写盘已经在 workspaceLayoutStore 里合并到一帧。
+ * 拖拽态写进 workspaceLayoutStore，不再由本 hook 自持一份 useState 再通过
+ * onResizeStart / onResizeEnd 回调向上同步——那让同一个布尔量有了两个所有者。
  */
 export function useSidebarResize({
   width,
   min,
   max,
-  onResizeStart,
   onResize,
-  onResizeEnd,
   onCollapse,
 }: SidebarResizeOptions): SidebarResizeBindings {
   const sessionRef = useRef<SidebarDragSession | null>(null)
-
-  const [isResizing, setResizing] = useState(false)
 
   const clamp = (next: number): number => Math.max(min, Math.min(max, Math.round(next)))
 
   const settle = (session: SidebarDragSession, finalWidth: number): void => {
     sessionRef.current = null
-    setResizing(false)
 
+    /* lostpointercapture 时捕获已释放，此时 release 会抛 NotFoundError。 */
     if (session.element.hasPointerCapture(session.pointerId)) {
       session.element.releasePointerCapture(session.pointerId)
     }
 
     onResize(finalWidth)
-    onResizeEnd?.()
+    workspaceLayoutStore.setResizing(false)
   }
 
   const handlePointerDown = (event: PointerEvent<HTMLHRElement>): void => {
@@ -83,13 +76,11 @@ export function useSidebarResize({
       startWidth: width,
     }
 
-    setResizing(true)
+    workspaceLayoutStore.setResizing(true)
     element.setPointerCapture(event.pointerId)
 
     /* 取得焦点后，拖拽中的 Esc 与拖拽后的方向键微调才能落到分隔条上。 */
     element.focus()
-
-    onResizeStart?.()
   }
 
   const handlePointerMove = (event: PointerEvent<HTMLHRElement>): void => {
@@ -158,7 +149,6 @@ export function useSidebarResize({
   }
 
   return {
-    isResizing,
     onDoubleClick: handleDoubleClick,
     onKeyDown: handleKeyDown,
     onLostPointerCapture: handlePointerEnd,

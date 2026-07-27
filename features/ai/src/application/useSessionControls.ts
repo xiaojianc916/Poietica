@@ -23,8 +23,13 @@ const MODEL_CONTROL_ID = 'agent-config:model'
 const FAILURE_FALLBACK = '读取会话设置失败。'
 
 function describe(cause: unknown): string {
-  if (cause instanceof Error && cause.message.length > 0) return cause.message
-  if (typeof cause === 'string' && cause.length > 0) return cause
+  if (cause instanceof Error && cause.message.length > 0) {
+    return cause.message
+  }
+
+  if (typeof cause === 'string' && cause.length > 0) {
+    return cause
+  }
 
   return FAILURE_FALLBACK
 }
@@ -47,7 +52,9 @@ export function useSessionControls(
   const load = useCallback(async (): Promise<readonly SessionConfigControl[]> => {
     const reported = config === undefined ? NONE : await config.list()
 
-    if (reported.length > 0 || models === undefined) return reported
+    if (reported.length > 0 || models === undefined) {
+      return reported
+    }
 
     const selection = await models.list()
 
@@ -58,7 +65,9 @@ export function useSessionControls(
      */
     const [firstModel] = selection.models
 
-    if (firstModel === undefined) return NONE
+    if (firstModel === undefined) {
+      return NONE
+    }
 
     return [
       {
@@ -76,10 +85,14 @@ export function useSessionControls(
 
     load()
       .then((next) => {
-        if (!cancelled) setControls(next)
+        if (!cancelled) {
+          setControls(next)
+        }
       })
       .catch((cause: unknown) => {
-        if (!cancelled) setFailure(describe(cause))
+        if (!cancelled) {
+          setFailure(describe(cause))
+        }
       })
 
     return () => {

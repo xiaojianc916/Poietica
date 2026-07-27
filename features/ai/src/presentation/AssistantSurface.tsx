@@ -41,8 +41,13 @@ export interface AssistantSurfaceProps {
  * derived, and both live outside the virtualised canvas.
  */
 function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNode {
-  if (isWaiting) return <ThinkingIndicator />
-  if (outcome !== null) return <TurnOutcomeNotice outcome={outcome} />
+  if (isWaiting) {
+    return <ThinkingIndicator />
+  }
+
+  if (outcome !== null) {
+    return <TurnOutcomeNotice outcome={outcome} />
+  }
 
   return null
 }

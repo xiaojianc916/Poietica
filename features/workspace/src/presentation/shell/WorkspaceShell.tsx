@@ -1,5 +1,4 @@
 import { TooltipProvider } from '@poietica/foundations-design-system'
-import { useState } from 'react'
 
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
@@ -15,17 +14,12 @@ import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 
-const WORKSPACE_GRID_COLUMNS = [
-  'var(--workspace-sidebar-column-width, 0px)',
-  'minmax(0, 1fr)',
-  'var(--workspace-inspector-column-width, 0px)',
-].join(' ')
-
 /**
  * 工作区外壳。
  *
- * 职责只有一件事：决定栅格几何，并把各区域装进 WorkspaceFrame。每个区域的
- * 内部形态（停靠列 / 覆盖抽屉 / 开合控件）由区域组件自己拥有。
+ * 职责只有一件事：把布局意图翻译成三个状态位，并把各区域装进 WorkspaceFrame。
+ * 栅格坐标属于 workspace-shell.css，区域内部形态（停靠列 / 模态抽屉 / 开合
+ * 控件）属于区域组件自己，拖拽态属于 workspaceLayoutStore。
  */
 export function WorkspaceShell({
   model,
@@ -43,15 +37,9 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const mode = useWorkspaceLayoutMode()
 
-  /*
-   * 侧边栏与属性栏的可见性、宽度由 workspaceLayoutStore 拥有：它跨会话保留，
-   * 并且要能被命令面板与快捷键驱动。isResizing 是单次拖拽内的瞬时状态。
-   */
-  const { sidebarOpen, sidebarWidth, inspectorOpen } = useWorkspaceLayoutState()
+  const { sidebarOpen, sidebarWidth, inspectorOpen, isResizing } = useWorkspaceLayoutState()
 
   const { setSidebarOpen, setSidebarWidth, setInspectorOpen } = workspaceLayoutStore
-
-  const [isResizing, setResizing] = useState(false)
 
   const activeSurfaceId: WorkspaceSurfaceId =
     model.activeSurface.kind === 'workspace' ? model.activeSurface.surfaceId : 'pages'
@@ -68,8 +56,7 @@ export function WorkspaceShell({
         canvas={
           <section
             aria-label="内容区"
-            className="relative z-10 row-2 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
-            style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 2 }}
+            className="workspace-shell__canvas relative z-10 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
           >
             <main
               aria-label={mainContentLabel}
@@ -85,7 +72,7 @@ export function WorkspaceShell({
           </section>
         }
         chrome={
-          <header className="col-span-full row-1 min-h-0 min-w-0 bg-chrome">
+          <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
             {renderChrome({
               isSidebarOpen: sidebarOpen,
               tabs: model.tabs,
@@ -98,12 +85,7 @@ export function WorkspaceShell({
           </header>
         }
         disableLayoutAnimation={isResizing}
-        gridTemplateColumns={WORKSPACE_GRID_COLUMNS}
-        gridTemplateRows={
-          hasCanvas
-            ? 'var(--chrome-height) minmax(0, 1fr) var(--status-height)'
-            : 'var(--chrome-height) minmax(0, 1fr)'
-        }
+        hasStatusBar={hasCanvas}
         inspector={
           hasCanvas && inspectorAvailable ? (
             <InspectorRegion isDocked={dockInspector} onOpenChange={setInspectorOpen}>
@@ -112,6 +94,8 @@ export function WorkspaceShell({
           ) : null
         }
         inspectorColumnWidth={dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0}
+        isInspectorDocked={dockInspector}
+        isSidebarDocked={dockSidebar}
         overlays={
           <>
             {assistantOverlay}
@@ -126,12 +110,6 @@ export function WorkspaceShell({
               setSidebarOpen(false)
             }}
             onResize={setSidebarWidth}
-            onResizeEnd={() => {
-              setResizing(false)
-            }}
-            onResizeStart={() => {
-              setResizing(true)
-            }}
             width={sidebarWidth}
           >
             {sidebarOverride ?? (
@@ -155,10 +133,7 @@ export function WorkspaceShell({
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
         statusBar={
           hasCanvas ? (
-            <div
-              className="relative z-10 min-w-0 border-r border-divider bg-background"
-              style={{ borderRightWidth: dockInspector ? 1 : 0, gridColumn: 2, gridRow: 3 }}
-            >
+            <div className="workspace-shell__status relative z-10 min-w-0 border-r border-divider bg-background">
               <StatusBarHost>{statusContent}</StatusBarHost>
             </div>
           ) : null

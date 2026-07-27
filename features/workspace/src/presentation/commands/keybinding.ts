@@ -16,15 +16,6 @@ import type { CommandRegistry } from '../../application/public-api'
 
 const APPLE = /Mac|iPhone|iPad|iPod/i.test(globalThis.navigator?.userAgent ?? '')
 
-interface Keybinding {
-  readonly code: string
-  readonly mod: boolean
-  readonly shift: boolean
-  readonly alt: boolean
-}
-
-const parsed = new Map<string, Keybinding | null>()
-
 function toKeyCode(key: string): string {
   if (/^[a-z]$/i.test(key)) {
     return `Key${key.toUpperCase()}`
@@ -37,28 +28,28 @@ function toKeyCode(key: string): string {
   return key
 }
 
-function parseKeybinding(shortcut: string): Keybinding | null {
-  const cached = parsed.get(shortcut)
+/*
+ * 和弦的规范形式：修饰键固定顺序 + 物理键位。声明串与键盘事件都归一到
+ * 同一个字符串，匹配因此是一次查表，而不是每次按键遍历全部命令再逐条解析。
+ */
+function chordOf(mod: boolean, shift: boolean, alt: boolean, code: string): string {
+  return `${mod ? 'M' : ''}${shift ? 'S' : ''}${alt ? 'A' : ''}:${code}`
+}
 
-  if (cached !== undefined) {
-    return cached
-  }
-
+function parseChord(shortcut: string): string | null {
   const parts = shortcut.split('+')
   const key = parts.at(-1)
-  const binding =
-    key === undefined || key === ''
-      ? null
-      : {
-          code: toKeyCode(key),
-          mod: parts.includes('Mod'),
-          shift: parts.includes('Shift'),
-          alt: parts.includes('Alt'),
-        }
 
-  parsed.set(shortcut, binding)
+  if (key === undefined || key === '') {
+    return null
+  }
 
-  return binding
+  return chordOf(
+    parts.includes('Mod'),
+    parts.includes('Shift'),
+    parts.includes('Alt'),
+    toKeyCode(key),
+  )
 }
 
 /** 把逻辑快捷键渲染成当前平台的习惯写法。 */
@@ -96,35 +87,57 @@ function isTextEntry(target: EventTarget | null): boolean {
 /** 把注册表里所有命令的 shortcut 声明接上真实键盘事件。 */
 export function useCommandKeybindings(registry: CommandRegistry): void {
   useEffect(() => {
+    type Snapshot = ReturnType<CommandRegistry['getSnapshot']>
+
+    let indexedSnapshot: Snapshot | null = null
+    let chords = new Map<string, string>()
+
+    /*
+     * 注册表快照是稳定引用（useSyncExternalStore 的前提），因此引用未变即索引
+     * 有效。注册表变更时按需重建一次，不需要额外订阅通道。
+     */
+    function chordIndex(): ReadonlyMap<string, string> {
+      const snapshot = registry.getSnapshot()
+
+      if (snapshot === indexedSnapshot) {
+        return chords
+      }
+
+      const next = new Map<string, string>()
+
+      for (const command of snapshot) {
+        if (command.shortcut === undefined) {
+          continue
+        }
+
+        const chord = parseChord(command.shortcut)
+
+        if (chord !== null) {
+          next.set(chord, command.id)
+        }
+      }
+
+      indexedSnapshot = snapshot
+      chords = next
+
+      return next
+    }
+
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.isComposing || event.repeat || isTextEntry(event.target)) {
         return
       }
 
-      const mod = event.ctrlKey || event.metaKey
+      const commandId = chordIndex().get(
+        chordOf(event.ctrlKey || event.metaKey, event.shiftKey, event.altKey, event.code),
+      )
 
-      for (const command of registry.getSnapshot()) {
-        if (command.shortcut === undefined) {
-          continue
-        }
-
-        const binding = parseKeybinding(command.shortcut)
-
-        if (
-          binding === null ||
-          binding.code !== event.code ||
-          binding.mod !== mod ||
-          binding.shift !== event.shiftKey ||
-          binding.alt !== event.altKey
-        ) {
-          continue
-        }
-
-        event.preventDefault()
-        void registry.execute(command.id)
-
+      if (commandId === undefined) {
         return
       }
+
+      event.preventDefault()
+      void registry.execute(commandId)
     }
 
     window.addEventListener('keydown', handleKeyDown)

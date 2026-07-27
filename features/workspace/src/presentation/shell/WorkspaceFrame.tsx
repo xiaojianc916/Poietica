@@ -2,6 +2,8 @@ import { type MotionStyle, motion, useReducedMotion } from 'motion/react'
 import type { ReactNode, Ref } from 'react'
 import { WORKSPACE_LAYOUT } from './workspace-layout'
 
+import './workspace-shell.css'
+
 type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
@@ -26,13 +28,22 @@ export interface WorkspaceFrameProps {
   readonly inspector: ReactNode
   readonly statusBar: ReactNode
   readonly overlays?: ReactNode
-  readonly gridTemplateColumns: string
-  readonly gridTemplateRows: string
   readonly sidebarColumnWidth: number
   readonly inspectorColumnWidth: number
+  readonly hasStatusBar: boolean
+  readonly isSidebarDocked: boolean
+  readonly isInspectorDocked: boolean
   readonly disableLayoutAnimation?: boolean
 }
 
+/**
+ * 外壳栅格的动画所有者。
+ *
+ * 行与列的模板、命名区域、竖线与空列的指针穿透都在 workspace-shell.css 里，
+ * 这里只把三个状态位挂到根元素上——此前这些几何以 gridTemplateColumns /
+ * gridTemplateRows 两个字符串 prop 从外壳传入，同时区域组件又各自内联格位，
+ * 同一份坐标散落在四个文件。
+ */
 export function WorkspaceFrame({
   rootRef,
   chrome,
@@ -41,10 +52,11 @@ export function WorkspaceFrame({
   inspector,
   statusBar,
   overlays,
-  gridTemplateColumns,
-  gridTemplateRows,
   sidebarColumnWidth,
   inspectorColumnWidth,
+  hasStatusBar,
+  isSidebarDocked,
+  isInspectorDocked,
   disableLayoutAnimation = false,
 }: WorkspaceFrameProps) {
   const shouldReduceMotion = useReducedMotion()
@@ -70,17 +82,17 @@ export function WorkspaceFrame({
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-canvas-host="workspace"
+      data-has-status={hasStatusBar ? 'true' : 'false'}
+      data-inspector-docked={isInspectorDocked ? 'true' : 'false'}
+      data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       initial={false}
       ref={rootRef}
       style={{
         ...WORKSPACE_LAYOUT_STYLE,
-        gridTemplateColumns,
-        gridTemplateRows,
         willChange: disableLayoutAnimation ? 'auto' : 'grid-template-columns',
       }}
       transition={transition}
     >
-      {/* Layout ownership lives here so borders stay single-source and predictable. */}
       {chrome}
       {sidebar}
       {canvas}

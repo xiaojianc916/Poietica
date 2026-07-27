@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ThreadPort, ThreadRecord } from '../contracts/thread-port'
 
 /** Shown for a conversation nothing has named yet. */
-const FALLBACK_TITLE = 'AI'
+const FALLBACK_TITLE = 'New Agent'
 
 /** How much of a stand in title a tab can carry. */
 const TITLE_LIMIT = 24
@@ -19,7 +19,7 @@ export const shorten = (text: string): string => {
   if (tidy.length <= TITLE_LIMIT) {
     return tidy
   }
-  return tidy.slice(0, TITLE_LIMIT) + '…'
+  return `${tidy.slice(0, TITLE_LIMIT)}…`
 }
 
 /** One open tab. */
