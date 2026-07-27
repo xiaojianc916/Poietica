@@ -47,56 +47,66 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     focusNewTab,
   })
 
+  /*
+   * 三个兄弟节点，一层嵌套。
+   *
+   * role="tablist" 只拥有标签：新建按钮和拖拽填充区都不是 tab，留在里面会让
+   * 屏幕阅读器把它们报成标签集合的成员。它们移出去之后，滚动容器也不再横跨
+   * 整条标签条，所以基线分隔线画在根元素上（--chrome-active-tab-left/right
+   * 由视口 hook 写在这里）。
+   *
+   * 滚动容器按内容取宽、可压缩：标签少时新建按钮紧跟最后一个标签，标签溢出时
+   * 它自然停在右端——原先靠 position: sticky 加不透明底色模拟的效果，现在是
+   * 布局的自然结果。
+   */
   return (
-    <div className="chrome-workbench-tabs">
+    <div
+      className="chrome-workbench-tabs"
+      data-has-active-tab={activeTabId ? 'true' : 'false'}
+      ref={viewport.stripRef}
+    >
       <div
-        className="chrome-workbench-tabs__viewport"
-        data-has-active-tab={activeTabId ? 'true' : 'false'}
-        ref={viewport.viewportRef}
+        aria-label="工作台标签页"
+        className="chrome-workbench-tabs__scroller"
+        onWheel={viewport.onWheel}
+        ref={viewport.scrollerRef}
+        role="tablist"
       >
-        <div
-          aria-label="工作台标签页"
-          className="chrome-workbench-tabs__scroller"
-          onWheel={viewport.onWheel}
-          ref={viewport.scrollerRef}
-          role="tablist"
-        >
-          {tabs.map((tab, index) => (
-            <WorkbenchTab
-              dropSide={
-                interactions.reorderState.insertion?.targetId === tab.id
-                  ? interactions.reorderState.insertion.side
-                  : null
-              }
-              isDragging={interactions.reorderState.draggingTabId === tab.id}
-              key={tab.id}
-              model={tab}
-              onActivate={onActivate}
-              onKeyDown={interactions.onKeyDown}
-              onRequestClose={interactions.requestClose}
-              registerTab={viewport.registerTab}
-              reorder={interactions.reorder}
-              targetIndex={index}
-            />
-          ))}
-
-          <button
-            aria-label="新建画布"
-            className="chrome-workbench-tabs__new-tab chrome-workbench-tabs__new-tab--sticky"
-            onClick={onCreate}
-            ref={newTabRef}
-            type="button"
-          >
-            <Plus aria-hidden="true" className="size-3.5" />
-          </button>
-
-          <div
-            aria-hidden="true"
-            className="chrome-workbench-tabs__drag-region"
-            data-tauri-drag-region
+        {tabs.map((tab, index) => (
+          <WorkbenchTab
+            dropSide={
+              interactions.reorderState.insertion?.targetId === tab.id
+                ? interactions.reorderState.insertion.side
+                : null
+            }
+            isDragging={interactions.reorderState.draggingTabId === tab.id}
+            key={tab.id}
+            model={tab}
+            onActivate={onActivate}
+            onKeyDown={interactions.onKeyDown}
+            onRequestClose={interactions.requestClose}
+            registerTab={viewport.registerTab}
+            reorder={interactions.reorder}
+            targetIndex={index}
           />
-        </div>
+        ))}
       </div>
+
+      <button
+        aria-label="新建画布"
+        className="chrome-workbench-tabs__new-tab"
+        onClick={onCreate}
+        ref={newTabRef}
+        type="button"
+      >
+        <Plus aria-hidden="true" className="size-3.5" />
+      </button>
+
+      <div
+        aria-hidden="true"
+        className="chrome-workbench-tabs__drag-region"
+        data-tauri-drag-region
+      />
     </div>
   )
 }
