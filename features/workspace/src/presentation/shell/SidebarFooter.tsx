@@ -37,7 +37,7 @@ export interface SidebarFooterProps {
  */
 export function SidebarFooter({ onSettingsOpen, onDeveloperToolsOpen }: SidebarFooterProps) {
   return (
-    <div className="flex shrink-0 items-center gap-1 border-t border-divider px-2 py-1.5">
+    <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
       <div aria-hidden="true" className="flex-1" />
 
       <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />

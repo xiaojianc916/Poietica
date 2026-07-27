@@ -44,12 +44,37 @@ export function DesktopTitleBar({
 }: DesktopTitleBarProps) {
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
-      <div className="flex w-(--activity-rail-width) shrink-0 items-center justify-center border-b border-divider">
+      {/*
+       * 左上角一个区域，不是两个。
+       *
+       * 它的宽度就是侧边栏列宽，所以右边界那条竖线与"侧边栏／主界面"的分隔线
+       * 是同一个 x 坐标，并且跟着同一条动画时间轴滑动、收起时一起消失。原先
+       * 竖线画在一个独立的填充块上、按钮另占一格 rail 宽，两者的位置各自成立
+       * 却互不相干，对齐只能靠巧合。
+       *
+       * 开合按钮绝对定位、不参与这个宽度：列宽收起时归零，跟着流布局会被裁掉。
+       * 横向位置锚在 --workspace-sidebar-nav-icon-center 上，与下方导航项的图标
+       * 共用一条中线。
+       *
+       * 这里不标注 data-tauri-drag-region：原生拖拽一旦开始就吞掉 click，把它挂
+       * 在含按钮的容器上会让按钮静默失灵。
+       */}
+      <div
+        className="relative shrink-0 overflow-visible border-b border-divider"
+        style={{
+          borderRightStyle: 'solid',
+          borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,
+          width: 'var(--workspace-sidebar-column-width, 0px)',
+        }}
+      >
         <Button
           aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-          className="size-[var(--ui-control-height-sm)] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className="absolute top-1/2 size-[var(--ui-control-height-sm)] -translate-y-1/2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
           onClick={onSidebarToggle}
           size="icon"
+          style={{
+            left: 'calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)',
+          }}
           type="button"
           variant="ghost"
         >
@@ -60,16 +85,6 @@ export function DesktopTitleBar({
           )}
         </Button>
       </div>
-
-      <div
-        className="shrink-0 border-b border-divider"
-        data-tauri-drag-region
-        style={{
-          borderRightStyle: 'solid',
-          borderRightWidth: isSidebarOpen ? 'var(--ui-region-divider-width)' : 0,
-          width: 'var(--workspace-sidebar-column-width, 0px)',
-        }}
-      />
 
       <div className="flex min-w-0 flex-1 items-stretch">{children}</div>
 

@@ -5,6 +5,7 @@ import { WORKSPACE_LAYOUT } from './workspace-layout'
 type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
+  '--workspace-sidebar-nav-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
   '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,

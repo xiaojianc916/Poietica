@@ -468,6 +468,8 @@
   gap: var(--cp-pad-tile);
   overflow-y: auto;
   padding: var(--cp-mast-gap) var(--cp-pad-mid);
+  --assistant-threads-gutter: 8px;
+  --assistant-threads-action-size: 20px;
 }
 
 .assistant-threads__header {
@@ -475,7 +477,8 @@
   block-size: var(--cp-header);
   align-items: center;
   justify-content: space-between;
-  padding-inline: var(--cp-pad-mid);
+  padding-inline: var(--assistant-threads-gutter);
+  gap: 4px;
 }
 
 .assistant-threads__caption {
@@ -484,9 +487,9 @@
 }
 
 .assistant-threads__create {
-  display: inline-grid;
-  block-size: var(--cp-control-sm);
-  inline-size: var(--cp-control-sm);
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
   place-items: center;
   border: 0;
   border-radius: var(--cp-optical);
@@ -497,6 +500,8 @@
   transition:
     background-color var(--cp-motion-swift) var(--cp-motion-ease),
     transform var(--cp-motion-swift) var(--cp-motion-ease);
+  margin-inline: 0;
+  padding-inline: 0;
 }
 
 /* Keep the Plus library glyph optically aligned with the group caption. */
@@ -527,6 +532,8 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  padding-inline: 0;
+  margin-inline: 0;
 }
 
 .assistant-thread {
@@ -535,7 +542,7 @@
   block-size: var(--cp-control);
   align-items: center;
   border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-pad-mid);
+  padding-inline: 0;
 }
 
 .assistant-thread:hover,
@@ -590,6 +597,8 @@
   display: none;
   align-items: center;
   gap: 2px;
+  margin-inline-end: 0;
+  padding-inline-end: 0;
 }
 
 /*
@@ -605,15 +614,17 @@
 }
 
 .assistant-thread__action {
-  display: inline-grid;
-  block-size: var(--cp-control-sm);
-  inline-size: var(--cp-control-sm);
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
   place-items: center;
   border: 0;
   border-radius: var(--cp-optical);
   background: transparent;
   color: var(--cp-ink-muted);
   cursor: pointer;
+  margin-inline: 0;
+  padding-inline: 0;
 }
 
 .assistant-thread__action svg {
@@ -1253,4 +1264,8 @@
   animation: none;
   opacity: 0;
   pointer-events: none;
+}
+
+.assistant-threads__group {
+  padding-inline: var(--assistant-threads-gutter);
 }
