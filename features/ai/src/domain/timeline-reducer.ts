@@ -78,7 +78,7 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
   return {
     ...opened,
     items: [
-      ...sealTail(state.items, at),
+      ...sealTail(state.items),
       { type: 'user_message', id: `${namespace(opened)}said`, at, text: said },
     ],
   }
@@ -110,7 +110,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
         ...base,
         status: 'awaiting_permission',
         items: [
-          ...sealTail(base.items, event.at),
+          ...sealTail(base.items),
           {
             type: 'permission',
             id: `${namespace(base)}permission-${event.requestId}`,
@@ -139,7 +139,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
          protocol, and the stop reason stays ordinary. When it left such an
          account, that account is the entry, and our own wording never
          appears at all. */
-      const sealed = sealTail(base.items, event.at)
+      const sealed = sealTail(base.items)
       const said = event.diagnostics?.trim() ?? ''
       const status = finalStatus(event.stopReason)
 
@@ -167,7 +167,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
         ...base,
         status: 'failed',
         items: [
-          ...sealTail(base.items, event.at),
+          ...sealTail(base.items),
           {
             type: 'error',
             id: `${namespace(base)}error-${String(event.seq)}`,
@@ -219,7 +219,7 @@ function applyToolCall(
     startedAt: at,
   }
   if (existing < 0) {
-    return { ...state, items: [...sealTail(state.items, at), created] }
+    return { ...state, items: [...sealTail(state.items), created] }
   }
   return { ...state, items: replaceAt(state.items, existing, created) }
 }
@@ -246,7 +246,7 @@ function applyToolCallUpdate(
       rawOutput: update.rawOutput,
       startedAt: at,
     }
-    return { ...state, items: [...sealTail(state.items, at), placeholder] }
+    return { ...state, items: [...sealTail(state.items), placeholder] }
   }
 
   const current = state.items[index]
@@ -286,7 +286,7 @@ function applyAcpUpdate(
       return {
         ...state,
         items: [
-          ...sealTail(state.items, at),
+          ...sealTail(state.items),
           {
             type: 'user_message',
             id: `${scope}user-${String(seq)}`,
@@ -321,7 +321,7 @@ function applyAcpUpdate(
       const index = indexOfId(state.items, id)
       const plan = { type: 'plan', id, at, entries: update.entries } as const
       if (index < 0) {
-        return { ...state, items: [...sealTail(state.items, at), plan] }
+        return { ...state, items: [...sealTail(state.items), plan] }
       }
       return { ...state, items: replaceAt(state.items, index, plan) }
     }
@@ -367,7 +367,7 @@ function withPrompt(
   }
 
   return [
-    ...sealTail(state.items, event.at),
+    ...sealTail(state.items),
     {
       type: 'user_message',
       id: `${namespace(state)}said-${String(event.seq)}`,
@@ -392,22 +392,14 @@ function appendChunk(
   }
   const prefix = type === 'agent_text' ? 'text-' : 'thought-'
   return [
-    ...sealTail(items, at),
+    ...sealTail(items),
     { type, id: scope + prefix + String(seq), at, text: chunk, sealed: false } as
       | AgentTextItem
       | AgentThoughtItem,
   ]
 }
 
-/**
- * Closes the entry that was still growing, at the moment it stopped growing.
- *
- * The reducer still holds no clock: the instant comes from the frame that
- * displaced the entry, which every caller already has. A thought records it,
- * because how long the agent thought is part of the transcript; a message does
- * not, because nothing reads it.
- */
-function sealTail(items: readonly TimelineItem[], at: number): readonly TimelineItem[] {
+function sealTail(items: readonly TimelineItem[]): readonly TimelineItem[] {
   const tail = items.at(-1)
   if (!tail) {
     return items
@@ -417,9 +409,6 @@ function sealTail(items: readonly TimelineItem[], at: number): readonly Timeline
   }
   if (tail.sealed) {
     return items
-  }
-  if (tail.type === 'agent_thought') {
-    return replaceAt(items, items.length - 1, { ...tail, sealed: true, endedAt: at })
   }
   return replaceAt(items, items.length - 1, { ...tail, sealed: true })
 }

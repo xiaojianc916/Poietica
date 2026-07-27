@@ -178,6 +178,12 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
+  transition: color 120ms var(--cp-motion-ease, ease);
+}
+
+/* The line answers the pointer, so it reads as something you can open. */
+.timeline-reasoning__toggle:hover {
+  color: var(--cp-ink, rgb(0 0 0 / 82%));
 }
 
 .timeline-reasoning__mark {
@@ -190,16 +196,22 @@
   font-size: 0.8125rem;
 }
 
+/*
+ * Shut, the chevron points at what it will reveal; open, it points at what it
+ * revealed. One icon, quarter-turned, on the drawer's own clock — the same
+ * gesture the tool call makes, because they are the same gesture.
+ */
 .timeline-reasoning__chevron {
   flex: none;
   inline-size: 0.875rem;
   block-size: 0.875rem;
+  transform: rotate(-90deg);
   transition: transform var(--cp-motion-drawer, 260ms)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
 .timeline-reasoning[data-open="true"] .timeline-reasoning__chevron {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .timeline-reasoning__reveal {
@@ -232,10 +244,52 @@
  * lists and fences keep the rhythm they have everywhere else.
  */
 .timeline-reasoning__body {
-  max-inline-size: var(--cp-timeline-thought-max, 40rem);
+  max-inline-size: var(--cp-timeline-thought-max, 48rem);
   font-size: 0.8125rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+/*
+ * A long chain scrolls in place; a short one is untouched.
+ *
+ * The cap is a maximum, so anything under it has no scroller, no scrollbar and
+ * no faded edge — the treatment appears only once there is something to hide.
+ *
+ * The fade is a mask, never an overlay. An overlay has to be painted in some
+ * colour, and that colour is a guess about what sits behind it; guess wrong and
+ * a band appears, which is exactly what happened last time. A mask removes the
+ * pixels instead, so it is correct on any background and in any theme. The same
+ * reasoning already governs the clamped user bubble above.
+ *
+ * Which edge fades comes from use-scroll-fade as data-fade, because CSS cannot
+ * ask a box whether it has been scrolled: scrolled to the end, the bottom fade
+ * is gone rather than lingering over the last line.
+ */
+.timeline-reasoning__scroll {
+  --cp-fade: var(--cp-timeline-thought-fade, 2.5rem);
+
+  max-block-size: var(--cp-timeline-thought-cap, 13rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.timeline-reasoning__scroll[data-fade="bottom"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-fade)), transparent);
+}
+
+.timeline-reasoning__scroll[data-fade="top"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-fade));
+}
+
+.timeline-reasoning__scroll[data-fade="both"] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--cp-fade),
+    #000 calc(100% - var(--cp-fade)),
+    transparent
+  );
 }
 
 .timeline-reasoning__body > :first-child {
@@ -254,7 +308,7 @@
 }
 
 .timeline-tool[data-open="true"] .timeline-tool__chevron {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 
 .timeline-tool__header {
@@ -281,6 +335,7 @@
 }
 
 .timeline-tool__chevron {
+  transform: rotate(-90deg);
   transition: transform var(--cp-motion-drawer, 260ms)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }

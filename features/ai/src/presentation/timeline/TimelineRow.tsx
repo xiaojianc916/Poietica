@@ -28,15 +28,7 @@ export function TimelineRow({ row }: { readonly row: FeedRow }) {
       return <AgentMessage isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'agent_thought':
-      /* A chain still arriving has no end time, and the property is omitted
-         rather than passed as nothing: exactOptionalPropertyTypes is on. */
-      return (
-        <ReasoningPanel
-          isStreaming={row.isStreamingTail}
-          text={item.text}
-          {...(item.endedAt === undefined ? {} : { durationMs: item.endedAt - item.at })}
-        />
-      )
+      return <ReasoningPanel isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'tool_call':
       return <ToolCallCard item={item} />
