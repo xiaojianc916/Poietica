@@ -12,10 +12,12 @@ import { TimelineRow } from './timeline/TimelineRow'
 import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { AgentModelsPort } from '../contracts/model-port'
+import type { SessionConfigPort } from '../contracts/session-config-port'
 import type { TurnOutcome } from '../domain/timeline-selectors'
 import { selectFeedRows, selectIsBusy, selectSilentOutcome } from '../domain/timeline-selectors'
 import { useAgentModels } from '../application/useAgentModels'
 import { useAssistantSession } from '../application/useAssistantSession'
+import { useSessionConfig } from '../application/useSessionConfig'
 
 export interface AssistantSurfaceProps {
   readonly endpoint: string
@@ -35,6 +37,15 @@ export interface AssistantSurfaceProps {
    * cannot carry out.
    */
   readonly models?: AgentModelsPort
+  /**
+   * The selectors the running session offers.
+   *
+   * Optional for the same reason as the others, and empty until a session
+   * exists: the agent reports these per session, so before the first turn
+   * there is nothing to report and the composer keeps to the model list
+   * read from the file.
+   */
+  readonly config?: SessionConfigPort
 }
 
 /*
@@ -92,6 +103,13 @@ export function AssistantSurface({ endpoint, models, session }: AssistantSurface
   /* The choice belongs to the agent config, so it is loaded, not invented. */
   const picker = useAgentModels(models)
 
+  /*
+   * The selectors belong to the session, so they are read again whenever
+   * the run changes state. There is no session before the first turn, and
+   * an answer given then would be an empty list for the rest of the run.
+   */
+  const selectors = useSessionConfig(config, assistant.status)
+
   const rows = selectFeedRows(assistant.timeline)
   const started = rows.length > 0
 
@@ -143,8 +161,10 @@ export function AssistantSurface({ endpoint, models, session }: AssistantSurface
             agentLabel="Super Computer"
             isAgentNew
             models={picker.models}
+            onSelectConfig={selectors.select}
             onSelectModel={picker.select}
             onSubmit={assistant.send}
+            selectors={selectors.controls}
             status={assistant.status}
             {...(picker.activeModelId === undefined ? {} : { activeModelId: picker.activeModelId })}
           />

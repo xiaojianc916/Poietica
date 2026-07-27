@@ -217,3 +217,108 @@ export function createAgentModelBridge(): AgentModelBridge {
 export async function shutdownAgent(): Promise<void> {
   await call(() => commands.agentShutdown())
 }
+
+/*
+ * The selectors the live session offers, reached through two commands.
+ *
+ * Nothing the protocol defines is redefined here. The categories are the
+ * agent, and an empty list means no session has been created yet rather
+ * than an agent with nothing to offer.
+ */
+
+/** What a selector is for, as far as the interface is concerned. */
+export type AgentConfigPurposeName = 'mode' | 'model' | 'other' | 'thought'
+
+export interface AgentConfigChoiceDescription {
+  readonly value: string
+  readonly label: string
+  readonly detail?: string
+}
+
+export interface AgentConfigControlDescription {
+  readonly id: string
+  readonly label: string
+  readonly detail?: string
+  readonly purpose: AgentConfigPurposeName
+  readonly current: string
+  readonly choices: readonly AgentConfigChoiceDescription[]
+}
+
+export interface AgentConfigBridge {
+  readonly list: () => Promise<readonly AgentConfigControlDescription[]>
+  readonly select: (
+    configId: string,
+    value: string,
+  ) => Promise<readonly AgentConfigControlDescription[]>
+}
+
+interface NativeChoice {
+  readonly value: string
+  readonly label: string
+  readonly detail: string | null
+}
+
+interface NativeControl {
+  readonly id: string
+  readonly label: string
+  readonly detail: string | null
+  readonly purpose: string
+  readonly current: string
+  readonly choices: readonly NativeChoice[]
+}
+
+/**
+ * Names the purpose without trusting this build to know every category.
+ *
+ * A category nobody here has heard of is carried as other rather than
+ * dropped: the protocol allows one, and the user should still be able to
+ * change it.
+ */
+function purposeOf(value: string): AgentConfigPurposeName {
+  if (value === 'model' || value === 'thought' || value === 'mode') {
+    return value
+  }
+
+  return 'other'
+}
+
+/*
+ * The wire says null for absent and the port says absent, which under
+ * exactOptionalPropertyTypes are different types, so the key is left out.
+ */
+function choiceOf(native: NativeChoice): AgentConfigChoiceDescription {
+  return {
+    value: native.value,
+    label: native.label,
+    ...(native.detail === null ? {} : { detail: native.detail }),
+  }
+}
+
+function controlOf(native: NativeControl): AgentConfigControlDescription {
+  return {
+    id: native.id,
+    label: native.label,
+    purpose: purposeOf(native.purpose),
+    current: native.current,
+    choices: native.choices.map(choiceOf),
+    ...(native.detail === null ? {} : { detail: native.detail }),
+  }
+}
+
+export function createAgentConfigBridge(): AgentConfigBridge {
+  return {
+    list: async () => {
+      const offered = await call(() => commands.agentConfigOptions())
+
+      return offered.map(controlOf)
+    },
+
+    select: async (configId, value) => {
+      const offered = await call(() =>
+        commands.agentSetConfigOption({ configId, value }),
+      )
+
+      return offered.map(controlOf)
+    },
+  }
+}

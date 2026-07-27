@@ -62,3 +62,10 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
+
+export type {
+  SessionConfigChoice,
+  SessionConfigControl,
+  SessionConfigPurpose,
+} from './session-config-contract'
+export type { SessionConfigPort } from './session-config-port'

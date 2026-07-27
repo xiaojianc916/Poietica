@@ -1,8 +1,13 @@
 import { createIpcSession } from '@poietica/features-ai/adapters'
-import type { AgentModelsPort, AgentSessionPort } from '@poietica/features-ai/contracts'
+import type {
+  AgentModelsPort,
+  AgentSessionPort,
+  SessionConfigPort,
+} from '@poietica/features-ai/contracts'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCommandBridge,
+  createAgentConfigBridge,
   createAgentEventSource,
   createAgentModelBridge,
   shutdownAgent,
@@ -44,6 +49,22 @@ export function desktopAgentModels(): AgentModelsPort {
   agentModels ??= createAgentModelBridge()
 
   return agentModels
+}
+
+/*
+ * The session selectors, offered once for the whole process.
+ *
+ * Stateless in the same way the model port is, for a different reason:
+ * the list is not a file but the running session answering for itself, so
+ * every read is a fresh question and one instance is enough. A fresh
+ * object per render would mean a fresh question per render.
+ */
+let sessionConfig: SessionConfigPort | undefined
+
+export function desktopSessionConfig(): SessionConfigPort {
+  sessionConfig ??= createAgentConfigBridge()
+
+  return sessionConfig
 }
 
 export interface DesktopAgentSession {

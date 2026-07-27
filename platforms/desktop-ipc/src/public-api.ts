@@ -19,3 +19,11 @@ export {
 } from './error'
 export { commands } from './generated/ipc-bindings'
 export { invoke } from './invoke'
+
+export {
+  type AgentConfigBridge,
+  type AgentConfigChoiceDescription,
+  type AgentConfigControlDescription,
+  type AgentConfigPurposeName,
+  createAgentConfigBridge,
+} from './agent'
