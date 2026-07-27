@@ -160,7 +160,6 @@ export function createEditorSession(
 
   let attachedEditor: Editor | null = null
   let state: EditorSessionState = 'created'
-  let documentReady = false
 
   const sessionListeners = new Set<() => void>()
 
@@ -247,19 +246,31 @@ export function createEditorSession(
   )
 
   /*
-   * Persistable change observation is armed only after attachEditor declares
-   * the mounted tldraw Editor ready. No timer, microtask or record-type
-   * heuristic is used.
+   * 脏标记的输入必须是"用户对文档的编辑"。这恰好就是 tldraw 官方过滤器的
+   * 两个维度，不需要任何自制判据：
+   *
+   *   scope: 'document'  只观察会被持久化的记录（document / page / shape /
+   *                      asset）。camera、instance、pointer 等 session 记录
+   *                      天然排除在外。
+   *
+   *   source: 'user'     排除经 store.mergeRemoteChanges 应用的写入。tldraw
+   *                      的快照加载、schema 迁移与 store 完整性修复都走那条
+   *                      路，它们是库的内部记账，不是用户编辑。
+   *
+   * 此前这里没有 source 过滤，理由写的是：限定 'user' 会让脏集合与 store
+   * 漂移，所以 document session 在每个保存边界从完整快照重建脏集合。那个重建
+   * 已经不存在——document-dirty-ledger 的 commitSaveWindow 只遍历
+   * pendingBaseline。理由随重写一起消失了，过滤器却没有加回来，于是 tldraw
+   * 的内部写入被记成用户编辑，新建画布一挂载就变"未保存"。
+   *
+   * 同时删掉用挂载状态当判据的做法：那是 React 提交时序，不是文档语义。
+   * 它还有反向漏洞——标签未激活时 documentReady 为 false，那期间的文档写入
+   * 被静默丢弃，标签显示"已保存"而内存文档已与磁盘不同。
    */
   const stopObservingDocument = store.listen(
     ({ changes }) => {
-      if (state !== 'attached' || !documentReady) {
-        return
-      }
-
       /*
-       * Forward the official incremental Store diff. Do not construct a full
-       * TLStoreSnapshot on the pointer-driven interaction path.
+       * 转发官方增量 diff。指针驱动路径上不构造完整 TLStoreSnapshot。
        */
       publishDocumentEvent({
         kind: 'changed',
@@ -267,20 +278,8 @@ export function createEditorSession(
       })
     },
     {
-      /*
-       * No source filter.
-       *
-       * Restricting observation to source 'user' left every other document
-       * mutation invisible to dirty tracking, so the incremental view of the
-       * document could drift from the store. The document session compensated
-       * by rebuilding its entire dirty set from a fresh snapshot at each save
-       * boundary, which made the incremental path pure overhead: it was
-       * discarded and recomputed anyway.
-       *
-       * Observing the full document scope makes the dirty ledger authoritative
-       * by construction, which is what allows that rebuild to be deleted.
-       */
       scope: 'document',
+      source: 'user',
     },
   )
 
@@ -309,16 +308,10 @@ export function createEditorSession(
       state = 'attached'
 
       /*
-       * Tldraw invokes onMount only after its canonical Editor and initial
-       * document records exist. This attachment is therefore the explicit
-       * initialization boundary.
+       * 挂载只影响页面投影。文档的干净基线由 subscribeDocumentEvents 建立，
+       * 与编辑器是否挂载无关。
        */
-      documentReady = true
-
       publishSessionSnapshot()
-      publishDocumentEvent({
-        kind: 'ready',
-      })
     },
 
     detachEditor(editor) {
@@ -326,7 +319,6 @@ export function createEditorSession(
         return
       }
 
-      documentReady = false
       attachedEditor = null
       state = 'detached'
       publishSessionSnapshot()
@@ -339,10 +331,22 @@ export function createEditorSession(
       return assetStoreSession.getPersistenceToken()
     },
 
+    /*
+     * ready 在订阅的同一个 tick 内同步投递，每个订阅者恰好一次。
+     *
+     * 干净基线的正确时点是文档内容被确定的那一刻，而
+     * createValidatedEditorStore 已经在会话存在之前完成了 schema 迁移与
+     * 快照加载——store 一构造完成，文档就与磁盘一致。此前基线建立在
+     * attachEditor，也就是 React useEffect 里，让脏状态的正确性依赖渲染时序。
+     */
     subscribeDocumentEvents(listener) {
       assertActive()
 
       documentListeners.add(listener)
+
+      listener({
+        kind: 'ready',
+      })
 
       return () => {
         documentListeners.delete(listener)
@@ -397,7 +401,6 @@ export function createEditorSession(
       sessionListeners.clear()
       documentListeners.clear()
 
-      documentReady = false
       attachedEditor = null
       state = 'disposed'
     },
