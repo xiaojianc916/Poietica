@@ -495,7 +495,6 @@
     background-color var(--cp-motion-swift) var(--cp-motion-ease),
     transform var(--cp-motion-swift) var(--cp-motion-ease);
   margin-inline: 0;
-  padding-inline: 0;
 }
 
 /* Keep the Plus library glyph optically aligned with the group caption. */
@@ -526,7 +525,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  margin-inline: 0;
 }
 
 .assistant-thread {
@@ -642,15 +640,8 @@
 }
 
 .assistant-thread-menu.assistant-thread-menu {
-  min-inline-size: 232px;
   overflow: hidden;
-  border: var(--cp-px) solid var(--cp-hairline);
-  border-radius: var(--cp-radius-menu);
-  padding: var(--cp-optical);
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift-near), var(--cp-lift-far);
   font-family: inherit;
-  font-size: var(--cp-font-label);
   line-height: 1.25;
   color: var(--cp-ink);
 }
@@ -663,15 +654,10 @@
  */
 .assistant-thread-menu .assistant-thread-menu__item {
   display: flex;
-  min-block-size: var(--cp-control);
   align-items: center;
-  gap: var(--cp-pad-mid);
   border: 0;
-  border-radius: var(--cp-radius-item);
-  padding: 0 var(--cp-inset);
   background: transparent;
   font-family: inherit;
-  font-size: var(--cp-font-label);
   font-weight: 400;
   line-height: 1.25;
   color: var(--cp-ink);
@@ -683,8 +669,6 @@
 }
 
 .assistant-thread-menu .assistant-thread-menu__item svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
   flex: none;
   color: var(--cp-ink-muted);
   stroke-width: 1.75;
@@ -710,16 +694,13 @@
 
 .assistant-thread-menu .assistant-thread-menu__separator {
   block-size: var(--cp-px);
-  margin: var(--cp-optical) var(--cp-inset);
   background: var(--cp-hairline);
 }
 
 .assistant-thread-menu .assistant-thread-menu__meta {
-  margin: 2px var(--cp-inset) 0;
   padding: 0;
   border: 0;
   font-family: inherit;
-  font-size: var(--cp-font-caption);
   font-weight: 400;
   line-height: 1.25;
   color: var(--cp-ink-subtle);
@@ -1041,10 +1022,6 @@
  */
 .assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
   min-inline-size: 216px;
-  border: 1px solid var(--am-line);
-  border-radius: var(--am-radius);
-  padding: var(--am-pad);
-  box-shadow: var(--am-shadow);
   font-size: var(--cp-font-caption);
 }
 
