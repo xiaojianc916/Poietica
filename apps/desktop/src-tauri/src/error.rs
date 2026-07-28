@@ -22,21 +22,6 @@ pub enum Error {
     #[error("Dialog error: {0}")]
     Dialog(#[from] tauri_plugin_dialog::Error),
 
-    #[error("FS error: {0}")]
-    Fs(#[from] tauri_plugin_fs::Error),
-
-    #[error("Opener error: {0}")]
-    Opener(#[from] tauri_plugin_opener::Error),
-
-    #[error("Updater error: {0}")]
-    Updater(#[from] tauri_plugin_updater::Error),
-
-    #[error("Clipboard error: {0}")]
-    Clipboard(#[from] tauri_plugin_clipboard_manager::Error),
-
-    #[error("Shell error: {0}")]
-    Shell(#[from] tauri_plugin_shell::Error),
-
     #[error("Notification error: {0}")]
     Notification(#[from] tauri_plugin_notification::Error),
 
@@ -178,7 +163,7 @@ impl Error {
             Self::FileConflict(_) => "文件已在其他位置被修改",
             Self::PermissionDenied(_) => "该操作未获授权",
 
-            Self::Io(_) | Self::Persistence(_) | Self::File(_) | Self::Store(_) | Self::Fs(_) => {
+            Self::Io(_) | Self::Persistence(_) | Self::File(_) | Self::Store(_) => {
                 "文件操作失败"
             }
 
@@ -191,10 +176,6 @@ impl Error {
             Self::Plugin(_) => "插件操作失败",
             Self::Tauri(_)
             | Self::Dialog(_)
-            | Self::Opener(_)
-            | Self::Updater(_)
-            | Self::Clipboard(_)
-            | Self::Shell(_)
             | Self::Notification(_)
             | Self::WindowState(_)
             | Self::GlobalShortcut(_)
