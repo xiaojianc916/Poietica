@@ -1,5 +1,5 @@
-import { failureCoordinator } from '@poietica/agent-runtime'
 import { type ReactNode, useSyncExternalStore } from 'react'
+import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { FatalErrorBoundary } from './FatalErrorBoundary'
 import { FatalErrorScreen } from './FatalErrorScreen'
 

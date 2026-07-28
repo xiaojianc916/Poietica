@@ -1,5 +1,5 @@
 import { FileText, X } from '@mynaui/icons-react'
-import type { WorkbenchTabId } from '@poietica/agent-protocol'
+import type { WorkbenchTabId } from '@poietica/features-workspace'
 import type { WorkbenchTabViewModel } from '@poietica/features-workspace/contracts'
 import type { ComponentType, KeyboardEvent } from 'react'
 import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'

@@ -1,6 +1,7 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
-import { desktopSessionConfig, useSharedThreads } from '@poietica/agent-runtime'
 import { AssistantSurface } from '@poietica/agent-ui'
+import { desktopSessionConfig } from '../../application/ai/agent-session'
+import { useSharedThreads } from '../../application/ai/threads-context'
 
 /*
  * 一格只画一条对话。

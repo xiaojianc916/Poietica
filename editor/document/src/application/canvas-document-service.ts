@@ -1,10 +1,10 @@
+import type { EditorSession, EditorSessionRegistry } from '@poietica/editor-core/application'
+import type { PoieticaExtension } from '@poietica/editor-core/extensions'
 import {
   createDocumentSession,
   type DocumentPersistenceState,
   type DocumentSession,
-} from '@poietica/agent-timeline'
-import type { EditorSession, EditorSessionRegistry } from '@poietica/editor-core/application'
-import type { PoieticaExtension } from '@poietica/editor-core/extensions'
+} from '@poietica/editor-document'
 import type { TLStoreSnapshot } from 'tldraw'
 import type { EditorDocumentPort } from '../ports/editor-document-port'
 

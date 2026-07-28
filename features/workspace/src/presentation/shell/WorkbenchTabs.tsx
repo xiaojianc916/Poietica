@@ -1,5 +1,5 @@
 import { Plus } from '@mynaui/icons-react'
-import type { WorkbenchTabId } from '@poietica/agent-protocol'
+import type { WorkbenchTabId } from '@poietica/features-workspace'
 import type { WorkbenchTabViewModel } from '@poietica/features-workspace/contracts'
 import { useCallback, useMemo, useRef } from 'react'
 import { useWorkbenchTabsInteractions } from './workbench-tabs/use-workbench-tabs-interactions'

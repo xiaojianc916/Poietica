@@ -1,11 +1,11 @@
+import { type ToastNotice, ToastRegion } from '@poietica/foundations-design-system'
+import type { FailureImpact } from '@poietica/foundations-kernel'
+import { useSyncExternalStore } from 'react'
 import {
   failureCoordinator,
   type NonTerminalFailureIncident,
   type PresentedFailure,
-} from '@poietica/agent-runtime'
-import { type ToastNotice, ToastRegion } from '@poietica/foundations-design-system'
-import type { FailureImpact } from '@poietica/foundations-kernel'
-import { useSyncExternalStore } from 'react'
+} from '../../application/failures/failure-coordinator'
 
 /* 同时可见的通知上限：超出时保留最新几条，与主流桌面应用的通知栈一致。 */
 const MAX_VISIBLE_NOTICES = 3

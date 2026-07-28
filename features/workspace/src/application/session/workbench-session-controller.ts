@@ -1,10 +1,4 @@
-import type {
-  ActiveConversationViewModel,
-  CanvasSessionId,
-  ConversationId,
-  ConversationTabViewModel,
-  OpenConversationRequest,
-} from '@poietica/agent-protocol'
+import type { CanvasSessionId } from '@poietica/agent-protocol'
 import type {
   ActiveCanvasViewModel,
   CanvasTabStatus,
@@ -22,6 +16,12 @@ import type {
   WorkspaceTabViewModel,
 } from '@poietica/features-workspace/contracts'
 import { START_TAB_ID, START_TAB_TITLE } from '@poietica/features-workspace/contracts'
+import type {
+  ActiveConversationViewModel,
+  ConversationId,
+  ConversationTabViewModel,
+  OpenConversationRequest,
+} from '../../contracts/workbench-contract'
 
 type WorkbenchEntry = StartEntry | CanvasEntry | ConversationEntry | WorkspaceEntry
 

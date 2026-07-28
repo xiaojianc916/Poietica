@@ -1,5 +1,5 @@
 import { Message } from '@mynaui/icons-react'
-import type { WorkspaceSurfaceId } from '@poietica/agent-protocol'
+import type { WorkspaceSurfaceId } from '@poietica/features-workspace'
 import { cn } from '@poietica/foundations-design-system'
 import {
   CANVAS_START_NAV_ID,

@@ -1,5 +1,5 @@
-import type { TerminalFailureIncident } from '@poietica/agent-runtime'
-import { formatFailureDiagnostic } from '@poietica/agent-runtime'
+import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
+import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
 
 export interface TerminalFailurePrimaryAction {
   readonly kind: 'reload'

@@ -1,6 +1,6 @@
-import { useSharedThreads } from '@poietica/agent-runtime'
 import type { AssistantThreadSummary } from '@poietica/agent-ui'
 import { AssistantThreadList } from '@poietica/agent-ui'
+import { useSharedThreads } from '../../application/ai/threads-context'
 
 /*
  * 侧边栏下半部分：真实的会话记录。

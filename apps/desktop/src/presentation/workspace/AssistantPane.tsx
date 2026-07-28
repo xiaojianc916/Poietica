@@ -1,6 +1,6 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
-import { useSharedThreads } from '@poietica/agent-runtime'
 import { useCallback, useRef, useState } from 'react'
+import { useSharedThreads } from '../../application/ai/threads-context'
 import { ConversationSurface } from './ConversationSurface'
 
 /*

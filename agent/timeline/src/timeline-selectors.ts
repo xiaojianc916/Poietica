@@ -3,7 +3,7 @@ import type {
   TimelineItem,
   TimelineItemId,
   TimelineState,
-} from '@poietica/agent-protocol'
+} from '@poietica/agent-timeline'
 
 /**
  * Read models for the activity feed.

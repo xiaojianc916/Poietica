@@ -1,4 +1,5 @@
-import type { RunEvent, TimelineState } from '@poietica/agent-protocol'
+import type { RunEvent } from '@poietica/agent-protocol'
+import type { TimelineState } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { appendUserMessage, applyRunEvent, createTimelineState } from '../timeline-reducer'
 

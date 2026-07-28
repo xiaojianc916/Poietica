@@ -1,4 +1,4 @@
-import type { FileReference } from '@poietica/agent-timeline'
+import type { FileReference } from '@poietica/editor-persistence'
 import type { Result } from '@poietica/foundations-kernel'
 
 export interface AtomicDocumentStorage {

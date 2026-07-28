@@ -1,15 +1,17 @@
 import type {
   AcpContentBlock,
   AcpSessionUpdate,
-  AgentTextItem,
-  AgentThoughtItem,
   RunEvent,
   RunId,
   RunStatus,
+} from '@poietica/agent-protocol'
+import type {
+  AgentTextItem,
+  AgentThoughtItem,
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
-} from '@poietica/agent-protocol'
+} from '@poietica/agent-timeline'
 
 /**
  * The timeline reducer.

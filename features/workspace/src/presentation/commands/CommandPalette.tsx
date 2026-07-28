@@ -1,5 +1,5 @@
 import { Command } from '@mynaui/icons-react'
-import type { RegisteredCommand } from '@poietica/agent-protocol'
+import type { RegisteredCommand } from '@poietica/features-workspace'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/foundations-design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
