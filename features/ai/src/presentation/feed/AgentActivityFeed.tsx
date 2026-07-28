@@ -26,7 +26,7 @@ const ESTIMATED_ROW_PX: Record<string, number> = {
 /** 未知类型的兜底估高。 */
 const ESTIMATED_FALLBACK_PX = 120
 
-/** 距末端多近算作"仍在看最新一条"。约等于一格滚轮。 */
+/** 距末端多近算作「仍在看最新一条」。约等于一格滚轮。 */
 const BOTTOM_THRESHOLD_PX = 48
 
 /**
