@@ -108,7 +108,7 @@ const itemClassName = [
  */
 export const DropdownMenuItem = forwardRef<
   HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Menu.Item>
+  Omit<ComponentPropsWithoutRef<typeof Menu.Item>, 'onSelect'>
 >(function DropdownMenuItem({ className, ...props }, ref) {
   return <Menu.Item className={cn(itemClassName, className)} ref={ref} {...props} />
 })
@@ -122,7 +122,7 @@ export const DropdownMenuItem = forwardRef<
  */
 export const DropdownMenuRadioItem = forwardRef<
   HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Menu.RadioItem>
+  Omit<ComponentPropsWithoutRef<typeof Menu.RadioItem>, 'onSelect'>
 >(function DropdownMenuRadioItem({ className, ...props }, ref) {
   return <Menu.RadioItem className={cn(itemClassName, className)} ref={ref} {...props} />
 })

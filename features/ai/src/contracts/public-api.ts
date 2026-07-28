@@ -18,20 +18,6 @@ export type {
   AgentSessionPort,
 } from './agent-session-port'
 export type {
-  AttachmentSourceId,
-  ComposerAttachment,
-  ComposerCommands,
-  ComposerViewModel,
-} from './composer-contract'
-export type {
-  AssistantConversationViewModel,
-  AssistantMessage,
-  AssistantMessageId,
-  AssistantMessagePart,
-  AssistantRole,
-  AssistantStatus,
-} from './conversation-contract'
-export type {
   PermissionOption,
   RunEvent,
   RunId,

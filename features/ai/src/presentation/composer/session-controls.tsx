@@ -138,12 +138,13 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
                 data-assistant-skin
                 side="left"
               >
+                {/* onClick 才是 Base UI Menu.Item 的回调；onSelect 是文本选中事件，永不触发。 */}
                 {control.choices.map((choice) => (
                   <DropdownMenuItem
                     className="assistant-config-option"
                     data-active={choice.value === control.current ? 'true' : undefined}
                     key={choice.value}
-                    onSelect={() => {
+                    onClick={() => {
                       if (choice.value === control.current) {
                         return
                       }
