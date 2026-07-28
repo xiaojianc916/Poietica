@@ -8,6 +8,7 @@
 
 export {
   ArrowUp as SubmitIcon,
+  Check as CheckIcon,
   ChevronDown as ChevronDownIcon,
   DangerCircle as FailureIcon,
   Dots as MoreIcon,

@@ -660,12 +660,88 @@
   color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
 }
 
+/*
+ * 一条报错是一条线。
+ *
+ * 它此前是一块 10% 红底的卡片，于是流里最响的东西正是最不需要被反复读的东西。
+ * 现在两侧各一根发丝，由 transparent 渐进到 hairline，所以往外自然变淡、也不
+ * 需要谁去算它该多长；中间那行摘要是一枚按钮，点一下整段原文进剪贴板。
+ *
+ * 红色只在 hover 时以文字色露一下：报错的严重程度归文字内容所有，不归背景块。
+ * 字号取 0.75rem，与 .timeline-notice、.timeline-tool__diffstat 同档 —— 界面
+ * 里的次要陈述本来就只有一档。
+ */
 .timeline-error {
-  margin: 0;
-  padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
-  border-radius: var(--cp-timeline-radius, 0.75rem);
-  background: var(--cp-timeline-danger-surface, rgb(180 35 24 / 10%));
+  --cp-error-rule: var(--cp-hairline, rgb(0 0 0 / 12%));
+
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: var(--cp-timeline-error-gap, 1rem);
+  margin-inline: 0;
+}
+
+/* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
+.timeline-error::before,
+.timeline-error::after {
+  content: "";
+  flex: 1 1 0;
+  min-inline-size: 0.75rem;
+  block-size: 1px;
+}
+
+.timeline-error::before {
+  background: linear-gradient(to right, transparent, var(--cp-error-rule));
+}
+
+.timeline-error::after {
+  background: linear-gradient(to left, transparent, var(--cp-error-rule));
+}
+
+/* 摘要只占一行：min-inline-size: 0 是 flex 子项允许自己被截断的前提。 */
+.timeline-error__action {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.375rem;
+  min-inline-size: 0;
+  max-inline-size: min(100%, 30rem);
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 120ms var(--cp-motion-ease, ease);
+}
+
+.timeline-error__action:hover {
+  color: var(--cp-ink, rgb(0 0 0 / 82%));
+}
+
+.timeline-error__mark {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
   color: var(--cp-timeline-danger-text, rgb(180 35 24));
+}
+
+.timeline-error__text {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 复制成功后那 2.2 秒，整行亮一档 —— 反馈是状态，不是另一种颜色。 */
+.timeline-error[data-copied="true"] .timeline-error__action {
+  color: var(--cp-ink, rgb(0 0 0 / 82%));
+}
+
+.timeline-error[data-copied="true"] .timeline-error__mark {
+  color: inherit;
 }
 
 @keyframes timeline-tool-spin {

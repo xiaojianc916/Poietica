@@ -16,6 +16,15 @@
 /* ---------------- 导航（栅格第 1 列） ---------------- */
 
 .settings-navigation {
+  /*
+   * 导航的悬停 / 选中底色。
+   *
+   * 不用 --ui-accent：那是全局 token，命令面板与菜单也在用，改它等于改整个应用。
+   * 这个变量挂在 .settings-navigation 而不是和 --settings-surface 那几个放一起，
+   * 因为导航与内容是外壳栅格里两个互不嵌套的格子，没有共同的承载元素。
+   */
+  --settings-nav-hover: #e6e6e6;
+
   display: flex;
   flex-direction: column;
   block-size: 100%;
@@ -53,12 +62,12 @@
 
 .settings-navigation__back:hover,
 .settings-navigation__item:hover {
-  background: var(--ui-accent);
+  background: var(--settings-nav-hover);
   color: var(--ui-foreground);
 }
 
 .settings-navigation__item[data-active="true"] {
-  background: var(--ui-accent);
+  background: var(--settings-nav-hover);
   color: var(--ui-foreground);
 }
 
@@ -280,19 +289,6 @@
   border: 0;
   border-radius: 10px;
   background: var(--settings-surface);
-}
-
-.settings-about-card__logo {
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: 44px;
-  block-size: 44px;
-  border-radius: 12px;
-  background: var(--settings-field);
-  color: var(--ui-foreground);
-  font-size: 15px;
-  font-weight: 640;
 }
 
 .settings-about-card__copy {

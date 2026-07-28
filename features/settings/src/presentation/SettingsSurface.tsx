@@ -2,6 +2,7 @@ import {
   Button,
   ErrorState,
   LoadingState,
+  PencilRulerIcon,
   Select,
   SelectContent,
   SelectGroup,
@@ -10,9 +11,11 @@ import {
   type SelectOption,
   SelectTrigger,
   Switch,
+  WebhookIcon,
 } from '@poietica/foundations-design-system'
 import type { AppSettings } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import {
+  type ComponentType,
   createContext,
   memo,
   type ReactNode,
@@ -399,8 +402,9 @@ const GeneralSettings = memo(function GeneralSettings({
           <Button
             disabled={controller.saving}
             onClick={controller.reset}
+            size="xs"
             type="button"
-            variant="outline"
+            variant="soft"
           >
             {controller.saving && controller.operation === 'reset' ? '正在恢复…' : '恢复默认'}
           </Button>
@@ -687,10 +691,6 @@ const AboutSettings = memo(function AboutSettings() {
   return (
     <SettingsPage>
       <div className="settings-about-card">
-        <div aria-hidden="true" className="settings-about-card__logo">
-          HC
-        </div>
-
         <div className="settings-about-card__copy">
           <strong>Poietica</strong>
           <span>Version 0.1.0</span>
@@ -907,8 +907,45 @@ function ArchitecturePrinciple({ index, title, description }: ArchitecturePrinci
   )
 }
 
+type GlyphComponent = ComponentType<{
+  readonly className?: string
+  readonly 'aria-hidden'?: 'true'
+}>
+
+/*
+ * 分类图标有两个来源，各自穷尽自己的分类集合。
+ *
+ * GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 与画布在主导航里已经有
+ * 确定的画法，设置里再描一份 path 就是第二个来源，两处迟早对不上。
+ *
+ * 图标不从 features/workspace 的导航注册表取：features-settings 依赖另一个
+ * feature 会被架构测试拦下。两边共同的下游是 design-system，所以两处引用的是
+ * 同一个组件，而不是同一张图的两份摹本。
+ *
+ * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
+ * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
+ */
+type GlyphSection = 'canvas' | 'hooks'
+
+type PathSection = Exclude<SettingsSection, GlyphSection>
+
+const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
+  canvas: PencilRulerIcon,
+  hooks: WebhookIcon,
+}
+
+function isGlyphSection(section: SettingsSection): section is GlyphSection {
+  return section === 'canvas' || section === 'hooks'
+}
+
 function SectionIcon({ section }: { readonly section: SettingsSection }) {
-  const paths: Record<SettingsSection, ReactNode> = {
+  if (isGlyphSection(section)) {
+    const Glyph = SECTION_GLYPHS[section]
+
+    return <Glyph aria-hidden="true" className="settings-navigation__icon" />
+  }
+
+  const paths: Record<PathSection, ReactNode> = {
     general: (
       <>
         <circle cx="12" cy="12" r="3" />
@@ -933,21 +970,9 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
         <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
       </>
     ),
-    hooks: (
-      <>
-        <path d="m8 6-5 6 5 6" />
-        <path d="m16 6 5 6-5 6" />
-      </>
-    ),
     plugins: (
       <>
         <path d="M9 3v4H7a2 2 0 0 0-2 2v3h2.5a2 2 0 1 1 0 4H5v3a2 2 0 0 0 2 2h3v-2.5a2 2 0 1 1 4 0V21h3a2 2 0 0 0 2-2v-3h-2.5a2 2 0 1 1 0-4H19V9a2 2 0 0 0-2-2h-2V3Z" />
-      </>
-    ),
-    canvas: (
-      <>
-        <rect height="16" rx="2" width="16" x="4" y="4" />
-        <path d="M4 9h16M9 4v16" />
       </>
     ),
     export: (
