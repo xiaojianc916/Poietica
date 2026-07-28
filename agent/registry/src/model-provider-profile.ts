@@ -138,13 +138,13 @@ function parseHttpUrl(input: unknown): Parsed<string> {
 function parseIdentity(
   raw: Record<string, unknown>,
 ): Parsed<{ readonly id: string; readonly displayName: string }> {
-  const id = asText(raw.id, 32)
+  const id = asText(raw['id'], 32)
 
   if (id === undefined || !ID_PATTERN.test(id)) {
     return fail('提供方标识只允许小写字母、数字与连字符，且以字母开头')
   }
 
-  const displayName = asText(raw.displayName, 64)
+  const displayName = asText(raw['displayName'], 64)
 
   if (displayName === undefined) {
     return fail('提供方需要一个 1–64 字的名称')
@@ -180,29 +180,29 @@ export function parseModelProviderProfile(input: unknown): ModelProviderProfileP
     return identity
   }
 
-  if (raw.dialect !== 'anthropic' && raw.dialect !== 'openai-chat') {
+  if (raw['dialect'] !== 'anthropic' && raw['dialect'] !== 'openai-chat') {
     return fail('只支持 anthropic 与 openai-chat 两种方言')
   }
 
-  const baseUrl = parseHttpUrl(raw.baseUrl)
+  const baseUrl = parseHttpUrl(raw['baseUrl'])
 
   if (!baseUrl.ok) {
     return baseUrl
   }
 
-  const models = parseIdList(raw.models, MAX_MODELS)
+  const models = parseIdList(raw['models'], MAX_MODELS)
 
   if (!models.ok) {
     return models
   }
 
-  const favoriteModels = parseIdList(raw.favoriteModels, MAX_MODELS)
+  const favoriteModels = parseIdList(raw['favoriteModels'], MAX_MODELS)
 
   if (!favoriteModels.ok) {
     return favoriteModels
   }
 
-  const defaultModel = parseDefaultModel(raw.defaultModel)
+  const defaultModel = parseDefaultModel(raw['defaultModel'])
 
   if (!defaultModel.ok) {
     return defaultModel
@@ -213,7 +213,7 @@ export function parseModelProviderProfile(input: unknown): ModelProviderProfileP
     profile: {
       id: identity.value.id,
       displayName: identity.value.displayName,
-      dialect: raw.dialect,
+      dialect: raw['dialect'],
       baseUrl: baseUrl.value,
       models: models.value,
       favoriteModels: favoriteModels.value,

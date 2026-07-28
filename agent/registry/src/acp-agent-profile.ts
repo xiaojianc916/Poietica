@@ -104,13 +104,13 @@ function asEnvName(input: unknown): string | undefined {
 function parseIdentity(
   raw: Record<string, unknown>,
 ): Parsed<{ readonly id: string; readonly displayName: string }> {
-  const id = asText(raw.id, 32)
+  const id = asText(raw['id'], 32)
 
   if (id === undefined || !ID_PATTERN.test(id)) {
     return fail('agent 标识只允许小写字母、数字与连字符，且以字母开头')
   }
 
-  const displayName = asText(raw.displayName, 64)
+  const displayName = asText(raw['displayName'], 64)
 
   if (displayName === undefined) {
     return fail('agent 需要一个 1–64 字的名称')
@@ -216,24 +216,24 @@ function parseCredentialBinding(input: unknown): Parsed<AgentCredentialBinding |
     return fail('凭据绑定必须是对象')
   }
 
-  const providerId = asText(raw.providerId, 32)
+  const providerId = asText(raw['providerId'], 32)
 
   if (providerId === undefined || !ID_PATTERN.test(providerId)) {
     return fail('凭据绑定里的提供方标识不合法')
   }
 
-  const apiKeyEnv = asEnvName(raw.apiKeyEnv)
-  const baseUrlEnv = asEnvName(raw.baseUrlEnv)
+  const apiKeyEnv = asEnvName(raw['apiKeyEnv'])
+  const baseUrlEnv = asEnvName(raw['baseUrlEnv'])
 
   if (apiKeyEnv === undefined || baseUrlEnv === undefined) {
     return fail('凭据绑定需要合法的密钥与 base URL 环境变量名')
   }
 
-  if (raw.modelEnv === undefined || raw.modelEnv === null) {
+  if (raw['modelEnv'] === undefined || raw['modelEnv'] === null) {
     return { ok: true, value: { providerId, apiKeyEnv, baseUrlEnv, modelEnv: undefined } }
   }
 
-  const modelEnv = asEnvName(raw.modelEnv)
+  const modelEnv = asEnvName(raw['modelEnv'])
 
   if (modelEnv === undefined) {
     return fail('凭据绑定里的模型环境变量名不合法')
@@ -289,37 +289,37 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
     return identity
   }
 
-  const command = parseCommand(raw.command)
+  const command = parseCommand(raw['command'])
 
   if (!command.ok) {
     return command
   }
 
-  const args = parseArgs(raw.args)
+  const args = parseArgs(raw['args'])
 
   if (!args.ok) {
     return args
   }
 
-  const cwd = parseCwd(raw.cwd)
+  const cwd = parseCwd(raw['cwd'])
 
   if (!cwd.ok) {
     return cwd
   }
 
-  const env = parseEnv(raw.env)
+  const env = parseEnv(raw['env'])
 
   if (!env.ok) {
     return env
   }
 
-  const binding = parseCredentialBinding(raw.credentialBinding)
+  const binding = parseCredentialBinding(raw['credentialBinding'])
 
   if (!binding.ok) {
     return binding
   }
 
-  const defaults = parseDefaultConfigOptions(raw.defaultConfigOptions)
+  const defaults = parseDefaultConfigOptions(raw['defaultConfigOptions'])
 
   if (!defaults.ok) {
     return defaults
@@ -349,7 +349,7 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
 export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse {
   const raw = asRecord(input)
 
-  if (!raw || !Array.isArray(raw.profiles)) {
+  if (!raw || !Array.isArray(raw['profiles'])) {
     return {
       value: builtinAcpAgentProfileSet(),
       issues: ['agent 配置无法解析，已回退到内置档案'],
@@ -359,7 +359,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   const issues: string[] = []
   const profiles: AcpAgentProfile[] = []
 
-  for (const candidate of raw.profiles.slice(0, MAX_PROFILES)) {
+  for (const candidate of raw['profiles'].slice(0, MAX_PROFILES)) {
     const parsed = parseAcpAgentProfile(candidate)
 
     if (!parsed.ok) {
@@ -384,7 +384,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     }
   }
 
-  const requested = asText(raw.defaultProfileId, 32)
+  const requested = asText(raw['defaultProfileId'], 32)
   const matched = requested !== undefined && profiles.some((one) => one.id === requested)
   const defaultProfileId = matched && requested !== undefined ? requested : first.id
 

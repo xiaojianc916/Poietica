@@ -29,7 +29,7 @@ describe('parseAcpAgentProfile', () => {
 
     if (result.ok) {
       expect(result.profile.args).toEqual(['acp'])
-      expect(result.profile.defaultConfigOptions.brave_mode).toBe(false)
+      expect(result.profile.defaultConfigOptions['brave_mode']).toBe(false)
     }
   })
 

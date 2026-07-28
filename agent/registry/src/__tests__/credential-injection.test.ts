@@ -33,16 +33,16 @@ describe('resolveAgentLaunchEnv', () => {
   it('注入 base URL、密钥与默认模型', () => {
     const result = resolveAgentLaunchEnv({ profile, provider, apiKey: 'sk-secret' })
 
-    expect(result.env.ANTHROPIC_BASE_URL).toBe(provider.baseUrl)
-    expect(result.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-secret')
-    expect(result.env.ANTHROPIC_MODEL).toBe('glm-4.6')
+    expect(result.env['ANTHROPIC_BASE_URL']).toBe(provider.baseUrl)
+    expect(result.env['ANTHROPIC_AUTH_TOKEN']).toBe('sk-secret')
+    expect(result.env['ANTHROPIC_MODEL']).toBe('glm-4.6')
     expect(result.blockers).toEqual([])
   })
 
   it('缺少密钥时报告原因而不是静默启动', () => {
     const result = resolveAgentLaunchEnv({ profile, provider, apiKey: undefined })
 
-    expect(result.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
+    expect(result.env['ANTHROPIC_AUTH_TOKEN']).toBeUndefined()
     expect(result.blockers).toHaveLength(1)
   })
 
@@ -50,7 +50,7 @@ describe('resolveAgentLaunchEnv', () => {
     const overridden = { ...profile, env: { ANTHROPIC_BASE_URL: 'https://example.test' } }
     const result = resolveAgentLaunchEnv({ profile: overridden, provider, apiKey: 'sk-secret' })
 
-    expect(result.env.ANTHROPIC_BASE_URL).toBe('https://example.test')
+    expect(result.env['ANTHROPIC_BASE_URL']).toBe('https://example.test')
   })
 
   it('未绑定提供方的 agent 自行认证', () => {
@@ -70,8 +70,8 @@ describe('redactEnv', () => {
       HOME: '/home/dev',
     })
 
-    expect(redacted.ANTHROPIC_AUTH_TOKEN).toBe('[REDACTED]')
-    expect(redacted.ANTHROPIC_BASE_URL).toBe('https://example.test')
-    expect(redacted.HOME).toBe('/home/dev')
+    expect(redacted['ANTHROPIC_AUTH_TOKEN']).toBe('[REDACTED]')
+    expect(redacted['ANTHROPIC_BASE_URL']).toBe('https://example.test')
+    expect(redacted['HOME']).toBe('/home/dev')
   })
 })

@@ -246,7 +246,7 @@ export const useThreads = (
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
     },
-    [port, refresh],
+    [port],
   )
 
   const remove = useCallback(
@@ -264,7 +264,7 @@ export const useThreads = (
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
     },
-    [port, refresh],
+    [port],
   )
 
   const setPinned = useCallback(
@@ -283,7 +283,7 @@ export const useThreads = (
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
     },
-    [port, refresh],
+    [port],
   )
 
   const remember = useCallback((threadId: string, offered: readonly SessionConfigControl[]) => {
