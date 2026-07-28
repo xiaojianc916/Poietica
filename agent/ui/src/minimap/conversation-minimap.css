@@ -87,6 +87,7 @@
   background: var(--cp-rail-ink-active);
 }
 
+.conversation-minimap__turn[data-aimed] .conversation-minimap__bar,
 .conversation-minimap__turn:hover .conversation-minimap__bar,
 .conversation-minimap__turn:focus-visible .conversation-minimap__bar {
   background: var(--cp-rail-ink-aimed);
@@ -130,6 +131,7 @@
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+.conversation-minimap__turn[data-aimed] .conversation-minimap__card,
 .conversation-minimap__turn:hover .conversation-minimap__card,
 .conversation-minimap__turn:focus-visible .conversation-minimap__card {
   opacity: 1;

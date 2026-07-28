@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap@v7 */
+/* poietica:conversation-minimap@v8 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -31,6 +31,22 @@ const REACH_LEFT_MAX_PX = 320
 
 const CARD_SELECTOR = '[data-conversation-card]'
 const WEIGHT_VAR = '--cp-rail-weight'
+
+/**
+ * The turn under the hand.
+ *
+ * The stylesheet already says there is at most one aimed turn and that it wins
+ * over the read one; until now that was spelled ':hover', which cannot see the
+ * hit region and so lit the preview card on different terms than the pull.
+ * Both now read this, written once per frame from the same weights.
+ *
+ * The threshold is a floor on the winning weight, not a second geometry: about
+ * forty-five pixels of vertical distance. Low enough that the card is already
+ * fading in while the hand is still on its way, high enough that clipping the
+ * very end of the rail does not flash one.
+ */
+const AIMED_ATTR = 'data-aimed'
+const AIMED_MIN_WEIGHT = 0.35
 
 /** Below this a weight is indistinguishable from rest; write the flat 0. */
 const EPSILON = 0.002
@@ -84,9 +100,10 @@ export function useFisheye(): (node: HTMLElement | null) => void {
     }
 
     /*
-     * Reduced motion is answered here, not only in the stylesheet: an inline
-     * custom property outranks the @media rule that would neutralise it, so a
-     * hook that keeps writing makes that rule unreachable.
+     * Coarse pointers and reduced motion are answered here, not only in the
+     * stylesheet: an inline custom property outranks the @media rule that
+     * would neutralise it. Bowing out leaves ':hover' and ':focus-visible' in
+     * charge, which is why those rules are still in the stylesheet.
      */
     if (view.matchMedia('(pointer: coarse)').matches) {
       return
@@ -105,6 +122,7 @@ export function useFisheye(): (node: HTMLElement | null) => void {
     const clear = () => {
       for (const bar of node.querySelectorAll<HTMLElement>(':scope > *')) {
         bar.style.removeProperty(WEIGHT_VAR)
+        bar.removeAttribute(AIMED_ATTR)
       }
     }
 
@@ -131,12 +149,30 @@ export function useFisheye(): (node: HTMLElement | null) => void {
       engaged = true
 
       /* The rail's own children, not a class name owned by another file. */
-      for (const bar of node.querySelectorAll<HTMLElement>(':scope > *')) {
+      const bars = Array.from(node.querySelectorAll<HTMLElement>(':scope > *'))
+      let aimed: HTMLElement | null = null
+      let best = AIMED_MIN_WEIGHT
+
+      for (const bar of bars) {
         const center = rect.top + bar.offsetTop + bar.offsetHeight / 2
         const ratio = (center - pointerY) / FALLOFF_PX
         const weight = Math.exp(-(ratio * ratio))
 
         bar.style.setProperty(WEIGHT_VAR, weight < EPSILON ? '0' : weight.toFixed(3))
+
+        if (weight > best) {
+          best = weight
+          aimed = bar
+        }
+      }
+
+      /* One winner, decided from the same weights the pull was drawn from. */
+      for (const bar of bars) {
+        if (bar === aimed) {
+          bar.setAttribute(AIMED_ATTR, '')
+        } else {
+          bar.removeAttribute(AIMED_ATTR)
+        }
       }
     }
 
