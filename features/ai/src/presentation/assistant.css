@@ -1106,3 +1106,38 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/*
+ * 会话列表的首帧。
+ *
+ * 行的形状先到，结论后到：读取落定之前不说“还没有会话”。
+ */
+.assistant-thread[data-placeholder="true"] {
+  pointer-events: none;
+}
+
+.assistant-thread__ghost {
+  display: block;
+  height: 10px;
+  margin: 7px 8px;
+  border-radius: 4px;
+  background: var(--am-line, rgb(13 13 13 / 8%));
+  animation: assistant-thread-ghost 1200ms ease-in-out infinite;
+}
+
+@keyframes assistant-thread-ghost {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-thread__ghost {
+    animation: none;
+  }
+}

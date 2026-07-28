@@ -314,9 +314,23 @@ export function WorkspaceContainer({
     [port.canvases, workbench.tabs],
   )
 
+  /*
+   * 一条对话开口说话的那一刻，AI 那一格就变成这条对话。
+   *
+   * openConversation 会就地顶掉 workspace:ai（会话槽本来的规则），于是标签
+   * 标题变成这句话、activeSurface 变成 conversation，左侧高亮也随之落到列表
+   * 的那一行——三件事同一个来源，不需要各自同步。
+   */
+  const startConversation = useCallback(
+    (threadId: string, title: string) => {
+      port.workspace.openConversation({ threadId, title })
+    },
+    [port.workspace],
+  )
+
   const surfaceRenderers = useMemo(
-    () => createAssistantSurfaceRenderers(agentSession),
-    [agentSession],
+    () => createAssistantSurfaceRenderers(agentSession, startConversation),
+    [agentSession, startConversation],
   )
 
   const mainContent = renderActiveSurface({

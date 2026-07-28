@@ -34,12 +34,16 @@ export interface ThreadsSelection {
   readonly tabs: readonly ThreadTab[]
   readonly activeThreadId: string | null
   readonly titleOf: (threadId: string) => string
-  readonly create: () => Promise<void>
+  /** The stand in name a message would give a conversation. */
+  readonly standInTitle: (message: string) => string
+  readonly create: () => Promise<string | null>
   readonly activate: (threadId: string) => void
   readonly openInNewTab: (threadId: string) => void
   readonly closeTab: (threadId: string) => void
   readonly nameFromMessage: (threadId: string, message: string) => void
   readonly refresh: () => Promise<void>
+  /** True until the first read of the list has settled, either way. */
+  readonly isLoading: boolean
   readonly failure: string | null
 }
 
@@ -56,10 +60,22 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
   const [openIds, setOpenIds] = useState<readonly string[]>([])
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [provisional, setProvisional] = useState<Record<string, string>>({})
+  /*
+   * Conversations this session started, before a read has caught up.
+   *
+   * The platform records a conversation when its first turn begins, so a
+   * read fired at the moment of sending can come back without it. Showing
+   * the row at once and letting the next read own it is the ordinary
+   * optimistic update; the alternative is a list that ignores what the
+   * user just did.
+   */
+  const [pending, setPending] = useState<readonly ThreadRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [failure, setFailure] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (port === undefined) {
+      setIsLoading(false)
       return
     }
     try {
@@ -68,6 +84,8 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
       setFailure(null)
     } catch (reason) {
       setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
+    } finally {
+      setIsLoading(false)
     }
   }, [port])
 
@@ -134,14 +152,33 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
       if (found !== undefined && found.titleSource === 'official') {
         return
       }
-      setProvisional((named) => ({ ...named, [threadId]: shorten(message) }))
+      const standIn = shorten(message)
+      setProvisional((named) => ({ ...named, [threadId]: standIn }))
+      if (found !== undefined) {
+        return
+      }
+      /* Nothing has read this conversation back yet, so show it now. */
+      setPending((held) =>
+        held.some((thread) => thread.threadId === threadId)
+          ? held
+          : [
+              ...held,
+              {
+                threadId,
+                sessionId: null,
+                title: standIn,
+                titleSource: 'message' as const,
+                updatedAt: new Date().toISOString(),
+              },
+            ],
+      )
     },
     [threads],
   )
 
-  const create = useCallback(async () => {
+  const create = useCallback(async (): Promise<string | null> => {
     if (port === undefined) {
-      return
+      return null
     }
     try {
       const opened = await port.open()
@@ -153,8 +190,10 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
       setOpenIds((open) => [...open, opened.thread.threadId])
       setActiveThreadId(opened.thread.threadId)
       setFailure(null)
+      return opened.thread.threadId
     } catch (reason) {
       setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
+      return null
     }
   }, [port])
 
@@ -163,17 +202,31 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     [openIds, titleOf],
   )
 
+  /* 刚开口的对话排在最前，直到下一次读取把它认领走。 */
+  const listed = useMemo(() => {
+    if (pending.length === 0) {
+      return threads
+    }
+
+    const known = new Set(threads.map((thread) => thread.threadId))
+    const extra = pending.filter((thread) => !known.has(thread.threadId))
+
+    return extra.length === 0 ? threads : [...extra, ...threads]
+  }, [pending, threads])
+
   return {
-    threads,
+    threads: listed,
     tabs,
     activeThreadId,
     titleOf,
+    standInTitle: shorten,
     create,
     activate,
     openInNewTab,
     closeTab,
     nameFromMessage,
     refresh,
+    isLoading,
     failure,
   }
 }

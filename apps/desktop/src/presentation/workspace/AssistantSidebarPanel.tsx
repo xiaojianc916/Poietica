@@ -73,6 +73,7 @@ export function AssistantSidebarPanel({
   return (
     <AssistantThreadList
       activeThreadId={activeThreadId}
+      isLoading={threads.isLoading}
       onActivate={(threadId) => {
         threads.activate(threadId)
         onOpen(threadId, threads.titleOf(threadId))

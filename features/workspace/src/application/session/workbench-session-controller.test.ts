@@ -20,14 +20,14 @@ describe('workbench session controller', () => {
         kind: 'workspace',
         tabId: 'workspace:ai',
         surfaceId: 'ai',
-        title: 'AI',
+        title: '新建会话',
       },
       tabs: [
         {
           id: 'workspace:ai',
           kind: 'workspace',
           surfaceId: 'ai',
-          title: 'AI',
+          title: '新建会话',
           canClose: true,
           isActive: true,
         },

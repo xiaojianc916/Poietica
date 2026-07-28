@@ -65,7 +65,7 @@ interface WorkspaceEntry extends EntryBase {
 const DEFAULT_ENTRY: WorkspaceEntry = Object.freeze({
   id: 'workspace:ai',
   kind: 'workspace',
-  title: 'AI',
+  title: '新建会话',
   canClose: true,
   surfaceId: 'ai',
 })
