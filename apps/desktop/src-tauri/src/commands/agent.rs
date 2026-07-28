@@ -61,14 +61,14 @@ const NO_ANSWER: &str = "the agent session ended before answering";
 const NO_THREAD_SESSION: &str = "that conversation is not holding an agent session";
 
 /// The live session, if one has been started.
+///
+/// The connection's own session identifier is deliberately absent. Which
+/// session a turn or a selector is addressed to is answered by the
+/// conversation holding it, so a second copy kept in memory could only ever
+/// disagree with the one in the log.
 #[derive(Debug)]
-#[allow(
-    clippy::struct_field_names,
-    reason = "session_id is the ACP wire field name; renaming it would hide the protocol contract"
-)]
 struct Session {
     client: AgentClient,
-    session_id: String,
     thread_id: Uuid,
 }
 
@@ -607,9 +607,13 @@ fn restate(control: ConfigControl) -> AgentConfigControl {
 }
 
 /// What a command needs to know about the running session.
+///
+/// A connection to speak over, and the conversation that opened it. Addressing
+/// is done by reading the log: session_held_by for a selector,
+/// resolve_turn_target for a turn. A session identifier carried alongside them
+/// is precisely what the discarded fallback used, which is why it is gone.
 struct Handle {
     client: AgentClient,
-    session_id: String,
     thread_id: Uuid,
 }
 
@@ -684,22 +688,16 @@ async fn ensure_session(
 
         return Ok(Handle {
             client: live.client.clone(),
-            session_id: live.session_id.clone(),
             thread_id: live.thread_id,
         });
     }
 
     *guard = Some(Session {
         client: client.clone(),
-        session_id: session_id.clone(),
         thread_id,
     });
 
-    Ok(Handle {
-        client,
-        session_id,
-        thread_id,
-    })
+    Ok(Handle { client, thread_id })
 }
 
 /// Reads the session without holding the lock across an await point.
@@ -708,7 +706,6 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
-        session_id: live.session_id.clone(),
         thread_id: live.thread_id,
     }))
 }
