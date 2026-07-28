@@ -244,7 +244,7 @@ impl AiStore {
     /// Deletes a conversation and everything recorded under it.
     ///
     /// One statement, because the schema already says what must happen.
-    /// runs reference their thread, and run_events, tool_calls and
+    /// runs reference their thread, and `run_events`, `tool_calls` and
     /// permissions all reference their run, every one of them ON DELETE
     /// CASCADE; `open_encrypted` turns foreign keys on. A single statement
     /// is atomic on its own, so there is nothing left for a transaction to

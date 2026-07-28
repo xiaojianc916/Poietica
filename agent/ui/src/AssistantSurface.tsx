@@ -1,7 +1,6 @@
 import './assistant.css'
 
 import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
-import { defaultAcpAgent } from '@poietica/agent-registry'
 import { useAssistantSession, useSessionControls } from '@poietica/agent-runtime'
 import type { PermissionItem, TurnFooter } from '@poietica/agent-timeline'
 import {
@@ -70,15 +69,6 @@ function renderFooter(footer: TurnFooter | null): ReactNode {
     <TurnOutcomeNotice outcome={{ status: footer.status }} />
   )
 }
-
-/*
- * 工具条上那一格说的是即将说话的那个 agent。
- *
- * 它此前写死成 Super Computer —— 一个没有出处的名字：不是 registry 里的条目，
- * 不是 agent 通过 ACP 自报的标题，也不是任何配置项，换一个 agent 它也不会变。
- * 名字的出处只有一个，就是 registry；解析它没有副作用，所以在模块层问一次。
- */
-const AGENT = defaultAcpAgent()
 
 const STARTERS: Readonly<Record<string, string>> = {
   create: '帮我创建 ',
@@ -248,7 +238,6 @@ export function AssistantSurface({
           <>
             <div className="assistant-surface__composer">
               <AssistantComposer
-                agentLabel={AGENT.displayName}
                 controls={controls.controls}
                 controlsFailure={controls.failure}
                 handle={composer}

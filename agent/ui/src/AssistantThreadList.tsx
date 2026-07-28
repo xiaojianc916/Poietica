@@ -10,7 +10,7 @@ import {
 } from '@poietica/foundations-design-system'
 import { useState } from 'react'
 
-import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 
 /*
  * 会话列表。
@@ -48,20 +48,22 @@ export interface AssistantThreadListProps {
 const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 
 /*
- * 取消固定不是另一枚图标，而是同一枚图标被划掉。
+ * 固定与取消固定是同一枚图钉的两种填法。
  *
- * 图标库里没有可确认存在的 pin-off 字形，与其引入一枚风格不同的图钉，不如
- * 让「取消」由一道斜线承担：同族字形、相反语义，这也是编辑器与聊天软件里
- * 通行的画法。
+ * 图标库有 pin 的 solid 变体，于是「已固定」画实心图钉，「未固定」画线稿：
+ * 同族字形、同一轮廓，语义由填充承担。斜线是没有第二枚字形时的将就画法，
+ * 它一走，那段伪元素 CSS 也不用再维护。
  */
 function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
+  const Glyph = isPinned ? PinFilledIcon : PinIcon
+
   return (
     <span
       aria-hidden="true"
       className="assistant-thread__glyph"
-      data-slashed={isPinned ? 'true' : undefined}
+      data-pinned={isPinned ? 'true' : undefined}
     >
-      <PinIcon aria-hidden="true" />
+      <Glyph aria-hidden="true" />
     </span>
   )
 }

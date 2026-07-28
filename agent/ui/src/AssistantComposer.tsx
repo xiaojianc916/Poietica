@@ -21,7 +21,7 @@ import {
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
 import type { QuestionAnswer, QuestionDeck } from './domain/ask-user-question'
-import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
+import { MicIcon, PlusIcon } from './primitives/icons'
 
 /*
  * The composer, declared rather than driven.
@@ -33,7 +33,6 @@ import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
  */
 
 export interface AssistantComposerProps {
-  readonly agentLabel: string
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
@@ -58,7 +57,6 @@ export interface AssistantComposerProps {
 }
 
 function ComposerToolbar({
-  agentLabel,
   controls,
   controlsFailure,
   onCancel,
@@ -93,21 +91,24 @@ function ComposerToolbar({
           </PromptInputActionMenuContent>
         </PromptInputActionMenu>
 
-        <PromptInputButton className="assistant-agent-pill">
-          <AgentIcon aria-hidden="true" />
+        {/*
+          会话设置属于左下这一簇，紧挨着 ＋。
 
-          <span>{agentLabel}</span>
-        </PromptInputButton>
+          左下是「这一轮怎么发」，右下是「发」，两者不混：Zed 的 agent panel、
+          Copilot Chat、Cursor 都是这个分工。此前它在麦克风左边，和发送挤在
+          一起，而这一簇里站着一颗写死 agent 名字的药丸——不可点、改不了任何
+          东西，占的正是模型选择器该在的位置。名字要由 agent 自己说，模型要
+          能选，一个不可点的标签两件事都不做。
+        */}
+        <SessionControls
+          controls={controls}
+          failure={controlsFailure}
+          onRetry={onRetryControls}
+          onSelect={onSelectControl}
+        />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
-
-      <SessionControls
-        controls={controls}
-        failure={controlsFailure}
-        onRetry={onRetryControls}
-        onSelect={onSelectControl}
-      />
 
       <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
         <MicIcon aria-hidden="true" />

@@ -18,6 +18,7 @@ export {
   Microphone as MicIcon,
   Paperclip as AttachIcon,
   Pin as PinIcon,
+  PinSolid as PinFilledIcon,
   Plus as PlusIcon,
   Search as SearchIcon,
   Send as AgentIcon,

@@ -1280,21 +1280,18 @@
   outline: none;
 }
 
-/* 取消固定：同一枚图钉字形加一道斜线，不引入第二种图钉。 */
+/*
+ * 图钉只负责居中，状态由字形本身表达。
+ *
+ * 实心与线稿是图标库里的同族两枚字形，所以这里不再需要 position: relative
+ * 和那道伪元素斜线；「已固定」额外提一档墨色，让填充在静息态也读得出来。
+ */
 .assistant-thread__glyph {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.assistant-thread__glyph[data-slashed="true"]::after {
-  content: "";
-  position: absolute;
-  inset-inline: 0;
-  inset-block-start: 50%;
-  block-size: 1.5px;
-  border-radius: 1px;
-  background: currentColor;
-  transform: rotate(-45deg);
+.assistant-thread__glyph[data-pinned="true"] {
+  color: var(--cp-ink);
 }
