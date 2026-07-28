@@ -1,6 +1,9 @@
 import { invoke } from '@poietica/platforms-desktop-ipc'
+import type { Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
+  /** 呈现窗口。窗口以 visible: false 创建，呈现时机由渲染层决定。 */
+  present(): Promise<void>
   minimize(): Promise<void>
   toggleMaximize(): Promise<void>
   isMaximized(): Promise<boolean>
@@ -9,37 +12,72 @@ export interface MainWindowController {
   close(): Promise<void>
   forceClose(): void
   onCloseRequested(handler: () => void): Promise<() => void>
+  /** 托盘"退出程序"。与关闭按钮汇入同一条终止管线。 */
+  onTerminationRequested(handler: () => void): Promise<() => void>
   setTitle(title: string): Promise<void>
-  saveState(): Promise<void>
 }
 
 const MAIN_WINDOW_LABEL = 'main'
 
-async function getMainWindow() {
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  const window = getCurrentWindow()
+/** 与 src-tauri/src/bootstrap/tray.rs 的 TERMINATION_REQUESTED_EVENT 对应。 */
+const TERMINATION_REQUESTED_EVENT = 'poietica://termination-requested'
 
-  if (window.label !== MAIN_WINDOW_LABEL) {
-    throw new Error(`Expected window "${MAIN_WINDOW_LABEL}", received "${window.label}".`)
-  }
+let mainWindow: Promise<Window> | undefined
 
-  return window
+/*
+ * 一次动态 import，整个进程复用。
+ *
+ * Tauri 的窗口模块在 webview 之外不可用，所以它必须留在静态依赖图之外；但此前
+ * 每一个方法各自 await import 一次，把一组同步能力全部变成了 per-call 的解析
+ * 往返——use-window-chrome.ts 里那套请求版本号就是为此存在的。
+ */
+function getMainWindow(): Promise<Window> {
+  mainWindow ??= import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+    const current = getCurrentWindow()
+
+    if (current.label !== MAIN_WINDOW_LABEL) {
+      throw new Error('The desktop runtime is bound to the "main" window only.')
+    }
+
+    return current
+  })
+
+  return mainWindow
+}
+
+async function insideTauri(): Promise<boolean> {
+  const { isTauri } = await import('@tauri-apps/api/core')
+
+  return isTauri()
 }
 
 export function createMainWindowController(): MainWindowController {
   return {
+    async present() {
+      const window = await getMainWindow()
+
+      await window.show()
+      await window.setFocus()
+    },
+
     async minimize() {
       const window = await getMainWindow()
+
       await window.minimize()
     },
+
     async toggleMaximize() {
       const window = await getMainWindow()
+
       await window.toggleMaximize()
     },
+
     async isMaximized() {
       const window = await getMainWindow()
+
       return window.isMaximized()
     },
+
     async onResized(handler) {
       const window = await getMainWindow()
 
@@ -47,41 +85,56 @@ export function createMainWindowController(): MainWindowController {
         handler()
       })
     },
-    openDeveloperTools: () =>
-      invoke('window_open_devtools', {
-        label: MAIN_WINDOW_LABEL,
-      }),
-    close: () => invoke('window_close', { label: MAIN_WINDOW_LABEL }),
-    forceClose() {
-      // Application termination is intentionally fire-and-forget.
-      // The renderer may be destroyed before an IPC response can return.
-      void invoke<void>('window_destroy', {
-        label: MAIN_WINDOW_LABEL,
-      })
-        .catch(async () => {
-          // Native command dispatch failed before the window was destroyed.
-          // Fall back to Tauri's direct window API.
-          const { getCurrentWindow } = await import('@tauri-apps/api/window')
 
-          await getCurrentWindow().destroy()
-        })
+    async close() {
+      const window = await getMainWindow()
+
+      await window.close()
+    },
+
+    forceClose() {
+      /*
+       * 终止是有意的 fire-and-forget：渲染层可能在任何应答返回之前就消失了。
+       */
+      void getMainWindow()
+        .then((window) => window.destroy())
         .catch(() => {
-          // There is no useful renderer recovery UI for a failed process
-          // termination. Do not surface an internal retry dialog.
+          // 进程终止失败时没有可用的渲染层补救界面，不要弹一个内部重试框。
         })
     },
+
     async onCloseRequested(handler) {
-      const { isTauri } = await import('@tauri-apps/api/core')
-      if (!isTauri()) {
+      if (!(await insideTauri())) {
         return () => {}
       }
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      return getCurrentWindow().onCloseRequested((event) => {
+
+      const window = await getMainWindow()
+
+      return window.onCloseRequested((event) => {
         event.preventDefault()
         handler()
       })
     },
-    setTitle: (title) => invoke('window_set_title', { label: MAIN_WINDOW_LABEL, title }),
-    saveState: () => invoke('window_save_state'),
+
+    async onTerminationRequested(handler) {
+      if (!(await insideTauri())) {
+        return () => {}
+      }
+
+      const { listen } = await import('@tauri-apps/api/event')
+
+      return listen(TERMINATION_REQUESTED_EVENT, () => {
+        handler()
+      })
+    },
+
+    async setTitle(title) {
+      const window = await getMainWindow()
+
+      await window.setTitle(title)
+    },
+
+    // devtools 是唯一没有 JavaScript 对应物的窗口操作。
+    openDeveloperTools: () => invoke('window_open_devtools', { label: MAIN_WINDOW_LABEL }),
   }
 }

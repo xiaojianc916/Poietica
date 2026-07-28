@@ -38,6 +38,20 @@ function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
   }
 
   root.replaceChildren(createFatalSurface(model))
+
+  presentWindow()
+}
+
+/*
+ * 窗口以 visible: false 创建，正常路径由 React 首帧之后呈现。这条路径上 React
+ * 永远不会挂载，所以崩溃屏必须自己把窗口叫出来。
+ */
+function presentWindow(): void {
+  void import('@poietica/platforms-desktop-runtime')
+    .then(({ createMainWindowController }) => createMainWindowController().present())
+    .catch(() => {
+      // 窗口无法呈现时没有可用的补救界面；原生日志里仍然留有记录。
+    })
 }
 
 function createFatalSurface(model: TerminalFailureViewModel): HTMLElement {

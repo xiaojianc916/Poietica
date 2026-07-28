@@ -78,7 +78,6 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .on_window_event(tray::on_window_event)
         .setup(|app| {
             app.store("settings.json")?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
@@ -100,8 +99,31 @@ pub fn build() -> tauri::Builder<Wry> {
                 .ok_or("tauri.conf.json 未声明 main 窗口")?;
 
             main_window.restore_state(WINDOW_STATE_FLAGS)?;
-            main_window.show()?;
-            main_window.set_focus()?;
+
+            /*
+             * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。
+             *
+             * 此前 show() 就在这里。setup 早于 webview 执行任何脚本，所以用户先
+             * 看到的是一个空的 #f3f3f3 窗口，一直持续到首帧。visible: false 换来
+             * 的只是"位置不跳"，白屏并没有被解决。
+             *
+             * 下面是唯一的兜底：webview 若根本没跑起来（脚本 404、CSP 拦截、渲染
+             * 进程启动失败），没有它窗口会永远不可见，进程只存在于任务管理器里。
+             */
+            let watchdog = main_window.clone();
+
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(8));
+
+                if watchdog.is_visible().unwrap_or(false) {
+                    return;
+                }
+
+                log::warn!("frontend did not present within 8s; showing the window anyway");
+
+                let _shown = watchdog.show();
+                let _focused = watchdog.set_focus();
+            });
 
             Ok(())
         })
@@ -126,13 +148,7 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::asset::asset_remove,
             commands::asset::asset_session_close,
             commands::diagnostics::diagnostics_take_previous_crash,
-            commands::window::window_get,
-            commands::window::window_list,
-            commands::window::window_show,
-            commands::window::window_focus,
-            commands::window::window_close,
-            commands::window::window_set_title,
-            commands::window::window_save_state,
+            commands::window::window_open_devtools,
             commands::document::document_open,
             commands::document::document_save_as,
             commands::document::document_save,

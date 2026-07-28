@@ -1,10 +1,10 @@
 import './app.css'
 
 import {
+  type MainWindowController,
   type NativeCrashReport,
   takePreviousNativeCrashReport,
 } from '@poietica/platforms-desktop-runtime'
-import { installApplicationLifecycle } from './bootstrap/application-lifecycle'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
 import { installScrollbarActivity } from './presentation/chrome/scrollbar-activity'
@@ -17,13 +17,33 @@ async function bootstrapApplication(): Promise<void> {
   const previousCrash = await readPreviousNativeCrashReport()
 
   if (previousCrash) {
+    // 呈现由 pre-react-entry 的崩溃屏负责：React 在这条路径上不会挂载。
     reportPreviousNativeCrash(previousCrash)
     return
   }
 
   const mounted = mountReactApplication(getApplicationRoot())
 
-  installApplicationLifecycle(mounted.runtime, mounted)
+  presentWhenPainted(mounted.runtime.mainWindow)
+}
+
+/*
+ * 窗口以 visible: false 创建，几何已在原生 setup 中恢复，呈现的时机在这里。
+ *
+ * 两帧：第一帧提交 DOM，第二帧之前浏览器完成绘制。此前 show() 在 Rust 的 setup
+ * 里调用，那早于 webview 执行任何脚本，用户先看到的是一个空的背景色窗口。
+ *
+ * 若这里因为任何原因没能执行，原生侧的看门狗会在 8 秒后兜底呈现，不会留下一个
+ * 永远不可见的进程。
+ */
+function presentWhenPainted(mainWindow: MainWindowController): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      void mainWindow.present().catch((cause: unknown) => {
+        console.error('[Poietica] Failed to present the main window', cause)
+      })
+    })
+  })
 }
 
 async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null> {

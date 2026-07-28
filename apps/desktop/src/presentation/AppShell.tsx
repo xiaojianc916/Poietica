@@ -111,6 +111,10 @@ export function AppShell({ runtime }: AppShellProps) {
     runtime.termination.request('window-close')
   }, [runtime.termination])
 
+  const requestApplicationExit = useCallback(() => {
+    runtime.termination.request('application-exit')
+  }, [runtime.termination])
+
   const openDeveloperTools = useCallback(() => {
     if (!capabilities.developerTools) {
       return
@@ -179,7 +183,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
   useCommandKeybindings(runtime.commands)
 
-  useMainWindowCloseRequest(runtime.mainWindow, requestApplicationClose)
+  useTerminationRequests(runtime.mainWindow, requestApplicationClose, requestApplicationExit)
 
   const workspacePort = useMemo(
     () => ({
@@ -235,13 +239,39 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 }
 
-function useMainWindowCloseRequest(
+/*
+ * 关闭按钮与托盘"退出程序"是同一件事的两个入口，因此汇入同一个协调器。
+ * 托盘此前直接 app.exit(0)，绕开了未保存内容的确认。
+ */
+function useTerminationRequests(
   mainWindow: MainWindowController,
   onCloseRequested: () => void,
+  onApplicationExit: () => void,
 ): void {
   useEffect(() => {
     let disposed = false
     let unsubscribe: (() => void) | undefined
+    let unsubscribeTrayQuit: (() => void) | undefined
+
+    void mainWindow.onTerminationRequested(onApplicationExit).then(
+      (unsubscribe) => {
+        if (disposed) {
+          unsubscribe()
+          return
+        }
+
+        unsubscribeTrayQuit = unsubscribe
+      },
+      (cause: unknown) => {
+        if (!disposed) {
+          reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
+            scope: 'app-shell',
+            operation: 'register-tray-quit-listener',
+            cause,
+          })
+        }
+      },
+    )
 
     void mainWindow.onCloseRequested(onCloseRequested).then(
       (nextUnsubscribe) => {
@@ -266,6 +296,7 @@ function useMainWindowCloseRequest(
     return () => {
       disposed = true
       unsubscribe?.()
+      unsubscribeTrayQuit?.()
     }
-  }, [mainWindow, onCloseRequested])
+  }, [mainWindow, onCloseRequested, onApplicationExit])
 }
