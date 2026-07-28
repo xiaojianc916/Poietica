@@ -53,6 +53,17 @@ describe('会话时间', () => {
     )
   })
 
+  it('时长只有数量与单位，不带方向词，也不写死中文', () => {
+    const now = at('2026-07-29T12:00:00')
+    const unit = new Intl.NumberFormat(undefined, {
+      style: 'unit',
+      unit: 'minute',
+      unitDisplay: 'narrow',
+    })
+
+    expect(formatElapsed(now - 31 * 60_000, now)).toBe(unit.format(31))
+  })
+
   it('无法解析的时刻归入更早，且不参与排序', () => {
     const now = at('2026-07-29T12:00:00')
     const sections = sectionsOf([{ updatedAt: 'not-a-date' }], now)

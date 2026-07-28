@@ -9,8 +9,10 @@ import { useSyncExternalStore } from 'react'
  * 共享，窗口不可见时停摆；订阅走 useSyncExternalStore，这是 React 对外部
  * 数据源的官方接线方式，而不是各组件自带 useState + useEffect 各转各的表。
  *
- * 文案与绝对时刻交给 Intl：复数、词序、语言是平台的事。手写的字符串拼接
- * 既缺「前」字，也只有中文一种活法。分段、排序、时钟这些核心仍然自己写。
+ * 文案与绝对时刻交给 Intl：数量词、词序、语言是平台的事。行尾那一格给的是
+ * 一段时长，不是一句话，所以走 NumberFormat 的 unit（narrow）——「31分钟」、
+ * 「1小时」，en 下是 "31m"、"1h"。方向词不在这里说：它由「今天／昨天」那一行
+ * 段标题说，每行再说一遍是重复。分段、排序、时钟这些核心仍然自己写。
  *
  * 分段按本地日历日算，不按经过毫秒算：凌晨 00:30 看昨晚 23:00 的对话，经过
  * 时间不足一天，但它属于昨天。
@@ -87,9 +89,19 @@ export function useNow(): number {
   return useSyncExternalStore(subscribe, readNow, readNow)
 }
 
-/* numeric: 'auto' 让「不足一分钟」由语言自己说；'always' 用于计数。 */
+/* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
-const counted = new Intl.RelativeTimeFormat(undefined, { numeric: 'always', style: 'narrow' })
+
+/* 其余各档是时长：只有数量和单位，没有方向。 */
+const elapsed = {
+  day: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'day', unitDisplay: 'narrow' }),
+  hour: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'hour', unitDisplay: 'narrow' }),
+  minute: new Intl.NumberFormat(undefined, {
+    style: 'unit',
+    unit: 'minute',
+    unitDisplay: 'narrow',
+  }),
+}
 const sameYear = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 const otherYear = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -114,9 +126,9 @@ function calendarDays(instant: number, reference: number): number {
 /**
  * 一行的时间标签。
  *
- * 一周之内说「多久以前」，更久就给日期 —— GitHub、Slack、Linear 用的是同一
- * 道阶梯：相对时间在近处有用，在远处只剩噪声（「418 天前」不解决任何问题）。
- * 未来时刻（时钟偏差）读作「现在」，而不是负数。
+ * 一周之内给时长，更久就给日期 —— GitHub、Slack、Linear 用的是同一道阶梯：
+ * 时长在近处有用，在远处只剩噪声（「418 天」不解决任何问题）。未来时刻
+ * （时钟偏差）读作「现在」，而不是负数。
  */
 export function formatElapsed(instant: number, reference: number): string {
   const since = reference - instant
@@ -126,17 +138,17 @@ export function formatElapsed(instant: number, reference: number): string {
   }
 
   if (since < HOUR) {
-    return counted.format(-Math.floor(since / MINUTE), 'minute')
+    return elapsed.minute.format(Math.floor(since / MINUTE))
   }
 
   if (since < DAY) {
-    return counted.format(-Math.floor(since / HOUR), 'hour')
+    return elapsed.hour.format(Math.floor(since / HOUR))
   }
 
   const days = calendarDays(instant, reference)
 
   if (days < 7) {
-    return counted.format(-days, 'day')
+    return elapsed.day.format(days)
   }
 
   const stamp = new Date(instant)
