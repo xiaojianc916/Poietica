@@ -11,6 +11,7 @@ import {
 import { useState } from 'react'
 
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+import { formatAbsolute, formatElapsed, sectionsOf, useNow } from './time'
 
 /*
  * 会话列表。
@@ -25,8 +26,13 @@ import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primit
 export interface AssistantThreadSummary {
   readonly id: string
   readonly title: string
-  readonly relativeTime: string
-  readonly group: string
+  /**
+   * 最后一次活动的时刻，ISO-8601。
+   *
+   * 传时刻而不是传算好的文案：文案随墙上时间变化，只有持有时钟的这一层
+   * 才有资格算它。分段同理，它是文案的另一种切法，不是上游的数据。
+   */
+  readonly updatedAt: string
   readonly isMuted?: boolean
   readonly isPinned?: boolean
 }
@@ -68,22 +74,6 @@ function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
   )
 }
 
-function group(threads: readonly AssistantThreadSummary[]) {
-  const grouped = new Map<string, AssistantThreadSummary[]>()
-
-  for (const thread of threads) {
-    const held = grouped.get(thread.group)
-
-    if (held === undefined) {
-      grouped.set(thread.group, [thread])
-    } else {
-      held.push(thread)
-    }
-  }
-
-  return [...grouped]
-}
-
 export function AssistantThreadList({
   threads,
   isLoading,
@@ -95,7 +85,9 @@ export function AssistantThreadList({
   onDelete,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
-  const groups = group(threads)
+  /* 时钟在这里进来一次，整张列表共用；每行不再各自读一次墙上时间。 */
+  const now = useNow()
+  const groups = sectionsOf(threads, now)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -160,12 +152,12 @@ export function AssistantThreadList({
         <p className="assistant-threads__empty">还没有会话。</p>
       ) : null}
 
-      {groups.map(([name, members]) => (
-        <section className="assistant-threads__group" key={name}>
-          <span className="assistant-threads__caption">{name}</span>
+      {groups.map((section) => (
+        <section className="assistant-threads__group" key={section.id}>
+          <span className="assistant-threads__caption">{section.label}</span>
 
           <ul className="assistant-threads__list">
-            {members.map((thread) => (
+            {section.members.map(({ instant, thread }) => (
               <li
                 className="assistant-thread"
                 data-active={thread.id === activeThreadId ? 'true' : undefined}
@@ -218,7 +210,19 @@ export function AssistantThreadList({
 
                     {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
                     <span className="assistant-thread__trail">
-                      <span className="assistant-thread__time">{thread.relativeTime}</span>
+                      {/*
+                          <time> 而不是 <span>：这一格说的是一个时刻，读屏软件
+                          与悬停都应当拿得到准确值，相对文案只是它的近似说法。
+                        */}
+                      {Number.isNaN(instant) ? null : (
+                        <time
+                          className="assistant-thread__time"
+                          dateTime={thread.updatedAt}
+                          title={formatAbsolute(instant)}
+                        >
+                          {formatElapsed(instant, now)}
+                        </time>
+                      )}
 
                       <span className="assistant-thread__actions">
                         <button

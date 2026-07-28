@@ -13,9 +13,9 @@
 .conversation-minimap {
   --cp-rail-hit: 11px;
   --cp-rail-len: 9px;
-  --cp-rail-gain: 21px;
+  --cp-rail-gain: 14px;
   --cp-rail-weight-line: 3px;
-  --cp-rail-weight-gain: 3px;
+  --cp-rail-weight-gain: 1px;
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;

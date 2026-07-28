@@ -5,43 +5,14 @@ import { useSharedThreads } from '../../application/ai/threads-context'
 /*
  * 侧边栏下半部分：真实的会话记录。
  *
- * 列表来自数据库；固定是事实，所以它落库，并把行提到「已固定」这一组。
- * 时间与分组在这里现算：它们是显示方式，不是需要落库的事实。
+ * 列表来自数据库；固定是事实，所以它落库，列表据此把行提到「已固定」那一段。
+ * 时间文案与日期分段不在这里算：它们随墙上时间变化，由列表自己的时钟驱动，
+ * 这一层只把最后活动时刻原样交出去。此前这里在渲染函数体里读 Date.now()，
+ * 于是标签只在别处状态碰巧变化时才跳一下，与真实时间无关。
  *
  * 加号不在这里决定去哪：目的地是工作台的一格，由工作台自己去开或去激活，
  * 这一层只把点击原样交出去。
  */
-
-const MINUTE = 60_000
-const HOUR = 3_600_000
-const DAY = 86_400_000
-
-/** Names when a conversation was last touched, and which day it belongs to. */
-function describe(updatedAt: string, now: number) {
-  const moment = Date.parse(updatedAt)
-
-  if (Number.isNaN(moment)) {
-    return { relativeTime: '', group: '更早' }
-  }
-
-  const since = Math.max(now - moment, 0)
-  const days = Math.floor(since / DAY)
-  const group = days === 0 ? '今天' : days === 1 ? '昨天' : '更早'
-
-  if (since < MINUTE) {
-    return { relativeTime: '刚刚', group }
-  }
-
-  if (since < HOUR) {
-    return { relativeTime: `${Math.floor(since / MINUTE)} 分钟`, group }
-  }
-
-  if (since < DAY) {
-    return { relativeTime: `${Math.floor(since / HOUR)} 小时`, group }
-  }
-
-  return { relativeTime: `${days} 天`, group }
-}
 
 export interface AssistantSidebarPanelProps {
   readonly activeThreadId: string | null
@@ -58,20 +29,13 @@ export function AssistantSidebarPanel({
   onOpenInNewTab,
 }: AssistantSidebarPanelProps) {
   const threads = useSharedThreads()
-  const now = Date.now()
 
-  const summaries: readonly AssistantThreadSummary[] = threads.threads.map((thread) => {
-    const when = describe(thread.updatedAt, now)
-    const pinned = thread.pinned === true
-
-    return {
-      id: thread.threadId,
-      title: threads.titleOf(thread.threadId),
-      relativeTime: when.relativeTime,
-      group: pinned ? '已固定' : when.group,
-      isPinned: pinned,
-    }
-  })
+  const summaries: readonly AssistantThreadSummary[] = threads.threads.map((thread) => ({
+    id: thread.threadId,
+    isPinned: thread.pinned === true,
+    title: threads.titleOf(thread.threadId),
+    updatedAt: thread.updatedAt,
+  }))
 
   return (
     <AssistantThreadList
