@@ -458,7 +458,28 @@
     2
   );
   --assistant-threads-row-trail: 8px;
+  --assistant-threads-fade: 12px;
   padding-inline: var(--assistant-threads-inset);
+}
+
+/*
+ * 列表与底部那一行之间的过渡。
+ *
+ * 遮罩,不是叠一层渐变色块:叠色必须先猜背后是什么颜色,猜错就出现一条看得见
+ * 的带 —— 时间线里的思考链和折叠气泡为同一个理由早就这么做了。遮罩是把像素
+ * 去掉,任何背景、任何主题都成立。
+ *
+ * 只在下面还有内容没露出来时才淡。CSS 问不出这个问题(滚动状态容器查询只有
+ * 一个引擎实现),所以由 use-scroll-fade 量出来写成 data-fade —— 也是同一个
+ * 管线,不新造第二套。列表没滚满一屏时最后一行完整,不会被平白啃掉一截。
+ */
+.assistant-threads[data-fade="bottom"],
+.assistant-threads[data-fade="both"] {
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--assistant-threads-fade)),
+    transparent
+  );
 }
 
 .assistant-threads__header {
@@ -549,9 +570,15 @@
   font-size: 12px;
 }
 
+/*
+ * 会话行是侧边栏的行，不是编排器的控件，所以它和上面五个导航行读同一个
+ * --ui-sidebar-accent。原先读 --cp-hover：那是编排器卡片自己的色板，还被
+ * agent pill、菜单项、模型选择器共用，于是同一列侧边栏上下两段各用一套
+ * 色板，深色主题下更是各算各的。
+ */
 .assistant-thread:hover,
 .assistant-thread[data-active="true"] {
-  background: var(--cp-hover);
+  background: var(--ui-sidebar-accent);
 }
 
 .assistant-thread[data-muted="true"] {
@@ -1200,4 +1227,75 @@
 
 .assistant-thread[data-renaming="true"] .assistant-thread__time {
   opacity: 0;
+}
+
+/*
+ * 会话行的尾部只有一个格子（trail slot v2）。
+ *
+ * 时间与操作叠在同一个网格单元上，共用同一个显示判定，所以不可能同时
+ * 出现；单元宽度取两者中较大的一个，图标出现时标题不会被挤动。
+ */
+.assistant-thread__trail {
+  display: grid;
+  align-items: center;
+  justify-items: end;
+  margin-inline-start: auto;
+}
+
+.assistant-thread__trail > * {
+  grid-area: 1 / 1;
+}
+
+[data-assistant-skin] .assistant-thread__time {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 120ms ease;
+}
+
+[data-assistant-skin] .assistant-thread__actions {
+  position: static;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.assistant-thread:hover .assistant-thread__actions,
+.assistant-thread:focus-within .assistant-thread__actions,
+.assistant-thread:has([aria-expanded="true"]) .assistant-thread__actions,
+.assistant-thread:has([data-state="open"]) .assistant-thread__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.assistant-thread:hover .assistant-thread__time,
+.assistant-thread:focus-within .assistant-thread__time,
+.assistant-thread:has([aria-expanded="true"]) .assistant-thread__time,
+.assistant-thread:has([data-state="open"]) .assistant-thread__time {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.assistant-thread[data-placeholder="true"] .assistant-thread__trail {
+  display: none;
+}
+
+/* 行内重命名：输入框顶替标题的位置，行高与内边距都不变。 */
+.assistant-thread__rename {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.assistant-thread__rename-field {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
 }

@@ -1,6 +1,6 @@
 import './assistant.css'
 
-import { Edit, ExternalLink, Link, Trash } from '@mynaui/icons-react'
+import { Edit, ExternalLink, Trash } from '@mynaui/icons-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,15 +8,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
+import { useState } from 'react'
+
 import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 
 /*
- * The thread list.
+ * 会话列表。
  *
- * Creating a thread is a property of the list, not of whichever group happens
- * to sort first, so the button lives in the list header and survives an empty
- * list. Grouping is one pass: filtering the whole array once per group was
- * quadratic in the number of threads, which is exactly the axis that grows.
+ * 一行的尾部只有一个格子：时间与操作图标叠在同一个网格单元上，由同一个
+ * 判定互斥显示，因此不可能同时画出来；格子的宽度取两者的较大值，切换时
+ * 标题不会被推动。重命名是行内编辑，输入框占住标题原来的位置，行高不变。
  */
 
 export interface AssistantThreadSummary {
@@ -25,6 +26,7 @@ export interface AssistantThreadSummary {
   readonly relativeTime: string
   readonly group: string
   readonly isMuted?: boolean
+  readonly isPinned?: boolean
 }
 
 export interface AssistantThreadListProps {
@@ -34,10 +36,8 @@ export interface AssistantThreadListProps {
   readonly activeThreadId: string | null
   readonly onActivate: (threadId: string) => void
   readonly onCreate: () => void
-  readonly onPin: (threadId: string) => void
-  readonly onCopyLink?: (threadId: string) => void
-  readonly onMarkUnread?: (threadId: string) => void
-  readonly onRename?: (threadId: string) => void
+  readonly onPin: (threadId: string, pinned: boolean) => void
+  readonly onRename?: (threadId: string, title: string) => void
   readonly onDelete?: (threadId: string) => void
   readonly onOpenInNewTab?: (threadId: string) => void
 }
@@ -68,13 +68,13 @@ export function AssistantThreadList({
   onActivate,
   onCreate,
   onPin,
-  onCopyLink,
-  onMarkUnread,
   onRename,
   onDelete,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
   const groups = group(threads)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
 
   /*
    * 首帧给出行的形状，不给结论。
@@ -83,6 +83,29 @@ export function AssistantThreadList({
    * 开窗都先告诉用户一件错误的事。骨架行是列表类界面的通行做法。
    */
   const showPlaceholders = isLoading === true && groups.length === 0
+
+  function beginRename(thread: AssistantThreadSummary) {
+    setRenamingId(thread.id)
+    setDraft(thread.title)
+  }
+
+  /* 提交只走这一条路：Enter、失焦都到这里，空标题等于放弃。 */
+  function commitRename() {
+    const target = renamingId
+
+    if (target === null) {
+      return
+    }
+
+    const next = draft.trim()
+
+    setRenamingId(null)
+    setDraft('')
+
+    if (next.length > 0) {
+      onRename?.(target, next)
+    }
+  }
 
   return (
     <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
@@ -123,112 +146,145 @@ export function AssistantThreadList({
                 className="assistant-thread"
                 data-active={thread.id === activeThreadId ? 'true' : undefined}
                 data-muted={thread.isMuted === true ? 'true' : undefined}
+                data-renaming={thread.id === renamingId ? 'true' : undefined}
                 key={thread.id}
               >
-                <button
-                  className="assistant-thread__open"
-                  onClick={() => {
-                    onActivate(thread.id)
-                  }}
-                  type="button"
-                >
-                  <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
-                  <span className="assistant-thread__title">{thread.title}</span>
-                </button>
-
-                <span className="assistant-thread__time">{thread.relativeTime}</span>
-
-                <span className="assistant-thread__actions">
-                  <button
-                    className="assistant-thread__action"
-                    onClick={() => {
-                      onPin(thread.id)
+                {thread.id === renamingId ? (
+                  <form
+                    className="assistant-thread__rename"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      commitRename()
                     }}
-                    title="固定"
-                    type="button"
                   >
-                    <PinIcon aria-hidden="true" />
-                  </button>
+                    <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
 
-                  {/*
-                      Not modal: a modal menu locks pointer events outside
-                      itself, so the click that dismissed it was swallowed
-                      instead of landing on the row it was aimed at. That
-                      was every “clicking does nothing” report.
-                    */}
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger
-                      aria-label="更多操作"
-                      className="assistant-thread__action"
-                      title="更多操作"
+                    <input
+                      aria-label="重命名会话"
+                      className="assistant-thread__rename-field"
+                      onBlur={commitRename}
+                      onChange={(event) => {
+                        setDraft(event.target.value)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault()
+                          setRenamingId(null)
+                          setDraft('')
+                        }
+                      }}
+                      ref={(node) => {
+                        node?.select()
+                      }}
+                      value={draft}
+                    />
+                  </form>
+                ) : (
+                  <>
+                    <button
+                      className="assistant-thread__open"
+                      onClick={() => {
+                        onActivate(thread.id)
+                      }}
+                      type="button"
                     >
-                      <MoreIcon aria-hidden="true" />
-                    </DropdownMenuTrigger>
+                      <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
+                      <span className="assistant-thread__title">{thread.title}</span>
+                    </button>
 
                     {/*
-                        DropdownMenuContent is rendered through a Portal. Reapply
-                        the AI skin at this DOM boundary so --cp-* tokens remain
-                        available after the popup leaves the sidebar subtree.
+                        时间与操作共用这一个格子：两者叠放在同一个网格单元里，
+                        由同一个判定决定谁可见，因此不会互相盖住。
                       */}
-                    <DropdownMenuContent
-                      align="end"
-                      className="assistant-thread-menu assistant-menu-surface"
-                      data-assistant-skin
-                      side="bottom"
-                      sideOffset={4}
-                    >
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => onCopyLink?.(thread.id)}
-                      >
-                        <Link aria-hidden="true" />
-                        <span>拷贝链接</span>
-                      </DropdownMenuItem>
+                    <span className="assistant-thread__trail">
+                      <span className="assistant-thread__time">{thread.relativeTime}</span>
 
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => onPin(thread.id)}
-                      >
-                        <PinIcon aria-hidden="true" />
-                        <span>固定</span>
-                      </DropdownMenuItem>
+                      <span className="assistant-thread__actions">
+                        <button
+                          className="assistant-thread__action"
+                          onClick={() => {
+                            onPin(thread.id, thread.isPinned !== true)
+                          }}
+                          title={thread.isPinned === true ? '取消固定' : '固定'}
+                          type="button"
+                        >
+                          <PinIcon aria-hidden="true" />
+                        </button>
 
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => onMarkUnread?.(thread.id)}
-                      >
-                        <ThreadIcon aria-hidden="true" />
-                        <span>标记为未读</span>
-                      </DropdownMenuItem>
+                        {/*
+                            Not modal: a modal menu locks pointer events outside
+                            itself, so the click that dismissed it was swallowed
+                            instead of landing on the row it was aimed at.
+                          */}
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger
+                            aria-label="更多操作"
+                            className="assistant-thread__action"
+                            title="更多操作"
+                          >
+                            <MoreIcon aria-hidden="true" />
+                          </DropdownMenuTrigger>
 
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => onRename?.(thread.id)}
-                      >
-                        <Edit aria-hidden="true" />
-                        <span>重命名</span>
-                      </DropdownMenuItem>
+                          {/*
+                              DropdownMenuContent is rendered through a Portal.
+                              Reapply the AI skin at this DOM boundary so the
+                              --cp-* tokens survive leaving the sidebar subtree.
+                            */}
+                          <DropdownMenuContent
+                            align="end"
+                            className="assistant-thread-menu assistant-menu-surface"
+                            data-assistant-skin
+                            side="bottom"
+                            sideOffset={4}
+                          >
+                            <DropdownMenuItem
+                              className="assistant-thread-menu__item"
+                              onClick={() => {
+                                onPin(thread.id, thread.isPinned !== true)
+                              }}
+                            >
+                              <PinIcon aria-hidden="true" />
+                              <span>{thread.isPinned === true ? '取消固定' : '固定'}</span>
+                            </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
-                        onClick={() => onDelete?.(thread.id)}
-                      >
-                        <Trash aria-hidden="true" />
-                        <span>删除</span>
-                      </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="assistant-thread-menu__item"
+                              onClick={() => {
+                                beginRename(thread)
+                              }}
+                            >
+                              <Edit aria-hidden="true" />
+                              <span>重命名</span>
+                            </DropdownMenuItem>
 
-                      <DropdownMenuSeparator className="assistant-thread-menu__separator" />
+                            <DropdownMenuItem
+                              className="assistant-thread-menu__item
+                                assistant-thread-menu__item--destructive"
+                              onClick={() => {
+                                onDelete?.(thread.id)
+                              }}
+                            >
+                              <Trash aria-hidden="true" />
+                              <span>删除</span>
+                            </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        className="assistant-thread-menu__item"
-                        onClick={() => onOpenInNewTab?.(thread.id)}
-                      >
-                        <ExternalLink aria-hidden="true" />
-                        <span>在新选项卡中打开</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </span>
+                            <DropdownMenuSeparator className="assistant-thread-menu__separator" />
+
+                            <DropdownMenuItem
+                              className="assistant-thread-menu__item"
+                              onClick={() => {
+                                onOpenInNewTab?.(thread.id)
+                              }}
+                            >
+                              <ExternalLink aria-hidden="true" />
+                              <span>在新选项卡中打开</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </span>
+                    </span>
+                  </>
+                )}
               </li>
             ))}
           </ul>

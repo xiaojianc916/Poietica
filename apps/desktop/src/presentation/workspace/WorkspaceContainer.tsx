@@ -35,7 +35,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore }
 import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
 import { failureCoordinator } from '../../application/failures/failure-coordinator'
 import { reportFailure } from '../../application/failures/failure-policy'
-import { type ActiveTabOrdering, DesktopTitleBar } from '../chrome/DesktopTitleBar'
+import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
 import { ConversationSurface } from './ConversationSurface'
@@ -413,7 +413,7 @@ export function WorkspaceContainer({
         onCreateCanvas,
       }) => (
         <DesktopTitleBar
-          activeTabOrdering={describeActiveTabOrdering(chromeTabs, onMoveTab)}
+          activeTabSequence={describeTabSequence(isSettingsOpen ? [] : chromeTabs, onActivateTab)}
           isMaximized={isWindowMaximized}
           isSidebarOpen={isSidebarOpen}
           onClose={onWindowClose}
@@ -478,29 +478,35 @@ export function WorkspaceContainer({
 }
 
 /*
- * 箭头的可用性与动作都从标签列表派生：索引只在这里算一次，移动仍旧走
- * store 的 moveTab（拖拽与键盘重排用的是同一个入口）。
+ * 两个箭头指向活动标签的前后邻居：索引只在这里算一次，切换仍旧走 store 的
+ * activateTab（点击标签、命令面板用的是同一个入口）。
  *
- * 设置界面不渲染标签，此时列表里找不到活动标签，两个箭头自然都是禁用的。
+ * 可用性不是另算的布尔，而是邻居存不存在——一次查找同时给出「能不能按」和
+ * 「按了去哪」，两者不可能不一致。两端因此天然不回绕。
+ *
+ * 设置界面传进来的是空列表：那里不渲染标签条，箭头没有可指的对象，于是两个
+ * 按钮由同一次派生得出禁用，不需要第二个开关。原注释以为「设置界面找不到
+ * 活动标签」，但 chromeTabs 与设置状态无关，标签一直在，那个前提不成立。
  */
-function describeActiveTabOrdering(
+function describeTabSequence(
   tabs: readonly WorkbenchTabViewModel[],
-  onMoveTab: (tabId: WorkbenchTabId, targetIndex: number) => void,
-): ActiveTabOrdering {
+  onActivateTab: (tabId: WorkbenchTabId) => void,
+): ActiveTabSequence {
   const index = tabs.findIndex((tab) => tab.isActive)
-  const activeTab = index === -1 ? null : tabs[index]
+  const previous = index > 0 ? tabs[index - 1] : undefined
+  const next = index >= 0 && index < tabs.length - 1 ? tabs[index + 1] : undefined
 
   return {
-    canMoveEarlier: activeTab !== null && index > 0,
-    canMoveLater: activeTab !== null && index < tabs.length - 1,
-    moveEarlier() {
-      if (activeTab) {
-        onMoveTab(activeTab.id, index - 1)
+    canActivatePrevious: previous !== undefined,
+    canActivateNext: next !== undefined,
+    activatePrevious() {
+      if (previous) {
+        onActivateTab(previous.id)
       }
     },
-    moveLater() {
-      if (activeTab) {
-        onMoveTab(activeTab.id, index + 1)
+    activateNext() {
+      if (next) {
+        onActivateTab(next.id)
       }
     },
   }

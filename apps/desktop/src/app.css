@@ -237,3 +237,27 @@ body {
     transition: none;
   }
 }
+
+/*
+ * 侧边栏与对话区各有自己的一对颜色。
+ *
+ * 上面那套伪元素规则读的是这两个令牌,而自定义属性会继承,所以一个区域只需在
+ * 自己的根上重新给值 —— 滚动盒是哪一个、嵌套多深,这里都不必知道,也不必为它
+ * 们各写一遍 ::-webkit-scrollbar-thumb。
+ *
+ * 挂在区域根而不是滚动盒自己(.assistant-threads / .agent-activity-feed__
+ * viewport):那两个类已经在各自的特性样式表里声明过一批自定义属性,同名选择器
+ * 分居两个文件会变成加载顺序说了算的隐性竞争。祖先没有这个问题。
+ *
+ * 这四个是写死的十六进制,按指定取值,因此不随主题走 —— 与上面那两个由前景色
+ * color-mix 推出来的默认值不同,记在这里,免得下次被当成疏漏顺手"修正"。
+ */
+.workspace-shell__sidebar {
+  --desktop-scrollbar-thumb: #e2e2e2;
+  --desktop-scrollbar-thumb-strong: #d7d7d7;
+}
+
+.assistant-surface {
+  --desktop-scrollbar-thumb: #e7e7e7;
+  --desktop-scrollbar-thumb-strong: #5a5a5a;
+}

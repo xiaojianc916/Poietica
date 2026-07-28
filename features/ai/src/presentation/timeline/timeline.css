@@ -160,8 +160,23 @@
   backdrop-filter: none;
 }
 
+/*
+ * 一段代码是一段代码,不是一整屏。
+ *
+ * 这里此前既没有高度上限,也没有 overflow —— 而外层容器写着 overflow: hidden
+ * (它要用自己的圆角裁住内部,那条不能动)。两者合起来的后果不是"不限高"这么
+ * 简单:超出宽度的长行被父级裁掉,而且没有任何滚动出口,那些字符在界面上根本
+ * 取不到。
+ *
+ * 所以交出去的是滚动权而不是一个高度:overflow: auto 一次管住两个轴 —— 纵向
+ * 由下面的上限触发,横向由长行触发。上限取 32rem:正文行高 0.8125rem × 1.55
+ * 约 20px,一屏约 25 行,与 GitHub 折叠 diff、编辑器内嵌 peek 视图同一量级。
+ * 再低会把一段普通的页面骨架切成两屏,那比不封顶更难读。
+ */
 .timeline-prose [data-streamdown="code-block-body"] {
   grid-area: 2 / 1 / 3 / 3;
+  max-block-size: var(--cp-timeline-code-cap, 32rem);
+  overflow: auto;
   padding: 0.75rem;
   border: 0;
   border-radius: 0;

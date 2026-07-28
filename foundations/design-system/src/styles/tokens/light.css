@@ -9,7 +9,12 @@
   --ui-canvas: var(--ui-palette-neutral-50);
 
   --ui-sidebar: var(--ui-palette-neutral-75);
-  --ui-sidebar-accent: var(--ui-palette-neutral-200);
+  /*
+   * 侧边栏这一层唯一的压深色。导航行的悬停与选中、AI 会话行的悬停与当前、
+   * 标题栏里贴着侧栏的那几个图标按钮，全部读这一个值：一列界面一个色阶，
+   * 不允许第二份。深色主题的同名 token 在 dark.css，两边各自成立。
+   */
+  --ui-sidebar-accent: #e6e6e6;
   --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
 
   --ui-region-divider-color: oklch(0.9067 0 0);

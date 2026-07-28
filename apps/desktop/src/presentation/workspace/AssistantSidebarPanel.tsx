@@ -6,11 +6,11 @@ import { useSharedThreads } from '../../application/ai/threads-context'
 /*
  * 侧边栏下半部分：真实的会话记录。
  *
- * 列表来自数据库，标题的来源由 useThreads 决定：官方标题优先，其次是
- * 用户第一句话的临时标题，都没有时显示 AI。加号真的开一个会话，因此
- * 列表里的每一行都对应 agent 认得的 session。
+ * 列表来自数据库，标题的来源由 useThreads 决定：用户改过的名字最优先，
+ * 其次是官方标题，再次是第一句话的临时标题。加号真的开一个会话。
  *
- * 时间与分组在这里现算：它们是显示方式，不是需要落库的事实。
+ * 时间与分组在这里现算：它们是显示方式，不是需要落库的事实。固定是事实，
+ * 所以它落库，并把行提到「已固定」这一组。
  */
 
 const MINUTE = 60_000
@@ -61,10 +61,8 @@ export function AssistantSidebarPanel({
 
   const summaries: readonly AssistantThreadSummary[] = threads.threads.map((thread) => {
     const when = describe(thread.updatedAt, now)
-
     const pinned = thread.pinned === true
 
-    /* 固定过的会话自成一组，排在最前：这是它们被固定的意思。 */
     return {
       id: thread.threadId,
       title: threads.titleOf(thread.threadId),

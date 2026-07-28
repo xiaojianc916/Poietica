@@ -4,22 +4,25 @@ import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
 
 /**
- * 活动标签在序列里的位置，以及把它向两侧挪一格的动作。
+ * 活动标签在序列里的前后邻居，以及切换过去的动作。
  *
  * 可用性与动作都由调用方从标签列表派生：标题栏不认识标签模型，只把两个布尔
- * 映射成 disabled、把两个动作接到按钮上。重排走的仍是 store 的 moveTab，与
- * 拖拽、键盘重排是同一个入口，不存在第二条改顺序的路径。
+ * 映射成 disabled、把两个动作接到按钮上。切换走的仍是 store 的 activateTab，
+ * 与点击标签、命令面板是同一个入口，不存在第二条改变活动标签的路径。
+ *
+ * 两端不回绕：标签条是一段有限序列而不是环，走到头就禁用。重排另有拖拽与
+ * 键盘两条既有通路，不由这两个键承担。
  */
-export interface ActiveTabOrdering {
-  readonly canMoveEarlier: boolean
-  readonly canMoveLater: boolean
-  readonly moveEarlier: () => void
-  readonly moveLater: () => void
+export interface ActiveTabSequence {
+  readonly canActivatePrevious: boolean
+  readonly canActivateNext: boolean
+  readonly activatePrevious: () => void
+  readonly activateNext: () => void
 }
 
 export interface DesktopTitleBarProps {
   readonly children: ReactNode
-  readonly activeTabOrdering: ActiveTabOrdering
+  readonly activeTabSequence: ActiveTabSequence
   readonly onMinimize: () => void
   readonly onMaximize: () => void
   readonly onClose: () => void
@@ -54,7 +57,7 @@ export interface DesktopTitleBarProps {
  */
 export function DesktopTitleBar({
   children,
-  activeTabOrdering,
+  activeTabSequence,
   onMinimize,
   onMaximize,
   onClose,
@@ -108,17 +111,17 @@ export function DesktopTitleBar({
          * 两个箭头贴着竖线，只在侧边栏展开时在场。
          *
          * 收起之后这一区的宽度只剩开合按钮的落脚点（max() 的兜底项），箭头
-         * 留在这里会把开合按钮挤出可视区；何况它们指的是"这一侧的顺序"，侧栏
+         * 留在这里会把开合按钮挤出可视区；何况它们指的是"这一侧的标签"，侧栏
          * 不在场时也没有可指的对象。ml-auto 让它们吸在右边界上，所以位置仍由
          * 上面那个 max() 唯一决定，没有第二份坐标。
          */}
         {isSidebarOpen ? (
           <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-2">
             <Button
-              aria-label="将标签页左移"
+              aria-label="切换到上一个标签页"
               className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-              disabled={!activeTabOrdering.canMoveEarlier}
-              onClick={activeTabOrdering.moveEarlier}
+              disabled={!activeTabSequence.canActivatePrevious}
+              onClick={activeTabSequence.activatePrevious}
               size="icon"
               type="button"
               variant="ghost"
@@ -127,10 +130,10 @@ export function DesktopTitleBar({
             </Button>
 
             <Button
-              aria-label="将标签页右移"
+              aria-label="切换到下一个标签页"
               className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-              disabled={!activeTabOrdering.canMoveLater}
-              onClick={activeTabOrdering.moveLater}
+              disabled={!activeTabSequence.canActivateNext}
+              onClick={activeTabSequence.activateNext}
               size="icon"
               type="button"
               variant="ghost"
