@@ -1,10 +1,10 @@
-import type { ExtensionRegistration } from '@poietica/agent-protocol'
 import type { ReactNode } from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from 'tldraw'
+import type { ExtensionRegistration } from '../contracts/extension-contract'
 import { CanvasInspectorPortalProvider } from './canvas-inspector-portal'
 
-export type { ExtensionRegistration } from '@poietica/agent-protocol'
+export type { ExtensionRegistration } from '../contracts/extension-contract'
 
 interface EditorContextValue {
   readonly editor: Editor | null

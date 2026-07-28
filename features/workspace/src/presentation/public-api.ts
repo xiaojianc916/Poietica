@@ -1,4 +1,4 @@
-export type { WorkspaceShellProps } from '@poietica/agent-protocol'
+export type { WorkspaceShellProps } from '../contracts/shell-contract'
 
 export {
   CommandPalette,

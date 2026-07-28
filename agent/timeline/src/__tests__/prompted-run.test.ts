@@ -1,6 +1,5 @@
+import { parseRunEvent } from '@poietica/agent-protocol'
 import { describe, expect, it } from 'vitest'
-
-import { parseRunEvent } from '../acp-event-schema'
 import { applyRunEvent, createTimelineState } from '../timeline-reducer'
 
 /*

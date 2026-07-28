@@ -8,7 +8,6 @@ export {
 } from './cancellation'
 
 export { type Clock, createFixedClock, createMockClock, systemClock } from './clock'
-export type { ErrorDescriptor, ValidationViolation } from './errors'
 export {
   assertInvariant,
   assertUnreachable,

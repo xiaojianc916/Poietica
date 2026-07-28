@@ -1,8 +1,8 @@
 import type { RunEvent } from '@poietica/agent-protocol'
+import { parseRunEvent } from '@poietica/agent-protocol'
 import type { PermissionItem, ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { recordedTurn } from '../__fixtures__/permission-turn.generated'
-import { parseRunEvent } from '../acp-event-schema'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**

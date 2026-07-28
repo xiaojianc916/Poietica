@@ -1,17 +1,7 @@
 export {
   type CanvasBoundsViewModel,
-  type CanvasPageSnapshot,
   type CanvasSelectionViewModel,
   type CanvasSessionViewModel,
   type CanvasToolId,
-  type CreateEditorSessionOptions,
-  createEditorSession,
-  createEditorSessionRegistry,
-  type EditorAssetStoreSession,
-  type EditorAssetStoreSessionFactory,
-  type EditorSession,
-  type EditorSessionRegistry,
-  type EditorSessionSnapshot,
-  type EditorSessionState,
   EMPTY_CANVAS_SESSION_VIEW_MODEL,
-} from './application/public-api'
+} from './contracts/canvas-contract'

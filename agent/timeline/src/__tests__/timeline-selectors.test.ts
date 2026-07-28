@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { SAMPLE_RUN_EVENTS } from '../timeline-fixtures'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
 import { replayRunEvents } from '../timeline-reducer'
 import { selectFeedRows, selectIsBusy } from '../timeline-selectors'
 

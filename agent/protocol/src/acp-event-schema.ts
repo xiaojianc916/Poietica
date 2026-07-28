@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 
-import type { RunEvent } from '../contracts/run-contract'
+import type { RunEvent } from './run-contract'
 
 /**
  * Boundary validation.

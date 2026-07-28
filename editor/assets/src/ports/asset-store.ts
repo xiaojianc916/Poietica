@@ -1,6 +1,6 @@
-import type { AssetId } from '@poietica/agent-timeline'
 import type { AssetHash, AssetReference, MimeType } from '@poietica/editor-assets'
 import type { Result } from '@poietica/foundations-kernel'
+import type { AssetId } from '../domain/asset'
 
 export interface AssetStore {
   store(

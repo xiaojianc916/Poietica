@@ -1,7 +1,7 @@
 import type { RunEvent } from '@poietica/agent-protocol'
+import { parseRunEvent } from '@poietica/agent-protocol'
 import { describe, expect, it } from 'vitest'
-import { parseRunEvent } from '../acp-event-schema'
-import { SAMPLE_RUN_EVENTS } from '../timeline-fixtures'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
 import { applyRunEvent, createTimelineState, replayRunEvents } from '../timeline-reducer'
 
 const runId = 'run_test'

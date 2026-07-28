@@ -1,8 +1,3 @@
-import {
-  buildExtensionRegistration,
-  type ExtensionRegistration,
-  type PoieticaExtension,
-} from '@poietica/agent-protocol'
 import { createTLStore } from '@tldraw/editor'
 import {
   defaultBindingUtils,
@@ -13,6 +8,11 @@ import {
   type TLStore,
   type TLStoreSnapshot,
 } from 'tldraw'
+import {
+  buildExtensionRegistration,
+  type ExtensionRegistration,
+  type PoieticaExtension,
+} from '../contracts/extension-contract'
 
 // Contract tests: tests/unit/document-lifecycle/tlstore-record-id-contract.test.ts
 

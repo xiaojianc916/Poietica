@@ -1,6 +1,6 @@
-import type { WorkspaceShellProps } from '@poietica/agent-protocol'
 import type { WorkbenchSurfaceViewModel } from '@poietica/features-workspace/contracts'
 import { TooltipProvider } from '@poietica/foundations-design-system'
+import type { WorkspaceShellProps } from '../../contracts/shell-contract'
 import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
 import { InspectorRegion } from './InspectorRegion'

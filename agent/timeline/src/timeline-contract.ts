@@ -5,8 +5,11 @@ import type {
   AcpToolCallLocation,
   AcpToolCallStatus,
   AcpToolKind,
-} from './acp-session-contract'
-import type { PermissionOption, PermissionToolCall, RunId, RunStatus } from './run-contract'
+  PermissionOption,
+  PermissionToolCall,
+  RunId,
+  RunStatus,
+} from '@poietica/agent-protocol'
 
 /**
  * The timeline projection.

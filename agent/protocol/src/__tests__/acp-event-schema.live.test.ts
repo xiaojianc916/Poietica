@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { parseRunEvent } from '../acp-event-schema'
 import { recordedTurn as spokenTurn } from './__fixtures__/live-turn.generated'
 import { recordedTurn as permissionTurn } from './__fixtures__/permission-turn.generated'
 import { recordedTurn as toolTurn } from './__fixtures__/tool-turn.generated'
-import { parseRunEvent } from './acp-event-schema'
 
 /**
  * The renderer's validator, against frames a real agent actually sent.

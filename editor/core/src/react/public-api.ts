@@ -3,7 +3,7 @@ export {
   type ExtensionRegistration,
   POIETICA_EXTENSION_API_VERSION,
   type PoieticaExtension,
-} from '@poietica/agent-protocol'
+} from '../contracts/extension-contract'
 export {
   CanvasTransformStatus,
   type CanvasTransformStatusProps,
