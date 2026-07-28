@@ -1,4 +1,5 @@
 export {
+  AiSurfaceIcon,
   ClockTenIcon,
   LightbulbIcon,
   PencilRulerIcon,

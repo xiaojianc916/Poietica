@@ -163,7 +163,6 @@ temp/
 **/.DS_Store
 .AppleDouble
 .LSOverride
-Icon?
 ._*
 .Spotlight-V100
 .Trashes
@@ -200,10 +199,6 @@ eslint-report.*
 # Local development logs
 dev-err.txt
 dev-output.txt
-
-# Tauri 应用图标是源码资产，必须纳入版本控制。
-!apps/desktop/src-tauri/icons/
-!apps/desktop/src-tauri/icons/**
 
 # One-off repository migration scripts
 refactor.mjs

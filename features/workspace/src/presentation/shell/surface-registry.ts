@@ -2,12 +2,16 @@ import { Box, ChartNetwork, FolderTwo, Image, LayersThree, Search } from '@mynau
 import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace'
 import { START_TAB_TITLE, type WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 /*
- * clock-10 / pencil-ruler / webhook 不在图标库里，是设计系统的本地字形；
+ * ai / clock-10 / pencil-ruler / webhook 不在图标库里，是设计系统的本地字形；
  * 它们与库图标同框同粗细，原因见 components/icons/local-glyphs.tsx。
  */
-import { ClockTenIcon, PencilRulerIcon, WebhookIcon } from '@poietica/foundations-design-system'
+import {
+  AiSurfaceIcon,
+  ClockTenIcon,
+  PencilRulerIcon,
+  WebhookIcon,
+} from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
-import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
 export type SurfaceIcon = ComponentType<{
   readonly className?: string
