@@ -111,17 +111,46 @@ export function AgentActivityFeed({
    */
   const [isPinnedToEnd, setIsPinnedToEnd] = useState(true)
 
-  const syncPinnedToEnd = useCallback(() => {
-    const viewport = viewportRef.current
-
-    if (viewport === null) {
-      return
-    }
-
+  const syncPinnedToEnd = useCallback((viewport: HTMLDivElement) => {
     const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
 
     setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
   }, [])
+
+  /*
+   * 只听滚动区自己的滚动。
+   *
+   * 原生 scroll 不冒泡,而 React 的 onScroll 会:它把这类事件委托到根容器捕获,
+   * 再沿 React 树模拟一次冒泡。写成 onScroll,代码块、思考过程、工具输出 —— 任何
+   * 一个后代滚动容器动一下,这里都会被叫醒,然后拿外层的几何去翻转锚点,整条对话
+   * 随之重排。那不是滚动链接,contain 挡不住,它是事件层的串线。
+   *
+   * 所以监听挂在元素上,由 ref 回调负责装卸:内层滚动在事件层就到不了这里,不需要
+   * 任何 target 比对 —— 比对是让错误先进门再赶出去,而这里可以让它根本进不来。
+   * passive:读一个已有的几何量,永远不该让滚动等我们。
+   */
+  const bindViewport = useCallback(
+    (viewport: HTMLDivElement | null) => {
+      viewportRef.current = viewport
+
+      if (viewport === null) {
+        return
+      }
+
+      const handleScroll = () => {
+        syncPinnedToEnd(viewport)
+      }
+
+      viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+      return () => {
+        viewport.removeEventListener('scroll', handleScroll)
+        viewportRef.current = null
+      }
+    },
+    [syncPinnedToEnd],
+  )
+
   const canvasRef = useRef<HTMLDivElement | null>(null)
 
   /*
@@ -193,7 +222,7 @@ export function AgentActivityFeed({
 
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
-      <div className="agent-activity-feed__viewport" onScroll={syncPinnedToEnd} ref={viewportRef}>
+      <div className="agent-activity-feed__viewport" ref={bindViewport}>
         {header}
 
         <div
