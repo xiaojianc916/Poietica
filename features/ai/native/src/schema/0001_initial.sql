@@ -1,8 +1,19 @@
 -- Initial schema for agent state.
 --
--- run_events is append only and is the source of truth. Tables beside it are
--- projections that exist to be queried; they can always be rebuilt from the
--- log, so a projection bug is never a data loss bug.
+-- run_events is append only and is the source of truth for what happened
+-- inside a run. runs, tool_calls and permissions are projections of it: they
+-- exist to be queried, they can be rebuilt from the log, and a bug in one of
+-- them is never a data loss bug.
+--
+-- threads is not one of those, and saying it was is what this comment used to
+-- get wrong. A manual title and a pin are decisions the user made about a
+-- conversation, not things that happened inside one, and no event in the log
+-- records either of them. Rebuilding this table from run_events would throw
+-- both away. It is authoritative, and it is the only table here that is.
+--
+-- (A comment carries no schema, and this file is only ever executed against a
+--  database that has not applied version 1, so correcting one is not editing
+--  a migration that has shipped.)
 
 CREATE TABLE threads (
     id         TEXT PRIMARY KEY,

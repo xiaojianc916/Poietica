@@ -488,30 +488,24 @@ impl AiStore {
 
     /// Deletes a conversation and everything recorded under it.
     ///
-    /// The three statements are one transaction: a half deleted
-    /// conversation would leave frames in the log with nothing to belong to.
+    /// One statement, because the schema already says what must happen.
+    /// runs reference their thread, and run_events, tool_calls and
+    /// permissions all reference their run, every one of them ON DELETE
+    /// CASCADE; `open_encrypted` turns foreign keys on. A single statement
+    /// is atomic on its own, so there is nothing left for a transaction to
+    /// hold together either.
+    ///
+    /// What was here before spelled out two of those four children by hand
+    /// and left the other two to the very cascade it was working around.
     ///
     /// # Errors
     ///
-    /// Fails when any of the deletes is rejected.
+    /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
-        let named = id.to_string();
-        let transaction = self.connection.unchecked_transaction()?;
-
-        transaction.execute(
-            "DELETE FROM run_events
-              WHERE run_id IN (SELECT id FROM runs WHERE thread_id = ?1)",
-            rusqlite::params![named],
-        )?;
-        transaction.execute(
-            "DELETE FROM runs WHERE thread_id = ?1",
-            rusqlite::params![named],
-        )?;
-        transaction.execute(
+        self.connection.execute(
             "DELETE FROM threads WHERE id = ?1",
-            rusqlite::params![named],
+            rusqlite::params![id.to_string()],
         )?;
-        transaction.commit()?;
 
         Ok(())
     }
