@@ -68,6 +68,8 @@ interface Clip {
 
 interface Bar {
   readonly element: HTMLElement
+  /** 滑块画在这个盒子上,通常就是滚动盒自己。 */
+  readonly track: Element
   readonly clippers: readonly Element[]
   readonly release: () => void
   hideAt: number
@@ -94,6 +96,19 @@ function readMetrics(): Metrics {
 }
 
 const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high)
+
+/*
+ * 轨道未必就是滚动盒本身。
+ *
+ * 滚动区只占面板上半段时(对话面板:输入框是滚动区的兄弟),把滑块画成滚动区
+ * 那么高,滚动条就会在输入框上沿断掉 —— 那是原生滚动条的几何限制,不是设计
+ * 意图。既然滑块是自己画的,轨道就由标记说了算:滚动盒向上找最近的
+ * [data-scrollbar-track],找到就拿它的盒子当轨道,滚动比例仍旧来自滚动盒自己
+ * 的滚动量。VS Code 的滚动条同样画在编辑区上,而不是某一个 DOM 滚动盒上。
+ */
+const TRACK_ATTRIBUTE = '[data-scrollbar-track]'
+
+const trackOf = (scroller: Element): Element => scroller.closest(TRACK_ATTRIBUTE) ?? scroller
 
 /*
  * 谁会裁剪这个滚动盒。
@@ -142,7 +157,7 @@ function clipOf(clippers: readonly Element[]): Clip {
  * border box —— 有边框的滚动盒(代码块)不会因此偏一个像素。主轴两端各留
  * (lane - thickness) / 2,与原生那圈 3px 透明边收出来的形状相同。
  */
-function measure(scroller: Element, axis: Axis, metrics: Metrics): Geometry | null {
+function measure(scroller: Element, track: Element, axis: Axis, metrics: Metrics): Geometry | null {
   const vertical = axis === 'vertical'
   const viewport = vertical ? scroller.clientHeight : scroller.clientWidth
   const content = vertical ? scroller.scrollHeight : scroller.scrollWidth
@@ -152,15 +167,16 @@ function measure(scroller: Element, axis: Axis, metrics: Metrics): Geometry | nu
     return null
   }
 
-  const rect = scroller.getBoundingClientRect()
+  const rect = track.getBoundingClientRect()
+  const trackMain = vertical ? track.clientHeight : track.clientWidth
   const pad = (metrics.lane - metrics.thickness) / 2
-  const raw = Math.max(metrics.minLength, Math.round((viewport * viewport) / content))
-  const free = Math.max(viewport - raw, 0)
+  const raw = Math.max(metrics.minLength, Math.round((trackMain * viewport) / content))
+  const free = Math.max(trackMain - raw, 0)
   const position = vertical ? scroller.scrollTop : scroller.scrollLeft
   const progress = clamp(position / scrollable, 0, 1)
-  const originMain = vertical ? rect.top + scroller.clientTop : rect.left + scroller.clientLeft
-  const originCross = vertical ? rect.left + scroller.clientLeft : rect.top + scroller.clientTop
-  const crossSize = vertical ? scroller.clientWidth : scroller.clientHeight
+  const originMain = vertical ? rect.top + track.clientTop : rect.left + track.clientLeft
+  const originCross = vertical ? rect.left + track.clientLeft : rect.top + track.clientTop
+  const crossSize = vertical ? track.clientWidth : track.clientHeight
 
   return {
     cross: originCross + crossSize - pad - metrics.thickness,
@@ -172,7 +188,7 @@ function measure(scroller: Element, axis: Axis, metrics: Metrics): Geometry | nu
 
 /** 摆好滑块。返回 false 表示这条轴此刻不该有滑块。 */
 function place(scroller: Element, axis: Axis, bar: Bar, metrics: Metrics): boolean {
-  const geometry = measure(scroller, axis, metrics)
+  const geometry = measure(scroller, bar.track, axis, metrics)
 
   if (geometry === null) {
     return false
@@ -245,6 +261,7 @@ export function installScrollbarActivity(): () => void {
   }
 
   const createBar = (scroller: Element, axis: Axis): Bar => {
+    const track = trackOf(scroller)
     const element = document.createElement('div')
 
     element.className = 'overlay-scrollbar'
@@ -274,7 +291,7 @@ export function installScrollbarActivity(): () => void {
         return
       }
 
-      const geometry = measure(scroller, axis, metrics)
+      const geometry = measure(scroller, bar.track, axis, metrics)
 
       if (geometry === null) {
         return
@@ -302,7 +319,7 @@ export function installScrollbarActivity(): () => void {
     }
 
     const bar: Bar = {
-      clippers: clippersOf(scroller),
+      clippers: clippersOf(track),
       dragging: false,
       element,
       hideAt: 0,
@@ -312,6 +329,7 @@ export function installScrollbarActivity(): () => void {
         element.removeEventListener('pointerup', onPointerUp)
         element.removeEventListener('pointercancel', onPointerUp)
       },
+      track,
     }
 
     element.addEventListener('pointerdown', onPointerDown)
@@ -364,7 +382,7 @@ export function installScrollbarActivity(): () => void {
 
   const reveal = (scroller: Element) => {
     for (const axis of AXES) {
-      if (measure(scroller, axis, metrics) === null) {
+      if (measure(scroller, trackOf(scroller), axis, metrics) === null) {
         continue
       }
 

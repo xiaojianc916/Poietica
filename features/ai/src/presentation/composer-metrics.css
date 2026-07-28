@@ -22,7 +22,8 @@
   --cp-feed-row-gap: var(--cp-pad-mid);
   --cp-dock-gap: var(--cp-stack);
   /* 溶解距离按行给:一行半正文(39px)。三行是过量,那段渐变自己变成了色带。 */
-  --cp-dock-scrim: calc(var(--cp-line) * 1.5);
+  /* 对话下沿化开的距离:一行半正文。涂色的那一版没有了,这是遮罩的长度。 */
+  --cp-dock-dissolve: calc(var(--cp-line) * 1.5);
 
   --cp-font: 16px;
   --cp-line-ratio: 1.625;

@@ -9,12 +9,15 @@ import { useStickToBottom } from './use-stick-to-bottom'
 /**
  * The scroller of the assistant surface.
  *
- * Two layers, and the split is the point: the scrollport holds everything that
- * scrolls — the masthead, the virtualised transcript, the composer as a sticky
- * band at the end of the flow — and the frame around it holds what is painted
- * over the scrollport without moving with it. That is how an editor mounts its
- * minimap, and the only way an overlay can stay put without a sticky offset or
- * a negative margin compensating for the scroll.
+ * 一列三段,而三段各自独立正是要点:滚动区只装会滚的东西(开场白与虚拟化的
+ * 对话),输入框是它的兄弟而不是它里面粘住的孩子,浮层则绝对定位在框架上、不
+ * 随滚动移动 —— 编辑器挂缩略图就是这个结构。
+ *
+ * 输入框为什么必须在外面:滚动区的下沿是用遮罩化开的,而遮罩作用于整个盒子,
+ * 输入框留在里面就会跟着一起被抹淡。搬到外面之后,下沿不需要涂任何颜色。
+ *
+ * 框架上的 data-scrollbar-track 是给自绘滚动条的:滚动的只是上面那段,但滑块
+ * 按整块面板的高度来画,所以它不会在输入框上沿断掉。
  *
  * It knows nothing about entry types: entries arrive through a render slot, so
  * reasoning chains and tool-call cards evolve without touching scrolling.
@@ -50,7 +53,12 @@ export interface AgentActivityFeedProps {
    * disturb the virtualiser. Absent means absent: undefined, not null.
    */
   readonly footer?: ReactNode
-  /** The band that sticks to the bottom of the scrollport: the composer. */
+  /**
+   * Under the scrollport and outside it: the composer.
+   *
+   * A sibling, not a sticky child. Nothing scrolls behind it, so the transcript
+   * can dissolve into the panel with a mask instead of being covered by paint.
+   */
   readonly dock?: ReactNode
   /** Painted over the scrollport, outside everything that scrolls. */
   readonly overlay?: (port: FeedPort) => ReactNode
@@ -137,7 +145,7 @@ export function AgentActivityFeed({
   }, [follow, rows.length, totalSize])
 
   return (
-    <div className="agent-activity-feed">
+    <div className="agent-activity-feed" data-scrollbar-track>
       <div className="agent-activity-feed__viewport" ref={scrollRef}>
         {header}
 
@@ -174,9 +182,9 @@ export function AgentActivityFeed({
         </div>
 
         {footer === undefined ? null : <div className="agent-activity-feed__footer">{footer}</div>}
-
-        {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
       </div>
+
+      {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
 
       {overlay === undefined
         ? null

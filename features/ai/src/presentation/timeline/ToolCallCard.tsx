@@ -2,21 +2,15 @@ import type { ToolCallTimelineItem } from '../../contracts/timeline-contract'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
+  FailureIcon,
   FileIcon,
   GlobeIcon,
   ModelIcon,
   SearchIcon,
   SpinnerIcon,
-  ToolsIcon,
+  ToolIcon,
 } from '../primitives/icons'
 import { toDiffStat, toToolContentParts } from './tool-call-content'
-
-const STATUS_LABELS: Record<ToolCallTimelineItem['status'], string> = {
-  completed: '已完成',
-  failed: '失败',
-  in_progress: '执行中',
-  pending: '等待中',
-}
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
@@ -25,8 +19,8 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
     case 'delete':
     case 'edit':
     case 'move':
-    case 'read':
       return <FileIcon aria-hidden="true" className={className} />
+    case 'read':
     case 'search':
       return <SearchIcon aria-hidden="true" className={className} />
     case 'fetch':
@@ -34,7 +28,7 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
     case 'think':
       return <ModelIcon aria-hidden="true" className={className} />
     default:
-      return <ToolsIcon aria-hidden="true" className={className} />
+      return <ToolIcon aria-hidden="true" className={className} />
   }
 }
 
@@ -87,7 +81,17 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
 
         {isRunning ? <SpinnerIcon aria-hidden="true" className="timeline-tool__spinner" /> : null}
 
-        <span className="timeline-tool__status">{STATUS_LABELS[item.status]}</span>
+        {/*
+         * 结束状态只画，不说。
+         *
+         * 成功不需要一行「已完成」：卡片在那儿、纺锤停了，就是完成了。运行中
+         * 也不需要「执行中」：纺锤正在转。四种状态里只有失败带着新消息，所以
+         * 它是唯一留下的记号 —— 一个图标，不染色（原因由自动展开的内容负责
+         * 说清楚），带 aria-label，读屏仍然听得到。
+         */}
+        {item.status === 'failed' ? (
+          <FailureIcon aria-label="失败" className="timeline-tool__failed" role="img" />
+        ) : null}
 
         <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron" />
       </button>

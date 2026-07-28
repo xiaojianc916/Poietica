@@ -9,6 +9,7 @@
 export {
   ArrowUp as SubmitIcon,
   ChevronDown as ChevronDownIcon,
+  DangerCircle as FailureIcon,
   Dots as MoreIcon,
   File as FileIcon,
   Globe as GlobeIcon,
@@ -23,6 +24,7 @@ export {
   Sparkles as ModelIcon,
   Spinner as SpinnerIcon,
   Square as StopIcon,
+  Tool as ToolIcon,
   X as CloseIcon,
 } from '@mynaui/icons-react'
 

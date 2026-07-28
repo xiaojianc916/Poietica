@@ -421,6 +421,7 @@
 }
 
 .timeline-tool__icon,
+.timeline-tool__failed,
 .timeline-tool__spinner,
 .timeline-tool__chevron {
   flex: none;
@@ -460,16 +461,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.timeline-tool__status {
-  flex: none;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
-  font-size: 0.8125rem;
-}
-
-.timeline-tool[data-status="failed"] .timeline-tool__status {
-  color: var(--cp-timeline-danger-text, rgb(180 35 24));
 }
 
 /*

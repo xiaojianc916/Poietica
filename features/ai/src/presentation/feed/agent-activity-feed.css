@@ -1,77 +1,82 @@
 /*
- * The one scroller on the assistant surface, and now the only one on screen.
+ * 面板的框架:自上而下三段 —— 空白、滚动区、输入框,外加一层不随滚动移动的浮层。
  *
- * It spans the panel, so its scrollbar lands on the panel's edge rather than
- * inside it, and the reading measure is kept by its padding: padding is inside
- * a scroll box while the scrollbar sits on its edge, so narrow rows and a wide
- * scroller need no second box. Size containment is deliberately absent — the
- * browser must size this box from the flex line it sits on and lay its rows out
- * at the real inline size.
+ * 起始态的居中由首尾两个伪元素撑开:它们各占一半自由空间,于是开场白与输入框
+ * 一起停在面板正中。第一轮对话到达后两者的 flex-grow 归零,空间交给滚动区 ——
+ * flex-grow 是个数字,浏览器会补间,所以那段位移不需要任何脚本。伪元素只能是
+ * 首尾子元素,而要撑的两段空白恰好就在首和尾。
  */
 .agent-activity-feed {
   position: relative;
   display: flex;
-  min-inline-size: 0;
-  flex: 1;
-}
-
-/*
- * The scrollport: the one box on the screen that scrolls.
- *
- * It fills the frame, so its scrollbar still lands on the panel's edge rather
- * than inside it, and the reading measure is still kept by its padding —
- * padding is inside a scroll box while the scrollbar sits on its edge, so
- * narrow rows and a wide scroller need no second box. What the frame adds is
- * a place to stand for anything painted over the run: an overlay inside this
- * box would scroll with the run and would have to compensate for it.
- */
-.agent-activity-feed__viewport {
-  display: flex;
+  min-block-size: 0;
   min-inline-size: 0;
   flex: 1;
   flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  contain: layout paint;
-  padding-block-start: var(--cp-gutter);
-  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
-/*
- * The free space before the first turn, and no markup for it.
- *
- * Two generated boxes take equal shares of the scroller while the transcript
- * is empty, so the masthead and the composer rest in the middle. A turn hands
- * their share to the canvas: flex-grow is a number, so the browser interpolates
- * the move, and the composer travels down with the space rather than with a
- * script.
- */
-.agent-activity-feed__viewport::before,
-.agent-activity-feed__viewport::after {
+.agent-activity-feed::before,
+.agent-activity-feed::after {
   content: "";
   flex: 1 1 0;
   transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
-.assistant-surface[data-started="true"] .agent-activity-feed__viewport::before,
-.assistant-surface[data-started="true"] .agent-activity-feed__viewport::after {
+.assistant-surface[data-started="true"] .agent-activity-feed::before,
+.assistant-surface[data-started="true"] .agent-activity-feed::after {
   flex-grow: 0;
 }
 
 /*
- * The canvas takes the room only once there is something in it.
+ * 唯一会滚动的盒子,以及它的下沿为什么不涂颜色。
  *
- * Before the first turn the two spacers are the only boxes that grow, which is
- * what puts the masthead and the composer in the middle of the panel. A canvas
- * that grew as well would take a third of that free space and open it between
- * them: that was the gap under the title, and the reason the pair read as
- * sitting high. After the first turn the canvas is the one that grows, which is
- * what holds a short conversation's composer against the bottom edge instead of
- * leaving it mid-panel, and it never shrinks below the total height the
- * virtualiser sets inline.
+ * 涂色 —— 无论是毛玻璃还是一层同色渐变 —— 都必须先假定背后是什么颜色,假定
+ * 得再准,结果也只是一块压在字上的颜色:细看就是色块,只是明不明显的区别。
+ * 遮罩不做这个假定,它按渐变抹掉像素本身的不透明度,所以换主题、换背景、
+ * 底下压着什么都成立。这也是折叠气泡和思考链已经在用的那套办法。
  *
- * The switch is the same data-started the spacers already read, so the two can
- * never disagree about who owns the space.
+ * 停靠点是加权的,不是线性:线性的 alpha 在感知上前段掉得太快、尾巴又拖着,
+ * 加权之后才是"化开"。
+ *
+ * 遮罩常开,不需要"下面还有没有内容"这个状态 —— 下内边距等于溶解长度,于是
+ * 滚到底时最后一行永远停在溶解带之外,不会被自己的遮罩吃掉。少一个监听器,
+ * 少一处可能与真实滚动位置不同步的状态。
+ *
+ * 阅读宽度由这里的内边距保证:内边距在滚动盒内部,所以窄的行与宽的滚动盒不
+ * 需要第二个盒子。这段内边距的表达式与下面输入框那段必须逐字相同,两者才会
+ * 落在同一条中轴上。
+ */
+.agent-activity-feed__viewport {
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  contain: layout paint;
+  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
+  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
+  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--cp-dock-dissolve)),
+    rgb(0 0 0 / 0.72) calc(100% - var(--cp-dock-dissolve) * 0.62),
+    rgb(0 0 0 / 0.22) calc(100% - var(--cp-dock-dissolve) * 0.24),
+    transparent 100%
+  );
+}
+
+.assistant-surface[data-started="true"] .agent-activity-feed__viewport {
+  flex-grow: 1;
+}
+
+/*
+ * 对话内容占满滚动区,只在有内容之后。
+ *
+ * 起始态里会长的是那两个伪元素,画布若也长就会在开场白与输入框之间撑开第三份
+ * 空隙。有内容之后它是长的那个,于是短对话的正文靠上排,而不是浮在中间;它也
+ * 永远不会低于虚拟化算出的总高。
  */
 .agent-activity-feed__canvas {
   position: relative;
@@ -91,9 +96,8 @@
 }
 
 /*
- * Whatever is true of the run rather than of one entry in it sits here, after
- * the canvas and inside the scroller, so it scrolls with the transcript
- * without being part of the measured rows.
+ * 属于这一轮而不属于其中某一条的东西放这里:在画布之后、滚动区之内,跟着对话
+ * 一起滚,但不被当作一行去测量。
  */
 .agent-activity-feed__footer {
   position: relative;
@@ -101,85 +105,38 @@
 }
 
 /*
- * The composer, over the transcript.
+ * 输入框,滚动区的兄弟。
  *
- * Sticky, not fixed and not absolutely placed: it keeps its place at the end of
- * the flow, so the scrollbar measures the whole conversation and the transcript
- * stops a stack above the band instead of hiding behind it. While the run is
- * scrolled the transcript passes underneath, and that passing is the whole
- * reason the band paints anything at all. A sticky offset is resolved against
- * the scrollport, which is the padding box, so the band carries the bottom
- * inset itself.
+ * 它不再粘在滚动盒底边,所以背后没有任何东西经过 —— 也就不需要实底、不需要
+ * 那层纱、不需要任何一块颜色:露出来的本来就是面板自己的画布色。上方的留白
+ * 由滚动区那段溶解距离承担,这里不再另加外边距,否则就是两段间距叠在一起。
  *
- * 落地之前它什么都不画。
- *
- * 开场的排版是浮在空面板中间的一组：标题、输入框、三张卡片，底下没有任何
- * 东西会从它下面经过。这时候铺一层画布色的实底再加一段渐变，画的是一个不
- * 存在的图层关系——纸上贴纸，同色，只在滚动时才可能露出破绽。所以实底与上
- * 沿的溶解都挂在 data-started 上：撑空的两个伪元素读它，画布的 flex-grow
- * 读它，这层材质也读它，三者不可能对"输入框到底落地没有"产生分歧。
+ * 左右内边距与滚动区逐字相同,这是它与气泡对齐的唯一依据 —— 原生滚动条已经
+ * 不占位,两边的 100% 指的是同一个宽度。
  */
 .agent-activity-feed__dock {
-  position: sticky;
-  z-index: 1;
-  inset-block-end: 0;
-  margin-block-start: var(--cp-dock-gap);
+  position: relative;
+  flex: none;
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
-}
-
-.assistant-surface[data-started="true"] .agent-activity-feed__dock {
-  background: var(--cp-canvas);
-}
-
-/*
- * 上沿的溶解,以及这里为什么没有毛玻璃。
- *
- * 毛玻璃是给"底下有材质"的场景用的 —— 侧栏压在照片上、工具栏压在网页上,
- * 模糊出来的是背景本身的色彩分布。这条band 底下是 --cp-canvas 一块纯色:
- * 模糊一块纯色等于什么都没做,它唯一可见的后果是把那层 82% 的纱透出来的
- * 18% 文字糊成一团,于是整条band 读起来是一块半糊的色块,而不是一段消失。
- * 代价还要另算:一个 backdrop 合成层,叠一张遮罩,滚动时整块逐帧重采样。
- *
- * 换成两块各管一段。band 自己是实心的画布色,所以下沿没有边可言 —— 它和
- * 画布本来就是同一种颜色。上沿是这个伪元素:同一种颜色的一段 alpha 渐变,
- * 长度是一行半正文(39px)。三行是过量:渐变铺得越长,中段那些半透明的停靠点
- * 覆盖的面积就越大,于是这层"过渡"自己变成了一块看得见的色带 —— 要的是一行
- * 字走过一行半就没入,不是一整片雾。
- *
- * 停靠点是加权的,不是线性:线性 alpha 在感知上前段掉得太快、尾巴又拖着,
- * 加权之后才是"化开"。透明的那一端写成同色零透明度,而不是 transparent,
- * 于是不必依赖引擎在渐变里怎么处理预乘。
- */
-.assistant-surface[data-started="true"] .agent-activity-feed__dock::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset-inline: 0;
-  inset-block: calc(-1 * var(--cp-dock-scrim)) 100%;
-  background: linear-gradient(
-    to bottom,
-    rgb(from var(--cp-canvas) r g b / 0) 0%,
-    rgb(from var(--cp-canvas) r g b / 0.32) 52%,
-    rgb(from var(--cp-canvas) r g b / 0.78) 82%,
-    var(--cp-canvas) 100%
-  );
-  pointer-events: none;
+  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
 /*
  * 读取一条已有对话的那几帧不要动画。
  *
- * 排版本来就按最终形态给出；万一读出的是空记录，回落到起始态是一次校正，
- * 不是一段动效——补间它就成了“内容从上面掉下来”。
+ * 排版本来就按最终形态给出;万一读出的是空记录,回落到起始态是一次校正,
+ * 不是一段动效 —— 补间它就成了"内容从上面掉下来"。
  */
-.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport::before,
-.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport::after {
+.assistant-surface[data-restoring="true"] .agent-activity-feed::before,
+.assistant-surface[data-restoring="true"] .agent-activity-feed::after,
+.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport {
   transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .agent-activity-feed__viewport::before,
-  .agent-activity-feed__viewport::after {
+  .agent-activity-feed::before,
+  .agent-activity-feed::after,
+  .agent-activity-feed__viewport {
     transition: none;
   }
 }
