@@ -132,16 +132,6 @@ keyring = { version = "4.1.5", features = [
 
 agent-client-protocol = "=1.3.0"
 
-# Configuration files edited in place
-#
-# The agent keeps its models in a TOML file it also reads, so a change of
-# model must not disturb the comments, the ordering, or a single key we do
-# not understand. toml_edit rewrites values inside a parsed document; the
-# serde path would round-trip the file through our own idea of its shape.
-toml_edit = { version = "0.25.13", default-features = false, features = [
-  "display", "parse",
-] }
-
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"

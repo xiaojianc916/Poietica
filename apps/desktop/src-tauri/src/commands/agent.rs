@@ -19,9 +19,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
 use poietica_ai_acp_native::{
-    AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose, ModelError,
-    ModelList, PermissionDesk, RecordedEvent, Recorder, RunSlot, connect, model_config_path,
-    read_models, select_model,
+    AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
+    PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
 };
 use poietica_ai_persistence_native::{AiStore, StoreError};
 use serde::{Deserialize, Serialize};
@@ -399,86 +398,6 @@ pub fn agent_load_thread(
     })
 }
 
-/// One model the agent has been configured with.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentModelDescriptor {
-    /// The key that selects the model in the agent configuration file.
-    pub id: String,
-    /// What the provider answers to, which is what the user recognises.
-    pub label: String,
-    /// The provider the model is reached through, when the file names one.
-    pub provider: Option<String>,
-}
-
-/// The agent models, and which one a new session starts with.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentModelList {
-    /// Every configured model, in the order the file lists them.
-    pub models: Vec<AgentModelDescriptor>,
-    /// The model a new session starts with, when the file names one.
-    pub active: Option<String>,
-}
-
-/// A choice made in the interface.
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentSelectModelRequest {
-    /// One of the identifiers the model list offered.
-    pub model_id: String,
-}
-
-/// Lists the models the agent has been configured with.
-///
-/// The list is read from the file the agent reads, every time it is asked
-/// for, so a model added outside this program is offered here too.
-///
-/// # Errors
-///
-/// Fails when the configuration file exists but cannot be read or parsed.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_models(state: State<'_, AgentRuntime>) -> AgentCommandResult<AgentModelList> {
-    let path = model_config_path(&state.root);
-    let list = read_models(&path).map_err(configuration)?;
-
-    Ok(describe(list))
-}
-
-/// Chooses the model the next session will start with.
-///
-/// A model is decided when a session is created, so the running session is
-/// ended here rather than asked to change its mind. The next prompt starts a
-/// new one against the file this command just wrote, which is why the switch
-/// costs nothing the user has to do.
-///
-/// # Errors
-///
-/// Fails when the agent has no such model, when the configuration file
-/// cannot be read or written, or when the session lock was poisoned.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_select_model(
-    state: State<'_, AgentRuntime>,
-    request: AgentSelectModelRequest,
-) -> AgentCommandResult<AgentModelList> {
-    let path = model_config_path(&state.root);
-    let list = select_model(&path, &request.model_id).map_err(configuration)?;
-
-    let taken = lock(&state.session)?.take();
-
-    if let Some(live) = taken {
-        // The process is going away either way, so a driver that already
-        // stopped is not an error worth reporting.
-        let _ignored = live.client.shutdown();
-    }
-
-    state.desk.clear();
-
-    Ok(describe(list))
-}
-
 /// What a session selector is for.
 ///
 /// These are the categories the protocol defines. A category the agent
@@ -624,37 +543,6 @@ fn restate(control: ConfigControl) -> AgentConfigControl {
             })
             .collect(),
     }
-}
-
-/// Restates the list in the shape the generated bindings carry.
-fn describe(list: ModelList) -> AgentModelList {
-    AgentModelList {
-        active: list.active,
-        models: list
-            .models
-            .into_iter()
-            .map(|model| AgentModelDescriptor {
-                id: model.id,
-                label: model.label,
-                provider: model.provider,
-            })
-            .collect(),
-    }
-}
-
-/// Folds a configuration failure into the existing error surface.
-///
-/// A name the agent does not have is the one failure the interface can act
-/// on, so it keeps its own shape; everything else is a fault of this machine
-/// and says so without spelling out a path to the webview.
-fn configuration(error: ModelError) -> Error {
-    let message = error.to_string();
-
-    if matches!(error, ModelError::Unknown(_named)) {
-        return Error::NotFound(message);
-    }
-
-    Error::Internal(message)
 }
 
 /// What a command needs to know about the running session.

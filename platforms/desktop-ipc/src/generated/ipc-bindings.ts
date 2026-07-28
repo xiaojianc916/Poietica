@@ -87,35 +87,6 @@ async agentLoadThread(request: AgentLoadThreadRequest) : Promise<AgentThreadTran
     return await TAURI_INVOKE("agent_load_thread", { request });
 },
 /**
- * Lists the models the agent has been configured with.
- * 
- * The list is read from the file the agent reads, every time it is asked
- * for, so a model added outside this program is offered here too.
- * 
- * # Errors
- * 
- * Fails when the configuration file exists but cannot be read or parsed.
- */
-async agentModels() : Promise<AgentModelList> {
-    return await TAURI_INVOKE("agent_models");
-},
-/**
- * Chooses the model the next session will start with.
- * 
- * A model is decided when a session is created, so the running session is
- * ended here rather than asked to change its mind. The next prompt starts a
- * new one against the file this command just wrote, which is why the switch
- * costs nothing the user has to do.
- * 
- * # Errors
- * 
- * Fails when the agent has no such model, when the configuration file
- * cannot be read or written, or when the session lock was poisoned.
- */
-async agentSelectModel(request: AgentSelectModelRequest) : Promise<AgentModelList> {
-    return await TAURI_INVOKE("agent_select_model", { request });
-},
-/**
  * Lists the selectors the running session offers.
  * 
  * The agent reports these when the session is created, so an empty list
@@ -480,34 +451,6 @@ export type AgentLoadThreadRequest = {
  */
 threadId: string }
 /**
- * One model the agent has been configured with.
- */
-export type AgentModelDescriptor = { 
-/**
- * The key that selects the model in the agent configuration file.
- */
-id: string; 
-/**
- * What the provider answers to, which is what the user recognises.
- */
-label: string; 
-/**
- * The provider the model is reached through, when the file names one.
- */
-provider: string | null }
-/**
- * The agent models, and which one a new session starts with.
- */
-export type AgentModelList = { 
-/**
- * Every configured model, in the order the file lists them.
- */
-models: AgentModelDescriptor[]; 
-/**
- * The model a new session starts with, when the file names one.
- */
-active: string | null }
-/**
  * Where a new session should be opened, and how to start the agent if it
  * is not running yet.
  */
@@ -636,14 +579,6 @@ configId: string;
  * One of the values that selector offered.
  */
 value: string }
-/**
- * A choice made in the interface.
- */
-export type AgentSelectModelRequest = { 
-/**
- * One of the identifiers the model list offered.
- */
-modelId: string }
 /**
  * One line of the agent's own session list.
  */

@@ -5,7 +5,6 @@ import { type ReactNode, useMemo, useRef } from 'react'
 import { useAssistantSession } from '../application/useAssistantSession'
 import { useSessionControls } from '../application/useSessionControls'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
-import type { AgentModelsPort } from '../contracts/model-port'
 import type { SessionConfigPort } from '../contracts/session-config-port'
 import type { TurnFooter } from '../domain/timeline-selectors'
 import {
@@ -42,8 +41,6 @@ export interface AssistantSurfaceProps {
    * and the surface does not own the list, so it reports it outwards.
    */
   readonly onUserMessage?: (text: string) => void
-  /** Where the model list is read from before a session exists. */
-  readonly models?: AgentModelsPort
   /** The selectors the running session offers. */
   readonly config?: SessionConfigPort
 }
@@ -89,13 +86,12 @@ const STARTERS: Readonly<Record<string, string>> = {
 export function AssistantSurface({
   config,
   endpoint,
-  models,
   onUserMessage,
   session,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, session })
 
-  const controls = useSessionControls(config, models, assistant.status)
+  const controls = useSessionControls(config, assistant.status)
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)

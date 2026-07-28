@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import { AssistantSurface } from '@poietica/features-ai/react'
 
-import { desktopAgentModels, desktopSessionConfig } from '../../application/ai/agent-session'
+import { desktopSessionConfig } from '../../application/ai/agent-session'
 import { useSharedThreads } from '../../application/ai/threads-context'
 
 /*
@@ -28,7 +28,6 @@ export function ConversationSurface({ onStarted, session, threadId }: Conversati
     <AssistantSurface
       config={desktopSessionConfig()}
       endpoint={threadId}
-      models={desktopAgentModels()}
       onUserMessage={(text) => {
         threads.nameFromMessage(threadId, text)
         void threads.refresh()

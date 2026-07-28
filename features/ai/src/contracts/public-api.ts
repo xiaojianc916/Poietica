@@ -13,13 +13,6 @@ export type {
   AcpToolKind,
 } from './acp-session-contract'
 export type {
-  AgentCapability,
-  AgentDefinition,
-  AgentId,
-  AgentRegistryPort,
-  AgentToolDescriptor,
-} from './agent-contract'
-export type {
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
@@ -38,11 +31,6 @@ export type {
   AssistantRole,
   AssistantStatus,
 } from './conversation-contract'
-export type { AgentModel } from './model-contract'
-export type {
-  AgentModelSelection,
-  AgentModelsPort,
-} from './model-port'
 export type {
   PermissionOption,
   RunEvent,

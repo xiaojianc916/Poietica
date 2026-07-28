@@ -1,9 +1,10 @@
 use std::env;
 use std::fmt;
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
@@ -259,12 +260,16 @@ impl fmt::Debug for AgentConnection {
 
 /// Appends one observed line to the trace file.
 ///
-/// Nothing is parsed and nothing is buffered: the point is to show what the
-/// two sides actually said. A trace that cannot be written is not worth
-/// failing a session over, so every error here is dropped on purpose.
-fn trace(path: &str, label: &str, line: &str) {
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+/// The handle is opened once for the whole connection. A streaming turn emits
+/// thousands of frames, and re-opening the file for each of them puts an
+/// open, a write and a close on the hot path of every answer.
+///
+/// A trace that cannot be written is not worth failing a session over, so
+/// every error here is dropped on purpose.
+fn trace(sink: &Mutex<BufWriter<File>>, label: &str, line: &str) {
+    if let Ok(mut file) = sink.lock() {
         let _ignored = writeln!(file, "{label} {line}");
+        let _ignored = file.flush();
     }
 }
 
@@ -310,13 +315,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
     // The observer sees both halves. Only the standard error half was kept,
     // which left the protocol itself unobservable from inside the client.
-    let traced = env::var(TRACE).ok().filter(|path| !path.trim().is_empty());
+    // Opened here, once, rather than once per observed line. A path that
+    // cannot be opened means no trace, which is what an absent variable
+    // already means.
+    let traced = env::var(TRACE)
+        .ok()
+        .filter(|path| !path.trim().is_empty())
+        .and_then(|path| OpenOptions::new().create(true).append(true).open(path).ok())
+        .map(|file| Arc::new(Mutex::new(BufWriter::new(file))));
 
     let agent = agent.with_debug(move |line, direction| {
         let is_stderr = direction == LineDirection::Stderr;
 
-        if let Some(path) = traced.as_deref() {
-            trace(path, if is_stderr { "err " } else { "wire" }, line);
+        if let Some(sink) = traced.as_deref() {
+            trace(sink, if is_stderr { "err " } else { "wire" }, line);
         }
 
         if is_stderr {

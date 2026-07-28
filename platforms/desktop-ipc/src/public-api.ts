@@ -13,13 +13,9 @@ export {
   type AgentConfigPurposeName,
   type AgentEventSource,
   type AgentEventSourceOptions,
-  type AgentModelBridge,
-  type AgentModelDescription,
-  type AgentModelListing,
   createAgentCommandBridge,
   createAgentConfigBridge,
   createAgentEventSource,
-  createAgentModelBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from './agent'

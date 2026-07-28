@@ -1,24 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { AgentModelsPort } from '../contracts/model-port'
 import type { SessionConfigControl } from '../contracts/session-config-contract'
 import type { SessionConfigPort } from '../contracts/session-config-port'
 
 /*
- * One list, one loader, one failure.
+ * 选择器只有一个来源：正在跑的会话。
  *
- * The selectors belong to the running session; before the first turn there is
- * no session, and the agent config file is the only thing that names a model.
- * Both arrive as SessionConfigControl, so the surface never has to know which
- * one answered, and there is no second hook duplicating this loader.
- *
- * Nothing is updated optimistically: what the control shows after a switch is
- * what came back from that switch, because the agent obeys the source, not us.
+ * 模型、思考档位和模式都是 agent 自己报出来的，这里不发明任何一个，也不为
+ * 某一类单独开一条写路径。切换之后显示什么，就是那次切换带回来的东西 ——
+ * agent 听的是它自己，不是我们。
  */
 
 const NONE: readonly SessionConfigControl[] = []
-
-const MODEL_CONTROL_ID = 'agent-config:model'
 
 const FAILURE_FALLBACK = '读取会话设置失败。'
 
@@ -42,7 +35,6 @@ export interface SessionControlSelection {
 
 export function useSessionControls(
   config?: SessionConfigPort,
-  models?: AgentModelsPort,
   /** Changes when the run does, which is when the session may have changed. */
   sessionGeneration?: string | number,
 ): SessionControlSelection {
@@ -50,42 +42,11 @@ export function useSessionControls(
   const [failure, setFailure] = useState<string | undefined>(undefined)
 
   const load = useCallback(async (): Promise<readonly SessionConfigControl[]> => {
-    /*
-     * 换一代会话就重读一次。代号在这里被闭包捕获，于是它是 load 自己的依赖，
-     * effect 只需依赖 load。此前它被补写在 effect 的依赖表里，读起来像是多写了
-     * 一个与函数体无关的值，规则也照此报告。
-     */
+    /* 换一代会话就重读一次；代号在这里被捕获，于是它是 load 自己的依赖。 */
     void sessionGeneration
 
-    const reported = config === undefined ? NONE : await config.list()
-
-    if (reported.length > 0 || models === undefined) {
-      return reported
-    }
-
-    const selection = await models.list()
-
-    /*
-     * 析构而不是先判 length 再索引：长度检查与索引访问之间没有类型层面的联系，
-     * 编译器不会因为前者收窄后者。析构判空它能跟随，而且不必用非空断言把检查
-     * 关掉。
-     */
-    const [firstModel] = selection.models
-
-    if (firstModel === undefined) {
-      return NONE
-    }
-
-    return [
-      {
-        id: MODEL_CONTROL_ID,
-        label: '模型',
-        purpose: 'model',
-        current: selection.activeModelId ?? firstModel.id,
-        choices: selection.models.map((model) => ({ value: model.id, label: model.label })),
-      },
-    ]
-  }, [config, models, sessionGeneration])
+    return config === undefined ? NONE : await config.list()
+  }, [config, sessionGeneration])
 
   useEffect(() => {
     let cancelled = false
@@ -111,20 +72,16 @@ export function useSessionControls(
     (controlId: string, value: string) => {
       setFailure(undefined)
 
-      const write =
-        controlId === MODEL_CONTROL_ID
-          ? models?.select(value).then(() => load())
-          : config?.select(controlId, value)
-
-      write
-        ?.then((next) => {
+      config
+        ?.select(controlId, value)
+        .then((next) => {
           setControls(next)
         })
         .catch((cause: unknown) => {
           setFailure(describe(cause))
         })
     },
-    [config, load, models],
+    [config],
   )
 
   return { controls, select, failure }

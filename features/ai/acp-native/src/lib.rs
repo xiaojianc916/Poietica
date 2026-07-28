@@ -23,7 +23,6 @@
 mod config;
 mod desk;
 mod error;
-mod models;
 mod permission;
 mod recorder;
 mod run_slot;
@@ -34,9 +33,6 @@ mod stderr;
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
-pub use models::{
-    AgentModel, ModelError, ModelList, config_path as model_config_path, read_models, select_model,
-};
 pub use permission::{Decision, answers, decide};
 pub use recorder::{
     ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED,
