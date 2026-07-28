@@ -6,6 +6,7 @@ import {
   FileIcon,
   GlobeIcon,
   ModelIcon,
+  PencilIcon,
   SearchIcon,
   SpinnerIcon,
   ToolIcon,
@@ -16,8 +17,9 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
   const className = 'timeline-tool__icon'
 
   switch (kind) {
-    case 'delete':
     case 'edit':
+      return <PencilIcon aria-hidden="true" className={className} />
+    case 'delete':
     case 'move':
       return <FileIcon aria-hidden="true" className={className} />
     case 'read':
