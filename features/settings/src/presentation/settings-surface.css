@@ -246,41 +246,6 @@
 
 /* ---------------- 局部区块 ---------------- */
 
-.settings-privacy-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--settings-surface);
-}
-
-.settings-privacy-note__icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: 18px;
-  block-size: 18px;
-  border-radius: 999px;
-  background: var(--ui-success);
-  color: var(--ui-primary-foreground);
-  font-size: 11px;
-}
-
-.settings-privacy-note strong {
-  color: var(--ui-foreground);
-  font-size: 13px;
-  font-weight: 550;
-}
-
-.settings-privacy-note p {
-  margin: 4px 0 0;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .settings-about-card {
   display: flex;
   align-items: center;

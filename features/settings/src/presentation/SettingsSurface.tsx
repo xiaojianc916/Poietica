@@ -626,17 +626,6 @@ const PrivacySettings = memo(function PrivacySettings({
 }: SettingsPanelProps) {
   return (
     <SettingsPage>
-      <div className="settings-privacy-note">
-        <span aria-hidden="true" className="settings-privacy-note__icon">
-          ✓
-        </span>
-
-        <div>
-          <strong>你的画布默认保留在设备上</strong>
-          <p>文档内容不会因为启用诊断或更新检查而自动上传。</p>
-        </div>
-      </div>
-
       <SettingsGroup title="诊断与更新">
         <ToggleRow
           checked={settings.privacy.telemetry}
