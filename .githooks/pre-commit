@@ -2,13 +2,9 @@
 
 set -eu
 
-echo "==> pnpm format"
-pnpm format
+# Format and fix only what is being committed. Biome owns the rules.
+pnpm exec biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true
 
-echo "==> Biome 自动格式化"
-pnpm exec biome format --write .
-
-echo "==> 暂存格式化结果"
-git add -u
-
-echo "==> 提交前格式化完成"
+# Refresh index entries that already exist there. Never stage anything new:
+# "git add -u" would sweep unrelated working-tree changes into this commit.
+git update-index --again

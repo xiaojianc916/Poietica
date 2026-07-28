@@ -11,10 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "biome lint src",
-    "lint:fix": "biome lint --write src",
-    "test": "vitest run --passWithNoTests",
-    "clean": "rm -rf node_modules dist"
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "typescript": "catalog:",

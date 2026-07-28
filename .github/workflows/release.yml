@@ -61,7 +61,7 @@ jobs:
           arguments: --all-features
 
       - name: Build installers
-        run: pnpm bundle:windows
+        run: pnpm build
         env:
           # Populate these secrets to produce signed installers. Unsigned
           # builds still succeed, they just trigger SmartScreen.

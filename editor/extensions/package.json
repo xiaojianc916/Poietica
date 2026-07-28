@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@poietica/editor-extensions",
   "version": "0.1.0",
   "private": true,
@@ -10,10 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "biome lint src",
-    "lint:fix": "biome lint --write src",
-    "test": "vitest run --passWithNoTests",
-    "clean": "rm -rf node_modules dist"
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "@poietica/foundations-test-kit": "workspace:*",

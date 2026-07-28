@@ -12,8 +12,7 @@
   },
   "scripts": {
     "check": "tsc --project tsconfig.json --noEmit",
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "clean": "rimraf .turbo *.tsbuildinfo"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/editor-core": "workspace:*",

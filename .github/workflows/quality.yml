@@ -76,7 +76,7 @@ jobs:
         run: pnpm typecheck
 
       - name: JavaScript tests
-        run: pnpm test:frontend
+        run: pnpm test
 
       - name: Build
         run: pnpm build

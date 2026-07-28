@@ -15,8 +15,7 @@
   },
   "scripts": {
     "check": "tsc --project tsconfig.json --noEmit",
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "clean": "rimraf .turbo *.tsbuildinfo"
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

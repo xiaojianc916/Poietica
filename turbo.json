@@ -40,10 +40,6 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
-    "lint": {
-      "dependsOn": ["^lint"],
-      "outputs": []
-    },
     "build": {
       "dependsOn": ["^build", "typecheck"],
       "inputs": [
@@ -55,10 +51,6 @@
       ],
       "outputs": ["dist/**", "dist-ssr/**", "build/**", ".vite/**"]
     },
-    "check": {
-      "dependsOn": ["typecheck", "lint", "test"],
-      "outputs": []
-    },
     "test": {
       "dependsOn": ["typecheck"],
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*", "playwright.config.*"],
@@ -69,23 +61,12 @@
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"]
     },
-    "test:architecture": {
-      "dependsOn": ["typecheck"],
-      "outputs": []
-    },
     "test:integration": {
       "dependsOn": ["typecheck"],
       "cache": false
     },
     "test:e2e": {
       "dependsOn": ["build"],
-      "cache": false
-    },
-    "test:performance": {
-      "dependsOn": ["build"],
-      "cache": false
-    },
-    "clean": {
       "cache": false
     }
   }

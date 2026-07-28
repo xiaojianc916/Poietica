@@ -9,8 +9,7 @@
     ".": "./src/public-api.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo 'lint ok'"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/platforms-desktop-ipc": "workspace:*",
