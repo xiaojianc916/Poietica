@@ -32,7 +32,6 @@ import { AgentIcon, MicIcon, PlusIcon } from './primitives/icons'
 
 export interface AssistantComposerProps {
   readonly agentLabel: string
-  readonly isAgentNew?: boolean
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
@@ -51,7 +50,6 @@ function ComposerToolbar({
   agentLabel,
   controls,
   controlsFailure,
-  isAgentNew,
   onCancel,
   onRetryControls,
   onSelectControl,
@@ -88,8 +86,6 @@ function ComposerToolbar({
           <AgentIcon aria-hidden="true" />
 
           <span>{agentLabel}</span>
-
-          {isAgentNew === true ? <span className="assistant-agent-pill__badge">New</span> : null}
         </PromptInputButton>
       </PromptInputTools>
 

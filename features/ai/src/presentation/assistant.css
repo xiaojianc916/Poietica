@@ -191,15 +191,6 @@
   color: var(--cp-ink-muted);
 }
 
-.assistant-agent-pill__badge {
-  border-radius: var(--cp-optical);
-  padding: 1px var(--cp-optical);
-  background: var(--cp-accent-wash);
-  font-size: var(--cp-font-micro);
-  font-weight: 600;
-  color: var(--cp-accent);
-}
-
 [data-slot="prompt-input-submit"] {
   display: inline-grid;
   block-size: var(--cp-control);
