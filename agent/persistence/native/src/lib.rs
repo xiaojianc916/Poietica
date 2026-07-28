@@ -7,15 +7,19 @@
 
 mod connection;
 mod error;
+mod events;
 mod key;
 mod migrations;
 mod projections;
+mod runs;
 mod store;
+mod threads;
 
 pub use connection::{DEFAULT_BUSY_TIMEOUT, open_encrypted};
 pub use error::{Result, StoreError};
+pub use events::StoredEvent;
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};
-pub use store::{AiStore, RunStatus, StoredEvent};
-
-pub use crate::store::{ThreadSummary, TitleSource};
+pub use runs::RunStatus;
+pub use store::AiStore;
+pub use threads::{ThreadSummary, TitleSource};
