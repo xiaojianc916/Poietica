@@ -57,8 +57,8 @@ export function useFisheye(): (node: HTMLElement | null) => void {
       schedule()
     }
 
-    node.addEventListener('pointermove', track)
-    node.addEventListener('pointerleave', release)
+    node.addEventListener('pointermove', track, { passive: true })
+    node.addEventListener('pointerleave', release, { passive: true })
 
     return () => {
       if (frame !== 0) {

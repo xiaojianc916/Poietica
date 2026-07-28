@@ -110,7 +110,7 @@ export function AssistantSurface({
    */
   const turns = useMemo(() => selectTurns(rows), [rows])
 
-  const footer = selectTurnFooter(assistant.timeline)
+  const footer = useMemo(() => selectTurnFooter(assistant.timeline), [assistant.timeline])
 
   /*
    * 正在读一条已有对话时也按“已开始”排版。

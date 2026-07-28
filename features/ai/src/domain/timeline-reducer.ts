@@ -74,6 +74,17 @@ export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): T
     state = applyRunEvent(state, event)
   }
 
+  // A run that never reached a terminal event was interrupted (force-kill,
+  // crash). Close any open tool calls so they show the failure glyph rather
+  // than a perpetual spinner.
+  if (state.status === 'running' || state.status === 'awaiting_permission') {
+    state = {
+      ...state,
+      status: 'failed',
+      items: closeOpenToolCalls(state.items),
+    }
+  }
+
   return state
 }
 
@@ -169,7 +180,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
          protocol, and the stop reason stays ordinary. When it left such an
          account, that account is the entry, and our own wording never
          appears at all. */
-      const sealed = sealTail(base.items)
+      const sealed = closeOpenToolCalls(sealTail(base.items))
       const said = event.diagnostics?.trim() ?? ''
       const status = finalStatus(event.stopReason)
 
@@ -197,7 +208,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
         ...base,
         status: 'failed',
         items: [
-          ...sealTail(base.items),
+          ...closeOpenToolCalls(sealTail(base.items)),
           {
             type: 'error',
             id: `${namespace(base)}error-${String(event.seq)}`,
@@ -441,6 +452,22 @@ function sealTail(items: readonly TimelineItem[]): readonly TimelineItem[] {
     return items
   }
   return replaceAt(items, items.length - 1, { ...tail, sealed: true })
+}
+
+/*
+ * A run interrupted without a terminal event left some tool calls hanging.
+ * Mark them failed so the failure glyph appears instead of a spinner.
+ */
+function closeOpenToolCalls(items: readonly TimelineItem[]): readonly TimelineItem[] {
+  return items.map((item): TimelineItem => {
+    if (item.type !== 'tool_call') {
+      return item
+    }
+    if (item.status === 'completed' || item.status === 'failed') {
+      return item
+    }
+    return { ...item, status: 'failed' }
+  })
 }
 
 function replaceAt(
