@@ -62,11 +62,15 @@ export function AssistantSidebarPanel({
   const summaries: readonly AssistantThreadSummary[] = threads.threads.map((thread) => {
     const when = describe(thread.updatedAt, now)
 
+    const pinned = thread.pinned === true
+
+    /* 固定过的会话自成一组，排在最前：这是它们被固定的意思。 */
     return {
       id: thread.threadId,
       title: threads.titleOf(thread.threadId),
       relativeTime: when.relativeTime,
-      group: when.group,
+      group: pinned ? '已固定' : when.group,
+      isPinned: pinned,
     }
   })
 
@@ -81,10 +85,18 @@ export function AssistantSidebarPanel({
       onCreate={() => {
         void threads.create()
       }}
+      onDelete={(threadId) => {
+        void threads.remove(threadId)
+      }}
       onOpenInNewTab={(threadId) => {
         onOpenInNewTab(threadId, threads.titleOf(threadId))
       }}
-      onPin={() => {}}
+      onPin={(threadId, pinned) => {
+        void threads.setPinned(threadId, pinned)
+      }}
+      onRename={(threadId, title) => {
+        void threads.rename(threadId, title)
+      }}
       threads={summaries}
     />
   )

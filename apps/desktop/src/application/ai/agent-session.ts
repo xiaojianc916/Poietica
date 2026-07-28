@@ -131,7 +131,7 @@ import { createAgentThreadBridge } from '@poietica/platforms-desktop-ipc'
  * official would claim the agent named a conversation it never named.
  */
 function sourceOf(value: string): ThreadTitleSource {
-  if (value === 'official' || value === 'message') {
+  if (value === 'official' || value === 'manual' || value === 'message') {
     return value
   }
 
@@ -163,5 +163,9 @@ export function desktopThreads(): ThreadPort {
         selectors: opened.selectors,
       }
     },
+
+    rename: bridge.rename,
+    remove: bridge.remove,
+    setPinned: bridge.setPinned,
   }
 }

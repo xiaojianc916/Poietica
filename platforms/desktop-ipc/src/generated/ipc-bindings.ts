@@ -213,6 +213,43 @@ async agentOpenThread(request: AgentNewSessionRequest) : Promise<AgentOpenedThre
     return await TAURI_INVOKE("agent_open_thread", { request });
 },
 /**
+ * Renames a conversation.
+ * 
+ * The name is recorded as the user's, and the agent's own title no longer
+ * replaces it: that question has already been answered by the person who
+ * typed it.
+ * 
+ * # Errors
+ * 
+ * Fails when the identifier is not a UUID, the name is empty, or the
+ * database rejects the write.
+ */
+async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_rename_thread", { request });
+},
+/**
+ * Deletes a conversation and every frame recorded under it.
+ * 
+ * # Errors
+ * 
+ * Fails when the identifier is not a UUID or the database rejects the
+ * deletes.
+ */
+async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_delete_thread", { request });
+},
+/**
+ * Holds a conversation at the top of the list, or releases it.
+ * 
+ * # Errors
+ * 
+ * Fails when the identifier is not a UUID or the database rejects the
+ * write.
+ */
+async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_pin_thread", { request });
+},
+/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -508,6 +545,18 @@ thread: AgentThread;
  */
 selectors: AgentConfigControl[] }
 /**
+ * A conversation being held at the top of the list, or released.
+ */
+export type AgentPinThreadRequest = { 
+/**
+ * The conversation the action applies to.
+ */
+threadId: string; 
+/**
+ * Whether it should be held at the top.
+ */
+pinned: boolean }
+/**
  * A prompt, and how to start the agent if it is not running yet.
  */
 export type AgentPromptRequest = { 
@@ -539,6 +588,18 @@ runId: string;
  * The session the run belongs to.
  */
 sessionId: string }
+/**
+ * A conversation the interface is renaming.
+ */
+export type AgentRenameThreadRequest = { 
+/**
+ * The conversation being renamed.
+ */
+threadId: string; 
+/**
+ * The name the user typed.
+ */
+title: string }
 /**
  * A user's answer to a permission request.
  */
@@ -622,7 +683,19 @@ titleSource: string;
 /**
  * When it was last touched, in RFC 3339.
  */
-updatedAt: string }
+updatedAt: string; 
+/**
+ * Whether it is held at the top of the list.
+ */
+pinned: boolean }
+/**
+ * A conversation an action applies to, and nothing else.
+ */
+export type AgentThreadRequest = { 
+/**
+ * The conversation the action applies to.
+ */
+threadId: string }
 /**
  * A conversation as it was recorded.
  */

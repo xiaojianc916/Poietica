@@ -965,6 +965,8 @@ pub struct AgentThread {
     pub title_source: String,
     /// When it was last touched, in RFC 3339.
     pub updated_at: String,
+    /// Whether it is held at the top of the list.
+    pub pinned: bool,
 }
 
 /// A conversation that was just opened, and what its session offers.
@@ -1089,5 +1091,111 @@ fn retitle(thread: poietica_ai_persistence_native::ThreadSummary) -> AgentThread
         title: thread.title,
         title_source: thread.title_source,
         updated_at: thread.updated_at,
+        pinned: thread.pinned,
     }
+}
+
+/// A conversation the interface is renaming.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRenameThreadRequest {
+    /// The conversation being renamed.
+    pub thread_id: String,
+    /// The name the user typed.
+    pub title: String,
+}
+
+/// A conversation an action applies to, and nothing else.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThreadRequest {
+    /// The conversation the action applies to.
+    pub thread_id: String,
+}
+
+/// A conversation being held at the top of the list, or released.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPinThreadRequest {
+    /// The conversation the action applies to.
+    pub thread_id: String,
+    /// Whether it should be held at the top.
+    pub pinned: bool,
+}
+
+/// Reads a conversation identifier the renderer supplied.
+fn conversation(named: &str) -> Result<Uuid> {
+    Uuid::parse_str(named).map_err(|_invalid| {
+        Error::Validation("the conversation identifier is not a UUID".to_owned())
+    })
+}
+
+/// Renames a conversation.
+///
+/// The name is recorded as the user's, and the agent's own title no longer
+/// replaces it: that question has already been answered by the person who
+/// typed it.
+///
+/// # Errors
+///
+/// Fails when the identifier is not a UUID, the name is empty, or the
+/// database rejects the write.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_rename_thread(
+    state: State<'_, AgentRuntime>,
+    request: AgentRenameThreadRequest,
+) -> AgentCommandResult<()> {
+    let title: String = request.title.trim().chars().take(TITLE_CHARS).collect();
+
+    if title.is_empty() {
+        return Err(Error::Validation("the conversation name is empty".to_owned()).into());
+    }
+
+    let id = conversation(&request.thread_id)?;
+    let store = AiStore::open(&state.database).map_err(persistence)?;
+
+    store.name_by_user(id, &title).map_err(persistence)?;
+
+    Ok(())
+}
+
+/// Deletes a conversation and every frame recorded under it.
+///
+/// # Errors
+///
+/// Fails when the identifier is not a UUID or the database rejects the
+/// deletes.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_delete_thread(
+    state: State<'_, AgentRuntime>,
+    request: AgentThreadRequest,
+) -> AgentCommandResult<()> {
+    let id = conversation(&request.thread_id)?;
+    let store = AiStore::open(&state.database).map_err(persistence)?;
+
+    store.delete_thread(id).map_err(persistence)?;
+
+    Ok(())
+}
+
+/// Holds a conversation at the top of the list, or releases it.
+///
+/// # Errors
+///
+/// Fails when the identifier is not a UUID or the database rejects the
+/// write.
+#[tauri::command]
+#[specta::specta]
+pub fn agent_pin_thread(
+    state: State<'_, AgentRuntime>,
+    request: AgentPinThreadRequest,
+) -> AgentCommandResult<()> {
+    let id = conversation(&request.thread_id)?;
+    let store = AiStore::open(&state.database).map_err(persistence)?;
+
+    store.set_pinned(id, request.pinned).map_err(persistence)?;
+
+    Ok(())
 }

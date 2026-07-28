@@ -140,10 +140,10 @@ impl AiStore {
     // line between a conversation that happened and one that did not.
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare(
-            "SELECT id, session_id, title, title_source, updated_at
+            "SELECT id, session_id, title, title_source, updated_at, pinned
                FROM threads
               WHERE EXISTS (SELECT 1 FROM runs WHERE runs.thread_id = threads.id)
-              ORDER BY updated_at DESC",
+              ORDER BY pinned DESC, updated_at DESC",
         )?;
 
         let found = statement
@@ -154,6 +154,7 @@ impl AiStore {
                     title: row.get(2)?,
                     title_source: row.get(3)?,
                     updated_at: row.get(4)?,
+                    pinned: row.get::<_, i64>(5)? != 0,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -176,7 +177,7 @@ impl AiStore {
         self.connection.execute(
             "UPDATE threads
                 SET title = ?2, title_source = ?3, updated_at = ?4
-              WHERE id = ?1",
+              WHERE id = ?1 AND title_source <> 'manual'",
             rusqlite::params![id.to_string(), title, source.as_str(), timestamp],
         )?;
 
@@ -390,6 +391,72 @@ impl AiStore {
 
         Ok(())
     }
+
+    /// Names a conversation on the user's say-so.
+    ///
+    /// This is the one name the agent does not get to replace, which is why
+    /// it is recorded as its own source rather than as an official title.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the update is rejected.
+    pub fn name_by_user(&self, id: Uuid, title: &str) -> Result<()> {
+        self.connection.execute(
+            "UPDATE threads
+                SET title = ?2, title_source = ?3
+              WHERE id = ?1",
+            rusqlite::params![id.to_string(), title, TitleSource::Manual.as_str()],
+        )?;
+
+        Ok(())
+    }
+
+    /// Holds a conversation at the top of the list, or releases it.
+    ///
+    /// Pinning is not activity, so the timestamp is left alone: a
+    /// conversation pinned today does not become today's conversation.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the update is rejected.
+    pub fn set_pinned(&self, id: Uuid, pinned: bool) -> Result<()> {
+        self.connection.execute(
+            "UPDATE threads SET pinned = ?2 WHERE id = ?1",
+            rusqlite::params![id.to_string(), i64::from(pinned)],
+        )?;
+
+        Ok(())
+    }
+
+    /// Deletes a conversation and everything recorded under it.
+    ///
+    /// The three statements are one transaction: a half deleted
+    /// conversation would leave frames in the log with nothing to belong to.
+    ///
+    /// # Errors
+    ///
+    /// Fails when any of the deletes is rejected.
+    pub fn delete_thread(&self, id: Uuid) -> Result<()> {
+        let named = id.to_string();
+        let transaction = self.connection.unchecked_transaction()?;
+
+        transaction.execute(
+            "DELETE FROM run_events
+              WHERE run_id IN (SELECT id FROM runs WHERE thread_id = ?1)",
+            rusqlite::params![named],
+        )?;
+        transaction.execute(
+            "DELETE FROM runs WHERE thread_id = ?1",
+            rusqlite::params![named],
+        )?;
+        transaction.execute(
+            "DELETE FROM threads WHERE id = ?1",
+            rusqlite::params![named],
+        )?;
+        transaction.commit()?;
+
+        Ok(())
+    }
 }
 
 /// One conversation, as a list of conversations needs it.
@@ -405,6 +472,8 @@ pub struct ThreadSummary {
     pub title_source: String,
     /// When it was last touched, in RFC 3339.
     pub updated_at: String,
+    /// Whether it is held at the top of the list.
+    pub pinned: bool,
 }
 
 /// Where a thread name came from.
@@ -418,6 +487,9 @@ pub enum TitleSource {
     Message,
     /// A stand in shown before there was anything to take one from.
     Fallback,
+    /// The user typed it. It is the one name a later official title does
+    /// not replace, because the user has already answered that question.
+    Manual,
 }
 
 impl TitleSource {
@@ -426,6 +498,7 @@ impl TitleSource {
             Self::Official => "official",
             Self::Message => "message",
             Self::Fallback => "fallback",
+            Self::Manual => "manual",
         }
     }
 }

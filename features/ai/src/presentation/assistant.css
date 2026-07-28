@@ -589,24 +589,33 @@
   white-space: nowrap;
 }
 
-.assistant-thread__time {
+/*
+ * 行尾只有一格。
+ *
+ * 时间是静息态，两个图标是悬停态，它们放在同一个网格单元里彼此叠放，由
+ * 同一条选择器决定谁在画。此前是两条互不相干的条件——时间只在 :hover 时
+ * 隐藏，图标还认 :focus-within 与菜单打开——菜单开着而指针已经离开时两条
+ * 同时成立，绝对定位的图标于是压在时间上。同格还顺带解决了宽度：这一格
+ * 取两者中较宽者，切换时行内不会有任何位移。
+ */
+.assistant-thread__trail {
+  display: grid;
+  flex: none;
+  align-items: center;
+  justify-items: end;
   margin-inline-start: var(--cp-pad-mid);
+}
+
+.assistant-thread__trail > * {
+  grid-area: 1 / 1;
+}
+
+.assistant-thread__time {
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
 }
 
-.assistant-thread:hover .assistant-thread__time {
-  visibility: hidden;
-}
-
-/*
- * Laid out at all times; only the paint changes. The reveal rule, and the
- * anchor problem that made it necessary, live with the sidebar popup further
- * down.
- */
 .assistant-thread__actions {
-  position: absolute;
-  inset-inline-end: var(--assistant-threads-row-trail);
   align-items: center;
   gap: 2px;
 }
@@ -1088,12 +1097,25 @@
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
+[data-assistant-skin] .assistant-thread__time {
+  opacity: 1;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* 一条条件，两个互斥的结果。 */
 [data-assistant-skin] .assistant-thread:hover .assistant-thread__actions,
-[data-assistant-skin] .assistant-thread__actions:focus-within,
-[data-assistant-skin] .assistant-thread__actions:has([aria-expanded="true"]),
-[data-assistant-skin] .assistant-thread__actions:has([data-state="open"]) {
+[data-assistant-skin] .assistant-thread:focus-within .assistant-thread__actions,
+[data-assistant-skin] .assistant-thread:has([aria-expanded="true"]) .assistant-thread__actions,
+[data-assistant-skin] .assistant-thread:has([data-state="open"]) .assistant-thread__actions {
   opacity: 1;
   pointer-events: auto;
+}
+
+[data-assistant-skin] .assistant-thread:hover .assistant-thread__time,
+[data-assistant-skin] .assistant-thread:focus-within .assistant-thread__time,
+[data-assistant-skin] .assistant-thread:has([aria-expanded="true"]) .assistant-thread__time,
+[data-assistant-skin] .assistant-thread:has([data-state="open"]) .assistant-thread__time {
+  opacity: 0;
 }
 
 .assistant-thread-menu[data-assistant-skin][data-state="open"] {
@@ -1140,4 +1162,42 @@
   .assistant-thread__ghost {
     animation: none;
   }
+}
+
+/*
+ * 内联重命名。
+ *
+ * 输入框与标题同字号、同一格，替换的是文字本身而不是行的形状：行高、行尾
+ * 那一格、缩进都不变，所以进入和提交时界面不会弹一下。
+ */
+.assistant-thread__rename {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistant-thread__rename-field {
+  min-inline-size: 0;
+  flex: 1;
+  block-size: calc(var(--ui-control-height-sm) - 8px);
+  border: 0;
+  border-radius: 4px;
+  padding: 0 2px;
+  background: var(--cp-surface);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink);
+  outline: 1px solid var(--am-line);
+}
+
+/* 正在改名的行不谈别的事。 */
+.assistant-thread[data-renaming="true"] .assistant-thread__actions {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.assistant-thread[data-renaming="true"] .assistant-thread__time {
+  opacity: 0;
 }

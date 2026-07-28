@@ -10,6 +10,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_sessions",
         include_str!("schema/0002_thread_sessions.sql"),
     ),
+    (
+        3,
+        "thread_pinning",
+        include_str!("schema/0003_thread_pinning.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

@@ -393,9 +393,11 @@ export interface AgentThreadDescription {
   readonly threadId: string
   readonly sessionId: string | null
   readonly title: string
-  /** official, message or fallback, as recorded. */
+  /** official, manual, message or fallback, as recorded. */
   readonly titleSource: string
   readonly updatedAt: string
+  /** Whether it is held at the top of the list. */
+  readonly pinned: boolean
 }
 
 export interface AgentOpenedThreadDescription {
@@ -406,7 +408,32 @@ export interface AgentOpenedThreadDescription {
 export interface AgentThreadBridge {
   readonly list: () => Promise<readonly AgentThreadDescription[]>
   readonly open: () => Promise<AgentOpenedThreadDescription>
+  readonly rename: (threadId: string, title: string) => Promise<void>
+  readonly remove: (threadId: string) => Promise<void>
+  readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
 }
+
+/*
+ * 生成物可能落后于原生侧，这三个动作因此按“命令在不在”取用。
+ *
+ * 与回放不同的是，做不到时要说出来：一个悄悄没有发生的删除，比一个报错
+ * 的删除糟糕得多。
+ */
+interface ThreadShelfCommands {
+  readonly agentRenameThread?: (payload: {
+    readonly threadId: string
+    readonly title: string
+  }) => Promise<unknown>
+  readonly agentDeleteThread?: (payload: { readonly threadId: string }) => Promise<unknown>
+  readonly agentPinThread?: (payload: {
+    readonly threadId: string
+    readonly pinned: boolean
+  }) => Promise<unknown>
+}
+
+const shelf = commands as unknown as ThreadShelfCommands
+
+const STALE = 'IPC 绑定尚未重新生成，这个操作在当前构建里还不存在'
 
 function threadOf(native: AgentThreadDescription): AgentThreadDescription {
   return {
@@ -415,6 +442,7 @@ function threadOf(native: AgentThreadDescription): AgentThreadDescription {
     title: native.title,
     titleSource: native.titleSource,
     updatedAt: native.updatedAt,
+    pinned: native.pinned === true,
   }
 }
 
@@ -438,6 +466,36 @@ export function createAgentThreadBridge({
         thread: threadOf(opened.thread),
         selectors: opened.selectors.map(controlOf),
       }
+    },
+
+    rename: async (threadId, title) => {
+      const run = shelf.agentRenameThread
+
+      if (run === undefined) {
+        throw new Error(STALE)
+      }
+
+      await call(() => run({ threadId, title }))
+    },
+
+    remove: async (threadId) => {
+      const run = shelf.agentDeleteThread
+
+      if (run === undefined) {
+        throw new Error(STALE)
+      }
+
+      await call(() => run({ threadId }))
+    },
+
+    setPinned: async (threadId, pinned) => {
+      const run = shelf.agentPinThread
+
+      if (run === undefined) {
+        throw new Error(STALE)
+      }
+
+      await call(() => run({ threadId, pinned }))
     },
   }
 }

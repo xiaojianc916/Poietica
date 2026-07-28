@@ -11,9 +11,10 @@ use crate::{
     commands::{
         agent::{
             AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentLoadRunRequest,
-            AgentLoadThreadRequest, AgentModelDescriptor, AgentModelList, AgentPromptRequest,
-            AgentPromptResult, AgentResolvePermissionRequest, AgentRunSnapshot,
-            AgentSelectConfigRequest, AgentSelectModelRequest, AgentThreadTranscript,
+            AgentLoadThreadRequest, AgentModelDescriptor, AgentModelList, AgentPinThreadRequest,
+            AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
+            AgentResolvePermissionRequest, AgentRunSnapshot, AgentSelectConfigRequest,
+            AgentSelectModelRequest, AgentThreadRequest, AgentThreadTranscript,
         },
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
@@ -63,6 +64,9 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_sessions,
             crate::commands::agent::agent_threads,
             crate::commands::agent::agent_open_thread,
+            crate::commands::agent::agent_rename_thread,
+            crate::commands::agent::agent_delete_thread,
+            crate::commands::agent::agent_pin_thread,
             crate::commands::asset::asset_session_open,
             crate::commands::asset::asset_upload,
             crate::commands::asset::asset_remove,
@@ -90,6 +94,9 @@ pub fn export_document_bindings() {
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
         .typ::<AgentSelectConfigRequest>()
+        .typ::<AgentRenameThreadRequest>()
+        .typ::<AgentThreadRequest>()
+        .typ::<AgentPinThreadRequest>()
         .typ::<AssetSessionResult>()
         .typ::<AssetUploadRequest>()
         .typ::<AssetUploadResult>()

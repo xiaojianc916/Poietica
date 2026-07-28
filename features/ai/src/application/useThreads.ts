@@ -41,6 +41,10 @@ export interface ThreadsSelection {
   readonly openInNewTab: (threadId: string) => void
   readonly closeTab: (threadId: string) => void
   readonly nameFromMessage: (threadId: string, message: string) => void
+  /** Renames one. A name the user typed is not replaced by a later title. */
+  readonly rename: (threadId: string, title: string) => Promise<void>
+  readonly remove: (threadId: string) => Promise<void>
+  readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
   readonly refresh: () => Promise<void>
   /** True until the first read of the list has settled, either way. */
   readonly isLoading: boolean
@@ -96,6 +100,10 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
   const titleOf = useCallback(
     (threadId: string): string => {
       const found = threads.find((thread) => thread.threadId === threadId)
+      /* 用户自己起的名字压过一切，包括随后到来的官方标题。 */
+      if (found !== undefined && found.titleSource === 'manual') {
+        return found.title
+      }
       if (found !== undefined && found.titleSource === 'official') {
         return found.title
       }
@@ -197,6 +205,81 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     }
   }, [port])
 
+  /*
+   * 三个动作：先改本地，再落库，再重读。
+   *
+   * 立刻可见是列表类界面的通行做法，而真相仍然只有一个来源；端口没有
+   * 实现某个动作时什么都不做，界面不会假装做过。
+   */
+  const rename = useCallback(
+    async (threadId: string, title: string) => {
+      const act = port?.rename
+      const named = title.trim()
+      if (act === undefined || named.length === 0) {
+        return
+      }
+      setThreads((held) =>
+        held.map((thread) =>
+          thread.threadId === threadId
+            ? { ...thread, title: named, titleSource: 'manual' as const }
+            : thread,
+        ),
+      )
+      setProvisional((held) =>
+        Object.fromEntries(Object.entries(held).filter(([id]) => id !== threadId)),
+      )
+      try {
+        await act(threadId, named)
+        setFailure(null)
+      } catch (reason) {
+        setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
+      }
+      await refresh()
+    },
+    [port, refresh],
+  )
+
+  const remove = useCallback(
+    async (threadId: string) => {
+      const act = port?.remove
+      if (act === undefined) {
+        return
+      }
+      setThreads((held) => held.filter((thread) => thread.threadId !== threadId))
+      setPending((held) => held.filter((thread) => thread.threadId !== threadId))
+      setOpenIds((open) => open.filter((id) => id !== threadId))
+      setActiveThreadId((active) => (active === threadId ? null : active))
+      try {
+        await act(threadId)
+        setFailure(null)
+      } catch (reason) {
+        setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
+      }
+      await refresh()
+    },
+    [port, refresh],
+  )
+
+  const setPinned = useCallback(
+    async (threadId: string, pinned: boolean) => {
+      const act = port?.setPinned
+      if (act === undefined) {
+        return
+      }
+      setThreads((held) =>
+        held.map((thread) => (thread.threadId === threadId ? { ...thread, pinned } : thread)),
+      )
+      try {
+        await act(threadId, pinned)
+        setFailure(null)
+      } catch (reason) {
+        setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
+      }
+      await refresh()
+    },
+    [port, refresh],
+  )
+
   const tabs = useMemo(
     () => openIds.map((threadId) => ({ threadId, title: titleOf(threadId) })),
     [openIds, titleOf],
@@ -225,6 +308,9 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     openInNewTab,
     closeTab,
     nameFromMessage,
+    rename,
+    remove,
+    setPinned,
     refresh,
     isLoading,
     failure,

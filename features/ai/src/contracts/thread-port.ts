@@ -1,7 +1,7 @@
 import type { SessionConfigControl } from './session-config-contract'
 
 /** Where a conversation name came from. */
-export type ThreadTitleSource = 'official' | 'message' | 'fallback'
+export type ThreadTitleSource = 'official' | 'manual' | 'message' | 'fallback'
 
 /** One conversation, as the platform reports it. */
 export interface ThreadRecord {
@@ -11,6 +11,8 @@ export interface ThreadRecord {
   readonly title: string
   readonly titleSource: ThreadTitleSource
   readonly updatedAt: string
+  /** Whether it is held at the top of the list. */
+  readonly pinned?: boolean
 }
 
 /** A conversation that was just opened, and what its session offers. */
@@ -28,4 +30,8 @@ export interface OpenedThread {
 export interface ThreadPort {
   readonly list: () => Promise<readonly ThreadRecord[]>
   readonly open: () => Promise<OpenedThread>
+  /** Renames one. The name becomes the user's and outlives the agent's. */
+  readonly rename?: (threadId: string, title: string) => Promise<void>
+  readonly remove?: (threadId: string) => Promise<void>
+  readonly setPinned?: (threadId: string, pinned: boolean) => Promise<void>
 }
