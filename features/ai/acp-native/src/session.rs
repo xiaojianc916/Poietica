@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::fs::{File, OpenOptions};
@@ -28,12 +29,13 @@ use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
 use agent_client_protocol::schema::v1::ListSessionsRequest;
 
-const BUSY: &str = "a turn is already in flight on this session";
+const BUSY: &str = "a turn is already in flight on this connection";
 const GONE: &str = "the agent connection is no longer running";
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
 const CHANGING: &str = "a selector cannot be changed while a turn is in flight";
 const AWAITING: &str = "a turn is running, so no session can be created or listed until it ends";
+const UNKNOWN: &str = "the session named by this request is not one this client opened";
 
 /// Names the file every line of the conversation is copied to, when set.
 ///
@@ -65,6 +67,11 @@ enum Command {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
     },
     Prompt {
+        /// The session this turn belongs to.
+        ///
+        /// 一条连接可以开很多条会话，agent 发回的每一帧都自报会话名。
+        /// 提问也必须说出它是给哪一条的，否则它只能发给第一条。
+        session_id: String,
         text: String,
         /// Boxed because a channel message is sized by its largest variant,
         /// and stopping a turn should not be charged for starting one.
@@ -73,12 +80,14 @@ enum Command {
     },
     Cancel,
     Shutdown,
-    /// Answers with the selectors the session is currently offering.
+    /// Answers with the selectors that session is currently offering.
     Selectors {
+        session_id: String,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
-    /// Asks the agent to change one selector, and adopts its answer.
+    /// Asks the agent to change one selector on one session.
     Select {
+        session_id: String,
         config_id: String,
         value: String,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
@@ -145,12 +154,14 @@ impl AgentClient {
     /// Fails when the driver is no longer running.
     pub fn prompt(
         &self,
+        session_id: String,
         text: String,
         recorder: Recorder,
     ) -> Result<oneshot::Receiver<Result<String>>> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Prompt {
+            session_id,
             text,
             recorder: Box::new(recorder),
             reply,
@@ -188,10 +199,13 @@ impl AgentClient {
     /// # Errors
     ///
     /// Fails when the driver is no longer running.
-    pub fn selectors(&self) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
+    pub fn selectors(
+        &self,
+        session_id: String,
+    ) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::Selectors { reply })?;
+        self.send(Command::Selectors { session_id, reply })?;
 
         Ok(answer)
     }
@@ -207,12 +221,14 @@ impl AgentClient {
     /// Fails when the driver is no longer running.
     pub fn select(
         &self,
+        session_id: String,
         config_id: String,
         value: String,
     ) -> Result<oneshot::Receiver<Result<Vec<ConfigControl>>>> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Select {
+            session_id,
             config_id,
             value,
             reply,
@@ -424,11 +440,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     .await?;
                 // The agent reports its selectors here and nowhere else,
                 // so a list that is dropped now cannot be recovered.
-                let mut selectors = match session.config_options.as_deref() {
+                let offered = match session.config_options.as_deref() {
                     Some(offered) => controls(offered),
                     None => Vec::new(),
                 };
-                let session_id = session.session_id.clone();
+                let primary = session.session_id.clone();
+
+                // 每条会话一份：会话名 → (协议 id, 它自己的选择器)。
+                //
+                // 选择器属于会话而不属于连接：一条会话选了哪个模型，
+                // 说明不了另一条选了什么。此前这里只有一个变量，于是
+                // 在 B 里换模型换的是 A 的。
+                let mut sessions = HashMap::new();
+                sessions.insert(primary.to_string(), (primary.clone(), offered));
 
                 // The book is what turns a name into a slot, so this session
                 // is entered in it before any frame of it can arrive.
@@ -437,20 +461,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 // session, so its name is never published: the caller is
                 // told by the dropped sender instead of being handed a
                 // session that quietly records nothing.
-                if first.adopt(&session_id.to_string(), slot.clone()).is_err() {
+                if first.adopt(&primary.to_string(), slot).is_err() {
                     return Ok(());
                 }
 
                 // Nobody may still be waiting for the identifier, and that is
                 // not a failure of the session.
-                let _ignored = ready.send(session_id.to_string());
+                let _ignored = ready.send(primary.to_string());
 
                 'commands: loop {
                     let Some(message) = receiver.next().await else {
                         break 'commands;
                     };
 
-                    let (text, recorder, reply_to) = match message {
+                    let (asked, text, recorder, reply_to) = match message {
                         Command::NewSession { cwd, reply } => {
                             let started = connection
                                 .send_request(NewSessionRequest::new(cwd))
@@ -470,10 +494,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                     };
 
                                     match filed {
-                                        Ok(_slot) => Ok(OpenedSession {
-                                            session_id: name,
-                                            selectors: offered,
-                                        }),
+                                        Ok(_slot) => {
+                                            // 这条会话的选择器留在册子里，
+                                            // 它的槽已经在账本里，两者从此
+                                            // 都能按名字找到。
+                                            sessions.insert(
+                                                name.clone(),
+                                                (session.session_id.clone(), offered.clone()),
+                                            );
+
+                                            Ok(OpenedSession {
+                                                session_id: name,
+                                                selectors: offered,
+                                            })
+                                        }
                                         Err(error) => Err(error),
                                     }
                                 }
@@ -514,19 +548,37 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Command::Shutdown => break 'commands,
                         // Nothing is in flight, so there is nothing to stop.
                         Command::Cancel => continue 'commands,
-                        Command::Selectors { reply } => {
-                            let _ignored = reply.send(Ok(selectors.clone()));
+                        Command::Selectors { session_id, reply } => {
+                            let answer = match sessions.get(&session_id) {
+                                Some((_named, offered)) => Ok(offered.clone()),
+                                None => Err(AcpError::Protocol {
+                                    message: UNKNOWN.to_owned(),
+                                }),
+                            };
+
+                            let _ignored = reply.send(answer);
 
                             continue 'commands;
                         }
                         Command::Select {
+                            session_id,
                             config_id,
                             value,
                             reply,
                         } => {
+                            let Some((named, _offered)) = sessions.get(&session_id) else {
+                                let _ignored = reply.send(Err(AcpError::Protocol {
+                                    message: UNKNOWN.to_owned(),
+                                }));
+
+                                continue 'commands;
+                            };
+                            // 取完就还，后面还要按同一个名字改写它。
+                            let named = named.clone();
+
                             let changed = connection
                                 .send_request(SetSessionConfigOptionRequest::new(
-                                    session_id.clone(),
+                                    named,
                                     config_id,
                                     // The request takes a value the schema
                                     // can convert, and it converts a
@@ -538,9 +590,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             let outcome = match changed {
                                 Ok(response) => {
-                                    selectors = controls(&response.config_options);
+                                    let offered = controls(&response.config_options);
 
-                                    Ok(selectors.clone())
+                                    // 只改这一条会话的那一份。
+                                    if let Some(held) = sessions.get_mut(&session_id) {
+                                        held.1 = offered.clone();
+                                    }
+
+                                    Ok(offered)
                                 }
                                 Err(error) => Err(AcpError::Protocol {
                                     message: error.to_string(),
@@ -552,15 +609,38 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             continue 'commands;
                         }
                         Command::Prompt {
+                            session_id,
                             text,
                             recorder,
                             reply,
-                        } => (text, recorder, reply),
+                        } => (session_id, text, recorder, reply),
                     };
 
-                    // One turn at a time. A second prompt is refused here
-                    // rather than allowed to interleave two runs on one log.
-                    if let Err(error) = slot.install(*recorder) {
+                    // 这一轮属于哪条会话，就问哪条会话要它的协议 id 和
+                    // 它的槽。此前两者都取自连接的第一条会话，于是第二条
+                    // 会话的提问发进了第一条，它的每一帧也记进了第一条的
+                    // 日志——接收路径按名字分发的功夫，在这里被抵消掉。
+                    let Some((named, _offered)) = sessions.get(&asked) else {
+                        let _ignored = reply_to.send(Err(AcpError::Protocol {
+                            message: UNKNOWN.to_owned(),
+                        }));
+
+                        continue 'commands;
+                    };
+                    let named = named.clone();
+
+                    let Ok(Some(turn)) = ledger.slot(&asked) else {
+                        let _ignored = reply_to.send(Err(AcpError::Protocol {
+                            message: UNKNOWN.to_owned(),
+                        }));
+
+                        continue 'commands;
+                    };
+
+                    // One turn at a time on this connection. A second prompt
+                    // is refused here rather than allowed to interleave two
+                    // runs on one log.
+                    if let Err(error) = turn.install(*recorder) {
                         let _ignored = reply_to.send(Err(error));
 
                         continue 'commands;
@@ -572,14 +652,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                     // The prompt is recorded before it is sent, so a turn that
                     // fails on the first request still shows what was asked.
-                    let _routed = slot.record(|recorder| {
-                        recorder.record_run_started(&session_id.to_string(), &text);
+                    let _routed = turn.record(|recorder| {
+                        recorder.record_run_started(&asked, &text);
                     });
 
                     let mut pending = Box::pin(
                         connection
                             .send_request(PromptRequest::new(
-                                session_id.clone(),
+                                named,
                                 vec![ContentBlock::Text(TextContent::new(text))],
                             ))
                             .block_task(),
@@ -648,7 +728,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // first lets each handler finish before the log is closed.
                     desk.clear();
 
-                    let Ok(Some(mut recorder)) = slot.take() else {
+                    let Ok(Some(mut recorder)) = turn.take() else {
                         let _ignored = reply_to.send(Err(AcpError::RecorderPoisoned));
 
                         if stopping {

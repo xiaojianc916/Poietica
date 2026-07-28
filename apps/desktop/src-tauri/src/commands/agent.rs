@@ -230,7 +230,10 @@ pub async fn agent_prompt(
         }),
     );
 
-    let answer = session.client.prompt(text, recorder).map_err(translate)?;
+    let answer = session
+        .client
+        .prompt(session.session_id.clone(), text, recorder)
+        .map_err(translate)?;
 
     async_runtime::spawn(async move {
         match answer.await {
@@ -480,7 +483,10 @@ pub async fn agent_config_options(
     // interface asks.
     let live = ensure_session(&state, None, None).await?;
 
-    let answer = live.client.selectors().map_err(translate)?;
+    let answer = live
+        .client
+        .selectors(live.session_id.clone())
+        .map_err(translate)?;
     let offered = answer
         .await
         .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
@@ -510,7 +516,7 @@ pub async fn agent_set_config_option(
 
     let answer = live
         .client
-        .select(request.config_id, request.value)
+        .select(live.session_id.clone(), request.config_id, request.value)
         .map_err(translate)?;
     let offered = answer
         .await
