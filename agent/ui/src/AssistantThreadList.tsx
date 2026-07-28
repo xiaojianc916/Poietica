@@ -11,7 +11,7 @@ import {
 import { useState } from 'react'
 
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
-import { formatAbsolute, formatElapsed, sectionsOf, useNow } from './time'
+import { formatAbsolute, formatElapsed, nextChangeIn, sectionsOf, useNow } from './time'
 
 /*
  * 会话列表。
@@ -85,8 +85,12 @@ export function AssistantThreadList({
   onDelete,
   onOpenInNewTab,
 }: AssistantThreadListProps) {
-  /* 时钟在这里进来一次，整张列表共用；每行不再各自读一次墙上时间。 */
-  const now = useNow()
+  /*
+   * 时钟在这里进来一次，整张列表共用；每行不再各自读一次墙上时间。
+   *
+   * 同时告诉它这一屏下一次会变的时刻：它不按拍子轮询，睡到那一刻为止。
+   */
+  const now = useNow((at) => nextChangeIn(threads, at))
   const groups = sectionsOf(threads, now)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')

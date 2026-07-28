@@ -1,13 +1,20 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 
 /*
  * 会话时间的唯一管线：一口时钟、一套文案、一套分段。
  *
  * 时间标签是随墙上时间变化的量，所以它必须由时钟驱动，不能在渲染时读一次
  * Date.now() —— 那样的标签只在别处状态碰巧变化时才刷新，看上去就是「莫名
- * 其妙老是改动」，中间几十分钟一动不动。这里只有一个 setInterval，全应用
- * 共享，窗口不可见时停摆；订阅走 useSyncExternalStore，这是 React 对外部
- * 数据源的官方接线方式，而不是各组件自带 useState + useEffect 各转各的表。
+ * 其妙老是改动」，中间几十分钟一动不动。订阅走 useSyncExternalStore，这是
+ * React 对外部数据源的官方接线方式，而不是各组件自带 useState + useEffect
+ * 各转各的表。
+ *
+ * 时钟不轮询。轮询周期是一个猜测，而且两头都错：它太慢（边界与周期不同相，
+ * 文案最坏晚一整个周期才变），又太快（绝大多数次醒来，输出与上一帧逐字相
+ * 同）。而"下一次文案会变的时刻"是可以由下面那道阶梯反推出来的已知量，所
+ * 以这里是到期唤醒：消费者报出这一屏的期限，时钟睡到那一刻为止。GitHub 的
+ * <relative-time>、Apple 的 Text(style: .relative)、Android 的 TextClock
+ * 都是这么做的，没有一个是定周期轮询。
  *
  * 文案与绝对时刻交给 Intl：数量词、词序、语言是平台的事。行尾那一格给的是
  * 一段时长，不是一句话，所以走 NumberFormat 的 unit（narrow）——「31分钟」、
@@ -22,45 +29,90 @@ const MINUTE = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
 
-/** 半分钟足以让标签不落后到被看出来，又不至于让侧栏空转。 */
-const TICK = 30_000
+/** 期限已经过去或算错时的兜底间隔：宁可晚一点，也不要退化成忙等。 */
+const FLOOR = 250
+
+/** 单次等待的上限：兜住 setTimeout 的 32 位截断，也兜住休眠期间的时钟跳变。 */
+const CEILING = DAY
 
 const view = typeof document === 'undefined' ? undefined : document
 
 const listeners = new Set<() => void>()
+
+/*
+ * 各消费者的期限。存的是函数不是时刻：一次唤醒之后、React 重画之前，就要
+ * 用新的 now 重算下一个期限，函数做得到，数字做不到。这也让调用点不必
+ * useCallback —— 正确性不该依赖记忆化纪律。
+ */
+const horizons = new Map<object, (at: number) => number>()
+
 let now = Date.now()
-let timer: ReturnType<typeof setInterval> | undefined
-
-function tick() {
-  now = Date.now()
-
-  for (const listen of listeners) {
-    listen()
-  }
-}
+let timer: ReturnType<typeof setTimeout> | undefined
+let scheduledFor = Number.POSITIVE_INFINITY
 
 function awake(): boolean {
   return view === undefined || view.visibilityState === 'visible'
 }
 
-function schedule() {
+/** 这一刻起，最早会发生变化的时刻；没有人关心时是 Infinity，也就不排表。 */
+function soonest(): number {
+  if (listeners.size === 0 || !awake()) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  let found = Number.POSITIVE_INFINITY
+
+  for (const horizon of horizons.values()) {
+    const at = horizon(now)
+
+    if (Number.isFinite(at) && at < found) {
+      found = at
+    }
+  }
+
+  return found
+}
+
+function plan() {
+  const at = soonest()
+
+  if (at === scheduledFor) {
+    return
+  }
+
+  scheduledFor = at
+
   if (timer !== undefined) {
-    clearInterval(timer)
+    clearTimeout(timer)
     timer = undefined
   }
 
-  if (listeners.size > 0 && awake()) {
-    timer = setInterval(tick, TICK)
+  if (at === Number.POSITIVE_INFINITY) {
+    return
   }
+
+  timer = setTimeout(fire, Math.min(Math.max(at - Date.now(), FLOOR), CEILING))
 }
 
-/** 窗口重新可见时先补一次，再继续按拍子走：后台期间不烧 CPU，回来不落后。 */
-function resync() {
-  if (awake()) {
-    tick()
+function fire() {
+  timer = undefined
+  scheduledFor = Number.POSITIVE_INFINITY
+  now = Date.now()
+
+  for (const listen of listeners) {
+    listen()
   }
 
-  schedule()
+  plan()
+}
+
+/** 窗口重新可见时先补一帧，再重新排表：后台期间不烧 CPU，回来不落后。 */
+function resync() {
+  if (awake()) {
+    fire()
+  } else {
+    plan()
+  }
 }
 
 function subscribe(listen: () => void): () => void {
@@ -69,24 +121,47 @@ function subscribe(listen: () => void): () => void {
   if (listeners.size === 1) {
     view?.addEventListener('visibilitychange', resync)
     now = Date.now()
-    schedule()
   }
+
+  plan()
 
   return () => {
     listeners.delete(listen)
 
     if (listeners.size === 0) {
       view?.removeEventListener('visibilitychange', resync)
-      schedule()
     }
+
+    plan()
   }
 }
 
 const readNow = () => now
 
-/** 当前时刻，按拍子推进。组件读它，不必各自持有定时器。 */
-export function useNow(): number {
-  return useSyncExternalStore(subscribe, readNow, readNow)
+/**
+ * 当前时刻。
+ *
+ * horizon 说的是「这一屏下一次会变的时刻」，时钟睡到那时才醒。每次渲染后
+ * 重报一次：它由这次渲染的数据算出，缓存在闭包里就会过期。
+ */
+export function useNow(horizon: (at: number) => number): number {
+  const key = useRef({}).current
+  const moment = useSyncExternalStore(subscribe, readNow, readNow)
+
+  useEffect(() => {
+    horizons.set(key, horizon)
+    plan()
+  })
+
+  useEffect(
+    () => () => {
+      horizons.delete(key)
+      plan()
+    },
+    [key],
+  )
+
+  return moment
 }
 
 /* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
@@ -156,6 +231,72 @@ export function formatElapsed(instant: number, reference: number): string {
   return stamp.getFullYear() === new Date(reference).getFullYear()
     ? sameYear.format(stamp)
     : otherYear.format(stamp)
+}
+
+/**
+ * 下一个本地午夜。
+ *
+ * 用日历推进一天，而不是加 86_400_000：夏令时切换的那一天是 23 或 25 小时，
+ * 加固定毫秒会把闹钟排错一小时。
+ */
+function nextMidnight(instant: number): number {
+  const at = new Date(instant)
+
+  at.setHours(0, 0, 0, 0)
+  at.setDate(at.getDate() + 1)
+
+  return at.getTime()
+}
+
+/**
+ * 这一行的文案下一次会变的时刻 —— 与 formatElapsed 同一道阶梯，反着算。
+ *
+ * 分钟档在这一行自己的下一个整分钟变，小时档在下一个整小时变；一天以上只
+ * 在本地午夜改口（包括跨过第七天那道坎、从时长改画日期）。未来时刻读作
+ * 「现在」，它会在自己的第一分钟到来时变，所以同样有确定的期限。
+ */
+export function nextChangeOf(instant: number, reference: number): number {
+  const since = reference - instant
+
+  if (since < MINUTE) {
+    return instant + MINUTE
+  }
+
+  if (since < HOUR) {
+    return instant + (Math.floor(since / MINUTE) + 1) * MINUTE
+  }
+
+  if (since < DAY) {
+    return instant + (Math.floor(since / HOUR) + 1) * HOUR
+  }
+
+  return nextMidnight(reference)
+}
+
+/**
+ * 整屏下一次会变的时刻。
+ *
+ * 午夜无条件算进去：分段按本地日历日切，「今天」到点就得改叫「昨天」，哪
+ * 怕没有任何一行到达自己的边界，哪怕列表是空的。
+ */
+export function nextChangeIn(threads: readonly DatedThread[], reference: number): number {
+  let found = nextMidnight(reference)
+
+  for (const thread of threads) {
+    const instant = Date.parse(thread.updatedAt)
+
+    if (Number.isNaN(instant)) {
+      continue
+    }
+
+    const at = nextChangeOf(instant, reference)
+
+    if (at < found) {
+      found = at
+    }
+  }
+
+  return found
 }
 
 /** 悬停时给出准确时刻：相对时间是概览，绝对时间才是事实。 */

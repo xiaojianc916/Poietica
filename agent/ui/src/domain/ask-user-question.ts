@@ -22,8 +22,22 @@
 
 export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
 
-const OPTION_ID = /^q(\d+)_opt_(\d+)$/
-const SKIP_ID = /^q(\d+)_skip$/
+/**
+ * 认得出「向用户提问」的方言。
+ *
+ * 提问不是 ACP 的概念：协议只有 session/request_permission。哪个 agent 用
+ * 什么形状把一道题塞进权限请求，是那个 agent 的方言，所以它是一张表而不是
+ * 两条写死的正则 —— 接第二个 ACP agent 是加一行，不是改判据。
+ */
+interface QuestionDialect {
+  readonly option: RegExp
+  readonly skip: RegExp
+}
+
+const DIALECTS: readonly QuestionDialect[] = [
+  /* kimi-code 的 ACP adapter：q0_opt_0 / q0_skip。 */
+  { option: /^q(\d+)_opt_(\d+)$/, skip: /^q(\d+)_skip$/ },
+]
 
 export type QuestionOptionId =
   | { readonly kind: 'option'; readonly questionIndex: number; readonly optionIndex: number }
@@ -31,20 +45,22 @@ export type QuestionOptionId =
 
 /** 解析 ACP optionId。不属于提问命名空间的一律返回 null。 */
 export function parseQuestionOptionId(optionId: string): QuestionOptionId | null {
-  const option = OPTION_ID.exec(optionId)
+  for (const dialect of DIALECTS) {
+    const option = dialect.option.exec(optionId)
 
-  if (option) {
-    return {
-      kind: 'option',
-      questionIndex: Number(option[1]),
-      optionIndex: Number(option[2]),
+    if (option) {
+      return {
+        kind: 'option',
+        questionIndex: Number(option[1]),
+        optionIndex: Number(option[2]),
+      }
     }
-  }
 
-  const skip = SKIP_ID.exec(optionId)
+    const skip = dialect.skip.exec(optionId)
 
-  if (skip) {
-    return { kind: 'skip', questionIndex: Number(skip[1]) }
+    if (skip) {
+      return { kind: 'skip', questionIndex: Number(skip[1]) }
+    }
   }
 
   return null
@@ -79,13 +95,36 @@ export interface QuestionDeck {
  * 而 q0_opt_0 / q0_skip 这套命名空间是 adapter 自己造的、稳定的。
  */
 export function isQuestionRequest(request: {
-  readonly options: readonly { readonly optionId: string }[]
+  readonly options: readonly { readonly optionId: string; readonly kind?: string }[]
 }): boolean {
   if (request.options.length === 0) {
     return false
   }
 
-  return request.options.every((option) => parseQuestionOptionId(option.optionId) !== null)
+  /*
+   * 形状对得上还不够，语义也要对得上。
+   *
+   * 一次真正的授权请求（写文件、跑命令）里总带着 allow_always / reject_always，
+   * 而一道题只有「选它」和「跳过」。只认命名空间的话，optionId 恰好撞上这套
+   * 形状的授权请求会被摘出流、画成一道选择题 —— 用户以为在答题，实际是在
+   * 批准写盘。kind 是 ACP 自己的分类，比任何一家的私有命名都权威。
+   *
+   * kind 缺席时不否决：题组构建阶段只带着 optionId 与文案，那一层的语义
+   * 已经在上游按完整的 PermissionOption 判过一次了。
+   */
+  return request.options.every((option) => {
+    const parsed = parseQuestionOptionId(option.optionId)
+
+    if (parsed === null) {
+      return false
+    }
+
+    if (option.kind === undefined) {
+      return true
+    }
+
+    return parsed.kind === 'skip' ? option.kind === 'reject_once' : option.kind === 'allow_once'
+  })
 }
 
 /**

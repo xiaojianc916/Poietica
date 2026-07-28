@@ -9,12 +9,14 @@
 export interface AcpAgentDescriptor {
   readonly id: string
   readonly displayName: string
-  /** 启动它的命令行。 */
+  /** 可执行文件名或绝对路径。不经 shell。 */
   readonly command: string
+  /** 传给它的参数，已经切好：没有任何一方需要再解析一次命令行。 */
+  readonly args: readonly string[]
 }
 
 const AGENTS: readonly AcpAgentDescriptor[] = [
-  { id: 'kimi', displayName: 'Kimi Code', command: 'kimi acp' },
+  { id: 'kimi', displayName: 'Kimi Code', command: 'kimi', args: ['acp'] },
 ]
 
 export function acpAgents(): readonly AcpAgentDescriptor[] {

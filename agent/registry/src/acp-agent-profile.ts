@@ -436,18 +436,17 @@ export function defaultCredentialBinding(
 /**
  * 内置 agent 档案，从既有的 acpAgents() 派生。
  *
- * acp-agents.ts 仍然是 agent 名单的唯一来源；这里只是把 "kimi acp" 这种
- * 命令行字符串拆成可以直接 spawn 的 command + args。
+ * acp-agents.ts 仍然是 agent 名单的唯一来源，而它记的已经是可以直接 spawn
+ * 的 command + args：名单里不再存命令行字符串，这里也就没有一次解析要做。
+ * parseAcpAgentCommandLine 只服务于"用户在设置里粘一行命令"那个入口。
  */
 export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
   return acpAgents().map((agent) => {
-    const { command, args } = parseAcpAgentCommandLine(agent.command)
-
     return {
       id: agent.id,
       displayName: agent.displayName,
-      command,
-      args,
+      command: agent.command,
+      args: [...agent.args],
       cwd: undefined,
       env: {},
       credentialBinding: undefined,

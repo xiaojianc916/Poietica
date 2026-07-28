@@ -1,6 +1,7 @@
 import type {
   AcpContentBlock,
   AcpSessionUpdate,
+  AcpStopReason,
   RunEvent,
   RunId,
   RunStatus,
@@ -128,15 +129,23 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
   const draft = draftOf(state)
 
   draft.status = 'running'
-  openSegment(draft)
-  push(draft, { type: 'user_message', id: `${namespace(draft)}said`, at, text: said })
+  /* 这句话先于 run_started 到达，所以它落在上一段的命名空间里；
+     位置补进 id，同一段内问两次也不会撞。 */
+  push(draft, {
+    type: 'user_message',
+    id: `${namespace(draft)}said-${String(draft.items.length)}`,
+    at,
+    text: said,
+  })
 
   return freeze(draft)
 }
 
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
-  /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。 */
-  if (state.appliedSeqs.has(event.seq)) {
+  /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。
+     run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，
+     拿上一段的窗口去判它，判出来的"重复"是假的。 */
+  if (event.kind !== 'run_started' && state.appliedSeqs.has(event.seq)) {
     return state
   }
 
@@ -180,6 +189,18 @@ function openSegment(draft: Draft): void {
 }
 
 function apply(draft: Draft, event: RunEvent): void {
+  /*
+   * 开新段只有这一个权威点。
+   *
+   * 每一轮都从 1 开始编号自己的帧，所以段的边界就是 run_started，
+   * 而不是"谁先看见了这一轮"。此前实时路径靠 appendUserMessage 开段、
+   * 回放路径靠自己在循环里开段，于是没有经过输入框的那些新一轮
+   * （重连续接、重试）撞上上一轮的 seq，被整轮当作重复丢掉。
+   */
+  if (event.kind === 'run_started') {
+    openSegment(draft)
+  }
+
   if (draft.applied.has(event.seq)) {
     return
   }
@@ -617,7 +638,7 @@ function preferAgent(message: string, diagnostics?: string): string {
   return said.length === 0 ? message : said
 }
 
-function finalStatus(stopReason: string): RunStatus {
+function finalStatus(stopReason: AcpStopReason): RunStatus {
   if (stopReason === 'cancelled') {
     return 'cancelled'
   }
