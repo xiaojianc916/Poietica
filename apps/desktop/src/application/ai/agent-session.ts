@@ -21,15 +21,6 @@ import {
  * that could drift.
  */
 
-/**
- * The thread every prompt is currently attributed to.
- *
- * The native side runs one session at a time and ignores the thread on the
- * request, so this is a placeholder with a name rather than a lie with none.
- * It becomes real when the runtime learns to hold more than one session.
- */
-export const DEFAULT_THREAD_ID = 'thread_default'
-
 /*
  * The session selectors, offered once for the whole process.
  *

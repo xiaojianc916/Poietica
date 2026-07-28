@@ -31,8 +31,19 @@ export interface AssistantSubmission {
 }
 
 export interface AssistantSessionOptions {
-  /** Thread this surface is bound to. */
-  readonly endpoint: string
+  /**
+   * Thread this surface is bound to, or null before it has become one.
+   *
+   * 入口那一格还不是任何一条对话：没有可回放的记录，也没有名字。
+   */
+  readonly endpoint: string | null
+  /**
+   * Acquires the conversation this surface is about to become.
+   *
+   * 只在第一句话时问一次。要不到就没有地方可送，这一句因此失败，
+   * 而不是发往一个不存在的对话。
+   */
+  readonly identify?: (() => Promise<string | null>) | undefined
   /**
    * What the user just said, before the agent is asked anything.
    *
@@ -40,7 +51,7 @@ export interface AssistantSessionOptions {
    * and the list is not this hook to keep, so the fact is handed out
    * rather than reached for.
    */
-  readonly onUserMessage?: ((text: string) => void) | undefined
+  readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   readonly session?: AgentSessionPort | undefined
 }
 
@@ -82,6 +93,14 @@ const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
  */
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 
+/*
+ * 开一条对话失败了，所以这一句没有地方可去。
+ *
+ * 入口那一格在第一句话时才向平台要一条对话；要不到就不能假装要到了，
+ * 更不能发往一个占位的名字。
+ */
+const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
+
 function describeFailure(cause: unknown): string {
   if (cause instanceof Error && cause.message.length > 0) {
     return cause.message
@@ -99,7 +118,7 @@ export function useAssistantSession({
 }: AssistantSessionOptions): AssistantSession {
   const [timeline, setTimeline] = useState<TimelineState>(() => opening(endpoint))
   const [shown, setShown] = useState(endpoint)
-  const [isRestoring, setIsRestoring] = useState(() => !restored.has(endpoint))
+  const [isRestoring, setIsRestoring] = useState(() => endpoint !== null && !restored.has(endpoint))
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
   /*
@@ -112,9 +131,21 @@ export function useAssistantSession({
    * and no amount of easing hides it.
    */
   if (shown !== endpoint) {
+    /*
+     * 认领身份不是换对话。
+     *
+     * 入口那一格说出第一句之后才知道自己是哪条对话，而那句话此刻已经在
+     * 屏幕上了；把这当成一次切换会把它连同已经流进来的回答一起擦掉。
+     * 真正的切换是从一条已知对话走到另一条。
+     */
+    const claiming = shown === null
+
     setShown(endpoint)
-    setTimeline(opening(endpoint))
-    setIsRestoring(!restored.has(endpoint))
+
+    if (!claiming) {
+      setTimeline(opening(endpoint))
+      setIsRestoring(endpoint !== null && !restored.has(endpoint))
+    }
   }
 
   useEffect(() => {
@@ -158,7 +189,7 @@ export function useAssistantSession({
    * belongs to the conversation the user has already left.
    */
   useEffect(() => {
-    if (session?.loadThread === undefined) {
+    if (endpoint === null || session?.loadThread === undefined) {
       setIsRestoring(false)
 
       return undefined
@@ -195,32 +226,50 @@ export function useAssistantSession({
       /* The question is on screen before anything is asked of the agent. */
       setTimeline((current) => appendUserMessage(current, submission.text, at))
 
-      /* The list names a conversation from this, which is why it leaves
-         before the turn does: a turn that fails was still asked. */
-      onUserMessage?.(submission.text)
-
       if (!session) {
         fail(new Error(NO_SESSION))
 
         return
       }
 
-      session
-        .prompt({ threadId: endpoint, text: submission.text })
-        .then((handle) => {
-          cancelRef.current = handle.cancel
+      /*
+       * 先有身份，再有这一轮。
+       *
+       * 入口那一格在这一刻才成为一条对话，所以名字、标签和 prompt 拿到的
+       * 是同一个真 id。此前它在挂载时就预支一个占位 id：抢在会话开出来之前
+       * 发出的第一句，会在列表里留下一条永远无人认领的记录，把标签开在一条
+       * 不存在的对话上，并在真 id 到达时被从屏幕上清空。
+       */
+      const conversation =
+        endpoint === null ? (identify?.() ?? Promise.resolve(null)) : Promise.resolve(endpoint)
 
-          /* The turn now has a real identity, which is what replaying it from
-             the log will need. */
-          setTimeline((current) =>
-            current.runId === handle.runId ? current : { ...current, runId: handle.runId },
-          )
+      void conversation
+        .then((threadId) => {
+          if (threadId === null) {
+            fail(new Error(NO_THREAD))
+
+            return undefined
+          }
+
+          /* The list names a conversation from this, which is why it leaves
+             before the turn does: a turn that fails was still asked. */
+          onUserMessage?.(threadId, submission.text)
+
+          return session.prompt({ threadId, text: submission.text }).then((handle) => {
+            cancelRef.current = handle.cancel
+
+            /* The turn now has a real identity, which is what replaying it from
+               the log will need. */
+            setTimeline((current) =>
+              current.runId === handle.runId ? current : { ...current, runId: handle.runId },
+            )
+          })
         })
         .catch((cause: unknown) => {
           fail(cause)
         })
     },
-    [endpoint, fail, onUserMessage, session],
+    [endpoint, fail, identify, onUserMessage, session],
   )
 
   const cancel = useCallback(() => {
@@ -261,8 +310,8 @@ export function useAssistantSession({
 }
 
 /** The transcript a conversation opens with: its last read, or an empty one. */
-function opening(threadId: string): TimelineState {
-  const held = restored.get(threadId)
+function opening(threadId: string | null): TimelineState {
+  const held = threadId === null ? undefined : restored.get(threadId)
 
   return held === undefined
     ? createTimelineState(RUN_PLACEHOLDER)

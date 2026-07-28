@@ -25,7 +25,10 @@ import { TimelineRow } from './timeline/TimelineRow'
 import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
 
 export interface AssistantSurfaceProps {
-  readonly endpoint: string
+  /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
+  readonly endpoint: string | null
+  /** 取得这一格即将成为的那条对话，在第一句话的时候。 */
+  readonly identify?: (() => Promise<string | null>) | undefined
   /**
    * The session this surface talks to.
    *
@@ -40,7 +43,7 @@ export interface AssistantSurfaceProps {
    * The conversation list names a conversation from its first message,
    * and the surface does not own the list, so it reports it outwards.
    */
-  readonly onUserMessage?: (text: string) => void
+  readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
   /** The selectors the running session offers. */
   readonly config?: SessionConfigPort
 }
@@ -86,10 +89,11 @@ const STARTERS: Readonly<Record<string, string>> = {
 export function AssistantSurface({
   config,
   endpoint,
+  identify,
   onUserMessage,
   session,
 }: AssistantSurfaceProps) {
-  const assistant = useAssistantSession({ endpoint, onUserMessage, session })
+  const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
   /*
    * 选择器属于会话，会话属于对话，所以重读的理由是换了对话。
@@ -97,7 +101,7 @@ export function AssistantSurface({
    * 此前这里传的是回合状态，而它一轮要变三次，于是读一次列表 ——
    * 也就是 ensure_session —— 会在回答进行中被反复触发。
    */
-  const controls = useSessionControls(config, endpoint)
+  const controls = useSessionControls(config, endpoint ?? undefined)
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
