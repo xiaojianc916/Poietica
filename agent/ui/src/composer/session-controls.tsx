@@ -25,14 +25,18 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 后代选择器够不到 body 下的节点——这正是此前菜单是裸默认皮肤的原因。
  */
 
-const NOTHING_TO_OFFER = '会话未就绪'
-
 /*
  * 读不到和还没有，是两件事。
  *
- * 之前两者都渲染成同一段不可点击的文字，于是「agent 没装起来」「握手失败」
- * 「一轮回答正在跑」这三种完全不同的处境，在屏幕上长得一模一样，而唯一的
- * 说明藏在一个挂不住焦点的 title 里。
+ * 还没有就是还没有：选择器属于会话，会话属于对话，一条还没说过话的对话没有
+ * 会话，也就没有什么可选。这种时候整块不渲染。此前那里是一颗写着「会话未就
+ * 绪」的灰药丸：一个没有 onClick 的 span，键盘走不到、焦点挂不住，用户从那
+ * 四个字里读不出该等还是该点，而 model / mode / thought 的位置被它占着。没
+ * 有的东西不画,是这一格唯一诚实的形态。
+ *
+ * 读不到是另一回事，它是一次真的失败，所以它说出原因并且可以被再试一次。两
+ * 者过去渲染成同一段不可点击的文字，于是「agent 没装起来」「握手失败」「一
+ * 轮回答正在跑」在屏幕上长得一模一样。
  */
 const UNAVAILABLE = '会话设置读取失败，点击重试'
 
@@ -70,15 +74,9 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
   const [firstRow] = rows
 
   if (firstRow === undefined) {
-    /* 还没有会话：等一下就有了，这里没有什么可做的。 */
+    /* 还没有会话，就没有这一格：第一句话开出会话，选择器自己出现。 */
     if (failure === undefined) {
-      return (
-        <span aria-live="polite" className="assistant-model-select__button" data-empty="true">
-          <ProviderIcon />
-
-          <span className="assistant-model-select__label">{NOTHING_TO_OFFER}</span>
-        </span>
-      )
+      return null
     }
 
     /* 读失败了：说出原因，并且让它可以被再试一次。 */
