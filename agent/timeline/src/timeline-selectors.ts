@@ -138,20 +138,22 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
    * to exactly one turn and the loop is O(n) over the feed in total.
    */
   return staged.map((entry, turnIndex) => {
-    const replyStart = entry.rowIndex + 1
-    const replyEnd = staged[turnIndex + 1]?.rowIndex ?? rows.length
-    let reply: string | undefined
+    const until = staged[turnIndex + 1]?.rowIndex ?? rows.length
+    const turn: ConversationTurn = {
+      id: entry.id,
+      rowIndex: entry.rowIndex,
+      label: entry.label,
+    }
 
-    for (let i = replyStart; i < replyEnd; i++) {
-      const row = rows[i]
+    for (let index = entry.rowIndex + 1; index < until; index += 1) {
+      const row = rows[index]
 
       if (row !== undefined && row.item.type === 'agent_text' && row.item.text.length > 0) {
-        reply = row.item.text.slice(0, 300)
-        break
+        return { ...turn, reply: row.item.text.slice(0, 300) }
       }
     }
 
-    return { id: entry.id, rowIndex: entry.rowIndex, label: entry.label, reply }
+    return turn
   })
 }
 
