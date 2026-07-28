@@ -33,7 +33,7 @@ impl LogError {
 }
 
 /// The result type every log operation returns.
-pub type LogResult<T> = core::result::Result<T, LogError>;
+pub type LogResult<T> = Result<T, LogError>;
 
 /// How a run ended.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

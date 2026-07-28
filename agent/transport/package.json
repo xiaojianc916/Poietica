@@ -15,7 +15,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@poietica/agent-protocol": "workspace:*"
+    "@poietica/agent-protocol": "workspace:*",
+    "@poietica/agent-timeline": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

@@ -30,8 +30,9 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@poietica/foundations-design-system": "workspace:*",
     "@mynaui/icons-react": "catalog:",
+    "@poietica/agent-protocol": "workspace:*",
+    "@poietica/foundations-design-system": "workspace:*",
     "@tldraw/editor": "catalog:"
   },
   "devDependencies": {

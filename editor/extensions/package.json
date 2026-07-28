@@ -18,7 +18,8 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "valibot": "catalog:",
-    "@poietica/foundations-kernel": "workspace:*"
+    "@poietica/agent-timeline": "workspace:*",
+    "@poietica/foundations-kernel": "workspace:*",
+    "valibot": "catalog:"
   }
 }

@@ -31,6 +31,8 @@
   },
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
+    "@poietica/agent-protocol": "workspace:*",
+    "@poietica/agent-runtime": "workspace:*",
     "@poietica/foundations-design-system": "workspace:*",
     "motion": "catalog:",
     "valibot": "catalog:"

@@ -178,6 +178,9 @@ importers:
       '@poietica/agent-protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../timeline
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -252,6 +255,15 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../../agent/protocol
+      '@poietica/agent-runtime':
+        specifier: workspace:*
+        version: link:../../agent/runtime
+      '@poietica/agent-transport':
+        specifier: workspace:*
+        version: link:../../agent/transport
       '@poietica/agent-ui':
         specifier: workspace:*
         version: link:../../agent/ui
@@ -322,6 +334,9 @@ importers:
 
   editor/assets:
     dependencies:
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../../agent/timeline
       '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
@@ -344,6 +359,9 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../../agent/protocol
       '@poietica/foundations-design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
@@ -372,6 +390,9 @@ importers:
 
   editor/document:
     dependencies:
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../../agent/timeline
       '@poietica/editor-core':
         specifier: workspace:*
         version: link:../core
@@ -388,6 +409,9 @@ importers:
 
   editor/extensions:
     dependencies:
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../../agent/timeline
       '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
@@ -407,6 +431,9 @@ importers:
 
   editor/persistence:
     dependencies:
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../../agent/timeline
       '@poietica/editor-assets':
         specifier: workspace:*
         version: link:../assets
@@ -432,6 +459,9 @@ importers:
 
   features/settings:
     dependencies:
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../../agent/timeline
       '@poietica/foundations-design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system
@@ -469,6 +499,12 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../../agent/protocol
+      '@poietica/agent-runtime':
+        specifier: workspace:*
+        version: link:../../agent/runtime
       '@poietica/foundations-design-system':
         specifier: workspace:*
         version: link:../../foundations/design-system

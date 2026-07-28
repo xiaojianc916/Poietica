@@ -15,6 +15,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@poietica/agent-timeline": "workspace:*",
     "@poietica/editor-core": "workspace:*",
     "@poietica/editor-persistence": "workspace:*"
   },

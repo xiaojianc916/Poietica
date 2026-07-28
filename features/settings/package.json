@@ -26,6 +26,7 @@
     "vitest": "catalog:"
   },
   "dependencies": {
+    "@poietica/agent-timeline": "workspace:*",
     "@poietica/foundations-design-system": "workspace:*",
     "@poietica/foundations-kernel": "workspace:*",
     "valibot": "catalog:"
