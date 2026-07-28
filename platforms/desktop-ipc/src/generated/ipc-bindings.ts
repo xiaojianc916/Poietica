@@ -655,18 +655,20 @@ threadId: string;
  * Every frame of every turn, in the order they happened.
  */
 events: JsonValue[] }
-export type AppSettings = { theme: string; language: string; auto_save: boolean; 
+export type AppSettings = { theme: ThemePreference; language: string; autoSave: boolean; 
 /**
- * Milliseconds. u32 is intentional: generated TypeScript IPC uses number,
- * while u64 would require bigint and is rejected by tauri-specta.
+ * 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。
+ * 
+ * u32 是故意的：生成的 TypeScript 用 number，u64 会要求 bigint，而
+ * tauri-specta 拒绝 bigint。
  */
-auto_save_interval: number; shortcuts: Partial<{ [key in string]: string }>; canvas: CanvasSettings; editor: EditorSettings; export: ExportSettings; privacy: PrivacySettings }
+autoSaveIntervalMs: number; shortcuts: Partial<{ [key in string]: string }>; canvas: CanvasSettings; editor: EditorSettings; export: ExportSettings; privacy: PrivacySettings }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
 export type AssetUploadRequest = { sessionToken: string; contentType: string; bytes: number[] }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
-export type CanvasSettings = { default_zoom: number; show_grid: boolean; snap_to_grid: boolean; grid_size: number; show_rulers: boolean; infinite_canvas: boolean }
+export type CanvasSettings = { defaultZoom: number; showGrid: boolean; snapToGrid: boolean; gridSize: number; showRulers: boolean; infiniteCanvas: boolean }
 export type DocumentCloseRequest = { documentId: DocumentId }
 export type DocumentDescriptor = { documentId: DocumentId; displayName: string; revision: string }
 /**
@@ -688,14 +690,21 @@ documentId: DocumentId | null; content: string; assetSessionToken: string | null
 export type DocumentSaveAsResult = { document: DocumentDescriptor | null }
 export type DocumentSaveRequest = { documentId: DocumentId; expectedRevision: string; content: string; assetSessionToken: string | null }
 export type DocumentSaveResult = { revision: string }
-export type EditorSettings = { font_family: string; font_size: number; line_height: number; tab_size: number; insert_spaces: boolean; word_wrap: boolean; minimap: boolean }
-export type ExportSettings = { default_format: string; png_dpi: number; pdf_quality: number; include_metadata: boolean }
+export type EditorSettings = { fontFamily: string; fontSize: number; lineHeight: number; tabSize: number; insertSpaces: boolean; wordWrap: boolean; minimap: boolean }
+export type ExportSettings = { defaultFormat: string; pngDpi: number; pdfQuality: number; includeMetadata: boolean }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
-export type PrivacySettings = { telemetry: boolean; crash_reporting: boolean; update_check: boolean }
+export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
+/**
+ * 颜色模式是一个闭集，不是一段自由文本。
+ * 
+ * 写成枚举，生成的 TypeScript 就是 `"light" | "dark" | "system"`，与 design
+ * system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
+ */
+export type ThemePreference = "light" | "dark" | "system"
 
 /** tauri-specta globals **/
 

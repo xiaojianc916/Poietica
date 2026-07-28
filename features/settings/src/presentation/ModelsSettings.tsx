@@ -1,517 +1,430 @@
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
-  type SelectOption,
-  SelectTrigger,
-  Switch,
-} from '@poietica/foundations-design-system'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+  type AcpAgentProfile,
+  acpAgentCommandLine,
+  defaultCredentialBinding,
+  type ModelProviderProfile,
+  parseAcpAgentCommandLine,
+} from '@poietica/agent-registry'
+import { useCallback, useEffect, useState } from 'react'
+import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import './models-settings.css'
 
 /*
- * 设置 · 模型：当前只有界面。
+ * 设置 · 模型
  *
- * AppSettings 里还没有任何模型字段，Provider、密钥存储与网络边界也还没有 owner，
- * 所以状态全部留在组件本地草稿：不写 store、不落盘、不发请求、不读环境变量。
- * 等 domain/settings.ts 与 ports 补上模型契约后，把 useState 换成 controller.update 即可。
+ * 这一页配置的是"用哪个 agent、拿谁的密钥去跑"，不是"客户端要调用哪个模型 API"——
+ * 我们从不直连 provider，请求一律由 ACP agent 子进程发出。
  *
- * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
- * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
+ * 因此模型清单在这里只表达两件事：收藏（影响选择器排序）与默认值（启动时注入）。
+ * 一次会话真正能用哪些模型由 agent 通过 ACP 的 configOptions 报告，
+ * 切换入口在聊天界面，不在这里。
  */
 
-interface ModelEntry {
-  readonly id: string
-  readonly label: string
-  readonly enabled: boolean
+export interface ModelsSettingsProps {
+  /** 未注入时这一页只说明尚未接线，不提供任何存不下的开关。 */
+  readonly store?: AgentConfigStore | undefined
 }
 
-const MODEL_CATALOG: readonly ModelEntry[] = [
-  { id: 'grok-4.5-fast', label: 'Cursor Grok 4.5 Fast', enabled: true },
-  { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast', enabled: true },
-  { id: 'opus-5', label: 'Opus 5', enabled: true },
-  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', enabled: true },
-  { id: 'fable-5', label: 'Fable 5', enabled: true },
-  { id: 'sonnet-5', label: 'Sonnet 5', enabled: true },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', enabled: true },
-  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', enabled: true },
-  { id: 'grok-4.5-low', label: 'Cursor Grok 4.5 Low', enabled: false },
-  { id: 'grok-4.5-low-fast', label: 'Cursor Grok 4.5 Low Fast', enabled: false },
-  { id: 'grok-4.5-medium', label: 'Cursor Grok 4.5 Medium', enabled: false },
-]
+export function ModelsSettings({ store }: ModelsSettingsProps) {
+  const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | undefined>(undefined)
+  const [error, setError] = useState<string | undefined>(undefined)
 
-const TASK_MODEL_OPTIONS: readonly (readonly [string, string])[] = MODEL_CATALOG.filter(
-  (model) => model.enabled,
-).map((model) => [model.id, model.label] as const)
+  const run = useCallback(async (operation: () => Promise<AgentConfigSnapshot>) => {
+    try {
+      setSnapshot(await operation())
+      setError(undefined)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '模型配置操作失败，请重试。')
+    }
+  }, [])
 
-interface KeyDraft {
-  readonly openaiKey: string
-  readonly openaiBaseUrlOverride: boolean
-  readonly openaiBaseUrl: string
-  readonly anthropicKey: string
-  readonly googleKey: string
-  readonly azureEnabled: boolean
-  readonly azureBaseUrl: string
-  readonly azureDeployment: string
-  readonly azureKey: string
-  readonly bedrockEnabled: boolean
-  readonly bedrockAccessKeyId: string
-  readonly bedrockSecretKey: string
-  readonly bedrockRegion: string
-}
+  useEffect(() => {
+    if (!store) {
+      return
+    }
 
-const EMPTY_KEY_DRAFT: KeyDraft = {
-  openaiKey: '',
-  openaiBaseUrlOverride: false,
-  openaiBaseUrl: '',
-  anthropicKey: '',
-  googleKey: '',
-  azureEnabled: false,
-  azureBaseUrl: '',
-  azureDeployment: '',
-  azureKey: '',
-  bedrockEnabled: false,
-  bedrockAccessKeyId: '',
-  bedrockSecretKey: '',
-  bedrockRegion: '',
-}
+    let cancelled = false
 
-export function ModelsSettings() {
-  const [taskModel, setTaskModel] = useState<string>('grok-4.5-fast')
-  const [models, setModels] = useState<readonly ModelEntry[]>(MODEL_CATALOG)
-  const [query, setQuery] = useState('')
-  const [showAll, setShowAll] = useState(false)
-  const [keys, setKeys] = useState<KeyDraft>(EMPTY_KEY_DRAFT)
+    store
+      .load()
+      .then((loaded) => {
+        if (!cancelled) {
+          setSnapshot(loaded)
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : '无法读取模型配置。')
+        }
+      })
 
-  const visibleModels = useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    const matched = keyword
-      ? models.filter((model) => model.label.toLowerCase().includes(keyword))
-      : models
-    return showAll || keyword ? matched : matched.slice(0, 11)
-  }, [models, query, showAll])
+    return () => {
+      cancelled = true
+    }
+  }, [store])
 
-  const toggleModel = useCallback((id: string, enabled: boolean) => {
-    setModels((current) =>
-      current.map((model) => (model.id === id ? { ...model, enabled } : model)),
+  if (!store) {
+    return (
+      <section className="models-page">
+        <p className="models-notice">
+          模型与 agent 的配置还没有接到本地存储。读写通道（agents.json 与系统钥匙串）要等桌面端
+          实现之后才可用，所以这一页暂时不提供任何开关——与其给你一个按下去没有效果的按钮，
+          不如先把这件事说清楚。
+        </p>
+      </section>
     )
-  }, [])
+  }
 
-  const resetQuery = useCallback(() => {
-    setQuery('')
-  }, [])
-
-  const patchKeys = useCallback((patch: Partial<KeyDraft>) => {
-    setKeys((current) => ({ ...current, ...patch }))
-  }, [])
+  if (!snapshot) {
+    return (
+      <section className="models-page">
+        <p className="models-notice">{error ?? '正在读取模型配置…'}</p>
+      </section>
+    )
+  }
 
   return (
     <section className="models-page">
+      {error ? <p className="models-error">{error}</p> : null}
+
+      {snapshot.issues.length > 0 ? (
+        <ul className="models-issues">
+          {snapshot.issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      ) : null}
+
       <p className="models-notice">
-        模型配置目前只有界面：改动仅保留在本次会话中，不会写入本地设置，也不会发起任何网络请求。
+        密钥保存在系统钥匙串，只在启动 agent 的那一刻注入到它的环境变量，不写入任何配置文件。
+        下面勾选的模型只影响选择器里的排序：一次会话真正能用哪些模型由 agent 决定，
+        在聊天界面里切换。
       </p>
 
-      <div className="models-block">
-        <span className="models-block__label">任务模型</span>
+      <h3 className="models-heading">模型提供方</h3>
 
-        <div className="models-card">
-          <div className="models-row">
-            <div className="models-row__copy">
-              <strong>Explore 子智能体模型</strong>
-              <p>选择 Explore 子智能体在初始调研阶段使用的模型</p>
-            </div>
-
-            <div className="models-row__control">
-              <ModelSelect
-                ariaLabel="Explore 子智能体模型"
-                onChange={setTaskModel}
-                options={TASK_MODEL_OPTIONS}
-                value={taskModel}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="models-card models-card--list">
-        <div className="models-toolbar">
-          <input
-            aria-label="添加或搜索模型"
-            className="models-input models-input--search"
-            onChange={(event) => {
-              setQuery(event.target.value)
-            }}
-            placeholder="添加或搜索模型"
-            type="text"
-            value={query}
-          />
-
-          <button
-            aria-label="重置模型筛选"
-            className="models-icon-button"
-            onClick={resetQuery}
-            type="button"
-          >
-            <RefreshIcon />
-          </button>
-        </div>
-
-        <div className="models-list">
-          {visibleModels.length === 0 ? (
-            <p className="models-empty">没有匹配的模型。</p>
-          ) : (
-            visibleModels.map((model) => (
-              <div className="models-row models-row--compact" key={model.id}>
-                <span className="models-row__name">{model.label}</span>
-
-                <div className="models-row__control">
-                  <Switch
-                    aria-label={model.label}
-                    checked={model.enabled}
-                    onCheckedChange={(checked) => {
-                      toggleModel(model.id, checked)
-                    }}
-                    size="sm"
-                  />
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <button
-          className="models-link"
-          onClick={() => {
-            setShowAll((current) => !current)
+      {snapshot.providers.map((provider) => (
+        <ProviderCard
+          configured={
+            snapshot.secrets.find((secret) => secret.providerId === provider.id)?.configured ===
+            true
+          }
+          key={provider.id}
+          onClearSecret={() => {
+            void run(() => store.clearProviderSecret({ providerId: provider.id }))
           }}
-          type="button"
+          onProviderChange={(next) => {
+            void run(() =>
+              store.saveProviders(
+                snapshot.providers.map((one) => (one.id === next.id ? next : one)),
+              ),
+            )
+          }}
+          onSaveSecret={(value) => {
+            void run(() => store.setProviderSecret({ providerId: provider.id, value }))
+          }}
+          provider={provider}
+        />
+      ))}
+
+      <h3 className="models-heading">外部 Agent</h3>
+
+      <label className="models-field">
+        <span className="models-label">默认 agent</span>
+
+        <select
+          className="models-input"
+          onChange={(event) => {
+            void run(() =>
+              store.saveAgents({ agents: snapshot.agents, defaultAgentId: event.target.value }),
+            )
+          }}
+          value={snapshot.defaultAgentId}
         >
-          {showAll ? '收起模型列表' : '查看全部模型'}
-        </button>
-      </div>
+          {snapshot.agents.map((agent) => (
+            <option key={agent.id} value={agent.id}>
+              {agent.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <details className="models-keys">
-        <summary className="models-keys__summary">
-          <ChevronIcon />
-          <span>API 密钥</span>
-        </summary>
-
-        <div className="models-keys__body">
-          <KeyField
-            description="填入你自己的 OpenAI 密钥，按用量直接计费到该账号。"
-            label="OpenAI API 密钥"
-            onChange={(value) => {
-              patchKeys({ openaiKey: value })
-            }}
-            placeholder="输入 OpenAI API 密钥"
-            value={keys.openaiKey}
-          />
-
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>覆盖 OpenAI Base URL</strong>
-                <p>更改 OpenAI 接口请求使用的基础地址。</p>
-              </div>
-
-              <div className="models-row__control">
-                <Switch
-                  aria-label="覆盖 OpenAI Base URL"
-                  checked={keys.openaiBaseUrlOverride}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ openaiBaseUrlOverride: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            {keys.openaiBaseUrlOverride ? (
-              <SubField
-                label="基础地址"
-                onChange={(value) => {
-                  patchKeys({ openaiBaseUrl: value })
-                }}
-                placeholder="例如 https://api.openai.com/v1"
-                value={keys.openaiBaseUrl}
-              />
-            ) : null}
-          </div>
-
-          <KeyField
-            description={
-              '填入你自己的 Anthropic 密钥，按用量直接计费。启用后，所有以 “claude-” ' +
-              '开头的模型都会使用该密钥。'
-            }
-            label="Anthropic API 密钥"
-            onChange={(value) => {
-              patchKeys({ anthropicKey: value })
-            }}
-            placeholder="输入 Anthropic API 密钥"
-            value={keys.anthropicKey}
-          />
-
-          <KeyField
-            description="填入你的 Google AI Studio 密钥，按用量直接计费。"
-            label="Google API 密钥"
-            onChange={(value) => {
-              patchKeys({ googleKey: value })
-            }}
-            placeholder="输入 Google AI Studio API 密钥"
-            value={keys.googleKey}
-          />
-
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>Azure OpenAI</strong>
-                <p>通过你的 Azure 账号调用 OpenAI 模型。</p>
-              </div>
-
-              <div className="models-row__control">
-                <Switch
-                  aria-label="Azure OpenAI"
-                  checked={keys.azureEnabled}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ azureEnabled: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="基础地址"
-              onChange={(value) => {
-                patchKeys({ azureBaseUrl: value })
-              }}
-              placeholder="例如 my-resource.openai.azure.com"
-              value={keys.azureBaseUrl}
-            />
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="部署名称"
-              onChange={(value) => {
-                patchKeys({ azureDeployment: value })
-              }}
-              placeholder="例如 gpt-35-turbo"
-              value={keys.azureDeployment}
-            />
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="API 密钥"
-              onChange={(value) => {
-                patchKeys({ azureKey: value })
-              }}
-              placeholder="输入 Azure OpenAI API 密钥"
-              secret
-              value={keys.azureKey}
-            />
-          </div>
-
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>AWS Bedrock</strong>
-                <p>通过你的 AWS 账号调用 Anthropic Claude 模型。</p>
-              </div>
-
-              <div className="models-row__control">
-                <Switch
-                  aria-label="AWS Bedrock"
-                  checked={keys.bedrockEnabled}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ bedrockEnabled: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="Access Key ID"
-              onChange={(value) => {
-                patchKeys({ bedrockAccessKeyId: value })
-              }}
-              placeholder="AWS Access Key ID"
-              value={keys.bedrockAccessKeyId}
-            />
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="Secret Access Key"
-              onChange={(value) => {
-                patchKeys({ bedrockSecretKey: value })
-              }}
-              placeholder="AWS Secret Access Key"
-              secret
-              value={keys.bedrockSecretKey}
-            />
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="区域"
-              onChange={(value) => {
-                patchKeys({ bedrockRegion: value })
-              }}
-              placeholder="例如 us-east-1"
-              value={keys.bedrockRegion}
-            />
-          </div>
-        </div>
-      </details>
+      {snapshot.agents.map((agent) => (
+        <AgentCard
+          agent={agent}
+          key={agent.id}
+          onAgentChange={(next) => {
+            void run(() =>
+              store.saveAgents({
+                agents: snapshot.agents.map((one) => (one.id === next.id ? next : one)),
+                defaultAgentId: snapshot.defaultAgentId,
+              }),
+            )
+          }}
+          providers={snapshot.providers}
+        />
+      ))}
     </section>
   )
 }
 
-interface KeyFieldProps {
-  readonly label: string
-  readonly description: string
-  readonly placeholder: string
-  readonly value: string
-  readonly onChange: (value: string) => void
+interface ProviderCardProps {
+  readonly configured: boolean
+  readonly onClearSecret: () => void
+  readonly onProviderChange: (next: ModelProviderProfile) => void
+  readonly onSaveSecret: (value: string) => void
+  readonly provider: ModelProviderProfile
 }
 
-function KeyField({ label, description, placeholder, value, onChange }: KeyFieldProps) {
+function ProviderCard({
+  configured,
+  onClearSecret,
+  onProviderChange,
+  onSaveSecret,
+  provider,
+}: ProviderCardProps) {
+  const [secretDraft, setSecretDraft] = useState('')
+  const [modelDraft, setModelDraft] = useState('')
+
+  const dialectLabel = provider.dialect === 'anthropic' ? 'Anthropic 兼容' : 'OpenAI 兼容'
+
   return (
-    <div className="models-field">
-      <strong>{label}</strong>
-      <p>{description}</p>
+    <article className="models-card">
+      <header className="models-card-header">
+        <span className="models-card-title">{provider.displayName}</span>
+        <span className="models-badge">{dialectLabel}</span>
+        <span className={configured ? 'models-badge models-badge-ok' : 'models-badge'}>
+          {configured ? '密钥已配置' : '未配置密钥'}
+        </span>
+      </header>
 
-      <input
-        aria-label={label}
-        autoComplete="off"
-        className="models-input"
-        onChange={(event) => {
-          onChange(event.target.value)
-        }}
-        placeholder={placeholder}
-        type="password"
-        value={value}
-      />
-    </div>
-  )
-}
+      <label className="models-field">
+        <span className="models-label">Base URL</span>
 
-interface SubFieldProps {
-  readonly label: string
-  readonly placeholder: string
-  readonly value: string
-  readonly disabled?: boolean
-  readonly secret?: boolean
-  readonly onChange: (value: string) => void
-}
-
-function SubField({
-  label,
-  placeholder,
-  value,
-  disabled = false,
-  secret = false,
-  onChange,
-}: SubFieldProps) {
-  return (
-    <div className="models-row models-row--field">
-      <span className="models-row__name">{label}</span>
-
-      <div className="models-row__control">
         <input
-          aria-label={label}
-          autoComplete="off"
-          className="models-input models-input--inline"
-          disabled={disabled}
+          className="models-input"
           onChange={(event) => {
-            onChange(event.target.value)
+            onProviderChange({ ...provider, baseUrl: event.target.value })
           }}
-          placeholder={placeholder}
-          type={secret ? 'password' : 'text'}
-          value={value}
+          spellCheck={false}
+          type="url"
+          value={provider.baseUrl}
         />
+      </label>
+
+      <div className="models-field">
+        <span className="models-label">API 密钥</span>
+
+        <div className="models-row">
+          <input
+            aria-label={`${provider.displayName} API 密钥`}
+            className="models-input"
+            onChange={(event) => {
+              setSecretDraft(event.target.value)
+            }}
+            placeholder={configured ? '已保存，输入新值可覆盖' : '输入 API 密钥'}
+            type="password"
+            value={secretDraft}
+          />
+
+          <button
+            className="models-button"
+            disabled={secretDraft.length === 0}
+            onClick={() => {
+              onSaveSecret(secretDraft)
+              setSecretDraft('')
+            }}
+            type="button"
+          >
+            保存到钥匙串
+          </button>
+
+          <button
+            className="models-button"
+            disabled={!configured}
+            onClick={onClearSecret}
+            type="button"
+          >
+            清除
+          </button>
+        </div>
       </div>
-    </div>
+
+      <div className="models-field">
+        <span className="models-label">模型</span>
+
+        <ul className="models-list">
+          {provider.models.map((model) => (
+            <ModelRow
+              favorite={provider.favoriteModels.includes(model)}
+              isDefault={provider.defaultModel === model}
+              key={model}
+              model={model}
+              onRemove={() => {
+                onProviderChange({
+                  ...provider,
+                  models: provider.models.filter((one) => one !== model),
+                  favoriteModels: provider.favoriteModels.filter((one) => one !== model),
+                  defaultModel: provider.defaultModel === model ? undefined : provider.defaultModel,
+                })
+              }}
+              onToggleDefault={() => {
+                onProviderChange({
+                  ...provider,
+                  defaultModel: provider.defaultModel === model ? undefined : model,
+                })
+              }}
+              onToggleFavorite={() => {
+                const favorite = provider.favoriteModels.includes(model)
+
+                onProviderChange({
+                  ...provider,
+                  favoriteModels: favorite
+                    ? provider.favoriteModels.filter((one) => one !== model)
+                    : [...provider.favoriteModels, model],
+                })
+              }}
+            />
+          ))}
+        </ul>
+
+        <div className="models-row">
+          <input
+            aria-label={`为 ${provider.displayName} 添加模型 id`}
+            className="models-input"
+            onChange={(event) => {
+              setModelDraft(event.target.value)
+            }}
+            placeholder="添加模型 id"
+            spellCheck={false}
+            type="text"
+            value={modelDraft}
+          />
+
+          <button
+            className="models-button"
+            disabled={modelDraft.trim().length === 0}
+            onClick={() => {
+              const model = modelDraft.trim()
+
+              setModelDraft('')
+
+              if (!provider.models.includes(model)) {
+                onProviderChange({ ...provider, models: [...provider.models, model] })
+              }
+            }}
+            type="button"
+          >
+            添加
+          </button>
+        </div>
+      </div>
+    </article>
   )
 }
 
-interface ModelSelectProps {
-  readonly ariaLabel: string
-  readonly value: string
-  readonly options: readonly (readonly [string, string])[]
-  readonly onChange: (value: string) => void
+interface ModelRowProps {
+  readonly favorite: boolean
+  readonly isDefault: boolean
+  readonly model: string
+  readonly onRemove: () => void
+  readonly onToggleDefault: () => void
+  readonly onToggleFavorite: () => void
 }
 
-function ModelSelect({ ariaLabel, value, options, onChange }: ModelSelectProps) {
-  const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
-    value: optionValue,
-    label,
-  }))
-
+function ModelRow({
+  favorite,
+  isDefault,
+  model,
+  onRemove,
+  onToggleDefault,
+  onToggleFavorite,
+}: ModelRowProps) {
   return (
-    <Select data={data} onValueChange={onChange} type={ariaLabel} value={value}>
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="models-select-trigger"
-        size="sm"
-        tone="plain"
-      />
+    <li className="models-row">
+      <span className="models-model">{model}</span>
 
-      <SelectContent>
-        <SelectList>
-          <SelectGroup>
-            {options.map(([optionValue, label]) => (
-              <SelectItem key={optionValue} value={optionValue}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectList>
-      </SelectContent>
-    </Select>
+      <label className="models-toggle">
+        <input checked={favorite} onChange={onToggleFavorite} type="checkbox" />
+        <span>在选择器中置顶</span>
+      </label>
+
+      <button className="models-button" onClick={onToggleDefault} type="button">
+        {isDefault ? '取消默认' : '设为默认'}
+      </button>
+
+      <button className="models-button" onClick={onRemove} type="button">
+        移除
+      </button>
+    </li>
   )
 }
 
-/*
- * 图标属性直接写在标签上，不走 spread。
- *
- * lint/a11y/noSvgWithoutTitle 是静态规则：aria-hidden 藏在展开对象里它看不见，
- * 于是把纯装饰图标判成缺少替代文本。
- */
-function RefreshIcon(): ReactNode {
-  return (
-    <svg
-      aria-hidden="true"
-      className="models-icon"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="M20 11a8 8 0 1 0-2.3 5.7" />
-      <path d="M20 5v6h-6" />
-    </svg>
-  )
+interface AgentCardProps {
+  readonly agent: AcpAgentProfile
+  readonly onAgentChange: (next: AcpAgentProfile) => void
+  readonly providers: readonly ModelProviderProfile[]
 }
 
-function ChevronIcon(): ReactNode {
+function AgentCard({ agent, onAgentChange, providers }: AgentCardProps) {
+  const binding = agent.credentialBinding
+
   return (
-    <svg
-      aria-hidden="true"
-      className="models-icon models-icon--chevron"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.7"
-      viewBox="0 0 24 24"
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
+    <article className="models-card">
+      <header className="models-card-header">
+        <span className="models-card-title">{agent.displayName}</span>
+      </header>
+
+      <label className="models-field">
+        <span className="models-label">启动命令</span>
+
+        <input
+          className="models-input"
+          onChange={(event) => {
+            const parsed = parseAcpAgentCommandLine(event.target.value)
+
+            onAgentChange({ ...agent, command: parsed.command, args: parsed.args })
+          }}
+          spellCheck={false}
+          type="text"
+          value={acpAgentCommandLine(agent)}
+        />
+      </label>
+
+      <label className="models-field">
+        <span className="models-label">凭据来自</span>
+
+        <select
+          className="models-input"
+          onChange={(event) => {
+            const provider = providers.find((one) => one.id === event.target.value)
+
+            onAgentChange({
+              ...agent,
+              credentialBinding:
+                provider === undefined
+                  ? undefined
+                  : defaultCredentialBinding(provider.id, provider.dialect),
+            })
+          }}
+          value={binding?.providerId ?? ''}
+        >
+          <option value="">该 agent 自行管理认证</option>
+
+          {providers.map((provider) => (
+            <option key={provider.id} value={provider.id}>
+              {provider.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {binding ? (
+        <p className="models-hint">
+          启动时注入 {binding.baseUrlEnv} 与 {binding.apiKeyEnv}。如果该 agent 自己的配置文件里
+          写了同名变量，它会覆盖这里的设置；改完密钥需要重开该 agent 的会话才会生效。
+        </p>
+      ) : null}
+    </article>
   )
 }

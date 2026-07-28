@@ -233,6 +233,39 @@ const place = (bar: Bar): void => {
   style.setProperty(vertical ? 'height' : 'width', `${String(Math.round(length))}px`)
 }
 
+/**
+ * 单根条在这一帧的处置：还活着，还是已经收掉了。
+ *
+ * 与遍历分开，是因为这是两件事：一件是"这根条现在该怎样"，一件是"谁还需要下一
+ * 帧"。揉在一个函数里，光是嵌套就把认知复杂度顶到 25；分开之后各自只有一层。
+ */
+const advance = (bar: Bar, now: number): 'alive' | 'gone' => {
+  if (bar.disposeAt !== null) {
+    if (now < bar.disposeAt) {
+      return 'alive'
+    }
+
+    bar.element.remove()
+
+    return 'gone'
+  }
+
+  place(bar)
+
+  if (bar.dragging || bar.hovered) {
+    bar.hideAt = now + bar.metrics.linger
+
+    return 'alive'
+  }
+
+  if (now >= bar.hideAt) {
+    bar.element.dataset['visible'] = 'false'
+    bar.disposeAt = now + bar.metrics.fade
+  }
+
+  return 'alive'
+}
+
 export function installScrollbarActivity(): () => void {
   const layer = document.createElement('div')
 
@@ -256,30 +289,13 @@ export function installScrollbarActivity(): () => void {
 
     for (const [scroller, axes] of bars) {
       for (const [axis, bar] of axes) {
-        if (bar.disposeAt !== null) {
-          if (now >= bar.disposeAt) {
-            bar.element.remove()
-            axes.delete(axis)
-          } else {
-            alive = true
-          }
+        if (advance(bar, now) === 'gone') {
+          axes.delete(axis)
 
           continue
         }
 
-        place(bar)
         alive = true
-
-        if (bar.dragging || bar.hovered) {
-          bar.hideAt = now + bar.metrics.linger
-
-          continue
-        }
-
-        if (now >= bar.hideAt) {
-          bar.element.dataset['visible'] = 'false'
-          bar.disposeAt = now + bar.metrics.fade
-        }
       }
 
       if (axes.size === 0) {

@@ -7,14 +7,40 @@ use tauri_plugin_store::StoreExt;
 
 type SettingsCommandResult<T> = std::result::Result<T, IpcError>;
 
+/// 颜色模式是一个闭集，不是一段自由文本。
+///
+/// 写成枚举，生成的 TypeScript 就是 `"light" | "dark" | "system"`，与 design
+/// system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
+#[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ThemePreference {
+    Light,
+    Dark,
+    #[default]
+    System,
+}
+
+/*
+ * 线上字段名一律 camelCase。
+ *
+ * 这是全仓 IPC 的既有约定（agent 侧每个 DTO 都写了这一行），设置是唯一漏掉的
+ * 一个：生成物是 snake_case，手写界面按约定是 camelCase，两边对不上。补这一行
+ * 是修契约，而不是把界面改成 snake_case 去迁就一个漏掉的属性。
+ *
+ * 容器级 default 让旧盘上缺键的 settings.json 逐项退回默认值，而不是整份读取
+ * 失败：用户的设置不该因为一次字段改名炸成一个错误横幅。
+ */
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
-    pub theme: String,
+    pub theme: ThemePreference,
     pub language: String,
     pub auto_save: bool,
-    /// Milliseconds. u32 is intentional: generated TypeScript IPC uses number,
-    /// while u64 would require bigint and is rejected by tauri-specta.
-    pub auto_save_interval: u32,
+    /// 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。
+    ///
+    /// u32 是故意的：生成的 TypeScript 用 number，u64 会要求 bigint，而
+    /// tauri-specta 拒绝 bigint。
+    pub auto_save_interval_ms: u32,
     pub shortcuts: HashMap<String, String>,
     pub canvas: CanvasSettings,
     pub editor: EditorSettings,
@@ -23,6 +49,7 @@ pub struct AppSettings {
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct CanvasSettings {
     pub default_zoom: f64,
     pub show_grid: bool,
@@ -33,6 +60,7 @@ pub struct CanvasSettings {
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct EditorSettings {
     pub font_family: String,
     pub font_size: f64,
@@ -44,6 +72,7 @@ pub struct EditorSettings {
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct ExportSettings {
     pub default_format: String,
     pub png_dpi: u32,
@@ -52,6 +81,7 @@ pub struct ExportSettings {
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase", default)]
 pub struct PrivacySettings {
     pub telemetry: bool,
     pub crash_reporting: bool,
@@ -61,10 +91,10 @@ pub struct PrivacySettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            theme: "system".into(),
+            theme: ThemePreference::System,
             language: "zh-CN".into(),
             auto_save: true,
-            auto_save_interval: 30000,
+            auto_save_interval_ms: 30000,
             shortcuts: HashMap::new(),
             canvas: CanvasSettings::default(),
             editor: EditorSettings::default(),
@@ -132,11 +162,17 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
     (|| -> Result<AppSettings> {
         let store = app.store("settings.json")?;
 
-        match store.get("settings") {
-            None => Ok(AppSettings::default()),
-            Some(value) => serde_json::from_value(value)
-                .map_err(|error| Error::Validation(format!("invalid settings: {error}"))),
-        }
+        /*
+         * 一份读不动的设置不是一次失败，是一次回退。
+         *
+         * 字段级容错由容器 default 兜住；这里兜的是整份 JSON 结构都不成立的
+         * 情况（手改坏了、上个大版本的形状）。专业设置面板在这一步给默认值并
+         * 让用户继续用，而不是把一个红条摆在所有开关前面。
+         */
+        Ok(store
+            .get("settings")
+            .and_then(|value| serde_json::from_value(value).ok())
+            .unwrap_or_default())
     })()
     .map_err(IpcError::from)
 }

@@ -462,6 +462,9 @@ importers:
 
   features/settings:
     dependencies:
+      '@poietica/agent-registry':
+        specifier: workspace:*
+        version: link:../../agent/registry
       '@poietica/agent-timeline':
         specifier: workspace:*
         version: link:../../agent/timeline

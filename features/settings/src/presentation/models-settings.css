@@ -313,3 +313,103 @@
     max-inline-size: none;
   }
 }
+
+/* --- ACP 模型与 agent 接入配置 --- */
+
+.models-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.models-heading {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 24px 0 8px;
+  opacity: 0.75;
+}
+
+.models-error {
+  background: var(--color-danger-surface, rgba(220 38 38 / 0.1));
+  border-radius: 6px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+}
+
+.models-issues {
+  font-size: 12px;
+  margin: 0 0 12px;
+  opacity: 0.75;
+  padding-left: 18px;
+}
+
+.models-card {
+  border: 1px solid var(--color-border, rgba(0 0 0 / 0.1));
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.models-card-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.models-card-title {
+  font-weight: 600;
+}
+
+.models-badge {
+  border: 1px solid var(--color-border, rgba(0 0 0 / 0.1));
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 1px 8px;
+  opacity: 0.75;
+}
+
+.models-badge-ok {
+  opacity: 1;
+}
+
+.models-label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+  opacity: 0.75;
+}
+
+.models-model {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+
+.models-toggle {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.models-button {
+  border: 1px solid var(--color-border, rgba(0 0 0 / 0.1));
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.models-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.models-hint {
+  font-size: 12px;
+  margin: 0;
+  opacity: 0.7;
+}

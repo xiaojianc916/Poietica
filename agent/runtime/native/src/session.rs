@@ -594,7 +594,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                                     // 只改这一条会话的那一份。
                                     if let Some(held) = sessions.get_mut(&session_id) {
-                                        held.1 = offered.clone();
+                                        held.1.clone_from(&offered);
                                     }
 
                                     Ok(offered)

@@ -24,6 +24,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import type { AgentConfigStore } from '../ports/agent-config-store'
 import type { SettingsStore } from '../ports/settings-store'
 import { ModelsSettings } from './ModelsSettings'
 import {
@@ -129,6 +130,7 @@ function findSection(id: SettingsSection): SectionDefinition {
  * 侧边栏的宽度、拖拽与开合仍然只有 workspaceLayoutStore 一个来源。
  */
 interface SettingsSurfaceContextValue {
+  readonly agentConfigStore: AgentConfigStore | undefined
   readonly controller: SettingsController
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
@@ -148,13 +150,20 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 }
 
 export interface SettingsProviderProps {
+  /** ACP agent 与模型提供方配置。未注入时模型页只说明尚未接线。 */
+  readonly agentConfigStore?: AgentConfigStore | undefined
   readonly store: SettingsStore
   /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
   readonly onDismiss: () => void
   readonly children: ReactNode
 }
 
-export function SettingsProvider({ store, onDismiss, children }: SettingsProviderProps) {
+export function SettingsProvider({
+  agentConfigStore,
+  store,
+  onDismiss,
+  children,
+}: SettingsProviderProps) {
   const [section, setSection] = useState<SettingsSection>('general')
 
   const handleOpenChange = useCallback(
@@ -175,12 +184,13 @@ export function SettingsProvider({ store, onDismiss, children }: SettingsProvide
 
   const value = useMemo<SettingsSurfaceContextValue>(
     () => ({
+      agentConfigStore,
       controller,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [controller, section],
+    [agentConfigStore, controller, section],
   )
 
   return <SettingsSurfaceContext.Provider value={value}>{children}</SettingsSurfaceContext.Provider>
@@ -205,7 +215,7 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, section } = useSettingsSurface()
+  const { agentConfigStore, controller, section } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -235,6 +245,7 @@ export function SettingsContentRegion() {
             ) : null}
 
             <SettingsSectionContent
+              agentConfigStore={agentConfigStore}
               controller={controller}
               section={section}
               settings={controller.settings}
@@ -312,12 +323,18 @@ const SettingsNavigation = memo(function SettingsNavigation({
 })
 
 interface SettingsSectionContentProps {
+  readonly agentConfigStore: AgentConfigStore | undefined
   readonly section: SettingsSection
   readonly settings: AppSettings
   readonly controller: SettingsController
 }
 
-function SettingsSectionContent({ section, settings, controller }: SettingsSectionContentProps) {
+function SettingsSectionContent({
+  agentConfigStore,
+  section,
+  settings,
+  controller,
+}: SettingsSectionContentProps) {
   switch (section) {
     case 'general':
       return <GeneralSettings controller={controller} settings={settings} />
@@ -326,7 +343,7 @@ function SettingsSectionContent({ section, settings, controller }: SettingsSecti
       return <AppearanceSettings controller={controller} settings={settings} />
 
     case 'models':
-      return <ModelsSettings />
+      return <ModelsSettings store={agentConfigStore} />
 
     case 'keymap':
       return (
