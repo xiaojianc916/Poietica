@@ -209,21 +209,8 @@ pub async fn agent_prompt(
     // names it, because the interface is what the user is looking at; a
     // request naming none is a surface that has not opened one yet, which is
     // still the session's own conversation.
-    let thread_id = match request.thread_id.as_deref().map(Uuid::parse_str) {
-        Some(Ok(named)) => named,
-        _unnamed => session.thread_id,
-    };
-
-    // 对话持有的那条会话，才是这一轮该发去的地方。这个映射
-    // attach_session 早就写进库里了，只是从来没有人查过它，所以第二
-    // 条对话的提问全部发进了连接的第一条会话。
-    //
-    // 查不到的对话是这条连接自己的对话，仍然回落到它的会话上——那也
-    // 正是上面那个分支已经在说的话。
-    let addressed = store
-        .session_for_thread(thread_id)
-        .map_err(persistence)?
-        .unwrap_or_else(|| session.session_id.clone());
+    let thread_id = conversation_or(request.thread_id.as_deref(), session.thread_id);
+    let addressed = session_of(&store, thread_id, &session.session_id)?;
 
     let run_id = store.start_run(thread_id).map_err(persistence)?;
 
@@ -467,10 +454,20 @@ pub struct AgentConfigControl {
     pub choices: Vec<AgentConfigChoice>,
 }
 
+/// Which conversation's selectors are being read.
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConfigOptionsRequest {
+    /// The conversation asking, when the interface has opened one.
+    pub thread_id: Option<String>,
+}
+
 /// A change made in the interface.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSelectConfigRequest {
+    /// The conversation the change applies to.
+    pub thread_id: Option<String>,
     /// One of the selector identifiers the session reported.
     pub config_id: String,
     /// One of the values that selector offered.
@@ -491,6 +488,7 @@ pub struct AgentSelectConfigRequest {
 #[specta::specta]
 pub async fn agent_config_options(
     state: State<'_, AgentRuntime>,
+    request: AgentConfigOptionsRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     // A selector belongs to a session, so asking what is on offer is what
     // starts one. The alternative was to answer with nothing until the
@@ -502,10 +500,24 @@ pub async fn agent_config_options(
     // interface asks.
     let live = ensure_session(&state, None, None).await?;
 
-    let answer = live
-        .client
-        .selectors(live.session_id.clone())
-        .map_err(translate)?;
+    // 选择器属于会话，会话被对话持有。crate 侧每条会话已经各存一份，
+    // 但此前没有人说出要哪一条，于是读到的永远是连接第一条会话的那
+    // 一份：在第二条对话里看到的模型，是第一条选的。
+    //
+    // 锁在这一段之内借完就还。跨过下面的 await 会让这个 future 不是
+    // Send。
+    let addressed = {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
+
+        session_of(
+            &store,
+            conversation_or(request.thread_id.as_deref(), live.thread_id),
+            &live.session_id,
+        )?
+    };
+
+    let answer = live.client.selectors(addressed).map_err(translate)?;
     let offered = answer
         .await
         .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
@@ -533,9 +545,20 @@ pub async fn agent_set_config_option(
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
+    let addressed = {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
+
+        session_of(
+            &store,
+            conversation_or(request.thread_id.as_deref(), live.thread_id),
+            &live.session_id,
+        )?
+    };
+
     let answer = live
         .client
-        .select(live.session_id.clone(), request.config_id, request.value)
+        .select(addressed, request.config_id, request.value)
         .map_err(translate)?;
     let offered = answer
         .await
@@ -1084,6 +1107,31 @@ fn conversation(named: &str) -> Result<Uuid> {
     Uuid::parse_str(named).map_err(|_invalid| {
         Error::Validation("the conversation identifier is not a UUID".to_owned())
     })
+}
+
+/// The conversation a request names, or the one this connection is on.
+///
+/// A surface that has not opened a conversation yet names none, and that is
+/// not an error: it is the session's own conversation, which is what the
+/// user is looking at.
+fn conversation_or(named: Option<&str>, held: Uuid) -> Uuid {
+    match named.map(Uuid::parse_str) {
+        Some(Ok(id)) => id,
+        _unnamed => held,
+    }
+}
+
+/// The session a conversation is holding.
+///
+/// One rule for addressing, used by every command that has to reach a
+/// session: a conversation names its session, and attach_session is where
+/// that was written down. A conversation the log has never seen falls back
+/// to the session this connection is on.
+fn session_of(store: &AiStore, thread_id: Uuid, held: &str) -> Result<String> {
+    Ok(store
+        .session_for_thread(thread_id)
+        .map_err(persistence)?
+        .unwrap_or_else(|| held.to_owned()))
 }
 
 /// Renames a conversation.

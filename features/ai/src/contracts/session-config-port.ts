@@ -3,9 +3,10 @@ import type { SessionConfigControl } from './session-config-contract'
 /*
  * Where the selectors come from, as far as this feature is concerned.
  *
- * A selector belongs to a session rather than to a file, so this is not
- * part of the model port and not part of the session port either: it is
- * neither a turn nor a configuration file. Selecting answers with the whole
+ * A selector belongs to a session, a session is held by a conversation,
+ * and so every call names the conversation it is for. This is not part of
+ * the model port and not part of the session port either: it is neither a
+ * turn nor a configuration file. Selecting answers with the whole
  * list because the agent decides what the list looks like afterwards, and it
  * may refuse, rename, or withdraw a selector in the same breath.
  *
@@ -14,6 +15,10 @@ import type { SessionConfigControl } from './session-config-contract'
  */
 
 export interface SessionConfigPort {
-  readonly list: () => Promise<readonly SessionConfigControl[]>
-  readonly select: (configId: string, value: string) => Promise<readonly SessionConfigControl[]>
+  readonly list: (threadId: string | null) => Promise<readonly SessionConfigControl[]>
+  readonly select: (
+    threadId: string | null,
+    configId: string,
+    value: string,
+  ) => Promise<readonly SessionConfigControl[]>
 }

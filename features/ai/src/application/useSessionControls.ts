@@ -39,8 +39,15 @@ export interface SessionControlSelection {
 
 export function useSessionControls(
   config?: SessionConfigPort,
-  /** 屏幕上的这场对话。换一场就是换一个会话，也就换一套选择器。 */
-  sessionGeneration?: string | number,
+  /**
+   * 屏幕上的这场对话。
+   *
+   * 它既是重读的理由，也是问句本身。此前这里叫 sessionGeneration，
+   * 注释写着它是对话，代码里却只 void 一下当变化标记用，真正问出去
+   * 的是一句没有主语的话——于是无论屏幕上是哪一条，答的都是连接第
+   * 一条会话的那一份。
+   */
+  threadId?: string | null,
 ): SessionControlSelection {
   const [controls, setControls] = useState<readonly SessionConfigControl[]>(NONE)
   const [failure, setFailure] = useState<string | undefined>(undefined)
@@ -53,12 +60,11 @@ export function useSessionControls(
 
     let cancelled = false
 
-    /* 两者都是重读的理由，在这里被读到，于是它们是本效应的依赖。 */
-    void sessionGeneration
+    /* 重试是重读的理由，但它不进入问句，所以只在这里被读到。 */
     void attempt
 
     config
-      .list()
+      .list(threadId ?? null)
       .then((next) => {
         if (!cancelled) {
           setControls(next)
@@ -75,7 +81,7 @@ export function useSessionControls(
     return () => {
       cancelled = true
     }
-  }, [attempt, config, sessionGeneration])
+  }, [attempt, config, threadId])
 
   const retry = useCallback(() => {
     setFailure(undefined)
@@ -87,7 +93,7 @@ export function useSessionControls(
       setFailure(undefined)
 
       config
-        ?.select(controlId, value)
+        ?.select(threadId ?? null, controlId, value)
         .then((next) => {
           setControls(next)
         })
@@ -95,7 +101,7 @@ export function useSessionControls(
           setFailure(describe(cause))
         })
     },
-    [config],
+    [config, threadId],
   )
 
   return { controls, failure, retry, select }

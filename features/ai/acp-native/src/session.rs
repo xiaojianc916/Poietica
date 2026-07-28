@@ -706,8 +706,18 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                     }));
                                     pending = in_flight;
                                 }
-                                Some(Command::Selectors { reply }) => {
-                                    let _ignored = reply.send(Ok(selectors.clone()));
+                                // 读一份列表不需要向 agent 发请求，所以一
+                                // 轮进行中照样答得出来。但答的必须是被问到的
+                                // 那条会话的那一份，而不是这条连接的第一条。
+                                Some(Command::Selectors { session_id, reply }) => {
+                                    let answer = match sessions.get(&session_id) {
+                                        Some((_named, offered)) => Ok(offered.clone()),
+                                        None => Err(AcpError::Protocol {
+                                            message: UNKNOWN.to_owned(),
+                                        }),
+                                    };
+
+                                    let _ignored = reply.send(answer);
                                     pending = in_flight;
                                 }
                                 // Changing a selector takes a request of

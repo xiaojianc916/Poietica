@@ -234,8 +234,9 @@ export interface AgentConfigControlDescription {
 }
 
 export interface AgentConfigBridge {
-  readonly list: () => Promise<readonly AgentConfigControlDescription[]>
+  readonly list: (threadId: string | null) => Promise<readonly AgentConfigControlDescription[]>
   readonly select: (
+    threadId: string | null,
     configId: string,
     value: string,
   ) => Promise<readonly AgentConfigControlDescription[]>
@@ -304,14 +305,14 @@ function controlOf(native: NativeControl): AgentConfigControlDescription {
 
 export function createAgentConfigBridge(): AgentConfigBridge {
   return {
-    list: async () => {
-      const offered = await call(() => commands.agentConfigOptions())
+    list: async (threadId) => {
+      const offered = await call(() => commands.agentConfigOptions({ threadId }))
 
       return offered.map(controlOf)
     },
 
-    select: async (configId, value) => {
-      const offered = await call(() => commands.agentSetConfigOption({ configId, value }))
+    select: async (threadId, configId, value) => {
+      const offered = await call(() => commands.agentSetConfigOption({ threadId, configId, value }))
 
       return offered.map(controlOf)
     },

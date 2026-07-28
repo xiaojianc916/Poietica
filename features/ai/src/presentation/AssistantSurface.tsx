@@ -96,12 +96,13 @@ export function AssistantSurface({
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
   /*
-   * 选择器属于会话，会话属于对话，所以重读的理由是换了对话。
+   * 选择器属于会话，会话属于这一格代表的那条对话，所以它既是重读的
+   * 理由，也是问出去的那句话的主语。
    *
-   * 此前这里传的是回合状态，而它一轮要变三次，于是读一次列表 ——
-   * 也就是 ensure_session —— 会在回答进行中被反复触发。
+   * 此前它只是个「变了就重读」的标记，问句本身没有主语：在第二条对
+   * 话里换模型，换的是第一条的。
    */
-  const controls = useSessionControls(config, endpoint ?? undefined)
+  const controls = useSessionControls(config, endpoint)
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
