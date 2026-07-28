@@ -471,6 +471,15 @@
   padding-inline-start: var(--assistant-threads-row-lead);
 }
 
+/* 读完之后才成立的一句话，说得和段标题一样轻。 */
+.assistant-threads__empty {
+  margin: 0;
+  padding-block: var(--cp-optical);
+  padding-inline-start: var(--assistant-threads-row-lead);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
 .assistant-threads__create {
   display: grid;
   block-size: var(--assistant-threads-action-size);
@@ -517,7 +526,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  padding-inline: 0;
   margin-inline: 0;
 }
 
@@ -527,7 +535,6 @@
   block-size: var(--cp-control);
   align-items: center;
   border-radius: 6px;
-  padding-inline: 0;
   gap: 8px;
   min-block-size: var(--ui-control-height-sm);
   padding-inline-start: var(--assistant-threads-row-lead);
@@ -560,7 +567,6 @@
   padding: 0;
   background: transparent;
   cursor: pointer;
-  padding-inline: 0;
   margin-inline: 0;
   font-size: inherit;
 }
@@ -570,7 +576,6 @@
   inline-size: var(--assistant-threads-icon-size);
   flex: none;
   color: var(--cp-ink-muted);
-  flex-shrink: 0;
 }
 
 .assistant-thread__title {
@@ -595,7 +600,7 @@
   flex: none;
   align-items: center;
   justify-items: end;
-  margin-inline-start: var(--cp-pad-mid);
+  margin-inline-start: auto;
 }
 
 .assistant-thread__trail > * {
@@ -1081,11 +1086,13 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  position: static;
 }
 
 [data-assistant-skin] .assistant-thread__time {
   opacity: 1;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+  visibility: visible;
 }
 
 /* 一条条件，两个互斥的结果。 */
@@ -1102,6 +1109,7 @@
 [data-assistant-skin] .assistant-thread:has([aria-expanded="true"]) .assistant-thread__time,
 [data-assistant-skin] .assistant-thread:has([data-state="open"]) .assistant-thread__time {
   opacity: 0;
+  visibility: hidden;
 }
 
 .assistant-thread-menu[data-assistant-skin][data-state="open"] {
@@ -1170,12 +1178,12 @@
   block-size: calc(var(--ui-control-height-sm) - 8px);
   border: 0;
   border-radius: 4px;
-  padding: 0 2px;
-  background: var(--cp-surface);
+  padding: 0;
+  background: transparent;
   font: inherit;
   font-size: var(--cp-font-caption);
-  color: var(--cp-ink);
-  outline: 1px solid var(--am-line);
+  color: inherit;
+  outline: none;
 }
 
 /* 正在改名的行不谈别的事。 */
@@ -1188,75 +1196,8 @@
   opacity: 0;
 }
 
-/*
- * 会话行的尾部只有一个格子（trail slot v2）。
- *
- * 时间与操作叠在同一个网格单元上，共用同一个显示判定，所以不可能同时
- * 出现；单元宽度取两者中较大的一个，图标出现时标题不会被挤动。
- */
-.assistant-thread__trail {
-  display: grid;
-  align-items: center;
-  justify-items: end;
-  margin-inline-start: auto;
-}
-
-.assistant-thread__trail > * {
-  grid-area: 1 / 1;
-}
-
-[data-assistant-skin] .assistant-thread__time {
-  visibility: visible;
-  opacity: 1;
-  transition: opacity 120ms ease;
-}
-
-[data-assistant-skin] .assistant-thread__actions {
-  position: static;
-  display: flex;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
-}
-
-.assistant-thread:hover .assistant-thread__actions,
-.assistant-thread:focus-within .assistant-thread__actions,
-.assistant-thread:has([aria-expanded="true"]) .assistant-thread__actions,
-.assistant-thread:has([data-state="open"]) .assistant-thread__actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.assistant-thread:hover .assistant-thread__time,
-.assistant-thread:focus-within .assistant-thread__time,
-.assistant-thread:has([aria-expanded="true"]) .assistant-thread__time,
-.assistant-thread:has([data-state="open"]) .assistant-thread__time {
-  visibility: hidden;
-  opacity: 0;
-}
-
 .assistant-thread[data-placeholder="true"] .assistant-thread__trail {
   display: none;
-}
-
-/* 行内重命名：输入框顶替标题的位置，行高与内边距都不变。 */
-.assistant-thread__rename {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  min-inline-size: 0;
-}
-
-.assistant-thread__rename-field {
-  flex: 1;
-  min-inline-size: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  outline: none;
 }
 
 /*
