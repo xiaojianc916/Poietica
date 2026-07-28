@@ -99,6 +99,19 @@ const permissionOptionSchema = v.object({
   kind: v.picklist(['allow_once', 'allow_always', 'reject_once', 'reject_always']),
 })
 
+/* The operation being asked about, in the same flat shape as a tool call
+   update, so its members are validated by the very same schemas rather than by
+   a second description of the protocol that would drift from the first. */
+const permissionToolCallSchema = v.object({
+  toolCallId: v.string(),
+  title: v.optional(v.string()),
+  kind: v.optional(toolKindSchema),
+  status: v.optional(toolCallStatusSchema),
+  content: v.optional(v.array(toolCallContentSchema)),
+  locations: v.optional(v.array(locationSchema)),
+  rawInput: v.optional(v.unknown()),
+})
+
 export const runEventSchema = v.variant('kind', [
   v.object({
     kind: v.literal('run_started'),
@@ -120,6 +133,7 @@ export const runEventSchema = v.variant('kind', [
     requestId: v.string(),
     toolCallId: v.optional(v.string()),
     title: v.string(),
+    toolCall: v.optional(permissionToolCallSchema),
     options: v.array(permissionOptionSchema),
   }),
   v.object({

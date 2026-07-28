@@ -322,12 +322,21 @@ impl Recorder {
         let mut options = serde_json::to_value(&request.options)?;
         prune_nulls(&mut options);
 
+        // The operation itself, which the interface has to show before anyone
+        // can consent to it. The protocol sends it as an ordinary tool call
+        // update, so it is forwarded in exactly that shape and validated at the
+        // boundary by the schema that already reads those frames. Dropping it
+        // is what left the user approving a verb.
+        let mut tool_call = serde_json::to_value(&request.tool_call)?;
+        prune_nulls(&mut tool_call);
+
         self.append(
             PERMISSION_REQUESTED,
             json!({
                 "requestId": request_id,
                 "toolCallId": tool_call_id,
                 "title": self.permission_title(request, tool_call_id),
+                "toolCall": tool_call,
                 "options": options,
             }),
         )

@@ -144,6 +144,9 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
             at: event.at,
             requestId: event.requestId,
             title: event.title,
+            /* 缺席和"值为 undefined"在 exactOptionalPropertyTypes 下不是一回事，
+               所以没带就整个键不写。 */
+            ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
             options: event.options,
           },
         ],

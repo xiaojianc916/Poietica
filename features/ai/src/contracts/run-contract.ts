@@ -1,4 +1,13 @@
-import type { AcpSessionId, AcpSessionNotification, AcpStopReason } from './acp-session-contract'
+import type {
+  AcpSessionId,
+  AcpSessionNotification,
+  AcpStopReason,
+  AcpToolCallContent,
+  AcpToolCallId,
+  AcpToolCallLocation,
+  AcpToolCallStatus,
+  AcpToolKind,
+} from './acp-session-contract'
 
 export type ThreadId = string
 export type RunId = string
@@ -15,6 +24,26 @@ export interface PermissionOption {
   readonly optionId: string
   readonly name: string
   readonly kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always'
+}
+
+/**
+ * The operation consent is being asked for.
+ *
+ * The agent sends the whole tool call alongside the request, in the same flat
+ * shape a tool_call_update carries, because a prompt naming only the verb is
+ * not a question anyone can answer: Write, to which file, replacing what.
+ *
+ * Optional because a run recorded before this field was carried across still
+ * has to replay, not because the agent may omit it.
+ */
+export interface PermissionToolCall {
+  readonly toolCallId: AcpToolCallId
+  readonly title?: string
+  readonly kind?: AcpToolKind
+  readonly status?: AcpToolCallStatus
+  readonly content?: readonly AcpToolCallContent[]
+  readonly locations?: readonly AcpToolCallLocation[]
+  readonly rawInput?: unknown
 }
 
 /**
@@ -52,6 +81,7 @@ export type RunEvent =
       readonly requestId: string
       readonly toolCallId?: string
       readonly title: string
+      readonly toolCall?: PermissionToolCall
       readonly options: readonly PermissionOption[]
     }
   | {

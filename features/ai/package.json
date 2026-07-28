@@ -36,6 +36,7 @@
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
     "@tanstack/react-virtual": "catalog:",
+    "diff": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:",

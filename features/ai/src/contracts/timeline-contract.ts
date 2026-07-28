@@ -6,7 +6,7 @@ import type {
   AcpToolCallStatus,
   AcpToolKind,
 } from './acp-session-contract'
-import type { PermissionOption, RunId, RunStatus } from './run-contract'
+import type { PermissionOption, PermissionToolCall, RunId, RunStatus } from './run-contract'
 
 /**
  * The timeline projection.
@@ -71,6 +71,7 @@ export interface PermissionItem {
   readonly at: number
   readonly requestId: string
   readonly title: string
+  readonly toolCall?: PermissionToolCall
   readonly options: readonly PermissionOption[]
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }

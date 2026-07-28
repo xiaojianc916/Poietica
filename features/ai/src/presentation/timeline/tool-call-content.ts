@@ -1,3 +1,5 @@
+import { diffLines } from 'diff'
+
 import type { AcpToolCallContent } from '../../contracts/acp-session-contract'
 
 /**
@@ -69,4 +71,46 @@ export function toToolContentParts(
   }
 
   return parts
+}
+
+export interface DiffStat {
+  readonly added: number
+  readonly removed: number
+}
+
+/**
+ * 这次调用改了多少行。
+ *
+ * 只有真的带了 diff 才有答案：读文件、搜索、跑终端都不是改动，给它们挂一个
+ * +0 −0 的徽章是在制造噪音。协议给的是改动前后的整份文本，所以行级增删是一次
+ * 真实比对的结果，不是拿行数相减估出来的 —— 那会把"改了一行"读成"没动过"。
+ *
+ * 比对交给 jsdiff：Myers 差分是有标准答案的问题，手写一份只会多一份要维护的
+ * 边界情况。新建文件没有前一版，整份文本都是新增。
+ */
+export function toDiffStat(parts: readonly ToolContentPart[]): DiffStat | null {
+  let added = 0
+  let removed = 0
+  let sawDiff = false
+
+  for (const part of parts) {
+    if (part.type !== 'diff') {
+      continue
+    }
+
+    sawDiff = true
+
+    for (const change of diffLines(part.oldText ?? '', part.newText)) {
+      if (change.added === true) {
+        added += change.count ?? 0
+        continue
+      }
+
+      if (change.removed === true) {
+        removed += change.count ?? 0
+      }
+    }
+  }
+
+  return sawDiff ? { added, removed } : null
 }

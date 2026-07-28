@@ -39,6 +39,9 @@ catalogs:
     '@vitejs/plugin-react':
       specifier: 6.0.3
       version: 6.0.3
+    diff:
+      specifier: 8.0.2
+      version: 8.0.2
     motion:
       specifier: 12.42.2
       version: 12.42.2
@@ -306,6 +309,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: 'catalog:'
         version: 3.13.12(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      diff:
+        specifier: 'catalog:'
+        version: 8.0.2
       motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2546,6 +2552,10 @@ packages:
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
+
+  diff@8.0.2:
+    resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
+    engines: {node: '>=0.3.1'}
 
   dompurify@3.4.12:
     resolution: {integrity: sha512-zQvGet8Z2sWbQhCmfFz/T5QWH2oBmjnqK3qvOjaqaNLrLEF912WamU+ohnTp0TCep/MFVHpdJuCZEdFOdTnEFg==}
@@ -5621,6 +5631,8 @@ snapshots:
   devlop@1.1.0:
     dependencies:
       dequal: 2.0.3
+
+  diff@8.0.2: {}
 
   dompurify@3.4.12:
     optionalDependencies:

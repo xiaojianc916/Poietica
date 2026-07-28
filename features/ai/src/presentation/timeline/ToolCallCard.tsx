@@ -9,7 +9,7 @@ import {
   SpinnerIcon,
   ToolsIcon,
 } from '../primitives/icons'
-import { toToolContentParts } from './tool-call-content'
+import { toDiffStat, toToolContentParts } from './tool-call-content'
 
 const STATUS_LABELS: Record<ToolCallTimelineItem['status'], string> = {
   completed: '已完成',
@@ -55,6 +55,7 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
 export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
   const { isOpen, toggle } = useDisclosure(item.status === 'failed')
   const parts = toToolContentParts(item.content)
+  const diffStat = toDiffStat(parts)
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
   return (
@@ -72,6 +73,17 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
         <ToolKindIcon kind={item.kind} />
 
         <span className="timeline-tool__title">{item.title}</span>
+
+        {diffStat === null || diffStat.added + diffStat.removed === 0 ? null : (
+          <span className="timeline-tool__diffstat">
+            {diffStat.added > 0 ? (
+              <span className="timeline-tool__diffstat-added">+{diffStat.added}</span>
+            ) : null}
+            {diffStat.removed > 0 ? (
+              <span className="timeline-tool__diffstat-removed">-{diffStat.removed}</span>
+            ) : null}
+          </span>
+        )}
 
         {isRunning ? <SpinnerIcon aria-hidden="true" className="timeline-tool__spinner" /> : null}
 

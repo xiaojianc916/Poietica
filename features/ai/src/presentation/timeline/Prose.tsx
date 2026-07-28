@@ -30,10 +30,16 @@ const ANIMATION: AnimateOptions = {
 }
 
 /*
- * Copying a snippet is an action; saving it as file.txt is not. Declared here
- * rather than hidden in CSS, so the button is never rendered in the first place.
+ * Copying a snippet is an action; saving it as file.txt is not.
+ *
+ * Every group is named, including the ones being declined. An unnamed group is
+ * not off: shouldShowTableControl reads an absent `table` as true, which is why
+ * the table arrived carrying three buttons nobody chose.
  */
-const CONTROLS: ControlsConfig = { code: { copy: true, download: false } }
+const CONTROLS: ControlsConfig = {
+  code: { copy: true, download: false },
+  table: { copy: true, download: false, fullscreen: true },
+}
 
 export interface ProseProps {
   readonly text: string
@@ -59,6 +65,10 @@ export interface ProseProps {
  * Line numbers and the download control are turned off through the props that
  * govern them. Overriding rendered output from a stylesheet works until the
  * markup moves; declining to render it does not.
+ *
+ * A sealed entry is told so as well. Streaming mode exists to survive text that
+ * is still arriving — block splitting, repair, a deferred transition — and none
+ * of that is work a finished message needs done to it again on every render.
  */
 export function Prose({ className, isStreaming, text }: ProseProps) {
   return (
@@ -71,6 +81,7 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
+        mode={isStreaming ? 'streaming' : 'static'}
         parseIncompleteMarkdown={isStreaming}
         plugins={PLUGINS}
       >

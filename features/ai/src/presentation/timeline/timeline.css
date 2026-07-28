@@ -661,3 +661,106 @@
   grid-template-rows: 1fr;
   opacity: 1;
 }
+
+/* ── 表格 ───────────────────────────────────────────────────────────
+ *
+ * 上游把表格包成两层框：外层 rounded-lg border bg-sidebar p-2，里层滚动盒
+ * rounded-md border bg-background（lib/table/index.tsx）。正文里因此出现一个
+ * 卡中卡，和同一条流里的代码块根本不是一种语言。这里让外层退成纯定位容器，
+ * 边框只保留一层，标题栏由表头自己充当。
+ */
+
+.timeline-prose [data-streamdown="table-wrapper"] {
+  position: relative;
+  display: block;
+  margin-block: var(--cp-prose-flow) 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--cp-card-line, rgb(0 0 0 / 8%));
+  border-radius: var(--cp-timeline-radius, 0.5rem);
+  background: transparent;
+}
+
+/*
+ * 控件不再独占一行，它坐在表头带的右端 —— 和代码块 actions 同一套做法。
+ * 用结构选中而不是"里面有没有 table"：全屏按钮持有同一批子节点，按内容判定会
+ * 认错人。有控件时结构是 [控件, 滚动盒]，没有时只剩滚动盒。
+ */
+.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0;
+  inset-inline-end: 0.25rem;
+  min-block-size: var(--cp-table-head, 2.25rem);
+}
+
+/* 滚动盒交出边框，只留滚动。 */
+.timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.timeline-prose [data-streamdown="table"] {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.timeline-prose [data-streamdown="table-header"] {
+  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
+}
+
+.timeline-prose [data-streamdown="table-header-cell"] {
+  padding: 0.5rem 0.75rem;
+  font-size: inherit;
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.timeline-prose [data-streamdown="table-cell"] {
+  padding: 0.5rem 0.75rem;
+  font-size: inherit;
+  vertical-align: top;
+}
+
+/* 表头与正文之间、行与行之间各一根发丝线；末行不留。 */
+.timeline-prose [data-streamdown="table-header"] + [data-streamdown="table-body"],
+.timeline-prose
+  [data-streamdown="table-body"]
+  [data-streamdown="table-row"]
+  + [data-streamdown="table-row"] {
+  border-block-start: 1px solid var(--cp-hairline, rgb(0 0 0 / 6%));
+}
+
+/* 只有真的有控件时，最后一格才让位。 */
+.timeline-prose
+  [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2))
+  [data-streamdown="table-header-cell"]:last-child {
+  padding-inline-end: 4.5rem;
+}
+
+/* ── 改动规模 ───────────────────────────────────────────────────────
+ *
+ * 只有带 diff 的调用才有这一对数字，所以它是标题旁的一处事实，而不是每张卡片
+ * 都要预留的一个槽位。等宽且表格数字对齐：连续几次编辑读下来是一列，不是一堆。
+ */
+
+.timeline-tool__diffstat {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.375rem;
+  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timeline-tool__diffstat-added {
+  color: var(--cp-diff-added-text, #1c8c50);
+}
+
+.timeline-tool__diffstat-removed {
+  color: var(--cp-diff-removed-text, #b42318);
+}
