@@ -1,7 +1,9 @@
-// poietica:proximity-fisheye@v4
+// poietica:proximity-fisheye@v5
 // Proximity-based fisheye ("Dock magnification") for the conversation minimap.
 //
 // Design notes:
+//  - Items and their measured centres live in a single node array. Parallel
+//    arrays would desync silently and trip noUncheckedIndexedAccess.
 //  - Distance uses the padded rect SDF, not the element centre.
 //  - The ramp is anchored to a measured layout edge (the conversation card),
 //    so it always starts at the card border instead of a hardcoded pixel value.
@@ -9,8 +11,7 @@
 //  - Per-item weight is a Gaussian of the vertical pointer distance.
 //  - The rAF loop writes CSS custom properties; React never re-renders on move.
 //  - Options are serialized into the dependency list, so the effect re-runs
-//    exactly when their values change — and never when a caller merely passes a
-//    fresh object literal with identical contents. Options must be JSON-safe.
+//    exactly when their values change. Options must be JSON-safe.
 //  - Disabled for coarse pointers and prefers-reduced-motion.
 
 import { type RefObject, useEffect } from 'react'
@@ -22,6 +23,11 @@ import {
   PROXIMITY_FISHEYE_DEFAULTS,
   type ProximityFisheyeOptions,
 } from './proximity-fisheye.constants'
+
+type FisheyeNode = {
+  element: HTMLElement
+  center: number
+}
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) {
@@ -66,8 +72,7 @@ export function useProximityFisheye(
 
     root.setAttribute(PFE_ROOT_ATTR, '')
 
-    let items: HTMLElement[] = []
-    let centers: number[] = []
+    let nodes: FisheyeNode[] = []
     let sigma = 1
     let rect = root.getBoundingClientRect()
     let enterDistance = opts.enterDistance
@@ -100,13 +105,17 @@ export function useProximityFisheye(
 
     const measure = (): void => {
       rect = root.getBoundingClientRect()
-      items = Array.from(root.querySelectorAll<HTMLElement>(PFE_ITEM_SELECTOR))
-      centers = items.map((element) => {
+      const elements = Array.from(root.querySelectorAll<HTMLElement>(PFE_ITEM_SELECTOR))
+      nodes = elements.map((element) => {
         const bounds = element.getBoundingClientRect()
-        return bounds.top + bounds.height / 2
+        return { element, center: bounds.top + bounds.height / 2 }
       })
-      const span = centers.length > 1 ? centers[centers.length - 1] - centers[0] : 0
-      const pitch = centers.length > 1 ? span / (centers.length - 1) : Math.max(rect.height, 1)
+      const first = nodes.at(0)
+      const last = nodes.at(-1)
+      const pitch =
+        first && last && nodes.length > 1
+          ? (last.center - first.center) / (nodes.length - 1)
+          : Math.max(rect.height, 1)
       sigma = Math.max(pitch * opts.falloffItems, 1)
       measureAnchor()
     }
@@ -127,12 +136,12 @@ export function useProximityFisheye(
     }
 
     const paint = (): void => {
-      items.forEach((element, index) => {
-        const dy = pointerY - centers[index]
+      nodes.forEach((node) => {
+        const dy = pointerY - node.center
         const gauss = Math.exp(-(dy * dy) / (2 * sigma * sigma))
         const value = gauss * activation
         const weight = value < opts.epsilon ? 0 : value
-        element.style.setProperty(PFE_WEIGHT_VAR, weight.toFixed(4))
+        node.element.style.setProperty(PFE_WEIGHT_VAR, weight.toFixed(4))
       })
       if (activation > opts.epsilon) {
         root.setAttribute(PFE_ACTIVE_ATTR, '')
@@ -205,8 +214,8 @@ export function useProximityFisheye(
       window.removeEventListener('scroll', measure, true)
       window.removeEventListener('blur', onPointerOut)
       document.removeEventListener('pointerleave', onPointerOut)
-      items.forEach((element) => {
-        element.style.removeProperty(PFE_WEIGHT_VAR)
+      nodes.forEach((node) => {
+        node.element.style.removeProperty(PFE_WEIGHT_VAR)
       })
       root.removeAttribute(PFE_ACTIVE_ATTR)
       root.removeAttribute(PFE_ROOT_ATTR)
