@@ -368,7 +368,7 @@ export function installScrollbarActivity(): () => void {
 
       const onRelease = (): void => {
         bar.dragging = false
-        delete element.dataset['dragging']
+        element.removeAttribute('data-dragging')
         element.removeEventListener('pointermove', onMove)
         element.removeEventListener('pointerup', onRelease)
         element.removeEventListener('pointercancel', onRelease)

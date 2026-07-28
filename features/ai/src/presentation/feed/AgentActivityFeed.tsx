@@ -182,7 +182,7 @@ export function AgentActivityFeed({
                 data-type={row.item.type}
                 key={item.key}
                 ref={virtualizer.measureElement}
-                style={{ transform: 'translateY(' + String(item.start - scrollMargin) + 'px)' }}
+                style={{ transform: `translateY(${String(item.start - scrollMargin)}px)` }}
               >
                 {renderRow(row)}
               </div>

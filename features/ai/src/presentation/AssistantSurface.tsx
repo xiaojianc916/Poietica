@@ -143,7 +143,23 @@ export function AssistantSurface({
                 onCancel={assistant.cancel}
                 onRetryControls={controls.retry}
                 onSelectControl={controls.select}
-                onSubmit={assistant.send}
+                onSubmit={(input) => {
+                  /*
+                   * 一条对话的名字来自它的第一句话，而名单不归这个界面所有，
+                   * 所以先报出去，再送出去：侧栏那一行在请求发出之前就在了。
+                   *
+                   * 此前这个回调被声明、被写了文档、被解构，却一次都没有被
+                   * 调用——链路最后一米是断的，上游接得再对也不会有反应，而
+                   * 可选链让这件事既不报错也不失败，只是安静地什么都不发生。
+                   */
+                  const said = input.text.trim()
+
+                  if (said.length > 0) {
+                    onUserMessage?.(said)
+                  }
+
+                  assistant.send(input)
+                }}
                 status={assistant.status}
               />
             </div>

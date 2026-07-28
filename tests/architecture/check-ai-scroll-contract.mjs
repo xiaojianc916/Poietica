@@ -31,7 +31,7 @@ const failures = []
 function locate(name, fromDirectory) {
   try {
     const resolver = createRequire(path.join(fromDirectory, 'package.json'))
-    return path.dirname(resolver.resolve(name + '/package.json'))
+    return path.dirname(resolver.resolve(`${name}/package.json`))
   } catch {
     return null
   }
@@ -109,7 +109,7 @@ for (const filePath of await walk(aiSource)) {
   const source = await readFile(filePath, 'utf8')
 
   if (/\.scrollTop\s*[+-]?=/.test(source)) {
-    failures.push(relativePath + ': 滚动位置归虚拟器所有，产品代码不得赋值')
+    failures.push(`${relativePath}: 滚动位置归虚拟器所有，产品代码不得赋值`)
   }
 }
 
@@ -118,7 +118,7 @@ if (failures.length > 0) {
   console.error('AI scroll contract violations:')
   console.error('')
   for (const failure of failures) {
-    console.error('- ' + failure)
+    console.error(`- ${failure}`)
   }
   console.error('')
   process.exitCode = 1

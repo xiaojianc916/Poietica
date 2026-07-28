@@ -16,8 +16,8 @@
       "default": "./src/application/public-api.ts"
     },
     "./contracts": {
-      "types": "./src/contracts-entry.ts",
-      "default": "./src/contracts-entry.ts"
+      "types": "./src/contracts/public-api.ts",
+      "default": "./src/contracts/public-api.ts"
     },
     "./react": {
       "types": "./src/presentation/public-api.ts",
