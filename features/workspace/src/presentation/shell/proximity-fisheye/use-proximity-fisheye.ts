@@ -1,4 +1,4 @@
-// poietica:proximity-fisheye@v3
+// poietica:proximity-fisheye@v4
 // Proximity-based fisheye ("Dock magnification") for the conversation minimap.
 //
 // Design notes:
@@ -8,9 +8,12 @@
 //  - Enter and exit thresholds differ (hysteresis) to kill boundary flicker.
 //  - Per-item weight is a Gaussian of the vertical pointer distance.
 //  - The rAF loop writes CSS custom properties; React never re-renders on move.
+//  - Options are serialized into the dependency list, so the effect re-runs
+//    exactly when their values change — and never when a caller merely passes a
+//    fresh object literal with identical contents. Options must be JSON-safe.
 //  - Disabled for coarse pointers and prefers-reduced-motion.
 
-import { type RefObject, useEffect, useRef } from 'react'
+import { type RefObject, useEffect } from 'react'
 import {
   PFE_ACTIVE_ATTR,
   PFE_ITEM_SELECTOR,
@@ -34,8 +37,6 @@ export function useProximityFisheye(
   rootRef: RefObject<HTMLElement | null>,
   overrides: Partial<ProximityFisheyeOptions> = {},
 ): void {
-  const overridesRef = useRef(overrides)
-  overridesRef.current = overrides
   const optionsKey = JSON.stringify(overrides)
 
   useEffect(() => {
@@ -50,7 +51,7 @@ export function useProximityFisheye(
       return
     }
 
-    const raw = overridesRef.current
+    const raw = JSON.parse(optionsKey) as Partial<ProximityFisheyeOptions>
     const opts: ProximityFisheyeOptions = {
       ...PROXIMITY_FISHEYE_DEFAULTS,
       ...raw,
