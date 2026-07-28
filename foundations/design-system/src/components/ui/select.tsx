@@ -6,6 +6,7 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
+  useEffect,
   useState,
 } from 'react'
 import { cn } from '../../lib/utils'
@@ -19,8 +20,11 @@ interface SelectContextValue {
   readonly data: readonly SelectOption[]
   readonly type: string
   readonly value: string
+  /** 触发器宽度。仅作为弹出层的宽度下限，不是弹出层宽度。 */
   readonly width: number
   readonly setWidth: (width: number) => void
+  readonly size: SelectTriggerSize
+  readonly setSize: (size: SelectTriggerSize) => void
 }
 
 const SelectContext = createContext<SelectContextValue | null>(null)
@@ -66,6 +70,8 @@ export function Select({
   onOpenChange,
 }: SelectProps) {
   const [width, setWidth] = useState(200)
+  /* 触发器与选项行必须同档，尺寸只有 SelectTrigger 的 size 一个来源。 */
+  const [size, setSize] = useState<SelectTriggerSize>('md')
 
   return (
     <SelectContext.Provider
@@ -75,6 +81,8 @@ export function Select({
         value,
         width,
         setWidth,
+        size,
+        setSize,
       }}
     >
       <BaseSelect.Root<string>
@@ -97,29 +105,72 @@ export function Select({
   )
 }
 
-export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trigger>
+export type SelectTriggerSize = 'sm' | 'md'
+
+export type SelectTriggerTone = 'outline' | 'plain'
+
+export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trigger> & {
+  /** sm 用于设置页这类密集列表，md 为默认尺寸。 */
+  readonly size?: SelectTriggerSize
+  /** plain 去掉边框与阴影，背景透明因此与所在卡片同色。 */
+  readonly tone?: SelectTriggerTone
+}
+
+/*
+ * 高度、内距、字号与图标尺寸必须一起换档，否则文字会顶到箭头上。
+ * 尺寸只有这几张表，使用方通过 size / tone 选择，不通过样式覆盖。
+ */
+const TRIGGER_SIZE: Record<SelectTriggerSize, string> = {
+  sm: 'h-[26px] gap-1 px-2 text-xs',
+  md: 'h-[var(--ui-control-height-lg)] gap-2 px-3 text-sm',
+}
+
+const TRIGGER_TONE: Record<SelectTriggerTone, string> = {
+  outline:
+    'w-full rounded-md border border-input bg-background shadow-sm hover:bg-muted/40 data-[popup-open]:border-ring',
+  plain:
+    'w-auto max-w-full rounded-lg border-0 bg-transparent shadow-none hover:bg-accent data-[popup-open]:bg-accent',
+}
+
+const TRIGGER_ICON: Record<SelectTriggerSize, string> = {
+  sm: 'size-3.5',
+  md: 'size-4',
+}
+
+/*
+ * 弹出层宽度自适应内容，触发器宽度只是下限。
+ *
+ * 把触发器宽度当作固定宽度会在触发器变窄（w-auto）时把选项文字压没，
+ * 因为选项内部还有内距、间距和右侧的勾选图标。
+ */
+const POPUP_MIN_INLINE_SIZE = 168
+const POPUP_MAX_INLINE_SIZE = 320
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
-  function SelectTrigger({ children, className, ...props }, forwardedRef) {
-    const { data, type, value, setWidth } = useSelectContext()
+  function SelectTrigger(
+    { children, className, size = 'md', tone = 'outline', ...props },
+    forwardedRef,
+  ) {
+    const { data, type, value, setWidth, setSize } = useSelectContext()
     const selectedItem = data.find((item) => item.value === value)
+
+    useEffect(() => {
+      setSize(size)
+    }, [size, setSize])
 
     return (
       <BaseSelect.Trigger
         className={cn(
-          'flex h-[var(--ui-control-height-lg)] w-full',
-          'items-center justify-between gap-2',
-          'rounded-md border border-input',
-          'bg-background px-3',
-          'text-left text-sm text-foreground',
-          'shadow-sm outline-none',
+          'flex items-center justify-between',
+          'text-left text-foreground',
+          'outline-none',
           'transition-[border-color,box-shadow,background-color]',
-          'hover:bg-muted/40',
           'focus-visible:ring-2',
           'focus-visible:ring-ring',
-          'data-[popup-open]:border-ring',
           'disabled:cursor-not-allowed',
           'disabled:opacity-50',
+          TRIGGER_SIZE[size],
+          TRIGGER_TONE[tone],
           className,
         )}
         ref={(element) => {
@@ -145,7 +196,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
             <BaseSelect.Icon>
               <ChevronsUpDown
                 aria-hidden="true"
-                className={cn('size-4 shrink-0', 'text-muted-foreground')}
+                className={cn(TRIGGER_ICON[size], 'shrink-0', 'text-muted-foreground')}
               />
             </BaseSelect.Icon>
           </>
@@ -191,7 +242,8 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
           )}
           ref={ref}
           style={{
-            width,
+            minInlineSize: Math.max(width, POPUP_MIN_INLINE_SIZE),
+            maxInlineSize: POPUP_MAX_INLINE_SIZE,
             ...style,
           }}
           {...props}
@@ -235,19 +287,26 @@ export type SelectItemProps = Omit<ComponentPropsWithoutRef<typeof BaseSelect.It
   readonly value: string
 }
 
+const ITEM_SIZE: Record<SelectTriggerSize, string> = {
+  sm: 'min-h-8 px-2 py-1 text-xs',
+  md: 'min-h-9 px-2 py-1.5 text-sm',
+}
+
 export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function SelectItem(
   { children, className, value, ...props },
   ref,
 ) {
+  const { size } = useSelectContext()
+
   return (
     <BaseSelect.Item
       className={cn(
         'group relative flex',
-        'min-h-9',
+        ITEM_SIZE[size],
         'cursor-default select-none',
         'items-center gap-2',
-        'rounded-sm px-2 py-1.5',
-        'text-sm outline-none',
+        'rounded-sm',
+        'outline-none',
         'transition-colors',
         'data-[highlighted]:bg-accent',
         'data-[highlighted]:text-accent-foreground',

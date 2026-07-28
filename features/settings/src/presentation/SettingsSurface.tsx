@@ -809,7 +809,7 @@ function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
       </div>
 
       <div className="settings-row__control">
-        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
+        <Switch aria-label={label} checked={checked} onCheckedChange={onChange} size="sm" />
       </div>
     </div>
   )
@@ -845,7 +845,12 @@ function SettingsSelect<TValue extends string>({
       type={ariaLabel}
       value={value}
     >
-      <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger" />
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className="settings-select-trigger"
+        size="sm"
+        tone="plain"
+      />
 
       <SelectContent>
         <SelectList>

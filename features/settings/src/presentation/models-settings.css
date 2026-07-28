@@ -7,17 +7,16 @@
  * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
  * 边框做不到这件事。这里的 position 只作用于自己这一行，不参与外壳栅格。
  *
- * 开关与下拉的尺寸覆盖写在这一层，不改 foundations/design-system：
- * 那是共用组件，改它会连带改掉所有页面的控件规格。选择器刻意带上
- * .models-page 与 [data-checked] 之类的属性，特异性高于 design-system 的
- * 单类工具类，不依赖样式表加载顺序。
+ * 开关与下拉的尺寸由 design-system 的 size="sm" / tone="plain" 提供。
+ * 轨道宽度与滑块行程必须成对定义，从外部只压轨道会让滑块停在轨道外面。
  */
 
 .models-page {
-  --models-surface: #efefef;
-  --models-divider: #e7e7e7;
-  --models-field: #ffffff;
-  --models-divider-inset: 14px;
+  /* 色值只有 settings-surface.css 一个来源，这里只做别名。 */
+  --models-surface: var(--settings-surface);
+  --models-divider: var(--settings-divider);
+  --models-field: var(--settings-field);
+  --models-divider-inset: var(--settings-divider-inset);
 
   display: flex;
   flex-direction: column;
@@ -209,56 +208,10 @@
   block-size: 14px;
 }
 
-/* ---------------- 开关（缩小） ---------------- */
+/* 触发器高度与字号来自 size="sm"，这里只限制宽度上限。 */
 
-.models-page .models-switch {
-  inline-size: 30px;
-  block-size: 18px;
-  border: 0;
-}
-
-.models-page .models-switch > span {
-  inline-size: 12px;
-  block-size: 12px;
-}
-
-.models-page .models-switch[data-unchecked] > span {
-  transform: translateX(3px);
-}
-
-.models-page .models-switch[data-checked] > span {
-  transform: translateX(15px);
-}
-
-/* ---------------- 下拉触发器（缩小 + 与卡片同色） ---------------- */
-
-.models-page .models-select-trigger {
-  inline-size: auto;
-  min-inline-size: 132px;
-  max-inline-size: 200px;
-  block-size: 26px;
-  min-block-size: 26px;
-  gap: 4px;
-  padding-inline: 8px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--models-surface);
-  box-shadow: none;
-  font-size: 12px;
-}
-
-.models-page .models-select-trigger:hover {
-  background: var(--models-divider);
-}
-
-.models-page .models-select-trigger:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
-}
-
-.models-page .models-select-trigger svg {
-  inline-size: 14px;
-  block-size: 14px;
+.models-select-trigger {
+  max-inline-size: 220px;
 }
 
 /* ---------------- 折叠与字段 ---------------- */
@@ -354,7 +307,7 @@
     justify-content: flex-start;
   }
 
-  .models-page .models-select-trigger,
+  .models-select-trigger,
   .models-input--inline {
     inline-size: 100%;
     max-inline-size: none;

@@ -170,10 +170,10 @@ export function ModelsSettings() {
                   <Switch
                     aria-label={model.label}
                     checked={model.enabled}
-                    className="models-switch"
                     onCheckedChange={(checked) => {
                       toggleModel(model.id, checked)
                     }}
+                    size="sm"
                   />
                 </div>
               </div>
@@ -220,10 +220,10 @@ export function ModelsSettings() {
                 <Switch
                   aria-label="覆盖 OpenAI Base URL"
                   checked={keys.openaiBaseUrlOverride}
-                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ openaiBaseUrlOverride: checked })
                   }}
+                  size="sm"
                 />
               </div>
             </div>
@@ -274,10 +274,10 @@ export function ModelsSettings() {
                 <Switch
                   aria-label="Azure OpenAI"
                   checked={keys.azureEnabled}
-                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ azureEnabled: checked })
                   }}
+                  size="sm"
                 />
               </div>
             </div>
@@ -325,10 +325,10 @@ export function ModelsSettings() {
                 <Switch
                   aria-label="AWS Bedrock"
                   checked={keys.bedrockEnabled}
-                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ bedrockEnabled: checked })
                   }}
+                  size="sm"
                 />
               </div>
             </div>
@@ -453,7 +453,12 @@ function ModelSelect({ ariaLabel, value, options, onChange }: ModelSelectProps) 
 
   return (
     <Select data={data} onValueChange={onChange} type={ariaLabel} value={value}>
-      <SelectTrigger aria-label={ariaLabel} className="models-select-trigger" />
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className="models-select-trigger"
+        size="sm"
+        tone="plain"
+      />
 
       <SelectContent>
         <SelectList>

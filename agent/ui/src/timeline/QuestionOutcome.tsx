@@ -6,9 +6,9 @@ import { readQuestionPrompt } from '../domain/ask-user-question'
 /**
  * 答完之后留在流里的那张卡片。
  *
- * 上面是问题，下面是当时摆出来的那几个选项，选中的那个亮着。只写结果是不够的：
- * 事后回看时，"我当初在什么之间选的"和"我选了什么"一样重要，而选项列表过一会
- * 儿就再也拿不到了。
+ * 上面是问题，下面是那一个答案，落选的选项不再露面：回看一条消息流要读的是
+ * 决定，不是当时的备选清单；把没被选的东西也摆出来，等于每次回看都把选择过程
+ * 重演一遍。层级由字号和墨色给 —— 题面小而淡，答案大半档、重一点。
  *
  * 题面取自 readQuestionPrompt，不是 item.title：title 在 wire 上被 adapter 写死
  * 成 'AskUserQuestion'，真正的问题在 toolCall.content 里。一张写着工具名的卡片
@@ -45,7 +45,11 @@ export function QuestionOutcome({ item }: QuestionOutcomeProps) {
 
   const note = noteFor(item, picked)
 
-  const choices = item.options.filter((option) => !SKIP.test(option.optionId))
+  /* 只取被选中的那一个；取不到就什么也不画，底下那句话负责交代。 */
+  const answer =
+    picked === undefined || SKIP.test(picked)
+      ? undefined
+      : item.options.find((option) => option.optionId === picked)?.name
 
   return (
     <div
@@ -54,17 +58,7 @@ export function QuestionOutcome({ item }: QuestionOutcomeProps) {
     >
       <p className="assistant-question-outcome__prompt">{readQuestionPrompt(item)}</p>
 
-      <ul className="assistant-question-outcome__options">
-        {choices.map((option) => (
-          <li
-            className="assistant-question-outcome__option"
-            data-picked={option.optionId === picked ? 'true' : undefined}
-            key={option.optionId}
-          >
-            {option.name}
-          </li>
-        ))}
-      </ul>
+      {answer === undefined ? null : <p className="assistant-question-outcome__answer">{answer}</p>}
 
       {note === null ? null : <p className="assistant-question-outcome__note">{note}</p>}
     </div>

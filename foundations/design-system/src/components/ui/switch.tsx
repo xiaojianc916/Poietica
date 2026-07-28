@@ -2,7 +2,28 @@ import { Switch as BaseSwitch } from '@base-ui/react/switch'
 import { type ComponentPropsWithoutRef, forwardRef } from 'react'
 import { cn } from '../../lib/utils'
 
-export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root>
+export type SwitchSize = 'sm' | 'md'
+
+export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root> & {
+  /** sm 用于设置页这类密集列表，md 为默认尺寸。 */
+  readonly size?: SwitchSize
+}
+
+/*
+ * 轨道与滑块必须成对定义：行程 = 轨道宽 - 滑块宽 - 两侧留白。
+ *
+ * 拆开写、或者由使用方用 CSS 只压轨道，滑块就会停在轨道外面。
+ * 所以尺寸只有这一张表，使用方通过 size 选择，不通过样式覆盖。
+ */
+const ROOT_SIZE: Record<SwitchSize, string> = {
+  sm: 'h-[16px] w-[28px]',
+  md: 'h-[22px] w-[38px]',
+}
+
+const THUMB_SIZE: Record<SwitchSize, string> = {
+  sm: 'size-3 data-[unchecked]:translate-x-[2px] data-[checked]:translate-x-[14px]',
+  md: 'size-4 data-[unchecked]:translate-x-[3px] data-[checked]:translate-x-[19px]',
+}
 
 /**
  * Poietica compact switch.
@@ -11,14 +32,15 @@ export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root>
  * The design system owns sizing, motion, focus and visual states.
  */
 export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
-  { className, children, ...props },
+  { className, children, size = 'md', ...props },
   forwardedRef,
 ) {
   return (
     <BaseSwitch.Root
       className={cn(
         'group relative inline-flex',
-        'h-[22px] w-[38px] shrink-0',
+        'shrink-0',
+        ROOT_SIZE[size],
         'cursor-pointer items-center',
         'rounded-full border',
         'border-transparent',
@@ -51,8 +73,7 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
       <BaseSwitch.Thumb
         className={cn(
           'pointer-events-none block',
-          'size-4',
-          'translate-x-[3px]',
+          THUMB_SIZE[size],
           'rounded-full',
           'bg-background',
           'shadow-[var(--ui-shadow-xs)]',
@@ -62,9 +83,6 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
           'transition-transform',
           'duration-[var(--ui-duration-fast)]',
           'ease-[var(--ui-ease-emphasized)]',
-
-          'data-[checked]:translate-x-[19px]',
-          'data-[unchecked]:translate-x-[3px]',
 
           'motion-reduce:transition-none',
         )}

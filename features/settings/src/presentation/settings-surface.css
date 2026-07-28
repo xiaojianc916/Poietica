@@ -1,11 +1,16 @@
 /*
  * 设置界面样式：单层。一个选择器只在这里定义一次。
  *
- * 这里没有 position / inset / z-index / width / border-right：设置界面是外壳
- * 栅格里的两个格子，边框与列宽由 SidebarRegion 和主区域提供，宽度来源只有
- * workspaceLayoutStore 一个。旧的 settings-dialog.css 被删除，因为它把
- * .settings-navigation / .settings-page / .settings-row 各定义了两到三次，
- * 后面的层反复改字号与行高，改哪一层都不生效。
+ * 主色 #efefef、分割线 2px #e7e7e7、分割线两侧内缩，是整个设置界面的规则，
+ * 不只是某一个分类。颜色只在这里定义一次，模型页等子样式表只做别名。
+ *
+ * 分割线用 ::before 画而不是 border-block-start：要求是两侧内缩不接到底，
+ * 边框做不到。这里的 position 只作用于行自身，不参与外壳栅格。
+ *
+ * 这里没有 position: fixed / inset / z-index / border-right：设置界面是外壳
+ * 栅格里的两个格子，列宽只有 workspaceLayoutStore 一个来源。
+ *
+ * 控件尺寸不在这一层：开关与下拉用 design-system 的 size / tone。
  */
 
 /* ---------------- 导航（栅格第 1 列） ---------------- */
@@ -99,6 +104,15 @@
 /* ---------------- 内容（栅格第 2 列） ---------------- */
 
 .settings-content {
+  /*
+   * 设置界面的三个固定色。暗色主题接入时只改这三行；
+   * 子样式表（models-settings.css 等）只允许引用，不允许再写一遍色值。
+   */
+  --settings-surface: #efefef;
+  --settings-divider: #e7e7e7;
+  --settings-field: #ffffff;
+  --settings-divider-inset: 14px;
+
   block-size: 100%;
   min-block-size: 0;
   overflow-y: auto;
@@ -154,21 +168,27 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--ui-divider);
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: var(--settings-surface);
 }
 
 .settings-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 14px;
+  padding: 11px 14px;
 }
 
-.settings-row + .settings-row {
-  border-block-start: 1px solid var(--ui-divider);
+.settings-row + .settings-row::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 2px;
+  background: var(--settings-divider);
 }
 
 .settings-row__copy {
@@ -199,15 +219,17 @@
   justify-content: flex-end;
 }
 
+/* 触发器高度与字号来自 size="sm"，这里只限制宽度上限。 */
 .settings-select-trigger {
-  inline-size: 180px;
+  max-inline-size: 220px;
 }
 
 .settings-placeholder {
   margin: 0;
   padding: 24px 16px;
-  border: 1px dashed var(--ui-divider);
+  border: 0;
   border-radius: 10px;
+  background: var(--settings-surface);
   color: var(--ui-muted-foreground);
   font-size: 12px;
   line-height: 1.6;
@@ -220,9 +242,9 @@
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid var(--ui-divider);
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: var(--settings-surface);
 }
 
 .settings-privacy-note__icon {
@@ -255,9 +277,9 @@
   align-items: center;
   gap: 14px;
   padding: 16px 14px;
-  border: 1px solid var(--ui-divider);
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: var(--settings-surface);
 }
 
 .settings-about-card__logo {
@@ -267,7 +289,7 @@
   inline-size: 44px;
   block-size: 44px;
   border-radius: 12px;
-  background: var(--ui-accent);
+  background: var(--settings-field);
   color: var(--ui-foreground);
   font-size: 15px;
   font-weight: 640;
@@ -304,9 +326,9 @@
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
-  border: 1px solid var(--ui-divider);
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: var(--settings-surface);
 }
 
 .settings-principle span {
@@ -335,12 +357,13 @@
   gap: 0;
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--ui-divider);
+  border: 0;
   border-radius: 10px;
-  background: var(--ui-surface);
+  background: var(--settings-surface);
 }
 
 .settings-about-details > div {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -348,8 +371,13 @@
   padding: 10px 14px;
 }
 
-.settings-about-details > div + div {
-  border-block-start: 1px solid var(--ui-divider);
+.settings-about-details > div + div::before {
+  content: "";
+  position: absolute;
+  inset-inline: var(--settings-divider-inset);
+  inset-block-start: 0;
+  block-size: 2px;
+  background: var(--settings-divider);
 }
 
 .settings-about-details dt {
@@ -363,6 +391,10 @@
   font-size: 12px;
 }
 
+/*
+ * 错误态保留边框：它是需要和普通卡片区分开的信号，不是装饰。
+ * 无边框规则作用于承载设置项的面板，不作用于报警。
+ */
 .settings-error {
   display: flex;
   align-items: center;
@@ -406,6 +438,6 @@
   }
 
   .settings-select-trigger {
-    inline-size: 100%;
+    max-inline-size: none;
   }
 }
