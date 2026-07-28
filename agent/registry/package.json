@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./src/public-api.ts",
+  "types": "./src/public-api.ts",
   "exports": {
-    ".": {
-      "types": "./src/public-api.ts",
-      "default": "./src/public-api.ts"
-    }
+    ".": "./src/public-api.ts"
   },
   "scripts": {
-    "check": "tsc --project tsconfig.json --noEmit",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
