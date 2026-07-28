@@ -1,0 +1,34 @@
+/* poietica:proximity-fisheye@v2 */
+
+[data-pfe-root] {
+  --pfe-max-scale: 1.75;
+  --pfe-shift: -6px;
+  /* The rail must not clip magnified items. */
+  overflow: visible;
+}
+
+[data-pfe-item] {
+  --pfe-w: 0;
+  transform-origin: right center;
+  transform: translateX(calc(var(--pfe-w) * var(--pfe-shift)))
+    scaleX(calc(1 + var(--pfe-w) * (var(--pfe-max-scale) - 1)));
+  opacity: calc(0.45 + var(--pfe-w) * 0.55);
+}
+
+[data-pfe-root][data-pfe-active] [data-pfe-item] {
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-pfe-item] {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (pointer: coarse) {
+  [data-pfe-item] {
+    transform: none;
+    opacity: 1;
+  }
+}
