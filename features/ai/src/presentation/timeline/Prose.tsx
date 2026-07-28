@@ -4,15 +4,6 @@ import { type AnimateOptions, type ControlsConfig, Streamdown } from 'streamdown
 
 import { cx } from '../primitives/class-names'
 
-/*
- * Plugins are declared once, at module scope.
- *
- * Streamdown reads this object on every render, and a fresh object per frame
- * would defeat its memoisation mid-stream.
- *
- * math and mermaid are installed but not wired: math additionally requires
- * katex's stylesheet, which this workspace does not resolve.
- */
 const PLUGINS = { cjk, code }
 
 /*

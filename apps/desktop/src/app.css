@@ -1,21 +1,3 @@
-/*
- * Streamdown's own stylesheet, in a layer of its own.
- *
- * The @source lines below are not a substitute for it. They let Tailwind
- * generate the utility classes the package writes into its markup, and that
- * covers everything expressible as a utility — padding, radii, borders. What it
- * cannot cover is structure: Shiki emits one inline span per line with no
- * newline between them, and the rule that makes those spans lay out as lines is
- * not a utility class. Without this import a fenced block renders as one
- * continuous run of text, correctly coloured and unreadable.
- *
- * It is imported into a layer, and the layer is declared first, so the cascade
- * reads: package defaults, then Tailwind's utilities, then this app. Unlayered
- * declarations win over layered ones whatever their specificity, and every rule
- * this app writes is unlayered — so the package supplies the structure and never
- * touches the appearance. No !important, and nothing to keep in sync.
- */
-@import "streamdown/styles.css" layer(streamdown);
 @import "tldraw/tldraw.css";
 @import "@poietica/foundations-design-system/styles.css";
 @import "tailwindcss" source("../../../");

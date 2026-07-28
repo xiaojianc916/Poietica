@@ -182,6 +182,26 @@
   tab-size: 2;
 }
 
+/*
+ * A highlighted line has to be a line.
+ *
+ * streamdown emits one <span> per source line and writes nothing between them,
+ * so the spans only read as lines if something makes them block-level. Upstream
+ * puts that "block" class inside the line-number class list and applies the
+ * whole list conditionally — packages/streamdown/lib/code-block/body.tsx:
+ * `className={lineNumbers ? lineNumberClasses : undefined}`. We render without
+ * line numbers, so the line box went out with the gutter and every line ran
+ * into the next; the only breaks left were the blank lines, which that same
+ * component emits as a literal newline. Upstream reads this as a bug
+ * (vercel/streamdown#532).
+ *
+ * The line box is structure, not decoration, so it is declared once, here,
+ * instead of being chased with white-space tricks — and the gutter stays off.
+ */
+.timeline-prose [data-streamdown="code-block-body"] pre code > span {
+  display: block;
+}
+
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
 .timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
