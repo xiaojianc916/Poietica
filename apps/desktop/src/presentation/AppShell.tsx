@@ -7,6 +7,7 @@ import { CommandPalette, useCommandKeybindings } from '@poietica/features-worksp
 import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-design-system'
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { ThreadsProvider } from '../application/ai/threads-context'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
@@ -197,45 +198,53 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   return (
-    <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
-      <WorkspaceContainer
-        agentSession={runtime.agentSession}
-        capabilities={capabilities}
-        isSettingsOpen={isSettingsOpen && capabilities.settings}
-        isWindowMaximized={isWindowMaximized}
-        onCommandPaletteOpen={openCommandPalette}
-        onDeveloperToolsOpen={openDeveloperTools}
-        onSettingsClose={closeSettings}
-        onSettingsOpen={openSettings}
-        onWindowClose={requestApplicationClose}
-        onWindowMaximize={maximizeWindow}
-        onWindowMinimize={minimizeWindow}
-        port={workspacePort}
-        settingsStore={runtime.settings}
-      />
+    /*
+     * 会话状态在这里落地，一个进程一份。
+     *
+     * 它比编辑器更早、比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的
+     * 选择器读的是同一份，否则列表亮着一条而标签停在另一条。
+     */
+    <ThreadsProvider>
+      <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
+        <WorkspaceContainer
+          agentSession={runtime.agentSession}
+          capabilities={capabilities}
+          isSettingsOpen={isSettingsOpen && capabilities.settings}
+          isWindowMaximized={isWindowMaximized}
+          onCommandPaletteOpen={openCommandPalette}
+          onDeveloperToolsOpen={openDeveloperTools}
+          onSettingsClose={closeSettings}
+          onSettingsOpen={openSettings}
+          onWindowClose={requestApplicationClose}
+          onWindowMaximize={maximizeWindow}
+          onWindowMinimize={minimizeWindow}
+          port={workspacePort}
+          settingsStore={runtime.settings}
+        />
 
-      <CommandPalette
-        onOpenChange={setCommandPaletteOpen}
-        open={isCommandPaletteOpen}
-        registry={runtime.commands}
-      />
+        <CommandPalette
+          onOpenChange={setCommandPaletteOpen}
+          open={isCommandPaletteOpen}
+          registry={runtime.commands}
+        />
 
-      <UiFeedbackRegion />
+        <UiFeedbackRegion />
 
-      <ConfirmationDialog
-        confirmLabel="放弃全部并退出"
-        description={
-          termination.state === 'confirmation-required'
-            ? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`
-            : ''
-        }
-        destructive
-        onCancel={runtime.termination.cancel}
-        onConfirm={runtime.termination.confirmDiscard}
-        open={termination.state === 'confirmation-required'}
-        title="退出并放弃未保存的更改？"
-      />
-    </EditorProvider>
+        <ConfirmationDialog
+          confirmLabel="放弃全部并退出"
+          description={
+            termination.state === 'confirmation-required'
+              ? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`
+              : ''
+          }
+          destructive
+          onCancel={runtime.termination.cancel}
+          onConfirm={runtime.termination.confirmDiscard}
+          open={termination.state === 'confirmation-required'}
+          title="退出并放弃未保存的更改？"
+        />
+      </EditorProvider>
+    </ThreadsProvider>
   )
 }
 
