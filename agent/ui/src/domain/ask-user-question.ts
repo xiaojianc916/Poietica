@@ -173,3 +173,57 @@ export interface QuestionAnswer {
   readonly requestId: string
   readonly optionId: string
 }
+/*
+ * 一道题真正的题面。
+ *
+ * permission 帧的 title 由 adapter 写死成 'AskUserQuestion'（session.ts 里就是
+ * 一个字面量），问题本身被塞进 toolCall.content 的第一段文本。所以凡是要显示
+ * 「问了什么」的地方都必须走这里，读 title 只能读到工具名。
+ *
+ * 参数按结构收，不绑 PermissionItem：这支函数的前提只有"有个 title、可能有个
+ * toolCall.content"，绑死契约类型会让它跟着契约一起改。
+ */
+
+interface QuestionPromptSource {
+  readonly title: string
+  readonly toolCall?: { readonly content?: readonly unknown[] | undefined } | undefined
+}
+
+/** 取一条 toolCall content 里的纯文本；不是文本块就是空串。 */
+function textOfContent(entry: unknown): string {
+  if (typeof entry !== 'object' || entry === null) {
+    return ''
+  }
+
+  const outer = entry as { readonly type?: unknown; readonly content?: unknown }
+
+  if (outer.type !== 'content') {
+    return ''
+  }
+
+  const inner = outer.content
+
+  if (typeof inner !== 'object' || inner === null) {
+    return ''
+  }
+
+  const block = inner as { readonly type?: unknown; readonly text?: unknown }
+
+  if (block.type !== 'text' || typeof block.text !== 'string') {
+    return ''
+  }
+
+  return block.text
+}
+
+export function readQuestionPrompt(request: QuestionPromptSource): string {
+  for (const entry of request.toolCall?.content ?? []) {
+    const text = textOfContent(entry).trim()
+
+    if (text.length > 0) {
+      return text
+    }
+  }
+
+  return request.title
+}

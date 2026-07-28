@@ -1,6 +1,7 @@
 import './question-outcome.css'
 
 import type { PermissionItem } from '@poietica/agent-timeline'
+import { readQuestionPrompt } from '../domain/ask-user-question'
 
 /**
  * 答完之后留在流里的那张卡片。
@@ -9,11 +10,12 @@ import type { PermissionItem } from '@poietica/agent-timeline'
  * 事后回看时，"我当初在什么之间选的"和"我选了什么"一样重要，而选项列表过一会
  * 儿就再也拿不到了。
  *
+ * 题面取自 readQuestionPrompt，不是 item.title：title 在 wire 上被 adapter 写死
+ * 成 'AskUserQuestion'，真正的问题在 toolCall.content 里。一张写着工具名的卡片
+ * 复述不了任何事。
+ *
  * skip 不算选项。它是 ACP 通道为了表达"不回答"而追加的一枚 optionId，属于传输
  * 细节；把它摆进列表，用户会以为自己当初有第五个选择。真跳过了就在底下说一句。
- *
- * 这里只认 optionId 的形状，不碰 domain 层的内部结构：这张卡片的职责是复述一件
- * 已经发生的事，不该因为判据的实现换了写法而跟着坏。
  */
 
 const SKIP = /^q\d+_skip$/
@@ -50,7 +52,7 @@ export function QuestionOutcome({ item }: QuestionOutcomeProps) {
       className="assistant-question-outcome"
       data-answered={picked === undefined ? undefined : 'true'}
     >
-      <p className="assistant-question-outcome__prompt">{item.title}</p>
+      <p className="assistant-question-outcome__prompt">{readQuestionPrompt(item)}</p>
 
       <ul className="assistant-question-outcome__options">
         {choices.map((option) => (

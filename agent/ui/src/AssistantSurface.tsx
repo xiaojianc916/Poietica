@@ -13,7 +13,11 @@ import { type ReactNode, useMemo, useRef } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
-import { buildQuestionDeck, isQuestionRequest } from './domain/ask-user-question'
+import {
+  buildQuestionDeck,
+  isQuestionRequest,
+  readQuestionPrompt,
+} from './domain/ask-user-question'
 import { AgentActivityFeed } from './feed/AgentActivityFeed'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
@@ -174,7 +178,7 @@ export function AssistantSurface({
       first.requestId,
       pendingQuestions.map((item) => ({
         requestId: item.requestId,
-        prompt: item.title,
+        prompt: readQuestionPrompt(item),
         options: item.options.map((option) => ({
           optionId: option.optionId,
           label: option.name,

@@ -1,41 +1,87 @@
 /*
  * 问答面板。
  *
- * 外壳沿用 composer 自己那一层：这是输入框长起来，不是盖上去的一层。
- * 所以这里只排内部，不画边框、不设背景、不管定位。
+ * 「长出来」是这份样式表唯一的主张：外层是单行 grid，行高从 0fr 动到 1fr，
+ * 中层裁掉溢出，于是高度是被内容顶开的。先占位再淡入是另一回事，那看起来
+ * 是浮现；这里要的是撑开。
+ *
+ * 选中与否由左侧那枚图标和背景色一起说，边框全程不参与——一圈变色的描边会
+ * 把选项读成输入控件，而它是一个选择。
  */
 
 .assistant-question-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: assistant-question-grow 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.assistant-question-panel__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.assistant-question-panel__page {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 12px 8px;
+  padding: 4px 2px 2px;
+  animation: assistant-question-page 140ms ease-out;
+}
+
+@keyframes assistant-question-grow {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes assistant-question-page {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-question-panel,
+  .assistant-question-panel__page {
+    animation: none;
+  }
 }
 
 .assistant-question-panel__head {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: start;
-  gap: 4px 12px;
+  gap: 8px;
 }
 
 .assistant-question-panel__tag {
   grid-column: 1;
   justify-self: start;
   font-size: 11px;
-  line-height: 16px;
-  padding: 0 6px;
-  border-radius: 4px;
-  color: var(--assistant-text-muted, #8a8f98);
-  background: var(--assistant-surface-sunken, rgb(0 0 0 / 4%));
+  line-height: 1.4;
+  color: var(--assistant-text-muted, #8b8b8b);
 }
 
 .assistant-question-panel__prompt {
   grid-column: 1;
   margin: 0;
   font-size: 14px;
-  line-height: 20px;
   font-weight: 500;
+  line-height: 1.5;
 }
 
 .assistant-question-panel__nav {
@@ -53,11 +99,21 @@
   justify-content: center;
   width: 22px;
   height: 22px;
+  padding: 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--assistant-text-muted, #8a8f98);
+  color: var(--assistant-text-muted, #8b8b8b);
   cursor: pointer;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+
+.assistant-question-panel__arrow:hover:not(:disabled),
+.assistant-question-panel__dismiss:hover:not(:disabled) {
+  background: var(--assistant-surface-hover, rgba(0, 0, 0, 0.05));
+  color: inherit;
 }
 
 .assistant-question-panel__arrow:disabled {
@@ -65,81 +121,103 @@
   cursor: default;
 }
 
-.assistant-question-panel__arrow:not(:disabled):hover,
-.assistant-question-panel__dismiss:not(:disabled):hover {
-  background: var(--assistant-surface-hover, rgb(0 0 0 / 6%));
-  color: inherit;
-}
-
 .assistant-question-panel__dismiss {
   margin-left: 4px;
-  border: 1px solid var(--assistant-border, rgb(0 0 0 / 10%));
+  box-shadow: inset 0 0 0 1px var(--assistant-border, rgba(0, 0, 0, 0.12));
 }
 
 .assistant-question-panel__count {
   min-width: 30px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  color: var(--assistant-text-muted, #8a8f98);
+  color: var(--assistant-text-muted, #8b8b8b);
 }
 
 .assistant-question-panel__options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .assistant-question-panel__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  text-align: left;
   padding: 8px 10px;
-  font-size: 13px;
-  line-height: 18px;
-  border: 1px solid var(--assistant-border, rgb(0 0 0 / 10%));
+  border: 0;
   border-radius: 8px;
   background: transparent;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
   color: inherit;
   cursor: pointer;
+  transition: background-color 120ms ease-out;
 }
 
-.assistant-question-panel__option:not(:disabled):hover {
-  background: var(--assistant-surface-hover, rgb(0 0 0 / 4%));
+.assistant-question-panel__option:hover:not(:disabled) {
+  background: var(--assistant-surface-hover, rgba(0, 0, 0, 0.04));
 }
 
-.assistant-question-panel__option.is-selected {
-  border-color: var(--assistant-accent, #3b82f6);
-  background: var(--assistant-accent-soft, rgb(59 130 246 / 10%));
+.assistant-question-panel__option[data-selected="true"] {
+  background: var(--assistant-surface-sunken, rgba(0, 0, 0, 0.07));
+}
+
+.assistant-question-panel__option:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.assistant-question-panel__mark {
+  display: inline-flex;
+  flex: none;
+  color: var(--assistant-text-muted, #a0a0a0);
+  transition: color 120ms ease-out;
+}
+
+.assistant-question-panel__option[data-selected="true"] .assistant-question-panel__mark {
+  color: var(--assistant-accent, #2f6fed);
+}
+
+.assistant-question-panel__label {
+  min-width: 0;
 }
 
 .assistant-question-panel__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 2px;
+  gap: 8px;
 }
 
 .assistant-question-panel__hint {
-  font-size: 12px;
-  color: var(--assistant-text-muted, #8a8f98);
+  font-size: 11px;
+  color: var(--assistant-text-muted, #8b8b8b);
 }
 
 .assistant-question-panel__advance {
   padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 500;
   border: 0;
-  border-radius: 8px;
-  background: var(--assistant-accent, #3b82f6);
+  border-radius: 999px;
+  background: var(--assistant-accent, #2f6fed);
   color: #fff;
+  font: inherit;
+  font-size: 12px;
   cursor: pointer;
+  transition: opacity 120ms ease-out;
+}
+
+.assistant-question-panel__advance.is-idle {
+  opacity: 0.55;
 }
 
 .assistant-question-panel__advance:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
 }
