@@ -203,7 +203,6 @@ dev-output.txt
 # One-off repository migration scripts
 refactor.mjs
 
-.vscode/
 
 # local env files hold licence keys and secrets
 *.env.local

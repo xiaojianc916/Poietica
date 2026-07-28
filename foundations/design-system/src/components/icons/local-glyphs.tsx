@@ -7,26 +7,16 @@ import type { SVGProps } from 'react'
  * 也不会影响这里——放在设计系统里只是因为工作区外壳和 AI 界面都要用，字形不该
  * 有两份。
  *
- * 为什么手写，而不是直接用 temporary/ 下那三个下载来的 SVG：
- *
- * - 那三个文件（lightbulb.svg / pencil-ruler.svg / webhooks.svg）是 Phosphor
- *   风格：width="32" height="32" fill="#000000" viewBox="0 0 256 256"，一条
- *   实心 path。
- * - 图标库的默认框是 width=24 height=24 fill="none" stroke="currentColor"
- *   stroke-width="1.5" viewBox="0 0 24 24" 圆头圆角（见 mynaui-icons 仓库
- *   icons/chevron-left.svg 原文）。
- * - 实心字形与描边字形无法通过缩放对齐视觉重量，也没有可调的粗细，更不会随
- *   currentColor 变细变粗。所以这里换成同一字形的描边几何（取自 Lucide，ISC
- *   许可），放进库默认的视口，粗细统一为 1.5。
- *
- * 结论：temporary/ 下的三个文件只是"要哪个字形"的参照物，真正渲染的不是它们。
- * clock-10 同理手写——图标库里没有这个字形，这个名字来自 Lucide。
+ * 几何取自 Lucide（ISC 许可），放进图标库的默认视口：width=24 height=24
+ * fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"
+ * 圆头圆角（见 mynaui-icons 仓库 icons/chevron-left.svg 原文）。描边而非实心，
+ * 是因为实心字形无法与描边字形对齐视觉重量，也不随 currentColor 变化粗细。
  */
 
 type GlyphProps = SVGProps<SVGSVGElement>
 
 /*
- * 唯一的字形外框。属性表与图标库逐项一致，四个字形不各抄一遍；className 之类
+ * 唯一的字形外框。属性表与图标库逐项一致，字形不各抄一遍；className 之类
  * 由调用方覆盖，所以 props 展开在后面。
  */
 function Glyph({ children, ...props }: GlyphProps) {
