@@ -1,0 +1,175 @@
+/*
+ * AskUserQuestion —— 协议层。
+ *
+ * kimi-code（TS）的 AskUserQuestion 工具一次可携带 1–4 道题、每题 2–4 个选项，
+ * 但它的 ACP adapter 目前把多题降级为单题（questionIndex 恒为 0，multi_select
+ * 收窄成单选）。一道题在 wire 上就是一个 session/request_permission：
+ *
+ *   options: [
+ *     { optionId: 'q0_opt_0', name: '<label>', kind: 'allow_once' },
+ *     ...
+ *     { optionId: 'q0_skip',  name: 'Skip',    kind: 'reject_once' },   // 自动追加
+ *   ]
+ *
+ * 回包只能带一个 optionId；回 'q<N>_skip' 或 cancelled 都被 adapter 解成 null，
+ * 也就是"用户跳过了这道题"。因此：
+ *
+ *   - 不做多选：回包带不回去。
+ *   - 不做自由填写：工具侧没有这个通道。
+ *   - 面板按 1/N 分页建模。今天 N 恒为 1；q(\d+)_ 命名空间是上游为多题预留的，
+ *     等它放开，同一套 UI 直接生效，wire format 不变。
+ */
+
+export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
+
+const OPTION_ID = /^q(\d+)_opt_(\d+)$/
+const SKIP_ID = /^q(\d+)_skip$/
+
+export type QuestionOptionId =
+  | { readonly kind: 'option'; readonly questionIndex: number; readonly optionIndex: number }
+  | { readonly kind: 'skip'; readonly questionIndex: number }
+
+/** 解析 ACP optionId。不属于提问命名空间的一律返回 null。 */
+export function parseQuestionOptionId(optionId: string): QuestionOptionId | null {
+  const option = OPTION_ID.exec(optionId)
+
+  if (option) {
+    return {
+      kind: 'option',
+      questionIndex: Number(option[1]),
+      optionIndex: Number(option[2]),
+    }
+  }
+
+  const skip = SKIP_ID.exec(optionId)
+
+  if (skip) {
+    return { kind: 'skip', questionIndex: Number(skip[1]) }
+  }
+
+  return null
+}
+
+export interface QuestionChoice {
+  readonly optionId: string
+  readonly label: string
+}
+
+export interface QuestionCard {
+  /** 这道题对应的那个 permission 请求；答案按 requestId 回。 */
+  readonly requestId: string
+  readonly prompt: string
+  /** 短分类标签（上游 header，≤12 字符）。没有就是空串。 */
+  readonly header: string
+  readonly choices: readonly QuestionChoice[]
+  /** 跳过这道题用的 optionId。上游保证有，缺失时为 undefined。 */
+  readonly skipOptionId: string | undefined
+}
+
+export interface QuestionDeck {
+  /** 题组锚定的工具调用；时间线卡片挂在同一处。 */
+  readonly toolCallId: string
+  readonly cards: readonly QuestionCard[]
+}
+
+/**
+ * 一个 pending 请求像不像 AskUserQuestion。
+ *
+ * 判据是 optionId 的形状，不是工具名：工具名在不同 agent / 版本下写法不一，
+ * 而 q0_opt_0 / q0_skip 这套命名空间是 adapter 自己造的、稳定的。
+ */
+export function isQuestionRequest(request: {
+  readonly options: readonly { readonly optionId: string }[]
+}): boolean {
+  if (request.options.length === 0) {
+    return false
+  }
+
+  return request.options.every((option) => parseQuestionOptionId(option.optionId) !== null)
+}
+
+/**
+ * 把同一个工具调用下的若干 pending 提问请求聚成一副题组。
+ *
+ * 按 questionIndex 排序；同一个 index 只保留第一个（上游今天只发 index 0，
+ * 重复出现说明是新一轮提问，由调用方按 toolCallId 分流）。
+ */
+export function buildQuestionDeck(
+  toolCallId: string,
+  requests: readonly {
+    readonly requestId: string
+    readonly prompt: string
+    readonly header?: string | undefined
+    readonly options: readonly { readonly optionId: string; readonly label: string }[]
+  }[],
+): QuestionDeck | null {
+  const seen = new Set<number>()
+  const ordered: { index: number; card: QuestionCard }[] = []
+
+  for (const request of requests) {
+    if (!isQuestionRequest(request)) {
+      continue
+    }
+
+    const head = request.options[0]
+
+    if (head === undefined) {
+      continue
+    }
+
+    const first = parseQuestionOptionId(head.optionId)
+
+    if (first === null || seen.has(first.questionIndex)) {
+      continue
+    }
+
+    seen.add(first.questionIndex)
+
+    const choices: QuestionChoice[] = []
+    let skipOptionId: string | undefined
+
+    for (const option of request.options) {
+      const parsed = parseQuestionOptionId(option.optionId)
+
+      if (parsed === null) {
+        continue
+      }
+
+      if (parsed.kind === 'skip') {
+        skipOptionId = option.optionId
+        continue
+      }
+
+      choices.push({ optionId: option.optionId, label: option.label })
+    }
+
+    if (choices.length === 0) {
+      continue
+    }
+
+    ordered.push({
+      index: first.questionIndex,
+      card: {
+        requestId: request.requestId,
+        prompt: request.prompt,
+        header: request.header ?? '',
+        choices,
+        skipOptionId,
+      },
+    })
+  }
+
+  if (ordered.length === 0) {
+    return null
+  }
+
+  ordered.sort((a, b) => a.index - b.index)
+
+  return { toolCallId, cards: ordered.map((entry) => entry.card) }
+}
+
+/** 面板提交产出的东西：每道题一条，跳过的题用它自己的 skip。 */
+export interface QuestionAnswer {
+  readonly requestId: string
+  readonly optionId: string
+}
