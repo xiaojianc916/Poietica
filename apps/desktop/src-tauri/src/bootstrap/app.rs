@@ -30,6 +30,17 @@ pub fn build() -> tauri::Builder<Wry> {
     let protocol_registry = asset_protocol.clone();
 
     tauri::Builder::<Wry>::default()
+        /*
+         * 必须是第一个注册的插件：它要在其余初始化发生之前判定本进程是不是多余
+         * 的那一个。
+         *
+         * 一个带托盘的应用不做单实例，后果是确定的：第二次双击图标开出第二个
+         * 进程、第二个托盘图标、两份互相覆写的窗口状态，以及两个互不知情的
+         * DocumentRegistry —— 同一个文件可以在两个窗口里各改各的。
+         */
+        .plugin(tauri_plugin_single_instance::init(|app, _arguments, _cwd| {
+            tray::show_main(app);
+        }))
         .manage(DocumentRegistry::default())
         .manage(asset_protocol)
         /*
@@ -99,6 +110,7 @@ pub fn build() -> tauri::Builder<Wry> {
                 .ok_or("tauri.conf.json 未声明 main 窗口")?;
 
             main_window.restore_state(WINDOW_STATE_FLAGS)?;
+            constrain_to_visible_area(&main_window);
 
             /*
              * 呈现权归渲染层：窗口在 React 首帧提交后由前端 present()。
@@ -157,4 +169,73 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::settings::settings_set,
             commands::settings::settings_reset,
         ])
+}
+
+/// 把窗口约束回它所在显示器的可视范围内。
+///
+/// 几何有两个来源。磁盘上的状态文件由 window-state 插件负责，它自己会把恢复出
+/// 的位置约束回显示器，那条路径是安全的。没有被任何人检查过的是另一条：
+/// tauri.conf.json 里的默认值。1400x900 在一台 1366x768 的笔记本上放不下，而
+/// 居中会把它摆在 y = -86，标题栏落到工作区上方 —— 窗口是 decorations: false，
+/// 没有原生系统菜单可以用键盘把它拖回来，于是首次启动就是一个拖不动的窗口。
+///
+/// 这里只做约束，不做决定：几何本来就成立时它是空操作。最大化与全屏跳过，
+/// 那两种状态下的尺寸本来就等于显示器。
+fn constrain_to_visible_area(window: &tauri::WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+
+    let monitor_size = *monitor.size();
+    let monitor_position = *monitor.position();
+
+    /*
+     * 95% 是任务栏的替代品，不是它的测量值。work_area 的语义各平台不一致，而
+     * 这里要的只是"别铺满整块屏、别顶到边缘之外"，不需要像素级贴合。
+     */
+    let max_width = monitor_size.width.saturating_mul(95) / 100;
+    let max_height = monitor_size.height.saturating_mul(95) / 100;
+
+    let Ok(size) = window.outer_size() else {
+        return;
+    };
+
+    let width = size.width.min(max_width);
+    let height = size.height.min(max_height);
+
+    if (width, height) != (size.width, size.height) {
+        if let Err(error) = window.set_size(tauri::PhysicalSize::new(width, height)) {
+            log::warn!("could not clamp the window to its monitor: {error}");
+            return;
+        }
+    }
+
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+
+    let monitor_left = i64::from(monitor_position.x);
+    let monitor_top = i64::from(monitor_position.y);
+    let monitor_right = monitor_left + i64::from(monitor_size.width);
+    let monitor_bottom = monitor_top + i64::from(monitor_size.height);
+
+    let left = i64::from(position.x);
+    let top = i64::from(position.y);
+
+    let fits = left >= monitor_left
+        && top >= monitor_top
+        && left + i64::from(width) <= monitor_right
+        && top + i64::from(height) <= monitor_bottom;
+
+    if fits {
+        return;
+    }
+
+    if let Err(error) = window.center() {
+        log::warn!("could not recentre the window on its monitor: {error}");
+    }
 }

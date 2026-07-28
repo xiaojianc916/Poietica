@@ -35,19 +35,20 @@ poietica-editor-persistence-native = { path = "../../../editor/persistence/nativ
 poietica-ai-acp-native = { path = "../../../features/ai/acp-native" }
 poietica-ai-persistence-native = { path = "../../../features/ai/native" }
 
+# 这份清单与 bootstrap/app.rs 里注册的插件一一对应。
+#
+# 此前它多出六个：clipboard-manager、fs、opener、process、shell、updater。
+# 它们全都没有 init，capabilities/main-window.json 里也没有对应权限，所以连被
+# 前端调用的可能都没有 —— 纯粹链进产物的死重量，其中 fs 与 shell 还是 Tauri
+# 最敏感的两个能力面，会让每一次依赖审计都停下来问一遍。
 tauri.workspace = true
-tauri-plugin-clipboard-manager.workspace = true
 tauri-plugin-dialog.workspace = true
-tauri-plugin-fs.workspace = true
+tauri-plugin-global-shortcut.workspace = true
 tauri-plugin-log.workspace = true
-tauri-plugin-opener.workspace = true
-tauri-plugin-process.workspace = true
-tauri-plugin-shell.workspace = true
+tauri-plugin-notification.workspace = true
+tauri-plugin-single-instance.workspace = true
 tauri-plugin-store.workspace = true
 tauri-plugin-window-state.workspace = true
-tauri-plugin-global-shortcut.workspace = true
-tauri-plugin-notification.workspace = true
-tauri-plugin-updater.workspace = true
 
 specta.workspace = true
 specta-typescript.workspace = true
