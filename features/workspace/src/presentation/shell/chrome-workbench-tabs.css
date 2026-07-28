@@ -42,7 +42,24 @@
   max-width: 100%;
   min-width: 0;
   height: 100%;
-  overflow: hidden;
+
+  /*
+   * clip 而不是 hidden，且显式给出可以溢出的墨量。
+   *
+   * 末尾那条遮罩必须画在自己的盒子外面——它要盖的是父级 header 的 border，
+   * 那条 border 本来就在本元素内容盒之下。而 hidden 裁掉的正是溢出 padding
+   * box 的一切，伪元素也不例外：那条遮罩从写出来的第一天起就一个像素都没有
+   * 落过地，激活标签底下的线因此一直在。它甚至带着一个错位一整个标签宽的
+   * 坐标活了很久，因为没有人能看见它，也就没有任何反馈能暴露它是错的。
+   *
+   * 不能改成 overflow: visible：横向溢出必须继续裁掉，否则标签会画进窗口
+   * 控制区。也不能只放开一个轴——只要有一个轴不是 visible，另一个轴的
+   * visible 就会计算成 auto，凭空多出一个滚动容器。clip 的裁剪行为与 hidden
+   * 逐字相同且不制造滚动容器，overflow-clip-margin 则把"允许多少墨出去"
+   * 写成一个有上限的声明：恰好那 1px，别的什么都不行。
+   */
+  overflow: clip;
+  overflow-clip-margin: 1px;
   color: var(--color-foreground);
   background: var(--chrome-tab-strip);
   font-family: var(--ui-font-sans);

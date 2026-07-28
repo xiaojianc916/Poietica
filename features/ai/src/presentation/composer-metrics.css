@@ -21,8 +21,8 @@
   /* the transcript, and the band the transcript stops above */
   --cp-feed-row-gap: var(--cp-pad-mid);
   --cp-dock-gap: var(--cp-stack);
-  /* 溶解距离按行给:三行正文,而不是一个来路不明的像素数。 */
-  --cp-dock-scrim: calc(var(--cp-line) * 3);
+  /* 溶解距离按行给:一行半正文(39px)。三行是过量,那段渐变自己变成了色带。 */
+  --cp-dock-scrim: calc(var(--cp-line) * 1.5);
 
   --cp-font: 16px;
   --cp-line-ratio: 1.625;

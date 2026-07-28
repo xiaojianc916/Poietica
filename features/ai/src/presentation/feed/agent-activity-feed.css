@@ -143,7 +143,9 @@
  *
  * 换成两块各管一段。band 自己是实心的画布色,所以下沿没有边可言 —— 它和
  * 画布本来就是同一种颜色。上沿是这个伪元素:同一种颜色的一段 alpha 渐变,
- * 长度是三行正文,行高 26px,所以一行字要走满三行的距离才完全没入。
+ * 长度是一行半正文(39px)。三行是过量:渐变铺得越长,中段那些半透明的停靠点
+ * 覆盖的面积就越大,于是这层"过渡"自己变成了一块看得见的色带 —— 要的是一行
+ * 字走过一行半就没入,不是一整片雾。
  *
  * 停靠点是加权的,不是线性:线性 alpha 在感知上前段掉得太快、尾巴又拖着,
  * 加权之后才是"化开"。透明的那一端写成同色零透明度,而不是 transparent,
@@ -158,8 +160,8 @@
   background: linear-gradient(
     to bottom,
     rgb(from var(--cp-canvas) r g b / 0) 0%,
-    rgb(from var(--cp-canvas) r g b / 0.55) 58%,
-    rgb(from var(--cp-canvas) r g b / 0.88) 82%,
+    rgb(from var(--cp-canvas) r g b / 0.32) 52%,
+    rgb(from var(--cp-canvas) r g b / 0.78) 82%,
     var(--cp-canvas) 100%
   );
   pointer-events: none;
