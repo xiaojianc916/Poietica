@@ -14,15 +14,15 @@ import {
   SettingsNavigationRegion,
   SettingsProvider,
 } from '@poietica/features-settings/react'
-import type {
-  CanvasSessionId,
-  WorkbenchSessionStore,
-  WorkbenchTabId,
-  WorkbenchTabViewModel,
-  WorkspaceShellActions,
-  WorkspaceSurfaceRenderers,
+import {
+  type CanvasSessionId,
+  CONVERSATION_ENTRY_TITLE,
+  type WorkbenchSessionStore,
+  type WorkbenchTabId,
+  type WorkbenchTabViewModel,
+  type WorkspaceShellActions,
+  type WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
-import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace/contracts'
 import {
   NoCanvasSurface,
   nextUntitledCanvasTitle,

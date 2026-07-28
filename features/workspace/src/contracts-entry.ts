@@ -1,31 +1,8 @@
-export {
-  type ActiveCanvasViewModel,
-  type CanvasId,
-  type CanvasSessionId,
-  type CanvasTabStatus,
-  type CanvasTabViewModel,
-  type CreateCanvasRequest,
-  EMPTY_WORKBENCH_VIEW_MODEL,
-  type OpenWorkspaceSurfaceRequest,
-  START_TAB_ID,
-  type StartSurfaceViewModel,
-  type StartTabViewModel,
-  type WorkbenchSessionCommands,
-  type WorkbenchSessionStore,
-  type WorkbenchSurfaceViewModel,
-  type WorkbenchTabId,
-  type WorkbenchTabViewModel,
-  type WorkbenchViewModel,
-  type WorkspaceSurfaceId,
-  type WorkspaceSurfaceViewModel,
-  type WorkspaceTabViewModel,
-} from './contracts/public-api'
-
-export type {
-  CanvasPageViewModel,
-  WorkspaceChromeRenderProps,
-  WorkspaceShellActions,
-  WorkspaceShellProps,
-} from './contracts/shell-contract'
-
-export type { WorkspaceSurfaceRenderers } from './contracts/surface-contract'
+/*
+ * 包的 contracts 入口。
+ *
+ * 这里不抄第二份符号清单：公共面由 contracts/public-api.ts 一处说了算。
+ * 此前两份手写白名单逐字重复，一个符号要活着必须在两处各登记一次，而漏
+ * 登记的那次不是类型错误，是运行期 SyntaxError。
+ */
+export * from './contracts/public-api'
