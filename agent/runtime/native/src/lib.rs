@@ -25,6 +25,7 @@ mod desk;
 mod error;
 mod permission;
 mod recorder;
+mod run_log;
 mod run_slot;
 mod session;
 mod sessions;
@@ -43,3 +44,7 @@ pub use session::{AgentClient, AgentConnection, AgentSpawn, connect};
 pub use session::{OpenedSession, SessionEntry};
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;
+pub use run_log::{
+    LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
+    RunOutcome, ToolCallState,
+};

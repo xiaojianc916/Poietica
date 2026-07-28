@@ -1,18 +1,17 @@
 use std::fmt;
-use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
-    ToolCallStatus as ProtocolToolCallStatus, ToolKind,
+    ToolCallState as ProtocolToolCallStatus, ToolKind,
 };
-use poietica_agent_persistence_native::{AiStore, PermissionOutcome, RunStatus, ToolCallStatus};
 use serde::Serialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
 use crate::permission::Decision;
+use crate::run_log::{PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 
 /// Log kind for the first event of a run.
 pub const RUN_STARTED: &str = "run_started";
@@ -55,11 +54,12 @@ pub struct RecordedEvent {
 /// projections, then forward. A consumer can therefore never observe an event
 /// that would disappear on restart.
 pub struct Recorder {
-    /// The one connection, shared with everything else that writes.
+    /// Where frames are made durable.
     ///
-    /// Owning a connection outright was what made the log's own promise of
-    /// a single writer untrue: every run brought another one along.
-    store: Arc<Mutex<AiStore>>,
+    /// A log, not a database: whether it is shared, and what has to be
+    /// locked to write it, is settled where it is built and is no concern
+    /// of a run in progress.
+    log: Box<dyn RunLog>,
     run_id: Uuid,
     next_seq: i64,
     sink: Box<dyn FnMut(&RecordedEvent) + Send>,
@@ -88,12 +88,12 @@ impl Recorder {
     /// Starts recording a run, forwarding every durable frame to `sink`.
     #[must_use]
     pub fn new(
-        store: Arc<Mutex<AiStore>>,
+        log: Box<dyn RunLog>,
         run_id: Uuid,
         sink: Box<dyn FnMut(&RecordedEvent) + Send>,
     ) -> Self {
         Self {
-            store,
+            log,
             run_id,
             next_seq: 1,
             sink,
@@ -107,18 +107,6 @@ impl Recorder {
     #[must_use]
     pub const fn run_id(&self) -> Uuid {
         self.run_id
-    }
-
-    /// The connection, for the length of one statement and no longer.
-    ///
-    /// Handing the connection out is how a lock ends up held across an
-    /// await; borrowing it per statement is how it cannot. A reader that
-    /// wants the projections holds its own share rather than asking the
-    /// writer for one.
-    fn locked(&self) -> Result<MutexGuard<'_, AiStore>> {
-        self.store
-            .lock()
-            .map_err(|_poisoned| AcpError::RecorderPoisoned)
     }
 
     /// Hands over what the agent said on its own error stream.
@@ -197,15 +185,10 @@ impl Recorder {
     /// longer record anything, so the log would otherwise keep a request that
     /// is permanently unanswered.
     pub fn record_pending_cancelled(&mut self) {
-        // 借出来读完就还，下面 record_permission_resolved 还要再借。
-        let listed = self
-            .locked()
-            .and_then(|store| Ok(store.pending_permissions(self.run_id)?));
-
-        let pending = match listed {
+        let pending = match self.log.outstanding_permissions(self.run_id) {
             Ok(pending) => pending,
             Err(error) => {
-                self.remember(Err(error));
+                self.remember(Err(error.into()));
 
                 return;
             }
@@ -219,7 +202,7 @@ impl Recorder {
     /// Records that the run ended on the agent's terms.
     pub fn record_run_finished(&mut self, stop_reason: &str) {
         let outcome = self.finish(
-            RunStatus::Finished,
+            RunOutcome::Finished,
             RUN_FINISHED,
             json!({ "stopReason": stop_reason }),
             stop_reason,
@@ -234,7 +217,7 @@ impl Recorder {
     /// is marked cancelled rather than finished, because that is what happened.
     pub fn record_run_cancelled(&mut self) {
         let outcome = self.finish(
-            RunStatus::Cancelled,
+            RunOutcome::Cancelled,
             RUN_FINISHED,
             json!({ "stopReason": CANCELLED }),
             CANCELLED,
@@ -245,7 +228,7 @@ impl Recorder {
     /// Records that the run ended in a failure.
     pub fn record_run_failed(&mut self, message: &str) {
         let outcome = self.finish(
-            RunStatus::Failed,
+            RunOutcome::Failed,
             RUN_FAILED,
             json!({ "message": message }),
             message,
@@ -292,7 +275,7 @@ impl Recorder {
                 // An unrecognised state is left out of the projection rather
                 // than guessed at; the log still carries it verbatim.
                 if let Some(status) = translate(call.status) {
-                    self.locked()?.apply_tool_call(
+                    self.log.apply_tool_call(
                         self.run_id,
                         &call.tool_call_id.to_string(),
                         &call.title,
@@ -305,14 +288,14 @@ impl Recorder {
                 let tool_call_id = change.tool_call_id.to_string();
 
                 let matched = if let Some(status) = change.fields.status.and_then(translate) {
-                    self.locked()?.update_tool_call(
+                    self.log.update_tool_call(
                         self.run_id,
                         &tool_call_id,
                         status,
                         change.fields.title.as_deref(),
                     )?
                 } else if let Some(title) = change.fields.title.as_deref() {
-                    self.locked()?
+                    self.log
                         .rename_tool_call(self.run_id, &tool_call_id, title)?
                 } else {
                     true
@@ -336,7 +319,7 @@ impl Recorder {
         tool_call_id: &str,
         request: &RequestPermissionRequest,
     ) -> Result<()> {
-        self.locked()?
+        self.log
             .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
 
         let mut options = serde_json::to_value(&request.options)?;
@@ -368,17 +351,17 @@ impl Recorder {
         // request is cancelled.
         let (outcome, option_id, wire_outcome) = match decision {
             Decision::Allow(option_id) => (
-                PermissionOutcome::Allowed,
+                PermissionAnswer::Allowed,
                 option_id.to_string(),
                 "selected",
             ),
             Decision::Reject(option_id) => {
-                (PermissionOutcome::Denied, option_id.to_string(), "selected")
+                (PermissionAnswer::Denied, option_id.to_string(), "selected")
             }
-            Decision::Cancel => (PermissionOutcome::Cancelled, String::new(), "cancelled"),
+            Decision::Cancel => (PermissionAnswer::Cancelled, String::new(), "cancelled"),
         };
 
-        let _settled = self.locked()?.resolve_permission(request_id, outcome)?;
+        let _settled = self.log.resolve_permission(request_id, outcome)?;
 
         self.append(
             PERMISSION_RESOLVED,
@@ -399,9 +382,9 @@ impl Recorder {
             return title;
         }
 
-        self.locked()
+        self.log
+            .tool_calls(self.run_id)
             .ok()
-            .and_then(|store| store.tool_calls_for_run(self.run_id).ok())
             .and_then(|calls| {
                 calls
                     .into_iter()
@@ -411,8 +394,8 @@ impl Recorder {
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn finish(&mut self, status: RunStatus, kind: &str, body: Value, detail: &str) -> Result<()> {
-        self.locked()?.finish_run(self.run_id, status, Some(detail))?;
+    fn finish(&mut self, status: RunOutcome, kind: &str, body: Value, detail: &str) -> Result<()> {
+        self.log.finish_run(self.run_id, status, Some(detail))?;
 
         // A failure always carries the agent account of it. A turn that ended
         // on the agent terms carries it only when the protocol carried
@@ -443,7 +426,7 @@ impl Recorder {
             fields.insert("at".to_owned(), Value::from(now_millis()));
         }
 
-        self.locked()?.append_event(self.run_id, seq, kind, &frame)?;
+        self.log.append_event(self.run_id, seq, kind, &frame)?;
         self.next_seq = seq.saturating_add(1);
 
         let event = RecordedEvent {
@@ -509,12 +492,12 @@ fn now_millis() -> i64 {
         .unwrap_or_default()
 }
 
-fn translate(status: ProtocolToolCallStatus) -> Option<ToolCallStatus> {
+fn translate(status: ProtocolToolCallStatus) -> Option<ToolCallState> {
     match status {
-        ProtocolToolCallStatus::Pending => Some(ToolCallStatus::Pending),
-        ProtocolToolCallStatus::InProgress => Some(ToolCallStatus::InProgress),
-        ProtocolToolCallStatus::Completed => Some(ToolCallStatus::Completed),
-        ProtocolToolCallStatus::Failed => Some(ToolCallStatus::Failed),
+        ProtocolToolCallStatus::Pending => Some(ToolCallState::Pending),
+        ProtocolToolCallStatus::InProgress => Some(ToolCallState::InProgress),
+        ProtocolToolCallStatus::Completed => Some(ToolCallState::Completed),
+        ProtocolToolCallStatus::Failed => Some(ToolCallState::Failed),
         _ => None,
     }
 }

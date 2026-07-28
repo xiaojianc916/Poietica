@@ -1,12 +1,12 @@
-use poietica_agent_persistence_native::StoreError;
+use crate::run_log::LogError;
 
 /// Everything that can go wrong while driving an agent.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AcpError {
-    /// The encrypted store rejected a read or a write.
-    #[error("the encrypted store rejected an operation: {0}")]
-    Store(#[from] StoreError),
+    /// The log rejected a read or a write.
+    #[error("the run log rejected an operation: {0}")]
+    Log(#[from] LogError),
     /// A protocol payload could not be encoded for the log.
     #[error("a session update could not be encoded: {0}")]
     Encoding(#[from] serde_json::Error),
@@ -28,9 +28,6 @@ pub enum AcpError {
         /// The identifier the agent used.
         tool_call_id: String,
     },
-    /// A task panicked while holding the recorder.
-    #[error("the recorder was left locked by a panicking task")]
-    RecorderPoisoned,
 }
 
 /// The result type used throughout this crate.
