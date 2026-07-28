@@ -2,7 +2,7 @@ import './agent-activity-feed.css'
 
 import type { FeedRow } from '@poietica/agent-timeline'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type ReactNode, useCallback, useLayoutEffect, useRef } from 'react'
+import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 /**
  * 各类条目的首屏估高。
@@ -99,6 +99,29 @@ export function AgentActivityFeed({
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
+
+  /*
+   * 人此刻是不是贴在末端。
+   *
+   * 这是决定锚点归属的两个事实之一，而它是纯几何的 —— 所以直接问滚动区，不引
+   * 第二个位置来源，也不写 scrollTop。只在真正翻转时进 state：一次会话里它变化
+   * 寥寥几次，代价是一次重渲染，换来的是策略可以被声明出来。
+   *
+   * 初值为真：打开一段对话看到的就是最新一条。
+   */
+  const [isPinnedToEnd, setIsPinnedToEnd] = useState(true)
+
+  const syncPinnedToEnd = useCallback(() => {
+    const viewport = viewportRef.current
+
+    if (viewport === null) {
+      return
+    }
+
+    const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
+
+    setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
+  }, [])
   const canvasRef = useRef<HTMLDivElement | null>(null)
 
   /*
@@ -131,8 +154,22 @@ export function AgentActivityFeed({
      */
     getItemKey: (index) => rows[index]?.item.id ?? index,
     scrollMargin: scrollMarginRef.current,
-    /* 末端是稳定的那一侧:回填在上方发生,增长在下方发生。 */
-    anchorTo: 'end',
+    /*
+     * 哪一侧稳定，取决于此刻正在发生什么 —— 它不是一个常量。
+     *
+     * end 模式下位置从末端反推，于是任何一次总高度变化都会让上方所有行整体
+     * 位移：展开一行长高多少，上面的一切就上移多少。这正是「点开思考过程，
+     * 界面莫名向上」的出处，而它与抽屉无关 —— 抽屉只是长高了。
+     *
+     * end 只有一个真实理由：流式输出时，贴在末端的人要跟着最后一条长高。那是
+     * 一个特例，所以让它以特例的形式出现。其余一切时刻用 start：一行长高只推
+     * 它下面的内容，偏移从顶部量起、原本就不变，被展开的那一行天然留在原地。
+     * 没有错误发生，也就没有任何需要纠正的东西 —— 补偿本身就是那道抖动。
+     *
+     * 历史回填仍然安全：它只发生在人向上读的时候，而那时增长在视口之上，由
+     * 稳定的 getItemKey 认回同一条并保持它的视觉位置。
+     */
+    anchorTo: isBusy && isPinnedToEnd ? 'end' : 'start',
     /* 只在用户本来就在看最新一条时跟随;读历史的人不该被拽走。 */
     followOnAppend: true,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
@@ -156,7 +193,7 @@ export function AgentActivityFeed({
 
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
-      <div className="agent-activity-feed__viewport" ref={viewportRef}>
+      <div className="agent-activity-feed__viewport" onScroll={syncPinnedToEnd} ref={viewportRef}>
         {header}
 
         <div
