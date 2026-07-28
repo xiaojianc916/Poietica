@@ -22,10 +22,10 @@ export const sourceExtensions = new Set(['.ts', '.tsx'])
 const isProductionSource = (file) =>
   !/\.(?:test|spec)\.[jt]sx?$/.test(file) && !file.includes('/__tests__/')
 
-const inLayer = (layer) => (file) => isProductionSource(file) && file.startsWith(layer + '/')
+const inLayer = (layer) => (file) => isProductionSource(file) && file.startsWith(`${layer}/`)
 
 const inDirectory = (directory) => (file) =>
-  isProductionSource(file) && file.startsWith(directory + '/')
+  isProductionSource(file) && file.startsWith(`${directory}/`)
 
 const escapeForRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 

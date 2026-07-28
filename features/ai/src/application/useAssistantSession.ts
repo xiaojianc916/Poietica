@@ -113,6 +113,7 @@ function describeFailure(cause: unknown): string {
 
 export function useAssistantSession({
   endpoint,
+  identify,
   onUserMessage,
   session,
 }: AssistantSessionOptions): AssistantSession {

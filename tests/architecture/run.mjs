@@ -89,7 +89,7 @@ for (const file of await collectSources()) {
         line: position.line,
         column: position.column,
         rule: rule.id,
-        message: hint === null ? rule.message : rule.message + ' (use ' + hint + ')',
+        message: hint === null ? rule.message : `${rule.message} (use ${hint})`,
       })
     }
   }
@@ -106,7 +106,7 @@ for (const entry of await readdir(checkDirectory)) {
   }
 
   violations.push({
-    file: 'tests/architecture/' + entry,
+    file: `tests/architecture/${entry}`,
     line: 1,
     column: 1,
     rule: 'no-task-scoped-guards',
@@ -118,14 +118,12 @@ if (violations.length === 0) {
   console.log('Architecture rules passed.')
 } else {
   console.error('')
-  console.error('Architecture violations (' + violations.length + '):')
+  console.error(`Architecture violations (${violations.length}):`)
   console.error('')
 
   for (const violation of violations) {
-    console.error(
-      violation.file + ':' + violation.line + ':' + violation.column + '  ' + violation.rule,
-    )
-    console.error('  ' + violation.message)
+    console.error(`${violation.file}:${violation.line}:${violation.column}  ${violation.rule}`)
+    console.error(`  ${violation.message}`)
   }
 
   console.error('')
