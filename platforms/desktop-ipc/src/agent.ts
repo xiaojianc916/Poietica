@@ -13,38 +13,6 @@ import { commands } from './generated/ipc-bindings'
  * because the feature package validates every one of them before use.
  */
 
-/*
- * 生成物可能落后于原生侧。
- *
- * ipc-bindings.ts 由 export-ipc-bindings 产出，不是手写的契约。当原生侧已经
- * 有了一个命令而绑定还没重新生成时，界面不应该因此崩掉：回放能力按“命令在不
- * 在”判断，不在就当这段对话没有可回放的内容，而不是抛出一个用户读不懂的错误。
- */
-interface TranscriptCommands {
-  readonly agentLoadThread?: (payload: { readonly threadId: string }) => Promise<{
-    readonly events: readonly unknown[]
-  }>
-}
-
-const transcripts = commands as unknown as TranscriptCommands
-
-type PromptPayload = Parameters<typeof commands.agentPrompt>[0]
-
-/*
- * 一轮提问的负载。
- *
- * 会话标识是新加的字段，原生侧已经接受它。绑定重新生成之前它还不在生成类型
- * 里，所以在这一处收敛一次，而不是让一个陈旧的生成文件把整个编译挡住。
- */
-function promptPayload(payload: {
-  readonly text: string
-  readonly threadId: string | null
-  readonly command: string | null
-  readonly cwd: string | null
-}): PromptPayload {
-  return payload as unknown as PromptPayload
-}
-
 /** The channel run frames are broadcast on. */
 export const AGENT_EVENT = 'ai-run-event'
 
@@ -160,14 +128,12 @@ export function createAgentCommandBridge({
   return {
     prompt: async (request) => {
       const result = await call(() =>
-        commands.agentPrompt(
-          promptPayload({
-            text: request.text,
-            threadId: request.threadId ?? null,
-            command: command ?? null,
-            cwd: cwd ?? null,
-          }),
-        ),
+        commands.agentPrompt({
+          text: request.text,
+          threadId: request.threadId ?? null,
+          command: command ?? null,
+          cwd: cwd ?? null,
+        }),
       )
 
       return { runId: result.runId, sessionId: result.sessionId }
@@ -188,14 +154,7 @@ export function createAgentCommandBridge({
     },
 
     loadThread: async (threadId) => {
-      const load = transcripts.agentLoadThread
-
-      /* 绑定还没重新生成：这段对话暂时没有可回放的内容。 */
-      if (load === undefined) {
-        return []
-      }
-
-      const transcript = await call(() => load({ threadId }))
+      const transcript = await call(() => commands.agentLoadThread({ threadId }))
 
       return transcript.events
     },
@@ -344,49 +303,12 @@ export interface AgentThreadBridge {
   readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
 }
 
-/*
- * 生成物可能落后于原生侧，这三个动作因此按“命令在不在”取用。
- *
- * 与回放不同的是，做不到时要说出来：一个悄悄没有发生的删除，比一个报错
- * 的删除糟糕得多。
- */
-interface ThreadShelfCommands {
-  readonly agentRenameThread?: (payload: {
-    readonly threadId: string
-    readonly title: string
-  }) => Promise<unknown>
-  readonly agentDeleteThread?: (payload: { readonly threadId: string }) => Promise<unknown>
-  readonly agentPinThread?: (payload: {
-    readonly threadId: string
-    readonly pinned: boolean
-  }) => Promise<unknown>
-}
-
-const shelf = commands as unknown as ThreadShelfCommands
-
-const STALE = 'IPC 绑定尚未重新生成，这个操作在当前构建里还不存在'
-
-function threadOf(native: AgentThreadDescription): AgentThreadDescription {
-  return {
-    threadId: native.threadId,
-    sessionId: native.sessionId,
-    title: native.title,
-    titleSource: native.titleSource,
-    updatedAt: native.updatedAt,
-    pinned: native.pinned === true,
-  }
-}
-
 export function createAgentThreadBridge({
   command,
   cwd,
 }: AgentBridgeOptions = {}): AgentThreadBridge {
   return {
-    list: async () => {
-      const found = await call(() => commands.agentThreads())
-
-      return found.map(threadOf)
-    },
+    list: () => call(() => commands.agentThreads()),
 
     open: async (threadId) => {
       const opened = await call(() =>
@@ -398,39 +320,21 @@ export function createAgentThreadBridge({
       )
 
       return {
-        thread: threadOf(opened.thread),
+        thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
       }
     },
 
     rename: async (threadId, title) => {
-      const run = shelf.agentRenameThread
-
-      if (run === undefined) {
-        throw new Error(STALE)
-      }
-
-      await call(() => run({ threadId, title }))
+      await call(() => commands.agentRenameThread({ threadId, title }))
     },
 
     remove: async (threadId) => {
-      const run = shelf.agentDeleteThread
-
-      if (run === undefined) {
-        throw new Error(STALE)
-      }
-
-      await call(() => run({ threadId }))
+      await call(() => commands.agentDeleteThread({ threadId }))
     },
 
     setPinned: async (threadId, pinned) => {
-      const run = shelf.agentPinThread
-
-      if (run === undefined) {
-        throw new Error(STALE)
-      }
-
-      await call(() => run({ threadId, pinned }))
+      await call(() => commands.agentPinThread({ threadId, pinned }))
     },
   }
 }

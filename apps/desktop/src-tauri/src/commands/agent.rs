@@ -59,6 +59,7 @@ const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
 const NO_ANSWER: &str = "the agent session ended before answering";
+const NO_READ: &str = "the log read did not finish";
 
 /// The live session, if one has been started.
 ///
@@ -353,22 +354,28 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
 /// Fails when the identifier is not a UUID or the log cannot be read.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_load_run(
+pub async fn agent_load_run(
     state: State<'_, AgentRuntime>,
     request: AgentLoadRunRequest,
 ) -> AgentCommandResult<AgentRunSnapshot> {
     let run_id = Uuid::parse_str(&request.run_id)
         .map_err(|_invalid| Error::Validation("the run identifier is not a UUID".to_owned()))?;
 
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
-    let events = store
-        .events_since(run_id, i64::from(request.after_seq.unwrap_or_default()))
-        .map_err(persistence)?;
+    let after_seq = i64::from(request.after_seq.unwrap_or_default());
+
+    let events = on_store(&state, move |store| {
+        Ok(store
+            .events_since(run_id, after_seq)
+            .map_err(persistence)?
+            .into_iter()
+            .map(|event| event.payload)
+            .collect::<Vec<Value>>())
+    })
+    .await?;
 
     Ok(AgentRunSnapshot {
         run_id: request.run_id,
-        events: events.into_iter().map(|event| event.payload).collect(),
+        events,
     })
 }
 
@@ -406,7 +413,7 @@ pub struct AgentThreadTranscript {
 /// Fails when the log cannot be opened or read.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_load_thread(
+pub async fn agent_load_thread(
     state: State<'_, AgentRuntime>,
     request: AgentLoadThreadRequest,
 ) -> AgentCommandResult<AgentThreadTranscript> {
@@ -417,13 +424,19 @@ pub fn agent_load_thread(
         });
     };
 
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
-    let events = store.thread_events(thread_id).map_err(persistence)?;
+    let events = on_store(&state, move |store| {
+        Ok(store
+            .thread_events(thread_id)
+            .map_err(persistence)?
+            .into_iter()
+            .map(|event| event.payload)
+            .collect::<Vec<Value>>())
+    })
+    .await?;
 
     Ok(AgentThreadTranscript {
         thread_id: request.thread_id,
-        events: events.into_iter().map(|event| event.payload).collect(),
+        events,
     })
 }
 
@@ -686,6 +699,34 @@ fn borrow_store(shared: &Arc<Mutex<AiStore>>) -> Result<MutexGuard<'_, AiStore>>
     shared
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
+}
+
+/// Reads or writes the log without standing on the main thread.
+///
+/// A command that is not `async` runs on the main thread, and one read of a
+/// conversation is a credential store lookup, a SQLCipher attach, a join
+/// across the whole log and a JSON parse per frame. Put that on the main
+/// thread and the window stops answering: the sidebar does not highlight,
+/// the click does not land, and the conversation looks broken rather than
+/// slow.
+///
+/// The two halves are separate on purpose. Taking the share needs the
+/// managed state, which is borrowed; running the work needs `'static`. So
+/// the handle is taken here and the statement is handed to the pool.
+async fn on_store<T, F>(state: &State<'_, AgentRuntime>, work: F) -> Result<T>
+where
+    T: Send + 'static,
+    F: FnOnce(&AiStore) -> Result<T> + Send + 'static,
+{
+    let shared = shared_store(state)?;
+
+    async_runtime::spawn_blocking(move || {
+        let store = borrow_store(&shared)?;
+
+        work(&store)
+    })
+    .await
+    .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
 fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Session>>> {
@@ -1206,7 +1247,7 @@ async fn session_for(
 /// database rejects the write.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_rename_thread(
+pub async fn agent_rename_thread(
     state: State<'_, AgentRuntime>,
     request: AgentRenameThreadRequest,
 ) -> AgentCommandResult<()> {
@@ -1217,10 +1258,11 @@ pub fn agent_rename_thread(
     }
 
     let id = conversation(&request.thread_id)?;
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
 
-    store.name_by_user(id, &title).map_err(persistence)?;
+    on_store(&state, move |store| {
+        store.name_by_user(id, &title).map_err(persistence)
+    })
+    .await?;
 
     Ok(())
 }
@@ -1233,15 +1275,16 @@ pub fn agent_rename_thread(
 /// deletes.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_delete_thread(
+pub async fn agent_delete_thread(
     state: State<'_, AgentRuntime>,
     request: AgentThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
 
-    store.delete_thread(id).map_err(persistence)?;
+    on_store(&state, move |store| {
+        store.delete_thread(id).map_err(persistence)
+    })
+    .await?;
 
     Ok(())
 }
@@ -1254,15 +1297,17 @@ pub fn agent_delete_thread(
 /// write.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_pin_thread(
+pub async fn agent_pin_thread(
     state: State<'_, AgentRuntime>,
     request: AgentPinThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
+    let pinned = request.pinned;
 
-    store.set_pinned(id, request.pinned).map_err(persistence)?;
+    on_store(&state, move |store| {
+        store.set_pinned(id, pinned).map_err(persistence)
+    })
+    .await?;
 
     Ok(())
 }
