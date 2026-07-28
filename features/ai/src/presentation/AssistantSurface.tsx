@@ -91,7 +91,13 @@ export function AssistantSurface({
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, session })
 
-  const controls = useSessionControls(config, assistant.status)
+  /*
+   * 选择器属于会话，会话属于对话，所以重读的理由是换了对话。
+   *
+   * 此前这里传的是回合状态，而它一轮要变三次，于是读一次列表 ——
+   * 也就是 ensure_session —— 会在回答进行中被反复触发。
+   */
+  const controls = useSessionControls(config, endpoint)
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
@@ -135,6 +141,7 @@ export function AssistantSurface({
                 handle={composer}
                 isAgentNew
                 onCancel={assistant.cancel}
+                onRetryControls={controls.retry}
                 onSelectControl={controls.select}
                 onSubmit={assistant.send}
                 status={assistant.status}

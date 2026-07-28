@@ -42,6 +42,8 @@ export interface AssistantComposerProps {
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
+  /** 读失败之后重新问一次。 */
+  readonly onRetryControls?: (() => void) | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
 }
 
@@ -51,6 +53,7 @@ function ComposerToolbar({
   controlsFailure,
   isAgentNew,
   onCancel,
+  onRetryControls,
   onSelectControl,
   status,
 }: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
@@ -92,7 +95,12 @@ function ComposerToolbar({
 
       <span className="assistant-toolbar__spacer" />
 
-      <SessionControls controls={controls} failure={controlsFailure} onSelect={onSelectControl} />
+      <SessionControls
+        controls={controls}
+        failure={controlsFailure}
+        onRetry={onRetryControls}
+        onSelect={onSelectControl}
+      />
 
       <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
         <MicIcon aria-hidden="true" />

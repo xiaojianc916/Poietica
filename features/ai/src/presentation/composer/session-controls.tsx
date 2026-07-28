@@ -26,6 +26,15 @@ import { ProviderIcon } from '../primitives/provider-icon'
 
 const NOTHING_TO_OFFER = '会话未就绪'
 
+/*
+ * 读不到和还没有，是两件事。
+ *
+ * 之前两者都渲染成同一段不可点击的文字，于是「agent 没装起来」「握手失败」
+ * 「一轮回答正在跑」这三种完全不同的处境，在屏幕上长得一模一样，而唯一的
+ * 说明藏在一个挂不住焦点的 title 里。
+ */
+const UNAVAILABLE = '会话设置读取失败，点击重试'
+
 const ORDER = ['model', 'thought', 'mode', 'other'] as const
 
 /** Where a purpose sits; anything unrecognised sorts last rather than away. */
@@ -46,9 +55,11 @@ export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly failure?: string | undefined
   readonly onSelect: (controlId: string, value: string) => void
+  /** 读失败之后重新问一次；没有这个，失败就是一条死路。 */
+  readonly onRetry?: (() => void) | undefined
 }
 
-export function SessionControls({ controls, failure, onSelect }: SessionControlsProps) {
+export function SessionControls({ controls, failure, onRetry, onSelect }: SessionControlsProps) {
   /* Sorting is stable, so the agent order survives inside each purpose. */
   const rows = [...controls].sort((left, right) => rank(left.purpose) - rank(right.purpose))
   const model = controls.find((control) => control.purpose === 'model')
@@ -58,17 +69,32 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
   const [firstRow] = rows
 
   if (firstRow === undefined) {
+    /* 还没有会话：等一下就有了，这里没有什么可做的。 */
+    if (failure === undefined) {
+      return (
+        <span aria-live="polite" className="assistant-model-select__button" data-empty="true">
+          <ProviderIcon />
+
+          <span className="assistant-model-select__label">{NOTHING_TO_OFFER}</span>
+        </span>
+      )
+    }
+
+    /* 读失败了：说出原因，并且让它可以被再试一次。 */
     return (
-      <span
+      <button
         aria-live="polite"
         className="assistant-model-select__button"
         data-empty="true"
+        data-failed="true"
+        onClick={onRetry}
         title={failure}
+        type="button"
       >
         <ProviderIcon />
 
-        <span className="assistant-model-select__label">{NOTHING_TO_OFFER}</span>
-      </span>
+        <span className="assistant-model-select__label">{UNAVAILABLE}</span>
+      </button>
     )
   }
 
@@ -91,6 +117,12 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
         side="top"
         sideOffset={6}
       >
+        {failure === undefined ? null : (
+          <div className="assistant-config-menu__row" role="alert">
+            <span className="assistant-config-menu__row-label">{failure}</span>
+          </div>
+        )}
+
         {rows.map((control) => (
           <DropdownMenuSub key={control.id}>
             <DropdownMenuSubTrigger className="assistant-config-menu__row">
