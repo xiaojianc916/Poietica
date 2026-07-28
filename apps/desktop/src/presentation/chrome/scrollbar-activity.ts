@@ -107,8 +107,51 @@ const readMetrics = (scroller: Element): Metrics => {
 const optedOut = (scroller: Element): boolean =>
   getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
 
-/** 比例来自滚动盒，长度来自轨道：面板声明自己是轨道时，滑块贯穿整块面板。 */
-const trackOf = (scroller: Element): Element => scroller.closest(TRACK_ATTRIBUTE) ?? scroller
+/**
+ * 一个元素自己是不是滚动容器。
+ *
+ * 轨道的归属只认这一个事实，不认类名、不认白名单：谁会滚，谁就自己画。
+ */
+const isScrollContainer = (element: Element): boolean => {
+  const style = getComputedStyle(element)
+
+  return (
+    style.overflowY === 'auto' ||
+    style.overflowY === 'scroll' ||
+    style.overflowX === 'auto' ||
+    style.overflowX === 'scroll'
+  )
+}
+
+/**
+ * 这根条画在哪条轨道上。
+ *
+ * 「面板声明自己是轨道，滑块就贯穿整块面板」这句话只对面板自己的滚动区成立。此前
+ * 这里一路 closest 到最近的 data-scrollbar-track，中途有没有另一个滚动容器一概不
+ * 问：代码块、思维链、工具输出一滚，滑块就被画到整条会话面板的右缘 —— 长度按面板
+ * 算、位置按代码块算，于是「我在代码块里滑，外面那条也在动」。外层其实一步没滚，
+ * 动的是一根本来就不该在那里的滑块。
+ *
+ * 所以往上找有终点：命中轨道标记才领走它，而在此之前遇到的第一个滚动容器就说明这
+ * 条轨道不属于自己 —— 就地返回滚动盒，画在自己的边缘上。
+ */
+const trackOf = (scroller: Element): Element => {
+  let node: Element | null = scroller
+
+  while (node !== null) {
+    if (node.matches(TRACK_ATTRIBUTE)) {
+      return node
+    }
+
+    if (node !== scroller && isScrollContainer(node)) {
+      return scroller
+    }
+
+    node = node.parentElement
+  }
+
+  return scroller
+}
 
 const scrollableOn = (scroller: Element, axis: Axis): boolean =>
   axis === 'vertical'

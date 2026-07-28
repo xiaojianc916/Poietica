@@ -1087,95 +1087,21 @@
   color: var(--cp-diff-removed-text, #b42318);
 }
 
-/* ── 内层滚动条 ────────────────────────────────────────────────────
+/* ── 内层滚动盒的滚动条 ──────────────────────────────────────────
  *
- * 这条流里有四类内层滚动盒：代码块、表格、工具输出、思维链。它们此前只声明了
- * overflow，于是有两个症状，而那是同一件事的两面：
+ * 这里不画滚动条，一根都不画。
  *
- * 一、滚动链。滚到尽头、或者这个盒子在纵轴上根本不能滚（只横向溢出的代码块
- *    正是如此），滚轮事件就冒到外层，于是"我在代码块里上下滑，右边整条会话
- *    在动"。上面几条 overscroll-behavior: contain 把链掐在盒子边界上 —— 浏览
- *    器为此提供的标准手段，不需要监听、不需要 preventDefault。
+ * 全应用只有一套：apps/desktop/src/app.css 关掉原生的那一套（* 上的
+ * scrollbar-width: none），滑块由 presentation/chrome/scrollbar-activity.ts 画在一
+ * 层 fixed 浮层上。理由写在那个文件开头 —— 原生滚动条在 Windows 上占据布局宽度，
+ * 出现与消失会让内容横向跳一次，而且它的轨道恒等于滚动盒自身，画不到盒子之外。
  *
- * 二、看不见的滚动条。WebKit 的覆盖式滚动条只在滚动真的发生时浮现，一个从来
- *    滚不动的盒子自然一根都不画。所以"代码块没有滑动条"不是另一个 bug，是上
- *    面那条的同一个后果。
+ * 此前这里另外声明过一组原生滚动条伪元素，于是同一个盒子上有两根滑块同时在动：一
+ * 根原生的贴在盒子右缘，一根浮层的画在会话面板右缘。那不是两个 bug，是两套滚动条
+ * 互不知情。要么全走原生，要么全走浮层；这个应用因为上面那条几何限制选了浮层，那
+ * 么这张表就不能再自己画一根。
  *
- * 链修好之后，滚动条要被说出来：能滚就要看得出能滚，这是可用性而不是装饰。
- * scrollbar-width / scrollbar-color 是标准属性；后面那组 ::-webkit-scrollbar
- * 是给尚未实现它们的 WebKit 的等价声明，两边读同一个 token，所以不会打架。
- * 静息态用 22% 的墨：低到不与代码争视线，高到一眼能找到。
- *
- * 清单只写一次，用 :is() 承载 —— 四类盒子共用同一个约定，不该有四份副本。
+ * 内层滚动盒在这张表里只声明两件事，也只该声明这两件事：overflow —— 它自己会滚；
+ * overscroll-behavior: contain —— 滚到尽头不把滚动链交给外面那条会话流。外观归浮
+ * 层，而浮层认盒子自己的边缘作轨道。
  */
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-) {
-  scrollbar-width: thin;
-  scrollbar-color: var(--cp-scroll-thumb, rgb(0 0 0 / 22%)) transparent;
-}
-
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-)::-webkit-scrollbar {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-}
-
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-)::-webkit-scrollbar-track,
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-)::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/*
- * 滑块靠透明边框留出内缩，再用 background-clip 把底色收进内边距盒 —— 于是它
- * 是一根浮在内容上的细条，而不是一整条填满轨道的色带。
- */
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-)::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 9999px;
-  background-color: var(--cp-scroll-thumb, rgb(0 0 0 / 22%));
-  background-clip: padding-box;
-}
-
-:is(
-  .timeline-prose [data-streamdown="code-block-body"],
-  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
-  .timeline-reasoning__scroll,
-  .timeline-tool__text,
-  .timeline-tool__diff-old,
-  .timeline-tool__diff-new
-)::-webkit-scrollbar-thumb:hover {
-  background-color: var(--cp-scroll-thumb-hover, rgb(0 0 0 / 36%));
-}
