@@ -28,12 +28,12 @@ describe('会话时间', () => {
 
   it('段内按最近活动倒序', () => {
     const now = at('2026-07-29T12:00:00')
-    const [today] = sectionsOf(
+    const sections = sectionsOf(
       [{ updatedAt: '2026-07-29T08:00:00' }, { updatedAt: '2026-07-29T11:00:00' }],
       now,
     )
 
-    expect(today.members.map((member) => member.thread.updatedAt)).toEqual([
+    expect(sections.at(0)?.members.map((member) => member.thread.updatedAt)).toEqual([
       '2026-07-29T11:00:00',
       '2026-07-29T08:00:00',
     ])
@@ -105,9 +105,9 @@ describe('会话时间', () => {
 
   it('无法解析的时刻归入更早，且不参与排序', () => {
     const now = at('2026-07-29T12:00:00')
-    const sections = sectionsOf([{ updatedAt: 'not-a-date' }], now)
+    const [earlier] = sectionsOf([{ updatedAt: 'not-a-date' }], now)
 
-    expect(sections[0].id).toBe('earlier')
-    expect(Number.isNaN(sections[0].members[0].instant)).toBe(true)
+    expect(earlier?.id).toBe('earlier')
+    expect(earlier?.members.at(0)?.instant).toBeNaN()
   })
 })

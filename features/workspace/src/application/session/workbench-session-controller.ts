@@ -11,6 +11,7 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
   WorkbenchViewModel,
+  WorkspaceSurfaceId,
   WorkspaceSurfaceViewModel,
   WorkspaceTabViewModel,
 } from '@poietica/features-workspace/contracts'
@@ -49,7 +50,7 @@ interface ConversationEntry extends EntryBase {
 
 interface WorkspaceEntry extends EntryBase {
   readonly kind: 'workspace'
-  readonly surfaceId: import('@poietica/agent-protocol').WorkspaceSurfaceId
+  readonly surfaceId: WorkspaceSurfaceId
 }
 
 /**

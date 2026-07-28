@@ -6,7 +6,8 @@
   "main": "./src/public-api.ts",
   "types": "./src/public-api.ts",
   "exports": {
-    ".": "./src/public-api.ts"
+    ".": "./src/public-api.ts",
+    "./fixtures": "./src/__fixtures__/public-api.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",

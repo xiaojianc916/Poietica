@@ -1,6 +1,7 @@
 import { parseRunEvent } from '@poietica/agent-protocol'
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
-import { recordedTurn, replayRunEvents } from '@poietica/agent-timeline'
+import { replayRunEvents } from '@poietica/agent-timeline'
+import { recordedToolTurn } from '@poietica/agent-timeline/fixtures'
 import { describe, expect, it } from 'vitest'
 import { toToolContentParts } from '../timeline/tool-call-content'
 
@@ -12,7 +13,7 @@ import { toToolContentParts } from '../timeline/tool-call-content'
  * illustrate our own mapping; they prove nothing about the protocol.
  */
 
-const events = recordedTurn.flatMap((frame) => {
+const events = recordedToolTurn.flatMap((frame) => {
   const parsed = parseRunEvent(frame.frame)
   return parsed.ok ? [parsed.event] : []
 })

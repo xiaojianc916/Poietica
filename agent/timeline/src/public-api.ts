@@ -1,4 +1,3 @@
-export { SAMPLE_RUN_EVENTS } from './__fixtures__/timeline-fixtures'
 export type {
   AgentTextItem,
   AgentThoughtItem,

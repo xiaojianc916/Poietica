@@ -16,13 +16,9 @@ import type { QuestionAnswer, QuestionDeck } from '../domain/ask-user-question'
  * 的按钮是"发送"，这时才把整组答案一次交出去。中途不回任何东西，因为 ACP 的
  * request_permission 一旦答了就收不回来，而用户要能改。
  *
- * 不 import 设计系统与 primitives：这一层要能在目录重排后原样存活，图标与 cx
- * 都就地解决，省得为三行工具函数绑一条相对路径。
+ * 不 import 设计系统与 primitives：这一层要能在目录重排后原样存活，图标就地
+ * 画，类名就地拼，省得为三行工具函数绑一条相对路径。
  */
-
-function cx(...parts) {
-  return parts.filter((part) => typeof part === 'string' && part.length > 0).join(' ')
-}
 
 function ChevronLeftIcon() {
   return (
@@ -220,7 +216,7 @@ export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: Quest
             </span>
 
             <button
-              className={cx('assistant-question-panel__advance', chosen === undefined && 'is-idle')}
+              className={`assistant-question-panel__advance${chosen === undefined ? ' is-idle' : ''}`}
               disabled={busy}
               onClick={() => {
                 if (isLast) {
