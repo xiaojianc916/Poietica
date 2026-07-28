@@ -48,7 +48,6 @@ export function ConversationMinimap({ turns, activeRow, onSelect }: Conversation
           aria-current={index === active ? 'true' : undefined}
           aria-label={turn.label}
           className="conversation-minimap__turn"
-          data-label={turn.label}
           key={turn.id}
           onClick={() => {
             onSelect(turn.rowIndex)
@@ -56,6 +55,18 @@ export function ConversationMinimap({ turns, activeRow, onSelect }: Conversation
           type="button"
         >
           <span className="conversation-minimap__bar" />
+
+          {/*
+           * Preview card: a real element because it needs two semantic rows.
+           * aria-hidden so screen readers use the button's accessible name
+           * (aria-label) rather than reading the card prose twice.
+           */}
+          <div aria-hidden="true" className="conversation-minimap__card">
+            <p className="conversation-minimap__card-question">{turn.label}</p>
+            {turn.reply !== undefined && (
+              <p className="conversation-minimap__card-reply">{turn.reply}</p>
+            )}
+          </div>
         </button>
       ))}
     </nav>

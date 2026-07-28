@@ -93,31 +93,75 @@
 }
 
 /*
- * The label comes from the question itself, through the attribute the button
- * already carries for its accessible name — one source, no second element.
+ * The preview card.
+ *
+ * A real element, not ::after, because it needs two rows (question + reply)
+ * with distinct typography. It lives to the left of the bar, vertically
+ * centred on the button's hit area.
+ *
+ * Height model
+ * ────────────
+ * The question row is always exactly one line — any overflow is truncated with
+ * an ellipsis, so its height is fixed at one line-height.
+ *
+ * The reply row's line-height is declared as a CSS custom property
+ * (--cp-card-lh) and max-block-size is set to exactly three times that value.
+ * Because max-block-size is an integer multiple of line-height, the overflow
+ * clip always falls on a line boundary — a partial line is never visible.
+ * When the reply is shorter than three lines the block shrinks naturally to
+ * fit; when it is longer only three complete lines show.
  */
-.conversation-minimap__turn::after {
-  content: attr(data-label);
+.conversation-minimap__card {
   position: absolute;
+  inset-block-start: 50%;
   inset-inline-end: calc(100% + var(--cp-pad-mid));
-  max-inline-size: 24ch;
+  translate: 0 -50%;
+  inline-size: 220px;
   overflow: hidden;
   border-radius: var(--am-item);
-  padding: 2px var(--cp-optical);
+  padding: 6px 8px;
   background: var(--cp-surface);
   box-shadow: var(--am-shadow);
   font-size: var(--cp-font-micro);
   color: var(--cp-ink);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  text-align: start;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.conversation-minimap__turn:hover::after,
-.conversation-minimap__turn:focus-visible::after {
+.conversation-minimap__turn:hover .conversation-minimap__card,
+.conversation-minimap__turn:focus-visible .conversation-minimap__card {
   opacity: 1;
+}
+
+/* Question: one line, bold, truncated. */
+.conversation-minimap__card-question {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Reply: up to three complete lines, never a partial one.
+ *
+ * --cp-card-lh is the sole source of truth for the line pitch here. Setting
+ * max-block-size to exactly 3× that value means the clip is always a
+ * line-boundary cut, regardless of how many characters the text contains.
+ */
+.conversation-minimap__card-reply {
+  --cp-card-lh: 1.4em;
+
+  margin: 4px 0 0;
+  line-height: var(--cp-card-lh);
+  max-block-size: calc(var(--cp-card-lh) * 3);
+  overflow: hidden;
+  color: var(--cp-ink-subtle);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* No pull and no travel: the weight is neutralised at the source. */

@@ -85,6 +85,15 @@ export interface ConversationTurn {
   readonly rowIndex: number
   /** The first line of the question: what the rail labels the turn with. */
   readonly label: string
+  /**
+   * The opening text of the AI answer, for the preview card.
+   *
+   * Absent while the turn has not yet received a reply (e.g. the run is still
+   * streaming the first chunk, or the turn produced no agent text at all).
+   * Capped at 300 characters — the card never renders more than three lines,
+   * so more would be invisible weight.
+   */
+  readonly reply?: string
 }
 
 const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
@@ -103,15 +112,47 @@ export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn
 }
 
 function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
-  const turns: ConversationTurn[] = []
+  /*
+   * First pass: collect every user message with its feed-row position.
+   *
+   * The result is a plain mutable staging array; the readonly ConversationTurn
+   * objects are built in the second pass once reply text is known.
+   */
+  const staged: Array<{
+    id: TimelineItemId
+    rowIndex: number
+    label: string
+  }> = []
 
   rows.forEach((row, rowIndex) => {
     if (row.item.type === 'user_message') {
-      turns.push({ id: row.item.id, label: firstLine(row.item.text), rowIndex })
+      staged.push({ id: row.item.id, label: firstLine(row.item.text), rowIndex })
     }
   })
 
-  return turns
+  /*
+   * Second pass: for each turn, scan forward to the next user message (or the
+   * end of the feed) and pick the first agent_text chunk that has content.
+   *
+   * The scan is bounded by the next turn's rowIndex, so each chunk is assigned
+   * to exactly one turn and the loop is O(n) over the feed in total.
+   */
+  return staged.map((entry, turnIndex) => {
+    const replyStart = entry.rowIndex + 1
+    const replyEnd = staged[turnIndex + 1]?.rowIndex ?? rows.length
+    let reply: string | undefined
+
+    for (let i = replyStart; i < replyEnd; i++) {
+      const row = rows[i]
+
+      if (row !== undefined && row.item.type === 'agent_text' && row.item.text.length > 0) {
+        reply = row.item.text.slice(0, 300)
+        break
+      }
+    }
+
+    return { id: entry.id, rowIndex: entry.rowIndex, label: entry.label, reply }
+  })
 }
 
 function firstLine(text: string): string {
