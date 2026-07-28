@@ -8,7 +8,7 @@
 //! These run against a real encrypted file with a throwaway key, so nothing
 //! here touches the operating system credential store.
 
-use poietica_ai_persistence_native::{AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus};
 use tempfile::TempDir;
 use uuid::Uuid;
 

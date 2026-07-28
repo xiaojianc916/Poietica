@@ -1,4 +1,4 @@
-use poietica_ai_persistence_native::StoreError;
+use poietica_agent_persistence_native::StoreError;
 
 /// Everything that can go wrong while driving an agent.
 #[derive(Debug, thiserror::Error)]

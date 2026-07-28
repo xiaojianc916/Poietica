@@ -18,11 +18,11 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use poietica_ai_acp_native::{
+use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
     PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_ai_persistence_native::{AiStore, StoreError};
+use poietica_agent_persistence_native::{AiStore, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -989,7 +989,7 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
                 continue;
             };
 
-            let official = poietica_ai_persistence_native::TitleSource::Official;
+            let official = poietica_agent_persistence_native::TitleSource::Official;
 
             store
                 .rename_thread(id, &title, official)
@@ -1063,7 +1063,7 @@ pub async fn agent_open_thread(
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
-fn retitle(thread: poietica_ai_persistence_native::ThreadSummary) -> AgentThread {
+fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThread {
     AgentThread {
         thread_id: thread.id,
         session_id: thread.session_id,

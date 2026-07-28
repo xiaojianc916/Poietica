@@ -17,8 +17,8 @@ use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_ai_acp_native::{Decision, RecordedEvent, Recorder};
-use poietica_ai_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -186,7 +186,7 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
     assert_eq!(call.title, "Editing main.rs");
     assert_eq!(
         call.status,
-        poietica_ai_persistence_native::ToolCallStatus::InProgress,
+        poietica_agent_persistence_native::ToolCallStatus::InProgress,
         "a title change must not move the state"
     );
 }
@@ -220,7 +220,7 @@ fn a_tool_call_reaches_a_terminal_state_in_the_projection() {
     );
     assert_eq!(
         call.status,
-        poietica_ai_persistence_native::ToolCallStatus::Completed
+        poietica_agent_persistence_native::ToolCallStatus::Completed
     );
     assert!(call.ended_at.is_some());
 }
@@ -257,7 +257,7 @@ fn a_permission_request_is_refused_and_recorded() {
         ],
     );
 
-    let decision = poietica_ai_acp_native::decide(&request);
+    let decision = poietica_agent_runtime_native::decide(&request);
 
     assert!(
         matches!(&decision, Decision::Reject(option_id) if option_id.to_string() == "reject"),
@@ -318,7 +318,7 @@ fn a_permission_request_is_refused_and_recorded() {
     assert_eq!(record.request_id, request_id);
     assert_eq!(
         record.outcome,
-        Some(poietica_ai_persistence_native::PermissionOutcome::Denied)
+        Some(poietica_agent_persistence_native::PermissionOutcome::Denied)
     );
 }
 

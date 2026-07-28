@@ -6,7 +6,7 @@ use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
     ToolCallStatus as ProtocolToolCallStatus, ToolKind,
 };
-use poietica_ai_persistence_native::{AiStore, PermissionOutcome, RunStatus, ToolCallStatus};
+use poietica_agent_persistence_native::{AiStore, PermissionOutcome, RunStatus, ToolCallStatus};
 use serde::Serialize;
 use serde_json::{Value, json};
 use uuid::Uuid;

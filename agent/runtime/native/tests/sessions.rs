@@ -4,7 +4,7 @@
 //! Every answer is asserted rather than unwrapped, because a lint-clean
 //! test may not reach for a panic to describe a failure.
 
-use poietica_ai_acp_native::SessionBook;
+use poietica_agent_runtime_native::SessionBook;
 
 const FIRST: &str = "session_11111111-1111-4111-8111-111111111111";
 const SECOND: &str = "session_22222222-2222-4222-8222-222222222222";

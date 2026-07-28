@@ -53,11 +53,11 @@ use std::time::{Duration, Instant};
 
 use futures::channel::oneshot;
 use futures::executor::block_on;
-use poietica_ai_acp_native::{
+use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_ai_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey};
 use tempfile::TempDir;
 
 const DEFAULT_COMMAND: &str = "kimi acp";

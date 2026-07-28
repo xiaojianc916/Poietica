@@ -70,18 +70,6 @@ export function createIpcSession({
 }
 
 /*
- * A refused frame is a failure of this client, and it belongs on screen.
- *
- * Reporting it to a log satisfies the developer and leaves the person waiting
- * for an answer looking at a transcript in which the agent simply never spoke.
- * So the refusal enters the timeline through the same channel every other
- * failure uses.
- *
- * Sequence zero is deliberate. Real frames are numbered from one, so this can
- * never collide with one, and the reducer keeps the first refusal of a turn and
- * discards the rest: one visible failure, not a wall of them.
- */
-/*
  * Validates a batch of recorded frames.
  *
  * A single turn and a whole conversation are read back the same way, and a
@@ -109,6 +97,18 @@ function accept(
 
 const REFUSED = '助手发回了这个界面无法解析的数据，这一轮已经中断。'
 
+/*
+ * A refused frame is a failure of this client, and it belongs on screen.
+ *
+ * Reporting it to a log satisfies the developer and leaves the person waiting
+ * for an answer looking at a transcript in which the agent simply never spoke.
+ * So the refusal enters the timeline through the same channel every other
+ * failure uses.
+ *
+ * Sequence zero is deliberate. Real frames are numbered from one, so this can
+ * never collide with one, and the reducer keeps the first refusal of a turn and
+ * discards the rest: one visible failure, not a wall of them.
+ */
 function refusedFrame(issue: string): RunEvent {
   return {
     kind: 'run_failed',

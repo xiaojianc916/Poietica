@@ -4,7 +4,7 @@
 //! session, copied from the wire.
 
 use agent_client_protocol::schema::v1::SessionConfigOption;
-use poietica_ai_acp_native::{ConfigControl, ConfigPurpose, controls};
+use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose, controls};
 
 const OFFERED: &str = r#"[
   {"type":"select","id":"model","name":"Model","category":"model",

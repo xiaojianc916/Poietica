@@ -12,8 +12,8 @@
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
-use poietica_ai_acp_native::{AcpError, RecordedEvent, Recorder, RunSlot};
-use poietica_ai_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_runtime_native::{AcpError, RecordedEvent, Recorder, RunSlot};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey};
 use tempfile::TempDir;
 
 struct Fixture {

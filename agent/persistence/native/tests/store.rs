@@ -5,7 +5,7 @@
 )]
 use std::path::PathBuf;
 
-use poietica_ai_persistence_native::{AiStore, DatabaseKey, RunStatus, StoreError};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey, RunStatus, StoreError};
 use tempfile::TempDir;
 
 fn database_path(directory: &TempDir) -> PathBuf {

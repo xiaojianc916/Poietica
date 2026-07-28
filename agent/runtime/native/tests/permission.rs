@@ -17,8 +17,8 @@ use agent_client_protocol::schema::v1::{
     ToolCallUpdateFields,
 };
 use futures::executor::block_on;
-use poietica_ai_acp_native::{Decision, PermissionDesk, RecordedEvent, Recorder};
-use poietica_ai_persistence_native::{AiStore, DatabaseKey, PermissionOutcome};
+use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder};
+use poietica_agent_persistence_native::{AiStore, DatabaseKey, PermissionOutcome};
 use serde_json::Value;
 use tempfile::TempDir;
 
