@@ -97,12 +97,12 @@ export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): T
     apply(draft, event)
   }
 
-  // A run that never reached a terminal event was interrupted (force-kill,
-  // crash). Close any open tool calls so they show the failure glyph rather
-  // than a perpetual spinner.
+  /* A run that never reached a terminal event was interrupted (force-kill,
+     crash), and that is a fact about the run, not about the calls it made.
+     Whatever a tool call was doing when the process died is what the log says
+     it was doing; how a stalled call is drawn is the read model's business. */
   if (draft.status === 'running' || draft.status === 'awaiting_permission') {
     draft.status = 'failed'
-    closeOpenToolCalls(draft)
   }
 
   return freeze(draft)
@@ -151,6 +151,13 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
 
   const draft = draftOf(state)
 
+  /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。
+     它从 1 开始编自己的号，窗口必须跟着换，否则整轮会被上一轮的 seq
+     判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。 */
+  if (event.kind === 'run_started') {
+    openSegment(draft)
+  }
+
   apply(draft, event)
 
   return freeze(draft)
@@ -190,17 +197,15 @@ function openSegment(draft: Draft): void {
 
 function apply(draft: Draft, event: RunEvent): void {
   /*
-   * 开新段只有这一个权威点。
+   * 段的边界不在这里判。
    *
-   * 每一轮都从 1 开始编号自己的帧，所以段的边界就是 run_started，
-   * 而不是"谁先看见了这一轮"。此前实时路径靠 appendUserMessage 开段、
-   * 回放路径靠自己在循环里开段，于是没有经过输入框的那些新一轮
-   * （重连续接、重试）撞上上一轮的 seq，被整轮当作重复丢掉。
+   * 一帧 run_started 可能是新的一轮，也可能是同一份日志被重放了一遍，
+   * 而这两者的 seq、at、prompt 全都一样：apply 手上没有任何东西能把它们
+   * 分开。所以由知道自己在干什么的调用方来开段——replayThreadEvents 遍历
+   * 多轮日志时开，applyRunEvent 在实时流上收到一轮开始时开，而
+   * replayRunEvents 一轮到底，一段都不开：同一份日志放两遍必须得到同一个
+   * 状态，这是回放能被信任的前提。
    */
-  if (event.kind === 'run_started') {
-    openSegment(draft)
-  }
-
   if (draft.applied.has(event.seq)) {
     return
   }
@@ -261,7 +266,6 @@ function apply(draft: Draft, event: RunEvent): void {
          account, that account is the entry, and our own wording never
          appears at all. */
       sealTail(draft)
-      closeOpenToolCalls(draft)
       draft.status = finalStatus(event.stopReason)
 
       const said = event.diagnostics?.trim() ?? ''
@@ -280,7 +284,6 @@ function apply(draft: Draft, event: RunEvent): void {
 
     case 'run_failed': {
       sealTail(draft)
-      closeOpenToolCalls(draft)
       draft.status = 'failed'
       push(draft, {
         type: 'error',
@@ -548,24 +551,6 @@ function sealTail(draft: Draft): void {
   }
 
   draft.items[draft.items.length - 1] = { ...tail, sealed: true }
-}
-
-/*
- * A run interrupted without a terminal event left some tool calls hanging.
- * Mark them failed so the failure glyph appears instead of a spinner.
- */
-function closeOpenToolCalls(draft: Draft): void {
-  for (const [position, item] of draft.items.entries()) {
-    if (item.type !== 'tool_call') {
-      continue
-    }
-
-    if (item.status === 'completed' || item.status === 'failed') {
-      continue
-    }
-
-    draft.items[position] = { ...item, status: 'failed' }
-  }
 }
 
 /**
