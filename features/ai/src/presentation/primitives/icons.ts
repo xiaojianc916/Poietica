@@ -18,7 +18,6 @@ export {
   Paperclip as AttachIcon,
   Pin as PinIcon,
   Plus as PlusIcon,
-  Puzzle as ToolsIcon,
   Search as SearchIcon,
   Send as AgentIcon,
   Sparkles as ModelIcon,
