@@ -3015,7 +3015,6 @@ version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
  "futures",
- "poietica-agent-persistence-native",
  "serde",
  "serde_json",
  "tempfile",

@@ -29,6 +29,7 @@ use specta::Type;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
+use crate::commands::agent_log::SharedLog;
 use crate::error::{Error, IpcError, Result};
 
 type AgentCommandResult<T> = std::result::Result<T, IpcError>;
@@ -76,9 +77,10 @@ pub struct AgentRuntime {
     session: Mutex<Option<Session>>,
     /// The one connection to the encrypted log, opened on first use.
     ///
-    /// 此前每条命令各开一条：一次钥匙串读取、一次 SQLCipher 装载、
-    /// 一遍 migrate，刷新一次侧栏就走一整套。日志自称的 single
-    /// writer 也从来没有存在过。
+    /// Every command used to open one of its own: a credential store
+    /// read, a SQLCipher attach and a full migrate, all of it again for
+    /// something as ordinary as refreshing the sidebar. The single writer
+    /// the log claims to be had never actually existed.
     store: OnceLock<Arc<Mutex<AiStore>>>,
 }
 
@@ -225,7 +227,7 @@ pub async fn agent_prompt(
 
     let handle = app.clone();
     let recorder = Recorder::new(
-        Arc::clone(&shared),
+        Box::new(SharedLog::new(Arc::clone(&shared))),
         run_id,
         Box::new(move |event: &RecordedEvent| {
             // The frame is already durable. A renderer that is not listening
@@ -500,12 +502,14 @@ pub async fn agent_config_options(
     // interface asks.
     let live = ensure_session(&state, None, None).await?;
 
-    // 选择器属于会话，会话被对话持有。crate 侧每条会话已经各存一份，
-    // 但此前没有人说出要哪一条，于是读到的永远是连接第一条会话的那
-    // 一份：在第二条对话里看到的模型，是第一条选的。
+    // Selectors belong to a session, and a session is held by a
+    // conversation. The crate has kept a set per session for some time, but
+    // nothing said which set was wanted, so the answer was always the first
+    // session on the connection: the model shown in the second conversation
+    // was the one chosen in the first.
     //
-    // 锁在这一段之内借完就还。跨过下面的 await 会让这个 future 不是
-    // Send。
+    // The lock is taken and returned inside this block. Holding it across
+    // the await below would make this future not Send.
     let addressed = {
         let shared = shared_store(&state)?;
         let store = borrow_store(&shared)?;
@@ -653,9 +657,11 @@ async fn ensure_session(
         .create_thread(FALLBACK_THREAD_TITLE)
         .map_err(persistence)?;
 
-    // 第一条会话也是被某条对话持有的。记下来，寻址就只剩一条规则：
-    // 对话 → 会话。此前主会话不 attach，它的 session_id 是 NULL，
-    // 于是它成了唯一一个要靠别的办法才能找到的会话。
+    // The first session is held by a conversation like any other. Writing
+    // that down leaves one rule for addressing: conversation to session.
+    // The primary session used not to be attached, so its session_id was
+    // NULL and it became the one session that had to be found some other
+    // way.
     store
         .attach_session(thread_id, &session_id)
         .map_err(persistence)?;
@@ -809,7 +815,7 @@ fn persistence(error: StoreError) -> Error {
 /// webview, and a new arm there would be a new way to leak.
 fn translate(error: AcpError) -> Error {
     match error {
-        AcpError::Store(inner) => Error::Persistence(inner.to_string()),
+        AcpError::Log(inner) => Error::Persistence(inner.to_string()),
         AcpError::Encoding(inner) => Error::SerdeJson(inner),
         AcpError::Spawn { message } | AcpError::Protocol { message } => Error::Internal(message),
         // The enum is non-exhaustive, so the wildcard arm is required.
@@ -971,7 +977,8 @@ pub struct AgentOpenedThread {
 pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
     let shared = shared_store(&state)?;
 
-    // 先问 agent，再上锁：guard 跨 await 会让这个 future 不是 Send。
+    // Ask the agent first, take the lock second: a guard held across the
+    // await would make this future not Send.
     let official = match borrow(&state) {
         Ok(Some(live)) => live.client.sessions().await.ok(),
         _unavailable => None,

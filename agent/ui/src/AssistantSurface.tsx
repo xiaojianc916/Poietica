@@ -131,17 +131,37 @@ export function AssistantSurface({
    *
    * 普通权限请求（批准/拒绝）不在此列，仍然内联在流里回答。
    */
-  const pendingQuestions = useMemo(
-    () =>
-      rows.flatMap((row) =>
-        row.item.type === 'permission' &&
-        row.item.resolution === undefined &&
-        isQuestionRequest(row.item)
-          ? [row.item]
-          : [],
-      ),
-    [rows],
-  )
+  const pendingQuestions = useMemo(() => {
+    /*
+     * 元素类型由 PermissionItem 说了算，不由判据说了算。
+     *
+     * isQuestionRequest 回答的是"是不是一道题"，它的参数刻意放得宽（只认
+     * optionId 的形状，不绑死任何一个契约类型）。让它顺便兼任"这是什么类型"，
+     * 整张表就会塌成 any —— 类型不是从这里漏的，是从这里被交出去的。
+     */
+    const found: PermissionItem[] = []
+
+    for (const row of rows) {
+      const item = row.item
+
+      if (item.type !== 'permission') {
+        continue
+      }
+
+      /* 已经答过的留在流里，由痕迹卡片渲染；输入框只接待还在等的。 */
+      if (item.resolution !== undefined) {
+        continue
+      }
+
+      if (!isQuestionRequest(item)) {
+        continue
+      }
+
+      found.push(item)
+    }
+
+    return found
+  }, [rows])
 
   const questionDeck = useMemo(() => {
     const first = pendingQuestions[0]
