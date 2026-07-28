@@ -13,6 +13,7 @@ import { type ReactNode, useMemo, useRef } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
+import { buildQuestionDeck, isQuestionRequest } from './domain/ask-user-question'
 import { AgentActivityFeed } from './feed/AgentActivityFeed'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
@@ -117,6 +118,67 @@ export function AssistantSurface({
   const footer = useMemo(() => selectTurnFooter(assistant.timeline), [assistant.timeline])
 
   /*
+   * 待答的提问从流里摘出来，交给输入框。
+   *
+   * 判据在 domain 层，看的是 optionId 的形状而不是工具名：q0_opt_0 / q0_skip
+   * 这套命名空间是 kimi-code 的 ACP adapter 自己造的，稳定，而工具名在不同
+   * agent 与版本下写法不一。它今天一次只发一道题（多题被 adapter 降级），所以
+   * 题组恒为 1 题、面板显示 1/1；等上游放开多题，这里和面板都不用改。
+   *
+   * 只摘 pending 的。已答的那条留在流里，由 PermissionRequest 渲染成
+   * "已选择：X" —— 那就是答完之后留下的痕迹。
+   *
+   * 普通权限请求（批准/拒绝）不在此列，仍然内联在流里回答。
+   */
+  const pendingQuestions = useMemo(
+    () =>
+      rows.flatMap((row) =>
+        row.item.type === 'permission' &&
+        row.item.resolution === undefined &&
+        isQuestionRequest(row.item)
+          ? [row.item]
+          : [],
+      ),
+    [rows],
+  )
+
+  const questionDeck = useMemo(() => {
+    const first = pendingQuestions[0]
+
+    if (first === undefined) {
+      return null
+    }
+
+    return buildQuestionDeck(
+      first.requestId,
+      pendingQuestions.map((item) => ({
+        requestId: item.requestId,
+        prompt: item.title,
+        options: item.options.map((option) => ({
+          optionId: option.optionId,
+          label: option.name,
+        })),
+      })),
+    )
+  }, [pendingQuestions])
+
+  /* 摘出去的那几行不再进流，否则同一道题会同时长在两个地方。 */
+  const visibleRows = useMemo(
+    () =>
+      questionDeck === null
+        ? rows
+        : rows.filter(
+            (row) =>
+              !(
+                row.item.type === 'permission' &&
+                row.item.resolution === undefined &&
+                isQuestionRequest(row.item)
+              ),
+          ),
+    [questionDeck, rows],
+  )
+
+  /*
    * 正在读一条已有对话时也按“已开始”排版。
    *
    * 列表里的对话必然说过话，所以最终形态是已知的：先按它排，回放到达时
@@ -141,10 +203,21 @@ export function AssistantSurface({
                 controls={controls.controls}
                 controlsFailure={controls.failure}
                 handle={composer}
+                onAnswerQuestions={(answers) => {
+                  /*
+                   * 一道题一个 permission 请求，所以整组答案就是一串
+                   * resolvePermission。面板在最后一题才交出来，中途翻页不回
+                   * 任何东西——回出去的答案收不回来，而用户要能改。
+                   */
+                  for (const answer of answers) {
+                    assistant.resolvePermission(answer.requestId, answer.optionId)
+                  }
+                }}
                 onCancel={assistant.cancel}
                 onRetryControls={controls.retry}
                 onSelectControl={controls.select}
                 onSubmit={assistant.send}
+                questionDeck={questionDeck}
                 status={assistant.status}
               />
             </div>
@@ -190,7 +263,7 @@ export function AssistantSurface({
             <TimelineRow row={row} />
           )
         }
-        rows={rows}
+        rows={visibleRows}
       />
     </section>
   )
