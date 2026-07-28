@@ -298,7 +298,7 @@ impl AiStore {
               ORDER BY started_at, id"
         );
 
-        let mut prepared = self.connection.prepare(&statement)?;
+        let mut prepared = self.connection.prepare_cached(&statement)?;
         let rows = prepared.query_map(rusqlite::params![run_id.to_string()], read_tool_call)?;
 
         let mut calls = Vec::new();
@@ -327,7 +327,7 @@ impl AiStore {
               ORDER BY started_at, id"
         );
 
-        let mut prepared = self.connection.prepare(&statement)?;
+        let mut prepared = self.connection.prepare_cached(&statement)?;
         let rows = prepared.query_map(
             rusqlite::params![run_id.to_string(), status.as_str()],
             read_tool_call,
@@ -425,7 +425,7 @@ impl AiStore {
               ORDER BY requested_at, request_id"
         );
 
-        let mut prepared = self.connection.prepare(&statement)?;
+        let mut prepared = self.connection.prepare_cached(&statement)?;
         let rows = prepared.query_map(rusqlite::params![run_id.to_string()], read_permission)?;
 
         let mut records = Vec::new();
@@ -450,7 +450,7 @@ impl AiStore {
               ORDER BY requested_at, request_id"
         );
 
-        let mut prepared = self.connection.prepare(&statement)?;
+        let mut prepared = self.connection.prepare_cached(&statement)?;
         let rows = prepared.query_map(rusqlite::params![run_id.to_string()], read_permission)?;
 
         let mut records = Vec::new();

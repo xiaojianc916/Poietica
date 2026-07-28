@@ -73,7 +73,33 @@ const RUN_PLACEHOLDER = 'run_pending'
  * when it lands. Module scope, so it outlives a surface unmounted with its
  * tab.
  */
-const restored = new Map<string, readonly RunEvent[]>()
+/*
+ * 打开过的对话，记住的是回放结果而不是原始帧。
+ *
+ * 缓存原始帧只省掉一次查询，最贵的那一步——把成千上万帧 reduce 成转录——
+ * 每次回到这条对话都要重跑一遍，而且跑在点击那一帧上。记住结果之后，一条
+ * 对话在一次运行里最多 reduce 一次，回访是一次 Map 查找。
+ *
+ * 上限存在是因为转录会长：最近开过的几条留着，更早的让位。
+ */
+const RESTORED_LIMIT = 8
+
+const restored = new Map<string, TimelineState>()
+
+function remember(endpoint: string, state: TimelineState): TimelineState {
+  restored.delete(endpoint)
+  restored.set(endpoint, state)
+
+  if (restored.size > RESTORED_LIMIT) {
+    const oldest = restored.keys().next().value
+
+    if (oldest !== undefined) {
+      restored.delete(oldest)
+    }
+  }
+
+  return state
+}
 
 /*
  * What the user is told when a run never started.
@@ -198,10 +224,8 @@ export function useAssistantSession({
     void session
       .loadThread(endpoint)
       .then((events) => {
-        restored.set(endpoint, events)
-
         if (current) {
-          setTimeline(replayThreadEvents(RUN_PLACEHOLDER, events))
+          setTimeline(remember(endpoint, replayThreadEvents(RUN_PLACEHOLDER, events)))
           setIsRestoring(false)
         }
       })
@@ -311,9 +335,7 @@ export function useAssistantSession({
 function opening(threadId: string | null): TimelineState {
   const held = threadId === null ? undefined : restored.get(threadId)
 
-  return held === undefined
-    ? createTimelineState(RUN_PLACEHOLDER)
-    : replayThreadEvents(RUN_PLACEHOLDER, held)
+  return held === undefined ? createTimelineState(RUN_PLACEHOLDER) : held /* 回放结果，无需重算 */
 }
 
 function toChatStatus(status: TimelineState['status']): ChatStatus {

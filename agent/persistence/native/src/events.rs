@@ -65,7 +65,7 @@ impl AiStore {
     ///
     /// Fails when a row cannot be read or a payload cannot be decoded.
     pub fn events_since(&self, run_id: Uuid, after_seq: i64) -> Result<Vec<StoredEvent>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT seq, kind, payload, recorded_at
                FROM run_events
               WHERE run_id = ?1 AND seq > ?2
@@ -108,7 +108,7 @@ impl AiStore {
     ///
     /// Fails when a row cannot be read or a payload cannot be decoded.
     pub fn thread_events(&self, thread_id: Uuid) -> Result<Vec<StoredEvent>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT run_events.seq, run_events.kind, run_events.payload, run_events.recorded_at
                FROM run_events
                JOIN runs ON runs.id = run_events.run_id

@@ -21,6 +21,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_shelf",
         include_str!("schema/0004_thread_shelf.sql"),
     ),
+    (
+        5,
+        "thread_indexes",
+        include_str!("schema/0005_thread_indexes.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

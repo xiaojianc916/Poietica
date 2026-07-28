@@ -42,7 +42,29 @@ function toRow(item: TimelineItem, isStreamingTail: boolean): FeedRow {
   return row
 }
 
+/*
+ * 一个转录状态对应一份读模型。
+ *
+ * reducer 每帧产出新状态，而读它的地方不止一个（流、缩略图、页脚、忙碌位），
+ * 于是同一次渲染里整条转录被过滤又映射好几遍。按状态弱引用记住之后，一个状态
+ * 只算一次；状态被换掉，它的读模型跟着一起回收。
+ */
+const FEEDS = new WeakMap<TimelineState, readonly FeedRow[]>()
+
 export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
+  const held = FEEDS.get(state)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const built = buildFeedRows(state)
+  FEEDS.set(state, built)
+
+  return built
+}
+
+function buildFeedRows(state: TimelineState): readonly FeedRow[] {
   const visible = state.items.filter(isRenderable)
   const lastIndex = visible.length - 1
   const live = state.status === 'running' || state.status === 'awaiting_permission'
@@ -65,7 +87,22 @@ export interface ConversationTurn {
   readonly label: string
 }
 
+const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
+
 export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
+  const held = TURNS.get(rows)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const built = buildTurns(rows)
+  TURNS.set(rows, built)
+
+  return built
+}
+
+function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
   const turns: ConversationTurn[] = []
 
   rows.forEach((row, rowIndex) => {

@@ -112,7 +112,21 @@ function sourceOf(value: string): ThreadTitleSource {
 }
 
 /** The desktop implementation of the conversation port. */
+let threads: ThreadPort | undefined
+
 export function desktopThreads(): ThreadPort {
+  threads ??= buildThreadPort()
+
+  return threads
+}
+
+/*
+ * 一个进程一座桥。
+ *
+ * 桥是无状态的问答口，可它握着一条 IPC 通道：每次调用都新建一座，就等于每个
+ * 读会话列表的地方各自问一遍，同一份列表被读了不止一次。
+ */
+function buildThreadPort(): ThreadPort {
   const bridge = createAgentThreadBridge({ command: defaultAcpAgent().command })
 
   return {

@@ -35,7 +35,7 @@ impl AiStore {
     // sent, whether the turn then succeeds or fails, which is exactly the
     // line between a conversation that happened and one that did not.
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, title, title_source, updated_at, pinned
                FROM threads
               WHERE EXISTS (SELECT 1 FROM runs WHERE runs.thread_id = threads.id)
@@ -109,7 +109,7 @@ impl AiStore {
     pub fn thread_for_session(&self, session_id: &str) -> Result<Option<String>> {
         let mut statement = self
             .connection
-            .prepare("SELECT id FROM threads WHERE session_id = ?1")?;
+            .prepare_cached("SELECT id FROM threads WHERE session_id = ?1")?;
 
         let mut rows = statement.query(rusqlite::params![session_id])?;
 
@@ -132,7 +132,7 @@ impl AiStore {
     pub fn session_for_thread(&self, id: Uuid) -> Result<Option<String>> {
         let mut statement = self
             .connection
-            .prepare("SELECT session_id FROM threads WHERE id = ?1")?;
+            .prepare_cached("SELECT session_id FROM threads WHERE id = ?1")?;
 
         let mut rows = statement.query(rusqlite::params![id.to_string()])?;
 
@@ -156,7 +156,7 @@ impl AiStore {
     ///
     /// Fails when the query is rejected.
     pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, title, title_source, updated_at, pinned
                FROM threads
               WHERE id = ?1",

@@ -35,15 +35,15 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
 /**
  * Reads the shared conversation state.
  *
- * Without a provider above it a component falls back to a copy of its own,
- * so a panel still works in isolation. Both hooks are called every render,
- * because which one answers is not allowed to change the order of hooks.
+ * 没有 Provider 就是接线错了，而不是退化成自带一份：两份状态会各自读一遍列表，
+ * 并且能各自认为不同的对话正被打开——侧栏亮着一条、标签停在另一条就是这么来的。
  */
 export function useSharedThreads(): ThreadsSelection {
   const shared = useContext(ThreadsContext)
-  const port = useMemo(() => (shared === null ? desktopThreads() : undefined), [shared])
-  const config = useMemo(() => (shared === null ? desktopSessionConfig() : undefined), [shared])
-  const own = useThreads(port, config)
 
-  return shared ?? own
+  if (shared === null) {
+    throw new Error('useSharedThreads 需要上层的 ThreadsProvider')
+  }
+
+  return shared
 }
