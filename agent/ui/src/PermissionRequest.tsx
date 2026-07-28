@@ -2,6 +2,8 @@ import './permission-request.css'
 
 import type { PermissionItem, PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
 import { useCallback, useState } from 'react'
+import { isQuestionRequest } from './domain/ask-user-question'
+import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { toDiffStat, toToolContentParts } from './timeline/tool-call-content'
 
 /**
@@ -128,6 +130,19 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
     },
     [item.requestId, onResolve],
   )
+
+  /*
+   * 提问不是权限请求，尽管它借的是同一条通道。
+   *
+   * 判据只写在 surface 的路由上是不够的：fixtures、单测、以后别的容器都会直接
+   * 渲染这个组件，总有一条路会绕过去，然后 AskUserQuestion 又变回一排"批准 /
+   * 拒绝"按钮 —— 而它的选项根本不是那个意思。所以闸设在组件自己身上。
+   *
+   * 位置在所有 hook 之后：提前到 useState 上面就是条件调用 hook。
+   */
+  if (isQuestionRequest(item)) {
+    return <QuestionOutcome item={item} />
+  }
 
   if (resolution !== undefined) {
     return (

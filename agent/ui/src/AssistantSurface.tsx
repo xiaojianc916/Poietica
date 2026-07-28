@@ -1,6 +1,6 @@
 import './assistant.css'
 
-import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
+import type { AgentSessionPort, PermissionItem, SessionConfigPort } from '@poietica/agent-protocol'
 import { useAssistantSession, useSessionControls } from '@poietica/agent-runtime'
 import type { TurnFooter } from '@poietica/agent-timeline'
 import {
@@ -18,6 +18,7 @@ import { AgentActivityFeed } from './feed/AgentActivityFeed'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
+import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
 import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
@@ -187,6 +188,20 @@ export function AssistantSurface({
    */
   const settled = started || assistant.isRestoring
 
+  /*
+   * 权限行分两路。
+   *
+   * 提问已经在输入框里答过了，流里剩下的是它的痕迹：一张问题加选项的卡片。
+   * 其余的权限请求原样走 PermissionRequest —— 那条路一个像素都没动，批准与
+   * 拒绝仍然在流里就地回答。
+   */
+  const renderPermission = (item: PermissionItem) =>
+    isQuestionRequest(item) ? (
+      <QuestionOutcome item={item} />
+    ) : (
+      <PermissionRequest item={item} onResolve={assistant.resolvePermission} />
+    )
+
   return (
     <section
       className="assistant-surface"
@@ -257,11 +272,7 @@ export function AssistantSurface({
           )
         }
         renderRow={(row) =>
-          row.item.type === 'permission' ? (
-            <PermissionRequest item={row.item} onResolve={assistant.resolvePermission} />
-          ) : (
-            <TimelineRow row={row} />
-          )
+          row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />
         }
         rows={visibleRows}
       />
