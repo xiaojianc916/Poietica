@@ -1054,9 +1054,11 @@ pub async fn agent_open_thread(
         .attach_session(thread_id, &opened.session_id)
         .map_err(|failure| Error::Internal(failure.to_string()))?;
 
-    // list_threads 有意漏掉没有任何一轮的对话——一份对话清单列的是
-    // 发生过的对话。刚刚创建的这一条正是那样一条，所以到那份清单里
-    // 去找它，等于每一次开对话都返回「创建了却读不回来」。
+    // list_threads leaves out conversations that have had no turns, on
+    // purpose: a list of conversations lists ones that happened. The row
+    // just created is exactly such a conversation, so looking for it in that
+    // list meant every newly opened conversation reported itself as created
+    // but unreadable.
     let thread = store
         .thread(thread_id)
         .map_err(|failure| Error::Internal(failure.to_string()))?
