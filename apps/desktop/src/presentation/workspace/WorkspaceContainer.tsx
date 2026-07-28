@@ -450,6 +450,9 @@ export function WorkspaceContainer({
       sidebarPanel={
         <AssistantSidebarPanel
           activeThreadId={activeConversationId}
+          onCreate={() => {
+            port.workspace.openWorkspaceSurface({ surfaceId: 'ai', title: '新建会话' })
+          }}
           onOpen={(threadId, title) => {
             port.workspace.openConversation({ threadId, title })
           }}

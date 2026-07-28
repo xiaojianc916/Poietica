@@ -1299,3 +1299,22 @@
   font: inherit;
   outline: none;
 }
+
+/* 取消固定：同一枚图钉字形加一道斜线，不引入第二种图钉。 */
+.assistant-thread__glyph {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.assistant-thread__glyph[data-slashed="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  block-size: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}

@@ -15,9 +15,11 @@ import { MoreIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 /*
  * 会话列表。
  *
- * 一行的尾部只有一个格子：时间与操作图标叠在同一个网格单元上，由同一个
- * 判定互斥显示，因此不可能同时画出来；格子的宽度取两者的较大值，切换时
- * 标题不会被推动。重命名是行内编辑，输入框占住标题原来的位置，行高不变。
+ * 一行的尾部只有一个格子：时间与操作叠在同一个网格单元上，由同一个判定
+ * 互斥显示，因此不可能同时画出来；宽度取两者较大者，图标出现时标题不动。
+ *
+ * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
+ * 不在数据库里先造一条没人说过话的会话。
  */
 
 export interface AssistantThreadSummary {
@@ -44,6 +46,25 @@ export interface AssistantThreadListProps {
 
 /** Widths that make the skeleton read as a list rather than as a bar. */
 const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
+
+/*
+ * 取消固定不是另一枚图标，而是同一枚图标被划掉。
+ *
+ * 图标库里没有可确认存在的 pin-off 字形，与其引入一枚风格不同的图钉，不如
+ * 让「取消」由一道斜线承担：同族字形、相反语义，这也是编辑器与聊天软件里
+ * 通行的画法。
+ */
+function PinGlyph({ isPinned }: { readonly isPinned: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="assistant-thread__glyph"
+      data-slashed={isPinned ? 'true' : undefined}
+    >
+      <PinIcon aria-hidden="true" />
+    </span>
+  )
+}
 
 function group(threads: readonly AssistantThreadSummary[]) {
   const grouped = new Map<string, AssistantThreadSummary[]>()
@@ -89,7 +110,7 @@ export function AssistantThreadList({
     setDraft(thread.title)
   }
 
-  /* 提交只走这一条路：Enter、失焦都到这里，空标题等于放弃。 */
+  /* 提交只走这一条路：Enter 与失焦都到这里，空标题等于放弃。 */
   function commitRename() {
     const target = renamingId
 
@@ -116,6 +137,7 @@ export function AssistantThreadList({
           aria-label="新建会话"
           className="assistant-threads__create"
           onClick={onCreate}
+          title="新建会话"
           type="button"
         >
           <PlusIcon aria-hidden="true" />
@@ -192,10 +214,7 @@ export function AssistantThreadList({
                       <span className="assistant-thread__title">{thread.title}</span>
                     </button>
 
-                    {/*
-                        时间与操作共用这一个格子：两者叠放在同一个网格单元里，
-                        由同一个判定决定谁可见，因此不会互相盖住。
-                      */}
+                    {/* 时间与操作共用这一个格子，谁可见由同一个判定决定。 */}
                     <span className="assistant-thread__trail">
                       <span className="assistant-thread__time">{thread.relativeTime}</span>
 
@@ -208,7 +227,7 @@ export function AssistantThreadList({
                           title={thread.isPinned === true ? '取消固定' : '固定'}
                           type="button"
                         >
-                          <PinIcon aria-hidden="true" />
+                          <PinGlyph isPinned={thread.isPinned === true} />
                         </button>
 
                         {/*
@@ -243,7 +262,7 @@ export function AssistantThreadList({
                                 onPin(thread.id, thread.isPinned !== true)
                               }}
                             >
-                              <PinIcon aria-hidden="true" />
+                              <PinGlyph isPinned={thread.isPinned === true} />
                               <span>{thread.isPinned === true ? '取消固定' : '固定'}</span>
                             </DropdownMenuItem>
 

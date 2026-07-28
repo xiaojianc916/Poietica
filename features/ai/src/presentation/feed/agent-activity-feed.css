@@ -32,7 +32,6 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   contain: layout paint;
   padding-block-start: var(--cp-gutter);
   padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
