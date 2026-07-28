@@ -1,7 +1,14 @@
 import { useCallback } from 'react'
 
-/** Half-width of the pull. Beyond roughly twice this a bar is at rest. */
-const FALLOFF_PX = 72
+/**
+ * Half-width of the pull. Beyond roughly twice this a bar is at rest.
+ *
+ * Kept close to a few row pitches on purpose: a falloff much wider than the
+ * spacing lifts the whole rail by a similar amount, which reads as the rail
+ * getting fatter rather than as a crest travelling along it. Narrow, and the
+ * curve has a visible peak and visible shoulders.
+ */
+const FALLOFF_PX = 44
 
 /**
  * Dock magnification for a vertical rail.

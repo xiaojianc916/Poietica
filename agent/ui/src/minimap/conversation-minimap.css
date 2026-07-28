@@ -11,11 +11,14 @@
  * gain. No script sets a pixel, so the resting geometry stays readable here.
  */
 .conversation-minimap {
-  --cp-rail-hit: 10px;
-  --cp-rail-len: 14px;
-  --cp-rail-gain: 12px;
-  --cp-rail-weight-line: 2px;
-  --cp-rail-weight-gain: 1px;
+  --cp-rail-hit: 11px;
+  --cp-rail-len: 9px;
+  --cp-rail-gain: 21px;
+  --cp-rail-weight-line: 3px;
+  --cp-rail-weight-gain: 3px;
+  --cp-rail-ink-rest: #d2d3d3;
+  --cp-rail-ink-active: #767779;
+  --cp-rail-ink-aimed: #1a1c1f;
 
   position: absolute;
   z-index: 2;
@@ -26,7 +29,7 @@
   align-items: flex-end;
   gap: 2px;
   translate: 0 -50%;
-  opacity: 0.5;
+  opacity: 1;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
@@ -66,18 +69,27 @@
   block-size: calc(var(--cp-rail-weight-line) + var(--cp-rail-weight) * var(--cp-rail-weight-gain));
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
   border-radius: 9999px;
-  background: var(--cp-ink-subtle);
+  background: var(--cp-rail-ink-rest);
   transition:
     inline-size var(--cp-motion-swift) var(--cp-motion-ease),
     block-size var(--cp-motion-swift) var(--cp-motion-ease),
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-/* The turn being read is stated, not merely implied by position. */
-.conversation-minimap__turn[aria-current="true"] .conversation-minimap__bar,
+/*
+ * Three states, three inks, and they are separate rules because they answer
+ * separate questions: where the reader is, where the pointer is, and where
+ * everything else is. The read turn is derived from scroll position and there
+ * is exactly one; the aimed turn is derived from the pointer and there is at
+ * most one; it wins, because it is the thing under the hand.
+ */
+.conversation-minimap__turn[aria-current="true"] .conversation-minimap__bar {
+  background: var(--cp-rail-ink-active);
+}
+
 .conversation-minimap__turn:hover .conversation-minimap__bar,
 .conversation-minimap__turn:focus-visible .conversation-minimap__bar {
-  background: var(--cp-ink);
+  background: var(--cp-rail-ink-aimed);
 }
 
 /*
