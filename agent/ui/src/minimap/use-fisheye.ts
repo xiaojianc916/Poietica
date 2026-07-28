@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap@v9 */
+/* poietica:conversation-minimap@v10 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -12,34 +12,28 @@ import { useCallback } from 'react'
 const FALLOFF_PX = 44
 
 /**
- * Where the pull begins: the preview card's trailing edge.
+ * Where the pull begins, counted left from the rail's own edge.
  *
- * That edge is a vertical line to the left of the rail, and it is the line the
- * hand crosses on its way in — cross it and the rail is armed, stay left of it
- * and nothing happens. The strip between that line and the rail belongs to
- * neither, so the pull may as well own it.
+ * This is the one number to turn. Larger arms the rail earlier — the hand is
+ * still crossing the transcript when the crest appears; smaller waits until it
+ * is nearly there. Around 32 is conservative, 48 is this build, past 96 the
+ * rail starts answering to pointer traffic that was never headed for it.
  *
- * It is measured every frame rather than written down. The gap follows the
- * card's own placement, which follows the panel's spacing tokens; a constant
- * here would be a second copy of those tokens, correct until the day one of
- * them moves. The card is in the DOM at all times and only its opacity is
- * animated, so its box is readable on any frame, including before it has ever
- * been shown.
+ * It is written down rather than measured on purpose. The obvious landmark to
+ * measure against is the preview card, but the card is positioned against its
+ * own button — 'inset-inline-end: calc(100% + gutter)' — and that button's
+ * width moves with the weight. The distance from card to rail is therefore
+ * always just the gutter, no matter where the card appears to sit, so
+ * measuring it answers a different question than the one being asked.
  */
-const CARD_SELECTOR = '.conversation-minimap__card'
-
-/** Only reached if the card is gone; then the rail is its own boundary. */
-const REACH_LEFT_FALLBACK_PX = 12
-
-/** A fuse, not a setting: a mispositioned card must not arm the rail remotely. */
-const REACH_LEFT_MAX_PX = 320
+const REACH_LEFT_PX = 28
 
 /**
  * Slack on the other three sides.
  *
- * The entry boundary is the vertical line, so these are not a second geometry:
- * they are the tolerance that keeps a pixel of overshoot at the ends, or on
- * the far side of an eleven pixel rail, from dropping the pull.
+ * The entry boundary is the left one, so these are not a second geometry: they
+ * are the tolerance that keeps a pixel of overshoot at the ends, or on the far
+ * side of an eleven pixel rail, from dropping the pull.
  */
 const REACH_TOP_PX = 8
 const REACH_BOTTOM_PX = 8
@@ -61,18 +55,6 @@ const AIMED_MIN_WEIGHT = 0.35
 /** Below this a weight is indistinguishable from rest; write the flat 0. */
 const EPSILON = 0.002
 
-function leftReachOf(node: HTMLElement, rect: DOMRect): number {
-  const card = node.querySelector(CARD_SELECTOR)
-
-  if (card === null) {
-    return REACH_LEFT_FALLBACK_PX
-  }
-
-  const gap = rect.left - card.getBoundingClientRect().right
-
-  return Math.min(Math.max(gap, 0), REACH_LEFT_MAX_PX)
-}
-
 /**
  * Dock magnification for a vertical rail.
  *
@@ -85,8 +67,9 @@ function leftReachOf(node: HTMLElement, rect: DOMRect): number {
  * The pointer is tracked on the window rather than on the rail, because the
  * rail is eleven pixels wide and the boundary that matters is outside it. One
  * write per animation frame no matter how many move events the platform
- * delivers, and the boxes are read once per frame rather than once per event.
- * Returned as a ref callback with a cleanup, which React 19 calls on unmount.
+ * delivers, and the rail's box is read once per frame rather than once per
+ * event. Returned as a ref callback with a cleanup, which React 19 calls on
+ * unmount.
  */
 export function useFisheye(): (node: HTMLElement | null) => void {
   return useCallback((node: HTMLElement | null) => {
@@ -133,7 +116,7 @@ export function useFisheye(): (node: HTMLElement | null) => void {
       const rect = node.getBoundingClientRect()
       const inside =
         !Number.isNaN(pointerX) &&
-        pointerX >= rect.left - leftReachOf(node, rect) &&
+        pointerX >= rect.left - REACH_LEFT_PX &&
         pointerX <= rect.right + REACH_RIGHT_PX &&
         pointerY >= rect.top - REACH_TOP_PX &&
         pointerY <= rect.bottom + REACH_BOTTOM_PX
