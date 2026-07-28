@@ -1,18 +1,21 @@
-/* poietica:proximity-fisheye@v2 */
+/* poietica:proximity-fisheye@v3 */
 
 [data-pfe-root] {
-  --pfe-max-scale: 1.75;
-  --pfe-shift: -6px;
-  /* The rail must not clip magnified items. */
+  /* Deliberately subtle: the rail must stay a background affordance. */
+  --pfe-max-scale: 1.22;
+  --pfe-shift: -2px;
+  --pfe-opacity-base: 0.62;
+  --pfe-opacity-gain: 0.38;
   overflow: visible;
 }
 
 [data-pfe-item] {
   --pfe-w: 0;
   transform-origin: right center;
+  /* scaleX only — never touch height, or the row rhythm jitters. */
   transform: translateX(calc(var(--pfe-w) * var(--pfe-shift)))
     scaleX(calc(1 + var(--pfe-w) * (var(--pfe-max-scale) - 1)));
-  opacity: calc(0.45 + var(--pfe-w) * 0.55);
+  opacity: calc(var(--pfe-opacity-base) + var(--pfe-w) * var(--pfe-opacity-gain));
 }
 
 [data-pfe-root][data-pfe-active] [data-pfe-item] {

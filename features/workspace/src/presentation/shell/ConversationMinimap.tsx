@@ -1,4 +1,4 @@
-// poietica:proximity-fisheye@v2
+// poietica:proximity-fisheye@v3
 import { type CSSProperties, useCallback, useRef } from 'react'
 import './conversation-minimap.css'
 import type { ProximityFisheyeOptions } from './proximity-fisheye/proximity-fisheye.constants'
@@ -18,6 +18,11 @@ export type ConversationMinimapProps = {
   entries: readonly ConversationMinimapEntry[]
   activeId?: string | null
   onSelect?: (id: string) => void
+  /**
+   * Fisheye overrides. The ramp is anchored to `anchorSelector` (default
+   * '[data-conversation-card]'), so mark the conversation card container with
+   * that attribute for the effect to start at its right border.
+   */
   fisheye?: Partial<ProximityFisheyeOptions>
 }
 

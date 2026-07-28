@@ -1,4 +1,4 @@
-/* poietica:proximity-fisheye@v2 */
+/* poietica:proximity-fisheye@v3 */
 
 .conversation-minimap {
   display: flex;
@@ -32,14 +32,14 @@
   cursor: pointer;
   background: currentcolor;
   border-radius: 2px;
+  /* Fixed height: magnification is horizontal only. */
   height: 3px;
-  width: calc(6px + var(--cm-len) * 12px);
-  color: light-dark(rgb(0 0 0 / 55%), rgb(255 255 255 / 55%));
+  width: calc(6px + var(--cm-len) * 10px);
+  color: light-dark(rgb(0 0 0 / 45%), rgb(255 255 255 / 45%));
 }
 
 .conversation-minimap__bar[data-role="user"] {
-  height: 4px;
-  color: light-dark(rgb(0 0 0 / 75%), rgb(255 255 255 / 75%));
+  color: light-dark(rgb(0 0 0 / 62%), rgb(255 255 255 / 62%));
 }
 
 .conversation-minimap__bar[aria-current="true"] {

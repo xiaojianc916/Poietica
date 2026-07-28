@@ -1,12 +1,13 @@
-// poietica:proximity-fisheye@v2
+// poietica:proximity-fisheye@v3
 // Proximity-based fisheye ("Dock magnification") for the conversation minimap.
 //
 // Design notes:
-//  - Distance uses the padded rect SDF, not the element centre, so a tall thin
-//    rail reacts correctly along its whole height.
+//  - Distance uses the padded rect SDF, not the element centre.
+//  - The ramp is anchored to a measured layout edge (the conversation card),
+//    so it always starts at the card border instead of a hardcoded pixel value.
 //  - Enter and exit thresholds differ (hysteresis) to kill boundary flicker.
 //  - Per-item weight is a Gaussian of the vertical pointer distance.
-//  - The rAF loop writes CSS custom properties, so React never re-renders on move.
+//  - The rAF loop writes CSS custom properties; React never re-renders on move.
 //  - Disabled for coarse pointers and prefers-reduced-motion.
 
 import { type RefObject, useEffect, useRef } from 'react'
@@ -19,12 +20,12 @@ import {
   type ProximityFisheyeOptions,
 } from './proximity-fisheye.constants'
 
-function clamp01(value: number): number {
-  if (value < 0) {
-    return 0
+function clamp(value: number, min: number, max: number): number {
+  if (value < min) {
+    return min
   }
-  if (value > 1) {
-    return 1
+  if (value > max) {
+    return max
   }
   return value
 }
@@ -58,6 +59,9 @@ export function useProximityFisheye(
     if (opts.exitDistance <= opts.enterDistance) {
       throw new Error('[proximity-fisheye] exitDistance must be greater than enterDistance')
     }
+    if (opts.anchorMaxGap <= opts.anchorMinGap) {
+      throw new Error('[proximity-fisheye] anchorMaxGap must be greater than anchorMinGap')
+    }
 
     root.setAttribute(PFE_ROOT_ATTR, '')
 
@@ -65,6 +69,33 @@ export function useProximityFisheye(
     let centers: number[] = []
     let sigma = 1
     let rect = root.getBoundingClientRect()
+    let enterDistance = opts.enterDistance
+    let exitDistance = opts.exitDistance
+    let leftPadding = opts.hitPadding.left
+
+    /** Resolve the ramp start from live layout, falling back to static values. */
+    const measureAnchor = (): void => {
+      enterDistance = opts.enterDistance
+      exitDistance = opts.exitDistance
+      leftPadding = opts.hitPadding.left
+      if (!opts.anchorSelector) {
+        return
+      }
+      const anchor = document.querySelector(opts.anchorSelector)
+      if (!anchor) {
+        return
+      }
+      const bounds = anchor.getBoundingClientRect()
+      const rawGap = rect.left - bounds.right
+      if (!Number.isFinite(rawGap) || rawGap <= 0) {
+        return
+      }
+      const gap = clamp(rawGap, opts.anchorMinGap, opts.anchorMaxGap)
+      // The rail reacts the moment the pointer crosses the card's right border.
+      exitDistance = gap
+      enterDistance = clamp(gap * opts.anchorEnterRatio, 16, gap - 8)
+      leftPadding = 0
+    }
 
     const measure = (): void => {
       rect = root.getBoundingClientRect()
@@ -76,6 +107,7 @@ export function useProximityFisheye(
       const span = centers.length > 1 ? centers[centers.length - 1] - centers[0] : 0
       const pitch = centers.length > 1 ? span / (centers.length - 1) : Math.max(rect.height, 1)
       sigma = Math.max(pitch * opts.falloffItems, 1)
+      measureAnchor()
     }
 
     measure()
@@ -88,7 +120,7 @@ export function useProximityFisheye(
 
     const distanceToRect = (x: number, y: number): number => {
       const pad = opts.hitPadding
-      const dx = Math.max(rect.left - pad.left - x, 0, x - (rect.right + pad.right))
+      const dx = Math.max(rect.left - leftPadding - x, 0, x - (rect.right + pad.right))
       const dy = Math.max(rect.top - pad.top - y, 0, y - (rect.bottom + pad.bottom))
       return Math.hypot(dx, dy)
     }
@@ -97,8 +129,8 @@ export function useProximityFisheye(
       items.forEach((element, index) => {
         const dy = pointerY - centers[index]
         const gauss = Math.exp(-(dy * dy) / (2 * sigma * sigma))
-        const raw = gauss * activation
-        const weight = raw < opts.epsilon ? 0 : raw
+        const value = gauss * activation
+        const weight = value < opts.epsilon ? 0 : value
         element.style.setProperty(PFE_WEIGHT_VAR, weight.toFixed(4))
       })
       if (activation > opts.epsilon) {
@@ -133,8 +165,8 @@ export function useProximityFisheye(
     const onPointerMove = (event: PointerEvent): void => {
       pointerY = event.clientY
       const distance = distanceToRect(event.clientX, event.clientY)
-      const ramp = (opts.exitDistance - distance) / (opts.exitDistance - opts.enterDistance)
-      target = clamp01(ramp)
+      const ramp = (exitDistance - distance) / Math.max(exitDistance - enterDistance, 1)
+      target = clamp(ramp, 0, 1)
       schedule()
     }
 
@@ -145,6 +177,12 @@ export function useProximityFisheye(
 
     const resizeObserver = new ResizeObserver(measure)
     resizeObserver.observe(root)
+    if (opts.anchorSelector) {
+      const anchor = document.querySelector(opts.anchorSelector)
+      if (anchor) {
+        resizeObserver.observe(anchor)
+      }
+    }
     const mutationObserver = new MutationObserver(measure)
     mutationObserver.observe(root, { childList: true, subtree: true })
 
