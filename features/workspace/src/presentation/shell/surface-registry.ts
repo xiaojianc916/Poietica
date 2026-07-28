@@ -6,7 +6,11 @@ import { Box, ChartNetwork, FolderTwo, Image, LayersThree, Search } from '@mynau
 import { ClockTenIcon, PencilRulerIcon, WebhookIcon } from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
 
-import { START_TAB_TITLE, type WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import {
+  CONVERSATION_ENTRY_TITLE,
+  START_TAB_TITLE,
+  type WorkspaceSurfaceId,
+} from '../../contracts/workbench-contract'
 import { AiSurfaceIcon } from './icons/AiSurfaceIcon'
 
 export type SurfaceIcon = ComponentType<{
@@ -52,7 +56,7 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
     icon: ChartNetwork,
   },
   ai: {
-    title: 'AI',
+    title: CONVERSATION_ENTRY_TITLE,
     description: '与 AI 协作生成、整理并驱动画布内容。',
     icon: AiSurfaceIcon,
   },

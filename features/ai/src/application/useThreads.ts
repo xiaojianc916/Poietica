@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { ThreadPort, ThreadRecord } from '../contracts/thread-port'
 
-/** Shown for a conversation nothing has named yet. */
-const FALLBACK_TITLE = 'New Agent'
+/** Shown for a conversation nothing has named yet: the words of the entry. */
+const FALLBACK_TITLE = '新建对话'
 
 /** How much of a stand in title a tab can carry. */
 const TITLE_LIMIT = 24
@@ -22,24 +22,20 @@ export const shorten = (text: string): string => {
   return `${tidy.slice(0, TITLE_LIMIT)}…`
 }
 
-/** One open tab. */
-export interface ThreadTab {
-  readonly threadId: string
-  readonly title: string
-}
-
-/** Conversations, their tabs, and the names to show. */
+/**
+ * Conversations and the names to show.
+ *
+ * Which conversation is open, and in which tab, belongs to the workbench.
+ * This held a second copy of both and nothing read it: the sidebar took its
+ * highlight from the active surface and the tab strip from the workbench
+ * tabs, so the copy here could only ever drift.
+ */
 export interface ThreadsSelection {
   readonly threads: readonly ThreadRecord[]
-  readonly tabs: readonly ThreadTab[]
-  readonly activeThreadId: string | null
   readonly titleOf: (threadId: string) => string
   /** The stand in name a message would give a conversation. */
   readonly standInTitle: (message: string) => string
   readonly create: () => Promise<string | null>
-  readonly activate: (threadId: string) => void
-  readonly openInNewTab: (threadId: string) => void
-  readonly closeTab: (threadId: string) => void
   readonly nameFromMessage: (threadId: string, message: string) => void
   /** Renames one. A name the user typed is not replaced by a later title. */
   readonly rename: (threadId: string, title: string) => Promise<void>
@@ -57,12 +53,11 @@ export interface ThreadsSelection {
  * A name has three sources and they do not compete: an official name is the
  * agent's own and always wins; a stand in taken from the first thing the
  * user said is kept in memory only, so it can never be mistaken for the
- * real one later; before either exists a conversation is shown as AI.
+ * real one later; before either exists it carries the name of the entry
+ * it came from.
  */
 export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
   const [threads, setThreads] = useState<readonly ThreadRecord[]>([])
-  const [openIds, setOpenIds] = useState<readonly string[]>([])
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [provisional, setProvisional] = useState<Record<string, string>>({})
   /*
    * Conversations this session started, before a read has caught up.
@@ -119,41 +114,6 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     [provisional, threads],
   )
 
-  const activate = useCallback(
-    (threadId: string) => {
-      /*
-       * Opening a conversation from the list replaces the one on screen.
-       * The list is navigation, not a tab factory: piling up a tab per
-       * click was why switching looked like it did nothing. A conversation
-       * already open is brought forward rather than duplicated.
-       */
-      setOpenIds((open) => {
-        if (open.includes(threadId)) {
-          return open
-        }
-
-        const at = activeThreadId === null ? -1 : open.indexOf(activeThreadId)
-
-        if (at === -1) {
-          return [...open, threadId]
-        }
-
-        return open.map((id, index) => (index === at ? threadId : id))
-      })
-      setActiveThreadId(threadId)
-    },
-    [activeThreadId],
-  )
-
-  const openInNewTab = useCallback((threadId: string) => {
-    setOpenIds((open) => (open.includes(threadId) ? open : [...open, threadId]))
-  }, [])
-
-  const closeTab = useCallback((threadId: string) => {
-    setOpenIds((open) => open.filter((id) => id !== threadId))
-    setActiveThreadId((active) => (active === threadId ? null : active))
-  }, [])
-
   const nameFromMessage = useCallback(
     (threadId: string, message: string) => {
       const found = threads.find((thread) => thread.threadId === threadId)
@@ -191,12 +151,10 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     try {
       const opened = await port.open()
       /*
-       * A conversation joins the list once something has been said in it,
-       * so this only opens a tab. Adding it here left a record of every
-       * conversation that never happened.
+       * A conversation joins the list once something has been said in it.
+       * Adding it here left a record of every conversation that never
+       * happened. Where it is shown is the workbench's business, not ours.
        */
-      setOpenIds((open) => [...open, opened.thread.threadId])
-      setActiveThreadId(opened.thread.threadId)
       setFailure(null)
       return opened.thread.threadId
     } catch (reason) {
@@ -247,8 +205,6 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
       }
       setThreads((held) => held.filter((thread) => thread.threadId !== threadId))
       setPending((held) => held.filter((thread) => thread.threadId !== threadId))
-      setOpenIds((open) => open.filter((id) => id !== threadId))
-      setActiveThreadId((active) => (active === threadId ? null : active))
       try {
         await act(threadId)
         setFailure(null)
@@ -280,11 +236,6 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     [port, refresh],
   )
 
-  const tabs = useMemo(
-    () => openIds.map((threadId) => ({ threadId, title: titleOf(threadId) })),
-    [openIds, titleOf],
-  )
-
   /* 刚开口的对话排在最前，直到下一次读取把它认领走。 */
   const listed = useMemo(() => {
     if (pending.length === 0) {
@@ -299,14 +250,9 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
 
   return {
     threads: listed,
-    tabs,
-    activeThreadId,
     titleOf,
     standInTitle: shorten,
     create,
-    activate,
-    openInNewTab,
-    closeTab,
     nameFromMessage,
     rename,
     remove,

@@ -42,7 +42,7 @@ export function SidebarNav({
           <NavRow
             active={activeNavigationId === 'ai'}
             icon={Message}
-            label="新建对话"
+            label={describeWorkspaceNavigation('ai').title}
             onClick={onCreateConversation}
           />
         </li>

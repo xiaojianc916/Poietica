@@ -22,6 +22,7 @@ import type {
   WorkspaceShellActions,
   WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
+import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace/contracts'
 import {
   NoCanvasSurface,
   nextUntitledCanvasTitle,
@@ -337,7 +338,11 @@ export function WorkspaceContainer({
     activeSurface: workbench.activeSurface,
     surfaceRenderers,
     renderConversation: (threadId) => (
-      <ConversationSurface session={agentSession} threadId={threadId} />
+      <ConversationSurface
+        onStarted={startConversation}
+        session={agentSession}
+        threadId={threadId}
+      />
     ),
     activeSessionId,
     hostedSessions,
@@ -451,7 +456,10 @@ export function WorkspaceContainer({
         <AssistantSidebarPanel
           activeThreadId={activeConversationId}
           onCreate={() => {
-            port.workspace.openWorkspaceSurface({ surfaceId: 'ai', title: '新建会话' })
+            port.workspace.openWorkspaceSurface({
+              surfaceId: 'ai',
+              title: CONVERSATION_ENTRY_TITLE,
+            })
           }}
           onOpen={(threadId, title) => {
             port.workspace.openConversation({ threadId, title })

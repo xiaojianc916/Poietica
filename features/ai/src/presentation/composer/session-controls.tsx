@@ -1,8 +1,10 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -138,27 +140,41 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
                 data-assistant-skin
                 side="left"
               >
-                {/* onClick 才是 Base UI Menu.Item 的回调；onSelect 是文本选中事件，永不触发。 */}
-                {control.choices.map((choice) => (
-                  <DropdownMenuItem
-                    className="assistant-config-option"
-                    data-active={choice.value === control.current ? 'true' : undefined}
-                    key={choice.value}
-                    onClick={() => {
-                      if (choice.value === control.current) {
-                        return
-                      }
+                {/*
+                  一组互斥的取值就是一个 radio group。
+                
+                  选中态由 Base UI 维护，勾只在生效的那一行挂载，
+                  role="menuitemradio"、aria-checked、方向键与打字选中一并由它
+                  给出。此前是普通 item 加一个 data-active：样式表里那条画好的
+                  ::indicator 规则等着一个从未被渲染的元素，而 data-active 等着
+                  一条从未存在的规则——两边各写了一半，勾因此一次都没画出来。
+                */}
+                <DropdownMenuRadioGroup
+                  onValueChange={(value) => {
+                    if (value === control.current) {
+                      return
+                    }
 
-                      onSelect(control.id, choice.value)
-                    }}
-                  >
-                    <span className="assistant-config-option__label">{choice.label}</span>
+                    onSelect(control.id, value)
+                  }}
+                  value={control.current}
+                >
+                  {control.choices.map((choice) => (
+                    <DropdownMenuRadioItem
+                      className="assistant-config-option"
+                      key={choice.value}
+                      value={choice.value}
+                    >
+                      <span className="assistant-config-option__label">{choice.label}</span>
 
-                    {choice.detail === undefined ? null : (
-                      <span className="assistant-config-option__detail">{choice.detail}</span>
-                    )}
-                  </DropdownMenuItem>
-                ))}
+                      {choice.detail === undefined ? null : (
+                        <span className="assistant-config-option__detail">{choice.detail}</span>
+                      )}
+
+                      <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>

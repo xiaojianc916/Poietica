@@ -175,12 +175,22 @@ export const START_TAB_ID: WorkbenchTabId = 'workbench:start'
  */
 export const START_TAB_TITLE = '画布'
 
+/**
+ * 会话入口（AI 表面）的名字。
+ *
+ * 与侧栏「新建对话」导航项、会话列表的加号同名：一个入口只允许有一个名字，
+ * 标签、导航与按钮因此不可能对不上。此前这里写死 'AI'，导航写「新建对话」，
+ * 加号写「新建会话」，兜底标题写 'New Agent'——同一格从不同入口进去，标题
+ * 就不一样，看上去像是缓存在作怪。
+ */
+export const CONVERSATION_ENTRY_TITLE = '新建对话'
+
 export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = 'workspace:ai'
 
 const DEFAULT_TAB: WorkspaceTabViewModel = Object.freeze({
   id: DEFAULT_SURFACE_TAB_ID,
   kind: 'workspace',
-  title: 'AI',
+  title: CONVERSATION_ENTRY_TITLE,
   isActive: true,
   canClose: true,
   surfaceId: 'ai',
@@ -190,7 +200,7 @@ const DEFAULT_SURFACE: WorkspaceSurfaceViewModel = Object.freeze({
   kind: 'workspace',
   tabId: DEFAULT_SURFACE_TAB_ID,
   surfaceId: 'ai',
-  title: 'AI',
+  title: CONVERSATION_ENTRY_TITLE,
 })
 
 /**

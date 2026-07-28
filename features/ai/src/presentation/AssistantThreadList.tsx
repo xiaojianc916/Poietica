@@ -134,10 +134,10 @@ export function AssistantThreadList({
         <span className="assistant-threads__caption">会话</span>
 
         <button
-          aria-label="新建会话"
+          aria-label="新建对话"
           className="assistant-threads__create"
           onClick={onCreate}
-          title="新建会话"
+          title="新建对话"
           type="button"
         >
           <PlusIcon aria-hidden="true" />
