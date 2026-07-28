@@ -165,32 +165,6 @@
   inline-size: var(--cp-icon);
 }
 
-.assistant-agent-pill {
-  display: inline-flex;
-  block-size: var(--cp-control);
-  align-items: center;
-  gap: var(--cp-control-gap);
-  border: 0;
-  border-radius: 9999px;
-  padding-inline: var(--cp-optical);
-  background: transparent;
-  font-size: var(--cp-font-label);
-  font-weight: 600;
-  color: var(--cp-ink);
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-agent-pill:hover {
-  background: var(--cp-hover);
-}
-
-.assistant-agent-pill svg {
-  block-size: var(--cp-icon);
-  inline-size: var(--cp-icon);
-  color: var(--cp-ink-muted);
-}
-
 [data-slot="prompt-input-submit"] {
   display: inline-grid;
   block-size: var(--cp-control);
@@ -564,7 +538,7 @@
 /*
  * 会话行是侧边栏的行，不是编排器的控件，所以它和上面五个导航行读同一个
  * --ui-sidebar-accent。原先读 --cp-hover：那是编排器卡片自己的色板，还被
- * agent pill、菜单项、模型选择器共用，于是同一列侧边栏上下两段各用一套
+ * 菜单项与模型选择器共用，于是同一列侧边栏上下两段各用一套
  * 色板，深色主题下更是各算各的。
  */
 .assistant-thread:hover,
@@ -819,13 +793,18 @@
   opacity: 0.75;
 }
 
-/* --- round 84: the picker sits beside the send button --- */
+/* --- the picker stands with the tools, at the leading edge --- */
 
 /*
- * The picker reports the state of the next turn, so it stands with the send
- * key rather than among the tools, and its menu opens against the same edge
- * it is anchored to. Its metrics come from the agent pill next to it: the
- * control height, the optical inset, the label size. The mark is sized in em
+ * The picker says how the next turn will be sent, which is what the leading
+ * cluster is for: the attach menu, then the session selectors. The trailing
+ * edge is the act of sending, and the two are not mixed — the same division
+ * Zed's agent panel, Copilot Chat and Cursor draw. It used to sit beside the
+ * send key, and the place it now occupies was held by a pill that named the
+ * agent and could not be clicked.
+ *
+ * It keeps that pill's metrics, which were the right ones: the control
+ * height, the optical inset, a label at caption size. The mark is sized in em
  * so it rides the text baseline instead of dictating a box of its own.
  *
  * Two states are worth showing and no more: the pointer is over it, and its

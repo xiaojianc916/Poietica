@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseRunEvent } from '../acp-event-schema'
 import { recordedTurn as spokenTurn } from './__fixtures__/live-turn.generated'
-import { recordedTurn as permissionTurn } from './__fixtures__/permission-turn.generated'
-import { recordedTurn as toolTurn } from './__fixtures__/tool-turn.generated'
 
 /**
  * The renderer's validator, against frames a real agent actually sent.
@@ -25,17 +23,19 @@ import { recordedTurn as toolTurn } from './__fixtures__/tool-turn.generated'
  * rejection here is a feature that silently does not work, not a test detail.
  *
  * One recording is never enough, because it only proves the shapes the agent
- * happened to send. The second was recorded deliberately against a prompt the
- * agent cannot answer without reading a file, which is where tool calls come
- * from. Each recording declares what it must contain when it is made, so a
- * thin turn cannot quietly take the place of either.
+ * happened to send. Two more are wanted: a turn that cannot be answered
+ * without reading a file, which is where tool calls come from, and a turn
+ * that asks permission. Each is added by capturing it with the command above,
+ * committing the file, and appending one line to `recordings`.
+ *
+ * This suite named both of them before either was committed, so the package
+ * could not be typechecked at all — twelve errors from two missing files, and
+ * with them the whole workspace typecheck. A suite that does not compile is
+ * not coverage waiting to arrive; it is a build that is red for a reason
+ * unrelated to the code under test.
  */
 
-const recordings = [
-  { name: 'a plain answer', frames: spokenTurn },
-  { name: 'a turn that used a tool', frames: toolTurn },
-  { name: 'a turn that asked permission', frames: permissionTurn },
-] as const
+const recordings = [{ name: 'a plain answer', frames: spokenTurn }] as const
 
 describe.each(recordings)('a recorded turn: $name', ({ frames }) => {
   it('is not empty', () => {

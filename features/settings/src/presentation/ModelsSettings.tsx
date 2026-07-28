@@ -15,10 +15,11 @@ import './models-settings.css'
  * 设置 · 模型：当前只有界面。
  *
  * AppSettings 里还没有任何模型字段，Provider、密钥存储与网络边界也还没有 owner，
- * 所以这里的状态全部留在组件本地草稿：不写 store、不落盘、不发请求、不读环境变量。
+ * 所以状态全部留在组件本地草稿：不写 store、不落盘、不发请求、不读环境变量。
  * 等 domain/settings.ts 与 ports 补上模型契约后，把 useState 换成 controller.update 即可。
  *
- * 因为存不下，界面顶部明确告知“尚未保存”，避免出现拨得动却不生效的假开关。
+ * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
+ * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
  */
 
 interface ModelEntry {
@@ -113,18 +114,18 @@ export function ModelsSettings() {
       </p>
 
       <div className="models-block">
-        <span className="models-block__label">Task Models</span>
+        <span className="models-block__label">任务模型</span>
 
         <div className="models-card">
           <div className="models-row">
             <div className="models-row__copy">
-              <strong>Explore Subagent Model</strong>
-              <p>Choose the model used by the Explore subagent for initial research</p>
+              <strong>Explore 子智能体模型</strong>
+              <p>选择 Explore 子智能体在初始调研阶段使用的模型</p>
             </div>
 
             <div className="models-row__control">
               <ModelSelect
-                ariaLabel="Explore Subagent Model"
+                ariaLabel="Explore 子智能体模型"
                 onChange={setTaskModel}
                 options={TASK_MODEL_OPTIONS}
                 value={taskModel}
@@ -137,12 +138,12 @@ export function ModelsSettings() {
       <div className="models-card models-card--list">
         <div className="models-toolbar">
           <input
-            aria-label="Add or search model"
+            aria-label="添加或搜索模型"
             className="models-input models-input--search"
             onChange={(event) => {
               setQuery(event.target.value)
             }}
-            placeholder="Add or search model"
+            placeholder="添加或搜索模型"
             type="text"
             value={query}
           />
@@ -169,6 +170,7 @@ export function ModelsSettings() {
                   <Switch
                     aria-label={model.label}
                     checked={model.enabled}
+                    className="models-switch"
                     onCheckedChange={(checked) => {
                       toggleModel(model.id, checked)
                     }}
@@ -186,38 +188,39 @@ export function ModelsSettings() {
           }}
           type="button"
         >
-          {showAll ? 'Show Fewer Models' : 'View All Models'}
+          {showAll ? '收起模型列表' : '查看全部模型'}
         </button>
       </div>
 
       <details className="models-keys">
         <summary className="models-keys__summary">
           <ChevronIcon />
-          <span>API Keys</span>
+          <span>API 密钥</span>
         </summary>
 
         <div className="models-keys__body">
           <KeyField
-            description="You can put in your OpenAI key to use OpenAI models at cost."
-            label="OpenAI API Key"
+            description="填入你自己的 OpenAI 密钥，按用量直接计费到该账号。"
+            label="OpenAI API 密钥"
             onChange={(value) => {
               patchKeys({ openaiKey: value })
             }}
-            placeholder="Enter your OpenAI API Key"
+            placeholder="输入 OpenAI API 密钥"
             value={keys.openaiKey}
           />
 
           <div className="models-card">
             <div className="models-row">
               <div className="models-row__copy">
-                <strong>Override OpenAI Base URL</strong>
-                <p>Change the base URL for OpenAI API requests.</p>
+                <strong>覆盖 OpenAI Base URL</strong>
+                <p>更改 OpenAI 接口请求使用的基础地址。</p>
               </div>
 
               <div className="models-row__control">
                 <Switch
-                  aria-label="Override OpenAI Base URL"
+                  aria-label="覆盖 OpenAI Base URL"
                   checked={keys.openaiBaseUrlOverride}
+                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ openaiBaseUrlOverride: checked })
                   }}
@@ -227,11 +230,11 @@ export function ModelsSettings() {
 
             {keys.openaiBaseUrlOverride ? (
               <SubField
-                label="Base URL"
+                label="基础地址"
                 onChange={(value) => {
                   patchKeys({ openaiBaseUrl: value })
                 }}
-                placeholder="e.g. https://api.openai.com/v1"
+                placeholder="例如 https://api.openai.com/v1"
                 value={keys.openaiBaseUrl}
               />
             ) : null}
@@ -239,24 +242,24 @@ export function ModelsSettings() {
 
           <KeyField
             description={
-              'You can put in your Anthropic key to use Claude at cost. When enabled, ' +
-              'this key will be used for all models beginning with "claude-".'
+              '填入你自己的 Anthropic 密钥，按用量直接计费。启用后，所有以 “claude-” ' +
+              '开头的模型都会使用该密钥。'
             }
-            label="Anthropic API Key"
+            label="Anthropic API 密钥"
             onChange={(value) => {
               patchKeys({ anthropicKey: value })
             }}
-            placeholder="Enter your Anthropic API Key"
+            placeholder="输入 Anthropic API 密钥"
             value={keys.anthropicKey}
           />
 
           <KeyField
-            description="You can put in your Google AI Studio key to use Google models at-cost."
-            label="Google API Key"
+            description="填入你的 Google AI Studio 密钥，按用量直接计费。"
+            label="Google API 密钥"
             onChange={(value) => {
               patchKeys({ googleKey: value })
             }}
-            placeholder="Enter your Google AI Studio API Key"
+            placeholder="输入 Google AI Studio API 密钥"
             value={keys.googleKey}
           />
 
@@ -264,13 +267,14 @@ export function ModelsSettings() {
             <div className="models-row">
               <div className="models-row__copy">
                 <strong>Azure OpenAI</strong>
-                <p>Configure Azure OpenAI to use OpenAI models through your Azure account.</p>
+                <p>通过你的 Azure 账号调用 OpenAI 模型。</p>
               </div>
 
               <div className="models-row__control">
                 <Switch
                   aria-label="Azure OpenAI"
                   checked={keys.azureEnabled}
+                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ azureEnabled: checked })
                   }}
@@ -280,31 +284,31 @@ export function ModelsSettings() {
 
             <SubField
               disabled={!keys.azureEnabled}
-              label="Base URL"
+              label="基础地址"
               onChange={(value) => {
                 patchKeys({ azureBaseUrl: value })
               }}
-              placeholder="e.g. my-resource.openai.azure.com"
+              placeholder="例如 my-resource.openai.azure.com"
               value={keys.azureBaseUrl}
             />
 
             <SubField
               disabled={!keys.azureEnabled}
-              label="Deployment Name"
+              label="部署名称"
               onChange={(value) => {
                 patchKeys({ azureDeployment: value })
               }}
-              placeholder="e.g. gpt-35-turbo"
+              placeholder="例如 gpt-35-turbo"
               value={keys.azureDeployment}
             />
 
             <SubField
               disabled={!keys.azureEnabled}
-              label="API Key"
+              label="API 密钥"
               onChange={(value) => {
                 patchKeys({ azureKey: value })
               }}
-              placeholder="Enter your Azure OpenAI API Key"
+              placeholder="输入 Azure OpenAI API 密钥"
               secret
               value={keys.azureKey}
             />
@@ -314,15 +318,14 @@ export function ModelsSettings() {
             <div className="models-row">
               <div className="models-row__copy">
                 <strong>AWS Bedrock</strong>
-                <p>
-                  Configure AWS Bedrock to use Anthropic Claude models through your AWS account.
-                </p>
+                <p>通过你的 AWS 账号调用 Anthropic Claude 模型。</p>
               </div>
 
               <div className="models-row__control">
                 <Switch
                   aria-label="AWS Bedrock"
                   checked={keys.bedrockEnabled}
+                  className="models-switch"
                   onCheckedChange={(checked) => {
                     patchKeys({ bedrockEnabled: checked })
                   }}
@@ -353,11 +356,11 @@ export function ModelsSettings() {
 
             <SubField
               disabled={!keys.bedrockEnabled}
-              label="Region"
+              label="区域"
               onChange={(value) => {
                 patchKeys({ bedrockRegion: value })
               }}
-              placeholder="e.g. us-east-1"
+              placeholder="例如 us-east-1"
               value={keys.bedrockRegion}
             />
           </div>
@@ -471,7 +474,7 @@ function ModelSelect({ ariaLabel, value, options, onChange }: ModelSelectProps) 
  * 图标属性直接写在标签上，不走 spread。
  *
  * lint/a11y/noSvgWithoutTitle 是静态规则：aria-hidden 藏在展开对象里它看不见，
- * 于是把纯装饰图标判成缺少替代文本。摊平后规则与读屏软件看到的是同一件事。
+ * 于是把纯装饰图标判成缺少替代文本。
  */
 function RefreshIcon(): ReactNode {
   return (
