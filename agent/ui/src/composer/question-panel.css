@@ -1,12 +1,18 @@
 /*
  * 问答面板。
  *
- * 「长出来」是这份样式表唯一的主张：外层是单行 grid，行高从 0fr 动到 1fr，
- * 中层裁掉溢出，于是高度是被内容顶开的。先占位再淡入是另一回事，那看起来
- * 是浮现；这里要的是撑开。
+ * 两件事：它是长出来的，以及它是一段话加一组选择。
  *
- * 选中与否由左侧那枚图标和背景色一起说，边框全程不参与——一圈变色的描边会
- * 把选项读成输入控件，而它是一个选择。
+ * 「长出来」由外层那行 grid 负责——行高从 0fr 动到 1fr，中层裁掉溢出，高度因此
+ * 是被内容顶开的。先占好位再淡入是另一回事，那看起来是浮现。
+ *
+ * 「一段话加一组选择」由留白负责。内容不贴外壳的角：外壳是输入框自己那一层，
+ * 题面顶到它的左上角，读起来就像一句被挤出来的系统提示，而不是有人在问你。
+ * 所以内边距写在这里，而不是指望父层顺手给。
+ *
+ * 选中与否由左侧那枚图标和背景色一起说，边框全程不参与——一圈变色的描边会把
+ * 选项读成输入控件，而它是一个选择。同理，叉叉不带描边圈：它是一个动作，不是
+ * 一个待填的位子。
  */
 
 .assistant-question-panel {
@@ -23,8 +29,8 @@
 .assistant-question-panel__page {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 4px 2px 2px;
+  gap: 14px;
+  padding: 16px 18px 14px;
   animation: assistant-question-page 140ms ease-out;
 }
 
@@ -64,12 +70,14 @@
 .assistant-question-panel__head {
   display: grid;
   grid-template-columns: 1fr auto;
-  align-items: start;
-  gap: 8px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
 }
 
 .assistant-question-panel__tag {
   grid-column: 1;
+  grid-row: 1;
   justify-self: start;
   font-size: 11px;
   line-height: 1.4;
@@ -81,15 +89,16 @@
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .assistant-question-panel__nav {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1 / -1;
   display: flex;
   align-items: center;
   gap: 2px;
+  align-self: center;
 }
 
 .assistant-question-panel__arrow,
@@ -97,8 +106,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -121,9 +130,9 @@
   cursor: default;
 }
 
+/* 叉叉是个动作，不是个位子：不描边，只在 hover 时给一圈底色。 */
 .assistant-question-panel__dismiss {
-  margin-left: 4px;
-  box-shadow: inset 0 0 0 1px var(--assistant-border, rgba(0, 0, 0, 0.12));
+  margin-left: 6px;
 }
 
 .assistant-question-panel__count {
@@ -137,7 +146,7 @@
 .assistant-question-panel__options {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -146,9 +155,9 @@
 .assistant-question-panel__option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -194,6 +203,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-top: 4px;
 }
 
 .assistant-question-panel__hint {
@@ -202,7 +212,7 @@
 }
 
 .assistant-question-panel__advance {
-  padding: 6px 14px;
+  padding: 7px 16px;
   border: 0;
   border-radius: 999px;
   background: var(--assistant-accent, #2f6fed);
