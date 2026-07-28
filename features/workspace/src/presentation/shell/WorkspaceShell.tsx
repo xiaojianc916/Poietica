@@ -75,7 +75,12 @@ export function WorkspaceShell({
           </section>
         }
         chrome={
-          <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">
+          /*
+           * 这条横线属于 chrome 行本身：它是栅格里 chrome 与内容的边界，与行内
+           * 装的是标签条还是设置界面无关。此前由标题栏内部的三个分区各画一截，
+           * 设置模式下标签条不渲染，中段随之消失。
+           */
+          <header className="workspace-shell__chrome min-h-0 min-w-0 border-b border-divider bg-chrome">
             {renderChrome({
               isSidebarOpen: sidebarOpen,
               tabs: model.tabs,

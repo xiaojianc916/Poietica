@@ -1,41 +1,10 @@
-import {
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Minus,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Square,
-  X,
-} from '@mynaui/icons-react'
+import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from '@mynaui/icons-react'
 import { Button, cn } from '@poietica/foundations-design-system'
 import type { ReactNode } from 'react'
 
 const WINDOW_CONTROLS_DISABLED_TITLE = '窗口控制暂时不可用'
 
-/*
- * 开合按钮与两个箭头共用一套尺寸与配色：它们是同一组 chrome 控件，样式只有
- * 一份来源，不是三处各写一串。
- */
-const CHROME_ICON_BUTTON_CLASS =
-  'size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-
-/**
- * 移动当前标签页的能力。
- *
- * 能否移动由标签列表决定，所以在拥有列表的那一层派生；标题栏只把它映射成按钮
- * 的 disabled 与 onClick，不认识标签、也不算索引——重排本身仍然只有工作台
- * store 的 moveTab 一条实现，拖拽、键盘和这两个箭头走的是同一条。
- */
-export interface ActiveTabOrdering {
-  readonly canMoveEarlier: boolean
-  readonly canMoveLater: boolean
-  readonly moveEarlier: () => void
-  readonly moveLater: () => void
-}
-
 export interface DesktopTitleBarProps {
-  readonly activeTabOrdering: ActiveTabOrdering
   readonly children: ReactNode
   readonly onMinimize: () => void
   readonly onMaximize: () => void
@@ -51,20 +20,25 @@ export interface DesktopTitleBarProps {
  *
  * 窗口拖拽与双击最大化由 Tauri 原生处理：标注 data-tauri-drag-region 的元素
  * 交给 webview（capabilities 已声明 core:window:allow-start-dragging），前端
- * 不再监听 mousedown、不再维护"哪些元素算交互元素"的黑名单、也不再有一条会
- * 失败的原生拖拽调用需要降级。
+ * 不监听 mousedown、不维护交互元素黑名单、也没有会失败的原生调用需要降级。
  *
- * 只有不含交互子元素的填充区域才标注。原生拖拽一旦开始就吞掉 click，把标注
- * 挂在包含按钮的容器上会让按钮静默失灵——这正是黑名单方案要兜的底，而结构
- * 上不可能误命中就不需要兜底。
+ * 标注挂在容器上是安全的：Tauri v2 规定该属性只对被直接标注的元素生效，不向
+ * 子元素继承，正是为了让按钮、输入框照常工作。此前源码注释断言"挂在含按钮的
+ * 容器上会让按钮静默失灵"，与官方文档相悖，代价是最左侧一段标题栏长期不可拖。
+ *
+ * 拖拽区属于标题栏本身。之前全仓库唯一的标注寄生在标签条里，设置界面不渲染
+ * 标签条，整窗随之不可拖——归属错了，不是漏标。这里是两段：左侧开合区、中间
+ * 填充区；右侧全被窗口控制键占满，没有可标注的空白。
+ *
+ * 这里不画 chrome 与内容之间的横线。那条线是外壳栅格 chrome 行的边界，由
+ * WorkspaceShell 的 header 统一持有；标题栏内部再画一截，就会随内部结构
+ * 变化而断续。
  *
  * 这里没有容器级 ARIA 角色。原先整条标注 role="toolbar"，而 toolbar 的契约是
- * roving tabindex（Tab 只停一次、内部方向键移动），本组件从未实现；它的子元素
- * 里还有一整条 role="tablist"，也不是 toolbar 的合法子元素。声明一个不兑现的
- * 角色比不声明更糟：按钮和标签条各自的名字已经足够被读出。
+ * roving tabindex，本组件从未实现；它的子元素里还有一整条 role="tablist"，也
+ * 不是 toolbar 的合法子元素。声明一个不兑现的角色比不声明更糟。
  */
 export function DesktopTitleBar({
-  activeTabOrdering,
   children,
   onMinimize,
   onMaximize,
@@ -83,21 +57,16 @@ export function DesktopTitleBar({
        * "侧边栏／主界面"分隔线是同一个 x 坐标，竖线因此天然对齐而不是靠手调；
        * 收起时列宽归零、由按钮容器托底，开合按钮永远有落脚点。
        *
-       * 两个诉求不冲突的前提是：竖线在收起时本来就不存在，所以对齐这个约束
-       * 只需要在展开时成立。
-       *
        * 按钮留在正常流里。绝对定位同样能固定位置，但列宽归零后它会溢出到右侧
        * 标签条的地盘，被标签条的层叠上下文和不透明底色盖住——按钮还在、只是
-       * 点不到，这正是上一版的故障。
+       * 点不到，这是上一版的故障。
        *
        * 宽度直接读 motion 正在驱动的 --workspace-sidebar-column-width，收缩过程
        * 跟着面板同一条时间轴、到兜底宽度自然刹停，不需要另写一套动画。
-       *
-       * 这里不标注 data-tauri-drag-region：原生拖拽一旦开始就吞掉 click，把它挂
-       * 在含按钮的容器上会让按钮静默失灵。
        */}
       <div
-        className="relative flex shrink-0 items-center border-b border-divider"
+        className="relative flex shrink-0 items-center"
+        data-tauri-drag-region
         style={{
           paddingLeft:
             'calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)',
@@ -107,7 +76,7 @@ export function DesktopTitleBar({
       >
         <Button
           aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-          className={CHROME_ICON_BUTTON_CLASS}
+          className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
           onClick={onSidebarToggle}
           size="icon"
           type="button"
@@ -121,39 +90,6 @@ export function DesktopTitleBar({
         </Button>
 
         {/*
-         * 移动标签页的两个箭头。
-         *
-         * ml-auto 把它们顶到本区域的右边界，而这个边界就是"侧边栏／主界面"
-         * 分隔线所在的 x —— 上面那个 max() 是它唯一的来源，箭头因此没有第二
-         * 份坐标要维护。
-         *
-         * 侧边栏收起时不渲染：那时列宽归零，本区域缩到只容得下开合按钮，
-         * 箭头没有落脚点。用户要的"关闭时消失"与布局的约束在这里是同一件事。
-         *
-         * 首/末标签时按钮禁用。禁用之后 onClick 不会触发，所以处理器里不再
-         * 补一层守卫——那会是死代码。
-         */}
-        {isSidebarOpen ? (
-          <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-1.5">
-            <TabOrderButton
-              ariaLabel="将当前标签页左移"
-              disabled={!activeTabOrdering.canMoveEarlier}
-              onClick={activeTabOrdering.moveEarlier}
-            >
-              <ChevronLeft aria-hidden="true" className="size-4" />
-            </TabOrderButton>
-
-            <TabOrderButton
-              ariaLabel="将当前标签页右移"
-              disabled={!activeTabOrdering.canMoveLater}
-              onClick={activeTabOrdering.moveLater}
-            >
-              <ChevronRight aria-hidden="true" className="size-4" />
-            </TabOrderButton>
-          </div>
-        ) : null}
-
-        {/*
          * 竖线是一个独立元素而不是容器的 border-right：border 宽度在 1px 和 0
          * 之间只能硬切，而这条线该跟着面板一起淡出。它贴在容器右边界上，所以
          * 位置仍然由上面那个 max() 唯一决定，没有第二份坐标。
@@ -163,14 +99,16 @@ export function DesktopTitleBar({
           className="pointer-events-none absolute inset-y-0 right-0 border-r border-divider"
           style={{
             opacity: isSidebarOpen ? 1 : 0,
-            transition: 'opacity var(--workspace-layout-duration, 0.18s) ease',
+            transition: 'opacity var(--workspace-layout-duration, 0.22s) ease',
           }}
         />
       </div>
 
-      <div className="flex min-w-0 flex-1 items-stretch">{children}</div>
+      <div className="flex min-w-0 flex-1 items-stretch" data-tauri-drag-region>
+        {children}
+      </div>
 
-      <div className="flex shrink-0 items-stretch border-b border-divider">
+      <div className="flex shrink-0 items-stretch">
         <WindowControlButton
           ariaLabel="最小化"
           disabled={windowControlsDisabled}
@@ -198,31 +136,6 @@ export function DesktopTitleBar({
         </WindowControlButton>
       </div>
     </div>
-  )
-}
-
-interface TabOrderButtonProps {
-  readonly ariaLabel: string
-  readonly children: ReactNode
-  readonly disabled: boolean
-  readonly onClick: () => void
-}
-
-/* 名字即提示：aria-label 与 title 同一份文案，不存在两处要同步的说明。 */
-function TabOrderButton({ ariaLabel, children, disabled, onClick }: TabOrderButtonProps) {
-  return (
-    <Button
-      aria-label={ariaLabel}
-      className={cn(CHROME_ICON_BUTTON_CLASS, disabled && 'cursor-not-allowed opacity-40')}
-      disabled={disabled}
-      onClick={onClick}
-      size="icon"
-      title={ariaLabel}
-      type="button"
-      variant="ghost"
-    >
-      {children}
-    </Button>
   )
 }
 

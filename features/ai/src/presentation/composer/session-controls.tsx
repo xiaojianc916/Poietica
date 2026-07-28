@@ -1,10 +1,8 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuPortal,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -15,19 +13,15 @@ import type { SessionConfigControl } from '../../contracts/session-config-contra
 import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
- * 会话能改的每一项,一个入口,两级菜单。
+ * Everything the session lets us change, in one control.
  *
- * 一级是选择器本身:一行一个,右侧写着当前生效的值;二级才是取值列表。这是
- * 桌面软件菜单的通行做法 —— 一级可扫读,二级按需展开,菜单高度不随取值个数
- * 膨胀。上一版把三个选择器的全部取值平铺在同一个面板里,行数由代理返回多少
- * 个模型决定,于是只有两三个取值的 Thinking / Mode 被埋在十几行之后。
+ * 一级列 purpose、二级列取值。一级菜单的行数等于可调维度数，与取值总数解耦，
+ * 新增模型不会把菜单撑到屏幕外；当前值在一级行右侧直接可读，不必逐段扫描勾选。
  *
- * 子菜单用设计系统的 DropdownMenuSub(底层是 Base UI 的 Menu.SubmenuRoot):
- * 方向键、悬停意图的安全三角、Escape 逐层关闭、焦点归位,都是标准的职责,
- * 不是这个文件的。上一版留下的手写子菜单定位、过桥条与旋转箭头已随之删除。
- *
- * 面板与子面板都要带 data-assistant-skin:它们是 Portal 渲染到 body 的,
- * 不在 AI 界面的子树里,皮肤令牌只能由它们自己携带。
+ * 子菜单用设计系统导出的 Base UI Menu.SubmenuRoot：悬停延迟、安全三角、方向键
+ * 进出、Escape 逐级关闭、焦点归还都是标准的职责。DropdownMenuSubContent 不自带
+ * Portal，因此显式包 DropdownMenuPortal；portal 之后皮肤属性必须挂在弹层自身，
+ * 后代选择器够不到 body 下的节点——这正是此前菜单是裸默认皮肤的原因。
  */
 
 const NOTHING_TO_OFFER = '会话未就绪'
@@ -60,7 +54,7 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
   const model = controls.find((control) => control.purpose === 'model')
   const provider = model?.current.split('/')[0]
 
-  /* 析构判空同时给出空状态判据与首行,索引访问不再需要断言。 */
+  /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
   const [firstRow] = rows
 
   if (firstRow === undefined) {
@@ -105,7 +99,6 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
               <span className="assistant-config-menu__row-value">{chosen(control)}</span>
             </DropdownMenuSubTrigger>
 
-            {/* 子面板要自己进 Portal:SubContent 只是 Positioner + Popup。 */}
             <DropdownMenuPortal>
               <DropdownMenuSubContent
                 align="start"
@@ -113,41 +106,26 @@ export function SessionControls({ controls, failure, onSelect }: SessionControls
                 data-assistant-skin
                 side="left"
               >
-                {/*
-                  One value is in force per selector, which is a radio group and
-                  not a list of commands: the group owns the value, the role and
-                  aria-checked, and it mounts the indicator on the row that
-                  matches. The guard stays because a group promises a value, not
-                  a change, and re-sending the value in force would be a request
-                  to the agent for nothing.
-                */}
-                <DropdownMenuRadioGroup
-                  onValueChange={(value: string) => {
-                    if (value === control.current) {
-                      return
-                    }
+                {control.choices.map((choice) => (
+                  <DropdownMenuItem
+                    className="assistant-config-option"
+                    data-active={choice.value === control.current ? 'true' : undefined}
+                    key={choice.value}
+                    onSelect={() => {
+                      if (choice.value === control.current) {
+                        return
+                      }
 
-                    onSelect(control.id, value)
-                  }}
-                  value={control.current}
-                >
-                  {control.choices.map((choice) => (
-                    <DropdownMenuRadioItem
-                      className="assistant-config-option"
-                      closeOnClick
-                      key={choice.value}
-                      value={choice.value}
-                    >
-                      <DropdownMenuRadioItemIndicator className="assistant-config-option__indicator" />
+                      onSelect(control.id, choice.value)
+                    }}
+                  >
+                    <span className="assistant-config-option__label">{choice.label}</span>
 
-                      <span className="assistant-config-option__label">{choice.label}</span>
-
-                      {choice.detail === undefined ? null : (
-                        <span className="assistant-config-option__detail">{choice.detail}</span>
-                      )}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
+                    {choice.detail === undefined ? null : (
+                      <span className="assistant-config-option__detail">{choice.detail}</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>

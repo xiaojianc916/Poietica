@@ -997,8 +997,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-assistant-skin] .assistant-config-menu__panel,
-  [data-assistant-skin] .assistant-config-menu__submenu {
+  .assistant-config-menu__panel[data-assistant-skin],
+  .assistant-config-menu__submenu[data-assistant-skin] {
     animation: none;
   }
 }
@@ -1039,7 +1039,7 @@
  * The design-system dropdown keeps behaviour, focus order and positioning.
  * Chrome and geometry are ours, and they are the same ones the selector uses.
  */
-[data-assistant-skin] .assistant-thread-menu.assistant-thread-menu {
+.assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
   min-inline-size: 216px;
   border: 1px solid var(--am-line);
   border-radius: var(--am-radius);
@@ -1048,7 +1048,7 @@
   font-size: var(--cp-font-caption);
 }
 
-[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__item {
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item {
   min-block-size: 28px;
   gap: 8px;
   border-radius: var(--am-item);
@@ -1056,16 +1056,16 @@
   font-size: var(--cp-font-caption);
 }
 
-[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__item svg {
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
   block-size: var(--cp-icon-2xs);
   inline-size: var(--cp-icon-2xs);
 }
 
-[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__separator {
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__separator {
   margin: var(--am-pad) 8px;
 }
 
-[data-assistant-skin] .assistant-thread-menu .assistant-thread-menu__meta {
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__meta {
   margin: 2px 8px 0;
   font-size: var(--cp-font-micro);
 }
@@ -1096,12 +1096,12 @@
   pointer-events: auto;
 }
 
-[data-assistant-skin] .assistant-thread-menu[data-state="open"] {
+.assistant-thread-menu[data-assistant-skin][data-state="open"] {
   animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
 }
 
 /* No exit paint, and no animation left to wait on, so the popup unmounts at once. */
-[data-assistant-skin] .assistant-thread-menu[data-state="closed"] {
+.assistant-thread-menu[data-assistant-skin][data-state="closed"] {
   animation: none;
   opacity: 0;
   pointer-events: none;
@@ -1121,7 +1121,7 @@
   height: 10px;
   margin: 7px 8px;
   border-radius: 4px;
-  background: var(--am-line, rgb(13 13 13 / 8%));
+  background: var(--am-line, color-mix(in srgb, var(--ui-foreground) 8%, transparent));
   animation: assistant-thread-ghost 1200ms ease-in-out infinite;
 }
 

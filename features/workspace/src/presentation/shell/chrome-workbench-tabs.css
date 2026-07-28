@@ -32,7 +32,7 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  width: 100%;
+  max-width: 100%;
   min-width: 0;
   height: 100%;
   overflow: hidden;
@@ -46,17 +46,6 @@
  * 基线画在标签条根上，因为只有它横跨整条：滚动容器按内容取宽，新建按钮与
  * 拖拽填充区是它的兄弟节点，基线必须连续穿过这三者的下沿。
  */
-.chrome-workbench-tabs::before,
-.chrome-workbench-tabs::after {
-  position: absolute;
-  z-index: 2;
-  bottom: 0;
-  height: var(--ui-region-divider-width);
-  background: var(--color-divider);
-  content: "";
-  pointer-events: none;
-}
-
 .chrome-workbench-tabs[data-has-active-tab="true"]::before {
   left: 0;
   right: calc(100% - var(--chrome-active-tab-left));
@@ -93,12 +82,6 @@
 
 .chrome-workbench-tabs__scroller::-webkit-scrollbar {
   display: none;
-}
-
-.chrome-workbench-tabs__drag-region {
-  height: 100%;
-  min-width: 24px;
-  flex: 1 0 24px;
 }
 
 /*
@@ -486,4 +469,23 @@
   .chrome-workbench-tabs__scroller {
     scroll-behavior: auto;
   }
+}
+
+/*
+ * 激活标签处把边界"咬开"一段，而不是自己画线：横线归 chrome 行所有
+ * （WorkspaceShell 的 header border-b），这里只在
+ * [--chrome-active-tab-left, --chrome-active-tab-right] 区间盖成标签底色。
+ * 偏移 -1px 是因为要盖住的是父级的 border，它在本元素的内容盒之外。
+ * 无激活标签时两个变量同为 0px，遮罩宽度归零而自然消失，不需要状态属性。
+ */
+.chrome-workbench-tabs::after {
+  position: absolute;
+  z-index: 6;
+  background: var(--chrome-tab-surface);
+  block-size: 1px;
+  content: "";
+  inline-size: calc(var(--chrome-active-tab-right) - var(--chrome-active-tab-left));
+  inset-block-end: -1px;
+  inset-inline-start: var(--chrome-active-tab-left);
+  pointer-events: none;
 }
