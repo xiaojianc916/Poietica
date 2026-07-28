@@ -1,4 +1,4 @@
-import { failureCoordinator } from '../application/failures/failure-coordinator'
+import { failureCoordinator } from '@poietica/agent-runtime'
 import { installFatalCollectors } from './fatal-collectors'
 import { isReactFatalHostMounted } from './fatal-runtime'
 import type { TerminalFailureViewModel } from './terminal-failure-view-model'

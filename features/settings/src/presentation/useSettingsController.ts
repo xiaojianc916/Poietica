@@ -1,6 +1,6 @@
+import type { AppSettings } from '@poietica/agent-timeline'
 import { applyThemePreference } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 
 export type SettingsOperation = 'load' | 'save' | 'reset'

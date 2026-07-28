@@ -4,4 +4,4 @@ export {
   type CanvasSessionViewModel,
   type CanvasToolId,
   EMPTY_CANVAS_SESSION_VIEW_MODEL,
-} from '../../contracts/canvas-contract'
+} from '@poietica/agent-protocol'

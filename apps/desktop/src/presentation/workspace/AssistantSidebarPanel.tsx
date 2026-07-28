@@ -1,7 +1,6 @@
-import type { AssistantThreadSummary } from '@poietica/features-ai/react'
-import { AssistantThreadList } from '@poietica/features-ai/react'
-
-import { useSharedThreads } from '../../application/ai/threads-context'
+import { useSharedThreads } from '@poietica/agent-runtime'
+import type { AssistantThreadSummary } from '@poietica/agent-ui'
+import { AssistantThreadList } from '@poietica/agent-ui'
 
 /*
  * 侧边栏下半部分：真实的会话记录。

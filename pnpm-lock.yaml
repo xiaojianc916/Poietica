@@ -106,20 +106,161 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
+  agent/protocol:
+    dependencies:
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  agent/registry:
+    dependencies:
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  agent/runtime:
+    dependencies:
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@poietica/agent-registry':
+        specifier: workspace:*
+        version: link:../registry
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../timeline
+      '@poietica/agent-transport':
+        specifier: workspace:*
+        version: link:../transport
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  agent/timeline:
+    dependencies:
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  agent/transport:
+    dependencies:
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  agent/ui:
+    dependencies:
+      '@mynaui/icons-react':
+        specifier: 'catalog:'
+        version: 0.4.11(react@19.2.7)
+      '@poietica/agent-protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@poietica/agent-runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@poietica/agent-timeline':
+        specifier: workspace:*
+        version: link:../timeline
+      '@poietica/agent-transport':
+        specifier: workspace:*
+        version: link:../transport
+      '@poietica/foundations-design-system':
+        specifier: workspace:*
+        version: link:../../foundations/design-system
+      '@streamdown/cjk':
+        specifier: 'catalog:'
+        version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.0)(micromark@4.0.0)(react@19.2.7)(unified@11.0.5)
+      '@streamdown/code':
+        specifier: 'catalog:'
+        version: 1.1.1(react@19.2.7)
+      '@tanstack/react-virtual':
+        specifier: 'catalog:'
+        version: 3.14.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      diff:
+        specifier: 'catalog:'
+        version: 8.0.2
+      motion:
+        specifier: 'catalog:'
+        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      streamdown:
+        specifier: 'catalog:'
+        version: 2.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      tailwind-merge:
+        specifier: 'catalog:'
+        version: 3.6.0
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
   apps/desktop:
     dependencies:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
+      '@poietica/agent-ui':
+        specifier: workspace:*
+        version: link:../../agent/ui
       '@poietica/editor-core':
         specifier: workspace:*
         version: link:../../editor/core
       '@poietica/editor-document':
         specifier: workspace:*
         version: link:../../editor/document
-      '@poietica/features-ai':
-        specifier: workspace:*
-        version: link:../../features/ai
       '@poietica/features-settings':
         specifier: workspace:*
         version: link:../../features/settings
@@ -282,58 +423,6 @@ importers:
       tldraw:
         specifier: 'catalog:'
         version: 5.2.5(@floating-ui/dom@1.8.0)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  features/ai:
-    dependencies:
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.7)
-      '@poietica/foundations-design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
-      '@streamdown/cjk':
-        specifier: 'catalog:'
-        version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.0)(micromark@4.0.0)(react@19.2.7)(unified@11.0.5)
-      '@streamdown/code':
-        specifier: 'catalog:'
-        version: 1.1.1(react@19.2.7)
-      '@tanstack/react-virtual':
-        specifier: 'catalog:'
-        version: 3.14.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      diff:
-        specifier: 'catalog:'
-        version: 8.0.2
-      motion:
-        specifier: 'catalog:'
-        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      streamdown:
-        specifier: 'catalog:'
-        version: 2.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      tailwind-merge:
-        specifier: 'catalog:'
-        version: 3.6.0
-      valibot:
-        specifier: 'catalog:'
-        version: 1.4.2(typescript@7.0.2)
-    devDependencies:
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.7(react@19.2.7)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

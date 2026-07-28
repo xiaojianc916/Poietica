@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@poietica/editor-core": "workspace:*",
-    "@poietica/features-ai": "workspace:*",
+    "@poietica/agent-ui": "workspace:*",
     "@poietica/foundations-design-system": "workspace:*",
     "@poietica/editor-document": "workspace:*",
     "@poietica/foundations-kernel": "workspace:*",

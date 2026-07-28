@@ -1,3 +1,5 @@
+import type { AgentSessionPort } from '@poietica/agent-protocol'
+import { failureCoordinator, reportDocumentFatal, reportFailure } from '@poietica/agent-runtime'
 import type { EditorSession } from '@poietica/editor-core/application'
 import {
   CanvasInspectorRightSidebar,
@@ -7,7 +9,6 @@ import {
   useCanvasInspectorAvailability,
 } from '@poietica/editor-core/react'
 import type { CanvasCloseIntent, CanvasCloseSnapshot } from '@poietica/editor-document'
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import type { SettingsStore } from '@poietica/features-settings'
 import {
   SettingsContentRegion,
@@ -33,9 +34,6 @@ import {
 } from '@poietica/features-workspace/react'
 import { ConfirmationDialog } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { reportDocumentFatal } from '../../application/failures/document-failure-reporter'
-import { failureCoordinator } from '../../application/failures/failure-coordinator'
-import { reportFailure } from '../../application/failures/failure-policy'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'

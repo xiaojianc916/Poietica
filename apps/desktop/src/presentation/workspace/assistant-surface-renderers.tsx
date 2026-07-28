@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
+import type { AgentSessionPort } from '@poietica/agent-protocol'
 import type { WorkspaceSurfaceRenderers } from '@poietica/features-workspace/contracts'
 
 import { AssistantPane } from './AssistantPane'

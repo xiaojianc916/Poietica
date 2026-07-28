@@ -1,7 +1,6 @@
 import { DangerTriangle } from '@mynaui/icons-react'
+import { failureCoordinator, formatFailureDiagnostic } from '@poietica/agent-runtime'
 import { useMemo, useState, useSyncExternalStore } from 'react'
-import { failureCoordinator } from '../../application/failures/failure-coordinator'
-import { formatFailureDiagnostic } from '../../application/failures/failure-diagnostic'
 
 export interface DocumentQuarantineSurfaceProps {
   readonly sessionId: string

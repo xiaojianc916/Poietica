@@ -2966,8 +2966,8 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "log",
- "poietica-ai-acp-native",
- "poietica-ai-persistence-native",
+ "poietica-agent-persistence-native",
+ "poietica-agent-runtime-native",
  "poietica-editor-persistence-native",
  "serde",
  "serde_json",
@@ -2993,21 +2993,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-ai-acp-native"
-version = "0.1.0"
-dependencies = [
- "agent-client-protocol",
- "futures",
- "poietica-ai-persistence-native",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "uuid",
-]
-
-[[package]]
-name = "poietica-ai-persistence-native"
+name = "poietica-agent-persistence-native"
 version = "0.1.0"
 dependencies = [
  "hex",
@@ -3021,6 +3007,20 @@ dependencies = [
  "time",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "poietica-agent-runtime-native"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "futures",
+ "poietica-agent-persistence-native",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.19",
+ "uuid",
 ]
 
 [[package]]

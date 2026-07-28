@@ -1,5 +1,5 @@
+import type { FileReference } from '@poietica/agent-timeline'
 import type { Result } from '@poietica/foundations-kernel'
-import type { FileReference } from '../domain/file'
 
 export interface AtomicDocumentStorage {
   create(archive: ArchivePayload): Promise<Result<FileReference, StorageError>>

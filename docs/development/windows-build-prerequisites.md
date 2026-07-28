@@ -17,7 +17,7 @@ prerequisites only.
 
 ### Perl
 
-`poietica-ai-persistence-native` depends on `rusqlite` with the
+`poietica-agent-persistence-native` depends on `rusqlite` with the
 `bundled-sqlcipher-vendored-openssl` feature. That feature compiles SQLCipher
 and OpenSSL from C source and links them statically, which is what lets the
 application open an encrypted database on a machine that has no OpenSSL
@@ -73,7 +73,7 @@ lower bound is `rust-version` under `[workspace.package]` in the root
 
 ## Running the live ACP turn
 
-`cargo test -p poietica-ai-acp-native --test live_turn -- --ignored` starts a
+`cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored` starts a
 real agent, so it needs one on the machine. It is not part of `cargo test` and
 nothing else in the repository depends on it.
 

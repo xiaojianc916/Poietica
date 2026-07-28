@@ -1,8 +1,5 @@
+import { FailureCoordinator, type TerminalFailureIncident } from '@poietica/agent-runtime'
 import { describe, expect, it } from 'vitest'
-import {
-  FailureCoordinator,
-  type TerminalFailureIncident,
-} from '../application/failures/failure-coordinator'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
 describe('createTerminalFailureViewModel', () => {

@@ -1,4 +1,4 @@
-import type { RegisteredCommand } from '../../contracts/command-contract'
+import type { RegisteredCommand } from '@poietica/agent-protocol'
 
 export interface CommandRegistry {
   readonly register: (command: RegisteredCommand) => () => void

@@ -1,6 +1,6 @@
 # AI persistence
 
-The crate `poietica-ai-persistence-native` at `features/ai/native` owns everything the
+The crate `poietica-agent-persistence-native` at `agent/persistence/native` owns everything the
 assistant keeps on disk.
 
 ## Encryption

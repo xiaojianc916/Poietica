@@ -1,6 +1,5 @@
+import type { WorkspaceSurfaceId } from '@poietica/agent-protocol'
 import type { ReactNode } from 'react'
-
-import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'
 import type { WorkspaceNavigationId } from './surface-registry'

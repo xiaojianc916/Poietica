@@ -1,5 +1,5 @@
-import type { ThreadsSelection } from '@poietica/features-ai/application'
-import { useThreads } from '@poietica/features-ai/application'
+import type { ThreadsSelection } from '@poietica/agent-runtime'
+import { useThreads } from '@poietica/agent-runtime'
 import type { ReactNode } from 'react'
 import { createContext, useContext, useMemo } from 'react'
 

@@ -1,6 +1,6 @@
 import { FileText, X } from '@mynaui/icons-react'
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/agent-protocol'
 import type { ComponentType, KeyboardEvent } from 'react'
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'

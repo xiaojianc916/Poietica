@@ -1,6 +1,6 @@
+import { reportFailure } from '@poietica/agent-runtime'
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useState } from 'react'
-import { reportFailure } from '../../application/failures/failure-policy'
 
 export interface WindowChrome {
   readonly isMaximized: boolean

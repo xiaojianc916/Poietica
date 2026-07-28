@@ -1,4 +1,4 @@
-import type { WorkbenchTabId } from '../../../contracts/workbench-contract'
+import type { WorkbenchTabId } from '@poietica/agent-protocol'
 
 export interface WorkbenchTabModelItem {
   readonly id: WorkbenchTabId

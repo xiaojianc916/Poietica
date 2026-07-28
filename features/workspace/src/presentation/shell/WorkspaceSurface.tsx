@@ -1,5 +1,4 @@
-import type { WorkspaceSurfaceRenderers } from '../../contracts/surface-contract'
-import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
+import type { WorkspaceSurfaceId, WorkspaceSurfaceRenderers } from '@poietica/agent-protocol'
 import { describeWorkspaceSurface } from './surface-registry'
 
 export interface WorkspaceSurfaceProps {

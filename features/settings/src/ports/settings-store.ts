@@ -1,4 +1,4 @@
-import type { AppSettings } from '../domain/settings'
+import type { AppSettings } from '@poietica/agent-timeline'
 
 export interface SettingsStore {
   readonly load: () => Promise<AppSettings>

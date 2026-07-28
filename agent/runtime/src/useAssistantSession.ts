@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
-import type { AgentSessionPort } from '../contracts/agent-session-port'
-import type { ChatStatus } from '../contracts/chat-status-contract'
-import type { RunEvent } from '../contracts/run-contract'
-import type { TimelineState } from '../contracts/timeline-contract'
+import type {
+  AgentSessionPort,
+  ChatStatus,
+  RunEvent,
+  TimelineState,
+} from '@poietica/agent-protocol'
 import {
   appendUserMessage,
   applyRunEvent,
   createTimelineState,
   replayThreadEvents,
-} from '../domain/timeline-reducer'
+} from '@poietica/agent-timeline'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 /*
  * The surface depends on the agent session PORT, never on a protocol client.

@@ -1,0 +1,47 @@
+{
+  "name": "@poietica/agent-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/public-api.ts",
+      "default": "./src/public-api.ts"
+    }
+  },
+  "scripts": {
+    "check": "tsc --project tsconfig.json --noEmit",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@mynaui/icons-react": "catalog:",
+    "@poietica/agent-protocol": "workspace:*",
+    "@poietica/agent-runtime": "workspace:*",
+    "@poietica/agent-timeline": "workspace:*",
+    "@poietica/agent-transport": "workspace:*",
+    "@poietica/foundations-design-system": "workspace:*",
+    "@streamdown/cjk": "catalog:",
+    "@streamdown/code": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
+    "diff": "catalog:",
+    "motion": "catalog:",
+    "streamdown": "catalog:",
+    "tailwind-merge": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "peerDependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  }
+}

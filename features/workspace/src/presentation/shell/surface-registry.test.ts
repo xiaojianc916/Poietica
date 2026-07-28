@@ -1,6 +1,5 @@
+import type { WorkspaceSurfaceId } from '@poietica/agent-protocol'
 import { describe, expect, it } from 'vitest'
-
-import type { WorkspaceSurfaceId } from '../../contracts/workbench-contract'
 import {
   describeWorkspaceNavigation,
   WORKSPACE_NAVIGATION_ORDER,

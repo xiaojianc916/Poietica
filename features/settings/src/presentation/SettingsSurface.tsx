@@ -1,3 +1,4 @@
+import type { AppSettings } from '@poietica/agent-timeline'
 import {
   Button,
   ErrorState,
@@ -20,7 +21,6 @@ import {
   useMemo,
   useState,
 } from 'react'
-import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 import {
   type SettingsController,

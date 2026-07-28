@@ -1,3 +1,4 @@
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/agent-protocol'
 import {
   type KeyboardEvent,
   type PointerEvent,
@@ -6,7 +7,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench-contract'
 import {
   resolveWorkbenchTabCloseTarget,
   resolveWorkbenchTabInsertion,

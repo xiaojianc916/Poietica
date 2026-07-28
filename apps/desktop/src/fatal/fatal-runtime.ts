@@ -1,8 +1,5 @@
+import { type FailureIncident, failureCoordinator } from '@poietica/agent-runtime'
 import type { FailureRecovery, TerminalFailureImpact } from '@poietica/foundations-kernel'
-import {
-  type FailureIncident,
-  failureCoordinator,
-} from '../application/failures/failure-coordinator'
 
 export type FailureKind =
   | 'bootstrap'

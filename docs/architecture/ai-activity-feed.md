@@ -17,7 +17,7 @@ Rules that hold at every step:
 
 ## Next step
 
-Vendor the AI Elements output components into features/ai/src/presentation/ai-elements
+Vendor the AI Elements output components into agent/ui/src/ai-elements
 with the official CLI, then replace TimelineItemPreview with renderers built on
 them, driving markdown through Streamdown:
 

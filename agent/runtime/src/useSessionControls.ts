@@ -1,7 +1,5 @@
+import type { SessionConfigControl, SessionConfigPort } from '@poietica/agent-protocol'
 import { useCallback, useEffect, useState } from 'react'
-
-import type { SessionConfigControl } from '../contracts/session-config-contract'
-import type { SessionConfigPort } from '../contracts/session-config-port'
 
 /*
  * 选择器只有一个来源：正在跑的会话。

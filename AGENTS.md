@@ -57,8 +57,11 @@ AI 对画布的提案必须提供预览或显式应用操作；一旦应用，�
 ## 包结构与依赖方向
 
 ```text
-apps ───────────────► editor + features + platforms
-features ───────────► editor public extension API + foundations
+apps ───────────────► agent + editor + features + platforms
+features ───────────► agent public API + editor public extension API + foundations
+agent/ui ───────────► agent/runtime
+agent/runtime ──────► agent/protocol + agent/timeline + agent/registry + agent/transport
+agent/protocol ─────► foundations
 editor/core ────────► foundations
 editor/document ────► editor/core + persistence contracts
 platforms ──────────► application-defined ports

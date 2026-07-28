@@ -32,8 +32,8 @@ thiserror.workspace = true
 time = { version = "0.3", features = ["formatting"] }
 uuid.workspace = true
 poietica-editor-persistence-native = { path = "../../../editor/persistence/native" }
-poietica-ai-acp-native = { path = "../../../features/ai/acp-native" }
-poietica-ai-persistence-native = { path = "../../../features/ai/native" }
+poietica-agent-runtime-native = { path = "../../../agent/runtime/native" }
+poietica-agent-persistence-native = { path = "../../../agent/persistence/native" }
 
 # 这份清单与 bootstrap/app.rs 里注册的插件一一对应。
 #

@@ -1,8 +1,6 @@
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
-import { AssistantSurface } from '@poietica/features-ai/react'
-
-import { desktopSessionConfig } from '../../application/ai/agent-session'
-import { useSharedThreads } from '../../application/ai/threads-context'
+import type { AgentSessionPort } from '@poietica/agent-protocol'
+import { desktopSessionConfig, useSharedThreads } from '@poietica/agent-runtime'
+import { AssistantSurface } from '@poietica/agent-ui'
 
 /*
  * 一格只画一条对话。

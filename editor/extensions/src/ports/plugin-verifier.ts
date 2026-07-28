@@ -1,4 +1,4 @@
-import type { PluginManifest } from '../domain/plugin'
+import type { PluginManifest } from '@poietica/agent-timeline'
 
 export interface PluginVerifier {
   verify(

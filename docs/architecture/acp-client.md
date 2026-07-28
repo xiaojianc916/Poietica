@@ -35,8 +35,8 @@ rebuildable from the log, a later version can backfill them.
 ## The frame is the interface contract
 
 The recorder does not invent a shape of its own. Every frame it writes is
-exactly the shape declared in `features/ai/src/contracts/run-contract.ts` and
-validated by `features/ai/src/domain/acp-event-schema.ts`, and the same value
+exactly the shape declared in `agent/protocol/src/run-contract.ts` and
+validated by `agent/timeline/src/acp-event-schema.ts`, and the same value
 is what goes into the log. Replaying a stored run and watching a live one
 therefore cannot drift apart, and there is no translation layer to keep in sync.
 
@@ -143,7 +143,7 @@ cancellation are only proven by `tests/live_turn.rs`, which is ignored by
 default because it spawns an agent and spends tokens:
 
 ```text
-cargo test -p poietica-ai-acp-native --test live_turn -- --ignored --nocapture
+cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored --nocapture
 ```
 
 Its configuration lives in the environment, not in the repository:

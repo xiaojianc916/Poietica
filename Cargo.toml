@@ -1,13 +1,13 @@
 [workspace]
 resolver = "3"
 members = [
-    "features/ai/acp-native",
+  "agent/persistence/native",
+  "agent/runtime/native",
   "apps/desktop/src-tauri",
   "editor/assets/native",
-  "editor/persistence/native",
   "editor/extensions/native",
+  "editor/persistence/native",
   "platforms/desktop-runtime/native",
-  "features/ai/native",
 ]
 default-members = [
   "apps/desktop/src-tauri",

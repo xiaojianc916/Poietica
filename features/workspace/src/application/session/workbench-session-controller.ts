@@ -1,9 +1,13 @@
 import type {
   ActiveCanvasViewModel,
+  ActiveConversationViewModel,
   CanvasSessionId,
   CanvasTabStatus,
   CanvasTabViewModel,
+  ConversationId,
+  ConversationTabViewModel,
   CreateCanvasRequest,
+  OpenConversationRequest,
   OpenWorkspaceSurfaceRequest,
   StartSurfaceViewModel,
   StartTabViewModel,
@@ -14,14 +18,8 @@ import type {
   WorkbenchViewModel,
   WorkspaceSurfaceViewModel,
   WorkspaceTabViewModel,
-} from '../../contracts/public-api'
-import { START_TAB_ID, START_TAB_TITLE } from '../../contracts/public-api'
-import type {
-  ActiveConversationViewModel,
-  ConversationId,
-  ConversationTabViewModel,
-  OpenConversationRequest,
-} from '../../contracts/workbench-contract'
+} from '@poietica/agent-protocol'
+import { START_TAB_ID, START_TAB_TITLE } from '@poietica/agent-protocol'
 
 type WorkbenchEntry = StartEntry | CanvasEntry | ConversationEntry | WorkspaceEntry
 
@@ -49,7 +47,7 @@ interface ConversationEntry extends EntryBase {
 
 interface WorkspaceEntry extends EntryBase {
   readonly kind: 'workspace'
-  readonly surfaceId: import('../../contracts/public-api').WorkspaceSurfaceId
+  readonly surfaceId: import('@poietica/agent-protocol').WorkspaceSurfaceId
 }
 
 /**

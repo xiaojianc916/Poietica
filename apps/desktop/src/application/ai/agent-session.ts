@@ -1,5 +1,5 @@
-import { createIpcSession } from '@poietica/features-ai/adapters'
-import type { AgentSessionPort, SessionConfigPort } from '@poietica/features-ai/contracts'
+import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
+import { createIpcSession } from '@poietica/agent-transport'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCommandBridge,
@@ -90,7 +90,7 @@ export function createDesktopAgentSession(): DesktopAgentSession {
   }
 }
 
-import type { ThreadPort, ThreadTitleSource } from '@poietica/features-ai/contracts'
+import type { ThreadPort, ThreadTitleSource } from '@poietica/agent-protocol'
 import { createAgentThreadBridge } from '@poietica/platforms-desktop-ipc'
 
 /**

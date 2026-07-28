@@ -1,6 +1,5 @@
+import type { ThreadPort, ThreadRecord } from '@poietica/agent-protocol'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-
-import type { ThreadPort, ThreadRecord } from '../contracts/thread-port'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'

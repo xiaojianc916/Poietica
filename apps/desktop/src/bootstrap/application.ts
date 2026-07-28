@@ -1,6 +1,13 @@
+import type { AgentSessionPort } from '@poietica/agent-protocol'
+import {
+  type ApplicationTerminationCoordinator,
+  type CanvasWorkflow,
+  createApplicationTerminationCoordinator,
+  createCanvasWorkflow,
+  createDesktopAgentSession,
+} from '@poietica/agent-runtime'
 import { createEditorSessionRegistry } from '@poietica/editor-core/application'
 import { createCanvasDocumentService } from '@poietica/editor-document'
-import type { AgentSessionPort } from '@poietica/features-ai/contracts'
 import {
   type CommandRegistry,
   createCommandRegistry,
@@ -15,12 +22,6 @@ import {
   type MainWindowController,
   type SettingsStore,
 } from '@poietica/platforms-desktop-runtime'
-import { createDesktopAgentSession } from '../application/ai/agent-session'
-import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'
-import {
-  type ApplicationTerminationCoordinator,
-  createApplicationTerminationCoordinator,
-} from '../application/termination/application-termination-coordinator'
 
 export interface CreateApplicationRuntimeOptions {
   readonly tldrawLicenseKey: string
