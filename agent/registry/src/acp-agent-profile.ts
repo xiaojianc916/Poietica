@@ -23,10 +23,12 @@ export interface AgentCredentialBinding {
  * 一个 ACP agent 的接入档案。
  *
  * 字段与 Zed 的 CustomAgentServerSettings 对齐：进程怎么起（command/args/env）、
- * 会话配置的默认值（defaultConfigOptions）、以及哪些取值被收藏
- * （favoriteConfigOptionValues，按 ACP config option id 分组）。
+ * 以及会话配置的默认值（defaultConfigOptions）。
  *
- * 这里没有"支持哪些模型"这种字段，因为那是会话在 session/new 之后才报告的事。
+ * 这里刻意没有"收藏了哪些模型"：那份状态只存在提供方档案里一处。同一个概念
+ * 存两份，迟早会分叉成两个都不敢信的来源。
+ *
+ * 也没有"支持哪些模型"，因为那是会话在 session/new 之后才报告的事。
  */
 export interface AcpAgentProfile {
   readonly id: string
@@ -39,7 +41,6 @@ export interface AcpAgentProfile {
   readonly env: Readonly<Record<string, string>>
   readonly credentialBinding?: AgentCredentialBinding | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
-  readonly favoriteConfigOptionValues: Readonly<Record<string, readonly string[]>>
 }
 
 export interface AcpAgentProfileSet {
@@ -69,7 +70,6 @@ const MAX_ARGS = 32
 const MAX_TEXT = 512
 const MAX_ENTRIES = 32
 const MAX_PROFILES = 32
-const MAX_VALUES = 128
 
 function fail(issue: string): { readonly ok: false; readonly issue: string } {
   return { ok: false, issue }
@@ -270,46 +270,6 @@ function parseDefaultConfigOptions(input: unknown): Parsed<Record<string, AgentC
   return { ok: true, value: options }
 }
 
-function parseFavoriteConfigOptionValues(
-  input: unknown,
-): Parsed<Record<string, readonly string[]>> {
-  if (input === undefined) {
-    return { ok: true, value: {} }
-  }
-
-  const raw = asRecord(input)
-
-  if (!raw) {
-    return fail('收藏的会话配置值必须是对象')
-  }
-
-  const favorites: Record<string, readonly string[]> = {}
-
-  for (const [configId, values] of Object.entries(raw)) {
-    if (!Array.isArray(values) || values.length > MAX_VALUES) {
-      return fail('收藏值必须是字符串数组')
-    }
-
-    const list: string[] = []
-
-    for (const candidate of values) {
-      const value = asText(candidate, 128)
-
-      if (value === undefined) {
-        return fail('收藏值必须是非空字符串')
-      }
-
-      if (!list.includes(value)) {
-        list.push(value)
-      }
-    }
-
-    favorites[configId] = list
-  }
-
-  return { ok: true, value: favorites }
-}
-
 /**
  * 校验一个来源不可信的 agent 档案。
  *
@@ -365,12 +325,6 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
     return defaults
   }
 
-  const favorites = parseFavoriteConfigOptionValues(raw.favoriteConfigOptionValues)
-
-  if (!favorites.ok) {
-    return favorites
-  }
-
   return {
     ok: true,
     profile: {
@@ -382,7 +336,6 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
       env: env.value,
       credentialBinding: binding.value,
       defaultConfigOptions: defaults.value,
-      favoriteConfigOptionValues: favorites.value,
     },
   }
 }
@@ -499,7 +452,6 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       env: {},
       credentialBinding: undefined,
       defaultConfigOptions: {},
-      favoriteConfigOptionValues: {},
     }
   })
 }

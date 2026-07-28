@@ -29,11 +29,11 @@ export interface ModelProviderProfile {
   /** 我认识的模型 id。会腐烂，所以可增删。 */
   readonly models: readonly string[]
   /**
-   * 收藏的模型 id。
+   * 打开的模型。
    *
-   * 借用 Zed 的 favorite_config_option_values 语义：收藏只影响模型选择器里的
-   * 排序与折叠，不代表"启用/禁用"。能不能用某个模型只有 agent 说了算，
-   * 客户端假装有否决权只会制造"我打开了却用不了"。
+   * 语义是"在模型选择器里出现并靠前"，不是"授权使用"：能不能用某个模型只有
+   * agent 说了算（ACP 的 configOptions 才是真值），客户端假装有否决权只会
+   * 制造"我打开了却用不了"。借用 Zed 的 favorite_config_option_values。
    */
   readonly favoriteModels: readonly string[]
   /** 启动 agent 时注入的默认模型。留空则完全交给 agent 的默认值。 */
@@ -227,6 +227,9 @@ export function parseModelProviderProfile(input: unknown): ModelProviderProfileP
  *
  * 这些模型 id 一定会过期，所以它们只是起手清单，不是真理：界面可以增删，
  * 后续也会把 agent 在会话里报出来的模型 id 自动收进来。
+ *
+ * 界面用这份种子里的 baseUrl 作为"默认地址"，用来判断当前是否处于覆盖状态，
+ * 以及提供"还原默认"。因此这个函数必须是纯的，且每次返回同样的值。
  */
 export function builtinModelProviders(): readonly ModelProviderProfile[] {
   return [
@@ -276,4 +279,9 @@ export function builtinModelProviders(): readonly ModelProviderProfile[] {
       defaultModel: undefined,
     },
   ]
+}
+
+/** 某个提供方的内置默认 base URL。自定义提供方没有默认值。 */
+export function builtinBaseUrl(providerId: string): string | undefined {
+  return builtinModelProviders().find((provider) => provider.id === providerId)?.baseUrl
 }

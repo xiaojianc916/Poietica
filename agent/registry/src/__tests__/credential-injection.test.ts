@@ -27,7 +27,6 @@ const profile: AcpAgentProfile = {
     modelEnv: 'ANTHROPIC_MODEL',
   },
   defaultConfigOptions: {},
-  favoriteConfigOptionValues: {},
 }
 
 describe('resolveAgentLaunchEnv', () => {

@@ -19,7 +19,6 @@ const valid = {
     baseUrlEnv: 'ANTHROPIC_BASE_URL',
   },
   defaultConfigOptions: { model: 'kimi-k2-turbo-preview', brave_mode: false },
-  favoriteConfigOptionValues: { model: ['kimi-k2-turbo-preview'] },
 }
 
 describe('parseAcpAgentProfile', () => {

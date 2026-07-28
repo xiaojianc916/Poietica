@@ -15,10 +15,6 @@ export {
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
 } from './acp-agent-profile'
-export type { AcpAgentDescriptor } from './acp-agents'
-export { acpAgents, defaultAcpAgent } from './acp-agents'
-export type { AgentProvider, AgentRegistry } from './agent-registry'
-export { createAgentRegistry } from './agent-registry'
 export type { LaunchEnvInput, LaunchEnvResult } from './credential-injection'
 export { redactEnv, resolveAgentLaunchEnv } from './credential-injection'
 export type {
@@ -28,6 +24,7 @@ export type {
   ProviderEnvNames,
 } from './model-provider-profile'
 export {
+  builtinBaseUrl,
   builtinModelProviders,
   defaultEnvNames,
   parseModelProviderProfile,
