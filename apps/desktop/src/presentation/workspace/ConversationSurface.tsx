@@ -69,7 +69,6 @@ export function ConversationSurface({
       }}
       onUserMessage={(conversation, text) => {
         threads.nameFromMessage(conversation, text)
-        void threads.refresh()
         onStarted?.(conversation, threads.standInTitle(text))
       }}
       session={session}

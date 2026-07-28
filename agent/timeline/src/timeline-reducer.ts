@@ -34,7 +34,27 @@ import type {
  *   - a duplicated seq inside a segment is discarded;
  *   - a tool_call_update for an unknown id creates a placeholder rather than
  *     dropping the update on the floor.
+ *
+ * 纯是对外的性质，不是每一步都要复制。
+ *
+ * 内部走一份草稿：draftOf 取出可变副本，事件逐帧写进去，freeze 交出成品。
+ * 一次重放因此只分配一次 items、一次 Set，而不是每帧各一次；此前那种写法
+ * 在一条几千帧的对话上是 O(N²)，代价直接落在打开会话的那一刻。
+ *
+ * 身份索引按需建：只有真的要按 id 对账（tool_call、tool_call_update、plan）
+ * 才建一次 Map，纯文本流一次都不建。
  */
+
+interface Draft {
+  readonly runId: RunId
+  status: RunStatus
+  readonly items: TimelineItem[]
+  /** id → 下标；没人按 id 找过就还没有。 */
+  index: Map<string, number> | null
+  lastSeq: number
+  applied: Set<number>
+  runIndex: number
+}
 
 export function createTimelineState(runId: RunId): TimelineState {
   return {
@@ -48,11 +68,13 @@ export function createTimelineState(runId: RunId): TimelineState {
 }
 
 export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
-  let state = createTimelineState(runId)
+  const draft = draftOf(createTimelineState(runId))
+
   for (const event of events) {
-    state = applyRunEvent(state, event)
+    apply(draft, event)
   }
-  return state
+
+  return freeze(draft)
 }
 
 /**
@@ -64,33 +86,25 @@ export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): Time
  * discarded frame by frame as a duplicate of the first.
  */
 export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
-  let state = createTimelineState(runId)
+  const draft = draftOf(createTimelineState(runId))
 
   for (const event of events) {
     if (event.kind === 'run_started') {
-      state = {
-        ...state,
-        lastSeq: -1,
-        appliedSeqs: new Set<number>(),
-        runIndex: state.runIndex + 1,
-      }
+      openSegment(draft)
     }
 
-    state = applyRunEvent(state, event)
+    apply(draft, event)
   }
 
   // A run that never reached a terminal event was interrupted (force-kill,
   // crash). Close any open tool calls so they show the failure glyph rather
   // than a perpetual spinner.
-  if (state.status === 'running' || state.status === 'awaiting_permission') {
-    state = {
-      ...state,
-      status: 'failed',
-      items: closeOpenToolCalls(state.items),
-    }
+  if (draft.status === 'running' || draft.status === 'awaiting_permission') {
+    draft.status = 'failed'
+    closeOpenToolCalls(draft)
   }
 
-  return state
+  return freeze(draft)
 }
 
 /**
@@ -106,78 +120,118 @@ export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): T
  */
 export function appendUserMessage(state: TimelineState, text: string, at: number): TimelineState {
   const said = text.trim()
+
   if (said.length === 0) {
     return state
   }
 
-  const opened: TimelineState = {
-    ...state,
-    status: 'running',
-    lastSeq: -1,
-    appliedSeqs: new Set<number>(),
-    runIndex: state.runIndex + 1,
-  }
+  const draft = draftOf(state)
 
-  return {
-    ...opened,
-    items: [
-      ...sealTail(state.items),
-      { type: 'user_message', id: `${namespace(opened)}said`, at, text: said },
-    ],
-  }
+  draft.status = 'running'
+  openSegment(draft)
+  push(draft, { type: 'user_message', id: `${namespace(draft)}said`, at, text: said })
+
+  return freeze(draft)
 }
 
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
+  /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。 */
   if (state.appliedSeqs.has(event.seq)) {
     return state
   }
 
-  const appliedSeqs = new Set(state.appliedSeqs)
-  appliedSeqs.add(event.seq)
+  const draft = draftOf(state)
 
-  const base: TimelineState = {
-    ...state,
-    appliedSeqs,
-    lastSeq: Math.max(state.lastSeq, event.seq),
+  apply(draft, event)
+
+  return freeze(draft)
+}
+
+/* -------------------------------------------------------------- */
+
+function draftOf(state: TimelineState): Draft {
+  return {
+    runId: state.runId,
+    status: state.status,
+    items: state.items.slice(),
+    index: null,
+    lastSeq: state.lastSeq,
+    applied: new Set(state.appliedSeqs),
+    runIndex: state.runIndex,
+  }
+}
+
+function freeze(draft: Draft): TimelineState {
+  return {
+    runId: draft.runId,
+    status: draft.status,
+    items: draft.items,
+    lastSeq: draft.lastSeq,
+    appliedSeqs: draft.applied,
+    runIndex: draft.runIndex,
+  }
+}
+
+/** 新的一轮：它自己的帧从一开始编号，所以窗口跟着换。 */
+function openSegment(draft: Draft): void {
+  draft.lastSeq = -1
+  draft.applied = new Set<number>()
+  draft.runIndex += 1
+}
+
+function apply(draft: Draft, event: RunEvent): void {
+  if (draft.applied.has(event.seq)) {
+    return
   }
 
+  draft.applied.add(event.seq)
+  draft.lastSeq = Math.max(draft.lastSeq, event.seq)
+
   switch (event.kind) {
-    case 'run_started':
-      return { ...base, status: 'running', items: withPrompt(base, event) }
+    case 'run_started': {
+      draft.status = 'running'
+      withPrompt(draft, event)
 
-    case 'acp_update':
-      return applyAcpUpdate(base, event.notification.update, event.seq, event.at)
+      return
+    }
 
-    case 'permission_requested':
-      return {
-        ...base,
-        status: 'awaiting_permission',
-        items: [
-          ...sealTail(base.items),
-          {
-            type: 'permission',
-            id: `${namespace(base)}permission-${event.requestId}`,
-            at: event.at,
-            requestId: event.requestId,
-            title: event.title,
-            /* 缺席和"值为 undefined"在 exactOptionalPropertyTypes 下不是一回事，
-               所以没带就整个键不写。 */
-            ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
-            options: event.options,
-          },
-        ],
+    case 'acp_update': {
+      applyAcpUpdate(draft, event.notification.update, event.seq, event.at)
+
+      return
+    }
+
+    case 'permission_requested': {
+      draft.status = 'awaiting_permission'
+      push(draft, {
+        type: 'permission',
+        id: `${namespace(draft)}permission-${event.requestId}`,
+        at: event.at,
+        requestId: event.requestId,
+        title: event.title,
+        /* 缺席和"值为 undefined"在 exactOptionalPropertyTypes 下不是一回事，
+           所以没带就整个键不写。 */
+        ...(event.toolCall === undefined ? {} : { toolCall: event.toolCall }),
+        options: event.options,
+      })
+
+      return
+    }
+
+    case 'permission_resolved': {
+      draft.status = 'running'
+
+      for (const [position, item] of draft.items.entries()) {
+        if (item.type === 'permission' && item.requestId === event.requestId) {
+          draft.items[position] = {
+            ...item,
+            resolution: { optionId: event.optionId, outcome: event.outcome },
+          }
+        }
       }
 
-    case 'permission_resolved':
-      return {
-        ...base,
-        status: 'running',
-        items: base.items.map((item) =>
-          item.type === 'permission' && item.requestId === event.requestId
-            ? { ...item, resolution: { optionId: event.optionId, outcome: event.outcome } }
-            : item,
-        ),
-      }
+      return
+    }
 
     case 'run_finished': {
       /* A turn can end on the agent terms and still be a failure: a rejected
@@ -185,50 +239,39 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
          protocol, and the stop reason stays ordinary. When it left such an
          account, that account is the entry, and our own wording never
          appears at all. */
-      const sealed = closeOpenToolCalls(sealTail(base.items))
+      sealTail(draft)
+      closeOpenToolCalls(draft)
+      draft.status = finalStatus(event.stopReason)
+
       const said = event.diagnostics?.trim() ?? ''
-      const status = finalStatus(event.stopReason)
 
-      if (said.length === 0) {
-        return { ...base, status, items: sealed }
+      if (said.length > 0) {
+        push(draft, {
+          type: 'error',
+          id: `${namespace(draft)}agent-${String(event.seq)}`,
+          at: event.at,
+          message: said,
+        })
       }
 
-      return {
-        ...base,
-        status,
-        items: [
-          ...sealed,
-          {
-            type: 'error',
-            id: `${namespace(base)}agent-${String(event.seq)}`,
-            at: event.at,
-            message: said,
-          },
-        ],
-      }
+      return
     }
 
-    case 'run_failed':
-      return {
-        ...base,
-        status: 'failed',
-        items: [
-          ...closeOpenToolCalls(sealTail(base.items)),
-          {
-            type: 'error',
-            id: `${namespace(base)}error-${String(event.seq)}`,
-            at: event.at,
-            message: preferAgent(event.message, event.diagnostics),
-          },
-        ],
-      }
+    case 'run_failed': {
+      sealTail(draft)
+      closeOpenToolCalls(draft)
+      draft.status = 'failed'
+      push(draft, {
+        type: 'error',
+        id: `${namespace(draft)}error-${String(event.seq)}`,
+        at: event.at,
+        message: preferAgent(event.message, event.diagnostics),
+      })
 
-    default:
-      return base
+      return
+    }
   }
 }
-
-/* -------------------------------------------------------------- */
 
 /*
  * 收窄后的协议更新类型。用 Extract 而不是在 contracts 里新导出七个成员名：
@@ -239,18 +282,84 @@ type AcpUpdateOf<TKind extends AcpSessionUpdate['sessionUpdate']> = Extract<
   { sessionUpdate: TKind }
 >
 
+function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at: number): void {
+  const scope = namespace(draft)
+
+  switch (update.sessionUpdate) {
+    case 'user_message_chunk': {
+      push(draft, {
+        type: 'user_message',
+        id: `${scope}user-${String(seq)}`,
+        at,
+        text: textOf(update.content),
+      })
+
+      return
+    }
+
+    case 'agent_message_chunk': {
+      appendChunk(draft, 'agent_text', textOf(update.content), scope, seq, at)
+
+      return
+    }
+
+    case 'agent_thought_chunk': {
+      appendChunk(draft, 'agent_thought', textOf(update.content), scope, seq, at)
+
+      return
+    }
+
+    case 'tool_call': {
+      applyToolCall(draft, update, scope, at)
+
+      return
+    }
+
+    case 'tool_call_update': {
+      applyToolCallUpdate(draft, update, scope, at)
+
+      return
+    }
+
+    case 'plan': {
+      /* The protocol replaces the whole plan; keep exactly one plan entry per
+         turn, so a later turn cannot rewrite an earlier one. */
+      const id = `${scope}plan`
+      const plan = { type: 'plan', id, at, entries: update.entries } as const
+      const position = positionOf(draft, id)
+
+      if (position < 0) {
+        push(draft, plan)
+
+        return
+      }
+
+      draft.items[position] = plan
+
+      return
+    }
+
+    case 'available_commands_update': {
+      /* A session capability, not a turn. The command list belongs to the
+         composer that offers the commands, not to the transcript of what
+         happened, so it produces no item here. This case is written out rather
+         than left to the default so that ignoring it stays a decision. */
+      return
+    }
+  }
+}
+
 /*
  * 需要和既有条目对账的两个分支各自独立。派发表因此只剩"哪种更新交给谁"，
  * 而每个投影都可以在不看见另外六个分支的情况下读懂。
  */
 function applyToolCall(
-  state: TimelineState,
+  draft: Draft,
   update: AcpUpdateOf<'tool_call'>,
   scope: string,
   at: number,
-): TimelineState {
+): void {
   const id = `${scope}tool-${update.toolCallId}`
-  const existing = indexOfId(state.items, id)
   const created: ToolCallTimelineItem = {
     type: 'tool_call',
     id,
@@ -264,22 +373,29 @@ function applyToolCall(
     rawInput: update.rawInput,
     startedAt: at,
   }
-  if (existing < 0) {
-    return { ...state, items: [...sealTail(state.items), created] }
+
+  const position = positionOf(draft, id)
+
+  if (position < 0) {
+    push(draft, created)
+
+    return
   }
-  return { ...state, items: replaceAt(state.items, existing, created) }
+
+  draft.items[position] = created
 }
 
 function applyToolCallUpdate(
-  state: TimelineState,
+  draft: Draft,
   update: AcpUpdateOf<'tool_call_update'>,
   scope: string,
   at: number,
-): TimelineState {
+): void {
   const id = `${scope}tool-${update.toolCallId}`
-  const index = indexOfId(state.items, id)
-  if (index < 0) {
-    const placeholder: ToolCallTimelineItem = {
+  const position = positionOf(draft, id)
+
+  if (position < 0) {
+    push(draft, {
       type: 'tool_call',
       id,
       at,
@@ -291,22 +407,25 @@ function applyToolCallUpdate(
       locations: update.locations ?? [],
       rawOutput: update.rawOutput,
       startedAt: at,
-    }
-    return { ...state, items: [...sealTail(state.items), placeholder] }
+    })
+
+    return
   }
 
-  const current = state.items[index]
+  const current = draft.items[position]
+
   if (current?.type !== 'tool_call') {
-    return state
+    return
   }
 
   const status = update.status ?? current.status
   /* A call that is still running has no end time, which is not the same as
-         having one that is undefined. The distinction is the whole point of
-         exactOptionalPropertyTypes, so the property is omitted rather than set
-         to nothing. An end, once recorded, is never moved. */
+     having one that is undefined. The distinction is the whole point of
+     exactOptionalPropertyTypes, so the property is omitted rather than set
+     to nothing. An end, once recorded, is never moved. */
   const endedAt = isTerminal(status) ? (current.endedAt ?? at) : current.endedAt
-  const merged: ToolCallTimelineItem = {
+
+  draft.items[position] = {
     ...current,
     title: update.title ?? current.title,
     kind: update.kind ?? current.kind,
@@ -316,79 +435,13 @@ function applyToolCallUpdate(
     rawOutput: update.rawOutput ?? current.rawOutput,
     ...(endedAt === undefined ? {} : { endedAt }),
   }
-  return { ...state, items: replaceAt(state.items, index, merged) }
-}
-
-function applyAcpUpdate(
-  state: TimelineState,
-  update: AcpSessionUpdate,
-  seq: number,
-  at: number,
-): TimelineState {
-  const scope = namespace(state)
-
-  switch (update.sessionUpdate) {
-    case 'user_message_chunk':
-      return {
-        ...state,
-        items: [
-          ...sealTail(state.items),
-          {
-            type: 'user_message',
-            id: `${scope}user-${String(seq)}`,
-            at,
-            text: textOf(update.content),
-          },
-        ],
-      }
-
-    case 'agent_message_chunk':
-      return {
-        ...state,
-        items: appendChunk(state.items, 'agent_text', textOf(update.content), scope, seq, at),
-      }
-
-    case 'agent_thought_chunk':
-      return {
-        ...state,
-        items: appendChunk(state.items, 'agent_thought', textOf(update.content), scope, seq, at),
-      }
-
-    case 'tool_call':
-      return applyToolCall(state, update, scope, at)
-
-    case 'tool_call_update':
-      return applyToolCallUpdate(state, update, scope, at)
-
-    case 'plan': {
-      /* The protocol replaces the whole plan; keep exactly one plan entry per
-         turn, so a later turn cannot rewrite an earlier one. */
-      const id = `${scope}plan`
-      const index = indexOfId(state.items, id)
-      const plan = { type: 'plan', id, at, entries: update.entries } as const
-      if (index < 0) {
-        return { ...state, items: [...sealTail(state.items), plan] }
-      }
-      return { ...state, items: replaceAt(state.items, index, plan) }
-    }
-
-    case 'available_commands_update':
-      /* A session capability, not a turn. The command list belongs to the
-         composer that offers the commands, not to the transcript of what
-         happened, so it produces no item here. This case is written out rather
-         than left to the default so that ignoring it stays a decision. */
-      return state
-
-    default:
-      return state
-  }
 }
 
 /**
  * The identity prefix of the turn currently being written.
  */
-function namespace(state: TimelineState): string {
-  return `r${String(state.runIndex)}-`
+function namespace(draft: Draft): string {
+  return `r${String(draft.runIndex)}-`
 }
 
 /**
@@ -399,94 +452,120 @@ function namespace(state: TimelineState): string {
  * converge on one entry instead of each adding their own.
  */
 function withPrompt(
-  state: TimelineState,
+  draft: Draft,
   event: { readonly seq: number; readonly at: number; readonly prompt?: string },
-): readonly TimelineItem[] {
+): void {
   const prompt = event.prompt
+
   if (prompt === undefined || prompt.length === 0) {
-    return state.items
+    return
   }
 
-  const tail = state.items.at(-1)
+  const tail = draft.items.at(-1)
+
   if (tail && tail.type === 'user_message' && tail.text === prompt) {
-    return state.items
+    return
   }
 
-  return [
-    ...sealTail(state.items),
-    {
-      type: 'user_message',
-      id: `${namespace(state)}said-${String(event.seq)}`,
-      at: event.at,
-      text: prompt,
-    },
-  ]
+  push(draft, {
+    type: 'user_message',
+    id: `${namespace(draft)}said-${String(event.seq)}`,
+    at: event.at,
+    text: prompt,
+  })
 }
 
 function appendChunk(
-  items: readonly TimelineItem[],
+  draft: Draft,
   type: 'agent_text' | 'agent_thought',
   chunk: string,
   scope: string,
   seq: number,
   at: number,
-): readonly TimelineItem[] {
-  const tail = items.at(-1)
+): void {
+  const tail = draft.items.at(-1)
+
   if (tail && tail.type === type && !tail.sealed) {
     const grown: AgentTextItem | AgentThoughtItem = { ...tail, text: tail.text + chunk }
-    return replaceAt(items, items.length - 1, grown)
+
+    draft.items[draft.items.length - 1] = grown
+
+    return
   }
+
   const prefix = type === 'agent_text' ? 'text-' : 'thought-'
-  return [
-    ...sealTail(items),
-    { type, id: scope + prefix + String(seq), at, text: chunk, sealed: false } as
-      | AgentTextItem
-      | AgentThoughtItem,
-  ]
+
+  push(draft, {
+    type,
+    id: scope + prefix + String(seq),
+    at,
+    text: chunk,
+    sealed: false,
+  } as AgentTextItem | AgentThoughtItem)
 }
 
-function sealTail(items: readonly TimelineItem[]): readonly TimelineItem[] {
-  const tail = items.at(-1)
+/** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
+function push(draft: Draft, item: TimelineItem): void {
+  sealTail(draft)
+  draft.items.push(item)
+  draft.index?.set(item.id, draft.items.length - 1)
+}
+
+function sealTail(draft: Draft): void {
+  const tail = draft.items.at(-1)
+
   if (!tail) {
-    return items
+    return
   }
+
   if (tail.type !== 'agent_text' && tail.type !== 'agent_thought') {
-    return items
+    return
   }
+
   if (tail.sealed) {
-    return items
+    return
   }
-  return replaceAt(items, items.length - 1, { ...tail, sealed: true })
+
+  draft.items[draft.items.length - 1] = { ...tail, sealed: true }
 }
 
 /*
  * A run interrupted without a terminal event left some tool calls hanging.
  * Mark them failed so the failure glyph appears instead of a spinner.
  */
-function closeOpenToolCalls(items: readonly TimelineItem[]): readonly TimelineItem[] {
-  return items.map((item): TimelineItem => {
+function closeOpenToolCalls(draft: Draft): void {
+  for (const [position, item] of draft.items.entries()) {
     if (item.type !== 'tool_call') {
-      return item
+      continue
     }
+
     if (item.status === 'completed' || item.status === 'failed') {
-      return item
+      continue
     }
-    return { ...item, status: 'failed' }
-  })
+
+    draft.items[position] = { ...item, status: 'failed' }
+  }
 }
 
-function replaceAt(
-  items: readonly TimelineItem[],
-  index: number,
-  item: TimelineItem,
-): readonly TimelineItem[] {
-  const next = items.slice()
-  next.splice(index, 1, item)
-  return next
-}
+/**
+ * 按 id 找一条：索引只有在真的要对账时才建，一次草稿至多建一次。
+ *
+ * 纯文本流从不走这里，所以流式追加不需要为索引付任何代价。
+ */
+function positionOf(draft: Draft, id: string): number {
+  let index = draft.index
 
-function indexOfId(items: readonly TimelineItem[], id: string): number {
-  return items.findIndex((item) => item.id === id)
+  if (index === null) {
+    index = new Map<string, number>()
+
+    for (const [position, item] of draft.items.entries()) {
+      index.set(item.id, position)
+    }
+
+    draft.index = index
+  }
+
+  return index.get(id) ?? -1
 }
 
 /**
@@ -507,12 +586,16 @@ function mergeContent(
   if (incoming === undefined) {
     return current
   }
+
   if (incoming.some((entry) => entry.type === 'diff')) {
     return incoming
   }
+
   const held = current.filter((entry) => entry.type === 'diff')
+
   return held.length === 0 ? incoming : [...held, ...incoming]
 }
+
 function isTerminal(status: ToolCallTimelineItem['status']): boolean {
   return status === 'completed' || status === 'failed'
 }
@@ -530,6 +613,7 @@ function textOf(content: AcpContentBlock): string {
  */
 function preferAgent(message: string, diagnostics?: string): string {
   const said = diagnostics?.trim() ?? ''
+
   return said.length === 0 ? message : said
 }
 
@@ -537,8 +621,10 @@ function finalStatus(stopReason: string): RunStatus {
   if (stopReason === 'cancelled') {
     return 'cancelled'
   }
+
   if (stopReason === 'refusal') {
     return 'failed'
   }
+
   return 'completed'
 }

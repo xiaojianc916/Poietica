@@ -125,14 +125,27 @@ export const useThreads = (
     void refresh()
   }, [refresh])
 
+  /*
+   * 按 id 找一条对话：一次索引，而不是每一行各扫一遍整张表。
+   *
+   * 侧栏每画一行就问一次名字，于是原先的 find 让渲染是 O(行数²)。
+   */
+  const byId = useMemo(() => {
+    const found = new Map<string, ThreadRecord>()
+
+    for (const thread of threads) {
+      found.set(thread.threadId, thread)
+    }
+
+    return found
+  }, [threads])
+
   const titleOf = useCallback(
     (threadId: string): string => {
-      const found = threads.find((thread) => thread.threadId === threadId)
+      const found = byId.get(threadId)
+
       /* 用户自己起的名字压过一切，包括随后到来的官方标题。 */
-      if (found !== undefined && found.titleSource === 'manual') {
-        return found.title
-      }
-      if (found !== undefined && found.titleSource === 'official') {
+      if (found?.titleSource === 'manual' || found?.titleSource === 'official') {
         return found.title
       }
       const standIn = provisional[threadId]
@@ -144,13 +157,14 @@ export const useThreads = (
       }
       return found.titleSource === 'fallback' ? FALLBACK_TITLE : shorten(found.title)
     },
-    [provisional, threads],
+    [byId, provisional],
   )
 
   const nameFromMessage = useCallback(
     (threadId: string, message: string) => {
-      const found = threads.find((thread) => thread.threadId === threadId)
-      if (found !== undefined && found.titleSource === 'official') {
+      const found = byId.get(threadId)
+
+      if (found?.titleSource === 'official') {
         return
       }
       const standIn = shorten(message)
@@ -174,7 +188,7 @@ export const useThreads = (
             ],
       )
     },
-    [threads],
+    [byId],
   )
 
   const create = useCallback(async (): Promise<string | null> => {
@@ -231,7 +245,6 @@ export const useThreads = (
       } catch (reason) {
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
-      await refresh()
     },
     [port, refresh],
   )
@@ -250,7 +263,6 @@ export const useThreads = (
       } catch (reason) {
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
-      await refresh()
     },
     [port, refresh],
   )
@@ -270,7 +282,6 @@ export const useThreads = (
       } catch (reason) {
         setFailure(reason instanceof Error ? reason.message : FAILURE_FALLBACK)
       }
-      await refresh()
     },
     [port, refresh],
   )
