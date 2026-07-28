@@ -471,6 +471,9 @@ importers:
       '@poietica/foundations-kernel':
         specifier: workspace:*
         version: link:../../foundations/kernel
+      '@poietica/platforms-desktop-ipc':
+        specifier: workspace:*
+        version: link:../../platforms/desktop-ipc
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)

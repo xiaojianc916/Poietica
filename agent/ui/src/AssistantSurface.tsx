@@ -1,7 +1,7 @@
 import './assistant.css'
 
-import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
-import { useAssistantSession, useSessionControls } from '@poietica/agent-runtime'
+import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-protocol'
+import { useAssistantSession } from '@poietica/agent-runtime'
 import type { PermissionItem, TurnFooter } from '@poietica/agent-timeline'
 import {
   selectFeedRows,
@@ -47,8 +47,17 @@ export interface AssistantSurfaceProps {
    * and the surface does not own the list, so it reports it outwards.
    */
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
-  /** The selectors the running session offers. */
-  readonly config?: SessionConfigPort
+  /**
+   * 这条对话所持有的会话给出的选择器。
+   *
+   * 它是被交进来的，不是在这里问出来的：选择器属于会话，会话属于对话，而
+   * 对话由上层持有。这一层只负责把它画出来。
+   */
+  readonly controls: readonly SessionConfigControl[]
+  readonly controlsFailure?: string | undefined
+  readonly onSelectControl: (controlId: string, value: string) => void
+  /** 认领或改动失败之后重新问一次。 */
+  readonly onRetryControls?: (() => void) | undefined
 }
 
 /*
@@ -90,22 +99,16 @@ const STARTERS: Readonly<Record<string, string>> = {
  * interpolation in the stylesheet, with nothing measured in script.
  */
 export function AssistantSurface({
-  config,
+  controls,
+  controlsFailure,
   endpoint,
   identify,
+  onRetryControls,
+  onSelectControl,
   onUserMessage,
   session,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
-
-  /*
-   * 选择器属于会话，会话属于这一格代表的那条对话，所以它既是重读的
-   * 理由，也是问出去的那句话的主语。
-   *
-   * 此前它只是个「变了就重读」的标记，问句本身没有主语：在第二条对
-   * 话里换模型，换的是第一条的。
-   */
-  const controls = useSessionControls(config, endpoint)
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
@@ -238,8 +241,8 @@ export function AssistantSurface({
           <>
             <div className="assistant-surface__composer">
               <AssistantComposer
-                controls={controls.controls}
-                controlsFailure={controls.failure}
+                controls={controls}
+                controlsFailure={controlsFailure}
                 handle={composer}
                 onAnswerQuestions={(answers) => {
                   /*
@@ -252,8 +255,8 @@ export function AssistantSurface({
                   }
                 }}
                 onCancel={assistant.cancel}
-                onRetryControls={controls.retry}
-                onSelectControl={controls.select}
+                onRetryControls={onRetryControls}
+                onSelectControl={onSelectControl}
                 onSubmit={assistant.send}
                 questionDeck={questionDeck}
                 status={assistant.status}

@@ -1,6 +1,6 @@
-import type { AgentSessionPort } from '@poietica/agent-protocol'
+import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-protocol'
 import { AssistantSurface } from '@poietica/agent-ui'
-import { desktopSessionConfig } from '../../application/ai/agent-session'
+import { useEffect } from 'react'
 import { useSharedThreads } from '../../application/ai/threads-context'
 
 /*
@@ -15,6 +15,9 @@ import { useSharedThreads } from '../../application/ai/threads-context'
  * 对话的 id 随那句话一起送来，不从这里的闭包里取：入口那一格在说话的那一刻
  * 才知道自己是哪条对话，闭包里的还是说话之前的答案，也就是没有答案。
  */
+
+/** 还不知道这条对话有什么可选时画的东西：什么都不画。 */
+const NO_CONTROLS: readonly SessionConfigControl[] = []
 
 export interface ConversationSurfaceProps {
   /** 取得这一格即将成为的那条对话。只有入口那一格需要它。 */
@@ -33,11 +36,37 @@ export function ConversationSurface({
 }: ConversationSurfaceProps) {
   const threads = useSharedThreads()
 
+  /*
+   * 选择器跟着对话走。
+   *
+   * 本次运行开出来的对话，在 agent_open_thread 的答复里就带回了整张表；从列
+   * 表里点开的那些不是本次开的，所以在这里认领一次。认领至多发生一次，之后
+   * 它只被"改"这一条路更新。
+   */
+  useEffect(() => {
+    if (threadId !== null) {
+      threads.adopt(threadId)
+    }
+  }, [threadId, threads])
+
+  const controls = threadId === null ? NO_CONTROLS : (threads.selectorsOf(threadId) ?? NO_CONTROLS)
+
   return (
     <AssistantSurface
-      config={desktopSessionConfig()}
+      controls={controls}
+      controlsFailure={threadId === null ? undefined : threads.selectorFailureOf(threadId)}
       endpoint={threadId}
       identify={onIdentify}
+      onRetryControls={() => {
+        if (threadId !== null) {
+          threads.retrySelectors(threadId)
+        }
+      }}
+      onSelectControl={(controlId, value) => {
+        if (threadId !== null) {
+          threads.selectControl(threadId, controlId, value)
+        }
+      }}
       onUserMessage={(conversation, text) => {
         threads.nameFromMessage(conversation, text)
         void threads.refresh()

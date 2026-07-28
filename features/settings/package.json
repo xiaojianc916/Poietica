@@ -29,6 +29,7 @@
     "@poietica/agent-timeline": "workspace:*",
     "@poietica/foundations-design-system": "workspace:*",
     "@poietica/foundations-kernel": "workspace:*",
+    "@poietica/platforms-desktop-ipc": "workspace:*",
     "valibot": "catalog:"
   },
   "peerDependencies": {

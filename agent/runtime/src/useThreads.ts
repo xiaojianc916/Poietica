@@ -1,5 +1,10 @@
-import type { ThreadPort, ThreadRecord } from '@poietica/agent-protocol'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type {
+  SessionConfigControl,
+  SessionConfigPort,
+  ThreadPort,
+  ThreadRecord,
+} from '@poietica/agent-protocol'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -8,6 +13,9 @@ const FALLBACK_TITLE = '新建对话'
 const TITLE_LIMIT = 24
 
 const FAILURE_FALLBACK = '读取会话记录失败。'
+
+/** 说的是选择器那一路，和上面那句不是同一件事。 */
+const SELECTOR_FAILURE_FALLBACK = '读取会话设置失败。'
 
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {
@@ -40,6 +48,15 @@ export interface ThreadsSelection {
   readonly rename: (threadId: string, title: string) => Promise<void>
   readonly remove: (threadId: string) => Promise<void>
   readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
+  /** 这条对话所持有的会话给出的选择器；从没拿到过就是 undefined。 */
+  readonly selectorsOf: (threadId: string) => readonly SessionConfigControl[] | undefined
+  /** 认领一条不是本次运行开出来的对话。至多问一次。 */
+  readonly adopt: (threadId: string) => void
+  /** 改这条对话的一项会话设置；答案就是改完之后的整张表。 */
+  readonly selectControl: (threadId: string, controlId: string, value: string) => void
+  /** 上一次认领或改动失败时的说法，按对话记。 */
+  readonly selectorFailureOf: (threadId: string) => string | undefined
+  readonly retrySelectors: (threadId: string) => void
   readonly refresh: () => Promise<void>
   /** True until the first read of the list has settled, either way. */
   readonly isLoading: boolean
@@ -55,7 +72,10 @@ export interface ThreadsSelection {
  * real one later; before either exists it carries the name of the entry
  * it came from.
  */
-export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
+export const useThreads = (
+  port: ThreadPort | undefined,
+  config?: SessionConfigPort,
+): ThreadsSelection => {
   const [threads, setThreads] = useState<readonly ThreadRecord[]>([])
   const [provisional, setProvisional] = useState<Record<string, string>>({})
   /*
@@ -70,6 +90,19 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
   const [pending, setPending] = useState<readonly ThreadRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [failure, setFailure] = useState<string | null>(null)
+  /*
+   * 选择器按对话记，只有三个到达口：开这条对话时协议连着会话一起给的那份、
+   * 改一项之后 agent 回的那份、以及认领一条更早的对话时问的那一次。
+   *
+   * 此前它由输入框旁边的一个 hook 自己持有，每次挂载和每次重试都重读一遍。
+   * 而在原生侧，"还没有会话"是一张合法的空表，"连接正忙"是一个错误——两者
+   * 摊在同一块状态上，于是同一个选择器一会儿整个消失，一会儿变成「会话设置
+   * 读取失败」。开对话的那一次答复里明明已经带回了整张表，却被丢掉了。
+   */
+  const [selectors, setSelectors] = useState<Record<string, readonly SessionConfigControl[]>>({})
+  const [selectorFailure, setSelectorFailure] = useState<Record<string, string>>({})
+  /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
+  const asked = useRef<Set<string>>(new Set())
 
   const refresh = useCallback(async () => {
     if (port === undefined) {
@@ -154,6 +187,12 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
        * Adding it here left a record of every conversation that never
        * happened. Where it is shown is the workbench's business, not ours.
        */
+      /*
+       * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一
+       * 不需要再问一次的时刻，此前它被丢在这里。
+       */
+      setSelectors((held) => ({ ...held, [opened.thread.threadId]: opened.selectors }))
+      asked.current.add(opened.thread.threadId)
       setFailure(null)
       return opened.thread.threadId
     } catch (reason) {
@@ -235,6 +274,92 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     [port, refresh],
   )
 
+  const remember = useCallback((threadId: string, offered: readonly SessionConfigControl[]) => {
+    setSelectors((held) => ({ ...held, [threadId]: offered }))
+    setSelectorFailure((held) =>
+      Object.fromEntries(Object.entries(held).filter(([id]) => id !== threadId)),
+    )
+  }, [])
+
+  const noteSelectorFailure = useCallback((threadId: string, reason: unknown) => {
+    setSelectorFailure((held) => ({
+      ...held,
+      [threadId]: reason instanceof Error ? reason.message : SELECTOR_FAILURE_FALLBACK,
+    }))
+  }, [])
+
+  const selectorsOf = useCallback(
+    (threadId: string): readonly SessionConfigControl[] | undefined => selectors[threadId],
+    [selectors],
+  )
+
+  const selectorFailureOf = useCallback(
+    (threadId: string): string | undefined => selectorFailure[threadId],
+    [selectorFailure],
+  )
+
+  const read = useCallback(
+    (threadId: string) => {
+      if (config === undefined) {
+        return
+      }
+      asked.current.add(threadId)
+      config
+        .list(threadId)
+        .then((offered) => {
+          /*
+           * 空表的意思是"这条对话还没握着会话"，不是"它没有选择器"。写进去
+           * 只会抹掉开会话时已经拿到的那张表。
+           */
+          if (offered.length > 0) {
+            remember(threadId, offered)
+          }
+        })
+        .catch((reason: unknown) => {
+          noteSelectorFailure(threadId, reason)
+        })
+    },
+    [config, noteSelectorFailure, remember],
+  )
+
+  /* 本次运行开出来的对话已经有答案，只有从列表里点开的那些需要认领。 */
+  const adopt = useCallback(
+    (threadId: string) => {
+      if (asked.current.has(threadId)) {
+        return
+      }
+      read(threadId)
+    },
+    [read],
+  )
+
+  const retrySelectors = useCallback(
+    (threadId: string) => {
+      setSelectorFailure((held) =>
+        Object.fromEntries(Object.entries(held).filter(([id]) => id !== threadId)),
+      )
+      read(threadId)
+    },
+    [read],
+  )
+
+  const selectControl = useCallback(
+    (threadId: string, controlId: string, value: string) => {
+      if (config === undefined) {
+        return
+      }
+      config
+        .select(threadId, controlId, value)
+        .then((offered) => {
+          remember(threadId, offered)
+        })
+        .catch((reason: unknown) => {
+          noteSelectorFailure(threadId, reason)
+        })
+    },
+    [config, noteSelectorFailure, remember],
+  )
+
   /* 刚开口的对话排在最前，直到下一次读取把它认领走。 */
   const listed = useMemo(() => {
     if (pending.length === 0) {
@@ -256,6 +381,11 @@ export const useThreads = (port: ThreadPort | undefined): ThreadsSelection => {
     rename,
     remove,
     setPinned,
+    selectorsOf,
+    selectorFailureOf,
+    adopt,
+    retrySelectors,
+    selectControl,
     refresh,
     isLoading,
     failure,

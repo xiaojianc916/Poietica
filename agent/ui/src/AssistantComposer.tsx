@@ -90,25 +90,23 @@ function ComposerToolbar({
             </PromptInputActionMenuItem>
           </PromptInputActionMenuContent>
         </PromptInputActionMenu>
-
-        {/*
-          会话设置属于左下这一簇，紧挨着 ＋。
-
-          左下是「这一轮怎么发」，右下是「发」，两者不混：Zed 的 agent panel、
-          Copilot Chat、Cursor 都是这个分工。此前它在麦克风左边，和发送挤在
-          一起，而这一簇里站着一颗写死 agent 名字的药丸——不可点、改不了任何
-          东西，占的正是模型选择器该在的位置。名字要由 agent 自己说，模型要
-          能选，一个不可点的标签两件事都不做。
-        */}
-        <SessionControls
-          controls={controls}
-          failure={controlsFailure}
-          onRetry={onRetryControls}
-          onSelect={onSelectControl}
-        />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
+
+      {/*
+        模型选择器站在右下这一簇，麦克风之前。
+
+        它挨着「发」，因为它说的正是这一句将被谁回答：ChatGPT、Claude、Cursor
+        都把它放在发送键这一侧。左下那一簇回答的是另一个问题——往这句话里加
+        什么。
+      */}
+      <SessionControls
+        controls={controls}
+        failure={controlsFailure}
+        onRetry={onRetryControls}
+        onSelect={onSelectControl}
+      />
 
       <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
         <MicIcon aria-hidden="true" />
