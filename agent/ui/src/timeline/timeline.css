@@ -282,6 +282,7 @@
   grid-area: 2 / 1 / 3 / 3;
   max-block-size: var(--cp-timeline-code-cap, 32rem);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.75rem;
   border: 0;
   border-radius: 0;
@@ -325,6 +326,37 @@
  */
 .timeline-prose [data-streamdown="code-block-body"] pre code > span {
   display: block;
+}
+
+/*
+ * 高亮的颜色在自定义属性里，得由我们花掉。
+ *
+ * body.tsx 给每个 token 的 inline style 只写 --sdm-c（前景）、--sdm-tbg（底色）
+ * 和双主题的 --shiki-dark，真正的 color 声明在上游自己的 Tailwind 工具类
+ * text-[var(--sdm-c,inherit)] 里。这个应用不引 streamdown 的任何样式表，
+ * Tailwind 也不扫 node_modules，那些类在产物里并不存在 —— 于是变量照旧下发、
+ * 没人消费，每个 token 回落到 inherit：结构还在（一行一个 span），颜色全丢。
+ * 这不是上游没有高亮能力，是那份颜色停在了半路。
+ *
+ * 同一个坑这张表里已经踩过一次并留下了结论：[data-sd-animate] 的 --sd-* 也是
+ * 因为"管线是我们的，外观也就是我们的"而在这里自己花掉的。
+ *
+ * light-dark() 跟随文档的 color-scheme，所以两套主题共用一条声明，不必猜主题
+ * 的类名，也不必再写一条媒体查询。fallback 一路退到 inherit：Shiki 还没解析
+ * 完（highlight 首次返回 null，结果经回调异步到达）的那几帧，代码是当前墨色的
+ * 纯文本，而不是一片透明。
+ */
+.timeline-prose [data-streamdown="code-block-body"] pre code span {
+  color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
+}
+
+/*
+ * 少数 token 自带底色（diff、命中标记）。这里只花 --sdm-tbg，不碰
+ * --shiki-dark-bg —— 后者是整块的主题底色，写在 pre 上并会继承下来，花在每个
+ * span 上就等于把主题的底色一格一格铺回我们已经交给卡片的表面上。
+ */
+.timeline-prose [data-streamdown="code-block-body"] pre code span {
+  background-color: var(--sdm-tbg, transparent);
 }
 
 /* Inline code is a word in a sentence, not a block: it gets a tint, no edge. */
@@ -609,6 +641,7 @@
   margin: 0;
   max-block-size: var(--cp-timeline-output-max, 18rem);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
   font-family: var(--cp-font-mono, ui-monospace, monospace);
@@ -968,6 +1001,7 @@
 
 /* 滚动盒交出边框，只留滚动，并接手圆角裁剪。 */
 .timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
+  overscroll-behavior: contain;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -1051,4 +1085,97 @@
 
 .timeline-tool__diffstat-removed {
   color: var(--cp-diff-removed-text, #b42318);
+}
+
+/* ── 内层滚动条 ────────────────────────────────────────────────────
+ *
+ * 这条流里有四类内层滚动盒：代码块、表格、工具输出、思维链。它们此前只声明了
+ * overflow，于是有两个症状，而那是同一件事的两面：
+ *
+ * 一、滚动链。滚到尽头、或者这个盒子在纵轴上根本不能滚（只横向溢出的代码块
+ *    正是如此），滚轮事件就冒到外层，于是"我在代码块里上下滑，右边整条会话
+ *    在动"。上面几条 overscroll-behavior: contain 把链掐在盒子边界上 —— 浏览
+ *    器为此提供的标准手段，不需要监听、不需要 preventDefault。
+ *
+ * 二、看不见的滚动条。WebKit 的覆盖式滚动条只在滚动真的发生时浮现，一个从来
+ *    滚不动的盒子自然一根都不画。所以"代码块没有滑动条"不是另一个 bug，是上
+ *    面那条的同一个后果。
+ *
+ * 链修好之后，滚动条要被说出来：能滚就要看得出能滚，这是可用性而不是装饰。
+ * scrollbar-width / scrollbar-color 是标准属性；后面那组 ::-webkit-scrollbar
+ * 是给尚未实现它们的 WebKit 的等价声明，两边读同一个 token，所以不会打架。
+ * 静息态用 22% 的墨：低到不与代码争视线，高到一眼能找到。
+ *
+ * 清单只写一次，用 :is() 承载 —— 四类盒子共用同一个约定，不该有四份副本。
+ */
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cp-scroll-thumb, rgb(0 0 0 / 22%)) transparent;
+}
+
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+)::-webkit-scrollbar {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+}
+
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+)::-webkit-scrollbar-track,
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/*
+ * 滑块靠透明边框留出内缩，再用 background-clip 把底色收进内边距盒 —— 于是它
+ * 是一根浮在内容上的细条，而不是一整条填满轨道的色带。
+ */
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-color: var(--cp-scroll-thumb, rgb(0 0 0 / 22%));
+  background-clip: padding-box;
+}
+
+:is(
+  .timeline-prose [data-streamdown="code-block-body"],
+  .timeline-prose [data-streamdown="table-wrapper"] > div:last-child,
+  .timeline-reasoning__scroll,
+  .timeline-tool__text,
+  .timeline-tool__diff-old,
+  .timeline-tool__diff-new
+)::-webkit-scrollbar-thumb:hover {
+  background-color: var(--cp-scroll-thumb-hover, rgb(0 0 0 / 36%));
 }
