@@ -256,8 +256,6 @@ export function useAssistantSession({
     send,
     cancel,
     resolvePermission,
-    prefill: setDraft,
-    draft,
     isRestoring,
   }
 }

@@ -1,6 +1,9 @@
 import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
+import { createMainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useEffect, useMemo, useState } from 'react'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
+import { useWindowChrome } from '../presentation/chrome/use-window-chrome'
+import { WindowControls } from '../presentation/chrome/WindowControls'
 import errorRobotIllustration from './assets/error-robot.svg'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 
@@ -12,6 +15,23 @@ export interface FatalErrorScreenProps {
 
 export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: FatalErrorScreenProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')
+
+  /*
+   * 崩溃屏自己建 controller，不从 runtime 取：native-crash 那条启动路径上
+   * runtime 从未被创建，而这个 controller 不持状态，每个方法现取窗口。
+   */
+  const mainWindow = useMemo(() => createMainWindowController(), [])
+
+  const { isMaximized, minimize, toggleMaximize } = useWindowChrome(mainWindow)
+
+  /*
+   * 关闭走 forceClose 而不是 close。close 触发原生 CloseRequested，而应答它的
+   * 未保存确认对话框由已经卸载的 AppShell 渲染：一旦有监听器残留并
+   * preventDefault，窗口将永远关不掉。那条确认流程在崩溃屏上并不存在。
+   */
+  const closeWindow = () => {
+    mainWindow.forceClose()
+  }
 
   const model = useMemo(
     () => createTerminalFailureViewModel(incident, additionalIncidentCount),
@@ -45,64 +65,84 @@ export function FatalErrorScreen({ incident, additionalIncidentCount = 0 }: Fata
   }
 
   return (
-    <main aria-live="assertive" className="fatal-surface" role="alert">
-      <section className="fatal-content">
-        <img
-          alt=""
-          aria-hidden="true"
-          className="fatal-illustration"
-          src={errorRobotIllustration}
+    <>
+      {/*
+       * 覆盖在客户区之上的非客户区，和原生 caption 一样：不介入 .fatal-surface
+       * 自己的布局，居中内容原样不动。
+       *
+       * 填充区标注 data-tauri-drag-region，拖动与双击最大化交给 webview；按钮
+       * 不标注，原生拖拽一旦开始就会吞掉 click。
+       */}
+      <div className="fixed inset-x-0 top-0 z-50 flex h-8 items-stretch">
+        <div className="h-full flex-1" data-tauri-drag-region />
+
+        <WindowControls
+          isMaximized={isMaximized}
+          onClose={closeWindow}
+          onMaximize={toggleMaximize}
+          onMinimize={minimize}
         />
+      </div>
 
-        <h1 className="fatal-title">{model.title}</h1>
+      <main aria-live="assertive" className="fatal-surface" role="alert">
+        <section className="fatal-content">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="fatal-illustration"
+            src={errorRobotIllustration}
+          />
 
-        <p className="fatal-description">{model.description}</p>
+          <h1 className="fatal-title">{model.title}</h1>
 
-        <p className="fatal-summary">{model.summary}</p>
+          <p className="fatal-description">{model.description}</p>
 
-        {model.additionalIncidentMessage ? (
-          <p className="fatal-secondary">{model.additionalIncidentMessage}</p>
-        ) : null}
+          <p className="fatal-summary">{model.summary}</p>
 
-        <div className="fatal-actions">
-          {primaryAction ? (
-            <button
-              aria-label={primaryAction.label}
-              className="fatal-icon-button"
-              onClick={() => {
-                executePrimaryAction(primaryAction)
-              }}
-              title={primaryAction.label}
-              type="button"
-            >
-              <Refresh aria-hidden="true" />
-            </button>
+          {model.additionalIncidentMessage ? (
+            <p className="fatal-secondary">{model.additionalIncidentMessage}</p>
           ) : null}
 
-          <button
-            aria-label={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
-            className="fatal-icon-button"
-            onClick={() => {
-              void copyDiagnostic()
-            }}
-            title={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
-            type="button"
-          >
-            {copyState === 'copied' ? (
-              <CheckCircle aria-hidden="true" />
-            ) : (
-              <Copy aria-hidden="true" />
-            )}
-          </button>
-        </div>
+          <div className="fatal-actions">
+            {primaryAction ? (
+              <button
+                aria-label={primaryAction.label}
+                className="fatal-icon-button"
+                onClick={() => {
+                  executePrimaryAction(primaryAction)
+                }}
+                title={primaryAction.label}
+                type="button"
+              >
+                <Refresh aria-hidden="true" />
+              </button>
+            ) : null}
 
-        <details className="fatal-details">
-          <summary>{model.detailsLabel}</summary>
+            <button
+              aria-label={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
+              className="fatal-icon-button"
+              onClick={() => {
+                void copyDiagnostic()
+              }}
+              title={copyState === 'copied' ? model.copySuccessLabel : model.copyActionLabel}
+              type="button"
+            >
+              {copyState === 'copied' ? (
+                <CheckCircle aria-hidden="true" />
+              ) : (
+                <Copy aria-hidden="true" />
+              )}
+            </button>
+          </div>
 
-          <pre className="fatal-diagnostic">{model.diagnostic}</pre>
-        </details>
-      </section>
-    </main>
+          <details className="fatal-details">
+            <summary>{model.detailsLabel}</summary>
+
+            <pre className="fatal-diagnostic">{model.diagnostic}</pre>
+          </details>
+        </section>
+      </main>
+    </>
   )
 }
 

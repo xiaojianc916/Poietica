@@ -11,6 +11,7 @@ import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
+import { useWindowChrome } from './chrome/use-window-chrome'
 import { UiFeedbackRegion } from './ui/ui-feedback'
 import {
   type AppCapabilities,
@@ -38,7 +39,11 @@ export function AppShell({ runtime }: AppShellProps) {
 
   const [isSettingsOpen, setSettingsOpen] = useState(false)
 
-  const isWindowMaximized = useWindowMaximizedState(runtime.mainWindow)
+  const {
+    isMaximized: isWindowMaximized,
+    minimize: minimizeWindow,
+    toggleMaximize: maximizeWindow,
+  } = useWindowChrome(runtime.mainWindow)
 
   const failureSnapshot = useSyncExternalStore(
     failureCoordinator.subscribe,
@@ -105,26 +110,6 @@ export function AppShell({ runtime }: AppShellProps) {
   const requestApplicationClose = useCallback(() => {
     runtime.termination.request('window-close')
   }, [runtime.termination])
-
-  const minimizeWindow = useCallback(() => {
-    void runtime.mainWindow.minimize().catch((cause: unknown) => {
-      reportFailure('WINDOW_MINIMIZE_UNAVAILABLE', {
-        scope: 'app-shell',
-        operation: 'minimize-window',
-        cause,
-      })
-    })
-  }, [runtime.mainWindow])
-
-  const maximizeWindow = useCallback(() => {
-    void runtime.mainWindow.toggleMaximize().catch((cause: unknown) => {
-      reportFailure('WINDOW_MAXIMIZE_UNAVAILABLE', {
-        scope: 'app-shell',
-        operation: 'toggle-maximize-window',
-        cause,
-      })
-    })
-  }, [runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
     if (!capabilities.developerTools) {
@@ -248,73 +233,6 @@ export function AppShell({ runtime }: AppShellProps) {
       />
     </EditorProvider>
   )
-}
-
-function useWindowMaximizedState(mainWindow: MainWindowController): boolean {
-  const [isMaximized, setMaximized] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    let unsubscribe: (() => void) | undefined
-    let requestVersion = 0
-
-    function synchronizeMaximizedState() {
-      const currentVersion = ++requestVersion
-
-      void mainWindow.isMaximized().then(
-        (nextIsMaximized) => {
-          if (!active || currentVersion !== requestVersion) {
-            return
-          }
-
-          setMaximized(nextIsMaximized)
-        },
-        (cause: unknown) => {
-          if (!active) {
-            return
-          }
-
-          reportFailure('WINDOW_STATE_QUERY_UNAVAILABLE', {
-            scope: 'app-shell',
-            operation: 'query-window-maximized',
-            cause,
-          })
-        },
-      )
-    }
-
-    synchronizeMaximizedState()
-
-    void mainWindow.onResized(synchronizeMaximizedState).then(
-      (nextUnsubscribe) => {
-        if (!active) {
-          nextUnsubscribe()
-          return
-        }
-
-        unsubscribe = nextUnsubscribe
-      },
-      (cause: unknown) => {
-        if (!active) {
-          return
-        }
-
-        reportFailure('WINDOW_RESIZE_SYNC_UNAVAILABLE', {
-          scope: 'app-shell',
-          operation: 'register-window-resize-listener',
-          cause,
-        })
-      },
-    )
-
-    return () => {
-      active = false
-      requestVersion += 1
-      unsubscribe?.()
-    }
-  }, [mainWindow])
-
-  return isMaximized
 }
 
 function useMainWindowCloseRequest(
