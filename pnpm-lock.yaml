@@ -197,9 +197,6 @@ importers:
       '@poietica/agent-protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@poietica/agent-registry':
-        specifier: workspace:*
-        version: link:../registry
       '@poietica/agent-runtime':
         specifier: workspace:*
         version: link:../runtime

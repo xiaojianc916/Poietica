@@ -22,6 +22,7 @@ import {
   useState,
 } from 'react'
 import type { SettingsStore } from '../ports/settings-store'
+import { ModelsSettings } from './ModelsSettings'
 import {
   type SettingsController,
   type SettingsOperation,
@@ -322,9 +323,7 @@ function SettingsSectionContent({ section, settings, controller }: SettingsSecti
       return <AppearanceSettings controller={controller} settings={settings} />
 
     case 'models':
-      return (
-        <SettingsPlaceholder description="会话使用的模型目前在对话输入框右下角选择，尚未接入本地设置。" />
-      )
+      return <ModelsSettings />
 
     case 'keymap':
       return (
