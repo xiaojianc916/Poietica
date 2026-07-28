@@ -40,8 +40,12 @@ pub const AGENT_EVENT: &str = "ai-run-event";
 /// The encrypted database, kept beside the rest of the application data.
 const DATABASE_FILE: &str = "ai.sqlite3";
 
-/// The agent started when the caller does not name one.
-const DEFAULT_AGENT_COMMAND: &str = "kimi acp";
+/// Reported when nothing named an agent to start.
+///
+/// There is no built-in agent. Which ACP agent to launch is one entry in
+/// the interface's registry, so this layer never spells one out: a default
+/// here is how "any ACP agent" quietly became "Kimi, and Kimi only".
+const NO_AGENT_NAMED: &str = "no ACP agent was named for this session";
 
 /// What Windows falls back to when PATHEXT is not set.
 #[cfg(windows)]
@@ -54,6 +58,7 @@ const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
 const NO_ANSWER: &str = "the agent session ended before answering";
+const NO_THREAD_SESSION: &str = "that conversation is not holding an agent session";
 
 /// The live session, if one has been started.
 #[derive(Debug)]
@@ -200,19 +205,20 @@ pub async fn agent_prompt(
 
     let session = ensure_session(&state, request.command, request.cwd).await?;
 
+    // 一条对话持有一个会话，这一轮就发往它。
+    //
+    // 此前的兜底是"查不到就用连接上的第一条会话"，于是在第二条对话里
+    // 提问，带的是第一条的上下文与模型。命名的对话若还没有会话，就在
+    // 这里为它开一个并记下来——这是 ACP 的会话模型，不是补丁。
+    let (thread_id, addressed) =
+        resolve_turn_target(&state, &session, request.thread_id.as_deref()).await?;
+
     // The log is the one thing that must exist before the turn does, so
     // it is taken here rather than handed to a thread whose failure would
     // arrive after the fact. Nothing awaits below this line, so holding the
     // lock to the end of the command keeps this future Send.
     let shared = shared_store(&state)?;
     let store = borrow_store(&shared)?;
-
-    // The turn is recorded under the conversation on screen. The interface
-    // names it, because the interface is what the user is looking at; a
-    // request naming none is a surface that has not opened one yet, which is
-    // still the session's own conversation.
-    let thread_id = conversation_or(request.thread_id.as_deref(), session.thread_id);
-    let addressed = session_of(&store, thread_id, &session.session_id)?;
 
     let run_id = store.start_run(thread_id).map_err(persistence)?;
 
@@ -492,15 +498,19 @@ pub async fn agent_config_options(
     state: State<'_, AgentRuntime>,
     request: AgentConfigOptionsRequest,
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    // A selector belongs to a session, so asking what is on offer is what
-    // starts one. The alternative was to answer with nothing until the
-    // first prompt, which left the interface showing a model read from a
-    // file that the session, once it existed, might not be following.
+    // Reading a selector is a read.
     //
-    // Opening this surface is the user opening the feature, which is not
-    // the same as paying for it at launch: nothing here runs until the
-    // interface asks.
-    let live = ensure_session(&state, None, None).await?;
+    // It used to start the agent process, so rendering a toolbar spawned a
+    // subprocess, ran a handshake and wrote a conversation row. Every way
+    // that can fail — no agent installed, not on PATH, a slow handshake —
+    // arrived as a failure banner on a surface the user had not used yet,
+    // and every way it can succeed left behind a conversation nobody had.
+    //
+    // No session running means nothing to offer. The protocol says an empty
+    // list is a legitimate answer, and this is what it is for.
+    let Some(live) = borrow(&state)? else {
+        return Ok(Vec::new());
+    };
 
     // Selectors belong to a session, and a session is held by a
     // conversation. The crate has kept a set per session for some time, but
@@ -514,11 +524,12 @@ pub async fn agent_config_options(
         let shared = shared_store(&state)?;
         let store = borrow_store(&shared)?;
 
-        session_of(
-            &store,
-            conversation_or(request.thread_id.as_deref(), live.thread_id),
-            &live.session_id,
-        )?
+        session_held_by(&store, request.thread_id.as_deref(), &live)?
+    };
+
+    let Some(addressed) = addressed else {
+        // 这条对话还没有握着任何会话：没有可读的选择器，这不是失败。
+        return Ok(Vec::new());
     };
 
     let answer = live.client.selectors(addressed).map_err(translate)?;
@@ -553,12 +564,10 @@ pub async fn agent_set_config_option(
         let shared = shared_store(&state)?;
         let store = borrow_store(&shared)?;
 
-        session_of(
-            &store,
-            conversation_or(request.thread_id.as_deref(), live.thread_id),
-            &live.session_id,
-        )?
+        session_held_by(&store, request.thread_id.as_deref(), &live)?
     };
+
+    let addressed = addressed.ok_or_else(|| Error::NotFound(NO_THREAD_SESSION.to_owned()))?;
 
     let answer = live
         .client
@@ -624,7 +633,7 @@ async fn ensure_session(
     };
 
     let spawn = AgentSpawn {
-        command: resolve_command(command),
+        command: resolve_command(command)?,
         cwd: working_directory,
     };
 
@@ -742,15 +751,14 @@ fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Sessio
 
 /// Decides which command line starts the agent.
 ///
-/// Nothing outside the program gets a vote. An environment variable would make
-/// this work on the machine that happens to define it and fail on every other
-/// one, so the caller's choice wins and the built-in default is the only
-/// fallback. Making that name launchable is a separate question, answered by
-/// resolution rather than by configuration.
-fn resolve_command(requested: Option<String>) -> String {
-    let line = requested.unwrap_or_else(|| DEFAULT_AGENT_COMMAND.to_owned());
+/// Nothing outside the program gets a vote, and nothing inside it has a
+/// favourite: the caller names the agent or no session is started. Making
+/// that name launchable is a separate question, answered by resolution
+/// rather than by configuration.
+fn resolve_command(requested: Option<String>) -> Result<String> {
+    let line = requested.ok_or_else(|| Error::Validation(NO_AGENT_NAMED.to_owned()))?;
 
-    executable(&line)
+    Ok(executable(&line))
 }
 
 /// Names the program in a way the operating system can actually launch.
@@ -1120,27 +1128,71 @@ fn conversation(named: &str) -> Result<Uuid> {
 
 /// The conversation a request names, or the one this connection is on.
 ///
-/// A surface that has not opened a conversation yet names none, and that is
-/// not an error: it is the session's own conversation, which is what the
-/// user is looking at.
-fn conversation_or(named: Option<&str>, held: Uuid) -> Uuid {
-    match named.map(Uuid::parse_str) {
-        Some(Ok(id)) => id,
-        _unnamed => held,
+/// An identifier that is not a UUID is a mistake on the calling side. It
+/// used to be swallowed, which meant a malformed name silently addressed
+/// somebody else's conversation.
+fn conversation_or(named: Option<&str>, held: Uuid) -> Result<Uuid> {
+    match named {
+        None => Ok(held),
+        Some(text) => conversation(text),
     }
 }
 
-/// The session a conversation is holding.
+/// The session a conversation is holding, and nothing else.
 ///
-/// One rule for addressing, used by every command that has to reach a
-/// session: a conversation names its session, and attach_session is where
-/// that was written down. A conversation the log has never seen falls back
-/// to the session this connection is on.
-fn session_of(store: &AiStore, thread_id: Uuid, held: &str) -> Result<String> {
-    Ok(store
-        .session_for_thread(thread_id)
-        .map_err(persistence)?
-        .unwrap_or_else(|| held.to_owned()))
+/// One rule for addressing, with no fallback: a conversation holds a
+/// session, attach_session is where that was written down, and a
+/// conversation holding none holds none. Falling back to "the session this
+/// connection happens to be on" is how a model chosen in one conversation
+/// took effect in another.
+fn session_held_by(
+    store: &AiStore,
+    named: Option<&str>,
+    live: &Handle,
+) -> Result<Option<String>> {
+    let thread_id = conversation_or(named, live.thread_id)?;
+
+    store.session_for_thread(thread_id).map_err(persistence)
+}
+
+/// The conversation this turn belongs to, and the session it is sent to.
+///
+/// A named conversation holding no session gets one opened for it here: in
+/// ACP terms a conversation *is* a session, so this is where the two are
+/// tied together rather than papered over at every call site. Nothing is
+/// awaited while a lock is held, so this stays Send.
+async fn resolve_turn_target(
+    state: &State<'_, AgentRuntime>,
+    live: &Handle,
+    named: Option<&str>,
+) -> Result<(Uuid, String)> {
+    let thread_id = conversation_or(named, live.thread_id)?;
+
+    let held = {
+        let shared = shared_store(state)?;
+        let store = borrow_store(&shared)?;
+
+        store.session_for_thread(thread_id).map_err(persistence)?
+    };
+
+    if let Some(session_id) = held {
+        return Ok((thread_id, session_id));
+    }
+
+    let opened = live
+        .client
+        .new_session(state.root.clone())
+        .await
+        .map_err(translate)?;
+
+    let shared = shared_store(state)?;
+    let store = borrow_store(&shared)?;
+
+    store
+        .attach_session(thread_id, &opened.session_id)
+        .map_err(persistence)?;
+
+    Ok((thread_id, opened.session_id))
 }
 
 /// Renames a conversation.

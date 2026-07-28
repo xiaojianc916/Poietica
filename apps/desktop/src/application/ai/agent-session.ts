@@ -1,10 +1,17 @@
-import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
+import type {
+  AgentSessionPort,
+  SessionConfigPort,
+  ThreadPort,
+  ThreadTitleSource,
+} from '@poietica/agent-protocol'
+import { defaultAcpAgent } from '@poietica/agent-registry'
 import { createIpcSession } from '@poietica/agent-transport'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCommandBridge,
   createAgentConfigBridge,
   createAgentEventSource,
+  createAgentThreadBridge,
   shutdownAgent,
 } from '@poietica/platforms-desktop-ipc'
 
@@ -45,7 +52,7 @@ export interface DesktopAgentSession {
 
 export function createDesktopAgentSession(): DesktopAgentSession {
   const port = createIpcSession({
-    bridge: createAgentCommandBridge(),
+    bridge: createAgentCommandBridge({ command: defaultAcpAgent().command }),
 
     source: createAgentEventSource({
       onListenFailure: (cause) => {
@@ -90,9 +97,6 @@ export function createDesktopAgentSession(): DesktopAgentSession {
   }
 }
 
-import type { ThreadPort, ThreadTitleSource } from '@poietica/agent-protocol'
-import { createAgentThreadBridge } from '@poietica/platforms-desktop-ipc'
-
 /**
  * Narrows the recorded origin of a name.
  *
@@ -110,7 +114,7 @@ function sourceOf(value: string): ThreadTitleSource {
 
 /** The desktop implementation of the conversation port. */
 export function desktopThreads(): ThreadPort {
-  const bridge = createAgentThreadBridge()
+  const bridge = createAgentThreadBridge({ command: defaultAcpAgent().command })
 
   return {
     list: async () => {

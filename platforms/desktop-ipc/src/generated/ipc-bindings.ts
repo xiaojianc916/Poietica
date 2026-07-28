@@ -98,8 +98,8 @@ async agentLoadThread(request: AgentLoadThreadRequest) : Promise<AgentThreadTran
  * 
  * Fails when the session lock was poisoned or the driver has stopped.
  */
-async agentConfigOptions() : Promise<AgentConfigControl[]> {
-    return await TAURI_INVOKE("agent_config_options");
+async agentConfigOptions(request: AgentConfigOptionsRequest) : Promise<AgentConfigControl[]> {
+    return await TAURI_INVOKE("agent_config_options", { request });
 },
 /**
  * Changes one selector on the running session.
@@ -403,6 +403,14 @@ current: string;
  */
 choices: AgentConfigChoice[] }
 /**
+ * Which conversation's selectors are being read.
+ */
+export type AgentConfigOptionsRequest = { 
+/**
+ * The conversation asking, when the interface has opened one.
+ */
+threadId: string | null }
+/**
  * What a session selector is for.
  * 
  * These are the categories the protocol defines. A category the agent
@@ -571,6 +579,10 @@ events: JsonValue[] }
  * A change made in the interface.
  */
 export type AgentSelectConfigRequest = { 
+/**
+ * The conversation the change applies to.
+ */
+threadId: string | null; 
 /**
  * One of the selector identifiers the session reported.
  */

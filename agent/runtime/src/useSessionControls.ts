@@ -56,13 +56,27 @@ export function useSessionControls(
       return undefined
     }
 
+    /*
+     * 没有对话就没有会话，没有会话就没有选择器。
+     *
+     * 此前这里照样问出去，而"问"在原生侧就是"开进程"：装没装 agent、
+     * 握手成不成，都会变成入口那一格上的一句"会话设置读取失败"，而用户
+     * 还什么都没做。空列表是契约里写明的合法答案，不是失败。
+     */
+    if (threadId === null || threadId === undefined) {
+      setControls(NONE)
+      setFailure(undefined)
+
+      return undefined
+    }
+
     let cancelled = false
 
     /* 重试是重读的理由，但它不进入问句，所以只在这里被读到。 */
     void attempt
 
     config
-      .list(threadId ?? null)
+      .list(threadId)
       .then((next) => {
         if (!cancelled) {
           setControls(next)
@@ -90,8 +104,13 @@ export function useSessionControls(
     (controlId: string, value: string) => {
       setFailure(undefined)
 
+      /* 没有对话就没有会话可改；发出去只会改到别人的那一条。 */
+      if (threadId === null || threadId === undefined) {
+        return
+      }
+
       config
-        ?.select(threadId ?? null, controlId, value)
+        ?.select(threadId, controlId, value)
         .then((next) => {
           setControls(next)
         })
