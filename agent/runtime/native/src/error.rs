@@ -28,7 +28,14 @@ pub enum AcpError {
         /// The identifier the agent used.
         tool_call_id: String,
     },
+    /// A task panicked while holding the run slot.
+    ///
+    /// The slot is what routes an arriving update to the run it belongs to.
+    /// A panic that leaves it locked has ended the turn either way; this is
+    /// how that is reported rather than guessed at.
+    #[error("the run slot was left locked by a panicking task")]
+    Poisoned,
 }
 
 /// The result type used throughout this crate.
-pub type Result<T> = std::result::Result<T, AcpError>;
+pub type Result<T> = core::result::Result<T, AcpError>;

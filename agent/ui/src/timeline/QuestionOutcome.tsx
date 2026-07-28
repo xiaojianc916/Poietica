@@ -1,6 +1,6 @@
 import './question-outcome.css'
 
-import type { PermissionItem } from '@poietica/agent-protocol'
+import type { PermissionItem } from '@poietica/agent-timeline'
 
 /**
  * 答完之后留在流里的那张卡片。

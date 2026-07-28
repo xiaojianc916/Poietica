@@ -35,7 +35,7 @@ impl RunSlot {
         let mut current = self
             .current
             .lock()
-            .map_err(|_poisoned| AcpError::RecorderPoisoned)?;
+            .map_err(|_poisoned| AcpError::Poisoned)?;
 
         if current.is_some() {
             return Err(AcpError::Protocol {
@@ -57,7 +57,7 @@ impl RunSlot {
         let mut current = self
             .current
             .lock()
-            .map_err(|_poisoned| AcpError::RecorderPoisoned)?;
+            .map_err(|_poisoned| AcpError::Poisoned)?;
 
         Ok(current.take())
     }

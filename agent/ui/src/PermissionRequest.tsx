@@ -1,6 +1,7 @@
 import './permission-request.css'
 
-import type { PermissionItem, PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
+import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
+import type { PermissionItem } from '@poietica/agent-timeline'
 import { useCallback, useState } from 'react'
 import { isQuestionRequest } from './domain/ask-user-question'
 import { QuestionOutcome } from './timeline/QuestionOutcome'

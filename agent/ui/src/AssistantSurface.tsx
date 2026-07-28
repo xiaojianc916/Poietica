@@ -1,8 +1,8 @@
 import './assistant.css'
 
-import type { AgentSessionPort, PermissionItem, SessionConfigPort } from '@poietica/agent-protocol'
+import type { AgentSessionPort, SessionConfigPort } from '@poietica/agent-protocol'
 import { useAssistantSession, useSessionControls } from '@poietica/agent-runtime'
-import type { TurnFooter } from '@poietica/agent-timeline'
+import type { PermissionItem, TurnFooter } from '@poietica/agent-timeline'
 import {
   selectFeedRows,
   selectIsBusy,

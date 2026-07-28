@@ -739,7 +739,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     desk.clear();
 
                     let Ok(Some(mut recorder)) = turn.take() else {
-                        let _ignored = reply_to.send(Err(AcpError::RecorderPoisoned));
+                        let _ignored = reply_to.send(Err(AcpError::Poisoned));
 
                         if stopping {
                             break 'commands;

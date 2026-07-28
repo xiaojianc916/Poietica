@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
-    ToolCallState as ProtocolToolCallStatus, ToolKind,
+    ToolCallStatus as ProtocolToolCallStatus, ToolKind,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
