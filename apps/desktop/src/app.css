@@ -264,6 +264,10 @@ body {
 }
 
 .assistant-surface {
+  /* 正文区域的行距比侧边栏松，4px 的滑块在这里显得游丝一样细。
+     内缩仍是 (lane - thickness) / 2 = 3px，所以只变粗、不移位。 */
+  --desktop-scrollbar-lane: 13px;
+  --desktop-scrollbar-thickness: 7px;
   --desktop-scrollbar-thumb: #e7e7e7;
   --desktop-scrollbar-thumb-strong: #5a5a5a;
 }

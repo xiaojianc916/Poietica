@@ -1,45 +1,29 @@
-/*
- * 浮层滚动条:自己画,因为原生滚动条画不出"不占位"。
+/**
+ * 浮层滚动条。
  *
- * 为什么不能继续用原生。Chromium 的经典滚动条是布局的一部分,它从滚动盒的
- * 内容区里切走 10px —— 同一个列表,内容少时占满、内容一多滚动条出现,整列
- * 文字就左移 10px。面向网页的 overlay-scrollbar 开关早已下线,
- * ::-webkit-scrollbar 画出来的东西一定占位,所以"浮在内容之上"原生做不到。
+ * 为什么自绘：原生滚动条无论走 `scrollbar-width` 还是 `::-webkit-scrollbar`，在
+ * Windows 上都占据布局宽度，列表会因为它的出现与消失横向跳动；而且它的轨道长度恒等
+ * 于滚动盒自身，画不到滚动盒之外。这两条都是引擎几何，CSS 里没有开关。所以滑块画在
+ * 一层 fixed 浮层上：不占位、轨道可指定（`data-scrollbar-track`）、可按区域调参。
  *
- * 自绘不等于重做交互。这里只画一根滑块,尺寸、圆角、颜色、停留与淡出时长
- * 全部沿用 app.css 里那几个令牌,观感与上一版逐像素一致;变的只是它不再从
- * 内容里拿走宽度。顺带补回原生本来就有的两件事:滑块可以拖,指针停在滑块上
- * 时它不会消失 —— 否则那个悬停加深色永远没有机会被看到。
- *
- * 仍然是"装一次,全窗口一致"。scroll 不冒泡,但捕获阶段在 document 上收得到
- * 任意滚动盒的 scroll,event.target 就是那个盒子;组件不需要记得接上什么,
- * 也不会因为忘了接而没有滚动条。
- *
- * 滑块画在 body 末尾一张 fixed 的浮层里,而不是插进滚动盒内部:插进去要求
- * 每一个滚动盒都成为定位祖先,那才会改到别人的布局。代价是浮层不受祖先的
- * overflow 裁剪,所以几何这一步自己算了一遍裁剪链(clippersOf / clipOf),
- * 嵌套的滚动盒滚出可视区时滑块跟着截断。
- *
- * 颜色不写死在这里。滑块创建时从它所属的滚动盒上读 --desktop-scrollbar-thumb
- * 与 -thumb-strong,于是"某个区域要更浅的滚动条"仍然是在那个区域的 CSS 里给
- * 令牌赋值 —— 尽管滑块的 DOM 节点并不在那棵子树里。
- *
- * 只在有滑块可见时才跑 rAF:位置每帧重算,所以滚动盒被移动、被 resize、内容
- * 长度变化都不需要各自的观察者。没有滑块时一帧都不跑。
+ * 尺寸、时序、配色全部来自 CSS 自定义属性，并且从「滚动盒自身」读取。自定义属性会
+ * 继承，未覆写的区域拿到的就是 :root 的值；某个区域要更粗或换色，只需在它自己的规则
+ * 里覆写一行，不必回到这里改代码。
  */
+
+const AXES = ['vertical', 'horizontal'] as const
+
+type Axis = (typeof AXES)[number]
 
 const LINGER_TOKEN = '--desktop-scrollbar-linger'
 const FADE_TOKEN = '--desktop-scrollbar-fade'
 const LANE_TOKEN = '--desktop-scrollbar-lane'
 const THICKNESS_TOKEN = '--desktop-scrollbar-thickness'
 const MIN_LENGTH_TOKEN = '--desktop-scrollbar-min-length'
-const OPT_OUT_TOKEN = '--overlay-scrollbar'
 const THUMB_TOKEN = '--desktop-scrollbar-thumb'
 const THUMB_STRONG_TOKEN = '--desktop-scrollbar-thumb-strong'
-
-const AXES = ['vertical', 'horizontal'] as const
-
-type Axis = (typeof AXES)[number]
+const OPT_OUT_TOKEN = '--overlay-scrollbar'
+const TRACK_ATTRIBUTE = '[data-scrollbar-track]'
 
 interface Metrics {
   readonly linger: number
@@ -47,16 +31,16 @@ interface Metrics {
   readonly lane: number
   readonly thickness: number
   readonly minLength: number
+  readonly thumb: string
+  readonly thumbStrong: string
 }
 
 interface Geometry {
-  /** 滑块起点,视口坐标,主轴。 */
-  readonly start: number
-  readonly length: number
-  /** 滑块在交叉轴上的位置。 */
+  readonly main: number
   readonly cross: number
-  /** 滚动余量与轨道余量之比,拖拽时把指针位移换算成滚动量。 */
-  readonly ratio: number
+  readonly length: number
+  readonly free: number
+  readonly scrollable: number
 }
 
 interface Clip {
@@ -67,278 +51,337 @@ interface Clip {
 }
 
 interface Bar {
-  readonly element: HTMLElement
-  /** 滑块画在这个盒子上,通常就是滚动盒自己。 */
+  readonly axis: Axis
+  readonly scroller: Element
   readonly track: Element
+  readonly element: HTMLDivElement
+  readonly metrics: Metrics
   readonly clippers: readonly Element[]
-  readonly release: () => void
   hideAt: number
+  hovered: boolean
   dragging: boolean
+  disposeAt: number | null
 }
 
-/** 令牌读不到就用兜底值,滚动条不会因为一个拼错的变量名而消失。 */
-function readNumber(style: CSSStyleDeclaration, token: string, fallback: number): number {
+const clamp = (value: number, low: number, high: number): number =>
+  Math.min(Math.max(value, low), high)
+
+const readTime = (style: CSSStyleDeclaration, token: string, fallback: number): number => {
+  const raw = style.getPropertyValue(token).trim()
+  const value = Number.parseFloat(raw)
+
+  if (!Number.isFinite(value)) {
+    return fallback
+  }
+
+  return raw.endsWith('ms') ? value : value * 1000
+}
+
+const readLength = (style: CSSStyleDeclaration, token: string, fallback: number): number => {
   const value = Number.parseFloat(style.getPropertyValue(token))
 
-  return Number.isFinite(value) && value > 0 ? value : fallback
+  return Number.isFinite(value) ? value : fallback
 }
 
-function readMetrics(): Metrics {
-  const style = getComputedStyle(document.documentElement)
+const readColor = (style: CSSStyleDeclaration, token: string, fallback: string): string => {
+  const raw = style.getPropertyValue(token).trim()
+
+  return raw === '' ? fallback : raw
+}
+
+const readMetrics = (scroller: Element): Metrics => {
+  const style = getComputedStyle(scroller)
 
   return {
-    fade: readNumber(style, FADE_TOKEN, 240),
-    lane: readNumber(style, LANE_TOKEN, 10),
-    linger: readNumber(style, LINGER_TOKEN, 1000),
-    minLength: readNumber(style, MIN_LENGTH_TOKEN, 28),
-    thickness: readNumber(style, THICKNESS_TOKEN, 4),
+    linger: readTime(style, LINGER_TOKEN, 1000),
+    fade: readTime(style, FADE_TOKEN, 240),
+    lane: readLength(style, LANE_TOKEN, 10),
+    thickness: readLength(style, THICKNESS_TOKEN, 4),
+    minLength: readLength(style, MIN_LENGTH_TOKEN, 28),
+    thumb: readColor(style, THUMB_TOKEN, 'rgb(0 0 0 / 0.24)'),
+    thumbStrong: readColor(style, THUMB_STRONG_TOKEN, 'rgb(0 0 0 / 0.36)'),
   }
 }
 
-const clamp = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high)
+/** 某些区域（比如标签条）自己管溢出，用一行令牌退出，而不是靠选择器名单。 */
+const optedOut = (scroller: Element): boolean =>
+  getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
 
-/*
- * 轨道未必就是滚动盒本身。
- *
- * 滚动区只占面板上半段时(对话面板:输入框是滚动区的兄弟),把滑块画成滚动区
- * 那么高,滚动条就会在输入框上沿断掉 —— 那是原生滚动条的几何限制,不是设计
- * 意图。既然滑块是自己画的,轨道就由标记说了算:滚动盒向上找最近的
- * [data-scrollbar-track],找到就拿它的盒子当轨道,滚动比例仍旧来自滚动盒自己
- * 的滚动量。VS Code 的滚动条同样画在编辑区上,而不是某一个 DOM 滚动盒上。
- */
-const TRACK_ATTRIBUTE = '[data-scrollbar-track]'
-
+/** 比例来自滚动盒，长度来自轨道：面板声明自己是轨道时，滑块贯穿整块面板。 */
 const trackOf = (scroller: Element): Element => scroller.closest(TRACK_ATTRIBUTE) ?? scroller
 
-/*
- * 谁会裁剪这个滚动盒。
- *
- * 只在建滑块时走一遍祖先链:overflow 与 contain 极少在运行时变,而每帧对十几个
- * 祖先取计算样式会把样式重算拖进滚动路径。每帧要读的只是它们的矩形。
- */
-function clippersOf(scroller: Element): readonly Element[] {
-  const clippers: Element[] = []
+const scrollableOn = (scroller: Element, axis: Axis): boolean =>
+  axis === 'vertical'
+    ? scroller.scrollHeight - scroller.clientHeight > 1
+    : scroller.scrollWidth - scroller.clientWidth > 1
 
-  for (let node = scroller.parentElement; node !== null; node = node.parentElement) {
+/** 建条时走一次祖先链；每帧只对这些元素取矩形，不再重复读样式。 */
+const clippersOf = (element: Element): readonly Element[] => {
+  const found: Element[] = []
+  let node = element.parentElement
+
+  while (node !== null && node !== document.body) {
     const style = getComputedStyle(node)
-    const clipsOverflow = style.overflowX !== 'visible' || style.overflowY !== 'visible'
-    const clipsPaint = style.contain.includes('paint') || style.contain.includes('strict')
+    const clips =
+      style.overflowX !== 'visible' ||
+      style.overflowY !== 'visible' ||
+      style.contain.includes('paint') ||
+      style.contain.includes('strict')
 
-    if (clipsOverflow || clipsPaint) {
-      clippers.push(node)
+    if (clips) {
+      found.push(node)
     }
+
+    node = node.parentElement
   }
 
-  return clippers
+  return found
 }
 
-function clipOf(clippers: readonly Element[]): Clip {
-  let top = 0
-  let left = 0
-  let right = window.innerWidth
-  let bottom = window.innerHeight
-
-  for (const clipper of clippers) {
-    const rect = clipper.getBoundingClientRect()
-
-    top = Math.max(top, rect.top)
-    left = Math.max(left, rect.left)
-    right = Math.min(right, rect.right)
-    bottom = Math.min(bottom, rect.bottom)
-  }
-
-  return { bottom, left, right, top }
-}
-
-/*
- * 滑块的几何。
- *
- * 边框宽度从 clientTop / clientLeft 取,所以起点算的是 padding box 而不是
- * border box —— 有边框的滚动盒(代码块)不会因此偏一个像素。主轴两端各留
- * (lane - thickness) / 2,与原生那圈 3px 透明边收出来的形状相同。
- */
-function measure(scroller: Element, track: Element, axis: Axis, metrics: Metrics): Geometry | null {
-  const vertical = axis === 'vertical'
-  const viewport = vertical ? scroller.clientHeight : scroller.clientWidth
-  const content = vertical ? scroller.scrollHeight : scroller.scrollWidth
-  const scrollable = content - viewport
-
-  if (viewport <= 0 || scrollable <= 1) {
+const clipOf = (clippers: readonly Element[]): Clip | null => {
+  if (clippers.length === 0) {
     return null
   }
 
-  const rect = track.getBoundingClientRect()
-  const trackMain = vertical ? track.clientHeight : track.clientWidth
-  const pad = (metrics.lane - metrics.thickness) / 2
-  const raw = Math.max(metrics.minLength, Math.round((trackMain * viewport) / content))
-  const free = Math.max(trackMain - raw, 0)
-  const position = vertical ? scroller.scrollTop : scroller.scrollLeft
-  const progress = clamp(position / scrollable, 0, 1)
-  const originMain = vertical ? rect.top + track.clientTop : rect.left + track.clientLeft
-  const originCross = vertical ? rect.left + track.clientLeft : rect.top + track.clientTop
-  const crossSize = vertical ? track.clientWidth : track.clientHeight
+  let top = Number.NEGATIVE_INFINITY
+  let left = Number.NEGATIVE_INFINITY
+  let right = Number.POSITIVE_INFINITY
+  let bottom = Number.POSITIVE_INFINITY
+
+  for (const clipper of clippers) {
+    const box = clipper.getBoundingClientRect()
+
+    top = Math.max(top, box.top)
+    left = Math.max(left, box.left)
+    right = Math.min(right, box.right)
+    bottom = Math.min(bottom, box.bottom)
+  }
+
+  return { top, right, bottom, left }
+}
+
+const measure = (
+  scroller: Element,
+  track: Element,
+  axis: Axis,
+  metrics: Metrics,
+): Geometry | null => {
+  const vertical = axis === 'vertical'
+  const content = vertical ? scroller.scrollHeight : scroller.scrollWidth
+  const viewport = vertical ? scroller.clientHeight : scroller.clientWidth
+  const scrollable = content - viewport
+
+  if (scrollable <= 1) {
+    return null
+  }
+
+  const box = track.getBoundingClientRect()
+  const trackMain = vertical ? box.height : box.width
+  const length = Math.max(metrics.minLength, Math.round((trackMain * viewport) / content))
+  const free = Math.max(trackMain - length, 0)
+  const offset = vertical ? scroller.scrollTop : scroller.scrollLeft
+  const progress = clamp(offset / scrollable, 0, 1)
+  const lane = (vertical ? box.right : box.bottom) - metrics.lane
 
   return {
-    cross: originCross + crossSize - pad - metrics.thickness,
-    length: Math.max(raw - pad * 2, metrics.thickness),
-    ratio: free <= 0 ? 0 : scrollable / free,
-    start: originMain + free * progress + pad,
+    main: (vertical ? box.top : box.left) + free * progress,
+    cross: lane + (metrics.lane - metrics.thickness) / 2,
+    length,
+    free,
+    scrollable,
   }
 }
 
-/** 摆好滑块。返回 false 表示这条轴此刻不该有滑块。 */
-function place(scroller: Element, axis: Axis, bar: Bar, metrics: Metrics): boolean {
-  const geometry = measure(scroller, bar.track, axis, metrics)
+const place = (bar: Bar): void => {
+  const geometry = measure(bar.scroller, bar.track, bar.axis, bar.metrics)
 
   if (geometry === null) {
-    return false
+    bar.element.dataset['visible'] = 'false'
+
+    return
   }
 
+  const vertical = bar.axis === 'vertical'
   const clip = clipOf(bar.clippers)
-  const vertical = axis === 'vertical'
-  const lowBound = vertical ? clip.top : clip.left
-  const highBound = vertical ? clip.bottom : clip.right
-  const crossLow = vertical ? clip.left : clip.top
-  const crossHigh = vertical ? clip.right : clip.bottom
-  const start = Math.max(geometry.start, lowBound)
-  const end = Math.min(geometry.start + geometry.length, highBound)
+  let start = geometry.main
+  let length = geometry.length
 
-  if (end - start < 1 || geometry.cross + metrics.thickness <= crossLow) {
-    return false
-  }
+  if (clip !== null) {
+    const low = vertical ? clip.top : clip.left
+    const high = vertical ? clip.bottom : clip.right
+    const crossLow = vertical ? clip.left : clip.top
+    const crossHigh = vertical ? clip.right : clip.bottom
+    const end = Math.min(start + length, high)
 
-  if (geometry.cross >= crossHigh) {
-    return false
+    start = Math.max(start, low)
+    length = end - start
+
+    const outside =
+      length <= 0 || geometry.cross + bar.metrics.thickness < crossLow || geometry.cross > crossHigh
+
+    if (outside) {
+      bar.element.dataset['visible'] = 'false'
+
+      return
+    }
   }
 
   const style = bar.element.style
-  const main = `${String(Math.round(start))}px`
-  const size = `${String(Math.round(end - start))}px`
-  const cross = `${String(Math.round(geometry.cross))}px`
-  const thickness = `${String(metrics.thickness)}px`
 
-  if (vertical) {
-    style.top = main
-    style.height = size
-    style.left = cross
-    style.width = thickness
-  } else {
-    style.left = main
-    style.width = size
-    style.top = cross
-    style.height = thickness
-  }
-
-  return true
+  style.setProperty(vertical ? 'top' : 'left', `${String(Math.round(start))}px`)
+  style.setProperty(vertical ? 'left' : 'top', `${String(Math.round(geometry.cross))}px`)
+  style.setProperty(vertical ? 'height' : 'width', `${String(Math.round(length))}px`)
 }
 
-/** 装上浮层滚动条。返回卸载函数,供测试使用。 */
 export function installScrollbarActivity(): () => void {
-  const metrics = readMetrics()
   const layer = document.createElement('div')
 
   layer.className = 'overlay-scrollbar-layer'
-  layer.setAttribute('aria-hidden', 'true')
   document.body.append(layer)
 
   const bars = new Map<Element, Map<Axis, Bar>>()
-  const optOut = new WeakMap<Element, boolean>()
-  let frame = 0
+  let frame: number | null = null
 
-  /* 退出与否是外观决定,写在 CSS 里;每个滚动盒只问一次。 */
-  const optedOut = (scroller: Element): boolean => {
-    const known = optOut.get(scroller)
+  const schedule = (): void => {
+    if (frame === null) {
+      frame = requestAnimationFrame(tick)
+    }
+  }
 
-    if (known !== undefined) {
-      return known
+  function tick(): void {
+    frame = null
+
+    const now = performance.now()
+    let alive = false
+
+    for (const [scroller, axes] of bars) {
+      for (const [axis, bar] of axes) {
+        if (bar.disposeAt !== null) {
+          if (now >= bar.disposeAt) {
+            bar.element.remove()
+            axes.delete(axis)
+          } else {
+            alive = true
+          }
+
+          continue
+        }
+
+        place(bar)
+        alive = true
+
+        if (bar.dragging || bar.hovered) {
+          bar.hideAt = now + bar.metrics.linger
+
+          continue
+        }
+
+        if (now >= bar.hideAt) {
+          bar.element.dataset['visible'] = 'false'
+          bar.disposeAt = now + bar.metrics.fade
+        }
+      }
+
+      if (axes.size === 0) {
+        bars.delete(scroller)
+      }
     }
 
-    const declared = getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
-
-    optOut.set(scroller, declared)
-
-    return declared
+    if (alive) {
+      frame = requestAnimationFrame(tick)
+    }
   }
 
   const createBar = (scroller: Element, axis: Axis): Bar => {
+    const metrics = readMetrics(scroller)
     const track = trackOf(scroller)
     const element = document.createElement('div')
 
     element.className = 'overlay-scrollbar'
     element.dataset['axis'] = axis
+    element.dataset['visible'] = 'false'
+    element.style.setProperty(THUMB_TOKEN, metrics.thumb)
+    element.style.setProperty(THUMB_STRONG_TOKEN, metrics.thumbStrong)
+    element.style.setProperty(
+      axis === 'vertical' ? 'width' : 'height',
+      `${String(metrics.thickness)}px`,
+    )
 
-    /* 颜色跟着滚动盒所在的区域走,尽管滑块本身挂在浮层里。 */
-    const inherited = getComputedStyle(scroller)
-
-    element.style.setProperty(THUMB_TOKEN, inherited.getPropertyValue(THUMB_TOKEN))
-    element.style.setProperty(THUMB_STRONG_TOKEN, inherited.getPropertyValue(THUMB_STRONG_TOKEN))
-
-    let origin = 0
-    let originScroll = 0
-
-    const onPointerDown = (event: PointerEvent) => {
-      /* 按住滑块不应该选中底下的文字。 */
-      event.preventDefault()
-      element.setPointerCapture(event.pointerId)
-      bar.dragging = true
-      element.dataset['dragging'] = 'true'
-      origin = axis === 'vertical' ? event.clientY : event.clientX
-      originScroll = axis === 'vertical' ? scroller.scrollTop : scroller.scrollLeft
+    const bar: Bar = {
+      axis,
+      scroller,
+      track,
+      element,
+      metrics,
+      clippers: clippersOf(track),
+      hideAt: 0,
+      hovered: false,
+      dragging: false,
+      disposeAt: null,
     }
 
-    const onPointerMove = (event: PointerEvent) => {
-      if (!bar.dragging) {
-        return
-      }
+    element.addEventListener('pointerenter', () => {
+      bar.hovered = true
+      schedule()
+    })
 
-      const geometry = measure(scroller, bar.track, axis, metrics)
+    element.addEventListener('pointerleave', () => {
+      bar.hovered = false
+      schedule()
+    })
+
+    element.addEventListener('pointerdown', (event: PointerEvent) => {
+      const geometry = measure(scroller, track, axis, metrics)
 
       if (geometry === null) {
         return
       }
 
-      const travel = (axis === 'vertical' ? event.clientY : event.clientX) - origin
-      const next = originScroll + travel * geometry.ratio
+      const vertical = axis === 'vertical'
+      const origin = vertical ? event.clientY : event.clientX
+      const offset = vertical ? scroller.scrollTop : scroller.scrollLeft
 
-      if (axis === 'vertical') {
-        scroller.scrollTop = next
-      } else {
-        scroller.scrollLeft = next
+      bar.dragging = true
+      element.dataset['dragging'] = 'true'
+      element.setPointerCapture(event.pointerId)
+
+      const onMove = (move: PointerEvent): void => {
+        const current = measure(scroller, track, axis, metrics)
+
+        if (current === null || current.free <= 0) {
+          return
+        }
+
+        const delta = (vertical ? move.clientY : move.clientX) - origin
+        const next = clamp(
+          offset + (delta / current.free) * current.scrollable,
+          0,
+          current.scrollable,
+        )
+
+        if (vertical) {
+          scroller.scrollTop = next
+        } else {
+          scroller.scrollLeft = next
+        }
       }
-    }
 
-    const onPointerUp = (event: PointerEvent) => {
-      if (!bar.dragging) {
-        return
+      const onRelease = (): void => {
+        bar.dragging = false
+        delete element.dataset['dragging']
+        element.removeEventListener('pointermove', onMove)
+        element.removeEventListener('pointerup', onRelease)
+        element.removeEventListener('pointercancel', onRelease)
+        schedule()
       }
 
-      bar.dragging = false
-      delete element.dataset['dragging']
-      element.releasePointerCapture(event.pointerId)
-      bar.hideAt = performance.now() + metrics.linger
-    }
+      element.addEventListener('pointermove', onMove)
+      element.addEventListener('pointerup', onRelease)
+      element.addEventListener('pointercancel', onRelease)
+      event.preventDefault()
+    })
 
-    const bar: Bar = {
-      clippers: clippersOf(track),
-      dragging: false,
-      element,
-      hideAt: 0,
-      release: () => {
-        element.removeEventListener('pointerdown', onPointerDown)
-        element.removeEventListener('pointermove', onPointerMove)
-        element.removeEventListener('pointerup', onPointerUp)
-        element.removeEventListener('pointercancel', onPointerUp)
-      },
-      track,
-    }
-
-    element.addEventListener('pointerdown', onPointerDown)
-    element.addEventListener('pointermove', onPointerMove)
-    element.addEventListener('pointerup', onPointerUp)
-    element.addEventListener('pointercancel', onPointerUp)
     layer.append(element)
-
-    /* 起始态与终止态落在同一帧就没有过渡可言,所以下一帧才置为可见。 */
     requestAnimationFrame(() => {
       element.dataset['visible'] = 'true'
     })
@@ -346,66 +389,47 @@ export function installScrollbarActivity(): () => void {
     return bar
   }
 
-  const dispose = (scroller: Element, axis: Axis, bar: Bar) => {
-    const axes = bars.get(scroller)
-
-    axes?.delete(axis)
-
-    if (axes !== undefined && axes.size === 0) {
-      bars.delete(scroller)
+  const reveal = (scroller: Element): void => {
+    if (optedOut(scroller)) {
+      return
     }
 
-    bar.release()
-    bar.element.dataset['visible'] = 'false'
-    window.setTimeout(() => {
-      bar.element.remove()
-    }, metrics.fade)
-  }
-
-  const tick = () => {
-    const now = performance.now()
-
-    for (const [scroller, axes] of [...bars]) {
-      for (const [axis, bar] of [...axes]) {
-        const alive = scroller.isConnected && place(scroller, axis, bar, metrics)
-        /* 指针停在滑块上时不倒计时,否则悬停色永远来不及被看见。 */
-        const held = bar.dragging || bar.element.matches(':hover')
-
-        if (!alive || (!held && now >= bar.hideAt)) {
-          dispose(scroller, axis, bar)
-        }
-      }
-    }
-
-    frame = bars.size === 0 ? 0 : requestAnimationFrame(tick)
-  }
-
-  const reveal = (scroller: Element) => {
     for (const axis of AXES) {
-      if (measure(scroller, trackOf(scroller), axis, metrics) === null) {
+      if (!scrollableOn(scroller, axis)) {
         continue
       }
 
       const axes = bars.get(scroller) ?? new Map<Axis, Bar>()
+
+      bars.set(scroller, axes)
+
       const existing = axes.get(axis)
       const bar = existing ?? createBar(scroller, axis)
 
-      bar.hideAt = performance.now() + metrics.linger
-      axes.set(axis, bar)
-      bars.set(scroller, axes)
-      place(scroller, axis, bar, metrics)
+      if (existing === undefined) {
+        axes.set(axis, bar)
+      }
+
+      bar.disposeAt = null
+      bar.hideAt = performance.now() + bar.metrics.linger
+      bar.element.dataset['visible'] = 'true'
+      place(bar)
     }
 
-    if (frame === 0 && bars.size > 0) {
-      frame = requestAnimationFrame(tick)
-    }
+    schedule()
   }
 
-  const onScroll = (event: Event) => {
-    const scroller = event.target
+  const onScroll = (event: Event): void => {
+    const target = event.target
 
-    if (scroller instanceof Element && !optedOut(scroller)) {
-      reveal(scroller)
+    if (target instanceof Element) {
+      reveal(target)
+
+      return
+    }
+
+    if (target instanceof Document && target.scrollingElement !== null) {
+      reveal(target.scrollingElement)
     }
   }
 
@@ -414,18 +438,11 @@ export function installScrollbarActivity(): () => void {
   return () => {
     document.removeEventListener('scroll', onScroll, { capture: true })
 
-    if (frame !== 0) {
+    if (frame !== null) {
       cancelAnimationFrame(frame)
-      frame = 0
     }
 
-    for (const axes of bars.values()) {
-      for (const bar of axes.values()) {
-        bar.release()
-      }
-    }
-
-    bars.clear()
     layer.remove()
+    bars.clear()
   }
 }

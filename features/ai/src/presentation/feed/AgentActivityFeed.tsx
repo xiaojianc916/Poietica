@@ -1,10 +1,9 @@
 import './agent-activity-feed.css'
 
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 
 import type { FeedRow } from '../../domain/timeline-selectors'
-import { useStickToBottom } from './use-stick-to-bottom'
 
 /**
  * The scroller of the assistant surface.
@@ -127,22 +126,29 @@ export function AgentActivityFeed({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ESTIMATED_ROW_PX,
     getItemKey: (index) => rows[index]?.item.id ?? index,
+    /*
+     * 会话流的滚动契约和普通长列表相反：新内容追加在末尾、历史从头部补进来、
+     * 流式回答会把最后一行反复撑大。三件事虚拟器都有官方能力，不必手写——
+     * anchorTo 把锚点钉在末端（尾行长高按 size delta 修正，历史前插不跳位），
+     * followOnAppend 只在用户本来就贴着底时才跟随新消息，读历史时不打扰，
+     * scrollEndThreshold 定义「算作贴底」的距离。
+     */
+    anchorTo: 'end',
+    followOnAppend: true,
+    scrollEndThreshold: BOTTOM_THRESHOLD_PX,
     overscan: 4,
     scrollMargin,
   })
 
-  /*
-   * The tail grows while its id stays the same, so following the identity of
-   * the last row leaves a streaming answer scrolling out of view. The measured
-   * total is the only value that changes with the content itself.
-   */
+  /* 画布的高度就是虚拟器量出来的总高。贴底不在这里：它是锚点的事，不是 effect 的事。 */
   const totalSize = virtualizer.getTotalSize()
-  const follow = useStickToBottom(scrollRef, BOTTOM_THRESHOLD_PX)
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: rows.length 与 totalSize 是这个 effect 的触发源，而不是它读取的值——贴底只读 ref，删掉依赖流式回答就会滚出视野。
-  useEffect(() => {
-    follow()
-  }, [follow, rows.length, totalSize])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只在挂载时对齐一次——恢复历史会话要从最新一条打开，之后的跟随由 followOnAppend 负责。
+  useLayoutEffect(() => {
+    if (rows.length > 0) {
+      virtualizer.scrollToEnd()
+    }
+  }, [])
 
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
