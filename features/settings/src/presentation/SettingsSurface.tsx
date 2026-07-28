@@ -1,4 +1,3 @@
-import type { AppSettings } from '@poietica/agent-timeline'
 import {
   Button,
   ErrorState,
@@ -12,6 +11,7 @@ import {
   SelectTrigger,
   Switch,
 } from '@poietica/foundations-design-system'
+import type { AppSettings } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import {
   createContext,
   memo,

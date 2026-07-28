@@ -1,4 +1,4 @@
-import type { WorkspaceSurfaceId } from '@poietica/agent-protocol'
+import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 import type { ReactNode } from 'react'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'

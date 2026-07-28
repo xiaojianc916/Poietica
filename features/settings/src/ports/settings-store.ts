@@ -1,4 +1,4 @@
-import type { AppSettings } from '@poietica/agent-timeline'
+import type { AppSettings } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 
 export interface SettingsStore {
   readonly load: () => Promise<AppSettings>

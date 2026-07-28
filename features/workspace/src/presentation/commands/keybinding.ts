@@ -1,4 +1,4 @@
-import type { CommandRegistry } from '@poietica/agent-runtime'
+import type { CommandRegistry } from '@poietica/features-workspace/application'
 import { useEffect } from 'react'
 
 /*

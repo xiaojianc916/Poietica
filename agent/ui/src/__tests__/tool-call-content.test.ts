@@ -1,5 +1,5 @@
-import type { ToolCallTimelineItem } from '@poietica/agent-protocol'
 import { parseRunEvent } from '@poietica/agent-protocol'
+import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { recordedTurn, replayRunEvents } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { toToolContentParts } from '../timeline/tool-call-content'

@@ -1,4 +1,4 @@
-import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/agent-protocol'
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '@poietica/features-workspace/contracts'
 import {
   type KeyboardEvent,
   type PointerEvent,

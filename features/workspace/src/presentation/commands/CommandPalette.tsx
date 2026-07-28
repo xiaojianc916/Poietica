@@ -1,6 +1,6 @@
 import { Command } from '@mynaui/icons-react'
 import type { RegisteredCommand } from '@poietica/agent-protocol'
-import type { CommandRegistry } from '@poietica/agent-runtime'
+import type { CommandRegistry } from '@poietica/features-workspace/application'
 import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/foundations-design-system'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { formatKeybinding } from './keybinding'

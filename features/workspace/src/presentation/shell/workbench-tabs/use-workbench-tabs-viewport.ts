@@ -1,4 +1,4 @@
-import type { WorkbenchTabId } from '@poietica/agent-protocol'
+import type { WorkbenchTabId } from '@poietica/features-workspace/contracts'
 import {
   type RefObject,
   useCallback,

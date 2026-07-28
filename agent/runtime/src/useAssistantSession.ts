@@ -1,9 +1,5 @@
-import type {
-  AgentSessionPort,
-  ChatStatus,
-  RunEvent,
-  TimelineState,
-} from '@poietica/agent-protocol'
+import type { AgentSessionPort, ChatStatus, RunEvent } from '@poietica/agent-protocol'
+import type { TimelineState } from '@poietica/agent-timeline'
 import {
   appendUserMessage,
   applyRunEvent,

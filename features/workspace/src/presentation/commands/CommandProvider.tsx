@@ -1,8 +1,10 @@
 'use client'
 
-import type { RegisteredCommand } from '@poietica/agent-protocol'
-
-import { type CommandRegistry, createCommandRegistry } from '@poietica/agent-runtime'
+import {
+  type CommandRegistry,
+  createCommandRegistry,
+} from '@poietica/features-workspace/application'
+import type { RegisteredCommand } from '@poietica/features-workspace/contracts'
 import {
   createContext,
   type ReactNode,
