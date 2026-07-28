@@ -46,9 +46,6 @@ const DEFAULT_AGENT_COMMAND: &str = "kimi acp";
 #[cfg(windows)]
 const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
 
-/// Threads are named by the interface later; this is only a placeholder.
-const THREAD_TITLE: &str = "session";
-
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 
@@ -208,6 +205,17 @@ pub async fn agent_prompt(
         _unnamed => session.thread_id,
     };
 
+    // 对话持有的那条会话，才是这一轮该发去的地方。这个映射
+    // attach_session 早就写进库里了，只是从来没有人查过它，所以第二
+    // 条对话的提问全部发进了连接的第一条会话。
+    //
+    // 查不到的对话是这条连接自己的对话，仍然回落到它的会话上——那也
+    // 正是上面那个分支已经在说的话。
+    let addressed = store
+        .session_for_thread(thread_id)
+        .map_err(persistence)?
+        .unwrap_or_else(|| session.session_id.clone());
+
     let run_id = store.start_run(thread_id).map_err(persistence)?;
 
     // The first thing said names the conversation. It is a stand in and is
@@ -232,7 +240,7 @@ pub async fn agent_prompt(
 
     let answer = session
         .client
-        .prompt(session.session_id.clone(), text, recorder)
+        .prompt(addressed.clone(), text, recorder)
         .map_err(translate)?;
 
     async_runtime::spawn(async move {
@@ -251,7 +259,7 @@ pub async fn agent_prompt(
 
     Ok(AgentPromptResult {
         run_id: run_id.to_string(),
-        session_id: session.session_id,
+        session_id: addressed,
     })
 }
 
@@ -606,7 +614,16 @@ async fn ensure_session(
         .map_err(|_dropped| Error::Internal(NO_SESSION_ID.to_owned()))?;
 
     let store = AiStore::open(&state.database).map_err(persistence)?;
-    let thread_id = store.create_thread(THREAD_TITLE).map_err(persistence)?;
+    let thread_id = store
+        .create_thread(FALLBACK_THREAD_TITLE)
+        .map_err(persistence)?;
+
+    // 第一条会话也是被某条对话持有的。记下来，寻址就只剩一条规则：
+    // 对话 → 会话。此前主会话不 attach，它的 session_id 是 NULL，
+    // 于是它成了唯一一个要靠别的办法才能找到的会话。
+    store
+        .attach_session(thread_id, &session_id)
+        .map_err(persistence)?;
 
     let mut guard = lock(&state.session)?;
 
@@ -960,14 +977,12 @@ pub async fn agent_open_thread(
         .attach_session(thread_id, &opened.session_id)
         .map_err(|failure| Error::Internal(failure.to_string()))?;
 
-    let named = thread_id.to_string();
-    let stored = store
-        .list_threads()
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
-
-    let thread = stored
-        .into_iter()
-        .find(|entry| entry.id == named)
+    // list_threads 有意漏掉没有任何一轮的对话——一份对话清单列的是
+    // 发生过的对话。刚刚创建的这一条正是那样一条，所以到那份清单里
+    // 去找它，等于每一次开对话都返回「创建了却读不回来」。
+    let thread = store
+        .thread(thread_id)
+        .map_err(|failure| Error::Internal(failure.to_string()))?
         .map(retitle)
         .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
 

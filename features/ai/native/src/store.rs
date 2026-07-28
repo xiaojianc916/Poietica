@@ -223,6 +223,64 @@ impl AiStore {
         }
     }
 
+    /// Finds the agent session a conversation is holding.
+    ///
+    /// The mirror of [`Self::thread_for_session`]. A frame arrives naming
+    /// its session and has to find its conversation; a turn is asked for by
+    /// the conversation on screen and has to find its session. Both
+    /// directions of the same fact, and both are read from the same column.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn session_for_thread(&self, id: Uuid) -> Result<Option<String>> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT session_id FROM threads WHERE id = ?1")?;
+
+        let mut rows = statement.query(rusqlite::params![id.to_string()])?;
+
+        match rows.next()? {
+            // The column is nullable: a conversation may exist before it
+            // holds a session, which is not the same as not existing.
+            Some(row) => Ok(row.get(0)?),
+            None => Ok(None),
+        }
+    }
+
+    /// Reads one conversation, whether or not anything has been said in it.
+    ///
+    /// [`Self::list_threads`] leaves out a conversation with no runs,
+    /// because a list of conversations is a list of the ones that happened.
+    /// Reading back the conversation that was just created is a different
+    /// question, and asking the list it is deliberately absent from was how
+    /// opening one came to fail every single time.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the query is rejected.
+    pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, session_id, title, title_source, updated_at, pinned
+               FROM threads
+              WHERE id = ?1",
+        )?;
+
+        let mut rows = statement.query(rusqlite::params![id.to_string()])?;
+
+        match rows.next()? {
+            Some(row) => Ok(Some(ThreadSummary {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                title: row.get(2)?,
+                title_source: row.get(3)?,
+                updated_at: row.get(4)?,
+                pinned: row.get::<_, i64>(5)? != 0,
+            })),
+            None => Ok(None),
+        }
+    }
+
     /// Appends an event to a run.
     ///
     /// # Errors
