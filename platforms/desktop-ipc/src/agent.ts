@@ -208,12 +208,10 @@ export async function shutdownAgent(): Promise<void> {
 }
 
 /*
- * The selectors the live session offers, reached through two commands.
+ * 改一项会话设置，一个命令。
  *
- * Nothing the protocol defines is redefined here. The categories are the
- * agent, and an empty list means no session has been created yet rather
- * than an agent with nothing to offer.
- */
+ * 没有"读"的那一路：选择器随会话一起回来（见下面的 open），改完之后 agent 又把
+ * 整张表报回来。协议定义的东西不在这里重新定义，类别由 agent 说了算。 */
 
 /** What a selector is for, as far as the interface is concerned. */
 export type AgentConfigPurposeName = 'mode' | 'model' | 'other' | 'thought'
@@ -234,7 +232,6 @@ export interface AgentConfigControlDescription {
 }
 
 export interface AgentConfigBridge {
-  readonly list: (threadId: string | null) => Promise<readonly AgentConfigControlDescription[]>
   readonly select: (
     threadId: string | null,
     configId: string,
@@ -305,12 +302,6 @@ function controlOf(native: NativeControl): AgentConfigControlDescription {
 
 export function createAgentConfigBridge(): AgentConfigBridge {
   return {
-    list: async (threadId) => {
-      const offered = await call(() => commands.agentConfigOptions({ threadId }))
-
-      return offered.map(controlOf)
-    },
-
     select: async (threadId, configId, value) => {
       const offered = await call(() => commands.agentSetConfigOption({ threadId, configId, value }))
 
@@ -346,7 +337,8 @@ export interface AgentOpenedThreadDescription {
 
 export interface AgentThreadBridge {
   readonly list: () => Promise<readonly AgentThreadDescription[]>
-  readonly open: () => Promise<AgentOpenedThreadDescription>
+  /** 不点名就新开一条；点名就让那一条握住一个本次连接认得的会话。 */
+  readonly open: (threadId?: string) => Promise<AgentOpenedThreadDescription>
   readonly rename: (threadId: string, title: string) => Promise<void>
   readonly remove: (threadId: string) => Promise<void>
   readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
@@ -396,9 +388,13 @@ export function createAgentThreadBridge({
       return found.map(threadOf)
     },
 
-    open: async () => {
+    open: async (threadId) => {
       const opened = await call(() =>
-        commands.agentOpenThread({ command: command ?? null, cwd: cwd ?? null }),
+        commands.agentOpenThread({
+          threadId: threadId ?? null,
+          command: command ?? null,
+          cwd: cwd ?? null,
+        }),
       )
 
       return {

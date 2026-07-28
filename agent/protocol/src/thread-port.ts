@@ -29,7 +29,14 @@ export interface OpenedThread {
  */
 export interface ThreadPort {
   readonly list: () => Promise<readonly ThreadRecord[]>
-  readonly open: () => Promise<OpenedThread>
+  /**
+   * 打开一条对话：不点名就新开一条，点名就让那一条握住一个会话。
+   *
+   * 点开一条上次运行留下的对话也走这里。它存着的会话号在新的 agent 进程里不
+   * 存在（ACP 的 sessionId 随连接生灭），原生侧因此为它开一个新的并改写持有
+   * 关系；两种情况都在同一次答复里带回整张选择器表。
+   */
+  readonly open: (threadId?: string) => Promise<OpenedThread>
   /** Renames one. The name becomes the user's and outlives the agent's. */
   readonly rename?: (threadId: string, title: string) => Promise<void>
   readonly remove?: (threadId: string) => Promise<void>

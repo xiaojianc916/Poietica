@@ -87,21 +87,6 @@ async agentLoadThread(request: AgentLoadThreadRequest) : Promise<AgentThreadTran
     return await TAURI_INVOKE("agent_load_thread", { request });
 },
 /**
- * Lists the selectors the running session offers.
- * 
- * The agent reports these when the session is created, so an empty list
- * means no session is running yet rather than a session without choices.
- * Nothing is invented here: a model, a reasoning level or a mode appears
- * in this list only because the agent named it.
- * 
- * # Errors
- * 
- * Fails when the session lock was poisoned or the driver has stopped.
- */
-async agentConfigOptions(request: AgentConfigOptionsRequest) : Promise<AgentConfigControl[]> {
-    return await TAURI_INVOKE("agent_config_options", { request });
-},
-/**
  * Changes one selector on the running session.
  * 
  * The change applies to the session in flight, so nothing is restarted
@@ -167,20 +152,19 @@ async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
 /**
- * Opens one more conversation: a session on the agent, and a row holding
- * it.
+ * 打开一条对话：让它握住一个这条连接认得的会话。
  * 
- * The conversation is stored before it has a name, because a name is
- * something that arrives later: the agent's own title if it sends one,
- * otherwise whatever the interface can stand in with. Both are recorded
- * as what they are, so a stand in never replaces a real name.
+ * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，session_for
+ * 认出它存着的会话号不是本次连接开的，于是重开一个并改写持有关系。两条路都在
+ * 同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
+ * 因此被删掉的。
  * 
  * # Errors
  * 
  * Fails when the agent cannot be started, when a turn is in flight on
  * the connection, or when the database rejects the write.
  */
-async agentOpenThread(request: AgentNewSessionRequest) : Promise<AgentOpenedThread> {
+async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThread> {
     return await TAURI_INVOKE("agent_open_thread", { request });
 },
 /**
@@ -403,14 +387,6 @@ current: string;
  */
 choices: AgentConfigChoice[] }
 /**
- * Which conversation's selectors are being read.
- */
-export type AgentConfigOptionsRequest = { 
-/**
- * The conversation asking, when the interface has opened one.
- */
-threadId: string | null }
-/**
  * What a session selector is for.
  * 
  * These are the categories the protocol defines. A category the agent
@@ -463,6 +439,22 @@ threadId: string }
  * is not running yet.
  */
 export type AgentNewSessionRequest = { 
+/**
+ * The agent command line; defaults to the Kimi ACP entry point.
+ */
+command: string | null; 
+/**
+ * The working directory the session is created against.
+ */
+cwd: string | null }
+/**
+ * 要打开的对话，以及必要时怎样启动 agent。
+ */
+export type AgentOpenThreadRequest = { 
+/**
+ * 已经存在的对话；不点名就新开一条。
+ */
+threadId: string | null; 
 /**
  * The agent command line; defaults to the Kimi ACP entry point.
  */

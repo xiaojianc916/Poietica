@@ -10,22 +10,14 @@ import type { SessionConfigControl } from './session-config-contract'
  * list because the agent decides what the list looks like afterwards, and it
  * may refuse, rename, or withdraw a selector in the same breath.
  *
- * 常规情况下没有人调用 list。选择器是随会话一起交回来的：开一条对话时
- * agent_open_thread 把 session/new 报的整张表一并带回，改一项时 agent 又把
- * 改完的整张表带回。list 只用于认领一条早于本次运行就存在的对话，一条对话
- * 至多一次。
- *
- * 空表是合法答案，它的意思是"这条对话还没有握着会话"，既不是失败，也不是
- * "这个会话没有选项"——因此它不能覆盖任何已经拿到手的表。
- *
- * 参数不接受 null。一个不点名对话的问句在原生侧只能落到“第一个会话”，而调用
- * 方拿不到答案究竟是给谁的；没有对话时不问，是调用方的判断，不是这个端口的
- * 一种参数取值。入口那一格在出现时就持有对话，所以 null 不再是任何合法调用
- * 的形态。
+ * 这里没有"读"。选择器随会话一起交回来：打开一条对话（ThreadPort.open）时
+ * agent 在 session/new 的答复里报了整张表，改一项时它又把改完的整张表报回来。
+ * 曾经有过一个 list：它按对话去问原生侧，而原生侧只有在"本进程恰好握着这条
+ * 对话的会话"时才答得出来，于是同一个选择器时而是空表（整块消失）、时而抛错
+ * （那句「会话设置读取失败」）。把读这条路删掉，到达口就只剩下会话本身。
  */
 
 export interface SessionConfigPort {
-  readonly list: (threadId: string) => Promise<readonly SessionConfigControl[]>
   readonly select: (
     threadId: string,
     configId: string,

@@ -15,7 +15,7 @@ const TITLE_LIMIT = 24
 const FAILURE_FALLBACK = '读取会话记录失败。'
 
 /** 说的是选择器那一路，和上面那句不是同一件事。 */
-const SELECTOR_FAILURE_FALLBACK = '读取会话设置失败。'
+const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
 
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {
@@ -91,8 +91,9 @@ export const useThreads = (
   const [isLoading, setIsLoading] = useState(true)
   const [failure, setFailure] = useState<string | null>(null)
   /*
-   * 选择器按对话记，只有三个到达口：开这条对话时协议连着会话一起给的那份、
-   * 改一项之后 agent 回的那份、以及认领一条更早的对话时问的那一次。
+   * 选择器按对话记，三个到达口都是会话本身：新开一条对话时 session/new 报的
+   * 那份、认领一条更早的对话时为它开出会话所报的那份、以及改一项之后 agent 回
+   * 的那份。没有第四个，也没有一条"读设置"的路。
    *
    * 此前它由输入框旁边的一个 hook 自己持有，每次挂载和每次重试都重读一遍。
    * 而在原生侧，"还没有会话"是一张合法的空表，"连接正忙"是一个错误——两者
@@ -298,28 +299,29 @@ export const useThreads = (
     [selectorFailure],
   )
 
+  /*
+   * 认领一条不是本次运行开出来的对话：让它握住一个会话。
+   *
+   * 这不是"读一次设置"。原生侧在同一个答复里给出这条对话现在持有的会话，和
+   * agent 为它报的整张选择器表，与新开一条对话走的是同一条路——所以选择器只
+   * 有一个到达口，也就没有"空表"和"读失败"这两种半状态。
+   */
   const read = useCallback(
     (threadId: string) => {
-      if (config === undefined) {
+      if (port === undefined) {
         return
       }
       asked.current.add(threadId)
-      config
-        .list(threadId)
-        .then((offered) => {
-          /*
-           * 空表的意思是"这条对话还没握着会话"，不是"它没有选择器"。写进去
-           * 只会抹掉开会话时已经拿到的那张表。
-           */
-          if (offered.length > 0) {
-            remember(threadId, offered)
-          }
+      port
+        .open(threadId)
+        .then((opened) => {
+          remember(threadId, opened.selectors)
         })
         .catch((reason: unknown) => {
           noteSelectorFailure(threadId, reason)
         })
     },
-    [config, noteSelectorFailure, remember],
+    [noteSelectorFailure, port, remember],
   )
 
   /* 本次运行开出来的对话已经有答案，只有从列表里点开的那些需要认领。 */

@@ -56,7 +56,6 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_shutdown,
             crate::commands::agent::agent_load_run,
             crate::commands::agent::agent_load_thread,
-            crate::commands::agent::agent_config_options,
             crate::commands::agent::agent_set_config_option,
             crate::commands::agent::agent_new_session,
             crate::commands::agent::agent_sessions,

@@ -34,11 +34,10 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 四个字里读不出该等还是该点，而 model / mode / thought 的位置被它占着。没
  * 有的东西不画,是这一格唯一诚实的形态。
  *
- * 读不到是另一回事，它是一次真的失败，所以它说出原因并且可以被再试一次。两
- * 者过去渲染成同一段不可点击的文字，于是「agent 没装起来」「握手失败」「一
- * 轮回答正在跑」在屏幕上长得一模一样。
- */
-const UNAVAILABLE = '会话设置读取失败，点击重试'
+ * 连不上是另一回事，它是一次真的失败，所以它说出原因并且可以被再试一次：
+ * 「agent 没装起来」「握手失败」「一轮回答正在跑」都落在这里，标题上写的是原生
+ * 侧给出的那一句，而不是一句无从下手的"读取失败"。 */
+const UNAVAILABLE = '没连上 agent，点击重试'
 
 const ORDER = ['model', 'thought', 'mode', 'other'] as const
 
@@ -60,7 +59,7 @@ export interface SessionControlsProps {
   readonly controls: readonly SessionConfigControl[]
   readonly failure?: string | undefined
   readonly onSelect: (controlId: string, value: string) => void
-  /** 读失败之后重新问一次；没有这个，失败就是一条死路。 */
+  /** 失败之后再打开一次；没有这个，失败就是一条死路。 */
   readonly onRetry?: (() => void) | undefined
 }
 
@@ -79,7 +78,7 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
       return null
     }
 
-    /* 读失败了：说出原因，并且让它可以被再试一次。 */
+    /* 连不上：说出原因，并且让它可以被再试一次。 */
     return (
       <button
         aria-live="polite"

@@ -29,12 +29,11 @@ import {
  */
 
 /*
- * The session selectors, offered once for the whole process.
+ * 改会话设置的那一路，整个进程一份。
  *
- * Stateless in the same way the model port is, for a different reason:
- * the list is not a file but the running session answering for itself, so
- * every read is a fresh question and one instance is enough. A fresh
- * object per render would mean a fresh question per render.
+ * 它是无状态的：一次改动就是一次往返，agent 把改完的整张表报回来。没有读，所以
+ * 这里没有任何缓存可言，一个实例够了；每次渲染新建一个对象只会让下游的依赖数组
+ * 每帧都变。
  */
 let sessionConfig: SessionConfigPort | undefined
 
@@ -126,8 +125,8 @@ export function desktopThreads(): ThreadPort {
       }))
     },
 
-    open: async () => {
-      const opened = await bridge.open()
+    open: async (threadId) => {
+      const opened = await bridge.open(threadId)
 
       return {
         thread: {

@@ -15,6 +15,7 @@
 //! against the options the agent actually offered before anything is recorded
 //! or sent.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
@@ -58,7 +59,6 @@ const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
 const NO_ANSWER: &str = "the agent session ended before answering";
-const NO_THREAD_SESSION: &str = "that conversation is not holding an agent session";
 
 /// The live session, if one has been started.
 ///
@@ -80,6 +80,11 @@ pub struct AgentRuntime {
     slot: RunSlot,
     desk: PermissionDesk,
     session: Mutex<Option<Session>>,
+    /// 本次连接开出来的会话号。
+    ///
+    /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
+    /// 的会话号。库里存着的那一个因此不是主键而是缓存，寻址之前必须先问这里。
+    live: Mutex<HashSet<String>>,
     /// The one connection to the encrypted log, opened on first use.
     ///
     /// Every command used to open one of its own: a credential store
@@ -116,6 +121,7 @@ impl AgentRuntime {
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
             session: Mutex::new(None),
+            live: Mutex::new(HashSet::new()),
             store: OnceLock::new(),
         })
     }
@@ -210,8 +216,9 @@ pub async fn agent_prompt(
     // 此前的兜底是"查不到就用连接上的第一条会话"，于是在第二条对话里
     // 提问，带的是第一条的上下文与模型。命名的对话若还没有会话，就在
     // 这里为它开一个并记下来——这是 ACP 的会话模型，不是补丁。
-    let (thread_id, addressed) =
-        resolve_turn_target(&state, &session, request.thread_id.as_deref()).await?;
+    let held = session_for(&state, &session, request.thread_id.as_deref()).await?;
+    let thread_id = held.thread_id;
+    let addressed = held.session_id;
 
     // The log is the one thing that must exist before the turn does, so
     // it is taken here rather than handed to a thread whose failure would
@@ -327,6 +334,11 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     }
 
     state.desk.clear();
+
+    /* 连接走了，它开出来的会话号也就不再指向任何东西。 */
+    if let Ok(mut known) = state.live.lock() {
+        known.clear();
+    }
 
     Ok(())
 }
@@ -462,14 +474,6 @@ pub struct AgentConfigControl {
     pub choices: Vec<AgentConfigChoice>,
 }
 
-/// Which conversation's selectors are being read.
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentConfigOptionsRequest {
-    /// The conversation asking, when the interface has opened one.
-    pub thread_id: Option<String>,
-}
-
 /// A change made in the interface.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -480,65 +484,6 @@ pub struct AgentSelectConfigRequest {
     pub config_id: String,
     /// One of the values that selector offered.
     pub value: String,
-}
-
-/// Lists the selectors the running session offers.
-///
-/// The agent reports these when the session is created, so an empty list
-/// means no session is running yet rather than a session without choices.
-/// Nothing is invented here: a model, a reasoning level or a mode appears
-/// in this list only because the agent named it.
-///
-/// # Errors
-///
-/// Fails when the session lock was poisoned or the driver has stopped.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_config_options(
-    state: State<'_, AgentRuntime>,
-    request: AgentConfigOptionsRequest,
-) -> AgentCommandResult<Vec<AgentConfigControl>> {
-    // Reading a selector is a read.
-    //
-    // It used to start the agent process, so rendering a toolbar spawned a
-    // subprocess, ran a handshake and wrote a conversation row. Every way
-    // that can fail — no agent installed, not on PATH, a slow handshake —
-    // arrived as a failure banner on a surface the user had not used yet,
-    // and every way it can succeed left behind a conversation nobody had.
-    //
-    // No session running means nothing to offer. The protocol says an empty
-    // list is a legitimate answer, and this is what it is for.
-    let Some(live) = borrow(&state)? else {
-        return Ok(Vec::new());
-    };
-
-    // Selectors belong to a session, and a session is held by a
-    // conversation. The crate has kept a set per session for some time, but
-    // nothing said which set was wanted, so the answer was always the first
-    // session on the connection: the model shown in the second conversation
-    // was the one chosen in the first.
-    //
-    // The lock is taken and returned inside this block. Holding it across
-    // the await below would make this future not Send.
-    let addressed = {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
-        session_held_by(&store, request.thread_id.as_deref(), &live)?
-    };
-
-    let Some(addressed) = addressed else {
-        // 这条对话还没有握着任何会话：没有可读的选择器，这不是失败。
-        return Ok(Vec::new());
-    };
-
-    let answer = live.client.selectors(addressed).map_err(translate)?;
-    let offered = answer
-        .await
-        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-        .map_err(translate)?;
-
-    Ok(offered.into_iter().map(restate).collect())
 }
 
 /// Changes one selector on the running session.
@@ -560,14 +505,14 @@ pub async fn agent_set_config_option(
 ) -> AgentCommandResult<Vec<AgentConfigControl>> {
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
-    let addressed = {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
-        session_held_by(&store, request.thread_id.as_deref(), &live)?
-    };
-
-    let addressed = addressed.ok_or_else(|| Error::NotFound(NO_THREAD_SESSION.to_owned()))?;
+    /*
+     * 改一项设置，发往这条对话所持有的会话。
+     *
+     * 与提问走同一条 session_for：它认不得的会话号（上一次运行留下的）会在
+     * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。
+     */
+    let held = session_for(&state, &live, request.thread_id.as_deref()).await?;
+    let addressed = held.session_id;
 
     let answer = live
         .client
@@ -696,6 +641,9 @@ async fn ensure_session(
         client: client.clone(),
         thread_id,
     });
+
+    /* 本次连接开出来的第一个会话，同样记下来。 */
+    remember(state, &session_id)?;
 
     Ok(Handle { client, thread_id })
 }
@@ -897,6 +845,9 @@ pub async fn agent_new_session(
         .await
         .map_err(translate)?;
 
+    /* 这个会话号只在这条连接里有意义，寻址之前必须先认得它。 */
+    remember(&state, &opened.session_id)?;
+
     Ok(AgentOpenedSession {
         session_id: opened.session_id,
         selectors: opened.selectors.into_iter().map(restate).collect(),
@@ -1016,13 +967,24 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
     Ok(stored.into_iter().map(retitle).collect())
 }
 
-/// Opens one more conversation: a session on the agent, and a row holding
-/// it.
+/// 要打开的对话，以及必要时怎样启动 agent。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOpenThreadRequest {
+    /// 已经存在的对话；不点名就新开一条。
+    pub thread_id: Option<String>,
+    /// The agent command line; defaults to the Kimi ACP entry point.
+    pub command: Option<String>,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
+}
+
+/// 打开一条对话：让它握住一个这条连接认得的会话。
 ///
-/// The conversation is stored before it has a name, because a name is
-/// something that arrives later: the agent's own title if it sends one,
-/// otherwise whatever the interface can stand in with. Both are recorded
-/// as what they are, so a stand in never replaces a real name.
+/// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，session_for
+/// 认出它存着的会话号不是本次连接开的，于是重开一个并改写持有关系。两条路都在
+/// 同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
+/// 因此被删掉的。
 ///
 /// # Errors
 ///
@@ -1032,47 +994,55 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
 #[specta::specta]
 pub async fn agent_open_thread(
     state: State<'_, AgentRuntime>,
-    request: AgentNewSessionRequest,
+    request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
-    let asked = request.cwd.clone();
     let live = ensure_session(&state, request.command, request.cwd).await?;
 
-    let working_directory = match asked {
-        Some(given) => PathBuf::from(given),
-        None => state.root.clone(),
+    let named = match request.thread_id {
+        Some(given) => given,
+        None => {
+            let shared = shared_store(&state)?;
+            let store = borrow_store(&shared)?;
+
+            store
+                .create_thread(FALLBACK_THREAD_TITLE)
+                .map_err(persistence)?
+                .to_string()
+        }
     };
 
-    let opened = live
-        .client
-        .new_session(working_directory)
-        .await
-        .map_err(translate)?;
+    let held = session_for(&state, &live, Some(&named)).await?;
 
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
+    let offered = match held.offered {
+        Some(offered) => offered,
+        /* 本次运行已经为它开过会话：只有这一种情况需要把表再问一次。 */
+        None => {
+            let answer = live.client.selectors(held.session_id).map_err(translate)?;
 
-    let thread_id = store
-        .create_thread(FALLBACK_THREAD_TITLE)
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
-
-    store
-        .attach_session(thread_id, &opened.session_id)
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
+            answer
+                .await
+                .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+                .map_err(translate)?
+        }
+    };
 
     // list_threads leaves out conversations that have had no turns, on
-    // purpose: a list of conversations lists ones that happened. The row
-    // just created is exactly such a conversation, so looking for it in that
-    // list meant every newly opened conversation reported itself as created
-    // but unreadable.
-    let thread = store
-        .thread(thread_id)
-        .map_err(|failure| Error::Internal(failure.to_string()))?
-        .map(retitle)
-        .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?;
+    // purpose: a list of conversations lists ones that happened, so the row
+    // just created has to be read on its own.
+    let thread = {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
+
+        store
+            .thread(held.thread_id)
+            .map_err(persistence)?
+            .map(retitle)
+            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?
+    };
 
     Ok(AgentOpenedThread {
         thread,
-        selectors: opened.selectors.into_iter().map(restate).collect(),
+        selectors: offered.into_iter().map(restate).collect(),
     })
 }
 
@@ -1135,45 +1105,69 @@ fn conversation_or(named: Option<&str>, held: Uuid) -> Result<Uuid> {
     }
 }
 
-/// The session a conversation is holding, and nothing else.
-///
-/// One rule for addressing, with no fallback: a conversation holds a
-/// session, attach_session is where that was written down, and a
-/// conversation holding none holds none. Falling back to "the session this
-/// connection happens to be on" is how a model chosen in one conversation
-/// took effect in another.
-fn session_held_by(
-    store: &AiStore,
-    named: Option<&str>,
-    live: &Handle,
-) -> Result<Option<String>> {
-    let thread_id = conversation_or(named, live.thread_id)?;
-
-    store.session_for_thread(thread_id).map_err(persistence)
+/// 一条对话所持有的活会话，以及开它时 agent 报的那张选择器表。
+struct Held {
+    thread_id: Uuid,
+    session_id: String,
+    /// 只有刚开出来的会话有：agent 在同一个答复里报了它。
+    offered: Option<Vec<ConfigControl>>,
 }
 
-/// The conversation this turn belongs to, and the session it is sent to.
+/// 记下一个本次连接开出来的会话号。
+fn remember(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
+    state
+        .live
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
+        .insert(session_id.to_owned());
+
+    Ok(())
+}
+
+/// 本次连接是否认得这个会话号。
+fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool> {
+    Ok(state
+        .live
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
+        .contains(session_id))
+}
+
+/// 这条对话所持有的、本次连接认得的会话。
 ///
-/// A named conversation holding no session gets one opened for it here: in
-/// ACP terms a conversation *is* a session, so this is where the two are
-/// tied together rather than papered over at every call site. Nothing is
-/// awaited while a lock is held, so this stays Send.
-async fn resolve_turn_target(
+/// 整个模块只有这一条寻址规则，没有兜底。对话持有会话，attach_session 是写下
+/// 来的地方——但写下来的那一个只在开它的那条连接里有意义：ACP 的会话号随连接
+/// 生灭，进程重启之后 agent 不认识它。此前它被当成持久主键直接用于寻址，于是
+/// 一条上次运行留下的对话，它的选择器和它的每一轮提问都发往一个早已不存在的
+/// 会话：前者是屏幕上那句"会话设置读取失败"，后者是一轮永远不会开始的回答。
+///
+/// 认不得就重开一个并改写这条对话的持有关系。新开的会话，agent 在同一个答复里
+/// 报了整张选择器表，所以第二个字段只在这种情况下有值：这不是缓存，是省掉一次
+/// 多余的往返。
+///
+/// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
+async fn session_for(
     state: &State<'_, AgentRuntime>,
     live: &Handle,
     named: Option<&str>,
-) -> Result<(Uuid, String)> {
+) -> Result<Held> {
     let thread_id = conversation_or(named, live.thread_id)?;
 
-    let held = {
+    let stored = {
         let shared = shared_store(state)?;
         let store = borrow_store(&shared)?;
 
         store.session_for_thread(thread_id).map_err(persistence)?
     };
 
-    if let Some(session_id) = held {
-        return Ok((thread_id, session_id));
+    if let Some(session_id) = stored {
+        if recognised(state, &session_id)? {
+            return Ok(Held {
+                thread_id,
+                session_id,
+                offered: None,
+            });
+        }
     }
 
     let opened = live
@@ -1182,14 +1176,22 @@ async fn resolve_turn_target(
         .await
         .map_err(translate)?;
 
-    let shared = shared_store(state)?;
-    let store = borrow_store(&shared)?;
+    {
+        let shared = shared_store(state)?;
+        let store = borrow_store(&shared)?;
 
-    store
-        .attach_session(thread_id, &opened.session_id)
-        .map_err(persistence)?;
+        store
+            .attach_session(thread_id, &opened.session_id)
+            .map_err(persistence)?;
+    }
 
-    Ok((thread_id, opened.session_id))
+    remember(state, &opened.session_id)?;
+
+    Ok(Held {
+        thread_id,
+        session_id: opened.session_id,
+        offered: Some(opened.selectors),
+    })
 }
 
 /// Renames a conversation.
