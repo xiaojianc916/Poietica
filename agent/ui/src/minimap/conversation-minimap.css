@@ -19,6 +19,7 @@
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
+  --cp-rail-card-delay: 90ms;
 
   position: absolute;
   z-index: 2;
@@ -135,6 +136,7 @@
 .conversation-minimap__turn:hover .conversation-minimap__card,
 .conversation-minimap__turn:focus-visible .conversation-minimap__card {
   opacity: 1;
+  transition-delay: var(--cp-rail-card-delay);
 }
 
 /* Question: one line, bold, truncated. */

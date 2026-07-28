@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap@v8 */
+/* poietica:conversation-minimap@v9 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -12,38 +12,48 @@ import { useCallback } from 'react'
 const FALLOFF_PX = 44
 
 /**
- * The hit region, measured out from the rail's own box.
+ * Where the pull begins: the preview card's trailing edge.
  *
- * The rail is eleven pixels wide. Asking the pointer to actually land on it
- * before anything happens makes the whole affordance feel dead — the pull has
- * to begin while the hand is still on its way. Left is the reach that matters,
- * because that is the side the conversation is on; the other three are just
- * enough slack that a pixel of overshoot at the ends does not drop the pull.
+ * That edge is a vertical line to the left of the rail, and it is the line the
+ * hand crosses on its way in — cross it and the rail is armed, stay left of it
+ * and nothing happens. The strip between that line and the rail belongs to
+ * neither, so the pull may as well own it.
+ *
+ * It is measured every frame rather than written down. The gap follows the
+ * card's own placement, which follows the panel's spacing tokens; a constant
+ * here would be a second copy of those tokens, correct until the day one of
+ * them moves. The card is in the DOM at all times and only its opacity is
+ * animated, so its box is readable on any frame, including before it has ever
+ * been shown.
  */
-const REACH_TOP_PX = 24
-const REACH_BOTTOM_PX = 24
-const REACH_RIGHT_PX = 16
+const CARD_SELECTOR = '.conversation-minimap__card'
 
-/** Used when no preview card is on screen to measure against. */
-const REACH_LEFT_PX = 160
-const REACH_LEFT_MIN_PX = 24
+/** Only reached if the card is gone; then the rail is its own boundary. */
+const REACH_LEFT_FALLBACK_PX = 12
+
+/** A fuse, not a setting: a mispositioned card must not arm the rail remotely. */
 const REACH_LEFT_MAX_PX = 320
 
-const CARD_SELECTOR = '[data-conversation-card]'
+/**
+ * Slack on the other three sides.
+ *
+ * The entry boundary is the vertical line, so these are not a second geometry:
+ * they are the tolerance that keeps a pixel of overshoot at the ends, or on
+ * the far side of an eleven pixel rail, from dropping the pull.
+ */
+const REACH_TOP_PX = 8
+const REACH_BOTTOM_PX = 8
+const REACH_RIGHT_PX = 16
+
 const WEIGHT_VAR = '--cp-rail-weight'
 
 /**
  * The turn under the hand.
  *
  * The stylesheet already says there is at most one aimed turn and that it wins
- * over the read one; until now that was spelled ':hover', which cannot see the
- * hit region and so lit the preview card on different terms than the pull.
+ * over the read one; that used to be spelled ':hover', which cannot see the
+ * entry boundary and so lit the preview card on different terms than the pull.
  * Both now read this, written once per frame from the same weights.
- *
- * The threshold is a floor on the winning weight, not a second geometry: about
- * forty-five pixels of vertical distance. Low enough that the card is already
- * fading in while the hand is still on its way, high enough that clipping the
- * very end of the rail does not flash one.
  */
 const AIMED_ATTR = 'data-aimed'
 const AIMED_MIN_WEIGHT = 0.35
@@ -51,25 +61,16 @@ const AIMED_MIN_WEIGHT = 0.35
 /** Below this a weight is indistinguishable from rest; write the flat 0. */
 const EPSILON = 0.002
 
-/**
- * How far left the pull reaches.
- *
- * The preview card's trailing edge is the honest boundary: everything between
- * it and the rail is dead space that belongs to neither, so the pull may as
- * well own it. Measured rather than assumed, because the gap moves with the
- * panel width, and clamped so a missing or absurdly placed card cannot arm the
- * rail from across the window.
- */
 function leftReachOf(node: HTMLElement, rect: DOMRect): number {
-  const card = node.ownerDocument.querySelector(CARD_SELECTOR)
+  const card = node.querySelector(CARD_SELECTOR)
 
   if (card === null) {
-    return REACH_LEFT_PX
+    return REACH_LEFT_FALLBACK_PX
   }
 
   const gap = rect.left - card.getBoundingClientRect().right
 
-  return Math.min(Math.max(gap, REACH_LEFT_MIN_PX), REACH_LEFT_MAX_PX)
+  return Math.min(Math.max(gap, 0), REACH_LEFT_MAX_PX)
 }
 
 /**
@@ -81,11 +82,11 @@ function leftReachOf(node: HTMLElement, rect: DOMRect): number {
  * in state: a pointer crossing the rail would otherwise re-render the
  * transcript on every frame.
  *
- * The pointer is tracked on the window, not on the rail, so the pull can start
- * before the hand arrives. One write per animation frame no matter how many
- * move events the platform delivers, and the rail's box is read once per frame
- * rather than once per event. Returned as a ref callback with a cleanup, which
- * React 19 calls on unmount.
+ * The pointer is tracked on the window rather than on the rail, because the
+ * rail is eleven pixels wide and the boundary that matters is outside it. One
+ * write per animation frame no matter how many move events the platform
+ * delivers, and the boxes are read once per frame rather than once per event.
+ * Returned as a ref callback with a cleanup, which React 19 calls on unmount.
  */
 export function useFisheye(): (node: HTMLElement | null) => void {
   return useCallback((node: HTMLElement | null) => {
