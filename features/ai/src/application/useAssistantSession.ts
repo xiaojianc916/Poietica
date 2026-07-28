@@ -40,7 +40,7 @@ export interface AssistantSessionOptions {
    * and the list is not this hook to keep, so the fact is handed out
    * rather than reached for.
    */
-  readonly onUserMessage?: (text: string) => void
+  readonly onUserMessage?: ((text: string) => void) | undefined
   readonly session?: AgentSessionPort | undefined
 }
 
