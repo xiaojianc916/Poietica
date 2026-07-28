@@ -1,6 +1,5 @@
-import { useState } from 'react'
-
 import type { ToolCallTimelineItem } from '../../contracts/timeline-contract'
+import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
   FileIcon,
@@ -54,8 +53,7 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * failure travels rather than jumps. Closed, the body is inert.
  */
 export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
-  const [override, setOverride] = useState<boolean | null>(null)
-  const isOpen = override ?? item.status === 'failed'
+  const { isOpen, toggle } = useDisclosure(item.status === 'failed')
   const parts = toToolContentParts(item.content)
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
@@ -68,7 +66,7 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
       <button
         aria-expanded={isOpen}
         className="timeline-tool__header"
-        onClick={() => setOverride(!isOpen)}
+        onClick={toggle}
         type="button"
       >
         <ToolKindIcon kind={item.kind} />
@@ -82,66 +80,64 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
         <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron" />
       </button>
 
-      <div className="timeline-tool__reveal" inert={!isOpen}>
-        <div className="timeline-tool__clip">
-          <div className="timeline-tool__body">
-            {item.locations.length > 0 ? (
-              <ul className="timeline-tool__locations">
-                {item.locations.map((location) => (
-                  <li className="timeline-tool__location" key={location.path}>
-                    {location.path}
-                    {location.line === undefined ? null : `:${String(location.line)}`}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
+      <DisclosureBody block="timeline-tool" isOpen={isOpen}>
+        <div className="timeline-tool__body">
+          {item.locations.length > 0 ? (
+            <ul className="timeline-tool__locations">
+              {item.locations.map((location) => (
+                <li className="timeline-tool__location" key={location.path}>
+                  {location.path}
+                  {location.line === undefined ? null : `:${String(location.line)}`}
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-            {parts.length === 0 ? (
-              <p className="timeline-tool__empty">这次调用没有返回内容。</p>
-            ) : null}
+          {parts.length === 0 ? (
+            <p className="timeline-tool__empty">这次调用没有返回内容。</p>
+          ) : null}
 
-            {parts.map((part, index) => {
-              const key = `${part.type}:${String(index)}`
+          {parts.map((part, index) => {
+            const key = `${part.type}:${String(index)}`
 
-              if (part.type === 'text') {
-                return (
-                  <pre className="timeline-tool__text" key={key}>
-                    {part.text}
-                  </pre>
-                )
-              }
-
-              if (part.type === 'diff') {
-                return (
-                  <div className="timeline-tool__diff" key={key}>
-                    <p className="timeline-tool__diff-path">{part.path}</p>
-                    {part.oldText === null ? (
-                      <p className="timeline-tool__diff-note">新建文件</p>
-                    ) : (
-                      <pre className="timeline-tool__diff-old">{part.oldText}</pre>
-                    )}
-                    <pre className="timeline-tool__diff-new">{part.newText}</pre>
-                  </div>
-                )
-              }
-
-              if (part.type === 'terminal') {
-                return (
-                  <p className="timeline-tool__terminal" key={key}>
-                    终端 {part.terminalId}
-                  </p>
-                )
-              }
-
+            if (part.type === 'text') {
               return (
-                <p className="timeline-tool__opaque" key={key}>
-                  {part.label}
+                <pre className="timeline-tool__text" key={key}>
+                  {part.text}
+                </pre>
+              )
+            }
+
+            if (part.type === 'diff') {
+              return (
+                <div className="timeline-tool__diff" key={key}>
+                  <p className="timeline-tool__diff-path">{part.path}</p>
+                  {part.oldText === null ? (
+                    <p className="timeline-tool__diff-note">新建文件</p>
+                  ) : (
+                    <pre className="timeline-tool__diff-old">{part.oldText}</pre>
+                  )}
+                  <pre className="timeline-tool__diff-new">{part.newText}</pre>
+                </div>
+              )
+            }
+
+            if (part.type === 'terminal') {
+              return (
+                <p className="timeline-tool__terminal" key={key}>
+                  终端 {part.terminalId}
                 </p>
               )
-            })}
-          </div>
+            }
+
+            return (
+              <p className="timeline-tool__opaque" key={key}>
+                {part.label}
+              </p>
+            )
+          })}
         </div>
-      </div>
+      </DisclosureBody>
     </section>
   )
 }

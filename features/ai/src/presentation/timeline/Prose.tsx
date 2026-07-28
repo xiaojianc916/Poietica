@@ -2,6 +2,8 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { type AnimateOptions, type ControlsConfig, Streamdown } from 'streamdown'
 
+import { cx } from '../primitives/class-names'
+
 /*
  * Plugins are declared once, at module scope.
  *
@@ -70,7 +72,7 @@ export interface ProseProps {
 export function Prose({ className, isStreaming, text }: ProseProps) {
   return (
     <div
-      className={className === undefined ? 'timeline-prose' : `timeline-prose ${className}`}
+      className={cx('timeline-prose', className)}
       data-streaming={isStreaming ? 'true' : undefined}
     >
       <Streamdown

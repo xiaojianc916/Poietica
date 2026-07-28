@@ -1,21 +1,23 @@
 import './assistant.css'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useMemo, useRef } from 'react'
+
 import { useAssistantSession } from '../application/useAssistantSession'
 import { useSessionControls } from '../application/useSessionControls'
 import type { AgentSessionPort } from '../contracts/agent-session-port'
 import type { AgentModelsPort } from '../contracts/model-port'
 import type { SessionConfigPort } from '../contracts/session-config-port'
-import type { TurnOutcome } from '../domain/timeline-selectors'
+import type { TurnFooter } from '../domain/timeline-selectors'
 import {
   selectFeedRows,
   selectIsBusy,
-  selectSilentOutcome,
+  selectTurnFooter,
   selectTurns,
 } from '../domain/timeline-selectors'
-import { AgentActivityFeed } from './AgentActivityFeed'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
+import type { PromptInputHandle } from './composer/prompt-input'
+import { AgentActivityFeed } from './feed/AgentActivityFeed'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
@@ -53,16 +55,16 @@ export interface AssistantSurfaceProps {
  * the first frame, and a turn that ended without producing anything. Both are
  * derived, and both live outside the virtualised canvas.
  */
-function renderFooter(isWaiting: boolean, outcome: TurnOutcome | null): ReactNode {
-  if (isWaiting) {
-    return <ThinkingIndicator />
+function renderFooter(footer: TurnFooter | null): ReactNode {
+  if (footer === null) {
+    return undefined
   }
 
-  if (outcome !== null) {
-    return <TurnOutcomeNotice outcome={outcome} />
-  }
-
-  return null
+  return footer.kind === 'waiting' ? (
+    <ThinkingIndicator />
+  ) : (
+    <TurnOutcomeNotice outcome={{ status: footer.status }} />
+  )
 }
 
 const STARTERS: Readonly<Record<string, string>> = {
@@ -91,20 +93,14 @@ export function AssistantSurface({
   onUserMessage,
   session,
 }: AssistantSurfaceProps) {
-  /*
-   * Under exactOptionalPropertyTypes an absent property and a property set to
-   * undefined are different types, so the key is omitted rather than passed
-   * empty.
-   */
-  const assistant = useAssistantSession({
-    endpoint,
-    ...(onUserMessage === undefined ? {} : { onUserMessage }),
-    ...(session === undefined ? {} : { session }),
-  })
+  const assistant = useAssistantSession({ endpoint, session })
 
   const controls = useSessionControls(config, models, assistant.status)
 
-  const rows = selectFeedRows(assistant.timeline)
+  /* Where a starter is written: the draft belongs to the field that holds it. */
+  const composer = useRef<PromptInputHandle | null>(null)
+
+  const rows = useMemo(() => selectFeedRows(assistant.timeline), [assistant.timeline])
   const started = rows.length > 0
 
   /*
@@ -112,14 +108,9 @@ export function AssistantSurface({
    * and it is not mounted at all: the resting state carries no overlay, no
    * listener and no markup for one.
    */
-  const turns = selectTurns(rows)
+  const turns = useMemo(() => selectTurns(rows), [rows])
 
-  /*
-   * The gap between the question and the first frame of the answer. Derived
-   * from the run being open with the transcript ending on the question.
-   */
-  const isWaiting = assistant.status === 'streaming' && rows.at(-1)?.item.type === 'user_message'
-  const outcome = selectSilentOutcome(assistant.timeline)
+  const footer = selectTurnFooter(assistant.timeline)
 
   /*
    * 正在读一条已有对话时也按“已开始”排版。
@@ -145,6 +136,7 @@ export function AssistantSurface({
                 agentLabel="Super Computer"
                 controls={controls.controls}
                 controlsFailure={controls.failure}
+                handle={composer}
                 isAgentNew
                 onCancel={assistant.cancel}
                 onSelectControl={controls.select}
@@ -156,13 +148,18 @@ export function AssistantSurface({
             <div className="assistant-surface__starters" inert={started}>
               <AssistantQuickActions
                 onSelect={(actionId) => {
-                  assistant.prefill(STARTERS[actionId] ?? '')
+                  const starter = STARTERS[actionId]
+
+                  if (starter !== undefined) {
+                    composer.current?.setText(starter)
+                    composer.current?.focus()
+                  }
                 }}
               />
             </div>
           </>
         }
-        footer={renderFooter(isWaiting, outcome)}
+        footer={renderFooter(footer)}
         header={
           <div className="assistant-surface__intro" inert={started}>
             <header className="assistant-masthead">

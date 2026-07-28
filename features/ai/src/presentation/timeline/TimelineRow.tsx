@@ -1,9 +1,11 @@
 import './timeline.css'
 
+import { memo } from 'react'
+
 import type { FeedRow } from '../../domain/timeline-selectors'
-import { AgentMessage } from './AgentMessage'
 import { ErrorNotice } from './ErrorNotice'
 import { PlanPanel } from './PlanPanel'
+import { Prose } from './Prose'
 import { ReasoningPanel } from './ReasoningPanel'
 import { ToolCallCard } from './ToolCallCard'
 import { UserMessage } from './UserMessage'
@@ -14,10 +16,16 @@ import { UserMessage } from './UserMessage'
  * Dispatch only. The feed owns scrolling and measurement, each renderer owns
  * its own appearance, and this decides nothing except which one applies.
  *
- * Permission requests are deliberately absent: answering one needs the session,
- * and a row renderer has no business holding it. The surface draws them.
+ * Memoised against the row, whose identity the selector holds stable for as
+ * long as its entry is untouched: an arriving token then re-renders the tail
+ * and nothing above it.
+ *
+ * Permission requests are drawn by the surface, because answering one needs the
+ * session and a row renderer has no business holding it. They are named here
+ * all the same, so the dispatch stays exhaustive — a new entry type is a
+ * compile error rather than a silently blank row.
  */
-export function TimelineRow({ row }: { readonly row: FeedRow }) {
+export const TimelineRow = memo(function TimelineRow({ row }: { readonly row: FeedRow }) {
   const { item } = row
 
   switch (item.type) {
@@ -25,7 +33,9 @@ export function TimelineRow({ row }: { readonly row: FeedRow }) {
       return <UserMessage text={item.text} />
 
     case 'agent_text':
-      return <AgentMessage isStreaming={row.isStreamingTail} text={item.text} />
+      return (
+        <Prose className="timeline-message" isStreaming={row.isStreamingTail} text={item.text} />
+      )
 
     case 'agent_thought':
       return <ReasoningPanel isStreaming={row.isStreamingTail} text={item.text} />
@@ -39,7 +49,15 @@ export function TimelineRow({ row }: { readonly row: FeedRow }) {
     case 'error':
       return <ErrorNotice message={item.message} />
 
-    default:
+    case 'permission':
       return null
+
+    default:
+      return unhandled(item)
   }
+})
+
+/* A new entry type fails to compile here; at runtime, nothing is drawn. */
+function unhandled(_item: never): null {
+  return null
 }

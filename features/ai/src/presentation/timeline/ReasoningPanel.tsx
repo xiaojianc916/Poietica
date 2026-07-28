@@ -1,5 +1,4 @@
-import { useState } from 'react'
-
+import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { Prose } from './Prose'
 import { useScrollFade } from './use-scroll-fade'
@@ -33,8 +32,7 @@ export interface ReasoningPanelProps {
  * measures.
  */
 export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
-  const [override, setOverride] = useState<boolean | null>(null)
-  const isOpen = override ?? isStreaming
+  const { isOpen, toggle } = useDisclosure(isStreaming)
   const scrollFadeRef = useScrollFade()
 
   return (
@@ -42,7 +40,7 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
       <button
         aria-expanded={isOpen}
         className="timeline-reasoning__toggle"
-        onClick={() => setOverride(!isOpen)}
+        onClick={toggle}
         type="button"
       >
         <ThinkingIcon aria-hidden="true" className="timeline-reasoning__mark" />
@@ -52,13 +50,11 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
         <ChevronDownIcon aria-hidden="true" className="timeline-reasoning__chevron" />
       </button>
 
-      <div className="timeline-reasoning__reveal" inert={!isOpen}>
-        <div className="timeline-reasoning__clip">
-          <div className="timeline-reasoning__scroll" ref={scrollFadeRef}>
-            <Prose className="timeline-reasoning__body" isStreaming={isStreaming} text={text} />
-          </div>
+      <DisclosureBody block="timeline-reasoning" isOpen={isOpen}>
+        <div className="timeline-reasoning__scroll" ref={scrollFadeRef}>
+          <Prose className="timeline-reasoning__body" isStreaming={isStreaming} text={text} />
         </div>
-      </div>
+      </DisclosureBody>
     </div>
   )
 }

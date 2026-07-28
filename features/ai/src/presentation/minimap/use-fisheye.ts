@@ -32,7 +32,8 @@ export function useFisheye(): (node: HTMLElement | null) => void {
       const origin = node.getBoundingClientRect().top
       const away = Number.isNaN(pointerY)
 
-      for (const bar of node.querySelectorAll<HTMLElement>('.conversation-minimap__turn')) {
+      /* The rail's own children, not a class name owned by another file. */
+      for (const bar of node.querySelectorAll<HTMLElement>(':scope > *')) {
         const center = origin + bar.offsetTop + bar.offsetHeight / 2
         const ratio = (center - pointerY) / FALLOFF_PX
         const weight = away ? 0 : Math.exp(-(ratio * ratio))
