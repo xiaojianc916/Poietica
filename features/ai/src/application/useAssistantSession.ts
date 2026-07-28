@@ -41,7 +41,7 @@ export interface AssistantSessionOptions {
    * rather than reached for.
    */
   readonly onUserMessage?: (text: string) => void
-  readonly session?: AgentSessionPort
+  readonly session?: AgentSessionPort | undefined
 }
 
 export interface AssistantSession {
@@ -50,14 +50,6 @@ export interface AssistantSession {
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, optionId: string) => void
-  /**
-   * Puts a starting phrase in the composer and leaves the user to finish it.
-   *
-   * A starter that sends a prompt on the user's behalf would be the assistant
-   * deciding what was asked, which this product does not do.
-   */
-  readonly prefill: (text: string) => void
-  readonly draft: string
   /** True while a conversation is still being read out of the log. */
   readonly isRestoring: boolean
 }
@@ -106,7 +98,6 @@ export function useAssistantSession({
   session,
 }: AssistantSessionOptions): AssistantSession {
   const [timeline, setTimeline] = useState<TimelineState>(() => opening(endpoint))
-  const [draft, setDraft] = useState('')
   const [shown, setShown] = useState(endpoint)
   const [isRestoring, setIsRestoring] = useState(() => !restored.has(endpoint))
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)

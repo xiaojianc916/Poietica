@@ -19,15 +19,35 @@ export interface FeedRow {
   readonly isStreamingTail: boolean
 }
 
+/*
+ * A row keeps its identity for as long as its entry and its role do.
+ *
+ * The reducer replaces only the entry a frame touched, so caching the row on
+ * the entry itself is what turns "the tail grew" into one changed row instead
+ * of a whole new transcript for a memoised renderer to walk. Keyed weakly, so a
+ * row is collected together with the entry it describes.
+ */
+const ROWS = new WeakMap<TimelineItem, FeedRow>()
+
+function toRow(item: TimelineItem, isStreamingTail: boolean): FeedRow {
+  const held = ROWS.get(item)
+
+  if (held !== undefined && held.isStreamingTail === isStreamingTail) {
+    return held
+  }
+
+  const row: FeedRow = { item, isStreamingTail }
+  ROWS.set(item, row)
+
+  return row
+}
+
 export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   const visible = state.items.filter(isRenderable)
   const lastIndex = visible.length - 1
   const live = state.status === 'running' || state.status === 'awaiting_permission'
 
-  return visible.map((item, index) => ({
-    item,
-    isStreamingTail: live && index === lastIndex && isGrowable(item),
-  }))
+  return visible.map((item, index) => toRow(item, live && index === lastIndex && isGrowable(item)))
 }
 
 /**
@@ -102,30 +122,49 @@ export interface TurnOutcome {
   readonly status: 'completed' | 'cancelled' | 'failed'
 }
 
+/** What the end of the transcript says when it has no entry to say it with. */
+export type TurnFooter = { readonly kind: 'waiting' } | ({ readonly kind: 'ended' } & TurnOutcome)
+
 /**
- * A finished turn that produced no entry of its own.
+ * The two ends of a turn that the entries alone cannot show.
  *
- * Two endings are silent by nature: an agent may finish its turn having said
- * nothing, and a refusal ends a run without ever sending a failure. Both leave
- * a segment holding only the question, which on screen is indistinguishable
- * from a transport that lost the answer — so the surface states the ending
- * instead of drawing nothing.
+ * A live run whose transcript still ends on the question is the gap before the
+ * first frame of the answer. A finished run in the same shape produced nothing
+ * of its own — an agent may end its turn having said nothing, and a refusal
+ * ends a run without ever sending a failure — which on screen is
+ * indistinguishable from a transport that lost the answer.
  *
- * Nothing is invented here: the status is the one the reducer derived from the
- * stop reason of the run.
+ * One derivation owns both, so the wait and the ending cannot disagree about
+ * which turn they belong to. Nothing is invented: the status is the one the
+ * reducer derived from the stop reason of the run, and the tail is found by
+ * walking back rather than by filtering the log into a second array.
  */
-export function selectSilentOutcome(state: TimelineState): TurnOutcome | null {
-  const status = state.status
-
-  if (status !== 'completed' && status !== 'cancelled' && status !== 'failed') {
+export function selectTurnFooter(state: TimelineState): TurnFooter | null {
+  if (lastRenderable(state.items)?.type !== 'user_message') {
     return null
   }
 
-  const tail = state.items.filter(isRenderable).at(-1)
+  switch (state.status) {
+    case 'running':
+    case 'awaiting_permission':
+      return { kind: 'waiting' }
+    case 'completed':
+    case 'cancelled':
+    case 'failed':
+      return { kind: 'ended', status: state.status }
+    default:
+      return null
+  }
+}
 
-  if (tail === undefined || tail.type !== 'user_message') {
-    return null
+function lastRenderable(items: readonly TimelineItem[]): TimelineItem | undefined {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+
+    if (item !== undefined && isRenderable(item)) {
+      return item
+    }
   }
 
-  return { status }
+  return undefined
 }

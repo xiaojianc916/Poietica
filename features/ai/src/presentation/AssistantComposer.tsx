@@ -1,5 +1,8 @@
+import type { RefObject } from 'react'
+
 import type { ChatStatus } from '../contracts/chat-status-contract'
 import type { SessionConfigControl } from '../contracts/session-config-contract'
+import type { PromptInputHandle } from './composer/prompt-input'
 import {
   PromptInput,
   PromptInputActionMenu,
@@ -33,7 +36,9 @@ export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
   readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
-  readonly onCancel?: () => void
+  readonly onCancel?: (() => void) | undefined
+  /** How the surface writes a starter into the draft it does not own. */
+  readonly handle?: RefObject<PromptInputHandle | null> | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
@@ -49,7 +54,7 @@ function ComposerToolbar({
   onSelectControl,
   status,
 }: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
-  const { insertText, text } = usePromptInput()
+  const { attachments, insertText, text } = usePromptInput()
 
   return (
     <PromptInputToolbar>
@@ -93,10 +98,14 @@ function ComposerToolbar({
         <MicIcon aria-hidden="true" />
       </PromptInputButton>
 
+      {/* The form accepts a submission carrying only attachments, so the
+          button has to offer one: two readings of "is there anything to send"
+          is how a dragged-in image ended up unsendable by mouse and sendable
+          by Enter. */}
       <PromptInputSubmit
-        disabled={status !== 'streaming' && text.trim().length === 0}
+        disabled={status !== 'streaming' && text.trim().length === 0 && attachments.length === 0}
+        onCancel={onCancel}
         status={status}
-        {...(onCancel === undefined ? {} : { onCancel })}
       />
     </PromptInputToolbar>
   )
@@ -113,13 +122,14 @@ function AttachmentsItem() {
 }
 
 export function AssistantComposer({
+  handle,
   placeholder = '问我任何问题…',
   status = 'ready',
   onSubmit,
   ...toolbar
 }: AssistantComposerProps) {
   return (
-    <PromptInput multiple onSubmit={onSubmit}>
+    <PromptInput handle={handle} multiple onSubmit={onSubmit}>
       <PromptInputBody>
         <PromptInputAttachments />
 

@@ -4,10 +4,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
-import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode } from 'react'
-import { createContext, useCallback, useContext, useId, useMemo, useRef, useState } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 
 import type { ChatStatus } from '../../contracts/chat-status-contract'
+import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 
 /*
@@ -63,10 +73,26 @@ export function usePromptInput(): PromptInputContextValue {
   return context
 }
 
-const cx = (...values: readonly (string | false | undefined)[]) => values.filter(Boolean).join(' ')
+/**
+ * What the composer may be asked from outside it.
+ *
+ * The draft is owned here, so writing a starter into it has to come in through
+ * the element rather than through a second copy of the state held above it;
+ * focus travels with the text, because a phrase the user is meant to finish is
+ * useless in an unfocused field.
+ *
+ * Its own prop, not a ref: the form's ref is already spoken for by
+ * requestSubmit, and a caller-supplied one would land after the spread and win
+ * silently.
+ */
+export interface PromptInputHandle {
+  readonly setText: (text: string) => void
+  readonly focus: () => void
+}
 
 export interface PromptInputProps extends Omit<ComponentProps<'form'>, 'onSubmit'> {
   readonly accept?: string
+  readonly handle?: RefObject<PromptInputHandle | null> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
   readonly onSubmit: (message: PromptInputMessage) => void
@@ -76,6 +102,7 @@ export function PromptInput({
   accept,
   children,
   className,
+  handle,
   maxFiles,
   multiple = false,
   onSubmit,
@@ -127,6 +154,8 @@ export function PromptInput({
     editor.focus()
     editor.setSelectionRange(editor.value.length, editor.value.length)
   }, [])
+
+  useImperativeHandle(handle, () => ({ setText, focus: focusTextarea }), [focusTextarea])
 
   const contextValue = useMemo<PromptInputContextValue>(
     () => ({
@@ -204,8 +233,8 @@ export function PromptInput({
           setText('')
           setAttachments([])
         }}
-        ref={formRef}
         {...props}
+        ref={formRef}
       >
         <input
           accept={accept}
@@ -391,7 +420,7 @@ export function PromptInputSubmit({
   ...props
 }: Omit<ComponentProps<'button'>, 'onClick'> & {
   readonly status?: ChatStatus
-  readonly onCancel?: () => void
+  readonly onCancel?: (() => void) | undefined
 }) {
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
