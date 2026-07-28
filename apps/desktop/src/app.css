@@ -31,6 +31,15 @@
   --desktop-window-close-hover: #c42b1c;
   --desktop-window-close-active: #b3251a;
   --desktop-window-close-foreground: #ffffff;
+
+  /*
+   * 滚动条。停留时长是设计决定,所以在令牌层,监听器从计算样式读同一个值
+   * —— 与 composer-metrics 的既有纪律一致:一个数字只有一处。
+   */
+  --desktop-scrollbar-linger: 1000ms;
+  --desktop-scrollbar-fade: 240ms;
+  --desktop-scrollbar-thumb: color-mix(in srgb, var(--color-foreground) 24%, transparent);
+  --desktop-scrollbar-thumb-strong: color-mix(in srgb, var(--color-foreground) 36%, transparent);
 }
 
 /*
@@ -100,10 +109,7 @@ body {
     border-color var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
-[role="tablist"] {
-  scrollbar-width: none;
-}
-
+/* 标签条不显示滚动条。这里只用伪元素,不碰标准属性 —— 理由见文件末尾。 */
 [role="tablist"]::-webkit-scrollbar {
   display: none;
 }
@@ -158,21 +164,6 @@ body {
   background: var(--window-backing-surface);
 }
 
-.fatal-diagnostic {
-  scrollbar-color: color-mix(in srgb, var(--color-foreground) 32%, transparent)
-    var(--window-backing-surface);
-}
-
-.fatal-diagnostic::-webkit-scrollbar-track {
-  background: var(--window-backing-surface);
-}
-
-.fatal-diagnostic::-webkit-scrollbar-thumb {
-  border: 3px solid var(--window-backing-surface);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--color-foreground) 32%, transparent);
-}
-
 /* fatal-error-illustration */
 .fatal-illustration {
   display: block;
@@ -183,42 +174,66 @@ body {
 }
 
 /*
- * round 133: one scrollbar for the whole window.
+ * 全窗口一条滚动条,而且只在滚动时露面。
  *
- * Applied globally on purpose. Styling one component leaves every other
- * scroller with the platform default, which is exactly what happened: a
- * thick bar with stepper arrows nobody clicks. The track stays transparent
- * so a scroller always shows its own background, and the arrows are removed
- * because nothing here is read one line at a time.
+ * 标准属性与 -webkit- 伪元素不能混用。Chromium 里,只要一个元素的
+ * scrollbar-color 或 scrollbar-width 不是初始值,它就走标准滚动条,该元素上
+ * 所有 ::-webkit-scrollbar 规则一概作废。而 scrollbar-color 是继承属性 ——
+ * 上一版把它写在 html 上,于是文档里每一个滚动盒都继承到了非初始值,下面这
+ * 些伪元素规则一条都没生效过:宽度不是 6px、圆角没有、hover 没有,连
+ * scrollbar-button 的 display: none 都没有,注释里宣称"箭头已移除",那两个
+ * 步进三角却一直画在那儿。所以这里只留一条路线:伪元素。
+ *
+ * 收细的办法不是把 width 写小,那样就抓不住了。命中区留 10px,只给 padding
+ * box 上色,3px 的透明边把可见的一条收成 4px。
+ *
+ * 露不露面由滚动盒上的 data-scrolling 决定,写它的是窗口级的那一个滚动监听
+ * 器(presentation/chrome/scrollbar-activity.ts)。这里不写"悬停内容就露面":
+ * :hover 会命中整条祖先链,指针只要在面板里,滚动条就常亮。thumb 透明时轨道
+ * 仍然占位、仍然可命中,按下就有 scroll,立刻现形 —— 与原生浮层滚动条一致。
+ *
+ * transition 是渐进增强:引擎若补间伪元素的颜色就是淡出,若不补间就是停留
+ * 满 --desktop-scrollbar-linger 之后直接消失。两种情况行为都成立。
  */
 
-html {
-  scrollbar-color: oklch(91.2% 0 0) transparent;
-  scrollbar-width: thin;
-}
-
 *::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   background: transparent;
 }
 
-*::-webkit-scrollbar-button {
+*::-webkit-scrollbar-button,
+*::-webkit-scrollbar-corner {
   display: none;
   width: 0;
   height: 0;
 }
 
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-corner {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: oklch(91.2% 0 0);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+  transition: background-color var(--desktop-scrollbar-fade) var(--ui-ease-standard);
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: oklch(86% 0 0);
+[data-scrolling]::-webkit-scrollbar-thumb {
+  background: var(--desktop-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+[data-scrolling]::-webkit-scrollbar-thumb:hover,
+[data-scrolling]::-webkit-scrollbar-thumb:active {
+  background: var(--desktop-scrollbar-thumb-strong);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *::-webkit-scrollbar-thumb {
+    transition: none;
+  }
 }

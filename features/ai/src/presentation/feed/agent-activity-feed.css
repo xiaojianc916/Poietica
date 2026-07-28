@@ -114,31 +114,42 @@
 .agent-activity-feed__dock {
   position: sticky;
   z-index: 1;
-  isolation: isolate;
   inset-block-end: 0;
   margin-block-start: var(--cp-dock-gap);
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
+  background: var(--cp-canvas);
 }
 
 /*
- * The layer, and why it has no edge.
+ * 上沿的溶解,以及这里为什么没有毛玻璃。
  *
- * A veil the shape of the band is a rectangle, and a rectangle over a moving
- * transcript is a visible line: content is sharp on one side of it and blurred
- * on the other. So the veil and the blur are one layer that reaches above the
- * band and is masked to nothing at its top — the same gradient drives both,
- * because a mask hides the filter with the paint. Its colour is mixed from the
- * canvas token rather than stated, so it can never disagree with the canvas.
+ * 毛玻璃是给"底下有材质"的场景用的 —— 侧栏压在照片上、工具栏压在网页上,
+ * 模糊出来的是背景本身的色彩分布。这条band 底下是 --cp-canvas 一块纯色:
+ * 模糊一块纯色等于什么都没做,它唯一可见的后果是把那层 82% 的纱透出来的
+ * 18% 文字糊成一团,于是整条band 读起来是一块半糊的色块,而不是一段消失。
+ * 代价还要另算:一个 backdrop 合成层,叠一张遮罩,滚动时整块逐帧重采样。
+ *
+ * 换成两块各管一段。band 自己是实心的画布色,所以下沿没有边可言 —— 它和
+ * 画布本来就是同一种颜色。上沿是这个伪元素:同一种颜色的一段 alpha 渐变,
+ * 长度是三行正文,行高 26px,所以一行字要走满三行的距离才完全没入。
+ *
+ * 停靠点是加权的,不是线性:线性 alpha 在感知上前段掉得太快、尾巴又拖着,
+ * 加权之后才是"化开"。透明的那一端写成同色零透明度,而不是 transparent,
+ * 于是不必依赖引擎在渐变里怎么处理预乘。
  */
 .agent-activity-feed__dock::before {
   content: "";
   position: absolute;
   z-index: -1;
   inset-inline: 0;
-  inset-block: calc(-1 * var(--cp-dock-fade)) 0;
-  background: var(--cp-canvas-veil);
-  backdrop-filter: blur(var(--cp-dock-blur));
-  mask-image: linear-gradient(to bottom, transparent 0, black var(--cp-dock-fade));
+  inset-block: calc(-1 * var(--cp-dock-scrim)) 100%;
+  background: linear-gradient(
+    to bottom,
+    rgb(from var(--cp-canvas) r g b / 0) 0%,
+    rgb(from var(--cp-canvas) r g b / 0.55) 58%,
+    rgb(from var(--cp-canvas) r g b / 0.88) 82%,
+    var(--cp-canvas) 100%
+  );
   pointer-events: none;
 }
 

@@ -7,10 +7,13 @@ import {
 import { installApplicationLifecycle } from './bootstrap/application-lifecycle'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
+import { installScrollbarActivity } from './presentation/chrome/scrollbar-activity'
 
 void bootstrapApplication()
 
 async function bootstrapApplication(): Promise<void> {
+  installScrollbarActivity()
+
   const previousCrash = await readPreviousNativeCrashReport()
 
   if (previousCrash) {
