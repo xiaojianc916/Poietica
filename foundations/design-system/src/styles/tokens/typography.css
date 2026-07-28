@@ -28,4 +28,16 @@
   --ui-letter-spacing-tight: -0.01em;
   --ui-letter-spacing-normal: 0;
   --ui-letter-spacing-wide: 0.025em;
+
+  /*
+   * 模型输出的长文排版（chat prose）。
+   *
+   * 与 --ui-font-size-* 分开命名，因为它们回答的不是同一个问题：那一组是
+   * 控件字号，这一组是一段连续文字的刻度 —— 一个根字号，一个行高，一个节奏，
+   * 其余级差在消费处用 em 相对它表达。桌面 IDE 的聊天正文量级（13px / 1.6）。
+   */
+  --ui-prose-size: 0.8125rem;
+  --ui-prose-size-quiet: 0.75rem;
+  --ui-prose-line-height: 1.6;
+  --ui-prose-flow: 0.6em;
 }

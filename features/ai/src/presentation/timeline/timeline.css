@@ -24,6 +24,8 @@
 
 .timeline-user__text {
   margin: 0;
+  font-size: var(--ui-prose-size, 0.8125rem);
+  line-height: var(--ui-prose-line-height, 1.6);
   inline-size: 100%;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -71,8 +73,33 @@
  * 内部的 <table> 上，在表头上方顶出一条空白，控件就浮在那条空白里。边距归包裹
  * 层所有 —— 它才是这条流里的那个块。
  */
+/*
+ * prose type scale — 一条回复的排版，在这里一次性定死。
+ *
+ * 在此之前这个作用域只声明了节奏，字号、标题级差和 strong 的字重都还是浏览器
+ * 的默认值：h1 是 2em 且 700，h2 是 1.5em。那套刻度是给一整页文档准备的，放进
+ * 一条 13px 的聊天流里，一个二级标题就有 20 多个像素高，段落于是被顶得四散 ——
+ * "太大太散"不是节奏没调好，是级差根本不属于这个语境。
+ *
+ * 做法是 scoped prose：先在这个作用域里推翻 UA 的级差，再重新给一套。这不是
+ * 自创的写法，Tailwind Typography 的 prose、GitHub 的 .markdown-body、
+ * Bootstrap Reboot 都是同一个模式 —— 排版归组件所有，而不是归文档默认值所有。
+ *
+ * 刻度只有一个绝对值：容器的 --ui-prose-size。其余全部用 em 相对它表达，所以
+ * 思维链那边只要把容器字号降一档，整套级差和间距会等比跟着收紧，不必重述任何
+ * 一个数字。节奏仍是原来那一个 --cp-prose-flow，只是从 0.75em 收到 0.6em。
+ *
+ * 字重取 600 而非 UA 的 700：这个字号下 700 会糊成一团，编辑器类产品普遍停在
+ * 600。字距取 0 —— 小字号收紧字距只会伤中文。
+ */
 .timeline-prose {
-  --cp-prose-flow: 0.75em;
+  --cp-prose-flow: var(--ui-prose-flow, 0.6em);
+  --cp-prose-flow-heading: calc(var(--cp-prose-flow) * 1.4);
+
+  font-size: var(--ui-prose-size, 0.8125rem);
+  line-height: var(--ui-prose-line-height, 1.6);
+  letter-spacing: var(--ui-letter-spacing-normal, 0);
+  text-wrap: pretty;
 }
 
 .timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
@@ -81,7 +108,85 @@
 
 /* A heading opens a section, so it takes a breath a paragraph does not. */
 .timeline-prose :is(h1, h2, h3, h4, h5, h6) {
-  margin-block-start: calc(var(--cp-prose-flow) * 1.5);
+  margin-block-start: var(--cp-prose-flow-heading);
+  font-weight: var(--ui-font-weight-semibold, 600);
+  line-height: var(--ui-line-height-tight, 1.25);
+  letter-spacing: var(--ui-letter-spacing-normal, 0);
+}
+
+/*
+ * 三档，不是六档。一条回复里能被读出来的层级本来就只有"节""小节""其余"，
+ * 多出来的三档在 13px 上彼此看不出差别，只会让作者以为自己有更多层可用。
+ */
+.timeline-prose h1 {
+  font-size: 1.231em;
+}
+
+.timeline-prose h2 {
+  font-size: 1.077em;
+}
+
+.timeline-prose :is(h3, h4, h5, h6) {
+  font-size: 1em;
+}
+
+/* 四级往下不再靠大小说话，靠颜色退一步。 */
+.timeline-prose :is(h4, h5, h6) {
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+}
+
+.timeline-prose :is(strong, b) {
+  font-weight: var(--ui-font-weight-semibold, 600);
+}
+
+/*
+ * 列表的缩进跟着字号走，所以在思维链里会自动变浅。项与项之间给一个远小于段间距
+ * 的呼吸：一份清单是一个块，不是若干个段落。
+ */
+.timeline-prose :is(ul, ol) {
+  padding-inline-start: 1.35em;
+}
+
+.timeline-prose li + li {
+  margin-block-start: 0.25em;
+}
+
+.timeline-prose li > :is(ul, ol) {
+  margin-block-start: 0.25em;
+}
+
+.timeline-prose li::marker {
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+}
+
+/*
+ * 引用是一条边，不是一个盒子：这条流里已经有卡片（代码块、工具调用、表格），
+ * 再给引用一个背景，读者就得判断它是不是又一种控件。
+ */
+.timeline-prose blockquote {
+  padding-inline-start: 0.875em;
+  border-inline-start: 2px solid var(--cp-hairline, rgb(0 0 0 / 12%));
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  font-style: normal;
+}
+
+.timeline-prose blockquote > :first-child {
+  margin-block-start: 0;
+}
+
+/* 分隔线是一根发丝，且两侧的空白要大于普通段间距，否则它分不开任何东西。 */
+.timeline-prose hr {
+  margin-block: var(--cp-prose-flow-heading) 0;
+  border: 0;
+  block-size: 1px;
+  background: var(--cp-hairline, rgb(0 0 0 / 8%));
+}
+
+.timeline-prose a {
+  color: var(--cp-accent, currentcolor);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-thickness: from-font;
 }
 
 /*
@@ -351,7 +456,7 @@
   --cp-prose-flow: 0.5em;
 
   max-inline-size: var(--cp-timeline-thought-max, 48rem);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-quiet, 0.75rem);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
