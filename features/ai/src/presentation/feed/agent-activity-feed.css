@@ -107,9 +107,18 @@
  * Sticky, not fixed and not absolutely placed: it keeps its place at the end of
  * the flow, so the scrollbar measures the whole conversation and the transcript
  * stops a stack above the band instead of hiding behind it. While the run is
- * scrolled the transcript passes underneath, and the veil with the blur is what
- * says this is a layer. A sticky offset is resolved against the scrollport,
- * which is the padding box, so the band carries the bottom inset itself.
+ * scrolled the transcript passes underneath, and that passing is the whole
+ * reason the band paints anything at all. A sticky offset is resolved against
+ * the scrollport, which is the padding box, so the band carries the bottom
+ * inset itself.
+ *
+ * 落地之前它什么都不画。
+ *
+ * 开场的排版是浮在空面板中间的一组：标题、输入框、三张卡片，底下没有任何
+ * 东西会从它下面经过。这时候铺一层画布色的实底再加一段渐变，画的是一个不
+ * 存在的图层关系——纸上贴纸，同色，只在滚动时才可能露出破绽。所以实底与上
+ * 沿的溶解都挂在 data-started 上：撑空的两个伪元素读它，画布的 flex-grow
+ * 读它，这层材质也读它，三者不可能对"输入框到底落地没有"产生分歧。
  */
 .agent-activity-feed__dock {
   position: sticky;
@@ -117,6 +126,9 @@
   inset-block-end: 0;
   margin-block-start: var(--cp-dock-gap);
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
+}
+
+.assistant-surface[data-started="true"] .agent-activity-feed__dock {
   background: var(--cp-canvas);
 }
 
@@ -137,7 +149,7 @@
  * 加权之后才是"化开"。透明的那一端写成同色零透明度,而不是 transparent,
  * 于是不必依赖引擎在渐变里怎么处理预乘。
  */
-.agent-activity-feed__dock::before {
+.assistant-surface[data-started="true"] .agent-activity-feed__dock::before {
   content: "";
   position: absolute;
   z-index: -1;

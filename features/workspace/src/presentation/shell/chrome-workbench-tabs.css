@@ -1,12 +1,18 @@
 /*
  * Canonical Chrome-style workbench tabs.
  *
- * Region divider ownership:
- * - Left rail button zone owns its own bottom border.
- * - Sidebar placeholder owns its own bottom border and optional right border.
- * - The tab strip root owns the middle baseline.
- * - Right window control zone owns its own bottom border.
- * - The baseline under the active tab is intentionally not drawn.
+ * 基线只有一个所有者：外壳栅格 chrome 行的 header（WorkspaceShell 的
+ * border-b）。它横跨侧边栏开合区、标签条、窗口控制区，与行内装的是标签条
+ * 还是设置界面无关。
+ *
+ * 标签条自己不画线，只在激活标签的水平区间把那条线盖成标签底色——见文件
+ * 末尾唯一的一条 ::after。这一条之外，本文件不得出现第二处对该 1px 的声明。
+ *
+ * 之所以要把这句话写死：此前"分区各画一截""标签条自己画左右两段""盖住父级
+ * 的线"三代写法同时留在这个文件里，谁的特异性偶然更高谁说了算。二代那条
+ * [data-has-active-tab="true"]::after 的 left 特异性 (0,2,0)，压过三代的
+ * inset-inline-start (0,1,0)，于是遮罩宽度取自激活标签、起点却落在它的右
+ * 边界——整块平移了一个标签宽。激活标签底下的线就是这么反复回来的。
  */
 
 .chrome-workbench-tabs {
@@ -23,8 +29,9 @@
   --chrome-tab-hover: color-mix(in srgb, var(--color-foreground) 4%, var(--chrome-tab-strip) 96%);
 
   /*
-   * 缺省 0px 的渲染结果与"无活动标签"逐字相同：::before 宽度为 0，::after
-   * 铺满全条。所以 hook 在测不到激活标签时只需移除这两个属性。
+   * 缺省 0px 就是"没有活动标签"的正确渲染：遮罩宽度为 0，那条线完整穿过。
+   * 所以 hook 在测不到激活标签时只需移除这两个属性，不需要第二个状态属性来
+   * 表达同一件事。
    */
   --chrome-active-tab-left: 0px;
   --chrome-active-tab-right: 0px;
@@ -40,29 +47,6 @@
   background: var(--chrome-tab-strip);
   font-family: var(--ui-font-sans);
   font-size: var(--ui-font-size-xs);
-}
-
-/*
- * 基线画在标签条根上，因为只有它横跨整条：滚动容器按内容取宽，新建按钮与
- * 拖拽填充区是它的兄弟节点，基线必须连续穿过这三者的下沿。
- */
-.chrome-workbench-tabs[data-has-active-tab="true"]::before {
-  left: 0;
-  right: calc(100% - var(--chrome-active-tab-left));
-}
-
-.chrome-workbench-tabs[data-has-active-tab="true"]::after {
-  left: var(--chrome-active-tab-right);
-  right: 0;
-}
-
-.chrome-workbench-tabs[data-has-active-tab="false"]::before {
-  display: none;
-}
-
-.chrome-workbench-tabs[data-has-active-tab="false"]::after {
-  left: 0;
-  right: 0;
 }
 
 .chrome-workbench-tabs__scroller {

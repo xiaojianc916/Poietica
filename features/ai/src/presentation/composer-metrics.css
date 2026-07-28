@@ -95,6 +95,23 @@
   /* 卡片、确认条与代码块共用的一条实线边,一处定义。 */
   --cp-card-line: #e5e5e5;
 
+  /*
+   * 「我」说的话的底色。
+   *
+   * 画布是 --ui-background(#f8f8f8,chroma 为 0),气泡此前写死 #f5f5f5:两者
+   * 在 OKLab 上只差 0.009 的明度,等于没有边界 —— 而且那个 #f5f5f5 不是谁选
+   * 的,它是 var() 的兜底,因为这个 token 在本文件里从来没有被定义过。
+   *
+   * 现在不再挑一个十六进制,而是从画布自己推:兑 5% 墨色。浅色主题下落在
+   * #ebebeb,与画布相差 0.040 明度 —— 一眼分得开,又不至于变成一个色块;下限
+   * 是 --cp-card-line(#e5e5e5),气泡底压到它,同屏卡片的描边就没了。深色主题
+   * 下同一条式子把白色兑进 #191919,气泡自动变亮而不是变暗。
+   *
+   * 用 oklab 而不是 srgb 插值:混出来的 chroma 只有 0.0005,是真中性灰;sRGB
+   * 插值在浅灰段容易泛出偏色。
+   */
+  --cp-timeline-user-surface: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
+
   /* 抽屉:思考过程的开合,时长与曲线在这里定一次。 */
   --cp-motion-drawer: 260ms;
   --cp-motion-drawer-ease: cubic-bezier(0.2, 0, 0, 1);

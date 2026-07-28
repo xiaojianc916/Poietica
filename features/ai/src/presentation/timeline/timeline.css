@@ -19,7 +19,7 @@
   max-inline-size: min(100%, 32rem);
   padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
   border-radius: var(--cp-timeline-radius, 0.75rem);
-  background: var(--cp-timeline-user-surface, #f5f5f5);
+  background: var(--cp-timeline-user-surface);
 }
 
 .timeline-user__text {
@@ -65,12 +65,17 @@
  * proportionally tighter spacing without restating a number. That is the whole
  * mechanism behind the thought chain reading tighter than the answer: it says
  * only that it is one notch quieter, and the arithmetic follows.
+ *
+ * 表格不在这张清单里：Streamdown 把它包了三层（包裹层 → 滚动盒 → table），
+ * 下面那条首块清零只够到两层。清单若把 table 算进来，这道 margin 会落在滚动盒
+ * 内部的 <table> 上，在表头上方顶出一条空白，控件就浮在那条空白里。边距归包裹
+ * 层所有 —— 它才是这条流里的那个块。
  */
 .timeline-prose {
   --cp-prose-flow: 0.75em;
 }
 
-.timeline-prose :is(p, ul, ol, blockquote, table, hr, h1, h2, h3, h4, h5, h6) {
+.timeline-prose :is(p, ul, ol, blockquote, hr, h1, h2, h3, h4, h5, h6) {
   margin-block: var(--cp-prose-flow) 0;
 }
 
@@ -664,40 +669,120 @@
 
 /* ── 表格 ───────────────────────────────────────────────────────────
  *
- * 上游把表格包成两层框：外层 rounded-lg border bg-sidebar p-2，里层滚动盒
- * rounded-md border bg-background（lib/table/index.tsx）。正文里因此出现一个
- * 卡中卡，和同一条流里的代码块根本不是一种语言。这里让外层退成纯定位容器，
- * 边框只保留一层，标题栏由表头自己充当。
+ * 上游把表格包成三层：外层 rounded-lg border bg-sidebar p-2，里层滚动盒
+ * rounded-md border bg-background，最里面才是 <table>；控件是外层的第一个
+ * 子元素（lib/table/index.tsx）。正文里因此出现一个卡中卡，和同一条流里的
+ * 代码块根本不是一种语言。这里让外层退成纯定位容器，边框只保留一层，
+ * 标题栏由表头自己充当，控件坐进这条标题栏的右端。
+ *
+ * 这条栏的高度只有一个来源：--cp-table-head 同时是表头单元格的 block-size
+ * 和控件层的 block-size。上一版把高度写了两遍 —— 表头靠 padding 加行高撑出
+ * (≈36.8px)，控件层另写一个 min-block-size (36px) —— 两个数只能凭运气对齐，
+ * 字号、行高、字体任何一处一动就错位。现在表头 padding-block 归零，行高不再
+ * 参与，栏高就是那个 token。
+ *
+ * 右端留白也不再是拍脑袋的 4.5rem。按钮的真实尺寸是 p-1 + 14px 图标 = 22px，
+ * 容器 gap-1 = 4px（copy-dropdown.tsx / fullscreen-button.tsx），两个按钮只占
+ * 3rem，三个占 4.625rem —— 一个常量同时能太大和太小。改成：按钮尺寸由
+ * --cp-table-control 接管，个数由 :has() 从 DOM 数出来，末列让位宽度是这几个
+ * 量算出来的，Prose 里的 CONTROLS 增删一个按钮，这里自动跟上。
+ *
+ * 包裹层不再 overflow: hidden。复制菜单是 absolute top-full z-20，挂在包裹层
+ * 内部，裁剪会把它剪断；圆角交给滚动盒继承半径来收，它本来就带 overflow-auto。
  */
 
 .timeline-prose [data-streamdown="table-wrapper"] {
+  --cp-table-head: 2.25rem;
+  --cp-table-pad: 0.75rem;
+  --cp-table-control: 1.5rem;
+  --cp-table-control-gap: 0.25rem;
+  --cp-table-controls: 0;
+
   position: relative;
   display: block;
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
-  overflow: hidden;
   border: 1px solid var(--cp-card-line, rgb(0 0 0 / 8%));
   border-radius: var(--cp-timeline-radius, 0.5rem);
   background: transparent;
 }
 
 /*
- * 控件不再独占一行，它坐在表头带的右端 —— 和代码块 actions 同一套做法。
- * 用结构选中而不是"里面有没有 table"：全屏按钮持有同一批子节点，按内容判定会
- * 认错人。有控件时结构是 [控件, 滚动盒]，没有时只剩滚动盒。
+ * 控件有几个，由 DOM 回答，不由注释回答。三条规则特异性相同，靠书写顺序递进，
+ * 命中最靠后的那条 —— 有第三个子元素就是 3，只有第二个就是 2，依此类推。
+ */
+.timeline-prose
+[data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :first-child) {
+  --cp-table-controls: 1;
+}
+
+.timeline-prose
+  [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :nth-child(2)) {
+  --cp-table-controls: 2;
+}
+
+.timeline-prose
+  [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2) > :nth-child(3)) {
+  --cp-table-controls: 3;
+}
+
+/*
+ * 控件层坐在标题栏右端 —— 和代码块 actions 同一套做法。用结构选中而不是
+ * "里面有没有 table"：全屏按钮持有同一批子节点，按内容判定会认错人。
+ * 有控件时结构是 [控件, 滚动盒]，没有时只剩滚动盒。
+ * flex 与居中在这里自己声明，不借上游的工具类 —— 位置是我们的主张。
  */
 .timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) {
   position: absolute;
   z-index: 1;
   inset-block-start: 0;
-  inset-inline-end: 0.25rem;
-  min-block-size: var(--cp-table-head, 2.25rem);
+  inset-inline-end: var(--cp-table-pad);
+  display: flex;
+  align-items: center;
+  gap: var(--cp-table-control-gap);
+  block-size: var(--cp-table-head);
 }
 
-/* 滚动盒交出边框，只留滚动。 */
+/*
+ * 只取两个触发按钮：全屏按钮是控件层的直接子元素，复制按钮在 div.relative 里
+ * 差一层。复制菜单里的 md / csv / tsv 三个按钮再深一层，不会被压成方块。
+ */
+.timeline-prose [data-streamdown="table-wrapper"] > div:first-child:nth-last-child(2) > button,
+.timeline-prose
+  [data-streamdown="table-wrapper"]
+  > div:first-child:nth-last-child(2)
+  > div
+  > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--cp-table-control);
+  block-size: var(--cp-table-control);
+  padding: 0;
+  border-radius: 0.375rem;
+  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  transition:
+    background-color 120ms var(--cp-motion-ease, ease),
+    color 120ms var(--cp-motion-ease, ease);
+}
+
+.timeline-prose
+  [data-streamdown="table-wrapper"]
+  > div:first-child:nth-last-child(2)
+  > button:hover,
+.timeline-prose
+  [data-streamdown="table-wrapper"]
+  > div:first-child:nth-last-child(2)
+  > div
+  > button:hover {
+  background: var(--cp-hover, rgb(0 0 0 / 5%));
+  color: var(--cp-ink, rgb(0 0 0 / 82%));
+}
+
+/* 滚动盒交出边框，只留滚动，并接手圆角裁剪。 */
 .timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
   border: 0;
-  border-radius: 0;
+  border-radius: inherit;
   background: transparent;
 }
 
@@ -711,16 +796,22 @@
   background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
 }
 
+/*
+ * 表头行的高度就是那个 token：padding-block 归零，行高不再参与，文字靠单元格
+ * 默认的 middle 对齐居中。控件层用同一个 token，两者从此不可能错位。
+ */
 .timeline-prose [data-streamdown="table-header-cell"] {
-  padding: 0.5rem 0.75rem;
+  block-size: var(--cp-table-head);
+  padding: 0 var(--cp-table-pad);
   font-size: inherit;
   font-weight: 600;
   text-align: start;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
 .timeline-prose [data-streamdown="table-cell"] {
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem var(--cp-table-pad);
   font-size: inherit;
   vertical-align: top;
 }
@@ -734,11 +825,21 @@
   border-block-start: 1px solid var(--cp-hairline, rgb(0 0 0 / 6%));
 }
 
-/* 只有真的有控件时，最后一格才让位。 */
+/*
+ * 末列让位：一个内边距 + 按钮总宽 + 一个内边距。按钮总宽 = 个数 × 尺寸 +
+ * 间隙 ×（个数 − 1），个数为 0 时 max() 兜住负数。没有控件就不让位。
+ */
 .timeline-prose
   [data-streamdown="table-wrapper"]:has(> div:first-child:nth-last-child(2))
   [data-streamdown="table-header-cell"]:last-child {
-  padding-inline-end: 4.5rem;
+  padding-inline-end: calc(
+    var(--cp-table-pad) *
+    2 +
+    var(--cp-table-controls) *
+    var(--cp-table-control) +
+    max(var(--cp-table-controls) - 1, 0) *
+    var(--cp-table-control-gap)
+  );
 }
 
 /* ── 改动规模 ───────────────────────────────────────────────────────
