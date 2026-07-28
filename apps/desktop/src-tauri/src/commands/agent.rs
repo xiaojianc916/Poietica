@@ -16,7 +16,7 @@
 //! or sent.
 
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use poietica_ai_acp_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
@@ -74,6 +74,12 @@ pub struct AgentRuntime {
     slot: RunSlot,
     desk: PermissionDesk,
     session: Mutex<Option<Session>>,
+    /// The one connection to the encrypted log, opened on first use.
+    ///
+    /// 此前每条命令各开一条：一次钥匙串读取、一次 SQLCipher 装载、
+    /// 一遍 migrate，刷新一次侧栏就走一整套。日志自称的 single
+    /// writer 也从来没有存在过。
+    store: OnceLock<Arc<Mutex<AiStore>>>,
 }
 
 impl AgentRuntime {
@@ -103,6 +109,7 @@ impl AgentRuntime {
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
             session: Mutex::new(None),
+            store: OnceLock::new(),
         })
     }
 }
@@ -191,10 +198,12 @@ pub async fn agent_prompt(
 
     let session = ensure_session(&state, request.command, request.cwd).await?;
 
-    // Opening the store is a file open and a pragma, and the log is the one
-    // thing that must exist before the turn does, so it is done inline rather
-    // than handed to a thread whose failure would arrive after the fact.
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    // The log is the one thing that must exist before the turn does, so
+    // it is taken here rather than handed to a thread whose failure would
+    // arrive after the fact. Nothing awaits below this line, so holding the
+    // lock to the end of the command keeps this future Send.
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
 
     // The turn is recorded under the conversation on screen. The interface
     // names it, because the interface is what the user is looking at; a
@@ -229,7 +238,7 @@ pub async fn agent_prompt(
 
     let handle = app.clone();
     let recorder = Recorder::new(
-        store,
+        Arc::clone(&shared),
         run_id,
         Box::new(move |event: &RecordedEvent| {
             // The frame is already durable. A renderer that is not listening
@@ -344,7 +353,8 @@ pub fn agent_load_run(
     let run_id = Uuid::parse_str(&request.run_id)
         .map_err(|_invalid| Error::Validation("the run identifier is not a UUID".to_owned()))?;
 
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
     let events = store
         .events_since(run_id, i64::from(request.after_seq.unwrap_or_default()))
         .map_err(persistence)?;
@@ -400,7 +410,8 @@ pub fn agent_load_thread(
         });
     };
 
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
     let events = store.thread_events(thread_id).map_err(persistence)?;
 
     Ok(AgentThreadTranscript {
@@ -613,7 +624,8 @@ async fn ensure_session(
         .await
         .map_err(|_dropped| Error::Internal(NO_SESSION_ID.to_owned()))?;
 
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(state)?;
+    let store = borrow_store(&shared)?;
     let thread_id = store
         .create_thread(FALLBACK_THREAD_TITLE)
         .map_err(persistence)?;
@@ -661,6 +673,36 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
         session_id: live.session_id.clone(),
         thread_id: live.thread_id,
     }))
+}
+
+/// The one connection, opened the first time anything needs it.
+///
+/// Not at boot: opening it reads the operating system credential store, and
+/// a launch that never opens the assistant should not pay for that. Once,
+/// though, and not once per command.
+fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AiStore>>> {
+    if let Some(held) = state.store.get() {
+        return Ok(Arc::clone(held));
+    }
+
+    let opened = Arc::new(Mutex::new(
+        AiStore::open(&state.database).map_err(persistence)?,
+    ));
+
+    // Two commands can race to be the first. The loser's connection is
+    // dropped and everyone uses the winner's, which is the whole point.
+    Ok(Arc::clone(state.store.get_or_init(|| opened)))
+}
+
+/// Takes the connection for the length of one statement.
+///
+/// Never held across an await: a guard that is would make the command's
+/// future not Send, which is why this is a separate step from taking the
+/// share above rather than one call that does both.
+fn borrow_store(shared: &Arc<Mutex<AiStore>>) -> Result<MutexGuard<'_, AiStore>> {
+    shared
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
 }
 
 fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Session>>> {
@@ -904,12 +946,17 @@ pub struct AgentOpenedThread {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
-    let store =
-        AiStore::open(&state.database).map_err(|failure| Error::Internal(failure.to_string()))?;
+    let shared = shared_store(&state)?;
 
-    if let Ok(Some(live)) = borrow(&state)
-        && let Ok(listed) = live.client.sessions().await
-    {
+    // 先问 agent，再上锁：guard 跨 await 会让这个 future 不是 Send。
+    let official = match borrow(&state) {
+        Ok(Some(live)) => live.client.sessions().await.ok(),
+        _unavailable => None,
+    };
+
+    let store = borrow_store(&shared)?;
+
+    if let Some(listed) = official {
         for info in listed {
             let Some(title) = info.title else { continue };
             let Ok(Some(thread)) = store.thread_for_session(&info.session_id) else {
@@ -966,8 +1013,8 @@ pub async fn agent_open_thread(
         .await
         .map_err(translate)?;
 
-    let store =
-        AiStore::open(&state.database).map_err(|failure| Error::Internal(failure.to_string()))?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
 
     let thread_id = store
         .create_thread(FALLBACK_THREAD_TITLE)
@@ -1062,7 +1109,8 @@ pub fn agent_rename_thread(
     }
 
     let id = conversation(&request.thread_id)?;
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
 
     store.name_by_user(id, &title).map_err(persistence)?;
 
@@ -1082,7 +1130,8 @@ pub fn agent_delete_thread(
     request: AgentThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
 
     store.delete_thread(id).map_err(persistence)?;
 
@@ -1102,7 +1151,8 @@ pub fn agent_pin_thread(
     request: AgentPinThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
-    let store = AiStore::open(&state.database).map_err(persistence)?;
+    let shared = shared_store(&state)?;
+    let store = borrow_store(&shared)?;
 
     store.set_pinned(id, request.pinned).map_err(persistence)?;
 

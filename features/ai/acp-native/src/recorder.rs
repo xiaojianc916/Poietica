@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
@@ -54,7 +55,11 @@ pub struct RecordedEvent {
 /// projections, then forward. A consumer can therefore never observe an event
 /// that would disappear on restart.
 pub struct Recorder {
-    store: AiStore,
+    /// The one connection, shared with everything else that writes.
+    ///
+    /// Owning a connection outright was what made the log's own promise of
+    /// a single writer untrue: every run brought another one along.
+    store: Arc<Mutex<AiStore>>,
     run_id: Uuid,
     next_seq: i64,
     sink: Box<dyn FnMut(&RecordedEvent) + Send>,
@@ -82,7 +87,11 @@ impl fmt::Debug for Recorder {
 impl Recorder {
     /// Starts recording a run, forwarding every durable frame to `sink`.
     #[must_use]
-    pub fn new(store: AiStore, run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
+    pub fn new(
+        store: Arc<Mutex<AiStore>>,
+        run_id: Uuid,
+        sink: Box<dyn FnMut(&RecordedEvent) + Send>,
+    ) -> Self {
         Self {
             store,
             run_id,
@@ -100,10 +109,16 @@ impl Recorder {
         self.run_id
     }
 
-    /// The store, for readers that want to replay or inspect projections.
-    #[must_use]
-    pub const fn store(&self) -> &AiStore {
-        &self.store
+    /// The connection, for the length of one statement and no longer.
+    ///
+    /// Handing the connection out is how a lock ends up held across an
+    /// await; borrowing it per statement is how it cannot. A reader that
+    /// wants the projections holds its own share rather than asking the
+    /// writer for one.
+    fn locked(&self) -> Result<MutexGuard<'_, AiStore>> {
+        self.store
+            .lock()
+            .map_err(|_poisoned| AcpError::RecorderPoisoned)
     }
 
     /// Hands over what the agent said on its own error stream.
@@ -182,10 +197,15 @@ impl Recorder {
     /// longer record anything, so the log would otherwise keep a request that
     /// is permanently unanswered.
     pub fn record_pending_cancelled(&mut self) {
-        let pending = match self.store.pending_permissions(self.run_id) {
+        // 借出来读完就还，下面 record_permission_resolved 还要再借。
+        let listed = self
+            .locked()
+            .and_then(|store| Ok(store.pending_permissions(self.run_id)?));
+
+        let pending = match listed {
             Ok(pending) => pending,
             Err(error) => {
-                self.remember(Err(error.into()));
+                self.remember(Err(error));
 
                 return;
             }
@@ -272,7 +292,7 @@ impl Recorder {
                 // An unrecognised state is left out of the projection rather
                 // than guessed at; the log still carries it verbatim.
                 if let Some(status) = translate(call.status) {
-                    self.store.apply_tool_call(
+                    self.locked()?.apply_tool_call(
                         self.run_id,
                         &call.tool_call_id.to_string(),
                         &call.title,
@@ -285,14 +305,14 @@ impl Recorder {
                 let tool_call_id = change.tool_call_id.to_string();
 
                 let matched = if let Some(status) = change.fields.status.and_then(translate) {
-                    self.store.update_tool_call(
+                    self.locked()?.update_tool_call(
                         self.run_id,
                         &tool_call_id,
                         status,
                         change.fields.title.as_deref(),
                     )?
                 } else if let Some(title) = change.fields.title.as_deref() {
-                    self.store
+                    self.locked()?
                         .rename_tool_call(self.run_id, &tool_call_id, title)?
                 } else {
                     true
@@ -316,7 +336,7 @@ impl Recorder {
         tool_call_id: &str,
         request: &RequestPermissionRequest,
     ) -> Result<()> {
-        self.store
+        self.locked()?
             .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
 
         let mut options = serde_json::to_value(&request.options)?;
@@ -358,7 +378,7 @@ impl Recorder {
             Decision::Cancel => (PermissionOutcome::Cancelled, String::new(), "cancelled"),
         };
 
-        let _settled = self.store.resolve_permission(request_id, outcome)?;
+        let _settled = self.locked()?.resolve_permission(request_id, outcome)?;
 
         self.append(
             PERMISSION_RESOLVED,
@@ -379,9 +399,9 @@ impl Recorder {
             return title;
         }
 
-        self.store
-            .tool_calls_for_run(self.run_id)
+        self.locked()
             .ok()
+            .and_then(|store| store.tool_calls_for_run(self.run_id).ok())
             .and_then(|calls| {
                 calls
                     .into_iter()
@@ -392,7 +412,7 @@ impl Recorder {
     }
 
     fn finish(&mut self, status: RunStatus, kind: &str, body: Value, detail: &str) -> Result<()> {
-        self.store.finish_run(self.run_id, status, Some(detail))?;
+        self.locked()?.finish_run(self.run_id, status, Some(detail))?;
 
         // A failure always carries the agent account of it. A turn that ended
         // on the agent terms carries it only when the protocol carried
@@ -423,7 +443,7 @@ impl Recorder {
             fields.insert("at".to_owned(), Value::from(now_millis()));
         }
 
-        self.store.append_event(self.run_id, seq, kind, &frame)?;
+        self.locked()?.append_event(self.run_id, seq, kind, &frame)?;
         self.next_seq = seq.saturating_add(1);
 
         let event = RecordedEvent {

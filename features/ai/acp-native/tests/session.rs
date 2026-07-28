@@ -29,6 +29,7 @@ fn fixture() -> Fixture {
     let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("slot fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
+    let store = Arc::new(Mutex::new(store));
 
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);

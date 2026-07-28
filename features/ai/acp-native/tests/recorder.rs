@@ -11,7 +11,7 @@
 //! named here is renamed there, one side fails loudly instead of silently
 //! dropping frames at the boundary.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
@@ -25,6 +25,12 @@ use tempfile::TempDir;
 struct Fixture {
     _directory: TempDir,
     recorder: Recorder,
+    /// The same connection the recorder writes through.
+    ///
+    /// Reading the projections back through the writer is what forced it to
+    /// hand its connection out; a reader that holds its own share needs no
+    /// such door, and the sharing itself is now what the test exercises.
+    store: Arc<Mutex<AiStore>>,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
@@ -35,6 +41,7 @@ fn fixture() -> Fixture {
     let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("recorder fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
+    let store = Arc::new(Mutex::new(store));
 
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
@@ -42,7 +49,7 @@ fn fixture() -> Fixture {
     Fixture {
         _directory: directory,
         recorder: Recorder::new(
-            store,
+            Arc::clone(&store),
             run_id,
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
@@ -50,11 +57,17 @@ fn fixture() -> Fixture {
                 }
             }),
         ),
+        store,
         observed,
     }
 }
 
 impl Fixture {
+    /// The projections, for the length of one assertion.
+    fn store(&self) -> MutexGuard<'_, AiStore> {
+        self.store.lock().expect("the store")
+    }
+
     fn frames(&self) -> Vec<Value> {
         self.observed
             .lock()
@@ -165,7 +178,6 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
     );
 
     let calls = fixture
-        .recorder
         .store()
         .tool_calls_for_run(fixture.recorder.run_id())
         .expect("the projection to be readable");
@@ -196,7 +208,6 @@ fn a_tool_call_reaches_a_terminal_state_in_the_projection() {
     assert!(fixture.recorder.take_failure().is_none());
 
     let calls = fixture
-        .recorder
         .store()
         .tool_calls_for_run(fixture.recorder.run_id())
         .expect("the projection to be readable");
@@ -291,7 +302,6 @@ fn a_permission_request_is_refused_and_recorded() {
 
     assert!(
         fixture
-            .recorder
             .store()
             .pending_permissions(run_id)
             .expect("the projection to be readable")
@@ -300,7 +310,6 @@ fn a_permission_request_is_refused_and_recorded() {
     );
 
     let all = fixture
-        .recorder
         .store()
         .permissions_for_run(run_id)
         .expect("the projection to be readable");

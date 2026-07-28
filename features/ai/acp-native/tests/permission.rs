@@ -10,7 +10,7 @@
 //! ones: an answer nobody asked for, an option nobody offered, and a turn that
 //! ended before anyone answered at all.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, ToolCallUpdate,
@@ -25,6 +25,12 @@ use tempfile::TempDir;
 struct Fixture {
     _directory: TempDir,
     recorder: Recorder,
+    /// The same connection the recorder writes through.
+    ///
+    /// Reading the projections back through the writer is what forced it to
+    /// hand its connection out; a reader that holds its own share needs no
+    /// such door, and the sharing itself is now what the test exercises.
+    store: Arc<Mutex<AiStore>>,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
@@ -35,6 +41,7 @@ fn fixture() -> Fixture {
     let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("desk fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
+    let store = Arc::new(Mutex::new(store));
 
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
@@ -42,7 +49,7 @@ fn fixture() -> Fixture {
     Fixture {
         _directory: directory,
         recorder: Recorder::new(
-            store,
+            Arc::clone(&store),
             run_id,
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
@@ -50,11 +57,17 @@ fn fixture() -> Fixture {
                 }
             }),
         ),
+        store,
         observed,
     }
 }
 
 impl Fixture {
+    /// The projections, for the length of one assertion.
+    fn store(&self) -> MutexGuard<'_, AiStore> {
+        self.store.lock().expect("the store")
+    }
+
     fn frames(&self) -> Vec<Value> {
         self.observed
             .lock()
@@ -156,7 +169,6 @@ fn a_request_and_its_answer_are_two_frames() {
 
     assert_eq!(
         fixture
-            .recorder
             .store()
             .pending_permissions(run_id)
             .expect("the projection to be readable")
@@ -186,7 +198,6 @@ fn a_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(resolved, "outcome"), "selected");
 
     let record = fixture
-        .recorder
         .store()
         .permissions_for_run(run_id)
         .expect("the projection to be readable")
@@ -209,7 +220,6 @@ fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
     assert!(fixture.recorder.take_failure().is_none());
     assert!(
         fixture
-            .recorder
             .store()
             .pending_permissions(run_id)
             .expect("the projection to be readable")

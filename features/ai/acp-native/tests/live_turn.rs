@@ -47,7 +47,7 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -134,6 +134,10 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let store = AiStore::open_with_key(&database, &key).expect("an encrypted store");
     let thread_id = store.create_thread("live turn").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
+
+    // 这条连接从此被共享，而末尾重开文件读回落盘内容的断言不变：
+    // 它现在还多验了一层，共享句柄没有把写留在内存里。
+    let store = Arc::new(Mutex::new(store));
 
     let cwd = env::var("POIETICA_ACP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
