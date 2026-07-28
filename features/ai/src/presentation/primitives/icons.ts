@@ -11,6 +11,7 @@ export {
   ChevronDown as ChevronDownIcon,
   DangerCircle as FailureIcon,
   Dots as MoreIcon,
+  Edit as PencilIcon,
   File as FileIcon,
   Globe as GlobeIcon,
   Message as ThreadIcon,
