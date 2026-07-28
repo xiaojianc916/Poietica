@@ -5,7 +5,7 @@
  * Adding a rule means adding an object here; it never means adding a script.
  */
 
-export const sourceRoots = ['apps', 'editor', 'features', 'foundations', 'platforms']
+export const sourceRoots = ['agent', 'apps', 'editor', 'features', 'foundations', 'platforms']
 
 export const ignoredDirectories = new Set([
   '.git',
@@ -45,6 +45,43 @@ const restrictedUtilityClasses = [
   { token: 'shadow-2xl', replacement: 'shadow-[var(--ui-shadow-xl)]' },
 ]
 
+/*
+ * What each layer may depend on, besides foundations and itself.
+ *
+ * Package names are regular — @poietica/<layer>-<name>, plus the single
+ * application package @poietica/desktop — so direction can be read off the
+ * specifier. The blacklists this replaces still named @poietica/workspace and
+ * @poietica/settings after those packages became @poietica/features-*, and
+ * never learnt the agent tier existed. A table of layers cannot rot that way:
+ * a renamed package keeps its prefix, and a new layer must be added here
+ * before its files are allowed to import anything at all.
+ *
+ * native: may reach for @tauri-apps directly. Only platform packages may.
+ */
+const layers = {
+  agent: { may: [], native: false },
+  editor: { may: [], native: false },
+  features: { may: ['agent', 'editor'], native: false },
+  foundations: { may: [], native: false },
+  platforms: { may: [], native: true },
+}
+
+const layerRules = Object.entries(layers).map(([layer, { may, native }]) => {
+  const allowed = ['foundations', layer, ...may]
+  const forbidden = [`@poietica/(?!(?:${allowed.join('|')})-)[\\w-]+`]
+
+  if (!native) {
+    forbidden.push('@tauri-apps/[\\w-]+')
+  }
+
+  return {
+    id: `${layer}-depends-downward`,
+    appliesTo: inLayer(layer),
+    pattern: new RegExp(forbidden.join('|'), 'g'),
+    message: `${layer} may depend only on ${allowed.join(', ')}`,
+  }
+})
+
 export const rules = [
   {
     id: 'public-package-exports',
@@ -55,35 +92,10 @@ export const rules = [
   {
     id: 'no-cross-boundary-relative-imports',
     appliesTo: isProductionSource,
-    pattern: /from\s+['"](?:\.\.\/){2,}(?:apps|editor|features|foundations|platforms)\//g,
+    pattern: /from\s+['"](?:\.\.\/){2,}(?:agent|apps|editor|features|foundations|platforms)\//g,
     message: 'relative imports must not cross top-level package boundaries',
   },
-  {
-    id: 'foundations-are-leaves',
-    appliesTo: inLayer('foundations'),
-    pattern:
-      /@poietica\/(?:asset|canvas|desktop(?:-ipc)?|document|file|platforms-desktop-runtime|plugin|settings|workspace)(?:['"]|\/)/g,
-    message: 'foundations must not depend on higher-level packages',
-  },
-  {
-    id: 'editor-is-host-agnostic',
-    appliesTo: inLayer('editor'),
-    pattern: /@poietica\/(?:desktop|desktop-ipc|platforms-desktop-runtime|workspace)(?:['"]|\/)/g,
-    message: 'editor must not depend on application, workspace, or desktop runtime packages',
-  },
-  {
-    id: 'features-are-platform-agnostic',
-    appliesTo: inLayer('features'),
-    pattern:
-      /(?:@tauri-apps\/|@poietica\/(?:desktop|desktop-ipc|platforms-desktop-runtime)(?:['"]|\/))/g,
-    message: 'features must not depend directly on Tauri or desktop runtime packages',
-  },
-  {
-    id: 'platforms-below-application',
-    appliesTo: inLayer('platforms'),
-    pattern: /@poietica\/desktop(?:['"]|\/)/g,
-    message: 'platform packages must not depend on application entry packages',
-  },
+  ...layerRules,
   {
     id: 'design-system-token-authority',
     appliesTo: inDirectory('foundations/design-system/src/components'),

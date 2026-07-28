@@ -62,6 +62,7 @@ features ───────────► agent public API + editor public e
 agent/ui ───────────► agent/runtime
 agent/runtime ──────► agent/protocol + agent/timeline + agent/registry + agent/transport
 agent/protocol ─────► foundations
+agent/persistence ──► agent/protocol
 editor/core ────────► foundations
 editor/document ────► editor/core + persistence contracts
 platforms ──────────► application-defined ports
@@ -70,7 +71,7 @@ foundations ────────► no product packages
 
 - `editor/core` 是唯一能够创建 `TLSchema`、`TLStore` 并控制 Editor 生命周期的包。
 - `editor/document` 拥有画布文档会话、文件位置、revision、保存状态与关闭计划。
-- `features/ai` 拥有 AI 辅助思考与创作工作流，但不拥有核心画布状态或原生能力。
+- `agent/*` 拥有 AI 会话、协议、时间线、工具注册与传输，但不拥有画布状态或原生能力。
 - `features/workspace` 拥有工作台、命令、面板、标签页与产品外壳。
 - `platforms/*` 只实现平台能力，不拥有产品规则或编辑器状态。
 - `apps/*` 是 editor、features 与 platforms 的最终组合位置。
