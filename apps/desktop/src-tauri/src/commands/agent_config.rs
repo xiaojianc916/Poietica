@@ -1,22 +1,22 @@
 //! Agent 配置：ACP agent 接入档案，以及按 agent 隔离的凭据。
 //!
 //! 模式 B（受控 home）下，模型与 provider 的真身在各 agent 自己的配置文件里
-//! （Kimi Code 是 KIMI_CODE_HOME 下的 config.toml），由 agent 自己 watch 并热
+//! （Kimi Code 是 `KIMI_CODE_HOME` 下的 config.toml），由 agent 自己 watch 并热
 //! 重载。这里存的是 Poietica 侧的接入档案与投影源，不是模型配置的权威副本。
 //!
 //! 这里不存密钥，一份都不存。
 //!
-//! API key 的整个生命是一次投递：界面拿到用户输入，经 agent_cli_exec 注入子
+//! API key 的整个生命是一次投递：界面拿到用户输入，经 `agent_cli_exec` 注入子
 //! 进程的环境变量，agent 官方 CLI 在那一瞬读走，写进它自己 config.toml 的
-//! [providers.<id>].api_key —— 明文。此后 agent 只读那个文件。
+//! `[providers.<id>].api_key` —— 明文。此后 agent 只读那个文件。
 //!
 //! 所以钥匙串在这条链上保护不了任何东西：下游是一个明文文件，能读它的人不需要
 //! 撬钥匙串。曾经存过一份，账户名是「agent:{id}:{var}」，那份副本换来的只有
 //! 「不用重新输一次 key」，代价是写入、清除、跨代迁移三条命令和两代账户名。
 //!
-//! 上游自己的范式也是一次性的：KIMI_REGISTRY_API_KEY=... kimi provider add ...
+//! 上游自己的范式也是一次性的：`KIMI_REGISTRY_API_KEY=...` kimi provider add ...
 //! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
-//! 我们。旧的 provider 列表仍原样保留在 legacy_providers 里交给界面处置。
+//! 我们。旧的 provider 列表仍原样保留在 `legacy_providers` 里交给界面处置。
 
 use crate::error::{IpcError, Result};
 use crate::paths::{AGENTS_STORE, agent_home};

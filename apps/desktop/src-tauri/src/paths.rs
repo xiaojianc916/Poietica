@@ -6,7 +6,7 @@
 //! 于是没有任何一个地方能回答"卸载时该清哪些目录""备份该带走什么"。
 //!
 //! 布局是产品决策，属于应用组合层，不属于某一条命令 —— 专业桌面软件都有这么
-//! 一个模块（VS Code 的 IEnvironmentService、Zed 的 paths.rs）。
+//! 一个模块（VS Code 的 `IEnvironmentService`、Zed 的 paths.rs）。
 //!
 //! 平台目录由 Tauri 按 tauri.conf.json 的 identifier 解析，分两类，判据是数据
 //! 本身而不是习惯：
@@ -41,7 +41,7 @@ pub const AGENTS_STORE: &str = "agents.json";
 /// 上一次原生崩溃。与日志同目录（`app_log_dir`）：它是诊断产物，不是用户数据。
 pub const CRASH_REPORT_FILE_NAME: &str = "last-native-crash.json";
 
-/// 全部 AI 对话，SQLCipher 加密；密钥在系统钥匙串，从不与它同行。
+/// 全部 AI 对话，`SQLCipher` 加密；密钥在系统钥匙串，从不与它同行。
 ///
 /// 库开在 WAL 模式下，所以磁盘上实际是三个文件：这一个，加上同名的 -wal 与
 /// -shm。备份或迁移必须三个一起，只拷主文件会丢掉最后一批未 checkpoint 的

@@ -37,7 +37,7 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
     },
 
     /* 请求与结果两侧同名同类型，没有可翻译的东西，翻一遍只会多一个出错的地方。 */
-    async execCli(invocation) {
+    execCli(invocation) {
       return bridge.execCli(invocation)
     },
   }

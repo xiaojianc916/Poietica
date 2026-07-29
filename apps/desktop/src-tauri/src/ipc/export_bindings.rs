@@ -1,4 +1,4 @@
-//! Build-time TypeScript binding exporter for document IPC.
+//! Build-time `TypeScript` binding exporter for document IPC.
 //!
 //! Rust command DTOs are the source of truth. The generated file is consumed by
 //! @poietica/desktop-runtime; renderer code must not redefine native DTOs.
@@ -35,13 +35,13 @@ const OUTPUT_PATH: &str = concat!(
     "/../../../platforms/desktop-ipc/src/generated/ipc-bindings.ts"
 );
 
-/// Exports the document IPC DTO surface consumed by the TypeScript runtime.
+/// Exports the document IPC DTO surface consumed by the `TypeScript` runtime.
 ///
 /// This function is intentionally called by the dedicated
 /// `export-ipc-bindings` binary, never on desktop application startup.
 /// # Panics
 ///
-/// Panics when the TypeScript bindings cannot be written. That is a build
+/// Panics when the `TypeScript` bindings cannot be written. That is a build
 /// fault rather than a runtime condition, so the build must stop here.
 #[allow(
     clippy::expect_used,

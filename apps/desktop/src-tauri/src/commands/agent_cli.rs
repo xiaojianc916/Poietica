@@ -41,7 +41,7 @@ pub struct AgentCliRequest {
     /// 要注入的凭据环境变量名。它不是秘密，只是个名字。
     pub secret_var: String,
     /// 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
-    /// 日志，也永远不上命令行（见 FORBIDDEN_FLAGS）。留空表示不注入。
+    /// 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。留空表示不注入。
     pub secret_value: String,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个

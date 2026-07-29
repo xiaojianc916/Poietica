@@ -2,7 +2,7 @@ use tauri::{AppHandle, Manager, command};
 
 use crate::error::Result;
 
-/// 唯一没有 JavaScript 对应物的窗口操作。
+/// 唯一没有 `JavaScript` 对应物的窗口操作。
 ///
 /// 渲染层需要的其余能力（show / hide / minimize / maximize / close / destroy /
 /// `set_title`）都由 @tauri-apps/api/window 直接提供，权限在

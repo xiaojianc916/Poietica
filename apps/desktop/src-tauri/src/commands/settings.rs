@@ -10,7 +10,7 @@ type SettingsCommandResult<T> = std::result::Result<T, IpcError>;
 
 /// 颜色模式是一个闭集，不是一段自由文本。
 ///
-/// 写成枚举，生成的 TypeScript 就是 `"light" | "dark" | "system"`，与 design
+/// 写成枚举，生成的 `TypeScript` 就是 `"light" | "dark" | "system"`，与 design
 /// system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
 #[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
@@ -39,7 +39,7 @@ pub struct AppSettings {
     pub auto_save: bool,
     /// 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。
     ///
-    /// u32 是故意的：生成的 TypeScript 用 number，u64 会要求 bigint，而
+    /// u32 是故意的：生成的 `TypeScript` 用 number，u64 会要求 bigint，而
     /// tauri-specta 拒绝 bigint。
     pub auto_save_interval_ms: u32,
     pub shortcuts: HashMap<String, String>,
