@@ -24,9 +24,9 @@ export interface AcpAgentProfile {
   /**
    * 非敏感环境变量，会原样落盘，例如数据根目录 KIMI_CODE_HOME。
    *
-   * 密钥永远不在这里：它存在系统钥匙串，经由 AgentConfigStore.execCli 调
-   * agent 官方 CLI 写入 agent 自己的配置文件。我们不注入密钥环境变量，也
-   * 不拼对方的配置文件格式。
+   * 密钥永远不在这里，也不在别处：它由界面随 AgentConfigStore.execCli 的一次
+   * 调用交给 agent 官方 CLI，写进 agent 自己的配置文件之后就与我们无关。我们
+   * 不注入密钥环境变量，也不拼对方的配置文件格式。
    */
   readonly env: Readonly<Record<string, string>>
   /**

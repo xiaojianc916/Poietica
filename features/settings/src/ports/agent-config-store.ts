@@ -1,21 +1,6 @@
 import type { AcpAgentProfile } from '@poietica/agent-registry'
 
 /**
- * 某个 agent 的某个凭据变量的状态。
- *
- * 只有「配没配」，没有值：密钥存在系统钥匙串里，界面永远不需要、也拿不到明文。
- *
- * 主键是 agent 加变量名，不是 provider：模式 B 下每个 agent 各自管理自己的
- * provider 表，同一个 DeepSeek key 在两个 agent 下就是两条独立记录。把它们合成
- * 一条，只会得到「在 A 里改了 key，B 悄悄跟着变」这种没人想要的行为。
- */
-export interface AgentSecretState {
-  readonly agentId: string
-  readonly varName: string
-  readonly configured: boolean
-}
-
-/**
  * 一次受控的 agent CLI 调用。
  *
  * 没有 home 相关的字段：受控 home 由原生侧的 launch_env 现算，与 ACP 会话
@@ -26,8 +11,16 @@ export interface AgentCliInvocation {
   readonly agentId: string
   readonly command: string
   readonly args: readonly string[]
-  /** 要注入的凭据环境变量名。留空表示这次调用不需要凭据。 */
+  /** 要注入的凭据环境变量名。它不是秘密，只是个名字。 */
   readonly secretVar: string
+  /**
+   * 凭据本身。
+   *
+   * 它只活到这次调用结束：注入子进程后，agent 的 CLI 把它写进 agent 自己的
+   * 配置文件，两端都不留副本。所以「配没配过」不能问我们 —— 要问 agent 的
+   * provider list。
+   */
+  readonly secretValue: string
 }
 
 export interface AgentCliOutcome {
@@ -39,7 +32,6 @@ export interface AgentCliOutcome {
 export interface AgentConfigSnapshot {
   readonly agents: readonly AcpAgentProfile[]
   readonly defaultAgentId: string
-  readonly secrets: readonly AgentSecretState[]
   /** models.dev 目录缓存的原始响应体。未拉取过时为 null。 */
   readonly catalog: unknown
   readonly catalogFetchedAt: string
@@ -59,7 +51,9 @@ export interface AgentConfigSnapshot {
  * 进程自己 watch 并热重载 —— 所以这里没有「保存 provider」这个动作，写入统一
  * 经由 execCli 调用 agent 官方 CLI。我们不自己拼对方的配置文件格式。
  *
- * 密钥只单向下行：setSecret 传值进去，读回来只有 configured。
+ * 密钥不存在这里，也不存在别处。它随 execCli 的一次调用交给 agent 的 CLI，写进
+ * agent 自己的配置文件之后就与我们无关 —— 那份文件里它是明文，所以我们再存一份
+ * 副本换不到安全，只换来一个要同步的第二处真相。
  */
 export interface AgentConfigStore {
   readonly load: () => Promise<AgentConfigSnapshot>

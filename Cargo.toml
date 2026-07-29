@@ -125,8 +125,18 @@ rusqlite = { version = "0.40.1", features = [
   "bundled-sqlcipher-vendored-openssl",
 ] }
 
-# keyring 4 ships the macOS, Windows and *nix credential stores through
-# its default v1 feature; the v3 per-platform features no longer exist.
+# 钥匙串。它保管的是加密数据库的密钥，不是 API key。
+#
+# agent/persistence/native/src/key.rs 用它存 SQLCipher 的 32 字节 raw key（服务
+# poietica，账户 agent-store）。那把密钥没有第二个可以放的地方：下游是一个加密的
+# 库文件，钥匙串在这里是唯一正解，而且丢了就意味着旧库永久打不开。
+#
+# 它一度也被用来存 API key，那个用法已经删了 —— API key 的落地点是 agent 自己
+# config.toml 里的明文字段，我们再存一份副本换不到安全，只换来一处要同步的第二
+# 真相。删掉的是那个用法，不是这条依赖。
+#
+# keyring 4 通过默认的 v1 feature 提供 macOS、Windows 与 *nix 三套凭据存储，v3
+# 时代的按平台 feature 已经不存在。全仓库统一用 keyring::v1::Entry。
 keyring = { version = "4.1.5", features = [
   "v1",
 ] }

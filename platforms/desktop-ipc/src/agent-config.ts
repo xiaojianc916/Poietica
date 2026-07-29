@@ -1,19 +1,14 @@
 import { invoke } from './invoke'
 
-/** 某个 agent 的某个凭据变量是否已配置。 */
-export interface AgentSecretState {
-  readonly agentId: string
-  readonly varName: string
-  readonly configured: boolean
-}
-
 /** 受控 CLI 调用的请求。受控 home 由原生侧现算，不在这里。 */
 export interface AgentCliRequest {
   readonly agentId: string
   readonly command: string
   readonly args: readonly string[]
-  /** 留空表示这次调用不需要凭据。 */
+  /** 要注入的凭据环境变量名。留空表示这次调用不注入凭据。 */
   readonly secretVar: string
+  /** 凭据本身。只在这一次调用里用一趟，两端都不保存。 */
+  readonly secretValue: string
 }
 
 export interface AgentCliResult {
@@ -31,7 +26,6 @@ export interface AgentCliResult {
 export interface AgentConfigSnapshot {
   readonly agents: readonly unknown[]
   readonly defaultAgentId: string
-  readonly secrets: readonly AgentSecretState[]
   readonly catalog: unknown
   readonly catalogFetchedAt: string
   /** 旧版顶层 provider 列表，仅供一次性迁移使用。 */
@@ -47,17 +41,6 @@ export interface AgentConfigBridge {
     defaultAgentId: string,
   ) => Promise<AgentConfigSnapshot>
   readonly saveCatalog: (catalog: unknown, fetchedAt: string) => Promise<AgentConfigSnapshot>
-  readonly setSecret: (
-    agentId: string,
-    varName: string,
-    value: string,
-  ) => Promise<AgentConfigSnapshot>
-  readonly clearSecret: (agentId: string, varName: string) => Promise<AgentConfigSnapshot>
-  readonly migrateSecret: (
-    providerId: string,
-    agentId: string,
-    varName: string,
-  ) => Promise<AgentConfigSnapshot>
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
 }
@@ -76,26 +59,6 @@ export function createAgentConfigBridge(): AgentConfigBridge {
       invoke<AgentConfigSnapshot>('agent_config_save_catalog', {
         catalog,
         fetchedAt,
-      }),
-
-    setSecret: (agentId, varName, value) =>
-      invoke<AgentConfigSnapshot>('agent_config_set_secret', {
-        agentId,
-        varName,
-        value,
-      }),
-
-    clearSecret: (agentId, varName) =>
-      invoke<AgentConfigSnapshot>('agent_config_clear_secret', {
-        agentId,
-        varName,
-      }),
-
-    migrateSecret: (providerId, agentId, varName) =>
-      invoke<AgentConfigSnapshot>('agent_config_migrate_secret', {
-        providerId,
-        agentId,
-        varName,
       }),
 
     clearLegacyProviders: () => invoke<AgentConfigSnapshot>('agent_config_clear_legacy_providers'),

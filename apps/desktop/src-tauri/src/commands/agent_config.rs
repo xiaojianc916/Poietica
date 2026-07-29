@@ -4,15 +4,21 @@
 //! （Kimi Code 是 KIMI_CODE_HOME 下的 config.toml），由 agent 自己 watch 并热
 //! 重载。这里存的是 Poietica 侧的接入档案与投影源，不是模型配置的权威副本。
 //!
-//! 密钥永不落盘。它们写进系统钥匙串，服务名「poietica」，账户名
-//! 「agent:{agent_id}:{var_name}」—— 以 agent 与环境变量名共同作为主键，
-//! 因为同一个 DeepSeek key 在两个 agent 下是两条独立记录。
+//! 这里不存密钥，一份都不存。
 //!
-//! 旧版本用的账户名是「provider:{id}」。迁移不在这里静默发生：Rust 侧不知道
-//! 某个旧 provider 该归到哪个 agent 的哪个变量，那是渲染层才有的知识。旧的
-//! provider 列表原样保留在 legacy_providers 里交给界面处置。
+//! API key 的整个生命是一次投递：界面拿到用户输入，经 agent_cli_exec 注入子
+//! 进程的环境变量，agent 官方 CLI 在那一瞬读走，写进它自己 config.toml 的
+//! [providers.<id>].api_key —— 明文。此后 agent 只读那个文件。
+//!
+//! 所以钥匙串在这条链上保护不了任何东西：下游是一个明文文件，能读它的人不需要
+//! 撬钥匙串。曾经存过一份，账户名是「agent:{id}:{var}」，那份副本换来的只有
+//! 「不用重新输一次 key」，代价是写入、清除、跨代迁移三条命令和两代账户名。
+//!
+//! 上游自己的范式也是一次性的：KIMI_REGISTRY_API_KEY=... kimi provider add ...
+//! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
+//! 我们。旧的 provider 列表仍原样保留在 legacy_providers 里交给界面处置。
 
-use crate::error::{Error, IpcError, Result};
+use crate::error::{IpcError, Result};
 use crate::paths::{AGENTS_STORE, agent_home};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,18 +30,6 @@ use tauri_plugin_store::StoreExt;
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
 
 const STORE_KEY: &str = "agentConfig";
-pub const KEYRING_SERVICE: &str = "poietica";
-
-/// 某个 agent 的某个凭据变量是否已配置。
-///
-/// 只有布尔值会到达渲染层，明文永远不会。
-#[derive(Debug, Deserialize, Serialize, Type, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentSecretState {
-    pub agent_id: String,
-    pub var_name: String,
-    pub configured: bool,
-}
 
 /// 渲染层工作所依据的完整配置快照。
 ///
@@ -46,7 +40,6 @@ pub struct AgentSecretState {
 pub struct AgentConfigSnapshot {
     pub agents: Vec<Value>,
     pub default_agent_id: String,
-    pub secrets: Vec<AgentSecretState>,
     /// models.dev 目录缓存。Null 表示还没成功拉取过。
     pub catalog: Value,
     /// 目录缓存的拉取时间（ISO-8601）。空串表示从未拉取。
@@ -71,37 +64,14 @@ struct PersistedAgentConfig {
     legacy_providers: Vec<Value>,
 }
 
-/// 钥匙串账户名。agent 与变量名共同构成主键。
-pub fn keyring_account(agent_id: &str, var_name: &str) -> String {
-    format!("agent:{agent_id}:{var_name}")
-}
-
-fn legacy_keyring_account(provider_id: &str) -> String {
-    format!("provider:{provider_id}")
-}
-
-fn has_secret(account: &str) -> bool {
-    keyring::v1::Entry::new(KEYRING_SERVICE, account)
-        .map(|entry| entry.get_password().is_ok())
-        .unwrap_or(false)
-}
-
-/// 读取某个 agent 声明需要的凭据变量名。
-///
-/// 约定：agent 档案里的 secretVars 是一个字符串数组。缺失或格式不对都按
-/// 「这个 agent 不需要凭据」处理 —— 一个写坏的档案不该让整份快照失败。
-fn secret_vars_of(agent: &Value) -> Vec<String> {
-    agent
-        .get("secretVars")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
-}
+/*
+ * 这里曾有 keyring_account、legacy_keyring_account、has_secret 与
+ * secret_vars_of。它们随「不存密钥」一起删了。
+ *
+ * 顺带记一笔 secret_vars_of 的下场：它读的是档案里的 secretVars，而
+ * AcpAgentProfile 从来没有过这个字段，于是它恒返回空，secret_states 恒返回空，
+ * snapshot.secrets 从第一天起就是空数组。没有人看得出来，因为也没有人读它。
+ */
 
 /// 读取某个 agent 声明的 home 环境变量名。
 ///
@@ -166,26 +136,9 @@ pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String
     Ok(env.into_iter().collect())
 }
 
-fn secret_states(agents: &[Value]) -> Vec<AgentSecretState> {
-    let mut states = Vec::new();
-
-    for agent in agents {
-        let Some(agent_id) = agent.get("id").and_then(Value::as_str) else {
-            continue;
-        };
-
-        for var_name in secret_vars_of(agent) {
-            let account = keyring_account(agent_id, &var_name);
-            states.push(AgentSecretState {
-                agent_id: agent_id.to_owned(),
-                configured: has_secret(&account),
-                var_name,
-            });
-        }
-    }
-
-    states
-}
+/*
+ * secret_states 也一并删了：快照不再有 secrets 字段。
+ */
 
 fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
     let store = app.store(AGENTS_STORE)?;
@@ -206,12 +159,9 @@ fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
 }
 
 fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfigSnapshot {
-    let secrets = secret_states(&config.agents);
-
     AgentConfigSnapshot {
         agents: config.agents,
         default_agent_id: config.default_agent_id,
-        secrets,
         catalog: config.catalog,
         catalog_fetched_at: config.catalog_fetched_at,
         legacy_providers: config.legacy_providers,
@@ -290,98 +240,13 @@ pub async fn agent_config_save_catalog(
     .map_err(IpcError::from)
 }
 
-/// 把某个凭据写进系统钥匙串。
-///
-/// # Errors
-///
-/// 钥匙串条目无法创建或写入时返回错误。
-#[command]
-#[specta::specta]
-pub async fn agent_config_set_secret(
-    app: AppHandle,
-    agent_id: String,
-    var_name: String,
-    value: String,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
-    (|| -> Result<AgentConfigSnapshot> {
-        let account = keyring_account(&agent_id, &var_name);
-        let entry = keyring::v1::Entry::new(KEYRING_SERVICE, &account)
-            .map_err(|error| Error::Internal(error.to_string()))?;
-        entry
-            .set_password(&value)
-            .map_err(|error| Error::Internal(error.to_string()))?;
-        let (config, issues) = read_config(&app)?;
-        Ok(to_snapshot(config, issues))
-    })()
-    .map_err(IpcError::from)
-}
-
-/// 从系统钥匙串移除某个凭据。凭据本来就不存在也算成功。
-///
-/// # Errors
-///
-/// 仅当 store 无法读取时返回错误。
-#[command]
-#[specta::specta]
-pub async fn agent_config_clear_secret(
-    app: AppHandle,
-    agent_id: String,
-    var_name: String,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
-    (|| -> Result<AgentConfigSnapshot> {
-        let account = keyring_account(&agent_id, &var_name);
-        if let Ok(entry) = keyring::v1::Entry::new(KEYRING_SERVICE, &account) {
-            let _removed = entry.delete_credential();
-        }
-        let (config, issues) = read_config(&app)?;
-        Ok(to_snapshot(config, issues))
-    })()
-    .map_err(IpcError::from)
-}
-
-/// 把旧账户名 provider:{id} 下的密钥搬到 agent:{id}:{var}。
-///
-/// 由界面驱动，一条一条搬：只有渲染层知道旧 provider 该归到哪个 agent 的哪个
-/// 变量。旧条目搬完即删，避免钥匙串里留下两份同样的密钥。
-///
-/// 旧条目不存在不是错误 —— 重复调用是安全的。
-///
-/// # Errors
-///
-/// 新条目无法写入时返回错误。此时旧条目不会被删除。
-#[command]
-#[specta::specta]
-pub async fn agent_config_migrate_secret(
-    app: AppHandle,
-    provider_id: String,
-    agent_id: String,
-    var_name: String,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
-    (|| -> Result<AgentConfigSnapshot> {
-        let legacy_account = legacy_keyring_account(&provider_id);
-
-        let legacy_value = keyring::v1::Entry::new(KEYRING_SERVICE, &legacy_account)
-            .ok()
-            .and_then(|entry| entry.get_password().ok());
-
-        if let Some(value) = legacy_value {
-            let account = keyring_account(&agent_id, &var_name);
-            let entry = keyring::v1::Entry::new(KEYRING_SERVICE, &account)
-                .map_err(|error| Error::Internal(error.to_string()))?;
-            entry
-                .set_password(&value)
-                .map_err(|error| Error::Internal(error.to_string()))?;
-
-            if let Ok(legacy) = keyring::v1::Entry::new(KEYRING_SERVICE, &legacy_account) {
-                let _removed = legacy.delete_credential();
-            }
-        }
-
-        let (config, issues) = read_config(&app)?;
-        Ok(to_snapshot(config, issues))
-    })()
-    .map_err(IpcError::from)
-}
+/*
+ * agent_config_set_secret、agent_config_clear_secret 与
+ * agent_config_migrate_secret 曾在这里。
+ *
+ * 三条命令都在维护一份我们保护不了的副本。migrate_secret 更是把旧账户名搬到新
+ * 账户名 —— 一次为了兼容自己上一版而存在的迁移。不存密钥，两样都不需要。
+ */
 
 /// 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
 ///

@@ -158,12 +158,12 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
 
 /// 崩溃报告与用户文档走同一条物理保存算法。
 ///
-/// 此前这里手写了第二条：临时文件 → sync → 若目标存在则 remove_file → rename。
+/// 此前这里手写了第二条：临时文件 → sync → 若目标存在则 `remove_file` → rename。
 /// 在 Windows 上"先删后改名"根本不是原子替换：删除与改名之间进程消失，两份就都
 /// 没有了 —— 而写这份报告的前提恰恰是进程已经在 panic。
 ///
-/// 仓库里已经有唯一一份经过审计的实现（editor/persistence/native 的 atomic_write：
-/// ReplaceFileW / MoveFileExW(WRITE_THROUGH) / POSIX rename + 目录 fsync，且明确
+/// 仓库里已经有唯一一份经过审计的实现（editor/persistence/native 的 `atomic_write`：
+/// `ReplaceFileW` / `MoveFileExW(WRITE_THROUGH)` / POSIX rename + 目录 fsync，且明确
 /// 不含任何非原子回退），本 crate 本来就依赖它。目录创建也由它负责。
 fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;

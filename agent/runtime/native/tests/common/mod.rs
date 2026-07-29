@@ -12,7 +12,7 @@
 //! 文件的存在 —— 那个 trait 的模块头就是这么写的。所以这些测试也不该知道：它们
 //! 问的是 recorder 做了什么，不是数据库存下了什么。
 //!
-//! 此前它们直接建一个真的 SQLCipher 库，还 use 了一个不在 dev-dependencies 里
+//! 此前它们直接建一个真的 `SQLCipher` 库，还 use 了一个不在 dev-dependencies 里
 //! 的 crate，于是从写下那天起就编译不过 —— 没人发现，因为 --all-targets 一直
 //! 被更早的错误挡在外面。
 
@@ -175,8 +175,8 @@ impl RunLog for MemoryLog {
             .iter_mut()
             .find(|call| call.id == tool_call_id)
         {
-            existing.title = title.to_owned();
-            existing.kind = kind.to_owned();
+            title.clone_into(&mut existing.title);
+            kind.clone_into(&mut existing.kind);
             existing.state = state;
 
             return Ok(());
@@ -212,7 +212,7 @@ impl RunLog for MemoryLog {
         call.state = state;
 
         if let Some(title) = title {
-            call.title = title.to_owned();
+            title.clone_into(&mut call.title);
         }
 
         Ok(true)
@@ -229,7 +229,7 @@ impl RunLog for MemoryLog {
             return Ok(false);
         };
 
-        call.title = title.to_owned();
+        title.clone_into(&mut call.title);
 
         Ok(true)
     }

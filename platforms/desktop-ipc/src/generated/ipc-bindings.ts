@@ -388,26 +388,6 @@ async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promi
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
 },
 /**
- * 把某个凭据写进系统钥匙串。
- * 
- * # Errors
- * 
- * 钥匙串条目无法创建或写入时返回错误。
- */
-async agentConfigSetSecret(agentId: string, varName: string, value: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_set_secret", { agentId, varName, value });
-},
-/**
- * 从系统钥匙串移除某个凭据。凭据本来就不存在也算成功。
- * 
- * # Errors
- * 
- * 仅当 store 无法读取时返回错误。
- */
-async agentConfigClearSecret(agentId: string, varName: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_clear_secret", { agentId, varName });
-},
-/**
  * 写入 models.dev 目录缓存。
  * 
  * 目录本身不是敏感数据，随 agents.json 落盘。它只是「离线也能看见模型清单」
@@ -419,21 +399,6 @@ async agentConfigClearSecret(agentId: string, varName: string) : Promise<AgentCo
  */
 async agentConfigSaveCatalog(catalog: JsonValue, fetchedAt: string) : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_save_catalog", { catalog, fetchedAt });
-},
-/**
- * 把旧账户名 provider:{id} 下的密钥搬到 agent:{id}:{var}。
- * 
- * 由界面驱动，一条一条搬：只有渲染层知道旧 provider 该归到哪个 agent 的哪个
- * 变量。旧条目搬完即删，避免钥匙串里留下两份同样的密钥。
- * 
- * 旧条目不存在不是错误 —— 重复调用是安全的。
- * 
- * # Errors
- * 
- * 新条目无法写入时返回错误。此时旧条目不会被删除。
- */
-async agentConfigMigrateSecret(providerId: string, agentId: string, varName: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_migrate_secret", { providerId, agentId, varName });
 },
 /**
  * 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
@@ -448,7 +413,10 @@ async agentConfigClearLegacyProviders() : Promise<AgentConfigSnapshot> {
 /**
  * 在白名单内调用 agent 的 CLI。
  * 
- * 凭据从钥匙串取出后经环境变量注入子进程，既不落盘也不上命令行。
+ * 凭据由调用方随这一次请求带上，经环境变量注入子进程。
+ * 
+ * 我们不保存它。agent 的 CLI 会把它写进 agent 自己的配置文件，那之后它与
+ * Poietica 无关 —— 包括「配没配过」这个问题，答案也在那边。
  * 
  * # Errors
  * 
@@ -484,7 +452,7 @@ launch: AgentLaunch;
 cwd: string | null }
 export type AgentCliRequest = { 
 /**
- * 用于定位钥匙串条目。
+ * 用于算出受控 home。
  */
 agentId: string; 
 /**
@@ -492,13 +460,14 @@ agentId: string;
  */
 command: string; args: string[]; 
 /**
- * 要注入的凭据环境变量名。留空表示这次调用不需要凭据。
+ * 要注入的凭据环境变量名。它不是秘密，只是个名字。
  */
 secretVar: string; 
 /**
- * agent 数据根目录的环境变量名，例如 KIMI_CODE_HOME。留空表示不设置。
+ * 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
+ * 日志，也永远不上命令行（见 FORBIDDEN_FLAGS）。留空表示不注入。
  */
-homeVar: string; homeDir: string }
+secretValue: string }
 export type AgentCliResult = { 
 /**
  * 进程退出码。被信号终止时为 -1。
@@ -577,7 +546,7 @@ export type AgentConfigPurpose =
  * agents 是不透明 JSON，由 TS 侧的 @poietica/agent-registry 校验；Rust 侧
  * 只负责存取，不解释任何字段。
  */
-export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; secrets: AgentSecretState[]; 
+export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; 
 /**
  * models.dev 目录缓存。Null 表示还没成功拉取过。
  */
@@ -782,12 +751,6 @@ runId: string;
  * The frames, in order, exactly as they were broadcast when live.
  */
 events: JsonValue[] }
-/**
- * 某个 agent 的某个凭据变量是否已配置。
- * 
- * 只有布尔值会到达渲染层，明文永远不会。
- */
-export type AgentSecretState = { agentId: string; varName: string; configured: boolean }
 /**
  * A change made in the interface.
  */

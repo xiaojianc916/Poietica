@@ -64,7 +64,6 @@ function fromDto(dto: AgentConfigSnapshotDto): AgentConfigSnapshot {
   return {
     agents: parsed.value.profiles,
     defaultAgentId: parsed.value.defaultProfileId,
-    secrets: dto.secrets,
     catalog: dto.catalog,
     catalogFetchedAt: dto.catalogFetchedAt,
     legacyProviders: dto.legacyProviders,

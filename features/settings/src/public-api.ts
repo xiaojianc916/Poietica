@@ -13,6 +13,5 @@ export type {
   AgentCliOutcome,
   AgentConfigSnapshot,
   AgentConfigStore,
-  AgentSecretState,
 } from './ports/agent-config-store'
 export type { SettingsStore } from './ports/settings-store'

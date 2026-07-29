@@ -2965,7 +2965,6 @@ name = "poietica"
 version = "0.1.0"
 dependencies = [
  "hex",
- "keyring",
  "log",
  "poietica-agent-persistence-native",
  "poietica-agent-runtime-native",

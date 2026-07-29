@@ -16,7 +16,7 @@ use crate::{
             AgentRunSnapshot, AgentSelectConfigRequest, AgentThreadRequest, AgentThreadTranscript,
         },
         agent_cli::{AgentCliRequest, AgentCliResult},
-        agent_config::{AgentConfigSnapshot, AgentSecretState},
+        agent_config::AgentConfigSnapshot,
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
             AssetUploadResult,
@@ -80,10 +80,7 @@ pub fn export_document_bindings() {
             crate::commands::settings::settings_reset,
             crate::commands::agent_config::agent_config_get,
             crate::commands::agent_config::agent_config_save_agents,
-            crate::commands::agent_config::agent_config_set_secret,
-            crate::commands::agent_config::agent_config_clear_secret,
             crate::commands::agent_config::agent_config_save_catalog,
-            crate::commands::agent_config::agent_config_migrate_secret,
             crate::commands::agent_config::agent_config_clear_legacy_providers,
             crate::commands::agent_cli::agent_cli_exec,
         ])
@@ -122,7 +119,6 @@ pub fn export_document_bindings() {
         .typ::<ExportSettings>()
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()
-        .typ::<AgentSecretState>()
         .typ::<AgentCliRequest>()
         .typ::<AgentCliResult>()
         .export(Typescript::default(), OUTPUT_PATH)

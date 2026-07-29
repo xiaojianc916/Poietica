@@ -11,7 +11,7 @@
 //!   - 显式禁止 --api-key：Windows 上任何用户都能读到别的进程的完整命令行，
 //!     密钥一律走环境变量注入。
 
-use crate::commands::agent_config::{KEYRING_SERVICE, keyring_account, launch_env};
+use crate::commands::agent_config::launch_env;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -33,13 +33,16 @@ const FORBIDDEN_FLAGS: [&str; 2] = ["--api-key", "--apikey"];
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCliRequest {
-    /// 用于定位钥匙串条目。
+    /// 用于算出受控 home。
     pub agent_id: String,
     /// 可执行文件名或绝对路径。
     pub command: String,
     pub args: Vec<String>,
-    /// 要注入的凭据环境变量名。留空表示这次调用不需要凭据。
+    /// 要注入的凭据环境变量名。它不是秘密，只是个名字。
     pub secret_var: String,
+    /// 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
+    /// 日志，也永远不上命令行（见 FORBIDDEN_FLAGS）。留空表示不注入。
+    pub secret_value: String,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
     // 路径过来，就等于给了两条管线各算出不同目录的自由。
@@ -124,7 +127,10 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
 
 /// 在白名单内调用 agent 的 CLI。
 ///
-/// 凭据从钥匙串取出后经环境变量注入子进程，既不落盘也不上命令行。
+/// 凭据由调用方随这一次请求带上，经环境变量注入子进程。
+///
+/// 我们不保存它。agent 的 CLI 会把它写进 agent 自己的配置文件，那之后它与
+/// Poietica 无关 —— 包括「配没配过」这个问题，答案也在那边。
 ///
 /// # Errors
 ///
@@ -142,22 +148,13 @@ pub async fn agent_cli_exec(
     // 哪个 home 读 —— 两处各算一次，迟早算出两个目录。
     let env = launch_env(&app, &request.agent_id).map_err(IpcError::from)?;
 
-    let secret = if request.secret_var.is_empty() {
-        None
-    } else {
-        let account = keyring_account(&request.agent_id, &request.secret_var);
-        keyring::v1::Entry::new(KEYRING_SERVICE, &account)
-            .ok()
-            .and_then(|entry| entry.get_password().ok())
-    };
-
     let spawned = async_runtime::spawn_blocking(move || {
         let mut command = std::process::Command::new(&request.command);
         command.args(&request.args);
         command.envs(env);
 
-        if let Some(value) = secret {
-            command.env(&request.secret_var, value);
+        if !request.secret_var.is_empty() && !request.secret_value.is_empty() {
+            command.env(&request.secret_var, &request.secret_value);
         }
 
         command.output()

@@ -33,7 +33,6 @@ export {
   type AgentCliResult,
   type AgentConfigBridge,
   type AgentConfigSnapshot,
-  type AgentSecretState,
   createAgentConfigBridge,
 } from './agent-config'
 export {
