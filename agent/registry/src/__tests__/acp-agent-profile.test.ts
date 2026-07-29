@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  acpAgentCommandLine,
+  acpAgentLaunch,
   builtinAcpAgentProfileSet,
-  parseAcpAgentCommandLine,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
 } from '../acp-agent-profile'
@@ -71,17 +70,34 @@ describe('parseAcpAgentProfileSet', () => {
   })
 })
 
-describe('命令行往返', () => {
-  it('拆分与拼回保持一致', () => {
-    const parsed = parseAcpAgentCommandLine('  kimi   acp  ')
+describe('acpAgentLaunch', () => {
+  it('把档案翻成 agentId 加 program 加 args', () => {
+    expect(acpAgentLaunch(valid)).toEqual({
+      agentId: 'kimi',
+      program: 'kimi',
+      args: ['acp'],
+    })
+  })
 
-    expect(parsed).toEqual({ command: 'kimi', args: ['acp'] })
-    expect(acpAgentCommandLine({ ...valid, ...parsed })).toBe('kimi acp')
+  /*
+   * 回归护栏：参数必须一直是数组，永远不能退回一行字符串。这一条正是旧的
+   * 「命令行往返」测试测不出来的东西 —— 它用的是 kimi acp，一个既没有空格
+   * 也没有反斜杠的例子，所以那趟往返看起来是无损的。
+   */
+  it('带空格的绝对路径与反斜杠原样保留', () => {
+    const launch = acpAgentLaunch({
+      id: 'kimi',
+      command: 'C:\\Program Files\\kimi\\kimi.exe',
+      args: ['acp', '--cwd', 'C:\\my notes'],
+    })
+
+    expect(launch.program).toBe('C:\\Program Files\\kimi\\kimi.exe')
+    expect(launch.args).toEqual(['acp', '--cwd', 'C:\\my notes'])
   })
 })
 
 describe('builtinAcpAgentProfileSet', () => {
-  it('把内置命令行拆成可以直接 spawn 的形式', () => {
+  it('内置档案本来就是可以直接 spawn 的形式', () => {
     const set = builtinAcpAgentProfileSet()
 
     expect(set.profiles.length).toBeGreaterThan(0)

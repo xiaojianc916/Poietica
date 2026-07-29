@@ -46,24 +46,28 @@ export interface AgentEventSource {
   readonly listen: (handler: (payload: unknown, runId: string) => void) => () => void
 }
 
+/** 起一个 agent 进程要说清的三件事。与原生侧的 AgentLaunch 同形。 */
+export interface AgentLaunchDescription {
+  /** 要启动的 agent。原生侧靠它决定受控 home 落在哪里。 */
+  readonly agentId: string
+  /** 可执行文件名或路径，不含参数。 */
+  readonly program: string
+  /** 传给它的参数，原样递给进程。 */
+  readonly args: readonly string[]
+}
+
 export interface AgentBridgeOptions {
   /**
-   * 这一次要用哪一家 agent，由 registry 的档案说了算；不点名就交给原生兜底。
+   * 这一次起哪个 agent。必填 —— 一个「少了就一定失败」的字段不该长成可选的。
    *
-   * 原生那侧的 agent_prompt 与 agent_open_thread 已经要求这一项，而这一层此前
-   * 从未送过它：typecheck 因此一直红着，运行期则每一次发言、每一次开对话都在
-   * 走兜底路径，界面选了哪一家根本没有传下去。
+   * 此前这里是 agentId 与 command 两个可选字段，而组合层两处调用只送了后者：
+   * 受控 home 因此在运行期一次都没生效过。类型上让它缺不了，比在原生侧兜底
+   * 更早发现问题。
+   *
+   * 哪家 agent、哪个可执行文件、哪几个参数，全由 registry 的档案说了算，这一
+   * 层不认识任何一家，也不再把它们拼成一行命令：拼起来再让对面切回去是有损的。
    */
-  readonly agentId?: string
-  /**
-   * 启动 agent 的一整行命令行，例如 `kimi acp`。
-   *
-   * 是「一行」而不是「可执行文件名」：原生侧把它交给 agent-client-protocol 的
-   * AcpAgent::from_str 切分。只送可执行文件名，等于把参数丢在半路。
-   *
-   * 哪家 agent、哪几个参数，由 registry 的档案说了算，这一层不认识任何一家。
-   */
-  readonly command?: string
+  readonly launch: AgentLaunchDescription
   /** The working directory the session is created against. */
   readonly cwd?: string
 }
@@ -144,6 +148,20 @@ async function call<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+/*
+ * 线上的形状。
+ *
+ * readonly string[] 与生成绑定要的 string[] 是不同的类型，所以数组在这里复制
+ * 一次。字段改名也只发生在这里：它是唯一认识线上写法的一层。
+ */
+function nativeLaunch(launch: AgentLaunchDescription): {
+  agentId: string
+  program: string
+  args: string[]
+} {
+  return { agentId: launch.agentId, program: launch.program, args: [...launch.args] }
+}
+
 /**
  * The command half of the port.
  *
@@ -152,19 +170,14 @@ async function call<T>(operation: () => Promise<T>): Promise<T> {
  * is checked natively: an answer naming an option the agent never offered is
  * refused rather than acted on.
  */
-export function createAgentCommandBridge({
-  agentId,
-  command,
-  cwd,
-}: AgentBridgeOptions = {}): AgentCommandBridge {
+export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): AgentCommandBridge {
   return {
     prompt: async (request) => {
       const result = await call(() =>
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId ?? null,
-          agentId: agentId ?? null,
-          command: command ?? null,
+          launch: nativeLaunch(launch),
           cwd: cwd ?? null,
         }),
       )
@@ -338,11 +351,7 @@ export interface AgentThreadBridge {
   readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
 }
 
-export function createAgentThreadBridge({
-  agentId,
-  command,
-  cwd,
-}: AgentBridgeOptions = {}): AgentThreadBridge {
+export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): AgentThreadBridge {
   return {
     list: () => call(() => commands.agentThreads()),
 
@@ -350,8 +359,7 @@ export function createAgentThreadBridge({
       const opened = await call(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
-          agentId: agentId ?? null,
-          command: command ?? null,
+          launch: nativeLaunch(launch),
           cwd: cwd ?? null,
         }),
       )

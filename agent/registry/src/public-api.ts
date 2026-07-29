@@ -1,5 +1,7 @@
 export type { AcpQuestionDialect } from './acp-agent-contract'
 export type {
+  AcpAgentLaunch,
+  AcpAgentLaunchSource,
   AcpAgentProfile,
   AcpAgentProfileParse,
   AcpAgentProfileSet,
@@ -7,10 +9,9 @@ export type {
   AgentConfigOptionValue,
 } from './acp-agent-profile'
 export {
-  acpAgentCommandLine,
+  acpAgentLaunch,
   builtinAcpAgentProfileSet,
   builtinAcpAgentProfiles,
-  parseAcpAgentCommandLine,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
 } from './acp-agent-profile'

@@ -4,14 +4,14 @@ use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, EnvVariable, InitializeRequest, McpServer as SchemaMcpServer, NewSessionRequest,
-    PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionNotification, SetSessionConfigOptionRequest, TextContent,
+    ContentBlock, EnvVariable, InitializeRequest, McpServer as SchemaMcpServer, McpServerStdio,
+    NewSessionRequest, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification,
+    SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -46,19 +46,25 @@ const TRACE: &str = "POIETICA_ACP_TRACE";
 /// How the agent process is started.
 #[derive(Clone, Debug)]
 pub struct AgentSpawn {
-    /// A shell-style command line, for example: kimi acp.
+    /// 可执行文件名或路径，不含参数，也不经过 shell。
     ///
-    /// The process is the transport: the protocol speaks JSON-RPC over its
-    /// standard input and output, which is why nothing here opens a socket.
-    pub command: String,
+    /// 进程本身就是传输层：协议在它的标准输入输出上说 JSON-RPC，所以这里没有
+    /// 任何东西打开套接字。
+    ///
+    /// 名字与参数分开存，因为拼成一行再切回来是有损的：POSIX 词法会把 Windows
+    /// 路径里的反斜杠当成转义符吃掉，带空格的路径会被切断。Zed 的
+    /// AgentServerCommand 同样是 path/args/env 三元组，连跨进程的 protobuf
+    /// （crates/proto/proto/ai.proto）都不降级成字符串。
+    pub program: String,
+    /// 传给它的参数，逐个原样递给进程，不做任何引号或转义处理。
+    pub args: Vec<String>,
     /// The working directory the session is created against.
     pub cwd: PathBuf,
     /// Environment variables the child process is started with.
     ///
     /// 只放非密文的启动变量，受控 home 的路径就是其一。密钥不走这里：模式 B
-    /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。命令行也不行 ——
-    /// Windows 上任何用户都读得到别的进程的完整命令行，而 from_str 的 shell
-    /// 词法还会把路径里的反斜杠当成转义符吃掉。
+    /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。也不走参数 ——
+    /// Windows 上任何用户都读得到别的进程的完整命令行。
     pub env: Vec<(String, String)>,
 }
 
@@ -321,28 +327,36 @@ fn reply(decision: &Decision) -> RequestPermissionResponse {
 ///
 /// # Errors
 ///
-/// Fails when the command line cannot be turned into a process.
+/// Fails when the program cannot be found on the search path, or when the
+/// process cannot be started.
 pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result<AgentConnection> {
-    let AgentSpawn { command, cwd, env } = spawn;
+    let AgentSpawn {
+        program,
+        args,
+        cwd,
+        env,
+    } = spawn;
 
-    let agent = AcpAgent::from_str(&command).map_err(|error| AcpError::Spawn {
+    // 一个裸名字不是一条可启动的路径：Windows 上 agent 通常是包管理器装的
+    // kimi.CMD，spawn("kimi") 直接失败。此前上层靠一段手写的 PATH × PATHEXT
+    // 遍历补扩展名，而它只返回 file_name()，把已经找到的目录又扔掉了，并且
+    // 用 is_file() 撞在工作区的 filetype_is_file 上。解析可执行文件是 which
+    // 这个 crate 的既有职责，Zed 也用它。
+    let resolved = which::which(&program).map_err(|error| AcpError::Spawn {
         message: error.to_string(),
     })?;
 
-    // 启动变量在这里进入进程。SDK 在 1.x 把启动配置表示成 MCP 的 stdio 形状，
-    // 它自己 spawn 时会把 env 逐条设给子进程，所以这里改的是那份配置，而不是
-    // 传输层。装回去必须赶在 with_debug 之前：那个方法要走 self。
-    let agent = AcpAgent::new(match agent.into_server() {
-        SchemaMcpServer::Stdio(mut stdio) => {
-            for (name, value) in env {
-                stdio.env.push(EnvVariable::new(name, value));
-            }
+    // SDK 在 1.x 把启动配置表示成 MCP 的 stdio 形状：程序、参数与环境变量三样
+    // 都在里面，它自己 spawn 时逐条设给子进程。所以这份配置是直接构造出来的,
+    // 而不是先拼一行命令、再让 from_str 用 shell 词法把它切回来 —— 那一趟往返
+    // 是有损的：绝对路径的反斜杠会被当成转义符，带空格的路径会被切断。
+    let mut stdio = McpServerStdio::new("poietica", resolved).args(args);
 
-            SchemaMcpServer::Stdio(stdio)
-        }
-        // 只有 stdio 会被 spawn；其余变体由 SDK 自己拒绝，这里不替它判断。
-        other => other,
-    });
+    for (name, value) in env {
+        stdio.env.push(EnvVariable::new(name, value));
+    }
+
+    let agent = AcpAgent::new(SchemaMcpServer::Stdio(stdio));
 
     // What the agent says for itself. A provider rejection is reported on the
     // process error stream and the turn still ends normally, so this is the

@@ -4,7 +4,7 @@ import type {
   ThreadPort,
   ThreadTitleSource,
 } from '@poietica/agent-protocol'
-import { acpAgentCommandLine, defaultAcpAgent } from '@poietica/agent-registry'
+import { acpAgentLaunch, defaultAcpAgent } from '@poietica/agent-registry'
 import { createIpcSession } from '@poietica/agent-transport'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
@@ -51,7 +51,7 @@ export interface DesktopAgentSession {
 
 export function createDesktopAgentSession(): DesktopAgentSession {
   const port = createIpcSession({
-    bridge: createAgentCommandBridge({ command: acpAgentCommandLine(defaultAcpAgent()) }),
+    bridge: createAgentCommandBridge({ launch: acpAgentLaunch(defaultAcpAgent()) }),
 
     source: createAgentEventSource({
       onListenFailure: (cause) => {
@@ -127,7 +127,7 @@ export function desktopThreads(): ThreadPort {
  * 读会话列表的地方各自问一遍，同一份列表被读了不止一次。
  */
 function buildThreadPort(): ThreadPort {
-  const bridge = createAgentThreadBridge({ command: acpAgentCommandLine(defaultAcpAgent()) })
+  const bridge = createAgentThreadBridge({ launch: acpAgentLaunch(defaultAcpAgent()) })
 
   return {
     list: async () => {

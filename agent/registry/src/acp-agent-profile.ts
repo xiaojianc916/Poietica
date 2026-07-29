@@ -330,51 +330,43 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   return { value: { profiles, defaultProfileId }, issues }
 }
 
-/** 拼得出一行命令的东西：档案要这两格，接入档案也有这两格。 */
-export interface AcpAgentCommandSource {
+/** 说得出一次启动的东西：内置描述符有这三格，用户档案也有这三格。 */
+export interface AcpAgentLaunchSource {
+  readonly id: string
   readonly command: string
   readonly args: readonly string[]
 }
 
-/**
- * 一行命令。既是界面上显示与复制的那一行，也是真正送去启动进程的那一行。
- *
- * 原生侧的 AgentSpawn.command 收的就是这个形状（`kimi acp`），由
- * agent-client-protocol 的 AcpAgent::from_str 自己切分 —— 所以这不是给人看的
- * 装饰，而是这条管线唯一的出境序列化点。名单里存的始终是结构化的
- * command + args，字符串只在这里生成一次，我方不再把它解析回去。
- *
- * 只要两格就够，因此不强求一整份 AcpAgentProfile：接入档案与用户档案都能直接
- * 传进来，不必先补出一堆用不上的字段。
- */
-export function acpAgentCommandLine(agent: AcpAgentCommandSource): string {
-  return [agent.command, ...agent.args].join(' ')
+/** 起一个 agent 进程要说清的三件事。 */
+export interface AcpAgentLaunch {
+  readonly agentId: string
+  readonly program: string
+  readonly args: readonly string[]
 }
 
 /**
- * 从命令行文本还原 command + args。
+ * 把一份档案翻成一次启动。
  *
- * 只按空白切分，不处理引号与转义：在这里实现半个 shell 解析器，只会得到一个
- * 说不清行为的输入框。路径带空格的情况请直接改 args。
+ * 名字与参数始终分开，从这里一路到 spawn 都不合并成字符串。合并是有损的：对面
+ * 若按 POSIX 词法切回来，绝对路径 C:\\tools\\kimi.exe 的反斜杠会被当成转义符
+ * 吃掉，带空格的路径会被切断 —— 而 parseCommand 是允许绝对路径的。
+ *
+ * 业界标杆同样不合并：Zed 的 AgentServerCommand 是 path/args/env 三元组，连跨
+ * 进程的 protobuf（crates/proto/proto/ai.proto）都保持结构化，整个仓库一处都
+ * 没有用 shell_words。
+ *
+ * 三格就够，因此不强求一整份 AcpAgentProfile：内置描述符与用户档案都能直接传
+ * 进来，不必先补出一堆用不上的字段。
  */
-export function parseAcpAgentCommandLine(input: string): {
-  readonly command: string
-  readonly args: string[]
-} {
-  const parts = input
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part.length > 0)
-
-  return { command: parts[0] ?? '', args: parts.slice(1) }
+export function acpAgentLaunch(agent: AcpAgentLaunchSource): AcpAgentLaunch {
+  return { agentId: agent.id, program: agent.command, args: [...agent.args] }
 }
 
 /**
  * 内置 agent 档案，从既有的 acpAgents() 派生。
  *
  * acp-agents.ts 仍然是 agent 名单的唯一来源，而它记的已经是可以直接 spawn
- * 的 command + args：名单里不再存命令行字符串，这里也就没有一次解析要做。
- * parseAcpAgentCommandLine 只服务于"用户在设置里粘一行命令"那个入口。
+ * 的 command + args，所以这里没有任何一行命令要拼、也没有一次解析要做。
  */
 export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
   return acpAgents().map((agent) => {

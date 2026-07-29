@@ -30,7 +30,7 @@ describe('replay session', () => {
 
 describe('ipc session', () => {
   it('把畸形帧变成一条可见的拒绝，而不是原样转发', () => {
-    let emit: (payload: unknown) => void = () => {}
+    let emit: (payload: unknown, runId: string) => void = () => {}
     const issues: string[] = []
 
     const session = createIpcSession({
@@ -53,8 +53,8 @@ describe('ipc session', () => {
     const received: RunEvent[] = []
     session.subscribe((event) => received.push(event))
 
-    emit({ kind: 'nonsense' })
-    emit(SAMPLE_RUN_EVENTS.at(0))
+    emit({ kind: 'nonsense' }, 'r')
+    emit(SAMPLE_RUN_EVENTS.at(0), 'r')
 
     /*
      * 适配器先把畸形帧报告出去，再在它的位置上发出一条 run_failed 拒绝，

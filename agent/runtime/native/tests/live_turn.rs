@@ -29,7 +29,8 @@
 //! It is configured by the environment rather than by anything committed here,
 //! so no machine's paths end up in the repository:
 //!
-//! - `POIETICA_ACP_COMMAND`  the agent command line (default: `kimi acp`)
+//! - `POIETICA_ACP_PROGRAM`  the agent executable (default: `kimi`)
+//! - `POIETICA_ACP_ARGS`     its arguments, space separated (default: `acp`)
 //! - `POIETICA_ACP_PROMPT`   what to ask (default: a one-word reply)
 //! - `POIETICA_ACP_CWD`      the session's working directory (default: a temporary one)
 //! - `POIETICA_ACP_TIMEOUT`  seconds before the turn is cancelled (default: 120)
@@ -60,15 +61,16 @@ use poietica_agent_runtime_native::{
 use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use tempfile::TempDir;
 
-const DEFAULT_COMMAND: &str = "kimi acp";
+const DEFAULT_PROGRAM: &str = "kimi";
+const DEFAULT_ARGS: &str = "acp";
 const DEFAULT_PROMPT: &str = "Reply with the single word: ready. Do not use any tools.";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 /// What to check first when the process never came up.
-const SPAWN_HINT: &str = "the agent process did not come up. check that the command runs on its \
-own in a terminal, and note that on Windows a launcher installed as a script \
-needs its full name, for example kimi.cmd rather than kimi. override it with \
-POIETICA_ACP_COMMAND rather than editing this test";
+const SPAWN_HINT: &str = "the agent process did not come up. check that the program runs on \
+its own in a terminal. the executable is resolved with the which crate, so a bare name is \
+enough even on Windows and kimi.cmd no longer has to be spelled out. override it with \
+POIETICA_ACP_PROGRAM rather than editing this test";
 
 fn setting(name: &str, fallback: &str) -> String {
     env::var(name)
@@ -142,9 +144,17 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let cwd = env::var("POIETICA_ACP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
 
+    /* 程序与参数分开给，和产品代码走的是同一条路：这个测试存在的意义就是证明
+    真进程起得来，如果它自己先把两者拼成一行，那它证明的就是另一条管线了。 */
     let spawn = AgentSpawn {
-        command: setting("POIETICA_ACP_COMMAND", DEFAULT_COMMAND),
+        program: setting("POIETICA_ACP_PROGRAM", DEFAULT_PROGRAM),
+        args: setting("POIETICA_ACP_ARGS", DEFAULT_ARGS)
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect(),
         cwd,
+        // 受控 home 是桌面组合层的产品决策，这一层只起进程，不替它做决定。
+        env: Vec::new(),
     };
 
     let timeout = Duration::from_secs(
@@ -153,7 +163,12 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
             .unwrap_or(DEFAULT_TIMEOUT_SECONDS),
     );
 
-    println!("starting: {} in {}", spawn.command, spawn.cwd.display());
+    println!(
+        "starting: {} {:?} in {}",
+        spawn.program,
+        spawn.args,
+        spawn.cwd.display()
+    );
 
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
@@ -163,7 +178,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         session_id,
         driver,
         book: _,
-    } = connect(spawn, slot, desk).expect("the command line to be usable");
+    } = connect(spawn, slot, desk).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 

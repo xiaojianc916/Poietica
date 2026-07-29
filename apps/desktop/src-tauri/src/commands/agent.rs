@@ -40,17 +40,6 @@ type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";
 
-/// Reported when nothing named an agent to start.
-///
-/// There is no built-in agent. Which ACP agent to launch is one entry in
-/// the interface's registry, so this layer never spells one out: a default
-/// here is how "any ACP agent" quietly became "Kimi, and Kimi only".
-const NO_AGENT_NAMED: &str = "no ACP agent was named for this session";
-
-/// What Windows falls back to when PATHEXT is not set.
-#[cfg(windows)]
-const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
-
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 
@@ -146,6 +135,25 @@ impl AgentRuntime {
     }
 }
 
+/// 起一个 agent 进程要说清的三件事。
+///
+/// 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
+/// command: Option<String>，两处都在撒谎：文档注释写着 defaults to the Kimi
+/// ACP entry point，而 resolve_command 里根本没有默认值；字段写着可选，而缺
+/// 了它必然报错。
+///
+/// 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentLaunch {
+    /// 要启动的 agent。它决定受控 home 落在哪里。
+    pub agent_id: String,
+    /// 可执行文件名或路径，不含参数，也不经过 shell。
+    pub program: String,
+    /// 传给它的参数，原样递给进程。
+    pub args: Vec<String>,
+}
+
 /// A prompt, and how to start the agent if it is not running yet.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -154,13 +162,8 @@ pub struct AgentPromptRequest {
     pub text: String,
     /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
-    /// 要启动的 agent；它决定受控 home 落在哪里。
-    ///
-    /// 不点名就没有受控 home，agent 读它自己的默认目录 —— 也就是这一改之前
-    /// 的行为。
-    pub agent_id: Option<String>,
-    /// The agent command line; defaults to the Kimi ACP entry point.
-    pub command: Option<String>,
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
@@ -233,8 +236,7 @@ pub async fn agent_prompt(
         return Err(Error::Validation("the prompt is empty".to_owned()).into());
     }
 
-    let session =
-        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
+    let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     // 一条对话持有一个会话，这一轮就发往它。
     //
@@ -639,8 +641,7 @@ struct Handle {
 async fn ensure_session(
     app: &AppHandle,
     state: &State<'_, AgentRuntime>,
-    agent_id: Option<String>,
-    command: Option<String>,
+    launch: AgentLaunch,
     cwd: Option<String>,
 ) -> Result<Handle> {
     if let Some(live) = borrow(state)? {
@@ -660,13 +661,11 @@ async fn ensure_session(
     // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
     // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
     // 说没有可用的模型。
-    let env = match agent_id.as_deref() {
-        Some(named) => launch_env(app, named)?,
-        None => Vec::new(),
-    };
+    let env = launch_env(app, &launch.agent_id)?;
 
     let spawn = AgentSpawn {
-        command: resolve_command(command)?,
+        program: launch.program,
+        args: launch.args,
         cwd: working_directory,
         env,
     };
@@ -827,69 +826,6 @@ fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Sessio
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
 }
 
-/// Decides which command line starts the agent.
-///
-/// Nothing outside the program gets a vote, and nothing inside it has a
-/// favourite: the caller names the agent or no session is started. Making
-/// that name launchable is a separate question, answered by resolution
-/// rather than by configuration.
-fn resolve_command(requested: Option<String>) -> Result<String> {
-    let line = requested.ok_or_else(|| Error::Validation(NO_AGENT_NAMED.to_owned()))?;
-
-    Ok(executable(&line))
-}
-
-/// Names the program in a way the operating system can actually launch.
-///
-/// A session is a spawned process, not a shell command, so nothing expands a
-/// bare name on our behalf. On Windows the agent is usually a package-manager
-/// shim named kimi.CMD, and spawning kimi fails outright, so the extension is
-/// resolved here instead of being left for the user to discover.
-#[cfg(windows)]
-fn executable(line: &str) -> String {
-    let (program, rest) = match line.find(char::is_whitespace) {
-        Some(index) => line.split_at(index),
-        None => (line, ""),
-    };
-
-    if std::path::Path::new(program).extension().is_some() {
-        return line.to_owned();
-    }
-
-    match on_path(program) {
-        // The name is left alone when nothing matches, so the failure the user
-        // reads still mentions what they actually asked for.
-        None => line.to_owned(),
-        Some(found) => format!("{found}{rest}"),
-    }
-}
-
-#[cfg(not(windows))]
-fn executable(line: &str) -> String {
-    line.to_owned()
-}
-
-/// Finds the file name, extension included, that a bare program name resolves to.
-#[cfg(windows)]
-fn on_path(program: &str) -> Option<String> {
-    let extensions = std::env::var("PATHEXT").unwrap_or_else(|_missing| DEFAULT_PATHEXT.to_owned());
-    let path = std::env::var_os("PATH")?;
-
-    for directory in std::env::split_paths(&path) {
-        for extension in extensions.split(';').filter(|entry| !entry.is_empty()) {
-            let candidate = directory.join(format!("{program}{extension}"));
-
-            if candidate.is_file() {
-                return candidate
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned());
-            }
-        }
-    }
-
-    None
-}
-
 fn persistence(error: StoreError) -> Error {
     Error::Persistence(error.to_string())
 }
@@ -914,10 +850,8 @@ fn translate(error: AcpError) -> Error {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentNewSessionRequest {
-    /// 要启动的 agent；它决定受控 home 落在哪里。
-    pub agent_id: Option<String>,
-    /// The agent command line; defaults to the Kimi ACP entry point.
-    pub command: Option<String>,
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
@@ -965,8 +899,7 @@ pub async fn agent_new_session(
     request: AgentNewSessionRequest,
 ) -> AgentCommandResult<AgentOpenedSession> {
     let asked = request.cwd.clone();
-    let live =
-        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
+    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     // The session root is the platform's answer, not the process's, so a
     // caller that names no directory gets the same one the first session
@@ -1086,10 +1019,8 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
 pub struct AgentOpenThreadRequest {
     /// 已经存在的对话；不点名就新开一条。
     pub thread_id: Option<String>,
-    /// 要启动的 agent；它决定受控 home 落在哪里。
-    pub agent_id: Option<String>,
-    /// The agent command line; defaults to the Kimi ACP entry point.
-    pub command: Option<String>,
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
 }
@@ -1112,8 +1043,7 @@ pub async fn agent_open_thread(
     state: State<'_, AgentRuntime>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
-    let live =
-        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
+    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     let named = match request.thread_id {
         Some(given) => given,

@@ -133,6 +133,11 @@ keyring = { version = "4.1.5", features = [
 
 agent-client-protocol = "=1.3.0"
 
+# 让一个裸名字变成一条可启动的路径。手写 PATH × PATHEXT 遍历是这个 crate 的
+# 既有职责：Zed 的 11 个 crate 全部依赖它，其中
+# crates/project/src/debugger/dap_store.rs 的 which::which_in 与这里同构。
+which = "8"
+
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
