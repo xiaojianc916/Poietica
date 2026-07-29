@@ -32,18 +32,6 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
       return fromDto(await bridge.saveCatalog(catalog, fetchedAt))
     },
 
-    async setSecret({ agentId, varName, value }) {
-      return fromDto(await bridge.setSecret(agentId, varName, value))
-    },
-
-    async clearSecret({ agentId, varName }) {
-      return fromDto(await bridge.clearSecret(agentId, varName))
-    },
-
-    async migrateSecret({ providerId, agentId, varName }) {
-      return fromDto(await bridge.migrateSecret(providerId, agentId, varName))
-    },
-
     async clearLegacyProviders() {
       return fromDto(await bridge.clearLegacyProviders())
     },

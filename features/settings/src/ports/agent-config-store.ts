@@ -65,21 +65,11 @@ export interface AgentConfigStore {
     readonly catalog: unknown
     readonly fetchedAt: string
   }) => Promise<AgentConfigSnapshot>
-  readonly setSecret: (args: {
-    readonly agentId: string
-    readonly varName: string
-    readonly value: string
-  }) => Promise<AgentConfigSnapshot>
-  readonly clearSecret: (args: {
-    readonly agentId: string
-    readonly varName: string
-  }) => Promise<AgentConfigSnapshot>
-  /** 把旧的 provider:{id} 密钥搬到 agent:{id}:{var}。重复调用是安全的。 */
-  readonly migrateSecret: (args: {
-    readonly providerId: string
-    readonly agentId: string
-    readonly varName: string
-  }) => Promise<AgentConfigSnapshot>
+  /*
+   * setSecret、clearSecret 与 migrateSecret 曾在这里。三者都在维护一份我们保
+   * 护不了的副本 —— 理由见上面那段。migrateSecret 更是把钥匙串的旧账户名搬到
+   * 新账户名，一个只为兼容自己上一版而存在的方法。
+   */
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (invocation: AgentCliInvocation) => Promise<AgentCliOutcome>
 }
