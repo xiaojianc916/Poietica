@@ -350,11 +350,9 @@ impl Recorder {
         // selection as far as the protocol is concerned. Only an unanswered
         // request is cancelled.
         let (outcome, option_id, wire_outcome) = match decision {
-            Decision::Allow(option_id) => (
-                PermissionAnswer::Allowed,
-                option_id.to_string(),
-                "selected",
-            ),
+            Decision::Allow(option_id) => {
+                (PermissionAnswer::Allowed, option_id.to_string(), "selected")
+            }
             Decision::Reject(option_id) => {
                 (PermissionAnswer::Denied, option_id.to_string(), "selected")
             }

@@ -11,11 +11,12 @@ use crate::{
     commands::{
         agent::{
             AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentLoadRunRequest,
-            AgentLoadThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
-            AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-            AgentRunSnapshot, AgentSelectConfigRequest, AgentThreadRequest,
-            AgentThreadTranscript,
+            AgentLoadThreadRequest, AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult,
+            AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunSnapshot,
+            AgentSelectConfigRequest, AgentThreadRequest, AgentThreadTranscript,
         },
+        agent_cli::{AgentCliRequest, AgentCliResult},
+        agent_config::{AgentConfigSnapshot, AgentSecretState},
         asset::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
             AssetUploadResult,
@@ -24,8 +25,6 @@ use crate::{
             DocumentCloseRequest, DocumentDescriptor, DocumentId, DocumentOpenResponse,
             DocumentOpenResult, DocumentSaveAsRequest, DocumentSaveAsResult, DocumentSaveRequest,
         },
-        agent_cli::{AgentCliRequest, AgentCliResult},
-        agent_config::{AgentConfigSnapshot, AgentSecretState},
         settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},
     },
     diagnostics::NativeCrashReport,

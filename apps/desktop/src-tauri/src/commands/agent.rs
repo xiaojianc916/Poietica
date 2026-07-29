@@ -19,11 +19,11 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
+use poietica_agent_persistence_native::{AgentStore, StoreError};
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
     PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_agent_persistence_native::{AgentStore, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -477,7 +477,7 @@ pub async fn agent_load_thread(
     let window = i64::from(request.recent_runs.unwrap_or(RECENT_RUNS));
 
     /* 一次进池子，两条语句：宽度和总数必须来自同一次读，否则界面会拿到
-       一个自相矛盾的答复——比如说"一共 3 轮"却收到 4 轮的帧。 */
+    一个自相矛盾的答复——比如说"一共 3 轮"却收到 4 轮的帧。 */
     let (events, total_runs) = on_store(&state, move |store| {
         let events = store
             .thread_events(thread_id, window)
@@ -1181,11 +1181,7 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// 多余的往返。
 ///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
-async fn session_for(
-    state: &State<'_, AgentRuntime>,
-    live: &Handle,
-    named: &str,
-) -> Result<Held> {
+async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
     let thread_id = conversation(named)?;
 
     let stored = {

@@ -83,7 +83,9 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
     }
 
     if contains_metacharacter(&request.command) {
-        return Err(Error::Internal("agent 命令不能包含 shell 元字符".to_owned()));
+        return Err(Error::Internal(
+            "agent 命令不能包含 shell 元字符".to_owned(),
+        ));
     }
 
     if request.args.len() > MAX_ARGS {

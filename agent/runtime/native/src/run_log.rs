@@ -104,8 +104,7 @@ pub trait RunLog: Send {
     /// # Errors
     ///
     /// Fails when the run row cannot be written.
-    fn finish_run(&self, run_id: Uuid, outcome: RunOutcome, detail: Option<&str>)
-    -> LogResult<()>;
+    fn finish_run(&self, run_id: Uuid, outcome: RunOutcome, detail: Option<&str>) -> LogResult<()>;
 
     /// Records a tool call the agent has just announced.
     ///

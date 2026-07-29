@@ -27,6 +27,8 @@
   /* 回放那段空白里的加载图标绝对定位于此。 */
   position: relative;
   display: flex;
+  /* 自上而下:相位那一棵,输入框,以及入口态才有的压舱块。 */
+  flex-direction: column;
   block-size: 100%;
   overflow: hidden;
   background: var(--cp-canvas);
@@ -726,42 +728,52 @@
 }
 
 /*
- * The two resting states of the surface, and what travels between them.
+ * 两个静止态的几何。中间没有任何可插值的量。
  *
- * The geometry — one scroller, the reading measure, the sticky composer, the
- * free space before the first turn — lives with the scroller in
- * agent-activity-feed.css, because all of it is inside the scroll box. What is
- * left here is the departure of the two intro blocks: they collapse through a
- * grid row, which is the one way an intrinsic height can be animated, and they
- * keep their space until they have finished leaving.
+ * 此前入口态与会话态是同一棵树的两种姿势:开场白与快捷入口靠 grid-template-rows
+ * 从 1fr 补间到 0fr 收起,滚动区与两个伪元素靠 flex-grow 换手。位置因此是一串
+ * 数字,而数字可以被补间 —— "半落"这个中间态是可以表达的,于是它会被表达出来。
+ *
+ * 现在入口态与会话态各挂各的东西:会话态挂一个占满剩余空间的滚动区,入口态挂
+ * 上下两块各占一半自由空间的兄弟。挂载与卸载不可补间。
+ *
+ * 居中的几何是原来那一份,逐字照搬:入口块的上下内边距等于原滚动区的
+ * (--cp-gutter / --cp-dock-dissolve),左右内边距与滚动区相同,快捷入口仍在输入
+ * 框下方 --cp-stack。所以这次改动在版式上是零像素差。
  */
-
-.assistant-surface__intro,
-.assistant-surface__starters {
-  display: grid;
+.assistant-surface__entry {
+  display: flex;
   min-block-size: 0;
-  grid-template-rows: 1fr;
-  transition:
-    grid-template-rows var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    margin-block-start var(--cp-motion-settle) var(--cp-motion-settle-ease),
-    opacity var(--cp-motion-settle) var(--cp-motion-settle-ease);
+  min-inline-size: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
+  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
-.assistant-surface__intro > *,
-.assistant-surface__starters > * {
-  min-block-size: 0;
-  overflow: hidden;
+/* 输入框下方的另一半自由空间。它只有这一个作用,所以它只有这一条声明。 */
+.assistant-surface__ballast {
+  flex: 1 1 0;
+}
+
+/*
+ * 输入框那一带。
+ *
+ * 从 agent-activity-feed.css 搬来,取值逐字未动:左右内边距与滚动区相同,这是它
+ * 与气泡对齐的唯一依据。它换了所有者,是因为它两个相位都在,而那个组件只在会话
+ * 态存在。
+ */
+.assistant-surface__dock {
+  position: relative;
+  flex: none;
+  min-inline-size: 0;
+  padding-block: var(--cp-pad-mid) var(--cp-gutter);
+  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
 }
 
 .assistant-surface__starters {
   margin-block-start: var(--cp-stack);
-}
-
-.assistant-surface[data-started="true"] .assistant-surface__intro,
-.assistant-surface[data-started="true"] .assistant-surface__starters {
-  grid-template-rows: 0fr;
-  margin-block-start: 0;
-  opacity: 0;
 }
 
 .assistant-surface__composer {

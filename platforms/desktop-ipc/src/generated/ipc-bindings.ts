@@ -128,9 +128,11 @@ async agentNewSession(request: AgentNewSessionRequest) : Promise<AgentOpenedSess
 /**
  * Lists the sessions the agent itself keeps.
  * 
- * The title is the agent's own, which is the only honest source for one;
- * a session it has not named yet reports none, and what to show in that
- * case is a question for the interface, not for this command.
+ * The title is whatever the agent wrote in its own store when it created
+ * the session, reported here unchanged. It is not a conversation name and
+ * is not treated as one: this program names its own conversations, because
+ * an agent that never revises New Session would otherwise name every one
+ * of them that.
  * 
  * # Errors
  * 
@@ -143,16 +145,16 @@ async agentSessions() : Promise<AgentSessionSummary[]> {
 /**
  * Lists the stored conversations, newest first.
  * 
- * Official names are the agent's own, so they are folded in first when
- * the connection can answer. A refusal there is not a failure of this
- * command: while a turn is in flight the agent will not list its
- * sessions, and the right answer then is the names already stored, not
- * an error where a list of conversations belongs.
+ * A read, and nothing but a read. It used to open with a round trip to the
+ * agent for its session list and write those names in, which is where every
+ * conversation in this list got the name New Session: that title is what
+ * the agent called the session in its own store, it is never revised, and
+ * it was ranked above the first thing the user actually said.
  * 
- * Listing does not reorder. Folding in a name used to stamp updated_at,
- * which is the column the list is ordered by, so every refresh of the
- * sidebar sent every conversation the agent still knew about back to the
- * top and relabelled it as just now.
+ * Dropping it takes a subprocess round trip and a write transaction off the
+ * path that draws the sidebar, and takes the whole read off the main thread.
+ * The names shown are now decided in one place, by the ranking in
+ * TitleSource.
  * 
  * # Errors
  * 
@@ -180,8 +182,8 @@ async agentOpenThread(request: AgentOpenThreadRequest) : Promise<AgentOpenedThre
 /**
  * Renames a conversation.
  * 
- * The name is recorded as the user's, and the agent's own title no longer
- * replaces it: that question has already been answered by the person who
+ * The name is recorded as the user's, which outranks the opening message
+ * it replaces: that question has already been answered by the person who
  * typed it.
  * 
  * # Errors
@@ -558,6 +560,29 @@ legacyProviders: JsonValue[];
  */
 issues: string[] }
 /**
+ * 起一个 agent 进程要说清的三件事。
+ * 
+ * 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
+ * command: Option<String>，两处都在撒谎：文档注释写着 defaults to the Kimi
+ * ACP entry point，而 resolve_command 里根本没有默认值；字段写着可选，而缺
+ * 了它必然报错。
+ * 
+ * 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
+ */
+export type AgentLaunch = { 
+/**
+ * 要启动的 agent。它决定受控 home 落在哪里。
+ */
+agentId: string; 
+/**
+ * 可执行文件名或路径，不含参数，也不经过 shell。
+ */
+program: string; 
+/**
+ * 传给它的参数，原样递给进程。
+ */
+args: string[] }
+/**
  * A request to replay a run from the log.
  */
 export type AgentLoadRunRequest = { 
@@ -595,13 +620,9 @@ recentRuns: number | null }
  */
 export type AgentNewSessionRequest = { 
 /**
- * 要启动的 agent；它决定受控 home 落在哪里。
+ * 起哪个 agent。
  */
-agentId: string | null; 
-/**
- * The agent command line; defaults to the Kimi ACP entry point.
- */
-command: string | null; 
+launch: AgentLaunch; 
 /**
  * The working directory the session is created against.
  */
@@ -615,13 +636,9 @@ export type AgentOpenThreadRequest = {
  */
 threadId: string | null; 
 /**
- * 要启动的 agent；它决定受控 home 落在哪里。
+ * 起哪个 agent。
  */
-agentId: string | null; 
-/**
- * The agent command line; defaults to the Kimi ACP entry point.
- */
-command: string | null; 
+launch: AgentLaunch; 
 /**
  * The working directory the session is created against.
  */
@@ -675,16 +692,9 @@ text: string;
  */
 threadId: string | null; 
 /**
- * 要启动的 agent；它决定受控 home 落在哪里。
- * 
- * 不点名就没有受控 home，agent 读它自己的默认目录 —— 也就是这一改之前
- * 的行为。
+ * 起哪个 agent。
  */
-agentId: string | null; 
-/**
- * The agent command line; defaults to the Kimi ACP entry point.
- */
-command: string | null; 
+launch: AgentLaunch; 
 /**
  * The working directory the session is created against.
  */
@@ -792,7 +802,7 @@ sessionId: string | null;
  */
 title: string; 
 /**
- * Where that name came from: official, message or fallback.
+ * Where that name came from: manual, message or fallback.
  */
 titleSource: string; 
 /**

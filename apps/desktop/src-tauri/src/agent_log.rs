@@ -75,12 +75,7 @@ impl RunLog for SharedLog {
         self.with(|store| store.append_event(run_id, seq, kind, frame))
     }
 
-    fn finish_run(
-        &self,
-        run_id: Uuid,
-        outcome: RunOutcome,
-        detail: Option<&str>,
-    ) -> LogResult<()> {
+    fn finish_run(&self, run_id: Uuid, outcome: RunOutcome, detail: Option<&str>) -> LogResult<()> {
         self.with(|store| store.finish_run(run_id, status(outcome), detail))
     }
 

@@ -39,12 +39,12 @@ pub use recorder::{
     ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, Recorder,
 };
+pub use run_log::{
+    LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
+    RunOutcome, ToolCallState,
+};
 pub use run_slot::RunSlot;
 pub use session::{AgentClient, AgentConnection, AgentSpawn, connect};
 pub use session::{OpenedSession, SessionEntry};
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;
-pub use run_log::{
-    LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
-    RunOutcome, ToolCallState,
-};

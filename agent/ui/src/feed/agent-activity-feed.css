@@ -1,12 +1,14 @@
 /*
- * 面板的框架:自上而下三段 —— 空白、滚动区、输入框,外加一层不随滚动移动的浮层。
+ * 会话态的滚动区,外加一层不随滚动移动的浮层。这一层只有这两样东西。
  *
- * 自绘滚动条的轨道挂在这一层(data-scrollbar-track),它占满面板全高,与内层
- * 真正溢出的滚动区是两回事 —— 轨道贯穿上下,滚动只发生在中段。这层关系不动。
+ * 首尾两个撑开的伪元素、两条 flex-grow 过渡、以及 data-started 的全部规则都已
+ * 删除:位置不该是一个可以被补间的数字(理由写在 assistant.css)。现在这个组件
+ * 只在会话态挂载,它占满剩余空间,输入框因此落在它下面 —— 而输入框已经不是它
+ * 的孩子。
  *
- * 起始态的居中由首尾两个伪元素撑开:它们各占一半自由空间,于是开场白与输入框
- * 一起停在面板正中。第一轮对话到达后两者的 flex-grow 归零,空间交给滚动区 ——
- * flex-grow 是个数字,浏览器会补间,所以那段位移不需要任何脚本。
+ * 自绘滚动条的轨道挂在这一层(data-scrollbar-track)。它随之从"覆盖整块面板"
+ * 变成"覆盖转录区":输入框不再在这棵子树里。要让轨道重新贯穿全高,做法是把这
+ * 个属性移到 .assistant-surface 上,而那要先确认消费它的那段代码怎么找滚动元素。
  */
 .agent-activity-feed {
   position: relative;
@@ -15,18 +17,6 @@
   min-inline-size: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.agent-activity-feed::before,
-.agent-activity-feed::after {
-  content: "";
-  flex: 1 1 0;
-  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
-}
-
-.assistant-surface[data-started="true"] .agent-activity-feed::before,
-.assistant-surface[data-started="true"] .agent-activity-feed::after {
-  flex-grow: 0;
 }
 
 /*
@@ -51,7 +41,7 @@
   display: flex;
   min-block-size: 0;
   min-inline-size: 0;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   flex-direction: column;
   overflow-y: auto;
   overflow-anchor: none;
@@ -59,7 +49,6 @@
   contain: layout paint;
   padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
   padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
-  transition: flex-grow var(--cp-motion-settle) var(--cp-motion-settle-ease);
   mask-image: linear-gradient(
     to bottom,
     #000 calc(100% - var(--cp-dock-dissolve)),
@@ -67,10 +56,6 @@
     rgb(0 0 0 / 0.22) calc(100% - var(--cp-dock-dissolve) * 0.24),
     transparent 100%
   );
-}
-
-.assistant-surface[data-started="true"] .agent-activity-feed__viewport {
-  flex-grow: 1;
 }
 
 /*
@@ -115,33 +100,7 @@
 }
 
 /*
- * 输入框,滚动区的兄弟。
- *
- * 背后没有任何东西经过 —— 不需要实底、不需要那层纱、不需要任何一块颜色。
- * 上方的留白由滚动区那段溶解距离承担。左右内边距与滚动区逐字相同,这是它与
- * 气泡对齐的唯一依据。
+ * 这里曾经有两条"这几帧不要动画"的规则:一条给回放,一条给减弱动态偏好。它们
+ * 关的都是那段 flex-grow 补间 —— 补间没有了,需要被关掉的东西也就没有了。用
+ * 一个开关去抑制一段本来就不该存在的动画,是治标;让它不存在,才不需要开关。
  */
-.agent-activity-feed__dock {
-  position: relative;
-  flex: none;
-  padding-block: var(--cp-pad-mid) var(--cp-gutter);
-  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
-}
-
-/*
- * 读取一条已有对话的那几帧不要动画:排版本来就按最终形态给出,回落是一次校正,
- * 不是一段动效。
- */
-.assistant-surface[data-restoring="true"] .agent-activity-feed::before,
-.assistant-surface[data-restoring="true"] .agent-activity-feed::after,
-.assistant-surface[data-restoring="true"] .agent-activity-feed__viewport {
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-activity-feed::before,
-  .agent-activity-feed::after,
-  .agent-activity-feed__viewport {
-    transition: none;
-  }
-}

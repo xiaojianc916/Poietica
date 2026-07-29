@@ -206,3 +206,35 @@ per-session。
 
 - 缺陷 3：入口态与会话态仍是同一棵树在两种姿势之间插值，应当是两个视图。
 - 能力表仍没有 initialize 阶段的上报（Rust 侧）。
+
+## 缺陷 3 已修：位置不再是一个可以被补间的数字
+
+- `agent/ui/src/feed/agent-activity-feed.css`：`::before / ::after { flex: 1 1 0;
+  transition: flex-grow ... }`，配 `[data-started="true"] { flex-grow: 0 }`，
+  以及 `__viewport` 的 `flex: 0 1 auto` → `flex-grow: 1`。
+- `agent/ui/src/assistant.css`：`__intro / __starters` 的 `grid-template-rows`
+  从 `1fr` 补间到 `0fr`。
+- 于是"输入框在中间还是在底部"是一串可插值的数字，由一个 DOM 属性驱动。上一刀
+  （显式相位）拿掉了触发源，但没有拿掉表达能力：中间态仍然是一个可以进入的状态，
+  所以任何让那个属性抖一下的原因都会让整块构成走一遍位移。
+
+行业对照：ChatGPT / Claude / Gemini 的新会话是另一个视图（`/new` → `/c/:id`），
+落底是一次导航；Zed 的 agent panel、VS Code Copilot Chat 的空态是独立组件。没有
+一家把这件事做成一个可补间的数字。
+
+现状：会话态挂一个占满剩余空间的滚动区，入口态挂上下两块各占一半自由空间的兄弟。
+挂载与卸载不可补间，中间态因此无法被表达。`AgentActivityFeed` 交出 `header` 与
+`dock` 两个插槽，只画滚动区与浮层；输入框是 `.assistant-surface` 的孩子，两个相位
+共用同一个 DOM 节点，草稿与焦点跨相位存活。两条"这几帧不要动画"的抑制规则一并
+删除 —— 需要被抑制的动画已经不存在。
+
+居中的几何逐字照搬，版式零像素差。
+
+已知的一处可见变化：`data-scrollbar-track` 仍在 feed 根上，而输入框不再是它的
+后代，所以轨道从覆盖整块面板变成覆盖转录区。要恢复贯穿全高，需把该属性上移到
+`.assistant-surface`，前提是先确认消费它的实现怎么找滚动元素。
+
+## 还欠着
+
+- 能力表仍没有 initialize 阶段的上报（Rust 侧）。
+- minimap 两处复杂度与 `agent-config-store.ts` 的 `useAwait`。

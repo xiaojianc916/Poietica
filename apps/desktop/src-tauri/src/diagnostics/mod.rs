@@ -5,11 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use poietica_editor_persistence_native::atomic_write;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
-use poietica_editor_persistence_native::atomic_write;
 use uuid::Uuid;
 
 use crate::Result;
@@ -168,8 +168,7 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
 fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
-    atomic_write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
-        .map_err(std::io::Error::other)
+    atomic_write(directory.join(CRASH_REPORT_FILE_NAME), &serialized).map_err(std::io::Error::other)
 }
 
 fn crash_report_path(app: &AppHandle) -> Result<PathBuf> {

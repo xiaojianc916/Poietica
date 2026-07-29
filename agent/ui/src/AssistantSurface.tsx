@@ -95,17 +95,20 @@ const STARTERS: Readonly<Record<string, string>> = {
 }
 
 /*
- * One scroller, one dock.
- *
- * The panel scrolls, not a box inside it, so the intro, the transcript and the
- * composer are all part of the same flow: the scrollbar runs the full height of
- * the panel against its edge, and the composer floats over the run as a sticky
- * band that still holds its own space at rest. The surface therefore composes
- * three slots and owns no geometry of its own.
+ * 两个静止态,两棵树,一个输入框。
  *
  * 哪一种静止态生效，由一个显式的相位说了算，不由转录反推：转录是内容，落到
  * 底部是导航，把后者派生自前者，就等于让任何一帧内容变动都能搬动整块构成。
- * 两态之间的位移仍然是样式表里的 flex-grow 补间，脚本不量任何几何。
+ *
+ * 而相位不再只是换一个属性值。此前两态是同一棵树的两种姿势：feed 根上两个
+ * 伪元素的 flex-grow 从 1 补间到 0，滚动区从 0 补间到 1，位置因此是一个数字。
+ * 数字可以被补间，也就可以被任何一次属性抖动来回搬动 —— 那正是"输入框忽然
+ * 落下去又弹回来"的结构成因：中间态在那套结构里是可以表达的。
+ *
+ * 现在会话态挂滚动区，入口态挂两块自由空间，挂载与卸载不可补间，中间态因此
+ * 无法被表达。输入框始终是同一个 DOM 节点，两个相位共用它。
+ *
+ * 这一层仍然不量任何几何。
  */
 export function AssistantSurface({
   controls,
@@ -257,12 +260,58 @@ export function AssistantSurface({
       <PermissionRequest item={item} onResolve={assistant.resolvePermission} />
     )
 
+  /*
+   * 输入框只挂一处。
+   *
+   * 两个相位各挂各的东西,但输入框不属于任何一个相位:它是这一层的孩子,相位切换
+   * 时它的 DOM 位置一个字都不变。于是草稿、附件、光标与焦点跨相位存活,转场不
+   * 需要任何"切完之后再把焦点抢回来"的补救 —— 那种补救是症状出现之后的纠正,
+   * 而这里根本不产生症状。
+   */
+  const dock = (
+    <div
+      className="assistant-surface__composer"
+      onFocusCapture={onEngage}
+      onPointerEnter={onEngage}
+    >
+      <AssistantComposer
+        controls={controls}
+        controlsFailure={controlsFailure}
+        handle={composer}
+        onAnswerQuestions={(answers) => {
+          /*
+           * 一道题一个 permission 请求，所以整组答案就是一串 resolvePermission。
+           * 面板在最后一题才交出来，中途翻页不回任何东西——回出去的答案收不回
+           * 来，而用户要能改。
+           */
+          for (const answer of answers) {
+            assistant.resolvePermission(answer.requestId, answer.optionId)
+          }
+        }}
+        onCancel={assistant.cancel}
+        onRetryControls={onRetryControls}
+        onSelectControl={onSelectControl}
+        onSubmit={(message) => {
+          /*
+           * 发言就是那次转场。
+           *
+           * 它先于 send：这一刻起这一格是一段对话，不再是入口，而这件事不该等
+           * 任何一帧回来才成立。
+           */
+          setPhase('live')
+          assistant.send(message)
+        }}
+        questionDeck={questionDeck}
+        status={assistant.status}
+      />
+    </div>
+  )
+
   return (
     <section
       className="assistant-surface"
       data-assistant-skin
       data-restoring={assistant.isRestoring ? 'true' : undefined}
-      data-started={live ? 'true' : undefined}
     >
       {/*
        * 回放那段空白里的反馈。
@@ -273,93 +322,65 @@ export function AssistantSurface({
        */}
       <RestoreSpinner active={assistant.isRestoring && rows.length === 0} />
 
-      <AgentActivityFeed
-        dock={
-          <>
-            <div
-              className="assistant-surface__composer"
-              onFocusCapture={onEngage}
-              onPointerEnter={onEngage}
-            >
-              <AssistantComposer
-                controls={controls}
-                controlsFailure={controlsFailure}
-                handle={composer}
-                onAnswerQuestions={(answers) => {
-                  /*
-                   * 一道题一个 permission 请求，所以整组答案就是一串
-                   * resolvePermission。面板在最后一题才交出来，中途翻页不回
-                   * 任何东西——回出去的答案收不回来，而用户要能改。
-                   */
-                  for (const answer of answers) {
-                    assistant.resolvePermission(answer.requestId, answer.optionId)
-                  }
-                }}
-                onCancel={assistant.cancel}
-                onRetryControls={onRetryControls}
-                onSelectControl={onSelectControl}
-                onSubmit={(message) => {
-                  /*
-                   * 发言就是那次转场。
-                   *
-                   * 它先于 send：这一刻起这一格是一段对话，不再是入口，而这件事
-                   * 不该等任何一帧回来才成立。
-                   */
-                  setPhase('live')
-                  assistant.send(message)
-                }}
-                questionDeck={questionDeck}
-                status={assistant.status}
+      {/*
+       * 会话态挂滚动区,入口态挂两块自由空间。
+       *
+       * 输入框的位置因此由结构给出,不由数字给出:滚动区占满剩余空间就把它压到
+       * 底,两块自由空间各占一半就把它托到中间。挂载与卸载不可补间,所以"半落"
+       * 这个中间态没有任何写法能表达出来 —— 此前它是 flex-grow 的一个中间值。
+       *
+       * 开场白与快捷入口不再用 inert 让位:它们不在这个相位里,所以它们不在。
+       */}
+      {live ? (
+        <AgentActivityFeed
+          footer={renderFooter(footer)}
+          isBusy={selectIsBusy(assistant.timeline)}
+          onReachStart={assistant.reachStart}
+          overlay={(port) =>
+            turns.length === 0 ? null : (
+              <ConversationMinimap
+                activeRow={port.activeRow}
+                onSelect={port.scrollToRow}
+                turns={turns}
               />
-            </div>
+            )
+          }
+          renderRow={(row) =>
+            row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />
+          }
+          rows={visibleRows}
+        />
+      ) : (
+        <div className="assistant-surface__entry">
+          <header className="assistant-masthead">
+            <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
-            <div className="assistant-surface__starters" inert={live}>
-              <AssistantQuickActions
-                onSelect={(actionId) => {
-                  const starter = STARTERS[actionId]
+            <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
+          </header>
+        </div>
+      )}
 
-                  if (starter !== undefined) {
-                    composer.current?.setText(starter)
-                    composer.current?.focus()
-                  }
-                }}
-              />
-            </div>
-          </>
-        }
-        footer={renderFooter(footer)}
-        header={
-          /*
-           * 让位就该退出 tab 序列。
-           *
-           * 视觉上的让位由 data-started 驱动，而它跟的是 settled。inert 此前
-           * 跟的是 started，于是回放一条已有对话的那几帧里，开场白已经看不见
-           * 了，却仍然可聚焦。同一件事只能有一个判据。
-           */
-          <div className="assistant-surface__intro" inert={live}>
-            <header className="assistant-masthead">
-              <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
+      <div className="assistant-surface__dock">
+        {dock}
 
-              <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
-            </header>
-          </div>
-        }
-        isBusy={selectIsBusy(assistant.timeline)}
-        onReachStart={assistant.reachStart}
-        overlay={(port) =>
-          turns.length === 0 ? null : (
-            <ConversationMinimap
-              activeRow={port.activeRow}
-              onSelect={port.scrollToRow}
-              turns={turns}
+        {live ? null : (
+          <div className="assistant-surface__starters">
+            <AssistantQuickActions
+              onSelect={(actionId) => {
+                const starter = STARTERS[actionId]
+
+                if (starter !== undefined) {
+                  composer.current?.setText(starter)
+                  composer.current?.focus()
+                }
+              }}
             />
-          )
-        }
-        renderRow={(row) =>
-          row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />
-        }
-        rows={visibleRows}
-      />
+          </div>
+        )}
+      </div>
+
+      {/* 输入框下方的另一半自由空间。会话态没有它,所以输入框落在底部。 */}
+      {live ? null : <div className="assistant-surface__ballast" />}
     </section>
   )
 }

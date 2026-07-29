@@ -39,9 +39,11 @@ pub fn build() -> tauri::Builder<Wry> {
          * 进程、第二个托盘图标、两份互相覆写的窗口状态，以及两个互不知情的
          * DocumentRegistry —— 同一个文件可以在两个窗口里各改各的。
          */
-        .plugin(tauri_plugin_single_instance::init(|app, _arguments, _cwd| {
-            tray::show_main(app);
-        }))
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _cwd| {
+                tray::show_main(app);
+            },
+        ))
         .manage(DocumentRegistry::default())
         .manage(asset_protocol)
         /*

@@ -47,8 +47,13 @@ impl AgentStore {
              VALUES (?1, ?2, ?3, ?4, ?5)",
         )?;
 
-        let outcome =
-            statement.execute(rusqlite::params![run_id.to_string(), seq, kind, encoded, timestamp]);
+        let outcome = statement.execute(rusqlite::params![
+            run_id.to_string(),
+            seq,
+            kind,
+            encoded,
+            timestamp
+        ]);
 
         match outcome {
             Ok(_inserted) => Ok(()),
@@ -90,13 +95,13 @@ impl AgentStore {
         )?;
 
         let rows = statement.query_map(rusqlite::params![run_id, after_seq], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })?;
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?;
 
         let mut events = Vec::new();
 

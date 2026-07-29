@@ -60,8 +60,12 @@ const READING_ANCHOR_RATIO = 1 / 3
 /**
  * 会话流的滚动区。
  *
- * 一列三段:滚动区装会滚的东西(开场白与对话),输入框是它的兄弟而不是粘在里面的
- * 孩子,浮层绝对定位在框架上、不随滚动移动。
+ * 这个组件只画会话态:一个滚动区,加一层不随滚动移动的浮层。
+ *
+ * 入口态不是它的一种姿势 —— 它此前是,靠 feed 根上两个伪元素的 flex-grow 在
+ * "居中"与"落底"之间插值;开场白与输入框因此是它的两个插槽。那套东西已经删掉,
+ * 理由见 assistant.css:位置不该是一个可以被补间的数字。开场白与输入框现在由
+ * AssistantSurface 持有,这个组件不知道它们存在。
  *
  * 滚动位置只有一个所有者:虚拟器。末端锚定、追随新消息、贴底阈值,以及流式输出时
  * 最后一行长高的增量补偿,都由 anchorTo 这套原语承担 —— 这正是它们存在的理由,
@@ -96,8 +100,6 @@ export interface AgentActivityFeedProps {
   readonly rows: readonly FeedRow[]
   readonly renderRow: (row: FeedRow) => ReactNode
   readonly isBusy: boolean
-  /** 在对话之上,并且跟着一起滚走。 */
-  readonly header?: ReactNode
   /**
    * 画布之后、滚动区之内。
    *
@@ -105,13 +107,6 @@ export interface AgentActivityFeedProps {
    * 不是 null。
    */
   readonly footer?: ReactNode
-  /**
-   * 滚动区之下、之外:输入框。
-   *
-   * 兄弟,不是粘住的孩子。背后没有东西经过,所以对话可以用遮罩化开而不是被一块
-   * 颜色盖住。
-   */
-  readonly dock?: ReactNode
   /**
    * 人读到了内容的上边界。
    *
@@ -127,9 +122,7 @@ export function AgentActivityFeed({
   rows,
   renderRow,
   isBusy,
-  header,
   footer,
-  dock,
   onReachStart,
   overlay,
 }: AgentActivityFeedProps) {
@@ -137,13 +130,12 @@ export function AgentActivityFeed({
   const canvasRef = useRef<HTMLDivElement | null>(null)
 
   /*
-   * 画布相对滚动区的偏移:开场白在画布上面,这段距离必须告诉虚拟器,否则它算出
-   * 来的位置会整体上移一个页眉的高度。
+   * 画布相对滚动区的偏移:画布上面还有滚动区自己的上内边距,这段距离必须告诉
+   * 虚拟器,否则它算出来的位置会整体上移那么多。
    *
    * 它是 state 而不是 ref。曾经是 ref,理由写的是"进 state 会让开场那段 flex-grow
-   * 动画每一帧都重渲染整条对话" —— 这个理由两层都不成立:那段动画在 feed 根的
-   * ::before / ::after 上,移动的是滚动区整体,而这里量的是画布相对滚动区的偏移,
-   * 不受它影响;何况 CSS 过渡期间根本不产生 React 渲染。
+   * 动画每一帧都重渲染整条对话" —— 那段动画连同两个撑开的伪元素已经不存在了,
+   * 而这个理由当时也不成立:CSS 过渡期间根本不产生 React 渲染。
    *
    * 而 ref 的代价是实打实的:改 ref 不触发重渲染,虚拟器在渲染期读到的 scrollMargin
    * 会一直停在首帧的 0,挂载时的 scrollToEnd 正好落在那之前 —— 初次打开必定差一个
@@ -423,8 +415,6 @@ export function AgentActivityFeed({
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
       <div className="agent-activity-feed__viewport" ref={bindViewport}>
-        {header}
-
         <div
           aria-busy={isBusy}
           className="agent-activity-feed__canvas"
@@ -457,8 +447,6 @@ export function AgentActivityFeed({
 
         {footer === undefined ? null : <div className="agent-activity-feed__footer">{footer}</div>}
       </div>
-
-      {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
 
       {overlay === undefined ? null : overlay({ activeRow, scrollToRow })}
     </div>

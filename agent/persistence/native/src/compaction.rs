@@ -134,7 +134,12 @@ impl AgentStore {
                     built_at = excluded.built_at",
         )?;
 
-        statement.execute(rusqlite::params![run_id, SNAPSHOT_VERSION, encoded, built_at])?;
+        statement.execute(rusqlite::params![
+            run_id,
+            SNAPSHOT_VERSION,
+            encoded,
+            built_at
+        ])?;
 
         Ok(())
     }

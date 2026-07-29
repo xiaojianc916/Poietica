@@ -54,11 +54,11 @@ use std::time::{Duration, Instant};
 
 use futures::channel::oneshot;
 use futures::executor::block_on;
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use tempfile::TempDir;
 
 const DEFAULT_PROGRAM: &str = "kimi";
