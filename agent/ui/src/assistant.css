@@ -425,25 +425,27 @@
   color: var(--cp-ink-subtle);
 }
 
+/*
+ * 行几何全部来自侧边栏声明的 --sidebar-* 令牌：会话行与上方五个导航行是同一
+ * 种行，中线、内缩、行高、图标尺寸各只有一个所有者。
+ *
+ * 此前这里把「中线 − 内缩 − 图标半宽」重算了一遍，并且给中线补了 24px 兜底 ——
+ * 那是 workspace-layout.ts 里 navIconCenter 的影子副本，上游改了它不会跟，两段
+ * 于是各走一条线，而且不会报错。同时 padding 写了两遍，后一句把 --cp-pad-mid
+ * 覆盖掉，那个值从来没生效过。
+ *
+ * 留下的两个令牌才是会话列表自己的事：行内操作按钮的尺寸，底部渐隐的高度。
+ */
 .assistant-threads {
   display: flex;
   block-size: 100%;
   flex-direction: column;
   gap: var(--cp-pad-tile);
   overflow-y: auto;
-  padding: var(--cp-mast-gap) var(--cp-pad-mid);
+  padding-block: var(--cp-mast-gap);
+  padding-inline: var(--sidebar-row-inset);
   --assistant-threads-action-size: 20px;
-  --assistant-threads-inset: 4px;
-  --assistant-threads-icon-size: 16px;
-  --assistant-threads-row-lead: calc(
-    var(--workspace-sidebar-nav-icon-center, 24px) -
-    var(--assistant-threads-inset) -
-    var(--assistant-threads-icon-size) /
-    2
-  );
-  --assistant-threads-row-trail: 8px;
   --assistant-threads-fade: 12px;
-  padding-inline: var(--assistant-threads-inset);
 }
 
 /*
@@ -472,8 +474,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-inline-start: var(--assistant-threads-row-lead);
-  padding-inline-end: var(--assistant-threads-row-trail);
+  padding-inline-start: var(--sidebar-row-lead);
+  padding-inline-end: var(--sidebar-row-trail);
 }
 
 /*
@@ -487,14 +489,14 @@
 }
 
 .assistant-threads__group > .assistant-threads__caption {
-  padding-inline-start: var(--assistant-threads-row-lead);
+  padding-inline-start: var(--sidebar-row-lead);
 }
 
 /* 读完之后才成立的一句话，说得和段标题一样轻。 */
 .assistant-threads__empty {
   margin: 0;
   padding-block: var(--cp-optical);
-  padding-inline-start: var(--assistant-threads-row-lead);
+  padding-inline-start: var(--sidebar-row-lead);
   font-size: var(--cp-font-caption);
   color: var(--cp-ink-subtle);
 }
@@ -546,17 +548,23 @@
   list-style: none;
 }
 
+/*
+ * 行高读侧边栏的行高，不读编排器的控件尺寸。
+ *
+ * 此前 block-size 是 --cp-control（输入框工具栏那一套），min-block-size 又是
+ * --ui-control-height-sm，实际高度是两者的较大者 —— 没人决定过它，它是撞出来
+ * 的，还让同一列侧边栏上下两段行不同高。
+ */
 .assistant-thread {
   position: relative;
   display: flex;
-  block-size: var(--cp-control);
+  block-size: var(--sidebar-row-height);
   align-items: center;
-  border-radius: 6px;
-  gap: 8px;
-  min-block-size: var(--ui-control-height-sm);
-  padding-inline-start: var(--assistant-threads-row-lead);
-  padding-inline-end: var(--assistant-threads-row-trail);
-  font-size: 12px;
+  border-radius: var(--sidebar-row-radius);
+  gap: var(--sidebar-row-gap);
+  padding-inline-start: var(--sidebar-row-lead);
+  padding-inline-end: var(--sidebar-row-trail);
+  font-size: var(--cp-font-caption);
 }
 
 /*
@@ -579,7 +587,7 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: 8px;
+  gap: var(--sidebar-row-gap);
   border: 0;
   padding: 0;
   background: transparent;
@@ -589,8 +597,8 @@
 }
 
 .assistant-thread__icon {
-  block-size: var(--assistant-threads-icon-size);
-  inline-size: var(--assistant-threads-icon-size);
+  block-size: var(--sidebar-icon-size);
+  inline-size: var(--sidebar-icon-size);
   flex: none;
   color: var(--cp-ink-muted);
 }
@@ -1125,10 +1133,15 @@
   pointer-events: none;
 }
 
+/*
+ * 居中由 .assistant-thread 的 align-items 给，不是手算的 7px（那是「10px 的条
+ * 在当时那个行高里居中」的差值，行高一改就偏）。左右也不再另留边距：骨架的
+ * 左边缘落在真实行图标的位置上，首帧到落定之间没有横向跳动。
+ */
 .assistant-thread__ghost {
   display: block;
-  height: 10px;
-  margin: 7px 8px;
+  block-size: 10px;
+  margin: 0;
   border-radius: 4px;
   background: var(--am-line, color-mix(in srgb, var(--ui-foreground) 8%, transparent));
   animation: assistant-thread-ghost 1200ms ease-in-out infinite;
@@ -1162,13 +1175,13 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: 8px;
+  gap: var(--sidebar-row-gap);
 }
 
 .assistant-thread__rename-field {
   min-inline-size: 0;
   flex: 1;
-  block-size: calc(var(--ui-control-height-sm) - 8px);
+  block-size: 100%;
   border: 0;
   border-radius: 4px;
   padding: 0;

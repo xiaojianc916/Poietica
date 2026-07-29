@@ -1,0 +1,62 @@
+/*
+ * 侧边栏行几何的唯一真相。
+ *
+ * 中线本身不在这里：它是 workspace-layout.ts 的 sidebar.navIconCenter，由
+ * WorkspaceFrame 挂成 --workspace-sidebar-nav-icon-center。那个数字留在 TS 侧
+ * 是对的 —— 标题栏开合按钮区的宽度也要在 JS 里用到它。本文件只做一件事：把
+ * 那条中线翻译成行的前导内缩，并且全仓只翻译这一次。
+ *
+ * 此前翻译了两次。SidebarNav 的行内样式写 calc(中线 - 4px - 8px)，其中 4px 是
+ * 抄 nav 的 px-1、8px 是抄 size-4 的一半；assistant.css 的
+ * --assistant-threads-row-lead 又把同一个减法写了一遍，并且自带 24px 兜底 ——
+ * 那是 navIconCenter 的影子副本，上游一改它不跟，也永远不会报错。
+ *
+ * 所以这里读令牌不写兜底值：兜底值就是第二份真相，它只在链子断掉时生效，
+ * 而链子断掉应当显形，不应当被一个陈旧的数字兜住。接线由 refactor 脚本的第 0
+ * 步断言，令牌由 .workspace-shell 根节点无条件挂上，侧边栏是它的后代。
+ *
+ * 对齐从此是结构的结果：图标尺寸、行内缩、行高各有一个声明，谁需要谁读，
+ * 任何人不得再手算第二遍。
+ */
+.workspace-sidebar {
+  --sidebar-row-inset: 4px;
+  --sidebar-row-trail: 8px;
+  --sidebar-row-gap: 8px;
+  --sidebar-row-height: var(--ui-control-height-sm);
+  --sidebar-row-radius: 6px;
+  --sidebar-icon-size: 16px;
+
+  /* 图标格前的留白：中线 − 行背景内缩 − 图标半宽。 */
+  --sidebar-row-lead: calc(
+    var(--workspace-sidebar-nav-icon-center) -
+    var(--sidebar-row-inset) -
+    var(--sidebar-icon-size) /
+    2
+  );
+}
+
+/* 行悬浮背景与侧边栏边缘之间的留白，与会话列表读同一个令牌。 */
+.workspace-sidebar__nav {
+  padding-inline: var(--sidebar-row-inset);
+}
+
+/*
+ * 一行的形状。颜色、状态与字体仍由工具类表达，几何一律在这里。
+ */
+.sidebar-nav-row {
+  display: flex;
+  block-size: var(--sidebar-row-height);
+  inline-size: 100%;
+  align-items: center;
+  gap: var(--sidebar-row-gap);
+  border-radius: var(--sidebar-row-radius);
+  padding-inline-start: var(--sidebar-row-lead);
+  padding-inline-end: var(--sidebar-row-trail);
+  text-align: start;
+}
+
+.sidebar-nav-row__icon {
+  block-size: var(--sidebar-icon-size);
+  inline-size: var(--sidebar-icon-size);
+  flex: none;
+}

@@ -1,3 +1,5 @@
+import './sidebar-rows.css'
+
 import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 import type { ReactNode } from 'react'
 import { SidebarFooter } from './SidebarFooter'
@@ -37,7 +39,7 @@ export function WorkspaceSidebar({
   onDeveloperToolsOpen,
 }: WorkspaceSidebarProps) {
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
+    <section className="workspace-sidebar flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <SidebarNav
         activeNavigationId={activeNavigationId}
         onCanvasStartActivate={onCanvasStartActivate}

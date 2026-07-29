@@ -30,7 +30,7 @@ export function SidebarNav({
   onCreateConversation,
 }: SidebarNavProps) {
   return (
-    <nav aria-label="主导航" className="shrink-0 px-1 pb-1 pt-2">
+    <nav aria-label="主导航" className="workspace-sidebar__nav shrink-0 pb-1 pt-2">
       <ul className="flex flex-col gap-px">
         {/*
          * 「新建对话」是动作而非表面，但它打开的就是 ai 表面，所以选中态直接由
@@ -84,18 +84,13 @@ function NavRow({ label, icon: Icon, active = false, onClick }: NavRowProps) {
     <button
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-[var(--ui-control-height-sm)] w-full items-center gap-2 rounded-md pr-2 text-left text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground',
+        'sidebar-nav-row text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground',
         active && 'bg-sidebar-accent text-foreground',
       )}
       onClick={onClick}
-      /*
-       * 图标中线锚在 --workspace-sidebar-nav-icon-center 上：4px 是 nav 的
-       * px-1（留给行悬浮背景的外边距），8px 是 16px 图标的一半。
-       */
-      style={{ paddingLeft: 'calc(var(--workspace-sidebar-nav-icon-center) - 4px - 8px)' }}
       type="button"
     >
-      <Icon aria-hidden="true" className="size-4 shrink-0" />
+      <Icon aria-hidden="true" className="sidebar-nav-row__icon" />
 
       <span className="truncate font-medium">{label}</span>
     </button>
