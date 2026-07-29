@@ -331,8 +331,51 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
    *
    * 所以量的是一个替身：同宽、同字体、同行高、同内边距，装同样的文本。输入框
    * 自己的 block-size 因此只经历"旧像素值 → 新像素值"，两端都是长度，过渡成立。
-   * 上下限仍由样式表的 min/max 钳住，时长仍由 --cp-motion-grow 说。
+   * 上下限仍由样式表的 min/max 钳住；这段路怎么走，见下面的 settle。
    */
+  /*
+   * 高度怎么走，交给 Web Animations，不交给 CSS transition。
+   *
+   * 两个理由，都不是调参能解决的：
+   *
+   * 一，固定时长对内容驱动的位移天生不自然。粘两行和粘两百行走同一个 240ms，
+   *     位移差一个数量级而时长不变，观感就是生硬。时长应当跟位移走。
+   * 二，transition 被打断时从当前值重新起跑，不保速度；连着粘两次就会顿。
+   *     这一版把当前渲染高度读出来当起点，新的一次从旧的那一次手里接管。
+   *
+   * 起点取 getBoundingClientRect，而不是行内样式里写着的值：上一次的动画可能还在
+   * 跑，写着的是它的终点，不是眼睛看到的位置。
+   */
+  const running = useRef<Animation | null>(null)
+
+  const settle = useCallback((node: HTMLTextAreaElement, target: number) => {
+    const from = node.getBoundingClientRect().height
+
+    running.current?.cancel()
+    running.current = null
+
+    /* 布局值先落定，动画只负责这段路怎么走。 */
+    node.style.setProperty('block-size', `${String(target)}px`)
+
+    const delta = Math.abs(target - from)
+
+    /* 第一次量的时候元素还没进过布局，那一下不该有入场动画。 */
+    if (from === 0 || delta < 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return
+    }
+
+    /*
+     * 时长跟位移走，两头钳住：短了看不见，长了碍事。
+     * 曲线不过冲——过冲会撞上 max-block-size，把工具栏顶一下再弹回来。
+     */
+    const duration = Math.min(400, Math.max(130, delta * 1.7))
+
+    running.current = node.animate(
+      { blockSize: [`${String(from)}px`, `${String(target)}px`] },
+      { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' },
+    )
+  }, [])
+
   const measure = useCallback(() => {
     const node = editor.current
 
@@ -379,8 +422,8 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
     /* 末尾补一个换行：最后一行为空时它也要占一行，否则按回车高度不动。 */
     ghost.textContent = `${text}\n`
 
-    node.style.setProperty('block-size', `${String(ghost.offsetHeight)}px`)
-  }, [text])
+    settle(node, ghost.offsetHeight)
+  }, [settle, text])
 
   useLayoutEffect(measure, [measure])
 
@@ -392,6 +435,8 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
   /* 替身随组件一起走。 */
   useEffect(
     () => () => {
+      running.current?.cancel()
+      running.current = null
       mirror.current?.remove()
       mirror.current = null
     },

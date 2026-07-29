@@ -236,7 +236,26 @@ export function AssistantSurface({
    */
   const started = visibleRows.length > 0
 
-  const settled = started || assistant.isRestoring
+  /*
+   * 落到底部是一次不可逆的转场，不是一个可以来回翻的布尔量。
+   *
+   * 这里曾经是 started || isRestoring，即由"转录里有没有行"反推排版——把一个导航
+   * 状态派生自内容状态。于是任何让转录短暂非空或短暂变空的事情：别的 run 送来的
+   * 帧（帧上没有 threadId，见 run-contract.ts）、一条 run_failed、opening() 的清空、
+   * loadThread 的覆盖，都会让输入框落下去再弹回来，来回一趟 320ms。那就是"新建
+   * 会话"那一屏的抖动。
+   *
+   * 闩住之后方向只有一个。这是最小的忠实修正，不是终局：真正该做的是把入口态和
+   * 会话态分成两个视图，让这段位移是一次导航，而不是同一棵树上的 flex-grow 插值。
+   * 见 docs/agent-surface-foundation-review.md 的缺陷 3。
+   */
+  const latch = useMemo(() => ({ engaged: false }), [])
+
+  if (started || assistant.isRestoring) {
+    latch.engaged = true
+  }
+
+  const settled = latch.engaged
 
   /*
    * 权限行分两路。

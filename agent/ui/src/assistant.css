@@ -114,7 +114,6 @@
   resize: none;
   box-sizing: border-box;
   field-sizing: content;
-  transition: block-size var(--cp-motion-grow) var(--cp-motion-ease);
 }
 
 /* 减弱动态偏好下直接到位：长高本身是必要的，补间不是。 */
