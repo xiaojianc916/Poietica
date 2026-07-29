@@ -5,7 +5,7 @@ import { type MouseEvent, useCallback, useMemo } from 'react'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-jump@v12 */
+/* poietica:conversation-minimap-jump@v13 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -72,7 +72,14 @@ export function ConversationMinimap({ turns, activeRow, onSelect }: Conversation
            * "是当前的",没说是哪一种当前。样式不再挑 token,只看属性在不在。
            */
           aria-current={index === active ? 'location' : undefined}
-          aria-label={turn.label}
+          /*
+           * 序数在前,内容在后。
+           *
+           * 这一条在视觉上是一根短横,它在整根轨道里的位置就是它全部的空间
+           * 信息;而读屏用户拿不到这份信息 —— 只报内容,等于让人自己数到第几
+           * 根。目录类控件播报序数是通行做法,代价是一次字符串拼接。
+           */
+          aria-label={`第 ${String(index + 1)} 轮，共 ${String(turns.length)} 轮：${turn.label}`}
           className="conversation-minimap__turn"
           data-row={turn.rowIndex}
           key={turn.id}

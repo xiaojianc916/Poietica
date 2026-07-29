@@ -6,7 +6,7 @@ import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from '
 import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
-/* poietica:conversation-minimap-jump@v11 */
+/* poietica:conversation-minimap-jump@v13 */
 
 /**
  * 各类条目的首屏估高。
@@ -59,9 +59,14 @@ const READING_ANCHOR_RATIO = 1 / 3
  * 存在的理由,不该在产品代码里复刻。浏览器原生的滚动锚定因此在样式里显式
  * 关闭:两个纠正者对同一次尺寸变化各补偿一次,位移就会翻倍。
  *
- * 本组件不做任何几何计算 —— 除了两个派生量,而它们共用一次读取:人是不是
- * 贴在末端,以及视线落在哪一行。两者都只是读现成的滚动量,都只在翻转时进
- * state,都挂在同一个 scroll 监听上。不引第二个位置来源。
+ * 本组件不做任何几何计算 —— 除了三个派生量,而它们共用一次读取:人是不是
+ * 贴在末端、视线落在哪一行、视口顶端是哪一行。三者是同一次布局的三个侧面,
+ * 合在一个回调里意味着一次布局只读一次几何,也意味着它们在时间上不会错开。
+ *
+ * 这次读取挂在两处:滚动事件,以及每一次布局之后。只挂滚动是不够的 —— 流式
+ * 输出把行撑高、面板被拖窄、抽屉展开,都会让同一个滚动位置对应到另一行上,
+ * 而它们都不产生滚动事件。挂在布局之后同时把面板缩放一并解决了:虚拟器本来
+ * 就观察滚动容器的尺寸并在变化时重渲染,所以这里不需要第二个观察者。
  *
  * 唯一的量是画布相对滚动区的偏移,它由 offsetTop 一次读出并存在 ref 里:
  * 这个值是虚拟器全部偏移的基准,让它进 state,开场白那段 flex-grow 动画的
@@ -132,42 +137,57 @@ export function AgentActivityFeed({
    * 视线落在哪一行。
    *
    * null 是"还没读到过",不是"第 0 行"。首帧的布局效果会把视口送到末尾,
-   * 那一帧还没有任何 scroll 事件发生过,若此时谎称 0,缩略导航会先高亮第一
-   * 轮再跳到最后一轮 —— 开场那一下闪跳就是这么来的。
+   * 那一帧还没有任何几何可读,若此时谎称 0,缩略导航会先高亮第一轮再跳到
+   * 最后一轮 —— 开场那一下闪跳就是这么来的。
    */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
-  const { row: revealRow, begin: beginReveal, watch: watchReveal } = useRevealIntent()
+  const {
+    pending,
+    begin: beginReveal,
+    settle: settleReveal,
+    watch: watchReveal,
+  } = useRevealIntent()
 
   /*
    * 虚拟器此刻铺出来的区间表。
    *
-   * scroll 监听要用它做二分,而监听装在 ref 回调里、装载时虚拟器还不存在,
+   * 同步回调要用它做二分,而回调也在滚动事件里跑、那时拿不到渲染期的值,
    * 所以在每次渲染之后把表放进 ref。渲染期间不写 ref:渲染要保持是纯的。
-   *
-   * 表比事件滞后至多一帧,而这不影响判据:视线跨过行边界的时候,那两行都
-   * 已经在表里了。
    */
   const spansRef = useRef<readonly RowSpan[]>([])
 
   /*
-   * 一次读取,两个派生量。
+   * 一次读取,三个派生量。
    *
-   * 贴底与视线是同一次滚动的两个侧面,合在一个回调里意味着一次滚动只读一
-   * 次几何。分开写会读两次,还会让两个真源在时间上错开。
+   * 分开写会读三次几何,还会让三个真源在时间上错开。这里全部是读,没有写
+   * 夹在中间,所以不会有强制回流。
    */
-  const syncScrollState = useCallback((viewport: HTMLDivElement) => {
-    const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
+  const syncScrollState = useCallback(
+    (viewport: HTMLDivElement) => {
+      const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
 
-    setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
+      setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
 
-    const anchor = viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO
-    const row = rowAtAnchor(spansRef.current, anchor)
+      const spans = spansRef.current
+      const reading = rowAtAnchor(
+        spans,
+        viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO,
+      )
 
-    if (row !== null) {
-      setReadingRow((held) => (held === row ? held : row))
-    }
-  }, [])
+      if (reading !== null) {
+        setReadingRow((held) => (held === reading ? held : reading))
+      }
+
+      /* 顶行只为一件事:回答那次跳转到了没有。 */
+      const top = rowAtAnchor(spans, viewport.scrollTop)
+
+      if (top !== null) {
+        settleReveal(top)
+      }
+    },
+    [settleReveal],
+  )
 
   /*
    * 只听滚动区自己的滚动。
@@ -181,7 +201,7 @@ export function AgentActivityFeed({
    * 任何 target 比对 —— 比对是让错误先进门再赶出去,而这里可以让它根本进不来。
    * passive:读一个已有的几何量,永远不该让滚动等我们。
    *
-   * 跳转闩锁的解闩也装在这里。它听的是输入设备事件,与滚动同源、同寿、同一个
+   * 跳转闩锁的放弃路径也装在这里。它听的是输入设备事件,与滚动同源、同寿、同一个
    * 装卸点 —— 一个滚动区,一处装卸,没有第二条生命周期要维护。
    */
   const bindViewport = useCallback(
@@ -236,7 +256,7 @@ export function AgentActivityFeed({
    * 所以把"人已经走开了"变成一个显式的事实,让它排在前面。这不是兼容层,是
    * 优先级:导航是人下的指令,自动跟随是默认行为,指令高于默认。
    */
-  const revealing = revealRow !== null
+  const revealing = pending !== null
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -285,33 +305,55 @@ export function AgentActivityFeed({
     virtualizer.scrollToEnd()
   }, [virtualizer])
 
-  /*
-   * 跳转是瞬移,而且必须是瞬移。
-   *
-   * 平滑滚动在这里不是一个体验选项:行是动态测量的(下面的 measureElement),
-   * 而平滑滚动要求目标偏移在一段动画期间保持不变 —— 途中每挂载一行,估高就
-   * 被真高替换一次,总高度与偏移随之改变,目标自己跑掉了。这也正是虚拟化的
-   * 收益所在:瞬移只挂载落点周围的十来行,与会话多长无关;而平滑滚动会让滚动
-   * 位置连续经过中间每一个像素,于是中间每一行都要挂载、测量、卸载一遍 ——
-   * 那等于把整条会话读了一遍,长会话上这是唯一真正的性能悬崖。
-   *
-   * 落点的稳定不靠动画去掩饰,靠 anchorTo: 'start' 去保证;高亮的连续不靠
-   * 动画去补,靠闩锁去锁。
-   */
-  const scrollToRow = useCallback(
-    (index: number) => {
-      beginReveal(index)
-      virtualizer.scrollToIndex(index, { align: 'start' })
-    },
-    [beginReveal, virtualizer],
-  )
-
   const items = virtualizer.getVirtualItems()
   const scrollMargin = virtualizer.options.scrollMargin
 
+  /*
+   * 每一次布局之后:先交出新的区间表,再按它重算一次位置。
+   *
+   * 顺序不能反 —— 同步用的正是这张表。两者写在同一个效应里,顺序就是语句
+   * 顺序,不依赖任何人记得它们的先后。
+   *
+   * 三个写入都做了等值短路,所以这不会自激:值不变时 setState 不产生新的
+   * 渲染,效应也就不会再跑一轮。
+   */
   useLayoutEffect(() => {
     spansRef.current = items
+
+    const viewport = viewportRef.current
+
+    if (viewport !== null) {
+      syncScrollState(viewport)
+    }
   })
+
+  /*
+   * 跳转是意图的效应,不是点击的副作用。
+   *
+   * 写成点击时直接 scrollToIndex 是错的:意图要先改变 anchorTo 与
+   * followOnAppend,而那要等下一次渲染 —— 同步调用会让跳转本身发生在旧策略
+   * 下,恰好绕开了这次修改想要的那条保证。放进效应里,顺序由 React 保证,
+   * 不由调用顺序碰运气。
+   *
+   * 依赖是整个请求对象:每次点击都是一个新身份,所以连点同一行也会再跳一次。
+   *
+   * 而且必须是瞬移。平滑滚动在这里不是一个体验选项:行是动态测量的(下面的
+   * measureElement),平滑滚动要求目标偏移在一段动画期间保持不变 —— 途中每
+   * 挂载一行,估高就被真高替换一次,总高度与偏移随之改变,目标自己跑掉了。
+   * 这也正是虚拟化的收益所在:瞬移只挂载落点周围的十来行,与会话多长无关;
+   * 平滑滚动会让滚动位置连续经过中间每一个像素,于是中间每一行都要挂载、
+   * 测量、卸载一遍 —— 那等于把整条会话读了一遍。
+   *
+   * 落点的稳定不靠动画去掩饰,靠 anchorTo 'start' 去保证;高亮的连续不靠
+   * 动画去补,靠闩锁去锁。
+   */
+  useLayoutEffect(() => {
+    if (pending === null) {
+      return
+    }
+
+    virtualizer.scrollToIndex(pending.row, { align: 'start' })
+  }, [pending, virtualizer])
 
   /*
    * 高亮的真源,按优先级排。
@@ -320,7 +362,14 @@ export function AgentActivityFeed({
    * 帧 —— 只有首帧 —— 是末尾,因为上面的布局效果刚把视口送到那里。原先这里
    * 写 0,于是开场必然先亮第一轮再跳到最后一轮。
    */
-  const activeRow = revealRow ?? readingRow ?? Math.max(0, rows.length - 1)
+  const activeRow = pending?.row ?? readingRow ?? Math.max(0, rows.length - 1)
+
+  const scrollToRow = useCallback(
+    (index: number) => {
+      beginReveal(index)
+    },
+    [beginReveal],
+  )
 
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
