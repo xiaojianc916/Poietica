@@ -19,10 +19,16 @@
   --ui-sidebar-accent: var(--ui-palette-dark-700);
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
-  --ui-region-divider-color: rgb(255 255 255 / 16%);
+  /*
+   * 三档线，与 light.css 同一套台阶、同一种墨（这里墨是白的）。
+   *
+   * 中间档 16% 是原值，窗格与标题栏因此零像素差；上下各 ×1.6。深色下这三档
+   * 的绝对差比浅色小，是对的：底色越暗，同样的墨量差看起来越明显。
+   */
+  --ui-region-divider-color: color-mix(in oklab, var(--ui-foreground) 16%, transparent);
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: color-mix(in srgb, var(--ui-foreground) 8%, transparent);
-  --ui-border: var(--ui-region-divider-color);
+  --ui-divider-subtle: color-mix(in oklab, var(--ui-foreground) 10%, transparent);
+  --ui-border: color-mix(in oklab, var(--ui-foreground) 26%, transparent);
   --ui-input: rgb(255 255 255 / 24%);
   --ui-ring: var(--ui-palette-blue-400);
 

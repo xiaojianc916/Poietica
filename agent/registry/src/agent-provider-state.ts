@@ -67,22 +67,18 @@ export interface AgentProviderSnapshot {
   readonly issues: readonly string[]
 }
 
-/** 一次 agent CLI 调用的命令与参数。 */
-export interface AgentCliCommand {
-  readonly command: string
-  readonly args: readonly string[]
-}
-
 /**
- * 问 agent 要这份投影的那条命令。
+ * 问 agent 要这份投影的那串参数。
  *
- * 拆成两段而不是一个扁平数组：端口的 AgentCliInvocation 就是这么分的，原生侧
- * 的白名单也按这两段判定。合成一个数组只会让每个调用点再拆一次。
+ * 完整的子命令序列，第一项就是子命令名 —— 原生侧的白名单看的正是 args[0]。
+ * 可执行文件不在这里：它由原生侧按 agentId 从 agents.json 的档案里取，与 ACP
+ * 会话起的那个进程同源。
+ *
+ * 上一版把它拆成过 { command, args } 两段，那是把 AgentCliRequest.command 当
+ * 成了「子命令」。那个字段其实是可执行文件，于是参数第一项成了 list，白名单
+ * 一看不是 provider 就整次拒掉。
  */
-export const AGENT_PROVIDER_LIST: AgentCliCommand = {
-  command: 'provider',
-  args: ['list', '--json'],
-}
+export const AGENT_PROVIDER_LIST_ARGS: readonly string[] = ['provider', 'list', '--json']
 
 const SYNTHETIC_PROVIDER_ID = '__kimi_env__'
 

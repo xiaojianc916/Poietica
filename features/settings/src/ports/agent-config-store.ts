@@ -9,7 +9,14 @@ import type { AcpAgentProfile } from '@poietica/agent-registry'
  */
 export interface AgentCliInvocation {
   readonly agentId: string
-  readonly command: string
+  /**
+   * 完整的子命令序列，例如 ['provider', 'list', '--json']。
+   *
+   * 第一项是子命令名，原生侧的白名单看的就是它。
+   *
+   * 可执行文件不在这里，与 home 同理：由原生侧按 agentId 从档案里取。渲染层
+   * 报一个程序路径过去，而白名单只校验参数，那等于放行任意程序。
+   */
   readonly args: readonly string[]
   /** 要注入的凭据环境变量名。它不是秘密，只是个名字。 */
   readonly secretVar: string

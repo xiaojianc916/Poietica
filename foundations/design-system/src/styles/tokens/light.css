@@ -24,18 +24,32 @@
   --ui-sidebar-accent: #e6e6e6;
   --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
 
-  --ui-region-divider-color: oklch(0.9067 0 0);
-  --ui-divider: var(--ui-region-divider-color);
-
   /*
-   * 卡片内部的分隔线，比容器外框淡一档。
+   * 三档线，一种墨。
    *
-   * --ui-border 与 --ui-divider 此前是同一个取值，于是外框、卡内横线、
-   * 表格行线三者同色同粗，一张展开的卡片读起来是一叠平行线而不是一个盒子。
-   * 分级只加在内侧：外框归 --ui-border，它同时被按钮与输入框消费，不动。
+   * 上一版这三个名字里有两个指向同一个不透明色：注释写着"分级只加在内侧，
+   * 外框不动"，于是外框、区域线、表格行线全是 sRGB 224，一张展开的卡片读
+   * 起来是一叠平行线而不是一个盒子。分级不在内侧加，在这里加。
+   *
+   * 写成压在背景上的一层墨而不是不透明色，理由与 VS Code 把边框写成
+   * #80808059、Primer 把 borderColor-muted 写成 default 的半透明度一样：
+   * 同一档线压在页面、侧栏、卡片三种底色上都还是"同一档"，不需要为每种
+   * 底色再挑一个十六进制。
+   *
+   * 台阶是从实测值反解的，不是挑的：背景 248、原本的线 224，墨量 12%。以它
+   * 为中间档，上下各走 ×1.6 ——
+   *
+   *   19%  容器外框、控件边框        ≈ sRGB 210
+   *   12%  窗格与区域分隔（取值不变）  = sRGB 224
+   *    6%  容器内部的分隔线、表格行线  ≈ sRGB 236
+   *
+   * 中间档取值不变，所以标题栏与窗格是零像素差；外框与内线差 26 级，卡片
+   * 因此有边界、内部有节奏。深色主题在 dark.css，同一套台阶、同一种墨。
    */
-  --ui-divider-subtle: color-mix(in srgb, var(--ui-foreground) 5%, transparent);
-  --ui-border: var(--ui-region-divider-color);
+  --ui-region-divider-color: color-mix(in oklab, var(--ui-foreground) 12%, transparent);
+  --ui-divider: var(--ui-region-divider-color);
+  --ui-divider-subtle: color-mix(in oklab, var(--ui-foreground) 6%, transparent);
+  --ui-border: color-mix(in oklab, var(--ui-foreground) 19%, transparent);
   --ui-input: var(--ui-palette-neutral-300);
   --ui-ring: var(--ui-palette-blue-500);
 

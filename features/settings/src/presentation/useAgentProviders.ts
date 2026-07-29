@@ -1,9 +1,9 @@
 import {
-  AGENT_PROVIDER_LIST,
+  AGENT_PROVIDER_LIST_ARGS,
   type AgentProviderSnapshot,
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 
 /**
@@ -27,21 +27,23 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
   const [loading, setLoading] = useState(true)
   const [snapshot, setSnapshot] = useState<AgentProviderSnapshot | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-
-  const reload = useCallback(() => {
-    setAttempt((current) => current + 1)
-  }, [])
 
   /*
-   * agentId 变了就重问一遍：两个 agent 的 provider 各自独立，沿用上一个的清单
-   * 会让界面显示一份属于别人的配置。
+   * 每次询问领一个号，只有最新的号有权写状态。
    *
-   * active 标志防两件事：切走设置页时调用才回来，以及连点刷新时旧的一次覆盖
-   * 新的一次。
+   * 上一版拿一个 attempt 计数器当重跑开关，又把它写进依赖数组 —— 那是 effect
+   * 里根本没用到的值。把请求本身提成回调之后，effect 依赖这个回调就够了，刷新
+   * 也只是再调一次同一个回调，不需要一个假依赖。
+   *
+   * 号顺便顶掉了 active 标志：卸载时递增一次，在飞的那次自然作废。
    */
-  useEffect(() => {
-    let active = true
+  const generation = useRef(0)
+
+  const ask = useCallback(() => {
+    generation.current += 1
+
+    const mine = generation.current
+    const stale = () => mine !== generation.current
 
     setLoading(true)
     setError(null)
@@ -49,14 +51,13 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     void store
       .execCli({
         agentId,
-        command: AGENT_PROVIDER_LIST.command,
-        args: AGENT_PROVIDER_LIST.args,
+        args: AGENT_PROVIDER_LIST_ARGS,
         secretVar: '',
         secretValue: '',
       })
       .then(
         (outcome) => {
-          if (!active) {
+          if (stale()) {
             return
           }
 
@@ -75,7 +76,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
           setSnapshot(parseAgentProviderListOutput(outcome.stdout))
         },
         (cause: unknown) => {
-          if (!active) {
+          if (stale()) {
             return
           }
 
@@ -84,13 +85,17 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
           setError(cause instanceof Error ? cause.message : '无法向 agent 询问模型清单。')
         },
       )
+  }, [agentId, store])
+
+  useEffect(() => {
+    ask()
 
     return () => {
-      active = false
+      generation.current += 1
     }
-  }, [agentId, attempt, store])
+  }, [ask])
 
-  return { loading, snapshot, error, reload }
+  return { loading, snapshot, error, reload: ask }
 }
 
 function describeExit(status: number, stderr: string): string {

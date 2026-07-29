@@ -11,7 +11,7 @@
 //!   - 显式禁止 --api-key：Windows 上任何用户都能读到别的进程的完整命令行，
 //!     密钥一律走环境变量注入。
 
-use crate::commands::agent_config::launch_env;
+use crate::commands::agent_config::{agent_program, launch_env};
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -33,10 +33,15 @@ const FORBIDDEN_FLAGS: [&str; 2] = ["--api-key", "--apikey"];
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCliRequest {
-    /// 用于算出受控 home。
+    /// 用于算出受控 home，也用于从档案里查出该执行哪个程序。
     pub agent_id: String,
-    /// 可执行文件名或绝对路径。
-    pub command: String,
+    /// 完整的子命令序列，例如 ["provider", "list", "--json"]。
+    ///
+    /// 第一项是子命令名，`is_allowed` 看的就是它。
+    ///
+    /// 可执行文件不在这里。它曾经在：渲染层报一个程序路径过来，而白名单只
+    /// 校验参数，于是 `{ command: 任意程序, args: ["provider", "list"] }` 会
+    /// 被放行执行。程序现在由 `agent_program` 从档案里取。
     pub args: Vec<String>,
     /// 要注入的凭据环境变量名。它不是秘密，只是个名字。
     pub secret_var: String,
@@ -80,28 +85,36 @@ fn is_allowed(args: &[String]) -> bool {
     }
 }
 
-fn validate(request: &AgentCliRequest) -> Result<()> {
-    if request.command.is_empty() || request.command.len() > MAX_ARG_LEN {
-        return Err(Error::Internal("agent 命令不能为空".to_owned()));
+/// 校验从档案里取出来的程序名。
+///
+/// 档案在 TS 侧过了 `parseAcpAgentProfile`，但那道校验不在这个进程里 ——
+/// agents.json 是一个可以手改的文件，信它等于把校验交给了文本编辑器。
+fn validate_program(program: &str) -> Result<()> {
+    if program.is_empty() || program.len() > MAX_ARG_LEN {
+        return Err(Error::AgentCli("agent 接入档案里的程序名为空".to_owned()));
     }
 
-    if contains_metacharacter(&request.command) {
-        return Err(Error::Internal(
-            "agent 命令不能包含 shell 元字符".to_owned(),
+    if contains_metacharacter(program) {
+        return Err(Error::AgentCli(
+            "agent 接入档案里的程序名含有 shell 元字符".to_owned(),
         ));
     }
 
+    Ok(())
+}
+
+fn validate(request: &AgentCliRequest) -> Result<()> {
     if request.args.len() > MAX_ARGS {
-        return Err(Error::Internal(format!("参数不能超过 {MAX_ARGS} 项")));
+        return Err(Error::AgentCli(format!("参数不能超过 {MAX_ARGS} 项")));
     }
 
     for arg in &request.args {
         if arg.len() > MAX_ARG_LEN {
-            return Err(Error::Internal("参数过长".to_owned()));
+            return Err(Error::AgentCli("参数过长".to_owned()));
         }
 
         if contains_metacharacter(arg) {
-            return Err(Error::Internal(format!("参数含有不被接受的字符：{arg}")));
+            return Err(Error::AgentCli(format!("参数含有不被接受的字符：{arg}")));
         }
 
         let lowered = arg.to_ascii_lowercase();
@@ -110,14 +123,14 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
             .iter()
             .any(|flag| lowered == *flag || lowered.starts_with(&format!("{flag}=")))
         {
-            return Err(Error::Internal(
+            return Err(Error::AgentCli(
                 "密钥不能出现在命令行上，请使用环境变量注入".to_owned(),
             ));
         }
     }
 
     if !is_allowed(&request.args) {
-        return Err(Error::Internal(
+        return Err(Error::AgentCli(
             "只允许 provider list / add / remove / catalog list / catalog add".to_owned(),
         ));
     }
@@ -144,12 +157,15 @@ pub async fn agent_cli_exec(
 ) -> AgentCliCommandResult<AgentCliResult> {
     validate(&request).map_err(IpcError::from)?;
 
-    // 和 ACP 会话同一个产地。CLI 往哪个 home 写 provider，agent 起来就得从
-    // 哪个 home 读 —— 两处各算一次，迟早算出两个目录。
+    // 程序与环境来自同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
+    // 都得与 ACP 会话起来的那个进程一致 —— 两处各算一次，迟早算出两个。
+    let program = agent_program(&app, &request.agent_id).map_err(IpcError::from)?;
+    validate_program(&program).map_err(IpcError::from)?;
+
     let env = launch_env(&app, &request.agent_id).map_err(IpcError::from)?;
 
     let spawned = async_runtime::spawn_blocking(move || {
-        let mut command = std::process::Command::new(&request.command);
+        let mut command = std::process::Command::new(&program);
         command.args(&request.args);
         command.envs(env);
 
@@ -163,8 +179,18 @@ pub async fn agent_cli_exec(
     .map_err(|error| Error::Internal(error.to_string()))
     .map_err(IpcError::from)?;
 
+    // 「没装」是这里最常见的一种失败，也是用户自己能解决的那一种。其余的
+    // io 错误可能带上系统路径，仍然走脱敏。
     let output = spawned
-        .map_err(|error| Error::Internal(format!("无法启动 agent CLI：{error}")))
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                Error::AgentCli(
+                    "找不到该 agent 的命令行工具，请确认它已安装并在 PATH 中".to_owned(),
+                )
+            } else {
+                Error::Internal(format!("无法启动 agent CLI：{error}"))
+            }
+        })
         .map_err(IpcError::from)?;
 
     Ok(AgentCliResult {

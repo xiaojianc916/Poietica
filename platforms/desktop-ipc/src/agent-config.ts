@@ -1,9 +1,9 @@
 import { invoke } from './invoke'
 
-/** 受控 CLI 调用的请求。受控 home 由原生侧现算，不在这里。 */
+/** 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。 */
 export interface AgentCliRequest {
   readonly agentId: string
-  readonly command: string
+  /** 完整的子命令序列，例如 ['provider', 'list', '--json']。 */
   readonly args: readonly string[]
   /** 要注入的凭据环境变量名。留空表示这次调用不注入凭据。 */
   readonly secretVar: string

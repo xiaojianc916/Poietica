@@ -439,13 +439,19 @@ launch: AgentLaunch;
 cwd: string | null }
 export type AgentCliRequest = { 
 /**
- * 用于算出受控 home。
+ * 用于算出受控 home，也用于从档案里查出该执行哪个程序。
  */
 agentId: string; 
 /**
- * 可执行文件名或绝对路径。
+ * 完整的子命令序列，例如 ["provider", "list", "--json"]。
+ * 
+ * 第一项是子命令名，`is_allowed` 看的就是它。
+ * 
+ * 可执行文件不在这里。它曾经在：渲染层报一个程序路径过来，而白名单只
+ * 校验参数，于是 `{ command: 任意程序, args: ["provider", "list"] }` 会
+ * 被放行执行。程序现在由 `agent_program` 从档案里取。
  */
-command: string; args: string[]; 
+args: string[]; 
 /**
  * 要注入的凭据环境变量名。它不是秘密，只是个名字。
  */

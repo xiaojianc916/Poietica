@@ -93,7 +93,7 @@
 
   /* 悬停是一层墨,不是一个固定的灰:深色下它必须变亮而不是变暗。 */
   --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
-  --cp-hairline: var(--ui-divider);
+  --cp-hairline: var(--ui-divider-subtle);
 
   /*
    * 时间线的颜色。

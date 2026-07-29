@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AGENT_PROVIDER_LIST,
+  AGENT_PROVIDER_LIST_ARGS,
   parseAgentProviderList,
   parseAgentProviderListOutput,
 } from '../agent-provider-state'
@@ -149,12 +149,14 @@ describe('parseAgentProviderListOutput', () => {
   })
 })
 
-describe('AGENT_PROVIDER_LIST', () => {
-  /* 参数始终是分好的数组，不是一行待切的命令行。 */
-  it('把命令与参数分开给出', () => {
-    expect(AGENT_PROVIDER_LIST).toEqual({
-      command: 'provider',
-      args: ['list', '--json'],
-    })
+describe('AGENT_PROVIDER_LIST_ARGS', () => {
+  /*
+   * 两条断言各拦一件事：形状必须是分好的数组（不是一行待切的命令行），第一
+   * 项必须是子命令名（原生侧的白名单只看 args[0]）。第二条是回归护栏 —— 它
+   * 拦的正是「把可执行文件与子命令搞混」那次。
+   */
+  it('是完整的子命令序列', () => {
+    expect(AGENT_PROVIDER_LIST_ARGS).toEqual(['provider', 'list', '--json'])
+    expect(AGENT_PROVIDER_LIST_ARGS[0]).toBe('provider')
   })
 })

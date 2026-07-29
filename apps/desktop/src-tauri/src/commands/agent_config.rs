@@ -18,7 +18,7 @@
 //! 「哪些 provider 已配好」的权威因此是 agent，问它的 provider list，不是问
 //! 我们。旧的 provider 列表仍原样保留在 `legacy_providers` 里交给界面处置。
 
-use crate::error::{IpcError, Result};
+use crate::error::{Error, IpcError, Result};
 use crate::paths::{AGENTS_STORE, agent_home};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -128,6 +128,37 @@ pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String
     }
 
     Ok(env.into_iter().collect())
+}
+
+/// 这个 agent 的可执行文件。
+///
+/// 与 `launch_env` 读同一份档案。CLI 用哪个程序、往哪个 home 写 provider，
+/// 必须与 ACP 会话起来的那个进程一致；两处各算一次，迟早算出两个。
+///
+/// 它刻意不来自请求。渲染层报一个程序路径过来，而 `is_allowed` 只校验参数，
+/// 于是白名单挡不住 `{ command: 任意程序, args: ["provider", "list"] }`。档案
+/// 要先过 TS 侧的 `parseAcpAgentProfile` 才写得进 agents.json，绕过这里的成本
+/// 因此高得多 —— 但也仅此而已，所以调用方仍要自己校验一遍程序名。
+///
+/// # Errors
+///
+/// store 无法打开、档案不存在、或档案里没有可用的 command 时返回错误。
+pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
+    let (config, _issues) = read_config(app)?;
+
+    let found = config
+        .agents
+        .iter()
+        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
+        .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))?;
+
+    let program = found
+        .get("command")
+        .and_then(Value::as_str)
+        .filter(|text| !text.is_empty())
+        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))?;
+
+    Ok(program.to_owned())
 }
 
 /*

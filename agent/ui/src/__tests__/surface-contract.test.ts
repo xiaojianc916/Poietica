@@ -6,24 +6,18 @@ import { describe, expect, it } from 'vitest'
 /*
  * 边框是一份契约，不是一个习惯。
  *
- * 四条都被违反过至少一次：外框被组件手写过、卡片令牌被第二个消费者借用过、
- * "只定义一次"同时定义在三个文件里过、行的落点落在半个设备像素上过。评审
- * 拦不住下一次。
+ * 五条都被违反过至少一次：外框被组件手写过、卡片令牌被第二个消费者借用过、
+ * "只定义一次"同时定义在三个文件里过、行的落点落在半个设备像素上过、以及
+ * 最久的那一条 —— 容器外框与区域分隔线是同一个取值，注释里甚至写明了"外框
+ * 不动"。评审拦不住下一次。
  *
- * 两个细节决定这份断言可不可信：
- *
- *   剥注释 —— 讲历史的散文里必然出现被废弃的名字，那不是违规。上一版的
- *   扫描器把它们全数成了违规，于是输出一半是噪音，人就开始忽略输出。
- *
- *   needle 运行时拼接 —— 否则这个文件自己就是最大的违规者，检查会永远红着，
- *   而永远红的检查等于没有检查。
+ * 两个细节决定这份断言可不可信：剥注释，因为讲历史的散文里必然出现被废弃的
+ * 名字；needle 运行时拼接，否则这个文件自己就是最大的违规者。
  */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const ROOTS = [
-  path.resolve(HERE, '..'),
-  path.resolve(HERE, '../../../../foundations/design-system/src'),
-]
+const DS = path.resolve(HERE, '../../../../foundations/design-system/src')
+const ROOTS = [path.resolve(HERE, '..'), DS]
 
 const LEGACY_CLASS = ['assistant', 'card'].join('-')
 const LEGACY_TOKEN = ['--cp', 'card-'].join('-')
@@ -34,6 +28,8 @@ const strip = (text: string): string =>
   text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[^\n]*?\/\/.*$/gm, '')
 
 const read = (relative: string): string => readFileSync(path.resolve(HERE, relative), 'utf8')
+const theme = (name: string): string =>
+  strip(readFileSync(path.join(DS, 'styles/tokens', name), 'utf8'))
 
 function sources(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -74,15 +70,22 @@ describe('surface contract', () => {
     }
   })
 
-  it('两级描边是推导出来的，不是两个恰好差一档的取值', () => {
-    const surface = readFileSync(
-      path.resolve(HERE, '../../../../foundations/design-system/src/styles/surface.css'),
-      'utf8',
-    )
+  it.each(['light.css', 'dark.css'])('%s：容器外框不得与区域分隔线同值', (name) => {
+    const css = theme(name)
 
-    expect(surface).toContain('--surface-rule: color-mix(')
-    expect(surface).toContain('var(--surface-line)')
+    /* 这一条正是四轮之前就该有的：两个名字指向同一个取值，分级就不存在。 */
+    expect(css).not.toContain('--ui-border: var(--ui-region-divider-color)')
+    expect(css).toMatch(/--ui-border:\s*color-mix\(/)
+    expect(css).toMatch(/--ui-divider-subtle:\s*color-mix\(/)
+  })
+
+  it('三档线各有其名，卡片内外都读命名档位', () => {
+    const surface = readFileSync(path.join(DS, 'styles/surface.css'), 'utf8')
+
+    expect(surface).toContain('--surface-line: var(--ui-border)')
+    expect(surface).toContain('--surface-rule: var(--ui-divider-subtle)')
     expect(read('../timeline/timeline.css')).toContain('var(--surface-rule)')
+    expect(read('../composer-metrics.css')).toContain('--cp-hairline: var(--ui-divider-subtle)')
   })
 
   it('行的落点对齐到设备像素 —— 否则 1px 的边会被摊成两行半墨', () => {
