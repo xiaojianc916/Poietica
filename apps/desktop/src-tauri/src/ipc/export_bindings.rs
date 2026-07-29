@@ -24,6 +24,7 @@ use crate::{
             DocumentCloseRequest, DocumentDescriptor, DocumentId, DocumentOpenResponse,
             DocumentOpenResult, DocumentSaveAsRequest, DocumentSaveAsResult, DocumentSaveRequest,
         },
+        agent_config::{AgentConfigSnapshot, ProviderSecretState},
         settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},
     },
     diagnostics::NativeCrashReport,
@@ -76,6 +77,11 @@ pub fn export_document_bindings() {
             crate::commands::settings::settings_get,
             crate::commands::settings::settings_set,
             crate::commands::settings::settings_reset,
+            crate::commands::agent_config::agent_config_get,
+            crate::commands::agent_config::agent_config_save_providers,
+            crate::commands::agent_config::agent_config_save_agents,
+            crate::commands::agent_config::agent_config_set_secret,
+            crate::commands::agent_config::agent_config_clear_secret,
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
@@ -110,6 +116,8 @@ pub fn export_document_bindings() {
         .typ::<EditorSettings>()
         .typ::<ExportSettings>()
         .typ::<PrivacySettings>()
+        .typ::<AgentConfigSnapshot>()
+        .typ::<ProviderSecretState>()
         .export(Typescript::default(), OUTPUT_PATH)
         .expect("failed to export document IPC TypeScript bindings");
 }

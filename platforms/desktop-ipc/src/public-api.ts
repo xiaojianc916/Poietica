@@ -20,6 +20,12 @@ export {
   shutdownAgent,
 } from './agent'
 export {
+  type AgentConfigBridge,
+  type AgentConfigSnapshot,
+  createAgentConfigBridge,
+  type ProviderSecretState,
+} from './agent-config'
+export {
   type IpcError,
   IpcInvocationError,
   isIpcError,

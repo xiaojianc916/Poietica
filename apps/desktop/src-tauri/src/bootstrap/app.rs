@@ -91,6 +91,7 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.store("settings.json")?;
+            app.store("agents.json")?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
@@ -167,6 +168,11 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_reset,
+            commands::agent_config::agent_config_get,
+            commands::agent_config::agent_config_save_providers,
+            commands::agent_config::agent_config_save_agents,
+            commands::agent_config::agent_config_set_secret,
+            commands::agent_config::agent_config_clear_secret,
         ])
 }
 

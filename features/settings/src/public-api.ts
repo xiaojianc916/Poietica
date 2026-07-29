@@ -8,4 +8,9 @@ export {
   type ThemeMode,
 } from './domain/settings'
 
+export type {
+  AgentConfigSnapshot,
+  AgentConfigStore,
+  ProviderSecretState,
+} from './ports/agent-config-store'
 export type { SettingsStore } from './ports/settings-store'

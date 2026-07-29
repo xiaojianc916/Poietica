@@ -329,6 +329,65 @@ async settingsSet(settings: AppSettings) : Promise<null> {
  */
 async settingsReset() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_reset");
+},
+/**
+ * Loads the full configuration snapshot.
+ * 
+ * A missing or corrupt `agents.json` is not a failure: it returns an
+ * empty configuration with any parse problems in `issues`.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store plugin cannot be opened.
+ */
+async agentConfigGet() : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_get");
+},
+/**
+ * Replaces the provider list and writes the result back to `agents.json`.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be written.
+ */
+async agentConfigSaveProviders(providers: JsonValue[]) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_save_providers", { providers });
+},
+/**
+ * Replaces the agent list and default agent, then writes the result back.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be written.
+ */
+async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
+},
+/**
+ * Writes an API key to the system keychain for the given provider.
+ * 
+ * The secret never touches disk. Only `configured: true` reaches the
+ * renderer in the returned snapshot.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the keychain entry cannot be created or stored.
+ */
+async agentConfigSetSecret(providerId: string, value: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_set_secret", { providerId, value });
+},
+/**
+ * Removes an API key from the system keychain for the given provider.
+ * 
+ * Absence of a credential is treated as success. The snapshot returned
+ * reflects `configured: false` for this provider.
+ * 
+ * # Errors
+ * 
+ * Returns an error only when the keychain itself cannot be reached.
+ */
+async agentConfigClearSecret(providerId: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_clear_secret", { providerId });
 }
 }
 
@@ -409,6 +468,19 @@ export type AgentConfigPurpose =
  * Something the agent named itself.
  */
 "other"
+/**
+ * The full configuration snapshot the renderer works from.
+ * 
+ * `providers` and `agents` are opaque JSON values validated on the
+ * TypeScript side by `@poietica/agent-registry`. The Rust side stores
+ * and retrieves them without interpreting their fields.
+ */
+export type AgentConfigSnapshot = { providers: JsonValue[]; agents: JsonValue[]; defaultAgentId: string; secrets: ProviderSecretState[]; 
+/**
+ * Entries that were present in `agents.json` but could not be
+ * deserialised. The renderer shows them so the user can correct them.
+ */
+issues: string[] }
 /**
  * A request to replay a run from the log.
  */
@@ -690,6 +762,14 @@ export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "plat
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
+/**
+ * Whether a provider's API key is stored in the system keychain.
+ * 
+ * The secret value is never handed to the renderer; only the boolean
+ * reaches it. The renderer uses this to decide whether to show a
+ * "configured" badge or an empty key field.
+ */
+export type ProviderSecretState = { providerId: string; configured: boolean }
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 
