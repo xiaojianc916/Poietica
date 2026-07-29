@@ -58,80 +58,6 @@ impl AiStore {
         Ok(found)
     }
 
-    /// Takes on the agent's own names for the conversations holding these
-    /// sessions.
-    ///
-    /// An official name is the agent's own. Anything else is a stand in the
-    /// interface chose while waiting, and recording which is which is what
-    /// stops a stand in from replacing a real name that arrived first.
-    ///
-    /// Listing conversations is a read. It writes here at all only because
-    /// the agent is the one authority on what a session is called, so the
-    /// write is narrowed until, in the ordinary case, it is no write: the
-    /// statement matches nothing when the stored name already agrees, and
-    /// nothing when the user has named the conversation themselves.
-    ///
-    /// What it deliberately leaves alone is updated_at. That column orders
-    /// the list, and being renamed is not something that happened in a
-    /// conversation — the same reason set_pinned leaves it alone. Writing
-    /// it here meant every refresh of the sidebar reshuffled the sidebar,
-    /// and every conversation the agent still knew about claimed to have
-    /// been spoken in just now.
-    ///
-    /// One transaction, because the alternative is one implicit transaction
-    /// per name, each with its own commit to the write ahead log, for a
-    /// list that usually has nothing to say.
-    ///
-    /// # Errors
-    ///
-    /// Fails when an update is rejected.
-    pub fn adopt_official_titles(&self, named: &[(String, String)]) -> Result<()> {
-        if named.is_empty() {
-            return Ok(());
-        }
-
-        self.connection.execute_batch("BEGIN IMMEDIATE")?;
-
-        match self.adopt_each(named) {
-            Ok(()) => {
-                self.connection.execute_batch("COMMIT")?;
-
-                Ok(())
-            }
-            Err(error) => {
-                // Best effort: the failure worth reporting is the one that
-                // got us here, not whatever the rollback then says.
-                let _ignored = self.connection.execute_batch("ROLLBACK");
-
-                Err(error)
-            }
-        }
-    }
-
-    /// The body of the transaction above, split out so the failure path has
-    /// somewhere to return to.
-    ///
-    /// Addressed by session_id rather than by thread: that column carries a
-    /// unique index, so this is the same single lookup the old two-statement
-    /// round trip paid for, with the update folded into it.
-    fn adopt_each(&self, named: &[(String, String)]) -> Result<()> {
-        let official = TitleSource::Official.as_str();
-
-        let mut statement = self.connection.prepare_cached(
-            "UPDATE threads
-                SET title = ?2, title_source = ?3
-              WHERE session_id = ?1
-                AND title_source <> 'manual'
-                AND (title <> ?2 OR title_source <> ?3)",
-        )?;
-
-        for (session_id, title) in named {
-            statement.execute(rusqlite::params![session_id, title, official])?;
-        }
-
-        Ok(())
-    }
-
     /// Records which agent session a thread is holding.
     ///
     /// updated_at is left alone. Reopening a conversation from a previous
@@ -165,7 +91,7 @@ impl AiStore {
     /// time saying exactly that. It was never how a frame found its
     /// conversation: a frame is filed under its run, and a run already names
     /// its thread. Its one real caller was folding the agent's own titles
-    /// into the list, and that now updates by session_id directly.
+    /// into the list, and the list no longer takes names from the agent.
     ///
     /// # Errors
     ///
@@ -220,9 +146,10 @@ impl AiStore {
 
     /// Names a conversation after the first thing said in it.
     ///
-    /// A stand in only ever replaces a stand in: the update is refused by the
-    /// statement itself once a name exists, so an official title cannot be
-    /// overwritten by a race rather than by a decision.
+    /// This is where a conversation normally gets its name. Only a
+    /// conversation that has none yet is named: the statement refuses the
+    /// update otherwise, so the opening line of a later turn cannot displace
+    /// the name the conversation is already known by.
     ///
     /// # Errors
     ///
@@ -248,8 +175,9 @@ impl AiStore {
 
     /// Names a conversation on the user's say-so.
     ///
-    /// This is the one name the agent does not get to replace, which is why
-    /// it is recorded as its own source rather than as an official title.
+    /// Recorded as its own source because it outranks the opening message it
+    /// replaces: someone has answered this question by hand, so nothing
+    /// derived from the text gets to answer it again.
     ///
     /// # Errors
     ///
@@ -324,26 +252,31 @@ pub struct ThreadSummary {
     pub pinned: bool,
 }
 
-/// Where a thread name came from.
+/// Where a thread name came from, in the order they outrank each other.
+///
+/// Naming a conversation is this program's job. There was a fourth source
+/// above all of these, taken from the agent's own session list, on the
+/// reasoning that the agent is the authority on what its session is called.
+/// It is the authority on that, and that is a different question: the name
+/// is whatever the agent wrote in its own store when the session was
+/// created, and an agent under no obligation to ever revise it will not.
+/// Ranking it above what the user actually typed is how a list of
+/// conversations became a column of the words New Session.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TitleSource {
-    /// The agent named it. This is the only name that is really the
-    /// conversation's own.
-    Official,
-    /// A stand in taken from the first thing the user said.
+    /// Taken from the first thing the user said, which is what a
+    /// conversation in a list should read as.
     Message,
-    /// A stand in shown before there was anything to take one from.
+    /// Shown before there was anything to take a name from.
     Fallback,
-    /// The user typed it. It is the one name a later official title does
-    /// not replace, because the user has already answered that question.
+    /// The user typed it. Nothing derived replaces it.
     Manual,
 }
 
 impl TitleSource {
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
-            Self::Official => "official",
             Self::Message => "message",
             Self::Fallback => "fallback",
             Self::Manual => "manual",

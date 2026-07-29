@@ -5,6 +5,13 @@
   --ui-background: var(--ui-palette-neutral-50);
   --ui-foreground: var(--ui-palette-neutral-850);
   --ui-surface: var(--ui-palette-white);
+
+  /*
+   * 抬起的一张卡。浅色下它比页面暗，取值沿用设置界面此前写死的那两个
+   * 十六进制，所以浅色主题是零像素差；深色主题在 dark.css 里给。
+   */
+  --ui-card: #efefef;
+  --ui-card-divider: #e7e7e7;
   --ui-chrome: var(--ui-palette-neutral-75);
   --ui-canvas: var(--ui-palette-neutral-50);
 

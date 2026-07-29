@@ -13,9 +13,9 @@
 .conversation-minimap {
   --cp-rail-hit: 11px;
   --cp-rail-len: 9px;
-  --cp-rail-gain: 20px;
+  --cp-rail-gain: 25px;
   --cp-rail-weight-line: 3px;
-  --cp-rail-weight-gain: 1px;
+  --cp-rail-weight-gain: 0.5px;
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
@@ -102,7 +102,7 @@
 .conversation-minimap__bar {
   block-size: calc(var(--cp-rail-weight-line) + var(--cp-rail-weight) * var(--cp-rail-weight-gain));
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
-  border-radius: 9999px;
+  border-radius: 1px;
   background: var(--cp-rail-ink-rest);
   transition:
     inline-size var(--cp-motion-swift) var(--cp-motion-ease),

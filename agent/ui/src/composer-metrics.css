@@ -104,6 +104,29 @@
   --cp-card-line: var(--ui-divider);
 
   /*
+   * 时间线的颜色。
+   *
+   * 这一节此前不存在 —— timeline.css 里每一处 var(--cp-timeline-*) 都在跑
+   * 自己的回退值，而每个回退值都是浅色假设（黑色兑透明、写死的红绿）。
+   * 深色主题下那就是黑字压近黑底，AI 回复里的次要文字整片读不出来。
+   *
+   * 现在全部由令牌推出，跟随主题：
+   *   次要文字沿用 --cp-ink-subtle，和这张表其它地方的次要墨色同一个刻度；
+   *   输出底是一层墨而不是一个固定的灰，深色下自动变亮；
+   *   增删与报错走 --ui-success / --ui-destructive，两套主题各有明度。
+   */
+  --cp-timeline-quiet-text: var(--cp-ink-subtle);
+  --cp-timeline-output-surface: color-mix(in srgb, var(--ui-foreground) 4%, transparent);
+  --cp-timeline-danger-text: var(--ui-destructive);
+  --cp-diff-added-text: var(--ui-success);
+  --cp-diff-removed-text: var(--ui-destructive);
+  --cp-timeline-diff-old: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  --cp-timeline-diff-new: color-mix(in srgb, var(--ui-success) 12%, transparent);
+
+  /* 等宽字族没有理由自己再列一遍，设计系统已经定了。 */
+  --cp-font-mono: var(--ui-font-mono);
+
+  /*
    * 「我」说的话的底色。
    *
    * 画布是 --ui-background(#f8f8f8,chroma 为 0),气泡此前写死 #f5f5f5:两者

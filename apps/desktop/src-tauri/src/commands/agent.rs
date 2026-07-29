@@ -264,9 +264,10 @@ pub async fn agent_prompt(
 
     let run_id = store.start_run(thread_id).map_err(persistence)?;
 
-    // The first thing said names the conversation. It is a stand in and is
-    // recorded as one, so the agent's own title still replaces it later, and a
-    // conversation in the list reads as what was asked in it.
+    // The first thing said names the conversation, which is what a
+    // conversation in a list should read as. Recorded as coming from the
+    // message, so a name the user types later outranks it and this one does
+    // not come back.
     let opener: String = text.chars().take(TITLE_CHARS).collect();
 
     store
@@ -997,9 +998,11 @@ pub async fn agent_new_session(
 
 /// Lists the sessions the agent itself keeps.
 ///
-/// The title is the agent's own, which is the only honest source for one;
-/// a session it has not named yet reports none, and what to show in that
-/// case is a question for the interface, not for this command.
+/// The title is whatever the agent wrote in its own store when it created
+/// the session, reported here unchanged. It is not a conversation name and
+/// is not treated as one: this program names its own conversations, because
+/// an agent that never revises New Session would otherwise name every one
+/// of them that.
 ///
 /// # Errors
 ///
@@ -1040,7 +1043,7 @@ pub struct AgentThread {
     pub session_id: Option<String>,
     /// The name to show for it.
     pub title: String,
-    /// Where that name came from: official, message or fallback.
+    /// Where that name came from: manual, message or fallback.
     pub title_source: String,
     /// When it was last touched, in RFC 3339.
     pub updated_at: String,
@@ -1060,16 +1063,16 @@ pub struct AgentOpenedThread {
 
 /// Lists the stored conversations, newest first.
 ///
-/// Official names are the agent's own, so they are folded in first when
-/// the connection can answer. A refusal there is not a failure of this
-/// command: while a turn is in flight the agent will not list its
-/// sessions, and the right answer then is the names already stored, not
-/// an error where a list of conversations belongs.
+/// A read, and nothing but a read. It used to open with a round trip to the
+/// agent for its session list and write those names in, which is where every
+/// conversation in this list got the name New Session: that title is what
+/// the agent called the session in its own store, it is never revised, and
+/// it was ranked above the first thing the user actually said.
 ///
-/// Listing does not reorder. Folding in a name used to stamp updated_at,
-/// which is the column the list is ordered by, so every refresh of the
-/// sidebar sent every conversation the agent still knew about back to the
-/// top and relabelled it as just now.
+/// Dropping it takes a subprocess round trip and a write transaction off the
+/// path that draws the sidebar, and takes the whole read off the main thread.
+/// The names shown are now decided in one place, by the ranking in
+/// TitleSource.
 ///
 /// # Errors
 ///
@@ -1077,32 +1080,7 @@ pub struct AgentOpenedThread {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult<Vec<AgentThread>> {
-    let shared = shared_store(&state)?;
-
-    // Ask the agent first, take the lock second: a guard held across the
-    // await would make this future not Send.
-    let official = match borrow(&state) {
-        Ok(Some(live)) => live.client.sessions().await.ok(),
-        _unavailable => None,
-    };
-
-    let store = borrow_store(&shared)?;
-
-    if let Some(listed) = official {
-        /* 未命名的会话没有名字可以采纳，在到达库之前就落下。 */
-        let named: Vec<(String, String)> = listed
-            .into_iter()
-            .filter_map(|info| info.title.map(|title| (info.session_id, title)))
-            .collect();
-
-        store
-            .adopt_official_titles(&named)
-            .map_err(|failure| Error::Internal(failure.to_string()))?;
-    }
-
-    let stored = store
-        .list_threads()
-        .map_err(|failure| Error::Internal(failure.to_string()))?;
+    let stored = on_store(&state, |store| store.list_threads().map_err(persistence)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
 }
@@ -1328,8 +1306,8 @@ async fn session_for(
 
 /// Renames a conversation.
 ///
-/// The name is recorded as the user's, and the agent's own title no longer
-/// replaces it: that question has already been answered by the person who
+/// The name is recorded as the user's, which outranks the opening message
+/// it replaces: that question has already been answered by the person who
 /// typed it.
 ///
 /// # Errors

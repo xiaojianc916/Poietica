@@ -24,8 +24,8 @@
 
 .timeline-user__text {
   margin: 0;
-  font-size: var(--ui-prose-size, 0.8125rem);
-  line-height: var(--ui-prose-line-height, 1.6);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
   inline-size: 100%;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -46,7 +46,7 @@
   border: 0;
   padding: 0;
   background: none;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font: inherit;
   font-size: 0.8125rem;
   cursor: pointer;
@@ -93,12 +93,12 @@
  * 600。字距取 0 —— 小字号收紧字距只会伤中文。
  */
 .timeline-prose {
-  --cp-prose-flow: var(--ui-prose-flow, 0.6em);
+  --cp-prose-flow: var(--ui-prose-flow);
   --cp-prose-flow-heading: calc(var(--cp-prose-flow) * 1.4);
 
-  font-size: var(--ui-prose-size, 0.8125rem);
-  line-height: var(--ui-prose-line-height, 1.6);
-  letter-spacing: var(--ui-letter-spacing-normal, 0);
+  font-size: var(--ui-prose-size);
+  line-height: var(--ui-prose-line-height);
+  letter-spacing: var(--ui-letter-spacing-normal);
   text-wrap: pretty;
 }
 
@@ -109,9 +109,9 @@
 /* A heading opens a section, so it takes a breath a paragraph does not. */
 .timeline-prose :is(h1, h2, h3, h4, h5, h6) {
   margin-block-start: var(--cp-prose-flow-heading);
-  font-weight: var(--ui-font-weight-semibold, 600);
-  line-height: var(--ui-line-height-tight, 1.25);
-  letter-spacing: var(--ui-letter-spacing-normal, 0);
+  font-weight: var(--ui-font-weight-semibold);
+  line-height: var(--ui-line-height-tight);
+  letter-spacing: var(--ui-letter-spacing-normal);
 }
 
 /*
@@ -132,11 +132,11 @@
 
 /* 四级往下不再靠大小说话，靠颜色退一步。 */
 .timeline-prose :is(h4, h5, h6) {
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 .timeline-prose :is(strong, b) {
-  font-weight: var(--ui-font-weight-semibold, 600);
+  font-weight: var(--ui-font-weight-semibold);
 }
 
 /*
@@ -156,7 +156,7 @@
 }
 
 .timeline-prose li::marker {
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 /*
@@ -165,8 +165,8 @@
  */
 .timeline-prose blockquote {
   padding-inline-start: 0.875em;
-  border-inline-start: 2px solid var(--cp-hairline, rgb(0 0 0 / 12%));
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  border-inline-start: 2px solid var(--cp-hairline);
+  color: var(--cp-timeline-quiet-text);
   font-style: normal;
 }
 
@@ -189,7 +189,7 @@
   margin-block: var(--cp-prose-flow-heading) 0;
   border: 0;
   block-size: 1px;
-  background: var(--cp-hairline, rgb(0 0 0 / 8%));
+  background: var(--cp-hairline);
 }
 
 .timeline-prose a {
@@ -226,7 +226,7 @@
   overflow: hidden;
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
-  border: 1px solid var(--cp-card-line, #e5e5e5);
+  border: 1px solid var(--cp-card-line);
   border-radius: var(--cp-timeline-radius, 0.75rem);
   background: var(--cp-timeline-card-surface, transparent);
 }
@@ -238,14 +238,14 @@
 
 .timeline-prose [data-streamdown="code-block-header"],
 .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
-  border-block-end: 1px solid var(--cp-card-line, #e5e5e5);
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
+  border-block-end: 1px solid var(--cp-card-line);
+  background: var(--cp-timeline-output-surface);
 }
 
 .timeline-prose [data-streamdown="code-block-header"] {
   grid-area: 1 / 1;
   padding-inline-start: 0.75rem;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 /* The actions leave their overlay and take their place in the bar. */
@@ -287,7 +287,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-family: var(--cp-font-mono);
   font-size: 0.8125rem;
   line-height: 1.55;
 }
@@ -363,8 +363,8 @@
 .timeline-prose :not(pre) > code {
   padding: 0.0625rem 0.25rem;
   border-radius: 0.3125rem;
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  background: var(--cp-timeline-output-surface);
+  font-family: var(--cp-font-mono);
   font-size: 0.875em;
 }
 
@@ -414,7 +414,7 @@
 .timeline-reasoning {
   display: grid;
   gap: 0.25rem;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 .timeline-reasoning__toggle {
@@ -433,7 +433,7 @@
 
 /* The line answers the pointer, so it reads as something you can open. */
 .timeline-reasoning__toggle:hover {
-  color: var(--cp-ink, rgb(0 0 0 / 82%));
+  color: var(--cp-ink);
 }
 
 .timeline-reasoning__mark {
@@ -488,7 +488,7 @@
   --cp-prose-flow: 0.5em;
 
   max-inline-size: var(--cp-timeline-thought-max, 48rem);
-  font-size: var(--ui-prose-size-quiet, 0.75rem);
+  font-size: var(--ui-prose-size-quiet);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -537,7 +537,7 @@
 
 .timeline-tool {
   overflow: hidden;
-  border: 1px solid var(--cp-card-line, #e5e5e5);
+  border: 1px solid var(--cp-card-line);
   border-radius: var(--cp-timeline-radius, 0.75rem);
   background: var(--cp-timeline-card-surface, transparent);
 }
@@ -614,12 +614,12 @@
 .timeline-tool__body {
   display: grid;
   gap: 0;
-  border-block-start: 1px solid var(--cp-card-line, #e5e5e5);
+  border-block-start: 1px solid var(--cp-card-line);
 }
 
 .timeline-tool__body > * + *,
 .timeline-tool__diff > * + * {
-  border-block-start: 1px solid var(--cp-card-line, #e5e5e5);
+  border-block-start: 1px solid var(--cp-card-line);
 }
 
 /* A diff is one unit: its parts stack flush and share its edges. */
@@ -631,7 +631,7 @@
   margin: 0;
   padding: 0.5rem 0.75rem;
   list-style: none;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font-size: 0.8125rem;
 }
 
@@ -643,19 +643,19 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0.625rem 0.75rem;
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  background: var(--cp-timeline-output-surface);
+  font-family: var(--cp-font-mono);
   font-size: 0.8125rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .timeline-tool__diff-old {
-  background: var(--cp-timeline-diff-old, rgb(180 35 24 / 10%));
+  background: var(--cp-timeline-diff-old);
 }
 
 .timeline-tool__diff-new {
-  background: var(--cp-timeline-diff-new, rgb(28 140 80 / 12%));
+  background: var(--cp-timeline-diff-new);
 }
 
 .timeline-tool__diff-path,
@@ -665,7 +665,7 @@
 .timeline-tool__empty {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font-size: 0.8125rem;
 }
 
@@ -684,13 +684,13 @@
 
 .timeline-plan__status {
   flex: none;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font-size: 0.8125rem;
 }
 
 .timeline-plan__entry[data-status="completed"] .timeline-plan__content {
   text-decoration: line-through;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 /*
@@ -705,7 +705,7 @@
  * 里的次要陈述本来就只有一档。
  */
 .timeline-error {
-  --cp-error-rule: var(--cp-hairline, rgb(0 0 0 / 12%));
+  --cp-error-rule: var(--cp-hairline);
 
   display: flex;
   align-items: center;
@@ -742,7 +742,7 @@
   border: 0;
   padding: 0;
   background: none;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font: inherit;
   font-size: 0.75rem;
   line-height: 1.4;
@@ -751,14 +751,14 @@
 }
 
 .timeline-error__action:hover {
-  color: var(--cp-ink, rgb(0 0 0 / 82%));
+  color: var(--cp-ink);
 }
 
 .timeline-error__mark {
   flex: none;
   inline-size: 0.875rem;
   block-size: 0.875rem;
-  color: var(--cp-timeline-danger-text, rgb(180 35 24));
+  color: var(--cp-timeline-danger-text);
 }
 
 .timeline-error__text {
@@ -770,7 +770,7 @@
 
 /* 复制成功后那 2.2 秒，整行亮一档 —— 反馈是状态，不是另一种颜色。 */
 .timeline-error[data-copied="true"] .timeline-error__action {
-  color: var(--cp-ink, rgb(0 0 0 / 82%));
+  color: var(--cp-ink);
 }
 
 .timeline-error[data-copied="true"] .timeline-error__mark {
@@ -814,7 +814,7 @@
   inline-size: 0.375rem;
   block-size: 0.375rem;
   border-radius: 50%;
-  background: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  background: var(--cp-timeline-quiet-text);
   animation: timeline-pending-pulse 1200ms ease-in-out infinite;
 }
 
@@ -854,12 +854,12 @@
   align-items: baseline;
   gap: 0.375rem;
   margin: 0;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   font-size: 0.8125rem;
 }
 
 .timeline-notice__status {
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-family: var(--cp-font-mono);
 }
 
 /* ── open state ──────────────────────────────────────
@@ -922,7 +922,7 @@
   display: block;
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
-  border: 1px solid var(--cp-card-line, rgb(0 0 0 / 8%));
+  border: 1px solid var(--cp-card-line);
   border-radius: var(--cp-timeline-radius, 0.5rem);
   background: transparent;
 }
@@ -980,7 +980,7 @@
   block-size: var(--cp-table-control);
   padding: 0;
   border-radius: 0.375rem;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
   transition:
     background-color 120ms var(--cp-motion-ease, ease),
     color 120ms var(--cp-motion-ease, ease);
@@ -995,8 +995,8 @@
   > div:first-child:nth-last-child(2)
   > div
   > button:hover {
-  background: var(--cp-hover, rgb(0 0 0 / 5%));
-  color: var(--cp-ink, rgb(0 0 0 / 82%));
+  background: var(--cp-hover);
+  color: var(--cp-ink);
 }
 
 /* 滚动盒交出边框，只留滚动，并接手圆角裁剪。 */
@@ -1014,7 +1014,7 @@
 }
 
 .timeline-prose [data-streamdown="table-header"] {
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
+  background: var(--cp-timeline-output-surface);
 }
 
 /*
@@ -1043,7 +1043,7 @@
   [data-streamdown="table-body"]
   [data-streamdown="table-row"]
   + [data-streamdown="table-row"] {
-  border-block-start: 1px solid var(--cp-hairline, rgb(0 0 0 / 6%));
+  border-block-start: 1px solid var(--cp-hairline);
 }
 
 /*
@@ -1073,18 +1073,18 @@
   display: inline-flex;
   flex: 0 0 auto;
   gap: 0.375rem;
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-family: var(--cp-font-mono);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .timeline-tool__diffstat-added {
-  color: var(--cp-diff-added-text, #1c8c50);
+  color: var(--cp-diff-added-text);
 }
 
 .timeline-tool__diffstat-removed {
-  color: var(--cp-diff-removed-text, #b42318);
+  color: var(--cp-diff-removed-text);
 }
 
 /* ── 内层滚动盒的滚动条 ──────────────────────────────────────────

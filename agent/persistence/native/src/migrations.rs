@@ -31,6 +31,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "run_snapshots",
         include_str!("schema/0006_run_snapshots.sql"),
     ),
+    (
+        7,
+        "thread_titles",
+        include_str!("schema/0007_thread_titles.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.
