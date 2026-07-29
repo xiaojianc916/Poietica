@@ -22,6 +22,7 @@ use crate::config::{ConfigControl, controls};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Result};
 use crate::permission::{Decision, decide};
+use crate::program::resolve_program;
 use crate::recorder::Recorder;
 use crate::run_slot::RunSlot;
 use crate::sessions::SessionBook;
@@ -336,14 +337,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         env,
     } = spawn;
 
-    // 一个裸名字不是一条可启动的路径：Windows 上 agent 通常是包管理器装的
-    // kimi.CMD，spawn("kimi") 直接失败。此前上层靠一段手写的 PATH × PATHEXT
-    // 遍历补扩展名，而它只返回 file_name()，把已经找到的目录又扔掉了，并且
-    // 用 is_file() 撞在工作区的 filetype_is_file 上。解析可执行文件是 which
-    // 这个 crate 的既有职责，Zed 也用它。
-    let resolved = which::which(&program).map_err(|error| AcpError::Spawn {
-        message: error.to_string(),
-    })?;
+    // 解析规则连同它的病历都在 program.rs 里，provider CLI 那条路径读的是
+    // 同一个函数 —— 同一个程序不该有两套找法。
+    let resolved = resolve_program(&program)?;
 
     /* 启动配置是 SDK 自己的类型，不是 MCP 的 wire schema。1.x 借用了 McpServerStdio，
     于是这里得先造一个没人看的服务器名、再往一个 #[non_exhaustive] 结构体的 Vec 里

@@ -13,10 +13,15 @@ import { describe, expect, it } from 'vitest'
  *
  * 所以这里断言的是集合关系：两个主题必须声明同一批名字，且覆盖必需清单。
  * 任何单侧新增或删除都会红。
+ *
+ * 它原先住在 @poietica/agent-ui 里。那是个浏览器 UI 包，为了在测试里读
+ * foundations/design-system 的 CSS，它得给自己装一份 @types/node —— 让一个
+ * 不许碰文件系统的包拿到 fs 的类型，只为断言别的包的资产。跨包资产契约归
+ * @poietica/tests：这里本来就有 node 类型，也本来就是仓库级断言的去处。
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
-const repoRoot = join(here, '..', '..', '..', '..')
+const repoRoot = join(here, '..', '..', '..')
 const tokensDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles', 'tokens')
 const stylesDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles')
 
@@ -27,8 +32,17 @@ const declaredTokens = (css: string) =>
 
 const declOf = (css: string, name: string) => {
   const hit = new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm').exec(stripComments(css))
-  expect(hit, `${name} 应当被声明且可解析`).not.toBeNull()
-  return hit![1].trim()
+  const value = hit?.[1]
+
+  /*
+   * 非空断言只挡得住 hit 为 null，挡不住捕获组本身缺失 —— 那正是搬家前
+   * 那句 hit![1] 报 TS2532 的地方。缺了就当场说清是哪个 token。
+   */
+  if (value === undefined) {
+    throw new Error(`${name} 应当被声明且可解析`)
+  }
+
+  return value.trim()
 }
 
 const light = readFileSync(join(tokensDir, 'light.css'), 'utf8')

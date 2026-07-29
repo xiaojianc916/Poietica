@@ -85,6 +85,16 @@ fn is_allowed(args: &[String]) -> bool {
     }
 }
 
+/// 「找不到那个程序」这一种失败的唯一文案。
+///
+/// 程序名来自我们自己的 agents.json，不是系统路径，所以说得出名字；which
+/// 的错误里可能带上被搜过的目录，那部分丢掉。
+fn missing_program(program: &str) -> Error {
+    Error::AgentCli(format!(
+        "找不到可执行文件 {program}，请确认它已安装并在 PATH 中"
+    ))
+}
+
 /// 校验从档案里取出来的程序名。
 ///
 /// 档案在 TS 侧过了 `parseAcpAgentProfile`，但那道校验不在这个进程里 ——
@@ -164,8 +174,19 @@ pub async fn agent_cli_exec(
 
     let env = launch_env(&app, &request.agent_id).map_err(IpcError::from)?;
 
+    // 裸名字不是一条可启动的路径：Windows 上包管理器装出来的是 kimi.CMD，
+    // CreateProcess 只补 .exe、不读 PATHEXT，于是 Command::new("kimi") 直接
+    // NotFound —— 明明装了，界面却报找不到。ACP 会话那条路径一直是解析过的，
+    // 这条没有，同一个程序两条管线一条找得到一条找不到。
+    //
+    // 这也是「路径不能写死」的答案：解析用的是运行这台机器的 PATH 与
+    // PATHEXT，agents.json 里换成绝对路径也照样原样通过。
+    let resolved = poietica_agent_runtime_native::resolve_program(&program)
+        .map_err(|_searched| missing_program(&program))
+        .map_err(IpcError::from)?;
+
     let spawned = async_runtime::spawn_blocking(move || {
-        let mut command = std::process::Command::new(&program);
+        let mut command = std::process::Command::new(&resolved);
         command.args(&request.args);
         command.envs(env);
 
@@ -184,9 +205,8 @@ pub async fn agent_cli_exec(
     let output = spawned
         .map_err(|error| {
             if error.kind() == std::io::ErrorKind::NotFound {
-                Error::AgentCli(
-                    "找不到该 agent 的命令行工具，请确认它已安装并在 PATH 中".to_owned(),
-                )
+                // 解析成功之后仍然 NotFound：文件在这两步之间被移走了。
+                missing_program(&program)
             } else {
                 Error::Internal(format!("无法启动 agent CLI：{error}"))
             }

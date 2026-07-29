@@ -25,25 +25,37 @@
   --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
 
   /*
-   * 线与面。取值写字面十六进制，取色器测到什么这里就写着什么 —— 上一版把
-   * 它们写成 color-mix(var(--ui-foreground) N%)，而 N 是从实测值反解的，
-   * 反解时 --ui-foreground 被当成了 46（真值 oklch(0.19) ≈ 33），且 oklab
-   * 是感知插值、用 sRGB 算术预测不出结果，于是源码里的数字和屏幕上的颜色
-   * 再也对不上。这一层不该有可推导量。
+   * 线与面：两档线，一个面。
    *
-   *   #e0e0e0 (224)  窗格与区域分隔、控件边框、卡片外框
-   *   #f2f2f2 (242)  卡片内部分隔线、表格行线
+   * 上一版这里只有一档：外框、卡内横线、表格行线全是区域线那个取值，于是
+   * 一张展开的工具卡读起来是一叠等距平行线，卡片"化开"了。分级按角色定，
+   * 值相对画布算（画布 --ui-palette-neutral-50 ≈ #f8f8f8 = 248）：
    *
-   * 宽度只有一个拼写：--ui-region-divider-width（controls.css，1px）。宽度
-   * 不承担分级 —— 非整数显示缩放下，任何非 1px 的 CSS 宽度都会栅格化成
-   * 不确定的设备像素数（2px 在 150% 缩放下是 3 个设备像素）。
+   *   #e0e0e0 (224, Δ24)  窗格与区域分隔、按钮与输入框边框 —— 原值不动
+   *   #dcdcdc (220, Δ28)  卡片外框（Radix 12 阶里 step 6 的角色位：
+   *                       非交互容器的 subtle border）
+   *   #ebebeb (235, Δ13)  卡片内部分隔线、表格行线 —— 外框对比度的约 46%
+   *   #fdfdfd (253, +5)   卡面
+   *
+   * 外框对比度约为卡内线的 2.2 倍：卡片有边界，内部有节奏。而"盒子读起来
+   * 是盒子"由卡面比画布亮 5 的表面分离提供，不靠把线加深加粗。
+   *
+   * 宽度不参与分级，全局只有 --ui-region-divider-width（controls.css，1px）。
+   * 非整数显示缩放下，非 1px 的 CSS 宽度栅格化出的设备像素数不确定：2px 在
+   * 150% 缩放下量出来是 3 个设备像素。VS Code / Linear / GitHub 在这一层也
+   * 都是统一 1px，层级全部交给颜色。
+   *
+   * 取值一律写字面十六进制。此前写成 color-mix(var(--ui-foreground) N%) 而
+   * N 由实测值反解，反解时把 --ui-foreground 当成了 46（真值 oklch(0.19)
+   * ≈ 33），且 oklab 是感知插值、sRGB 算术预测不出结果 —— 源码里的数字和
+   * 屏幕上的颜色因此对不上，取色器也就无法验证。这一层不该有可推导量。
    */
   --ui-region-divider-color: #e0e0e0;
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: #f2f2f2;
+  --ui-divider-subtle: #ebebeb;
   --ui-border: var(--ui-region-divider-color);
-  --ui-surface-frame: var(--ui-region-divider-color);
-  --ui-surface-fill: transparent;
+  --ui-surface-frame: #dcdcdc;
+  --ui-surface-fill: #fdfdfd;
   --ui-input: var(--ui-palette-neutral-300);
   --ui-ring: var(--ui-palette-blue-500);
 
