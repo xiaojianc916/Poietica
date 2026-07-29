@@ -8,12 +8,11 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, EnvVariable, InitializeRequest, McpServer as SchemaMcpServer, McpServerStdio,
-    NewSessionRequest, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification,
-    SetSessionConfigOptionRequest, TextContent,
+    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
+    SessionNotification, SetSessionConfigOptionRequest, TextContent,
 };
-use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
+use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
 use futures::future::{BoxFuture, Either, select};
 use futures::{FutureExt, StreamExt};
@@ -346,17 +345,16 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         message: error.to_string(),
     })?;
 
-    // SDK 在 1.x 把启动配置表示成 MCP 的 stdio 形状：程序、参数与环境变量三样
-    // 都在里面，它自己 spawn 时逐条设给子进程。所以这份配置是直接构造出来的,
-    // 而不是先拼一行命令、再让 from_str 用 shell 词法把它切回来 —— 那一趟往返
-    // 是有损的：绝对路径的反斜杠会被当成转义符，带空格的路径会被切断。
-    let mut stdio = McpServerStdio::new("poietica", resolved).args(args);
+    /* 启动配置是 SDK 自己的类型，不是 MCP 的 wire schema。1.x 借用了 McpServerStdio，
+    于是这里得先造一个没人看的服务器名、再往一个 #[non_exhaustive] 结构体的 Vec 里
+    逐条 push EnvVariable。2.0 换成 AcpAgentConfig 之后这些全部消失：env 是一张字符
+    串表，Vec<(String, String)> 直接喂得进去。
 
-    for (name, value) in env {
-        stdio.env.push(EnvVariable::new(name, value));
-    }
+    仍然是直接构造，而不是先拼一行命令再让 from_str 用 shell 词法把它切回来 ——
+    那一趟往返是有损的：绝对路径的反斜杠会被当成转义符，带空格的路径会被切断。
 
-    let agent = AcpAgent::new(SchemaMcpServer::Stdio(stdio));
+    command 收的是 impl Into<PathBuf>，which 交回来的就是 PathBuf，无需再转。 */
+    let agent = AcpAgent::new(AcpAgentConfig::new(resolved).args(args).envs(env));
 
     // What the agent says for itself. A provider rejection is reported on the
     // process error stream and the turn still ends normally, so this is the
