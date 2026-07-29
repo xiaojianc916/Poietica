@@ -1,0 +1,27 @@
+/*
+ * 一张有框的面。
+ *
+ * 两级描边，与 VS Code、Linear、GitHub 同一种分法：容器外框走 --ui-border，
+ * 里面的任何一条线走 --ui-divider-subtle，压低一档。分级不是靠谁记得选对
+ * 令牌 —— 内侧那一档由这张面自己下发（--surface-rule），面之外取不到它，
+ * 所以"卡内横线比外框淡"是一个结构事实，不是一条纪律。
+ *
+ * 宽度用 --ui-region-divider-width：这个应用里一条分隔线的宽度只有一个来源，
+ * 而它早就定义在 tokens/controls.css 里。
+ *
+ * 没有任何字面量兜底。缺令牌要报废，不要换一种长相 —— 上一版
+ * "1px solid var(--cp-card-line, #e5e5e5)" 正是靠兜底静默活着，于是同一个
+ * 类在两个 DOM 位置画出两种边框，而且不报错。
+ */
+
+:root {
+  --ui-surface-radius: var(--ui-radius-xl);
+}
+
+[data-surface] {
+  --surface-rule: var(--ui-divider-subtle);
+
+  border: var(--ui-region-divider-width) solid var(--ui-border);
+  border-radius: var(--ui-surface-radius);
+  background: transparent;
+}

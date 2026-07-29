@@ -1,7 +1,7 @@
 /*
  * The request must read as an interruption, not as another paragraph, so it
  * carries a card — and now it carries the same one the tool call and the
- * outcome card carry, because .assistant-card is the only thing that draws a
+ * outcome card carry, because <Surface> is the only thing that draws a
  * card on this surface.
  *
  * 这段话上一版就是这么写的,而代码并不是:这个选择器当时自己把 --cp-card-line
@@ -62,9 +62,9 @@
 .assistant-permission__option {
   min-block-size: var(--ui-control-height-sm);
   padding-inline: 0.9375rem;
-  border: 1px solid var(--cp-card-line, #e5e5e5);
+  border: var(--ui-region-divider-width) solid var(--ui-border);
   border-radius: var(--ui-radius-md, 0.5rem);
-  background: var(--cp-surface, #fff);
+  background: var(--cp-surface);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 500;

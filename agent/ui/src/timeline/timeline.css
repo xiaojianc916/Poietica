@@ -535,7 +535,7 @@
   );
 }
 
-/* 外框归 .assistant-card；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */
+/* 外框归 [data-surface]；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */
 .timeline-tool {
   overflow: hidden;
 }
@@ -612,12 +612,12 @@
 .timeline-tool__body {
   display: grid;
   gap: 0;
-  border-block-start: 1px solid var(--cp-card-rule);
+  border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
 }
 
 .timeline-tool__body > * + *,
 .timeline-tool__diff > * + * {
-  border-block-start: 1px solid var(--cp-card-rule);
+  border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
 }
 
 /* A diff is one unit: its parts stack flush and share its edges. */

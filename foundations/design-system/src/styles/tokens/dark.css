@@ -21,7 +21,7 @@
 
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: rgb(255 255 255 / 8%);
+  --ui-divider-subtle: color-mix(in srgb, var(--ui-foreground) 8%, transparent);
   --ui-border: var(--ui-region-divider-color);
   --ui-input: rgb(255 255 255 / 24%);
   --ui-ring: var(--ui-palette-blue-400);

@@ -1,5 +1,6 @@
-import '../assistant-card.css'
 import './outcome-card.css'
+
+import { Surface } from '../primitives/surface'
 
 /**
  * 一件落定的事，和它的结局。
@@ -21,15 +22,12 @@ export interface OutcomeCardProps {
 
 export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps) {
   return (
-    <div
-      className="assistant-card assistant-outcome"
-      data-answered={answered === true ? 'true' : undefined}
-    >
+    <Surface className="assistant-outcome" data-answered={answered === true ? 'true' : undefined}>
       <p className="assistant-outcome__prompt">{prompt}</p>
 
       {answer === undefined ? null : <p className="assistant-outcome__answer">{answer}</p>}
 
       {note === undefined ? null : <p className="assistant-outcome__note">{note}</p>}
-    </div>
+    </Surface>
   )
 }

@@ -1,4 +1,3 @@
-import './assistant-card.css'
 import './permission-request.css'
 
 import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
@@ -6,6 +5,7 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { useCallback, useState } from 'react'
 import { useAgentDialect } from './domain/agent-dialect'
 import { isQuestionRequest } from './domain/ask-user-question'
+import { Surface } from './primitives/surface'
 import { OutcomeCard } from './timeline/OutcomeCard'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { toDiffStat, toToolContentParts } from './timeline/tool-call-content'
@@ -218,7 +218,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
   const isSubmitting = submittedOptionId !== undefined
 
   return (
-    <div aria-busy={isSubmitting} className="assistant-card assistant-permission">
+    <Surface aria-busy={isSubmitting} className="assistant-permission">
       <PermissionAsk title={item.title} toolCall={item.toolCall} />
 
       {item.toolCall === undefined ? null : <PermissionSubject toolCall={item.toolCall} />}
@@ -240,7 +240,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
           </button>
         ))}
       </div>
-    </div>
+    </Surface>
   )
 }
 

@@ -1,5 +1,3 @@
-import '../assistant-card.css'
-
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
@@ -13,6 +11,7 @@ import {
   SpinnerIcon,
   ToolIcon,
 } from '../primitives/icons'
+import { Surface } from '../primitives/surface'
 import { toDiffStat, toToolContentParts } from './tool-call-content'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
@@ -57,8 +56,9 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
   return (
-    <section
-      className="assistant-card timeline-tool"
+    <Surface
+      as="section"
+      className="timeline-tool"
       data-open={isOpen ? 'true' : undefined}
       data-status={item.status}
     >
@@ -158,6 +158,6 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
           })}
         </div>
       </DisclosureBody>
-    </section>
+    </Surface>
   )
 }

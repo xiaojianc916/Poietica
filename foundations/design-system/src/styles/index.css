@@ -6,7 +6,8 @@
  * 2. structural scales
  * 3. semantic theme values
  * 4. Tailwind mappings
- * 5. accessibility policies
+ * 5. primitive surfaces
+ * 6. accessibility policies
  */
 
 @import "./tokens/palette.css";
@@ -20,4 +21,5 @@
 @import "./tokens/light.css";
 @import "./tokens/dark.css";
 @import "./tokens/semantic.css";
+@import "./surface.css";
 @import "./tokens/accessibility.css";
