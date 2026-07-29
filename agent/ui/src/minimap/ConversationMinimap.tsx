@@ -83,7 +83,13 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
          */
         const position =
           item.kind === 'cluster'
-            ? '第 ' + String(item.from) + '–' + String(item.to) + ' 轮，共 ' + String(turns.length) + ' 轮'
+            ? '第 ' +
+              String(item.from) +
+              '–' +
+              String(item.to) +
+              ' 轮，共 ' +
+              String(turns.length) +
+              ' 轮'
             : '第 ' + String(item.ordinal) + ' 轮，共 ' + String(turns.length) + ' 轮'
 
         const label = position + '：' + item.label
