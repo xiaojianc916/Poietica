@@ -33,6 +33,15 @@ const ESTIMATED_FALLBACK_PX = 120
 const BOTTOM_THRESHOLD_PX = 48
 
 /**
+ * 距顶端多远就去读更早的一段。
+ *
+ * 比一屏还早。等滚到顶再去读,人一定会撞上一段等待 —— 那就是"突兀"的全部来源。
+ * 提前一屏发起,读回来时它落在视口之上,人只是继续往上滚,看不到任何边界,也没有
+ * 任何东西需要他去点。
+ */
+const PREFETCH_START_PX = 800
+
+/**
  * 视口之外预留的行数。
  *
  * 会话行远高于表格行,预留少了会在快速滚动时露白,多了则白白测量。
@@ -103,6 +112,13 @@ export interface AgentActivityFeedProps {
    * 颜色盖住。
    */
   readonly dock?: ReactNode
+  /**
+   * 人读到了内容的上边界。
+   *
+   * 滚动区只报告位置:它不知道上面还有没有东西,也不知道该去读什么 —— 那是数据
+   * 的事。它会被反复报告,所以约定由实现方保证幂等。
+   */
+  readonly onReachStart?: (() => void) | undefined
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
@@ -114,6 +130,7 @@ export function AgentActivityFeed({
   header,
   footer,
   dock,
+  onReachStart,
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -188,6 +205,18 @@ export function AgentActivityFeed({
 
       setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
 
+      /*
+       * 上边界在同一次读取里回答,不另开一个观察者。
+       *
+       * 通行的写法是在流的顶部挂一个哨兵元素配一个 IntersectionObserver。那
+       * 要多一个 DOM 节点、多一条生命周期,而哨兵在虚拟化列表里本来就难摆 ——
+       * 它必须落在画布之外,否则会被虚拟器算进总高。而 scrollTop 已经在手上,
+       * 判据就是一个减法,和上面那个贴底判据是同一句话的两头。
+       */
+      if (viewport.scrollTop <= PREFETCH_START_PX) {
+        onReachStart?.()
+      }
+
       const spans = spansRef.current
       const reading = rowAtAnchor(
         spans,
@@ -205,7 +234,7 @@ export function AgentActivityFeed({
         settleReveal(top)
       }
     },
-    [settleReveal],
+    [onReachStart, settleReveal],
   )
 
   /*

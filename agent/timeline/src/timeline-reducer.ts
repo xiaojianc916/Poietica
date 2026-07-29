@@ -89,6 +89,21 @@ export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): Time
 export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
   const draft = draftOf(createTimelineState(runId))
 
+  /*
+   * 段号从末端倒着编，所以它不随读取宽度变化。
+   *
+   * 身份前缀此前是「这是本次窗口里的第几段」，于是同一句话，读 40 轮时叫
+   * r5-，读 80 轮时叫 r45-：向上续读的那一刻，虚拟器手上每一行的 key 全部
+   * 作废，整表重挂载，滚动位置随之失去锚。上游注释里那句「由稳定的
+   * getItemKey 认回同一条并保持它的视觉位置」，前提就断在这里。
+   *
+   * 倒着编之后，最后一轮恒为 r0、倒数第二轮恒为 r-1，续读只在负的方向上长
+   * 出新号 —— 屏幕上已有的那些行，连 id 带对象一起原样留下。这不是为滚动做
+   * 的让步：一轮在一条对话里的位置，本来就该由它距今多少轮来定，而不是由
+   * 「这次我读了多少」来定。
+   */
+  draft.runIndex = -turnsIn(events)
+
   for (const event of events) {
     if (event.kind === 'run_started') {
       openSegment(draft)
@@ -462,7 +477,28 @@ function applyToolCallUpdate(
 }
 
 /**
+ * 一段日志里有多少轮。
+ *
+ * 一次线性预扫描，与随后那次遍历同阶；换来的是一个不随读取宽度变化的段号。
+ */
+function turnsIn(events: readonly RunEvent[]): number {
+  let turns = 0
+
+  for (const event of events) {
+    if (event.kind === 'run_started') {
+      turns += 1
+    }
+  }
+
+  return turns
+}
+
+/**
  * The identity prefix of the turn currently being written.
+ *
+ * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的段号为正。两者不会
+ * 相遇：一条对话被读回来之后，接着说的话开的是 r1，而 r1 在任何一次回放里都
+ * 不存在。
  */
 function namespace(draft: Draft): string {
   return `r${String(draft.runIndex)}-`

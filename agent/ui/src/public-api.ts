@@ -1,6 +1,5 @@
 export type { AssistantComposerProps } from './AssistantComposer'
 export { AssistantComposer } from './AssistantComposer'
-
 export { AssistantQuickActions } from './AssistantQuickActions'
 export type { AssistantSurfaceProps } from './AssistantSurface'
 export { AssistantSurface } from './AssistantSurface'
@@ -8,3 +7,5 @@ export type { AssistantThreadListProps, AssistantThreadSummary } from './Assista
 export { AssistantThreadList } from './AssistantThreadList'
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
+export type { AgentDialect } from './domain/agent-dialect'
+export { AgentDialectProvider } from './domain/agent-dialect'

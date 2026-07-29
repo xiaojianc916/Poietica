@@ -284,30 +284,16 @@ export function AssistantSurface({
         }
         footer={renderFooter(footer)}
         header={
-          <>
-            {assistant.hasEarlier ? (
-              <div className="assistant-surface__earlier">
-                <button
-                  className="assistant-surface__earlier-button"
-                  disabled={assistant.isLoadingEarlier}
-                  onClick={assistant.loadEarlier}
-                  type="button"
-                >
-                  {assistant.isLoadingEarlier ? '正在载入…' : '载入更早的对话'}
-                </button>
-              </div>
-            ) : null}
+          <div className="assistant-surface__intro" inert={started}>
+            <header className="assistant-masthead">
+              <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
-            <div className="assistant-surface__intro" inert={started}>
-              <header className="assistant-masthead">
-                <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
-
-                <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
-              </header>
-            </div>
-          </>
+              <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
+            </header>
+          </div>
         }
         isBusy={selectIsBusy(assistant.timeline)}
+        onReachStart={assistant.reachStart}
         overlay={(port) =>
           turns.length === 0 ? null : (
             <ConversationMinimap

@@ -60,22 +60,23 @@ export interface AssistantSession {
   readonly resolvePermission: (requestId: string, optionId: string) => void
   /** True while a conversation is still being read out of the log. */
   readonly isRestoring: boolean
-  /** 窗口之外还有更早的轮次没有读。 */
-  readonly hasEarlier: boolean
-  /** 把窗口往前推一段，再读一次。 */
-  readonly loadEarlier: () => void
-  /** True while the window is being widened. */
-  readonly isLoadingEarlier: boolean
+  /**
+   * 人读到了这段历史的上边界。
+   *
+   * 界面报告的是位置，不是意图：上面还有没有、要不要现在去读、读多少，全部
+   * 由这里回答。滚动每一帧都可能报一次，所以它是幂等的，调用方不必节流。
+   */
+  readonly reachStart: () => void
 }
 
 const RUN_PLACEHOLDER = 'run_pending'
 
 /*
- * 一条对话打开时读多少轮，以及"载入更早"一次往前推多少。
+ * 一条对话打开时读多少轮，以及向上续读一次往前推多少。
  *
  * 原生那侧有同一个默认值，两处都写不是重复：宽度是界面的决定，那边的只是
- * 没人交代时的兜底。往前推是加一段而不是翻倍——用户要的是再往前看一点，
- * 不是每按一次就把代价乘以二。
+ * 没人交代时的兜底。往前推是加一段而不是翻倍——续读是人向上滚出来的，代价
+ * 应当与他滚过的距离成正比，而不是每读一次就翻一番。
  */
 const WINDOW_RUNS = 40
 const WINDOW_STEP = 40
@@ -169,7 +170,6 @@ export function useAssistantSession({
   const [shown, setShown] = useState(endpoint)
   const [isRestoring, setIsRestoring] = useState(() => endpoint !== null && !restored.has(endpoint))
   const [width, setWidth] = useState(() => widthOf(endpoint))
-  const [isLoadingEarlier, setIsLoadingEarlier] = useState(false)
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
   /*
    * 第几次读。
@@ -208,7 +208,6 @@ export function useAssistantSession({
       setIsRestoring(endpoint !== null && !restored.has(endpoint))
       /* 换一条对话，也换回它自己上次读到的宽度。 */
       setWidth(widthOf(endpoint))
-      setIsLoadingEarlier(false)
     }
   }
 
@@ -277,7 +276,6 @@ export function useAssistantSession({
 
     if (held !== undefined && held.width >= width) {
       setIsRestoring(false)
-      setIsLoadingEarlier(false)
 
       return undefined
     }
@@ -294,7 +292,7 @@ export function useAssistantSession({
         /* 更宽的一段是同一条管线读出来的同一种东西：整段重放，而不是把
            更早的部分拼到手上这份的前面。拼接要处理轮次编号、身份命名空间
            和两段之间的接缝，那是第二条回放路径，也是两条路径迟早对不上的
-           地方。重放一次多花几毫秒，只发生在用户主动按下的时候。 */
+           地方。重放一次多花几毫秒，只发生在人真的向上读到边界的时候。 */
         setTimeline(
           remember(endpoint, {
             timeline: replayThreadEvents(RUN_PLACEHOLDER, read.events),
@@ -303,7 +301,6 @@ export function useAssistantSession({
           }).timeline,
         )
         setIsRestoring(false)
-        setIsLoadingEarlier(false)
       })
       .catch((cause: unknown) => {
         if (reading.current !== mine) {
@@ -311,7 +308,6 @@ export function useAssistantSession({
         }
 
         setIsRestoring(false)
-        setIsLoadingEarlier(false)
         fail(cause)
       })
 
@@ -417,19 +413,34 @@ export function useAssistantSession({
   )
 
   /*
-   * 窗口之外还有没有，是原生那侧数出来的，不是从手上这些帧猜出来的。
+   * 读到上边界这件事，只有一个后果：把窗口往前推一段。
    *
-   * 猜只有一种猜法：读回来的轮数等于要的宽度就当作"可能还有"。那在正好
-   * 读完的时候会给出一个按下去什么也不会发生的入口，而一个骗人的按钮比
-   * 没有按钮更糟。
+   * 它没有伴随的界面。一条对话的历史不是一个需要人去"打开"的东西，它就是这
+   * 条对话本身；按钮的存在等于承认"上面还有一段我没给你"。人向上读，更早的
+   * 部分就已经在那里了 —— 这也是所有以对话为主体的专业软件在这里的做法。
+   *
+   * 三道闸门都在这一处，而且都是事实，不是标志位：
+   *   - 还没读出来过，就不知道有没有更早的；
+   *   - totalRuns 是原生那侧数出来的，到底了就是到底了，不从帧数去猜；
+   *   - 缓存里的宽度还没赶上要的宽度，说明上一段还在飞。
+   * 所以滚动每一帧都调它是安全的：不需要节流，不需要防抖，也不需要一个
+   * "正在加载"的状态给别人看 —— 没有人在等，读回来的那一段落在视口之上。
    */
-  const held = endpoint === null ? undefined : restored.get(endpoint)
-  const hasEarlier = held !== undefined && held.totalRuns > held.width
+  const reachStart = useCallback(() => {
+    if (endpoint === null) {
+      return
+    }
 
-  const loadEarlier = useCallback(() => {
-    setIsLoadingEarlier(true)
-    setWidth((current) => current + WINDOW_STEP)
-  }, [])
+    setWidth((current) => {
+      const held = restored.get(endpoint)
+
+      if (held === undefined || held.totalRuns <= held.width || held.width < current) {
+        return current
+      }
+
+      return current + WINDOW_STEP
+    })
+  }, [endpoint])
 
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
 
@@ -440,9 +451,7 @@ export function useAssistantSession({
     cancel,
     resolvePermission,
     isRestoring,
-    hasEarlier,
-    loadEarlier,
-    isLoadingEarlier,
+    reachStart,
   }
 }
 
