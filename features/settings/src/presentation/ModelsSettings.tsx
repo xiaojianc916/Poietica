@@ -335,8 +335,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
           <KeyField
             description={
-              '填入你自己的 Anthropic 密钥，按用量直接计费。启用后，所有以 “claude-” ' +
-              '开头的模型都会使用该密钥。'
+              '填入你自己的 Anthropic 密钥，按用量直接计费。启用后，所有claude模型都会使用该密钥。'
             }
             label="Anthropic API 密钥"
             onChange={(value) => {

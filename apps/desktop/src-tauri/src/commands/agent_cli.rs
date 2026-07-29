@@ -40,9 +40,9 @@ pub struct AgentCliRequest {
     pub args: Vec<String>,
     /// 要注入的凭据环境变量名。留空表示这次调用不需要凭据。
     pub secret_var: String,
-    /// 受控 home 不在这里：由原生侧的 launch_env 现算，与 ACP 会话同源。
-    ///
-    /// 让渲染层报一个路径过来，就等于给了两条管线各算出不同目录的自由。
+    // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
+    // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
+    // 路径过来，就等于给了两条管线各算出不同目录的自由。
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
