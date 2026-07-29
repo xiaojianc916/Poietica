@@ -6,8 +6,9 @@ import { railCapacity, useRailBudget } from './rail-budget'
 import { groupTurns } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
+import { useFoldFlip } from './use-fold-flip'
 
-/* poietica:conversation-minimap-density@v22 */
+/* poietica:conversation-minimap-density@v23 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -32,6 +33,7 @@ export interface ConversationMinimapProps {
 
 function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
+  const flip = useFoldFlip()
   const { ref: measure, available } = useRailBudget()
 
   /*
@@ -46,12 +48,14 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
       const detachFisheye = fisheye(node)
       const detachMeasure = measure(node)
 
+      flip(node)
+
       return () => {
         detachFisheye?.()
         detachMeasure?.()
       }
     },
-    [fisheye, measure],
+    [fisheye, flip, measure],
   )
 
   /*
@@ -102,6 +106,7 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
             aria-label={label}
             className="conversation-minimap__turn"
             data-cluster={item.kind === 'cluster' ? '' : undefined}
+            data-rail-id={item.id}
             key={item.id}
             /*
              * 一格一个闭包,就这样。下面的 memo 让这些闭包一年也建不了几次,

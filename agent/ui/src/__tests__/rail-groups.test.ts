@@ -4,7 +4,7 @@ import { RAIL_INSET_PX, RAIL_PITCH_PX, railCapacity } from '../minimap/rail-budg
 import { groupTurns } from '../minimap/rail-groups'
 import { turnIndexAtRow } from '../minimap/turn-index'
 
-/* poietica:conversation-minimap-density@v21 */
+/* poietica:conversation-minimap-density@v23 */
 
 /*
  * 造一个轮次。
@@ -192,10 +192,64 @@ describe('groupTurns 的焦点', () => {
 
   it('never drops the far side of the conversation', () => {
     expect(groupTurns(focused(60), 12, 59)[0]?.rowIndex).toBe(0)
-    expect(groupTurns(focused(60), 12, 0).at(-1)?.rowIndex).toBe(177)
+    const tail = groupTurns(focused(60), 12, 0).at(-1)
+
+    expect(tail === undefined ? -1 : span(tail)[1]).toBe(60)
   })
 
   it('falls back to even buckets with no focus', () => {
     expect(groupTurns(focused(60), 12, -1)).toEqual(groupTurns(focused(60), 12))
+  })
+})
+
+describe('groupTurns 的网格', () => {
+  /*
+   * 不去比"焦点挪一轮之后格子是不是原地不动"。那条测试看着更直白,却是脆的:
+   * 挪一轮可能刚好跨过预算边界、整体升一档,于是全盘重排,红得毫无信息量。
+   * 这里断言的是它不动的**原因** —— 宽度为 2^k 的桶,起点必是 2^k 的倍数。
+   * 满足这一条,桶就只能在固定网格线上合并分裂,不可能平移。
+   */
+  it('桶边界锚定在绝对网格上', () => {
+    const length = 300
+    const items = groupTurns(focused(length), 30, 100)
+
+    for (const item of items) {
+      if (item.kind !== 'cluster' || item.to === length) {
+        continue
+      }
+
+      const from = item.from - 1
+      const width = item.to - from
+
+      expect(Number.isInteger(Math.log2(width))).toBe(true)
+      expect(from % width).toBe(0)
+    }
+  })
+
+  it('离焦点越远,一格代表的轮次越多', () => {
+    const items = groupTurns(focused(400), 40, 200)
+    const widths = items.map((item) => (item.kind === 'cluster' ? item.to - item.from + 1 : 1))
+
+    expect(widths[0] ?? 0).toBeGreaterThan(widths[Math.floor(widths.length / 2)] ?? 0)
+  })
+
+  /* 预算、无缝、完整 —— 三条一起,在焦点落在头、中、尾三处时都要成立。 */
+  it.each([
+    [60, 12],
+    [100, 55],
+    [300, 30],
+    [1000, 55],
+  ])('N=%i cap=%i 时带焦点也不超预算且区间无缝', (length, cap) => {
+    for (const active of [0, Math.floor(length / 2), length - 1]) {
+      const spans = groupTurns(focused(length), cap, active).map(span)
+
+      expect(spans.length).toBeLessThanOrEqual(cap)
+      expect(spans[0]?.[0]).toBe(1)
+      expect(spans.at(-1)?.[1]).toBe(length)
+
+      for (let index = 1; index < spans.length; index += 1) {
+        expect(spans[index]?.[0]).toBe((spans[index - 1]?.[1] ?? Number.NaN) + 1)
+      }
+    }
   })
 })

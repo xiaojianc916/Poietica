@@ -1,6 +1,6 @@
 import type { ConversationTurn } from '@poietica/agent-timeline'
 
-/* poietica:conversation-minimap-density@v22 */
+/* poietica:conversation-minimap-density@v23 */
 
 /**
  * 轨道上的一格。
@@ -28,6 +28,22 @@ export type RailItem =
       readonly reply?: string
     }
 
+/**
+ * 焦点窗口的上下限。
+ *
+ * 窗口本来取 floor(slots / 3) —— 那是个拍出来的数,而且随面板高度线性膨胀:
+ * 高屏上会展开二十几轮,远超"当前上下文"该有的范围;矮屏上又缩到两三轮,连
+ * 前后各一轮都保不住。夹住它。
+ */
+const MIN_FOCUS = 7
+const MAX_FOCUS = 24
+
+/** 距焦点这么多轮之内,保持最细一档。 */
+const SPREAD_TURNS = 6
+
+/** 最粗一档:2^8 = 256 轮并成一格。再粗就没有意义了。 */
+const MAX_LEVEL = 8
+
 function replyOf(turn: ConversationTurn): { readonly reply?: string } {
   return turn.reply === undefined ? {} : { reply: turn.reply }
 }
@@ -45,94 +61,127 @@ function one(turn: ConversationTurn, index: number): RailItem {
 }
 
 /**
- * 把一段轮次压进给定格数,按顺序推入 out。
+ * 把 [from, to) 这一段收成一格。
  *
- * offset 是这一段在整场对话里的起始下标 —— 播报的是"第几轮",不是"这段里的
- * 第几个",漏掉它两侧段就会整体报错号。
- *
- * 桶首代表整桶:它的 rowIndex 是这一段的入口,点它落在段首而不是段中,符合
- * "跳到某一段"的意图。
+ * 段首代表整段:它的 rowIndex 是这一段的入口,点它落在段首而不是段中,符合
+ * "跳到某一段"的意图。只有一轮时退化成单格,不套 cluster 的壳 —— 播报"第 7–7
+ * 轮"是在说废话。
  */
-function pack(
-  segment: readonly ConversationTurn[],
-  offset: number,
-  slots: number,
-  out: RailItem[],
-): void {
-  if (segment.length === 0 || slots <= 0) {
+function fold(turns: readonly ConversationTurn[], from: number, to: number, out: RailItem[]): void {
+  const head = turns[from]
+
+  if (head === undefined) {
     return
   }
 
-  const size = Math.ceil(segment.length / slots)
+  if (to - from <= 1) {
+    out.push(one(head, from))
 
-  for (let start = 0; start < segment.length; start += size) {
-    const head = segment[start]
-
-    if (head === undefined) {
-      break
-    }
-
-    const last = Math.min(start + size, segment.length) - 1
-
-    if (last === start) {
-      out.push(one(head, offset + start))
-
-      continue
-    }
-
-    out.push({
-      kind: 'cluster',
-      id: head.id,
-      rowIndex: head.rowIndex,
-      from: offset + start + 1,
-      to: offset + last + 1,
-      label: head.label,
-      ...replyOf(head),
-    })
+    return
   }
+
+  out.push({
+    kind: 'cluster',
+    id: head.id,
+    rowIndex: head.rowIndex,
+    from: from + 1,
+    to,
+    label: head.label,
+    ...replyOf(head),
+  })
 }
 
 /**
- * 剩下的格子怎么分给焦点两侧。
+ * 没有焦点时的退路:均匀切。
  *
- * 按轮次数按比例,但两侧只要非空就至少得一格 —— 否则往回滚的时候前文整段从
- * 轨道上消失,它就在谎报这场对话有多长。
+ * 保留它有两个用处。一是还没有阅读位置的那一瞬间 —— 那时没有"近处"可言,再
+ * 分优先级就是编的。二是网格排布在极端预算下装不下时的兜底:均匀切的格数有
+ * 上界保证,网格排布没有。
  */
-function share(
-  before: number,
-  after: number,
-  slots: number,
-): { readonly before: number; readonly after: number } {
-  const heads = (before > 0 ? 1 : 0) + (after > 0 ? 1 : 0)
+function packEven(turns: readonly ConversationTurn[], slots: number, out: RailItem[]): void {
+  const size = Math.max(1, Math.ceil(turns.length / slots))
 
-  if (slots <= 0 || heads === 0) {
-    return { before: 0, after: 0 }
+  for (let index = 0; index < turns.length; index += size) {
+    fold(turns, index, Math.min(index + size, turns.length), out)
   }
-
-  if (slots <= heads) {
-    return { before: before > 0 ? 1 : 0, after: after > 0 ? 1 : 0 }
-  }
-
-  const spare = slots - heads
-  const total = before + after
-  const extra = total === 0 ? 0 : Math.round((before / total) * spare)
-  const head = before > 0 ? 1 + extra : 0
-
-  return { before: head, after: after > 0 ? slots - head : 0 }
 }
 
 /**
- * 装不下就并格 —— 但焦点那一轮永远不并。
+ * 离焦点这么远的地方,一格该装多少轮。
  *
- * 均匀切是错的:它不看你在读哪里,于是正在读的那一轮被埋进某个桶,悬浮卡片只
- * 显示桶首的标题,焦点被自己的缩略图吃掉了。focus+context 的头一条规矩就是
- * 焦点不折叠,所以预算按到焦点的距离分:中间一段逐轮展开,两侧各自并格。
+ * 二的幂,不是任意整数 —— 这一条是整个网格能站住的原因。宽度为 2^k 的桶,起点
+ * 必然是 2^k 的倍数,所以焦点挪动时桶只会在那几条固定的网格线上合并或分裂,
+ * 而不会整体平移。原先按 ceil(段长 / 格数) 均匀切,焦点每挪一轮,远处每一条
+ * 边界都跟着挪一点:你刚记住"第 40 轮大概在那个高度",下一帧就不作数了。
  *
- * activeIndex 落在 turns 之外(还没有焦点)时退回均匀切 —— 那时没有"近处"
- * 可言,再分优先级就是编的。
+ * 增长是几何的,不是线性的:近处 1 轮一格,再远 2、4、8……这才是 focus+context
+ * 该有的衰减。原先"窗口内全 1、窗口外全 N"是个断崖。
+ */
+function widthAt(distance: number, base: number): number {
+  if (distance <= 0) {
+    return 2 ** Math.min(base, MAX_LEVEL)
+  }
+
+  const grown = base + Math.floor(Math.log2(1 + distance / SPREAD_TURNS))
+
+  return 2 ** Math.min(grown, MAX_LEVEL)
+}
+
+/**
+ * 排一次布局:焦点前、焦点窗口、焦点后。
  *
- * rowIndex 仍然严格递增:三段按先后拼接,段内也按先后。turnIndexAtRow 的二分
- * 依赖这一点,它是构造保证,不是巧合。
+ * base 是整体粗细档位。一次排不下就整体升一档重排 —— 与其去调各段的配额,
+ * 不如平移整条衰减曲线:配额法会让某一段被压得特别狠,而这里各处按同一个比例
+ * 变粗,读起来仍然是一条连续的衰减。
+ *
+ * 边界 clamp 到 index + 1,保证每轮循环至少前进一格 —— 升档时 snap 回去的网格
+ * 线可能落在 index 之前,没有这条护栏就是死循环。
+ */
+function layout(
+  turns: readonly ConversationTurn[],
+  start: number,
+  stop: number,
+  base: number,
+): RailItem[] {
+  const items: RailItem[] = []
+  let index = 0
+
+  while (index < start) {
+    const width = widthAt(start - index, base)
+    const edge = Math.floor(index / width) * width + width
+    const next = Math.min(Math.max(edge, index + 1), start)
+
+    fold(turns, index, next, items)
+    index = next
+  }
+
+  for (let cursor = start; cursor < stop; cursor += 1) {
+    const turn = turns[cursor]
+
+    if (turn !== undefined) {
+      items.push(one(turn, cursor))
+    }
+  }
+
+  index = stop
+
+  while (index < turns.length) {
+    const width = widthAt(index - stop + 1, base)
+    const edge = Math.floor(index / width) * width + width
+    const next = Math.min(Math.max(edge, index + 1), turns.length)
+
+    fold(turns, index, next, items)
+    index = next
+  }
+
+  return items
+}
+
+/**
+ * 装不下就并格 —— 但焦点那一轮永远不并,而且远处的地标不许动。
+ *
+ * rowIndex 严格递增是构造保证的:三段按先后拼接,段内也按先后。turnIndexAtRow
+ * 的二分依赖这一点,不能破坏。
  */
 export function groupTurns(
   turns: readonly ConversationTurn[],
@@ -148,31 +197,28 @@ export function groupTurns(
   }
 
   const slots = Math.max(1, Math.floor(capacity))
-  const items: RailItem[] = []
+  const even: RailItem[] = []
 
   if (activeIndex < 0 || activeIndex >= turns.length) {
-    pack(turns, 0, slots, items)
+    packEven(turns, slots, even)
 
-    return items
+    return even
   }
 
-  const focus = Math.min(turns.length, Math.max(1, Math.floor(slots / 3)))
+  const wanted = Math.max(MIN_FOCUS, Math.min(MAX_FOCUS, Math.floor(slots / 3)))
+  const focus = Math.min(turns.length, slots, wanted)
   const half = Math.floor((focus - 1) / 2)
   const start = Math.min(Math.max(0, activeIndex - half), turns.length - focus)
-  const stop = start + focus
-  const budget = share(start, turns.length - stop, Math.max(0, slots - focus))
 
-  pack(turns.slice(0, start), 0, budget.before, items)
+  for (let base = 0; base <= MAX_LEVEL; base += 1) {
+    const items = layout(turns, start, start + focus, base)
 
-  for (let index = start; index < stop; index += 1) {
-    const turn = turns[index]
-
-    if (turn !== undefined) {
-      items.push(one(turn, index))
+    if (items.length <= slots) {
+      return items
     }
   }
 
-  pack(turns.slice(stop), stop, budget.after, items)
+  packEven(turns, slots, even)
 
-  return items
+  return even
 }

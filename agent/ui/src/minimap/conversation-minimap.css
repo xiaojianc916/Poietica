@@ -219,6 +219,7 @@
  */
 .conversation-minimap__turn[data-cluster] .conversation-minimap__bar {
   --cp-rail-len: 6px;
+  --cp-rail-gain: 14px;
 
   opacity: 0.72;
 }
