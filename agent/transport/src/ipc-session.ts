@@ -30,7 +30,10 @@ export interface AgentCommandBridge {
   readonly cancel: (runId: RunId) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   readonly loadRun: (runId: RunId) => Promise<readonly unknown[]>
-  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
+  readonly loadThread: (
+    threadId: string,
+    recentRuns?: number,
+  ) => Promise<{ readonly events: readonly unknown[]; readonly totalRuns: number }>
 }
 
 export interface IpcSessionOptions {
@@ -65,7 +68,12 @@ export function createIpcSession({
 
     loadRun: async (runId) => accept(await bridge.loadRun(runId), onInvalidFrame),
 
-    loadThread: async (threadId) => accept(await bridge.loadThread(threadId), onInvalidFrame),
+    loadThread: async (threadId, recentRuns) => {
+      const window = await bridge.loadThread(threadId, recentRuns)
+
+      /* 校验只管帧；总数是原生那侧数出来的事实，原样过。 */
+      return { events: accept(window.events, onInvalidFrame), totalRuns: window.totalRuns }
+    },
   }
 }
 

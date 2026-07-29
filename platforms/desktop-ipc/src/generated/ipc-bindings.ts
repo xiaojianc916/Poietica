@@ -68,12 +68,17 @@ async agentLoadRun(request: AgentLoadRunRequest) : Promise<AgentRunSnapshot> {
     return await TAURI_INVOKE("agent_load_run", { request });
 },
 /**
- * Reads a whole conversation back out of the log.
+ * Reads a window of a conversation back out of the log.
  * 
  * Opening a conversation is reading one, so this is what the interface calls
  * when the user picks one: the frames are the same values that were broadcast
  * while each turn was live, which is why a conversation reopened cannot drift
  * from having watched it happen.
+ * 
+ * A window, because the whole log is tens of thousands of frames for a
+ * conversation that has seen real use and all of it would land on the click.
+ * The turn count travels with it, so the interface can say where the window
+ * ends and ask for a wider one.
  * 
  * A conversation the log has never seen has no frames. That is an empty
  * transcript rather than a failure, which is what a conversation nobody has
@@ -505,7 +510,14 @@ export type AgentLoadThreadRequest = {
 /**
  * The conversation to read.
  */
-threadId: string }
+threadId: string; 
+/**
+ * How many turns to read, newest first; omit for the default window.
+ * 
+ * 宽度是界面的决定：只有它知道用户已经翻到哪里、还想不想往前看。这里
+ * 的默认值不是策略，只是没人交代时的兜底。
+ */
+recentRuns: number | null }
 /**
  * Where a new session should be opened, and how to start the agent if it
  * is not running yet.
@@ -716,9 +728,18 @@ export type AgentThreadTranscript = {
  */
 threadId: string; 
 /**
- * Every frame of every turn, in the order they happened.
+ * The frames of the turns inside the window, in the order they happened.
  */
-events: JsonValue[] }
+events: JsonValue[]; 
+/**
+ * How many turns the conversation holds in total.
+ * 
+ * The window can be narrower than the conversation, and an interface that
+ * is not told so has no honest way to draw the boundary: it would either
+ * present a fragment as the whole thing, or offer to reach back when there
+ * is nothing behind it.
+ */
+totalRuns: number }
 export type AppSettings = { theme: ThemePreference; language: string; autoSave: boolean; 
 /**
  * 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。

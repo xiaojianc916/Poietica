@@ -60,9 +60,25 @@ export interface AssistantSession {
   readonly resolvePermission: (requestId: string, optionId: string) => void
   /** True while a conversation is still being read out of the log. */
   readonly isRestoring: boolean
+  /** 窗口之外还有更早的轮次没有读。 */
+  readonly hasEarlier: boolean
+  /** 把窗口往前推一段，再读一次。 */
+  readonly loadEarlier: () => void
+  /** True while the window is being widened. */
+  readonly isLoadingEarlier: boolean
 }
 
 const RUN_PLACEHOLDER = 'run_pending'
+
+/*
+ * 一条对话打开时读多少轮，以及"载入更早"一次往前推多少。
+ *
+ * 原生那侧有同一个默认值，两处都写不是重复：宽度是界面的决定，那边的只是
+ * 没人交代时的兜底。往前推是加一段而不是翻倍——用户要的是再往前看一点，
+ * 不是每按一次就把代价乘以二。
+ */
+const WINDOW_RUNS = 40
+const WINDOW_STEP = 40
 
 /*
  * What has already been read out of the log, per conversation.
@@ -84,11 +100,20 @@ const RUN_PLACEHOLDER = 'run_pending'
  */
 const RESTORED_LIMIT = 8
 
-const restored = new Map<string, TimelineState>()
+/** 打开过的一条对话：读出来的转录、读到多宽、一共有多少轮。 */
+interface Restored {
+  readonly timeline: TimelineState
+  /** 这份转录是按多少轮读出来的。 */
+  readonly width: number
+  /** 这条对话一共有多少轮。 */
+  readonly totalRuns: number
+}
 
-function remember(endpoint: string, state: TimelineState): TimelineState {
+const restored = new Map<string, Restored>()
+
+function remember(endpoint: string, held: Restored): Restored {
   restored.delete(endpoint)
-  restored.set(endpoint, state)
+  restored.set(endpoint, held)
 
   if (restored.size > RESTORED_LIMIT) {
     const oldest = restored.keys().next().value
@@ -98,7 +123,7 @@ function remember(endpoint: string, state: TimelineState): TimelineState {
     }
   }
 
-  return state
+  return held
 }
 
 /*
@@ -143,6 +168,8 @@ export function useAssistantSession({
   const [timeline, setTimeline] = useState<TimelineState>(() => opening(endpoint))
   const [shown, setShown] = useState(endpoint)
   const [isRestoring, setIsRestoring] = useState(() => endpoint !== null && !restored.has(endpoint))
+  const [width, setWidth] = useState(() => widthOf(endpoint))
+  const [isLoadingEarlier, setIsLoadingEarlier] = useState(false)
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
   /*
    * 第几次读。
@@ -179,6 +206,9 @@ export function useAssistantSession({
     if (!claiming) {
       setTimeline(opening(endpoint))
       setIsRestoring(endpoint !== null && !restored.has(endpoint))
+      /* 换一条对话，也换回它自己上次读到的宽度。 */
+      setWidth(widthOf(endpoint))
+      setIsLoadingEarlier(false)
     }
   }
 
@@ -243,8 +273,11 @@ export function useAssistantSession({
      * 送进同一份转录，下面那个 effect 让它留在原处。所以回到一条打开过的
      * 对话，正确的做法是把它拿出来。
      */
-    if (restored.has(endpoint)) {
+    const held = restored.get(endpoint)
+
+    if (held !== undefined && held.width >= width) {
       setIsRestoring(false)
+      setIsLoadingEarlier(false)
 
       return undefined
     }
@@ -252,14 +285,25 @@ export function useAssistantSession({
     const mine = reading.current
 
     void session
-      .loadThread(endpoint)
-      .then((events) => {
+      .loadThread(endpoint, width)
+      .then((read) => {
         if (reading.current !== mine) {
           return
         }
 
-        setTimeline(remember(endpoint, replayThreadEvents(RUN_PLACEHOLDER, events)))
+        /* 更宽的一段是同一条管线读出来的同一种东西：整段重放，而不是把
+           更早的部分拼到手上这份的前面。拼接要处理轮次编号、身份命名空间
+           和两段之间的接缝，那是第二条回放路径，也是两条路径迟早对不上的
+           地方。重放一次多花几毫秒，只发生在用户主动按下的时候。 */
+        setTimeline(
+          remember(endpoint, {
+            timeline: replayThreadEvents(RUN_PLACEHOLDER, read.events),
+            totalRuns: read.totalRuns,
+            width,
+          }).timeline,
+        )
         setIsRestoring(false)
+        setIsLoadingEarlier(false)
       })
       .catch((cause: unknown) => {
         if (reading.current !== mine) {
@@ -267,13 +311,14 @@ export function useAssistantSession({
         }
 
         setIsRestoring(false)
+        setIsLoadingEarlier(false)
         fail(cause)
       })
 
     return () => {
       reading.current += 1
     }
-  }, [endpoint, fail, session])
+  }, [endpoint, fail, session, width])
 
   /*
    * 这一轮说的话，留在读过的那份转录里。
@@ -284,11 +329,13 @@ export function useAssistantSession({
    * 把它留下就够了。
    */
   useEffect(() => {
-    if (endpoint === null || !restored.has(endpoint)) {
+    const held = endpoint === null ? undefined : restored.get(endpoint)
+
+    if (endpoint === null || held === undefined) {
       return
     }
 
-    remember(endpoint, timeline)
+    remember(endpoint, { ...held, timeline })
   }, [endpoint, timeline])
 
   const send = useCallback(
@@ -369,6 +416,21 @@ export function useAssistantSession({
     [fail, session],
   )
 
+  /*
+   * 窗口之外还有没有，是原生那侧数出来的，不是从手上这些帧猜出来的。
+   *
+   * 猜只有一种猜法：读回来的轮数等于要的宽度就当作"可能还有"。那在正好
+   * 读完的时候会给出一个按下去什么也不会发生的入口，而一个骗人的按钮比
+   * 没有按钮更糟。
+   */
+  const held = endpoint === null ? undefined : restored.get(endpoint)
+  const hasEarlier = held !== undefined && held.totalRuns > held.width
+
+  const loadEarlier = useCallback(() => {
+    setIsLoadingEarlier(true)
+    setWidth((current) => current + WINDOW_STEP)
+  }, [])
+
   const status = useMemo<ChatStatus>(() => toChatStatus(timeline.status), [timeline.status])
 
   return {
@@ -378,6 +440,9 @@ export function useAssistantSession({
     cancel,
     resolvePermission,
     isRestoring,
+    hasEarlier,
+    loadEarlier,
+    isLoadingEarlier,
   }
 }
 
@@ -385,7 +450,15 @@ export function useAssistantSession({
 function opening(threadId: string | null): TimelineState {
   const held = threadId === null ? undefined : restored.get(threadId)
 
-  return held === undefined ? createTimelineState(RUN_PLACEHOLDER) : held /* 回放结果，无需重算 */
+  /* 回放结果，无需重算。 */
+  return held === undefined ? createTimelineState(RUN_PLACEHOLDER) : held.timeline
+}
+
+/** 这条对话上次读到多宽；没打开过就是默认窗口。 */
+function widthOf(threadId: string | null): number {
+  const held = threadId === null ? undefined : restored.get(threadId)
+
+  return held?.width ?? WINDOW_RUNS
 }
 
 function toChatStatus(status: TimelineState['status']): ChatStatus {

@@ -69,7 +69,7 @@ const NO_READ: &str = "the log read did not finish";
 /// again over IPC, and reduced once more in the interface, all of it on the
 /// click that opened it. Chat clients open a window and reach further back on
 /// demand; this is the window.
-const RECENT_RUNS: i64 = 40;
+const RECENT_RUNS: u32 = 40;
 
 /// The live session, if one has been started.
 ///
@@ -395,6 +395,11 @@ pub async fn agent_load_run(
 pub struct AgentLoadThreadRequest {
     /// The conversation to read.
     pub thread_id: String,
+    /// How many turns to read, newest first; omit for the default window.
+    ///
+    /// 宽度是界面的决定：只有它知道用户已经翻到哪里、还想不想往前看。这里
+    /// 的默认值不是策略，只是没人交代时的兜底。
+    pub recent_runs: Option<u32>,
 }
 
 /// A conversation as it was recorded.
@@ -403,16 +408,28 @@ pub struct AgentLoadThreadRequest {
 pub struct AgentThreadTranscript {
     /// The conversation the frames belong to.
     pub thread_id: String,
-    /// Every frame of every turn, in the order they happened.
+    /// The frames of the turns inside the window, in the order they happened.
     pub events: Vec<Value>,
+    /// How many turns the conversation holds in total.
+    ///
+    /// The window can be narrower than the conversation, and an interface that
+    /// is not told so has no honest way to draw the boundary: it would either
+    /// present a fragment as the whole thing, or offer to reach back when there
+    /// is nothing behind it.
+    pub total_runs: u32,
 }
 
-/// Reads a whole conversation back out of the log.
+/// Reads a window of a conversation back out of the log.
 ///
 /// Opening a conversation is reading one, so this is what the interface calls
 /// when the user picks one: the frames are the same values that were broadcast
 /// while each turn was live, which is why a conversation reopened cannot drift
 /// from having watched it happen.
+///
+/// A window, because the whole log is tens of thousands of frames for a
+/// conversation that has seen real use and all of it would land on the click.
+/// The turn count travels with it, so the interface can say where the window
+/// ends and ask for a wider one.
 ///
 /// A conversation the log has never seen has no frames. That is an empty
 /// transcript rather than a failure, which is what a conversation nobody has
@@ -431,22 +448,32 @@ pub async fn agent_load_thread(
         return Ok(AgentThreadTranscript {
             thread_id: request.thread_id,
             events: Vec::new(),
+            total_runs: 0,
         });
     };
 
-    let events = on_store(&state, move |store| {
-        Ok(store
-            .thread_events(thread_id, RECENT_RUNS)
+    let window = i64::from(request.recent_runs.unwrap_or(RECENT_RUNS));
+
+    /* 一次进池子，两条语句：宽度和总数必须来自同一次读，否则界面会拿到
+       一个自相矛盾的答复——比如说"一共 3 轮"却收到 4 轮的帧。 */
+    let (events, total_runs) = on_store(&state, move |store| {
+        let events = store
+            .thread_events(thread_id, window)
             .map_err(persistence)?
             .into_iter()
             .map(|event| event.payload)
-            .collect::<Vec<Value>>())
+            .collect::<Vec<Value>>();
+
+        let total = store.thread_run_count(thread_id).map_err(persistence)?;
+
+        Ok((events, total))
     })
     .await?;
 
     Ok(AgentThreadTranscript {
         thread_id: request.thread_id,
         events,
+        total_runs: u32::try_from(total_runs).unwrap_or(u32::MAX),
     })
 }
 

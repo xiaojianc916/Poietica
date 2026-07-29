@@ -134,13 +134,14 @@ impl AiStore {
         let rows = statement.query_map(
             rusqlite::params![thread_id.to_string(), recent_runs],
             |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })?;
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            },
+        )?;
 
         let mut events = Vec::new();
 
@@ -156,5 +157,31 @@ impl AiStore {
         }
 
         Ok(events)
+    }
+
+    /// Counts the turns a conversation holds.
+    ///
+    /// The read above is a window, so the interface is looking at part of a
+    /// conversation and has no way to tell from the frames alone whether it is
+    /// looking at all of it — the frames it would need to know that are
+    /// precisely the ones the window left out. Guessing it from the ones that
+    /// did arrive is how an interface ends up claiming a conversation started
+    /// where it did not.
+    ///
+    /// One index scan over runs_thread_order, which is why it travels with
+    /// every read rather than being asked for separately.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the count cannot be read.
+    pub fn thread_run_count(&self, thread_id: Uuid) -> Result<i64> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT COUNT(*) FROM runs WHERE thread_id = ?1")?;
+
+        let total =
+            statement.query_row(rusqlite::params![thread_id.to_string()], |row| row.get(0))?;
+
+        Ok(total)
     }
 }

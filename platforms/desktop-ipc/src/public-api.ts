@@ -2,6 +2,7 @@ export type {
   AgentOpenedThreadDescription,
   AgentThreadBridge,
   AgentThreadDescription,
+  AgentThreadWindow,
 } from './agent'
 export {
   AGENT_EVENT,

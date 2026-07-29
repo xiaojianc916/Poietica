@@ -39,7 +39,7 @@ describe('ipc session', () => {
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
         loadRun: () => Promise.resolve([]),
-        loadThread: () => Promise.resolve([]),
+        loadThread: () => Promise.resolve({ events: [], totalRuns: 0 }),
       },
       source: {
         listen: (handler) => {

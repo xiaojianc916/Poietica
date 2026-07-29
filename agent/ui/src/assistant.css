@@ -1192,3 +1192,35 @@
 .assistant-thread__glyph[data-pinned="true"] {
   color: var(--cp-ink);
 }
+
+/*
+ * 窗口之外的更早对话。
+ *
+ * 打开一条对话读的是最近若干轮，所以更早的部分必须有一个明确的入口，
+ * 否则一条长对话看起来就像是从中间开始的。它落在流的最上面，因为那正
+ * 是这段历史当前的边界。轮次都在的时候它整个不存在——不是灰掉。
+ */
+.assistant-surface__earlier {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3, 12px) 0;
+}
+
+.assistant-surface__earlier-button {
+  background: transparent;
+  border: 1px solid var(--border-subtle, rgb(0 0 0 / 12%));
+  border-radius: 999px;
+  color: var(--text-secondary, inherit);
+  cursor: pointer;
+  font: inherit;
+  padding: 4px 14px;
+}
+
+.assistant-surface__earlier-button:hover:not(:disabled) {
+  background: var(--surface-hover, rgb(0 0 0 / 4%));
+}
+
+.assistant-surface__earlier-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

@@ -81,6 +81,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
 
     loadRun: () => Promise.resolve(events),
 
-    loadThread: () => Promise.resolve(events),
+    /* 录像就一轮，窗口再宽也是它，所以更早的入口永远不出现。 */
+    loadThread: () => Promise.resolve({ events, totalRuns: 1 }),
   }
 }
