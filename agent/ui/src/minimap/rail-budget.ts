@@ -3,12 +3,17 @@ import { useCallback, useState } from 'react'
 /* poietica:conversation-minimap-density@v19 */
 
 /**
- * 一格的行距：命中区 11px + 间距 2px，与 conversation-minimap.css 一致。
+ * 一格的行距：命中区 12px，不留间距，与 conversation-minimap.css 一致。
+ *
+ * 必须是 4 的倍数。Windows 的显示缩放是 25% 的整数倍，1 CSS px 因此等于 k/4 个
+ * 设备像素；步距一旦不是 4 的倍数，每一格的小数相位就逐格漂移，同样声明的横条
+ * 被栅格化成深浅不同的几种。13 在 125% 下是 16.25，四格一循环 —— 那就是这一版
+ * 在修的东西。12 乘任何 k/4 都是整数。
  *
  * 写死而不是从计算样式里读回来：读回来要每次布局刷新一次,而这个数只有改
  * 样式表的人会动,让它在两处同时改是比一次同步读更小的代价。
  */
-export const RAIL_PITCH_PX = 13
+export const RAIL_PITCH_PX = 12
 
 /**
  * 轨道上下各让出多少,与样式表里的 --cp-rail-inset 是同一个数。
