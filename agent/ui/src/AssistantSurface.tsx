@@ -127,7 +127,6 @@ export function AssistantSurface({
   const composer = useRef<PromptInputHandle | null>(null)
 
   const rows = useMemo(() => selectFeedRows(assistant.timeline), [assistant.timeline])
-  const started = rows.length > 0
 
   /*
    * The rail indexes turns, so before the first one there is nothing to index
@@ -227,6 +226,16 @@ export function AssistantSurface({
    * 没有任何状态翻转，也就没有“内容从上面掉下来”和输入框那一抖。真的读出
    * 空记录时才回落到起始态，而那几帧的过渡由 data-restoring 关掉。
    */
+  /*
+   * "已经开始了"说的是有东西可看，所以它数的是画出来的那一组。
+   *
+   * 此前它数 rows，而流里画的是 visibleRows —— 待答的提问被摘去输入框回答，
+   * 于是存在一种状态：rows 非空、visibleRows 为空，输入框按"已开始"落到底部、
+   * 开场白按 320ms 收拢，而流里一个像素都没有。排版与内容有两个判据，就一定
+   * 有它们对不上的那一帧，那一帧就是那次抖动。
+   */
+  const started = visibleRows.length > 0
+
   const settled = started || assistant.isRestoring
 
   /*

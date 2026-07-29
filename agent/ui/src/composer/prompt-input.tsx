@@ -12,6 +12,7 @@ import {
   useContext,
   useId,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -303,11 +304,76 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
 
 export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
   const { registerTextarea, requestSubmit, setText, text } = usePromptInput()
+  const editor = useRef<HTMLTextAreaElement | null>(null)
+
+  /* 一个 ref 两件事：谁持有这个元素归 PromptInput，量它的高度归这里。 */
+  const bind = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      editor.current = node
+      registerTextarea(node)
+    },
+    [registerTextarea],
+  )
 
   /*
-   * Growth is owned by the stylesheet (field-sizing: content between the idle
-   * and maximum line counts). Nothing here measures or animates a height.
+   * 长高要能补间，就得有一个会变的长度。
+   *
+   * 样式表里的 field-sizing: content 改的是"用过的值"，计算 block-size 恒为
+   * auto，而过渡只在计算值变化时启动——那条路上没有任何 transition 能生效。
+   * 所以内容高度在这里量成像素写回行内样式，样式表的 min/max 继续钳住上下限，
+   * 时长继续由 --cp-motion-grow 说。
+   *
+   * 量之前先把高度交回内容：否则读到的永远是上一次写下的高度，长高一次就再也
+   * 回不去。两次写在同一个任务里完成，中间那一帧不会被画出来，浏览器看到的是
+   * 从旧像素值到新像素值的一次变化。
    */
+  const measure = useCallback(() => {
+    const node = editor.current
+
+    if (node === null) {
+      return
+    }
+
+    node.style.setProperty('block-size', 'auto')
+
+    const content = node.scrollHeight
+
+    node.style.setProperty('block-size', `${String(content)}px`)
+  }, [])
+
+  useLayoutEffect(measure, [measure, text])
+
+  /*
+   * 宽度变了换行就变了，高度跟着变：拖动侧栏、缩放窗口都算。观察器会把自己写下
+   * 的高度一起报回来，所以只在宽度真的变化时重量一次。
+   */
+  useLayoutEffect(() => {
+    const node = editor.current
+
+    if (node === null || typeof ResizeObserver === 'undefined') {
+      return undefined
+    }
+
+    let last = node.clientWidth
+
+    const observer = new ResizeObserver(() => {
+      const width = node.clientWidth
+
+      if (width === last) {
+        return
+      }
+
+      last = width
+      measure()
+    })
+
+    observer.observe(node)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [measure])
+
   return (
     <textarea
       className={className}
@@ -321,7 +387,7 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
           requestSubmit()
         }
       }}
-      ref={registerTextarea}
+      ref={bind}
       value={text}
       {...props}
     />
