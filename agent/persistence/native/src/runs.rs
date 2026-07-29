@@ -75,6 +75,11 @@ impl AiStore {
             rusqlite::params![run_id.to_string(), status.as_str(), stop_reason, timestamp],
         )?;
 
+        // 一轮变成终态的这一刻，正是它可以被折叠的这一刻：帧不会再增加了。
+        // 快照是投影，建不出来只是让下一次打开这条对话慢一点，不该让一轮
+        // 对话的收尾跟着失败。
+        let _ignored = self.snapshot(&run_id.to_string());
+
         Ok(())
     }
 }

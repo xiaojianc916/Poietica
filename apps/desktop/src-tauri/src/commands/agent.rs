@@ -71,6 +71,12 @@ const NO_READ: &str = "the log read did not finish";
 /// demand; this is the window.
 const RECENT_RUNS: u32 = 40;
 
+/// 后台补建快照时，一批处理多少轮。
+const SNAPSHOT_BATCH: i64 = 16;
+
+/// 两批之间让开多久，好让前台的读先过。
+const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
 /// The live session, if one has been started.
 ///
 /// The connection's own session identifier is deliberately absent. Which
@@ -724,7 +730,45 @@ fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AiStore>>> 
 
     // Two commands can race to be the first. The loser's connection is
     // dropped and everyone uses the winner's, which is the whole point.
-    Ok(Arc::clone(state.store.get_or_init(|| opened)))
+    let shared = Arc::clone(state.store.get_or_init(|| Arc::clone(&opened)));
+
+    // 赢的那一个顺便把存量对话的快照补上，一次运行一趟。
+    //
+    // 挂在这里而不是启动时，是因为打开日志本身就是懒的（见上面那段）：一次
+    // 从不打开助手的启动，不该为此去读一遍凭据库。日志第一次被真正打开的这
+    // 一刻，才是"这个人要用助手了"的那一刻。
+    if Arc::ptr_eq(&shared, &opened) {
+        catch_up_snapshots(Arc::clone(&shared));
+    }
+
+    Ok(shared)
+}
+
+/// 把还没有快照的存量轮次在后台补齐。
+///
+/// 一批一批地做，每批之间放开锁：补建是为了让点击变快，它自己不能反过来把
+/// 点击堵在锁外面。做完就退出。
+///
+/// 这一趟没跑完也没关系，剩下的轮次下一次运行接着补，中途读到它们只是走回
+/// 日志那条慢路 —— 也就是今天的行为。
+fn catch_up_snapshots(shared: Arc<Mutex<AiStore>>) {
+    async_runtime::spawn_blocking(move || {
+        loop {
+            let done = match shared.lock() {
+                Ok(store) => store.compact_backlog(SNAPSHOT_BATCH),
+                Err(_poisoned) => return,
+            };
+
+            match done {
+                Ok(0) => return,
+                Ok(_more) => std::thread::sleep(SNAPSHOT_PAUSE),
+                Err(error) => {
+                    log::warn!("could not compact stored turns: {error}");
+                    return;
+                }
+            }
+        }
+    });
 }
 
 /// Takes the connection for the length of one statement.

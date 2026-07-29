@@ -5,6 +5,7 @@
 //! ACP client persists each session update before forwarding it, so recovery
 //! is a matter of reading the log back in sequence order.
 
+mod compaction;
 mod connection;
 mod error;
 mod events;
