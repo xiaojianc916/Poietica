@@ -5,6 +5,7 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { useCallback, useState } from 'react'
 import { useAgentDialect } from './domain/agent-dialect'
 import { isQuestionRequest } from './domain/ask-user-question'
+import { OutcomeCard } from './timeline/OutcomeCard'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { toDiffStat, toToolContentParts } from './timeline/tool-call-content'
 
@@ -49,6 +50,20 @@ function labelFor(option: PermissionOption, labels: Readonly<Record<string, stri
   return labels[option.name] ?? option.name
 }
 
+/*
+ * 这次调用指认的落点，一处算法。
+ *
+ * diff 自报的路径最准；没有 diff 时才退回协议声明的落点。问题那一行、主体那一
+ * 段、以及答复之后的那张结果卡问的是同一个问题，所以它不该被抄三遍 —— 抄三遍的
+ * 代价不是长，是三份会各自漂移。
+ */
+function placesOf(toolCall: PermissionToolCall | undefined): readonly string[] {
+  const parts = toToolContentParts(toolCall?.content)
+  const changed = parts.flatMap((part) => (part.type === 'diff' ? [part.path] : []))
+
+  return changed.length > 0 ? changed : (toolCall?.locations ?? []).map((location) => location.path)
+}
+
 /**
  * 到底在批准什么。
  *
@@ -60,11 +75,7 @@ function labelFor(option: PermissionOption, labels: Readonly<Record<string, stri
 function PermissionSubject({ toolCall }: { readonly toolCall: PermissionToolCall }) {
   const parts = toToolContentParts(toolCall.content)
   const stat = toDiffStat(parts)
-
-  /* diff 自报的路径最准；没有 diff 时才退回协议声明的落点。 */
-  const changed = parts.flatMap((part) => (part.type === 'diff' ? [part.path] : []))
-  const places =
-    changed.length > 0 ? changed : (toolCall.locations ?? []).map((location) => location.path)
+  const places = placesOf(toolCall)
 
   const said = parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 
@@ -96,10 +107,7 @@ function PermissionAsk({
   readonly title: string
   readonly toolCall: PermissionToolCall | undefined
 }) {
-  const parts = toToolContentParts(toolCall?.content)
-  const changed = parts.flatMap((part) => (part.type === 'diff' ? [part.path] : []))
-  const places =
-    changed.length > 0 ? changed : (toolCall?.locations ?? []).map((location) => location.path)
+  const places = placesOf(toolCall)
 
   return (
     <p className="assistant-permission__ask">
@@ -147,19 +155,29 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
     return <QuestionOutcome item={item} />
   }
 
+  /*
+   * 答复之后，它就不再是一个请求了。
+   *
+   * 留在流里的是一条记录，和答完的提问是同一类东西，所以画的是同一张结果卡，而
+   * 不是这张请求卡的「已答」变体。此前是后者，代价有两个：同一类记录两种长相，
+   * 以及主次颠倒 —— 结局被排成全卡最小最淡的一行，题面反倒成了主行。
+   *
+   * 前缀也去掉了。结局自己就是一句话，卡片的形状已经说明了下面那行是答案，再写
+   * 一遍「已选择：」只是把主行开头四个字让给一句废话。
+   */
   if (resolution !== undefined) {
+    const cancelled = resolution.outcome === 'cancelled'
+    const places = placesOf(item.toolCall)
+
     return (
-      <div className="assistant-permission" data-resolved="true">
-        <PermissionAsk title={item.title} toolCall={item.toolCall} />
-
-        {item.toolCall === undefined ? null : <PermissionSubject toolCall={item.toolCall} />}
-
-        <p className="assistant-permission__outcome">
-          {resolution.outcome === 'cancelled'
-            ? '请求已取消'
-            : `已选择：${labelOf(item.options, resolution.optionId, dialect.optionLabels)}`}
-        </p>
-      </div>
+      <OutcomeCard
+        answer={
+          cancelled ? undefined : labelOf(item.options, resolution.optionId, dialect.optionLabels)
+        }
+        answered={!cancelled}
+        note={cancelled ? '请求已取消' : undefined}
+        prompt={places.length === 0 ? item.title : `${item.title} ${places.join(' ')}`}
+      />
     )
   }
 

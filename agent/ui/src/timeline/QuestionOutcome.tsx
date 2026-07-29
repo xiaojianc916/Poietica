@@ -1,8 +1,7 @@
-import './question-outcome.css'
-
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { useAgentDialect } from '../domain/agent-dialect'
 import { parseQuestionOptionId, readQuestionPrompt } from '../domain/ask-user-question'
+import { OutcomeCard } from './OutcomeCard'
 
 /**
  * 答完之后留在流里的那张卡片。
@@ -17,6 +16,9 @@ import { parseQuestionOptionId, readQuestionPrompt } from '../domain/ask-user-qu
  *
  * skip 不算选项。它是 ACP 通道为了表达"不回答"而追加的一枚 optionId，属于传输
  * 细节；把它摆进列表，用户会以为自己当初有第五个选择。真跳过了就在底下说一句。
+ *
+ * 卡片本身归 OutcomeCard 所有：一道答完的提问和一次答复过的权限请求在流里是同
+ * 一类记录，它们的形状因此只有一处定义。这里只回答「哪一句是题、哪一句是答」。
  */
 
 export interface QuestionOutcomeProps {
@@ -61,15 +63,11 @@ export function QuestionOutcome({ item }: QuestionOutcomeProps) {
       : item.options.find((option) => option.optionId === picked)?.name
 
   return (
-    <div
-      className="assistant-question-outcome"
-      data-answered={picked === undefined ? undefined : 'true'}
-    >
-      <p className="assistant-question-outcome__prompt">{readQuestionPrompt(item)}</p>
-
-      {answer === undefined ? null : <p className="assistant-question-outcome__answer">{answer}</p>}
-
-      {note === null ? null : <p className="assistant-question-outcome__note">{note}</p>}
-    </div>
+    <OutcomeCard
+      answer={answer}
+      answered={picked !== undefined}
+      note={note ?? undefined}
+      prompt={readQuestionPrompt(item)}
+    />
   )
 }

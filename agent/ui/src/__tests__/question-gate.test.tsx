@@ -79,7 +79,7 @@ describe('提问闸门', () => {
   it('形状与 kind 都对得上,画成一道题而不是一排授权按钮', () => {
     const markup = render(question())
 
-    expect(markup).toContain('assistant-question-outcome')
+    expect(markup).toContain('assistant-outcome')
     expect(markup).not.toContain('assistant-permission__options')
     expect(markup).toContain('等待回答…')
   })
@@ -87,7 +87,7 @@ describe('提问闸门', () => {
   it('形状对但 kind 是长期授权的,仍旧当授权处理', () => {
     const markup = render(consent())
 
-    expect(markup).not.toContain('assistant-question-outcome')
+    expect(markup).not.toContain('assistant-outcome')
     expect(markup).toContain('assistant-permission__options')
     expect(markup).toContain('始终写入')
   })
@@ -102,7 +102,7 @@ describe('提问闸门', () => {
   it('答过之后只留被选中的那一个,落选项不再露面', () => {
     const markup = render(question({ optionId: 'q0_opt_1', outcome: 'selected' }))
 
-    expect(markup).toContain('assistant-question-outcome__answer')
+    expect(markup).toContain('assistant-outcome__answer')
     expect(markup).toContain('浅色')
     expect(markup).not.toContain('深色')
   })
@@ -110,7 +110,7 @@ describe('提问闸门', () => {
   it('跳过不算答案,底下一句话交代', () => {
     const markup = render(question({ optionId: 'q0_skip', outcome: 'selected' }))
 
-    expect(markup).not.toContain('assistant-question-outcome__answer')
+    expect(markup).not.toContain('assistant-outcome__answer')
     expect(markup).toContain('已跳过，未回答')
     expect(markup).not.toContain('Skip')
   })

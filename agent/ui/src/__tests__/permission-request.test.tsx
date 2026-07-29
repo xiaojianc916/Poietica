@@ -88,7 +88,8 @@ describe('权限请求', () => {
       permission({ resolution: { optionId: 'approve_once', outcome: 'selected' } }),
     )
 
-    expect(markup).toContain('已选择：批准一次')
+    expect(markup).toContain('class="assistant-outcome__answer">批准一次')
     expect(markup).not.toContain('approve_once')
+    expect(markup).not.toContain('assistant-permission__options')
   })
 })

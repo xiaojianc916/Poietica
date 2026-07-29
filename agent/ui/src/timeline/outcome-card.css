@@ -1,0 +1,56 @@
+/*
+ * 一件已经落定的事，留在流里的样子。
+ *
+ * 流里有两种东西会挡住 agent：一个提给用户的问句，和一次要用户点头的权限请求。
+ * 答完之后它们都不再是控件，而是同一类记录 —— 当时问的是什么，最后的结局是
+ * 什么。所以它们共用这一张卡，而不是各自把自己的请求态改造成一个「已答态」。
+ *
+ * 此前正是后者：提问走这套样式，权限请求却复用请求卡本身、只把按钮换成一行小
+ * 灰字。于是同一类记录在界面上有两种长相，而且权限那边主次是反的 —— 最该被读到
+ * 的结局排成了全卡最小最淡的一行，作为上下文的题面反倒成了主行。层级在这里只
+ * 声明一次：题面小半档、淡一档，结局大半档、重一点。
+ *
+ * 卡片里不出现任何强调色 —— 一个已经落定的答案不需要再被点亮，那块底色只会把
+ * 一条平静的记录读成一个待办。
+ *
+ * 外框与圆角和工具调用卡同源，只保留一条兜底链：先取设计系统的令牌，再退到字
+ * 面量，脱离 assistant skin 也能正确渲染，fixtures 与组件单测就是这么跑的。
+ */
+
+.assistant-outcome {
+  --cp-card-line: var(--ui-border, #e5e5e5);
+  --cp-card-radius: var(--ui-radius-xl, 0.75rem);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--cp-card-line);
+  border-radius: var(--cp-card-radius);
+  background: var(--cp-card-surface, transparent);
+}
+
+/* 题面是上下文，不是主行：小半档、淡一档。 */
+.assistant-outcome__prompt {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--cp-timeline-quiet-text);
+}
+
+/* 结局是这张卡片的主行：比题面大半档、重一点，正文墨色，不带底色也不带框。 */
+.assistant-outcome__answer {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--cp-ink);
+}
+
+.assistant-outcome__note {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--cp-timeline-quiet-text);
+}

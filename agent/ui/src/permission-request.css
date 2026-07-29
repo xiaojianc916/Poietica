@@ -11,9 +11,10 @@
  * The edge is a stated hairline, never the text colour: a border that follows
  * the ink turns into a black frame the moment the card sits in body copy.
  *
- * An answered request keeps this card and this edge. Fading the whole block out
- * would make the record of what was approved the least legible thing on screen;
- * only the outcome line is quiet.
+ * An answered request is not drawn here at all. It stops being a request the
+ * moment it is answered, and what stays in the transcript is the same outcome
+ * card an answered question uses — one shape for one kind of record. Nothing in
+ * this file has an answered state, because there is no answered state to style.
  */
 
 .assistant-permission {
@@ -27,11 +28,6 @@
   border: 1px solid var(--cp-card-line);
   border-radius: var(--cp-card-radius);
   background: var(--cp-card-surface, transparent);
-}
-
-/* Answered: the question, then the answer. Two lines, one card, one edge. */
-.assistant-permission[data-resolved="true"] {
-  gap: 0.375rem;
 }
 
 /*
@@ -59,13 +55,6 @@
   font-size: 0.78125rem;
   line-height: 1.5;
   word-break: break-all;
-}
-
-.assistant-permission__outcome {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--cp-timeline-quiet-text);
 }
 
 /*
