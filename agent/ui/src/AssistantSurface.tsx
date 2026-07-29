@@ -57,6 +57,13 @@ export interface AssistantSurfaceProps {
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
   readonly onSelectControl: (controlId: string, value: string) => void
+  /**
+   * 人把手伸向输入框了。
+   *
+   * 这一层不知道那要准备什么，它只报告意图。指针移入和聚焦都算：键盘用户不会
+   * 移入，而移入的人多半还没聚焦 —— 两个都接才既不漏也不早。
+   */
+  readonly onEngage?: (() => void) | undefined
   /** 认领或改动失败之后重新问一次。 */
   readonly onRetryControls?: (() => void) | undefined
 }
@@ -104,6 +111,7 @@ export function AssistantSurface({
   controlsFailure,
   endpoint,
   identify,
+  onEngage,
   onRetryControls,
   onSelectControl,
   onUserMessage,
@@ -244,7 +252,11 @@ export function AssistantSurface({
       <AgentActivityFeed
         dock={
           <>
-            <div className="assistant-surface__composer">
+            <div
+              className="assistant-surface__composer"
+              onFocusCapture={onEngage}
+              onPointerEnter={onEngage}
+            >
               <AssistantComposer
                 controls={controls}
                 controlsFailure={controlsFailure}

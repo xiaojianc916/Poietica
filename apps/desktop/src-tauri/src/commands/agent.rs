@@ -61,6 +61,13 @@ const NO_SESSION_ID: &str = "the agent closed the connection before creating a s
 const NO_ANSWER: &str = "the agent session ended before answering";
 const NO_READ: &str = "the log read did not finish";
 
+/// 提问和改设置都必须点名一条对话。
+///
+/// 绑定里这个字段是可选的，语义上不是：不点名以前会落到「连接自带的那条对话」
+/// 上，于是这一轮被记进了一条屏幕上不存在的对话。在唯一能验证它的地方拒绝它，
+/// 与下面 conversation() 拒绝一个非 UUID 的名字是同一件事。
+const NO_CONVERSATION: &str = "no conversation was named";
+
 /// How many turns a conversation opens with.
 ///
 /// Opening a conversation used to read every frame ever recorded under it.
@@ -77,16 +84,15 @@ const SNAPSHOT_BATCH: i64 = 16;
 /// 两批之间让开多久，好让前台的读先过。
 const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// The live session, if one has been started.
+/// The live connection, if one has been started.
 ///
-/// The connection's own session identifier is deliberately absent. Which
-/// session a turn or a selector is addressed to is answered by the
-/// conversation holding it, so a second copy kept in memory could only ever
-/// disagree with the one in the log.
+/// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
+/// 此前它在建立时就凭空建一条并 attach 上去，那一行永远没人看、也永远不会被
+/// 回收，只能靠 list_threads 的 WHERE EXISTS 挡在列表之外 —— 用每次读列表都要
+/// 付的一次子查询，去遮一次本不该发生的写入。
 #[derive(Debug)]
 struct Session {
     client: AgentClient,
-    thread_id: Uuid,
 }
 
 /// Managed state for everything the agent commands need.
@@ -233,7 +239,12 @@ pub async fn agent_prompt(
     // 此前的兜底是"查不到就用连接上的第一条会话"，于是在第二条对话里
     // 提问，带的是第一条的上下文与模型。命名的对话若还没有会话，就在
     // 这里为它开一个并记下来——这是 ACP 的会话模型，不是补丁。
-    let held = session_for(&state, &session, request.thread_id.as_deref()).await?;
+    let named = request
+        .thread_id
+        .as_deref()
+        .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
+
+    let held = session_for(&state, &session, named).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
@@ -567,7 +578,12 @@ pub async fn agent_set_config_option(
      * 与提问走同一条 session_for：它认不得的会话号（上一次运行留下的）会在
      * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。
      */
-    let held = session_for(&state, &live, request.thread_id.as_deref()).await?;
+    let named = request
+        .thread_id
+        .as_deref()
+        .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
+
+    let held = session_for(&state, &live, named).await?;
     let addressed = held.session_id;
 
     let answer = live
@@ -609,13 +625,11 @@ fn restate(control: ConfigControl) -> AgentConfigControl {
 
 /// What a command needs to know about the running session.
 ///
-/// A connection to speak over, and the conversation that opened it. Addressing
-/// is done by reading the log: session_held_by for a selector,
-/// resolve_turn_target for a turn. A session identifier carried alongside them
-/// is precisely what the discarded fallback used, which is why it is gone.
+/// A connection to speak over, and nothing else. 每条命令都点名一条对话，寻址
+/// 由库回答，所以这里再没有第二个答案可以被当成兜底 —— 一个只在「查不到」时才
+/// 生效的字段，就是一条只在出错时才走的代码路径。
 struct Handle {
     client: AgentClient,
-    thread_id: Uuid,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -665,21 +679,6 @@ async fn ensure_session(
         .await
         .map_err(|_dropped| Error::Internal(NO_SESSION_ID.to_owned()))?;
 
-    let shared = shared_store(state)?;
-    let store = borrow_store(&shared)?;
-    let thread_id = store
-        .create_thread(FALLBACK_THREAD_TITLE)
-        .map_err(persistence)?;
-
-    // The first session is held by a conversation like any other. Writing
-    // that down leaves one rule for addressing: conversation to session.
-    // The primary session used not to be attached, so its session_id was
-    // NULL and it became the one session that had to be found some other
-    // way.
-    store
-        .attach_session(thread_id, &session_id)
-        .map_err(persistence)?;
-
     let mut guard = lock(&state.session)?;
 
     // Two prompts can race to be the first. The loser hands its process back
@@ -689,19 +688,17 @@ async fn ensure_session(
 
         return Ok(Handle {
             client: live.client.clone(),
-            thread_id: live.thread_id,
         });
     }
 
     *guard = Some(Session {
         client: client.clone(),
-        thread_id,
     });
 
-    /* 本次连接开出来的第一个会话，同样记下来。 */
+    /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
     remember(state, &session_id)?;
 
-    Ok(Handle { client, thread_id })
+    Ok(Handle { client })
 }
 
 /// Reads the session without holding the lock across an await point.
@@ -710,7 +707,6 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
-        thread_id: live.thread_id,
     }))
 }
 
@@ -1133,7 +1129,7 @@ pub async fn agent_open_thread(
         }
     };
 
-    let held = session_for(&state, &live, Some(&named)).await?;
+    let held = session_for(&state, &live, &named).await?;
 
     let offered = match held.offered {
         Some(offered) => offered,
@@ -1215,18 +1211,6 @@ fn conversation(named: &str) -> Result<Uuid> {
     })
 }
 
-/// The conversation a request names, or the one this connection is on.
-///
-/// An identifier that is not a UUID is a mistake on the calling side. It
-/// used to be swallowed, which meant a malformed name silently addressed
-/// somebody else's conversation.
-fn conversation_or(named: Option<&str>, held: Uuid) -> Result<Uuid> {
-    match named {
-        None => Ok(held),
-        Some(text) => conversation(text),
-    }
-}
-
 /// 一条对话所持有的活会话，以及开它时 agent 报的那张选择器表。
 struct Held {
     thread_id: Uuid,
@@ -1271,9 +1255,9 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 async fn session_for(
     state: &State<'_, AgentRuntime>,
     live: &Handle,
-    named: Option<&str>,
+    named: &str,
 ) -> Result<Held> {
-    let thread_id = conversation_or(named, live.thread_id)?;
+    let thread_id = conversation(named)?;
 
     let stored = {
         let shared = shared_store(state)?;

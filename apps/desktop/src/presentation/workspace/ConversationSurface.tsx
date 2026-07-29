@@ -1,6 +1,5 @@
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-protocol'
 import { AssistantSurface } from '@poietica/agent-ui'
-import { useEffect } from 'react'
 import { useSharedThreads } from '../../application/ai/threads-context'
 
 /*
@@ -37,17 +36,28 @@ export function ConversationSurface({
   const threads = useSharedThreads()
 
   /*
-   * 选择器跟着对话走。
+   * 手伸向输入框，才为这条对话准备一个会话。
    *
-   * 本次运行开出来的对话，在 agent_open_thread 的答复里就带回了整张表；从列
-   * 表里点开的那些不是本次开的，所以在这里认领一次。认领至多发生一次，之后
-   * 它只被"改"这一条路更新。
+   * 选择器属于一个活着的 ACP 会话，而开一个会话是 spawn 进程加两趟握手。把它
+   * 挂在「这一格出现了」上，等于把「看一段历史」的代价定成一次进程启动；更糟
+   * 的是这些握手在同一条连接上排队（agent_threads 的 doc：a turn in flight
+   * 时 agent 连 sessions 都不肯列），于是在列表里连点几条，最后点的那条要等前
+   * 面几条握完手 —— 那不是加载慢，那是几个没人要的会话替你排着队。
+   *
+   * 历史不需要会话：它整段来自本地日志，由 useAssistantSession 自己读。
+   *
+   * 两个入口都是幂等的（adopt 问过一次就记下不再问，identify 复用同一个
+   * promise），所以指针移入和聚焦重复触发是安全的，不需要节流也不需要标志位。
    */
-  useEffect(() => {
-    if (threadId !== null) {
-      threads.adopt(threadId)
+  const engage = () => {
+    if (threadId === null) {
+      void onIdentify?.()
+
+      return
     }
-  }, [threadId, threads])
+
+    threads.adopt(threadId)
+  }
 
   const controls = threadId === null ? NO_CONTROLS : (threads.selectorsOf(threadId) ?? NO_CONTROLS)
 
@@ -57,6 +67,7 @@ export function ConversationSurface({
       controlsFailure={threadId === null ? undefined : threads.selectorFailureOf(threadId)}
       endpoint={threadId}
       identify={onIdentify}
+      onEngage={engage}
       onRetryControls={() => {
         if (threadId !== null) {
           threads.retrySelectors(threadId)
