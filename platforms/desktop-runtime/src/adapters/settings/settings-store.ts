@@ -1,4 +1,4 @@
-import type { AppSettings, SettingsStore, ThemeMode } from '@poietica/features-settings'
+import type { AppSettings, SettingsStore } from '@poietica/features-settings'
 import {
   type AppSettings as AppSettingsDto,
   commands,
@@ -7,10 +7,11 @@ import {
 /*
  * 设置在桌面端的存储。
  *
- * 边界上只做两件真实的翻译：主题字符串收窄成 ThemeMode，快捷键表去掉没有值的
- * 键。其余字段两侧同名同类型——specta 生成的绑定本来就是 camelCase——所以不再
- * 有逐字段抄写的 fromDto/toDto：那层既不能防错（类型系统才能），又让每加一个
- * 设置项都要在两个方向上各改一遍，改漏了才由编译器来提醒。
+ * 边界上只剩一处真实的翻译：Rust 的 HashMap 生成出来是
+ * Partial<Record<string, string>>，每个键都可能缺值，而领域里的快捷键表不接受
+ * undefined。其余字段两侧同名同类型（生成物本来就是 camelCase，主题是同一个
+ * 三值联合），所以既没有逐字段抄写的转换函数，也没有把已经收窄的联合再 switch
+ * 一遍的主题解析——那两层挡不住任何错误，只会让每加一个设置项都要改两遍。
  */
 export function createDesktopSettingsStore(): SettingsStore {
   return {
@@ -19,7 +20,7 @@ export function createDesktopSettingsStore(): SettingsStore {
     },
 
     async save(settings) {
-      await commands.settingsSet(toDto(settings))
+      await commands.settingsSet(settings)
     },
 
     async reset() {
@@ -29,32 +30,13 @@ export function createDesktopSettingsStore(): SettingsStore {
 }
 
 function fromDto(dto: AppSettingsDto): AppSettings {
-  return { ...dto, theme: parseTheme(dto.theme), shortcuts: definedShortcuts(dto.shortcuts) }
+  return { ...dto, shortcuts: definedShortcuts(dto.shortcuts) }
 }
 
-function toDto(settings: AppSettings): AppSettingsDto {
-  return { ...settings, shortcuts: { ...settings.shortcuts } }
-}
-
-/* 绑定里的快捷键表每个键都可能缺值；领域模型不接受 undefined。 */
 function definedShortcuts(
-  shortcuts: Partial<Record<string, string>>,
+  shortcuts: AppSettingsDto['shortcuts'],
 ): Readonly<Record<string, string>> {
   return Object.fromEntries(
-    Object.entries(shortcuts).filter(
-      (entry): entry is [string, string] => typeof entry[1] === 'string',
-    ),
+    Object.entries(shortcuts).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
-}
-
-/* 落盘的主题是任意字符串（可能来自旧版本或手改的配置），认不出就回系统。 */
-function parseTheme(value: string): ThemeMode {
-  switch (value) {
-    case 'light':
-    case 'dark':
-    case 'system':
-      return value
-    default:
-      return 'system'
-  }
 }

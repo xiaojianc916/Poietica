@@ -1,6 +1,6 @@
 import { applyThemePreference } from '@poietica/foundations-design-system'
-import type { AppSettings } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 
 export type SettingsOperation = 'load' | 'save' | 'reset'

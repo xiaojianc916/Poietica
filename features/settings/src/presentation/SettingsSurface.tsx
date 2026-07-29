@@ -13,7 +13,6 @@ import {
   Switch,
   WebhookIcon,
 } from '@poietica/foundations-design-system'
-import type { AppSettings } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import {
   type ComponentType,
   createContext,
@@ -24,6 +23,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import type { AppSettings } from '../domain/settings'
 import type { SettingsStore } from '../ports/settings-store'
 import { ModelsSettings } from './ModelsSettings'
 import {

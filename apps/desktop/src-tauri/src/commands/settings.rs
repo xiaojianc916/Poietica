@@ -1,4 +1,4 @@
-use crate::error::{Error, IpcError, Result};
+use crate::error::{IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
