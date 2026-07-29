@@ -100,3 +100,39 @@ hovercard）。而且预热多余：身份在发言时本来就会取到（send 
 不可逆来源：挂载时就带 endpoint，或用户在这一格发出过一句话。转录与加载状态一概
 退出排版判据 —— 这也把缺陷 1（帧上没有地址）对排版的影响隔离掉了：帧再怎么串，
 也搬不动构成。
+
+## 缺陷 2 已修：转录搬出组件，帧有了唯一的归属方
+
+搬走之前，`agent/runtime/src/useAssistantSession.ts` 一个 Hook 里同时是：
+
+| 源码 | 它其实是什么 |
+|---|---|
+| `useState<TimelineState>(() => opening(endpoint))` | 后端状态的组件级副本，每个挂载的界面一份 |
+| `const restored = new Map()` + `RESTORED_LIMIT = 8` | 手搓 LRU |
+| `WINDOW_RUNS` / `WINDOW_STEP` / `setWidth` | 手搓分页游标 |
+| `const reading = useRef(0)` | 手搓竞态守卫 |
+| `const claimed = useRef<string | null>(null)` | 手搓乐观 id 对账 |
+| `if (shown !== endpoint) { setTimeline(...) }` | 渲染期改 state：手搓「派生自 prop 的状态」 |
+| `session.subscribe((event) => setTimeline(...))` | 每个界面各订阅一次全量帧流 |
+
+行业标准：转录是后端状态，归组件外的规范化 store；React 官方原语是
+`useSyncExternalStore`，成熟依赖是 TanStack Query / Zustand / Redux。
+本仓库自己的正确范例：`agent/ui/src/time.ts`。
+
+现状：`agent/runtime/src/transcript-store.ts` 是全进程唯一的帧订阅者和唯一的
+run 发起者，因此也是唯一有资格路由帧的人。组件不再接收帧 —— "帧落进别人的
+转录"在新结构里没有语法可以表达。
+
+## 缺陷 1 仍欠：线路上的地址
+
+`platforms/desktop-ipc/src/agent.ts`：
+
+    module.listen<AgentEventEnvelope>(AGENT_EVENT, (event) => { handler(event.payload.frame) })
+
+信封里有 `runId`（同文件注释：the run identifier rides outside it because it is
+routing, not content），在这一行被丢弃。所以 store 的归属依据是"当前在飞的那一
+轮"，而不是真地址。同一条 ACP 连接上最多一轮在飞（见 agent_threads 的注释），
+所以今天它是精确的；但它依赖那个前提。
+
+下一刀（纯 TS，不动 Rust、不动 zod schema）：`AgentEventSource.listen` 交出
+`{ runId, frame }`，store 按 runId → threadId 查表路由。
