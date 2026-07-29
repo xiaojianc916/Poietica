@@ -330,6 +330,25 @@ export function WorkspaceContainer({
     [port.workspace],
   )
 
+  /*
+   * 侧栏那三根线也钉住标识。
+   *
+   * 它们此前是 JSX 里的内联箭头，于是画布保存、标签切换、文档隔离——任何一件
+   * 与 AI 无关的事让这个组件重渲，整张会话列表都要跟着重画一遍。
+   *
+   * 打开一条对话与「说出第一句话」是同一件事，共用 startConversation。
+   */
+  const openAssistantEntry = useCallback(() => {
+    port.workspace.openWorkspaceSurface({ surfaceId: 'ai', title: CONVERSATION_ENTRY_TITLE })
+  }, [port.workspace])
+
+  const openConversationInNewTab = useCallback(
+    (threadId: string, title: string) => {
+      port.workspace.openConversationInNewTab({ threadId, title })
+    },
+    [port.workspace],
+  )
+
   const assistant = useMemo(
     () => createAssistantWiring(agentSession, startConversation),
     [agentSession, startConversation],
@@ -450,18 +469,9 @@ export function WorkspaceContainer({
       sidebarPanel={
         <AssistantSidebarPanel
           activeThreadId={activeConversationId}
-          onCreate={() => {
-            port.workspace.openWorkspaceSurface({
-              surfaceId: 'ai',
-              title: CONVERSATION_ENTRY_TITLE,
-            })
-          }}
-          onOpen={(threadId, title) => {
-            port.workspace.openConversation({ threadId, title })
-          }}
-          onOpenInNewTab={(threadId, title) => {
-            port.workspace.openConversationInNewTab({ threadId, title })
-          }}
+          onCreate={openAssistantEntry}
+          onOpen={startConversation}
+          onOpenInNewTab={openConversationInNewTab}
         />
       }
       statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}

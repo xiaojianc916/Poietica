@@ -29,6 +29,15 @@
   flex-direction: column;
   gap: 2px;
   translate: 0 -50%;
+
+  /*
+   * 轨道不许长过面板。
+   *
+   * 总高是 13N − 2,没有上限的话 N 到五十几就越过面板边界,而这里既不裁剪也
+   * 不滚动 —— 首尾几轮被窗口边缘悄悄吃掉,没有任何提示。这条护栏之外,真正
+   * 的答案是并格(rail-groups.ts);护栏只保证在测量到位之前的那一帧不出丑。
+   */
+  max-block-size: calc(100% - var(--cp-pad-mid) * 2);
 }
 
 /*
@@ -189,6 +198,27 @@
  * 真正没人管的是过渡,而同一个功能的另一份样式表(agent-activity-feed.css)在
  * 同样的媒体查询里写的就是 transition: none。按它统一。
  */
+/*
+ * 并格之后的那一格。
+ *
+ * 它代表一段而不是一轮,所以要看得出不同 —— 但只用已有的两个量:短一点、淡
+ * 一点。不引入新 token,也不引入新形状:一根短横还是一根短横,读者的扫视习惯
+ * 不该因为密度变化而重学一遍。
+ */
+.conversation-minimap__turn[data-cluster] .conversation-minimap__bar {
+  --cp-rail-len: 6px;
+
+  opacity: 0.72;
+}
+
+/* 这一格代表几轮。数字用等宽字形,免得逐格跳动。 */
+.conversation-minimap__card-kicker {
+  margin: 0 0 2px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--cp-ink-subtle);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
   .conversation-minimap__card {

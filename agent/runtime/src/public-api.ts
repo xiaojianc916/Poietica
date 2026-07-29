@@ -4,5 +4,5 @@ export type {
   AssistantSubmission,
 } from './useAssistantSession'
 export { useAssistantSession } from './useAssistantSession'
-export type { ThreadsSelection } from './useThreads'
-export { shorten, useThreads } from './useThreads'
+export type { ThreadListItem, ThreadsList } from './threads-store'
+export { shorten, ThreadsStore } from './threads-store'

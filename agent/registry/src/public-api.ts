@@ -5,13 +5,11 @@ export type {
   AcpAgentProfileSet,
   AcpAgentProfileSetParse,
   AgentConfigOptionValue,
-  AgentCredentialBinding,
 } from './acp-agent-profile'
 export {
   acpAgentCommandLine,
   builtinAcpAgentProfileSet,
   builtinAcpAgentProfiles,
-  defaultCredentialBinding,
   parseAcpAgentCommandLine,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
@@ -19,8 +17,6 @@ export {
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
 export { kimiCode } from './agents/kimi'
-export type { LaunchEnvInput, LaunchEnvResult } from './credential-injection'
-export { redactEnv, resolveAgentLaunchEnv } from './credential-injection'
 export type { CatalogModel, CatalogProvider, ModelCatalog } from './model-catalog'
 export {
   catalogProviderById,

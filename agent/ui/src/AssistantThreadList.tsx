@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
-import { memo, useCallback, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 import { formatAbsolute, formatElapsed, nextChangeIn, sectionsOf, useNow } from './time'
@@ -323,7 +323,7 @@ export function AssistantThreadList({
    * 同时告诉它这一屏下一次会变的时刻：它不按拍子轮询，睡到那一刻为止。
    */
   const now = useNow((at) => nextChangeIn(threads, at))
-  const groups = sectionsOf(threads, now)
+  const groups = useMemo(() => sectionsOf(threads, now), [now, threads])
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*

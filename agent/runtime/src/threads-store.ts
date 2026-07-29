@@ -1,0 +1,510 @@
+import type {
+  SessionConfigControl,
+  SessionConfigPort,
+  ThreadPort,
+  ThreadRecord,
+} from '@poietica/agent-protocol'
+
+/** Shown for a conversation nothing has named yet: the words of the entry. */
+const FALLBACK_TITLE = '新建对话'
+
+/** How much of a stand in title a tab can carry. */
+const TITLE_LIMIT = 24
+
+const FAILURE_FALLBACK = '读取会话记录失败。'
+
+/** 说的是选择器那一路，和上面那句不是同一件事。 */
+const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
+
+/** Cuts a stand in title down to something a tab can show. */
+export const shorten = (text: string): string => {
+  const tidy = text.trim().replace(/\s+/g, ' ')
+
+  if (tidy.length === 0) {
+    return FALLBACK_TITLE
+  }
+
+  if (tidy.length <= TITLE_LIMIT) {
+    return tidy
+  }
+
+  return `${tidy.slice(0, TITLE_LIMIT)}…`
+}
+
+/**
+ * 一行会话在列表里的样子。
+ *
+ * 名字在这里就已经定下来了：三个来源（官方、用户手改、第一句话的替身）在
+ * store 里分出胜负，渲染层拿到的是结论。此前每画一行都回头问一次 titleOf，
+ * 于是名字的规则散在渲染期，而列表每帧都是一批新对象。
+ */
+export interface ThreadListItem {
+  readonly id: string
+  readonly title: string
+  readonly isPinned: boolean
+  readonly updatedAt: string
+}
+
+/** 侧栏要的那一片：只有这三样变了，侧栏才需要重画。 */
+export interface ThreadsList {
+  readonly items: readonly ThreadListItem[]
+  readonly isLoading: boolean
+  readonly failure: string | null
+}
+
+interface Held {
+  readonly threads: readonly ThreadRecord[]
+  readonly pending: readonly ThreadRecord[]
+  readonly provisional: ReadonlyMap<string, string>
+  readonly selectors: ReadonlyMap<string, readonly SessionConfigControl[]>
+  readonly selectorFailure: ReadonlyMap<string, string>
+  readonly isLoading: boolean
+  readonly failure: string | null
+}
+
+const NO_ITEMS: readonly ThreadListItem[] = []
+
+const EMPTY: Held = {
+  threads: [],
+  pending: [],
+  provisional: new Map(),
+  selectors: new Map(),
+  selectorFailure: new Map(),
+  isLoading: true,
+  failure: null,
+}
+
+/**
+ * 会话与它们的名字，整个应用一份。
+ *
+ * 形制与 workspaceLayoutStore 一致：状态是一个不可变快照，改动经由 #commit
+ * 落定，没有真的变化就不通知。这不是风格选择——此前状态摊在七个 useState 上，
+ * 由一个每次渲染都新建的对象经 Context 广播出去，于是「某条对话认领到了选择
+ * 器」这种局部事实，会让每一个读过这份状态的组件连同它下面整棵树重画一遍。
+ *
+ * 动作是箭头字段，引用终生不变；因此它们可以直接当 prop 传下去，行组件的
+ * 浅比较才第一次真的有东西可比。
+ *
+ * 名字有三个来源且不竞争：官方名是 agent 自己的，永远胜出；从第一句话取的
+ * 替身只活在内存里，不会被误当成真名；两者都没有时用入口的名字。
+ */
+export class ThreadsStore {
+  readonly #port: ThreadPort | undefined
+
+  readonly #config: SessionConfigPort | undefined
+
+  #held: Held = EMPTY
+
+  #listeners = new Set<() => void>()
+
+  /* 一次索引，而不是每一行各扫一遍整张表。 */
+  #byId = new Map<string, ThreadRecord>()
+
+  /* 值没变的行复用同一个对象，行组件因此可以被跳过。 */
+  #items = new Map<string, ThreadListItem>()
+
+  #list: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
+
+  /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
+  #asked = new Set<string>()
+
+  constructor(port?: ThreadPort, config?: SessionConfigPort) {
+    this.#port = port
+    this.#config = config
+  }
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.#listeners.add(listener)
+
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  getSnapshot = (): Held => this.#held
+
+  /** 侧栏读的那一片。引用只在这一片真的变了时才更换。 */
+  listSnapshot = (): ThreadsList => this.#list
+
+  /** 这条对话现在叫什么。 */
+  titleOf = (threadId: string): string => {
+    const found = this.#byId.get(threadId)
+
+    /* 用户自己起的名字压过一切，包括随后到来的官方标题。 */
+    if (found?.titleSource === 'manual' || found?.titleSource === 'official') {
+      return found.title
+    }
+
+    const standIn = this.#held.provisional.get(threadId)
+
+    if (standIn !== undefined) {
+      return standIn
+    }
+
+    if (found === undefined) {
+      return FALLBACK_TITLE
+    }
+
+    return found.titleSource === 'fallback' ? FALLBACK_TITLE : shorten(found.title)
+  }
+
+  /** The stand in name a message would give a conversation. */
+  standInTitle = (message: string): string => shorten(message)
+
+  /** 这条对话所持有的会话给出的选择器；从没拿到过就是 undefined。 */
+  selectorsOf = (threadId: string): readonly SessionConfigControl[] | undefined =>
+    this.#held.selectors.get(threadId)
+
+  /** 上一次认领或改动失败时的说法，按对话记。 */
+  selectorFailureOf = (threadId: string): string | undefined =>
+    this.#held.selectorFailure.get(threadId)
+
+  refresh = async (): Promise<void> => {
+    const port = this.#port
+
+    if (port === undefined) {
+      this.#commit({ isLoading: false })
+
+      return
+    }
+
+    try {
+      const found = await port.list()
+
+      this.#commit({ threads: found, failure: null, isLoading: false })
+    } catch (reason) {
+      this.#commit({ failure: this.#reasonOf(reason), isLoading: false })
+    }
+  }
+
+  create = async (): Promise<string | null> => {
+    const port = this.#port
+
+    if (port === undefined) {
+      return null
+    }
+
+    try {
+      const opened = await port.open()
+      const threadId = opened.thread.threadId
+
+      /*
+       * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一
+       * 不需要再问一次的时刻。
+       *
+       * 一条对话在有人开口之前不进列表，所以这里不添行：那会留下一串从未
+       * 发生过的对话。
+       */
+      this.#asked.add(threadId)
+      this.#commit({
+        selectors: this.#with(this.#held.selectors, threadId, opened.selectors),
+        failure: null,
+      })
+
+      return threadId
+    } catch (reason) {
+      this.#commit({ failure: this.#reasonOf(reason) })
+
+      return null
+    }
+  }
+
+  /*
+   * 平台在第一轮开始时才记下一条对话，所以发出的那一刻读回来可能还没有它。
+   * 先把行显示出来、让下一次读取认领走，是列表类界面的常规乐观更新。
+   */
+  nameFromMessage = (threadId: string, message: string): void => {
+    const found = this.#byId.get(threadId)
+
+    if (found?.titleSource === 'official') {
+      return
+    }
+
+    const standIn = shorten(message)
+    const provisional = this.#with(this.#held.provisional, threadId, standIn)
+
+    if (found !== undefined) {
+      this.#commit({ provisional })
+
+      return
+    }
+
+    const pending = this.#held.pending.some((thread) => thread.threadId === threadId)
+      ? this.#held.pending
+      : [
+          ...this.#held.pending,
+          {
+            threadId,
+            sessionId: null,
+            title: standIn,
+            titleSource: 'message' as const,
+            updatedAt: new Date().toISOString(),
+          },
+        ]
+
+    this.#commit({ pending, provisional })
+  }
+
+  /*
+   * 三个动作：先改本地，再落库。
+   *
+   * 立刻可见是列表类界面的通行做法，而真相仍然只有一个来源；端口没有实现
+   * 某个动作时什么都不做，界面不会假装做过。
+   */
+  rename = async (threadId: string, title: string): Promise<void> => {
+    const act = this.#port?.rename
+    const named = title.trim()
+
+    if (act === undefined || named.length === 0) {
+      return
+    }
+
+    this.#commit({
+      threads: this.#held.threads.map((thread) =>
+        thread.threadId === threadId
+          ? { ...thread, title: named, titleSource: 'manual' as const }
+          : thread,
+      ),
+      provisional: this.#without(this.#held.provisional, threadId),
+    })
+
+    await this.#settle(act(threadId, named))
+  }
+
+  remove = async (threadId: string): Promise<void> => {
+    const act = this.#port?.remove
+
+    if (act === undefined) {
+      return
+    }
+
+    this.#commit({
+      threads: this.#held.threads.filter((thread) => thread.threadId !== threadId),
+      pending: this.#held.pending.filter((thread) => thread.threadId !== threadId),
+    })
+
+    await this.#settle(act(threadId))
+  }
+
+  setPinned = async (threadId: string, pinned: boolean): Promise<void> => {
+    const act = this.#port?.setPinned
+
+    if (act === undefined) {
+      return
+    }
+
+    this.#commit({
+      threads: this.#held.threads.map((thread) =>
+        thread.threadId === threadId ? { ...thread, pinned } : thread,
+      ),
+    })
+
+    await this.#settle(act(threadId, pinned))
+  }
+
+  /*
+   * 认领一条不是本次运行开出来的对话：让它握住一个会话。
+   *
+   * 原生侧在同一个答复里给出这条对话现在持有的会话，和 agent 为它报的整张
+   * 选择器表，与新开一条对话走的是同一条路——所以选择器只有一个到达口，
+   * 也就没有「空表」和「读失败」这两种半状态。
+   */
+  adopt = (threadId: string): void => {
+    if (this.#asked.has(threadId)) {
+      return
+    }
+
+    this.#read(threadId)
+  }
+
+  retrySelectors = (threadId: string): void => {
+    this.#commit({ selectorFailure: this.#without(this.#held.selectorFailure, threadId) })
+    this.#read(threadId)
+  }
+
+  /** 改这条对话的一项会话设置；答案就是改完之后的整张表。 */
+  selectControl = (threadId: string, controlId: string, value: string): void => {
+    const config = this.#config
+
+    if (config === undefined) {
+      return
+    }
+
+    config
+      .select(threadId, controlId, value)
+      .then((offered) => {
+        this.#remember(threadId, offered)
+      })
+      .catch((reason: unknown) => {
+        this.#noteSelectorFailure(threadId, reason)
+      })
+  }
+
+  #read(threadId: string): void {
+    const port = this.#port
+
+    if (port === undefined) {
+      return
+    }
+
+    this.#asked.add(threadId)
+    port
+      .open(threadId)
+      .then((opened) => {
+        this.#remember(threadId, opened.selectors)
+      })
+      .catch((reason: unknown) => {
+        this.#noteSelectorFailure(threadId, reason)
+      })
+  }
+
+  #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
+    this.#commit({
+      selectors: this.#with(this.#held.selectors, threadId, offered),
+      selectorFailure: this.#without(this.#held.selectorFailure, threadId),
+    })
+  }
+
+  #noteSelectorFailure(threadId: string, reason: unknown): void {
+    this.#commit({
+      selectorFailure: this.#with(
+        this.#held.selectorFailure,
+        threadId,
+        reason instanceof Error ? reason.message : SELECTOR_FAILURE_FALLBACK,
+      ),
+    })
+  }
+
+  async #settle(work: Promise<unknown>): Promise<void> {
+    try {
+      await work
+      this.#commit({ failure: null })
+    } catch (reason) {
+      this.#commit({ failure: this.#reasonOf(reason) })
+    }
+  }
+
+  #reasonOf(reason: unknown): string {
+    return reason instanceof Error ? reason.message : FAILURE_FALLBACK
+  }
+
+  #with<T>(map: ReadonlyMap<string, T>, key: string, value: T): ReadonlyMap<string, T> {
+    if (map.get(key) === value) {
+      return map
+    }
+
+    const next = new Map(map)
+
+    next.set(key, value)
+
+    return next
+  }
+
+  #without<T>(map: ReadonlyMap<string, T>, key: string): ReadonlyMap<string, T> {
+    if (!map.has(key)) {
+      return map
+    }
+
+    const next = new Map(map)
+
+    next.delete(key)
+
+    return next
+  }
+
+  #commit(patch: Partial<Held>): void {
+    const next: Held = { ...this.#held, ...patch }
+
+    if (
+      next.threads === this.#held.threads &&
+      next.pending === this.#held.pending &&
+      next.provisional === this.#held.provisional &&
+      next.selectors === this.#held.selectors &&
+      next.selectorFailure === this.#held.selectorFailure &&
+      next.isLoading === this.#held.isLoading &&
+      next.failure === this.#held.failure
+    ) {
+      return
+    }
+
+    this.#held = next
+    this.#project()
+
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  /*
+   * 把快照投影成列表要用的形状，一次。
+   *
+   * 逐行复用值没变的对象，整张列表没变时连数组本身都不换——于是「某条对话
+   * 拿到了选择器」不会让侧栏的任何一行重画。
+   */
+  #project(): void {
+    const listed = this.#listed()
+    const byId = new Map<string, ThreadRecord>()
+
+    for (const thread of listed) {
+      byId.set(thread.threadId, thread)
+    }
+
+    this.#byId = byId
+
+    const kept = new Map<string, ThreadListItem>()
+    const items: ThreadListItem[] = []
+    let same = listed.length === this.#list.items.length
+
+    for (const [index, thread] of listed.entries()) {
+      const item = this.#itemFor(thread)
+
+      kept.set(thread.threadId, item)
+      items.push(item)
+
+      if (same && this.#list.items[index] !== item) {
+        same = false
+      }
+    }
+
+    this.#items = kept
+
+    const { failure, isLoading } = this.#held
+
+    if (same && this.#list.isLoading === isLoading && this.#list.failure === failure) {
+      return
+    }
+
+    this.#list = { items: same ? this.#list.items : items, isLoading, failure }
+  }
+
+  #itemFor(thread: ThreadRecord): ThreadListItem {
+    const title = this.titleOf(thread.threadId)
+    const isPinned = thread.pinned === true
+    const last = this.#items.get(thread.threadId)
+
+    if (
+      last !== undefined &&
+      last.title === title &&
+      last.isPinned === isPinned &&
+      last.updatedAt === thread.updatedAt
+    ) {
+      return last
+    }
+
+    return { id: thread.threadId, title, isPinned, updatedAt: thread.updatedAt }
+  }
+
+  /* 刚开口的对话排在最前，直到下一次读取把它认领走。 */
+  #listed(): readonly ThreadRecord[] {
+    const { pending, threads } = this.#held
+
+    if (pending.length === 0) {
+      return threads
+    }
+
+    const known = new Set(threads.map((thread) => thread.threadId))
+    const extra = pending.filter((thread) => !known.has(thread.threadId))
+
+    return extra.length === 0 ? threads : [...extra, ...threads]
+  }
+}

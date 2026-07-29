@@ -57,21 +57,42 @@ const restrictedUtilityClasses = [
  * before its files are allowed to import anything at all.
  *
  * native: may reach for @tauri-apps directly. Only platform packages may.
+ *
+ * platforms: 适配器实现的是别人声明的端口，所以它必须看得见那些端口。
+ * createDesktopSettingsStore 的返回类型就是 features-settings 的 SettingsStore，
+ * 这个 import 删不掉 —— 删了函数就没有类型可标注。agents.json 读回来的不透明
+ * 对象要由 agent-registry 校验成 AcpAgentProfile，同理。这两条边是依赖倒置的
+ * 落点，不是抄近路。
+ *
+ * 真正要防的是反向那条：platforms 依赖应用入口包 @poietica/desktop。它仍然禁着。
  */
 const layers = {
   agent: { may: [], native: false },
   editor: { may: [], native: false },
   features: { may: ['agent', 'editor'], native: false },
   foundations: { may: [], native: false },
-  platforms: { may: [], native: true },
+  platforms: { may: ['agent', 'features'], native: true },
 }
+
+/*
+ * 依赖方向的判据是 import 说明符，不是包名在文本里出现过。
+ *
+ * 此前这条规则在全文里搜包名，于是一句「agents 是不透明对象，由
+ * @poietica/agent-registry 在 TS 侧校验」的注释也被记成一次跨层依赖。注释不是
+ * 依赖：它不进构建产物，删掉它不会改变任何一条边。改用与 public-package-exports
+ * 相同的判据，只认 from / import 后面引号里的那一段。
+ *
+ * 用后行断言而不是把 from 一起吃进匹配：断言零宽，match.index 仍然落在包名上，
+ * 报出来的列号才继续指着出问题的那个字。
+ */
+const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
 
 const layerRules = Object.entries(layers).map(([layer, { may, native }]) => {
   const allowed = ['foundations', layer, ...may]
-  const forbidden = [`@poietica/(?!(?:${allowed.join('|')})-)[\\w-]+`]
+  const forbidden = [`${SPECIFIER}@poietica/(?!(?:${allowed.join('|')})-)[\\w-]+`]
 
   if (!native) {
-    forbidden.push('@tauri-apps/[\\w-]+')
+    forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
   }
 
   return {

@@ -71,7 +71,7 @@ const EPSILON = 0.002
  * delivers. Returned as a ref callback with a cleanup, which React 19 calls on
  * unmount.
  */
-export function useFisheye(): (node: HTMLElement | null) => void {
+export function useFisheye(): (node: HTMLElement | null) => (() => void) | void {
   return useCallback((node: HTMLElement | null) => {
     if (node === null) {
       return

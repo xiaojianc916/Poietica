@@ -1,23 +1,7 @@
 import { acpAgents, defaultAcpAgent } from './acp-agents'
-import { defaultEnvNames, type ModelProviderDialect } from './model-provider-profile'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
 export type AgentConfigOptionValue = string | boolean
-
-/**
- * 把某个提供方的凭据注入到这个 agent 的哪几个环境变量。
- *
- * 不写 agent 自己的配置文件（~/.claude/settings.json 之类）：那些文件格式各异、
- * 会被 agent 重写，而且会把密钥明文落盘。我们只在 spawn 的瞬间注入环境变量，
- * 这也是 Zed 对 Gemini CLI 的做法。
- */
-export interface AgentCredentialBinding {
-  readonly providerId: string
-  readonly apiKeyEnv: string
-  readonly baseUrlEnv: string
-  /** 留空表示不注入默认模型，完全交给 agent。 */
-  readonly modelEnv?: string | undefined
-}
 
 /**
  * 一个 ACP agent 的接入档案。
@@ -37,9 +21,14 @@ export interface AcpAgentProfile {
   readonly command: string
   readonly args: readonly string[]
   readonly cwd?: string | undefined
-  /** 非敏感环境变量，会原样落盘。密钥不要写在这里。 */
+  /**
+   * 非敏感环境变量，会原样落盘，例如数据根目录 KIMI_CODE_HOME。
+   *
+   * 密钥永远不在这里：它存在系统钥匙串，经由 AgentConfigStore.execCli 调
+   * agent 官方 CLI 写入 agent 自己的配置文件。我们不注入密钥环境变量，也
+   * 不拼对方的配置文件格式。
+   */
   readonly env: Readonly<Record<string, string>>
-  readonly credentialBinding?: AgentCredentialBinding | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -89,16 +78,6 @@ function asText(input: unknown, max = MAX_TEXT): string | undefined {
   }
 
   return input
-}
-
-function asEnvName(input: unknown): string | undefined {
-  const name = asText(input, 64)
-
-  if (name === undefined || !ENV_NAME_PATTERN.test(name)) {
-    return undefined
-  }
-
-  return name
 }
 
 function parseIdentity(
@@ -205,43 +184,6 @@ function parseEnv(input: unknown): Parsed<Record<string, string>> {
   return { ok: true, value: env }
 }
 
-function parseCredentialBinding(input: unknown): Parsed<AgentCredentialBinding | undefined> {
-  if (input === undefined || input === null) {
-    return { ok: true, value: undefined }
-  }
-
-  const raw = asRecord(input)
-
-  if (!raw) {
-    return fail('凭据绑定必须是对象')
-  }
-
-  const providerId = asText(raw['providerId'], 32)
-
-  if (providerId === undefined || !ID_PATTERN.test(providerId)) {
-    return fail('凭据绑定里的提供方标识不合法')
-  }
-
-  const apiKeyEnv = asEnvName(raw['apiKeyEnv'])
-  const baseUrlEnv = asEnvName(raw['baseUrlEnv'])
-
-  if (apiKeyEnv === undefined || baseUrlEnv === undefined) {
-    return fail('凭据绑定需要合法的密钥与 base URL 环境变量名')
-  }
-
-  if (raw['modelEnv'] === undefined || raw['modelEnv'] === null) {
-    return { ok: true, value: { providerId, apiKeyEnv, baseUrlEnv, modelEnv: undefined } }
-  }
-
-  const modelEnv = asEnvName(raw['modelEnv'])
-
-  if (modelEnv === undefined) {
-    return fail('凭据绑定里的模型环境变量名不合法')
-  }
-
-  return { ok: true, value: { providerId, apiKeyEnv, baseUrlEnv, modelEnv } }
-}
-
 function parseDefaultConfigOptions(input: unknown): Parsed<Record<string, AgentConfigOptionValue>> {
   if (input === undefined) {
     return { ok: true, value: {} }
@@ -313,12 +255,6 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
     return env
   }
 
-  const binding = parseCredentialBinding(raw['credentialBinding'])
-
-  if (!binding.ok) {
-    return binding
-  }
-
   const defaults = parseDefaultConfigOptions(raw['defaultConfigOptions'])
 
   if (!defaults.ok) {
@@ -334,7 +270,6 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
       args: args.value,
       cwd: cwd.value,
       env: env.value,
-      credentialBinding: binding.value,
       defaultConfigOptions: defaults.value,
     },
   }
@@ -434,21 +369,6 @@ export function parseAcpAgentCommandLine(input: string): {
   return { command: parts[0] ?? '', args: parts.slice(1) }
 }
 
-/** 为某个方言生成一份默认的凭据绑定。 */
-export function defaultCredentialBinding(
-  providerId: string,
-  dialect: ModelProviderDialect,
-): AgentCredentialBinding {
-  const names = defaultEnvNames(dialect)
-
-  return {
-    providerId,
-    apiKeyEnv: names.apiKey,
-    baseUrlEnv: names.baseUrl,
-    modelEnv: names.model,
-  }
-}
-
 /**
  * 内置 agent 档案，从既有的 acpAgents() 派生。
  *
@@ -465,7 +385,6 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       args: [...agent.args],
       cwd: undefined,
       env: {},
-      credentialBinding: undefined,
       defaultConfigOptions: {},
     }
   })

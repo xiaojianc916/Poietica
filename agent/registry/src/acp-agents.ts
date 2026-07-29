@@ -1,12 +1,7 @@
 import type { AcpAgentDescriptor } from './acp-agent-contract'
 import { kimiCode } from './agents/kimi'
 
-export type {
-  AcpAgentDescriptor,
-  AcpQuestionDialect,
-  AcpToolCallContentEntry,
-  AcpToolCallContentRule,
-} from './acp-agent-contract'
+export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contract'
 
 /*
  * 软件支持哪几家 ACP agent。
