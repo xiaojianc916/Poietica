@@ -24,6 +24,8 @@
  * box. A frame that also scrolled would give the wheel two owners.
  */
 .assistant-surface {
+  /* 回放那段空白里的加载图标绝对定位于此。 */
+  position: relative;
   display: flex;
   block-size: 100%;
   overflow: hidden;

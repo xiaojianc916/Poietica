@@ -20,6 +20,7 @@ import {
   readQuestionPrompt,
 } from './domain/ask-user-question'
 import { AgentActivityFeed } from './feed/AgentActivityFeed'
+import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
 import { AgentIcon } from './primitives/icons'
@@ -249,6 +250,15 @@ export function AssistantSurface({
       data-restoring={assistant.isRestoring ? 'true' : undefined}
       data-started={settled ? 'true' : undefined}
     >
+      {/*
+       * 回放那段空白里的反馈。
+       *
+       * 判据里带 rows.length === 0 不是防抖，是归属：这个图标属于"空白"，
+       * 不属于"忙碌"。第一批行一到就撤，不等 isRestoring 落下——有内容可看
+       * 的时候还在转圈，转的就是空转，而且它会压在正文上。
+       */}
+      <RestoreSpinner active={assistant.isRestoring && rows.length === 0} />
+
       <AgentActivityFeed
         dock={
           <>

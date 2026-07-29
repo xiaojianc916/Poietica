@@ -181,6 +181,19 @@ export function useAssistantSession({
    * 了然。
    */
   const reading = useRef(0)
+  /*
+   * 这一格自己开出来的那条对话。
+   *
+   * 认领是一个意图，不是一个形状。它此前被写成"上一帧 endpoint 是 null"——
+   * 而为一条已有对话挂载、id 比首帧晚到时，形状一模一样，意图恰好相反：那次
+   * 是要去读的，跳过它就等于把界面留在起始态，把开场白画给一个明明有历史的
+   * 对话看。
+   *
+   * identify() 只在 send 里问一次，所以这个意图有唯一且确定的产生点。记在
+   * 这里，而不是从 timeline 的形状去反推——转录里有没有东西是另一件事，它
+   * 回答不了"这条对话是谁开的"。
+   */
+  const claimed = useRef<string | null>(null)
 
   /*
    * The conversation on screen changes during render, not a paint later.
@@ -199,11 +212,16 @@ export function useAssistantSession({
      * 屏幕上了；把这当成一次切换会把它连同已经流进来的回答一起擦掉。
      * 真正的切换是从一条已知对话走到另一条。
      */
-    const claiming = shown === null
+    const claiming = shown === null && claimed.current === endpoint
 
     setShown(endpoint)
 
     if (!claiming) {
+      /* 走到另一条对话上，认领这件事就过去了：再回来时它和别的对话一样，
+         该从日志里读出来。留着这个 ref 会让那次回访跳过读取，看到一份空的
+         转录。 */
+      claimed.current = null
+
       setTimeline(opening(endpoint))
       setIsRestoring(endpoint !== null && !restored.has(endpoint))
       /* 换一条对话，也换回它自己上次读到的宽度。 */
@@ -255,6 +273,20 @@ export function useAssistantSession({
     reading.current += 1
 
     if (endpoint === null || session?.loadThread === undefined) {
+      setIsRestoring(false)
+
+      return undefined
+    }
+
+    /*
+     * 自己认领的那条，日志里没有它没有的东西。
+     *
+     * 下面那个 effect 的注释说得对：历史只有这里在写。既然这个进程是唯一
+     * 写入方，而这条对话是这一格刚刚开出来的，那么它此刻的全部历史就在屏幕
+     * 上——这次读取读回来的至多是同一份，至少可能是一份还没记全的，而它会
+     * 覆盖正在直播的转录，连人刚说的那句话一起。
+     */
+    if (claimed.current === endpoint) {
       setIsRestoring(false)
 
       return undefined
@@ -365,6 +397,11 @@ export function useAssistantSession({
 
             return undefined
           }
+
+          /* 这一条是这一格开出来的。下一次渲染里 endpoint 变成它，那不是
+             一次切换——同步记在这里，因为紧接着的 onUserMessage 就会让上层把
+             它交回来。 */
+          claimed.current = threadId
 
           /* The list names a conversation from this, which is why it leaves
              before the turn does: a turn that fails was still asked. */
