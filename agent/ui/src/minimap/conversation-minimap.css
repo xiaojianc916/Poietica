@@ -13,7 +13,7 @@
 .conversation-minimap {
   --cp-rail-hit: 11px;
   --cp-rail-len: 9px;
-  --cp-rail-gain: 14px;
+  --cp-rail-gain: 20px;
   --cp-rail-weight-line: 3px;
   --cp-rail-weight-gain: 1px;
   --cp-rail-ink-rest: #d2d3d3;

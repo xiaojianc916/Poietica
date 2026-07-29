@@ -7,7 +7,7 @@ import { groupTurns } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-density@v21 */
+/* poietica:conversation-minimap-density@v22 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -60,7 +60,8 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
    * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,N 是屏幕上放得
    * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
    */
-  const items = groupTurns(turns, railCapacity(available))
+  const focus = turnIndexAtRow(turns, activeRow)
+  const items = groupTurns(turns, railCapacity(available), focus)
 
   /*
    * 有序数组上求"最后一个不晚于当前行的一格",这是二分。

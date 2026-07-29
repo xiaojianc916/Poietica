@@ -157,3 +157,45 @@ describe('groupTurns', () => {
     expect(span(items[0]!)).toEqual([1, 200])
   })
 })
+
+/* 本地夹具:不借上面的 helper,免得那边改了名字这一段跟着碎。 */
+function focused(length: number) {
+  return Array.from({ length }, (_, index) => ({
+    id: `f${String(index)}`,
+    rowIndex: index * 3,
+    label: `turn ${String(index + 1)}`,
+  }))
+}
+
+describe('groupTurns 的焦点', () => {
+  it('keeps the focused turn expanded past the height budget', () => {
+    const turns = focused(60)
+    const items = groupTurns(turns, 12, 43)
+    const hit = items.find((item) => item.rowIndex === turns[43]?.rowIndex)
+
+    expect(hit?.kind).toBe('turn')
+  })
+
+  it('never spends more slots than the budget', () => {
+    for (const active of [0, 1, 29, 58, 59]) {
+      expect(groupTurns(focused(60), 12, active).length).toBeLessThanOrEqual(12)
+    }
+  })
+
+  it('keeps rowIndex strictly increasing so the binary search holds', () => {
+    const items = groupTurns(focused(200), 20, 137)
+
+    for (let index = 1; index < items.length; index += 1) {
+      expect(items[index]?.rowIndex).toBeGreaterThan(items[index - 1]?.rowIndex ?? -1)
+    }
+  })
+
+  it('never drops the far side of the conversation', () => {
+    expect(groupTurns(focused(60), 12, 59)[0]?.rowIndex).toBe(0)
+    expect(groupTurns(focused(60), 12, 0).at(-1)?.rowIndex).toBe(177)
+  })
+
+  it('falls back to even buckets with no focus', () => {
+    expect(groupTurns(focused(60), 12, -1)).toEqual(groupTurns(focused(60), 12))
+  })
+})
