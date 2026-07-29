@@ -17,6 +17,17 @@ export {
 } from './acp-agent-profile'
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
+export type {
+  AgentCredentialKind,
+  AgentModelState,
+  AgentProviderSnapshot,
+  AgentProviderState,
+} from './agent-provider-state'
+export {
+  AGENT_PROVIDER_LIST_ARGS,
+  parseAgentProviderList,
+  parseAgentProviderListOutput,
+} from './agent-provider-state'
 export { kimiCode } from './agents/kimi'
 /*
  * 这里曾导出 model-catalog 与 model-provider-profile 两组符号。两个模块都删了。

@@ -12,11 +12,6 @@ const valid = {
   command: 'kimi',
   args: ['acp'],
   env: { NO_COLOR: '1' },
-  credentialBinding: {
-    providerId: 'moonshot',
-    apiKeyEnv: 'ANTHROPIC_AUTH_TOKEN',
-    baseUrlEnv: 'ANTHROPIC_BASE_URL',
-  },
   defaultConfigOptions: { model: 'kimi-k2-turbo-preview', brave_mode: false },
 }
 
