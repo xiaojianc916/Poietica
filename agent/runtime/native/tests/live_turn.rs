@@ -45,21 +45,25 @@
 //! about why, so each wait that comes back empty asks the driver thread for the
 //! actual failure before reporting anything.
 
+mod common;
+
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use futures::channel::oneshot;
 use futures::executor::block_on;
-use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, Recorder, RunSlot, connect,
 };
 use tempfile::TempDir;
+use uuid::Uuid;
+
+use common::MemoryLog;
 
 const DEFAULT_PROGRAM: &str = "kimi";
 const DEFAULT_ARGS: &str = "acp";
@@ -131,15 +135,18 @@ impl Driver {
 #[ignore = "spawns a real agent process; run with --ignored"]
 fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let directory = TempDir::new().expect("a temporary directory");
-    let database = directory.path().join("ai.sqlite3");
-    let key = DatabaseKey::generate();
-    let store = AgentStore::open_with_key(&database, &key).expect("an encrypted store");
-    let thread_id = store.create_thread("live turn").expect("a thread");
-    let run_id = store.start_run(thread_id).expect("a run");
 
-    // 这条连接从此被共享，而末尾重开文件读回落盘内容的断言不变：
-    // 它现在还多验了一层，共享句柄没有把写留在内存里。
-    let store = Arc::new(Mutex::new(store));
+    /*
+     * 这一层不认识数据库，所以这个测试也不建数据库。它要证明的是驱动器：握手、
+     * 会话、通知流、取消 —— 那些没有真进程就永远走不到的路径。
+     *
+     * "帧真的落进了 SQLCipher" 是 agent/persistence 自己的断言。此前它被搬到了
+     * 这里，代价是这个 crate 要 use 一个不在它 dev-dependencies 里的 crate（于是
+     * 从写下那天起就编译不过），而且每次跑都得先编一遍 vendored OpenSSL。
+     */
+    let log = MemoryLog::new();
+    let written = log.reader();
+    let run_id = Uuid::now_v7();
 
     let cwd = env::var("POIETICA_ACP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
@@ -197,7 +204,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     let (frames, observed) = mpsc::channel::<RecordedEvent>();
     let recorder = Recorder::new(
-        store,
+        Box::new(log),
         run_id,
         Box::new(move |event: &RecordedEvent| {
             let _ignored = frames.send(event.clone());
@@ -205,8 +212,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     );
 
     let started = Instant::now();
+    /* 一条连接可以开很多条会话，所以提问必须说出它是给哪一条的。此前这里少
+    了这个参数，而它编译不过的事实一直没人看见。 */
     let answer = client
-        .prompt(setting("POIETICA_ACP_PROMPT", DEFAULT_PROMPT), recorder)
+        .prompt(
+            session_id.clone(),
+            setting("POIETICA_ACP_PROMPT", DEFAULT_PROMPT),
+            recorder,
+        )
         .expect("the driver to accept the prompt");
 
     let stop_reason = driver
@@ -247,12 +260,9 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         "the turn must end on the agent's terms, not in a client failure"
     );
 
-    // Reopening the file is the point: this reads what survived, not what was
-    // remembered.
-    let reopened = AgentStore::open_with_key(&database, &key).expect("the store to reopen");
-    let recorded = reopened
-        .events_since(run_id, 0)
-        .expect("the log to be readable");
+    // 顺序是重点：每一帧都是先写进日志、才广播出去的。所以写下去的序列与
+    // 广播出去的序列只能逐字段相同，而且不能有任何一帧被写过两次。
+    let recorded = written.frames();
 
     assert_eq!(
         recorded.len(),
@@ -267,12 +277,15 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         assert_eq!(stored.seq, sent.seq);
         assert_eq!(stored.kind, sent.kind);
         assert_eq!(
-            stored.payload, sent.frame,
+            stored.frame, sent.frame,
             "a replayed run must not differ from the run as it was watched"
         );
     }
 
-    println!("recorded {} frames, all of them durable", recorded.len());
+    println!(
+        "recorded {} frames, every one of them written before it was broadcast",
+        recorded.len()
+    );
 }
 
 /// Everything the turn actually contained.

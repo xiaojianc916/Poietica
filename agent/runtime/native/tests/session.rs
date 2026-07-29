@@ -8,37 +8,32 @@
 //! The driver itself needs an agent process, so what is covered here is the
 //! part that decides which run an update belongs to. Getting that wrong would
 //! attribute frames to the previous turn, which no compiler would catch.
+//!
+//! 日志是 `common::MemoryLog`：这一层不认识数据库，测它的东西也不该认识。
+
+mod common;
 
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
-use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use poietica_agent_runtime_native::{AcpError, RecordedEvent, Recorder, RunSlot};
-use tempfile::TempDir;
+use uuid::Uuid;
+
+use common::MemoryLog;
 
 struct Fixture {
-    _directory: TempDir,
     recorder: Recorder,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
 fn fixture() -> Fixture {
-    let directory = TempDir::new().expect("a temporary directory");
-    let path = directory.path().join("ai.sqlite3");
-    let key = DatabaseKey::generate();
-    let store = AgentStore::open_with_key(&path, &key).expect("an encrypted store");
-    let thread_id = store.create_thread("slot fixture").expect("a thread");
-    let run_id = store.start_run(thread_id).expect("a run");
-    let store = Arc::new(Mutex::new(store));
-
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
 
     Fixture {
-        _directory: directory,
         recorder: Recorder::new(
-            store,
-            run_id,
+            Box::new(MemoryLog::new()),
+            Uuid::now_v7(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
                     seen.push(event.clone());

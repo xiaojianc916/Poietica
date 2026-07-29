@@ -185,6 +185,17 @@ impl AgentStore {
 
 #[cfg(test)]
 mod tests {
+    /*
+     * 根 Cargo.toml 的 lint 政策自己写着"panic 纪律：生产代码收紧，#[cfg(test)]
+     * 模块内层统一放开"。这个模块漏了那一段，而这个 crate 的 lib test target
+     * 在 --all-targets 之前从没被 check 过。folded[0] 取不到就该让测试失败，
+     * 那正是它存在的方式。
+     */
+    #![allow(
+        clippy::indexing_slicing,
+        reason = "a test proves itself by panicking, so a missing row must fail the test"
+    )]
+
     use serde_json::json;
 
     use super::fold;

@@ -9,65 +9,57 @@
 //! reply sent to an agent, so the cases that matter here are the dishonest
 //! ones: an answer nobody asked for, an option nobody offered, and a turn that
 //! ended before anyone answered at all.
+//!
+//! 投影读回的是 `common::MemoryLog`：一次许可请求有没有被 settle，是这一层自己
+//! 的事，不需要一个加密数据库来见证。
 
-use std::sync::{Arc, Mutex, MutexGuard};
+mod common;
+
+use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, ToolCallUpdate,
     ToolCallUpdateFields,
 };
 use futures::executor::block_on;
-use poietica_agent_persistence_native::{AgentStore, DatabaseKey, PermissionOutcome};
-use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder};
+use poietica_agent_runtime_native::{
+    Decision, PermissionAnswer, PermissionDesk, RecordedEvent, Recorder,
+};
 use serde_json::Value;
-use tempfile::TempDir;
+use uuid::Uuid;
+
+use common::MemoryLog;
 
 struct Fixture {
-    _directory: TempDir,
     recorder: Recorder,
-    /// The same connection the recorder writes through.
-    ///
-    /// Reading the projections back through the writer is what forced it to
-    /// hand its connection out; a reader that holds its own share needs no
-    /// such door, and the sharing itself is now what the test exercises.
-    store: Arc<Mutex<AgentStore>>,
+    /// 同一份日志的另一个句柄，用来读回它记下了什么。
+    written: MemoryLog,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
 fn fixture() -> Fixture {
-    let directory = TempDir::new().expect("a temporary directory");
-    let path = directory.path().join("ai.sqlite3");
-    let key = DatabaseKey::generate();
-    let store = AgentStore::open_with_key(&path, &key).expect("an encrypted store");
-    let thread_id = store.create_thread("desk fixture").expect("a thread");
-    let run_id = store.start_run(thread_id).expect("a run");
-    let store = Arc::new(Mutex::new(store));
+    let log = MemoryLog::new();
+    let written = log.reader();
 
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
 
     Fixture {
-        _directory: directory,
         recorder: Recorder::new(
-            Arc::clone(&store),
-            run_id,
+            Box::new(log),
+            Uuid::now_v7(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
                     seen.push(event.clone());
                 }
             }),
         ),
-        store,
+        written,
         observed,
     }
 }
 
 impl Fixture {
-    /// The projections, for the length of one assertion.
-    fn store(&self) -> MutexGuard<'_, AgentStore> {
-        self.store.lock().expect("the store")
-    }
-
     fn frames(&self) -> Vec<Value> {
         self.observed
             .lock()
@@ -163,16 +155,11 @@ fn a_turn_that_ends_first_cancels_the_wait() {
 #[test]
 fn a_request_and_its_answer_are_two_frames() {
     let mut fixture = fixture();
-    let run_id = fixture.recorder.run_id();
 
     let request_id = fixture.recorder.record_permission_requested(&request());
 
     assert_eq!(
-        fixture
-            .store()
-            .pending_permissions(run_id)
-            .expect("the projection to be readable")
-            .len(),
+        fixture.written.outstanding().len(),
         1,
         "the request is outstanding for as long as the agent is blocked on it"
     );
@@ -198,20 +185,18 @@ fn a_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(resolved, "outcome"), "selected");
 
     let record = fixture
-        .store()
-        .permissions_for_run(run_id)
-        .expect("the projection to be readable")
+        .written
+        .permissions()
         .first()
         .cloned()
         .expect("exactly one request");
 
-    assert_eq!(record.outcome, Some(PermissionOutcome::Allowed));
+    assert_eq!(record.answer, Some(PermissionAnswer::Allowed));
 }
 
 #[test]
 fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
     let mut fixture = fixture();
-    let run_id = fixture.recorder.run_id();
 
     let _request_id = fixture.recorder.record_permission_requested(&request());
 
@@ -219,13 +204,18 @@ fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
 
     assert!(fixture.recorder.take_failure().is_none());
     assert!(
-        fixture
-            .store()
-            .pending_permissions(run_id)
-            .expect("the projection to be readable")
-            .is_empty(),
+        fixture.written.outstanding().is_empty(),
         "the log must not keep a request nobody can ever answer"
     );
+
+    let record = fixture
+        .written
+        .permissions()
+        .first()
+        .cloned()
+        .expect("exactly one request");
+
+    assert_eq!(record.answer, Some(PermissionAnswer::Cancelled));
 
     let resolved = fixture.frames();
     let last = resolved.last().expect("the answer frame");
