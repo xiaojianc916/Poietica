@@ -60,6 +60,9 @@ export const kimiCode = {
   displayName: 'Kimi Code',
   command: 'kimi',
   args: ['acp'],
+  // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
+  // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
+  homeVar: 'KIMI_CODE_HOME',
   optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
 } as const satisfies AcpAgentDescriptor

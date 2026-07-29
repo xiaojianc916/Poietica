@@ -41,6 +41,20 @@ export interface AcpAgentDescriptor {
   readonly command: string
   readonly args: readonly string[]
   /**
+   * 受控 home 的环境变量名。
+   *
+   * 各家把自己的数据根目录认在哪个变量上，是那一家二进制的固有事实：
+   * kimi-code 的 resolveKimiHome 逐字写着
+   * homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
+   *
+   * 只记名字，不记路径。路径由原生侧的 paths::agent_home 现算 —— 落盘一份
+   * 会在换机或改安装位置之后变成一个指向不存在目录的死值。
+   *
+   * 各家不同的只是这个名字，通用层设变量那一行对谁都一样，所以是声明。
+   * 缺席表示这一家不接受受控 home，启动时就不设这个变量。
+   */
+  readonly homeVar?: string | undefined
+  /**
    * 权限选项按钮上写什么。
    *
    * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是

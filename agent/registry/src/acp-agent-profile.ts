@@ -29,6 +29,15 @@ export interface AcpAgentProfile {
    * 不拼对方的配置文件格式。
    */
   readonly env: Readonly<Record<string, string>>
+  /**
+   * 受控 home 的环境变量名，例如 Kimi Code 的 KIMI_CODE_HOME。
+   *
+   * 只记名字，不记路径：原生侧的 launch_env 会用 paths::agent_home 现算出
+   * 一个已经创建好的目录，把它设到这个变量上。
+   *
+   * 缺席表示这个 agent 不接受受控 home。
+   */
+  readonly homeVar?: string | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -184,6 +193,20 @@ function parseEnv(input: unknown): Parsed<Record<string, string>> {
   return { ok: true, value: env }
 }
 
+function parseHomeVar(input: unknown): Parsed<string | undefined> {
+  if (input === undefined || input === null) {
+    return { ok: true, value: undefined }
+  }
+
+  const homeVar = asText(input, 64)
+
+  if (homeVar === undefined || !ENV_NAME_PATTERN.test(homeVar)) {
+    return fail('受控 home 的变量名不合法，应为大写字母、数字与下划线')
+  }
+
+  return { ok: true, value: homeVar }
+}
+
 function parseDefaultConfigOptions(input: unknown): Parsed<Record<string, AgentConfigOptionValue>> {
   if (input === undefined) {
     return { ok: true, value: {} }
@@ -255,6 +278,12 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
     return env
   }
 
+  const homeVar = parseHomeVar(raw['homeVar'])
+
+  if (!homeVar.ok) {
+    return homeVar
+  }
+
   const defaults = parseDefaultConfigOptions(raw['defaultConfigOptions'])
 
   if (!defaults.ok) {
@@ -270,6 +299,7 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
       args: args.value,
       cwd: cwd.value,
       env: env.value,
+      homeVar: homeVar.value,
       defaultConfigOptions: defaults.value,
     },
   }
@@ -377,6 +407,7 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       args: [...agent.args],
       cwd: undefined,
       env: {},
+      homeVar: agent.homeVar,
       defaultConfigOptions: {},
     }
   })

@@ -17,6 +17,7 @@ use crate::paths::{AGENTS_STORE, agent_home};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
+use std::collections::BTreeMap;
 use tauri::{AppHandle, command};
 use tauri_plugin_store::StoreExt;
 
@@ -114,6 +115,25 @@ fn home_var_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// 档案里声明的非密文启动变量。
+///
+/// 约定同 secretVars：档案里的 env 是一张字符串表。值不是字符串的条目被丢弃
+/// 而不是让整次启动失败 —— 一个写坏的档案不该让 agent 起不来。
+fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
+    agent
+        .get("env")
+        .and_then(Value::as_object)
+        .map(|table| {
+            table
+                .iter()
+                .filter_map(|(name, value)| {
+                    value.as_str().map(|text| (name.clone(), text.to_owned()))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// 启动这个 agent 的子进程时要设的环境变量。
 ///
 /// 只有非密文的启动变量。密钥不在这里：模式 B 下它们由 agent 自己的 CLI 写
@@ -125,18 +145,25 @@ fn home_var_of(agent: &Value) -> Option<String> {
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
     let (config, _issues) = read_config(app)?;
 
-    let found = config
+    let Some(found) = config
         .agents
         .iter()
-        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id));
-
-    let Some(home_var) = found.and_then(home_var_of) else {
+        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
+    else {
         return Ok(Vec::new());
     };
 
-    let home = agent_home(app, agent_id)?;
+    // 档案声明的变量先进去，受控 home 后进去 —— 后者必须压过前者。用户在 env
+    // 里手写的 home 路径可能根本不存在，而 agent_home 交回来的目录是刚刚
+    // create_dir_all 出来的。
+    let mut env = declared_env_of(found);
 
-    Ok(vec![(home_var, home.to_string_lossy().into_owned())])
+    if let Some(home_var) = home_var_of(found) {
+        let home = agent_home(app, agent_id)?;
+        let _replaced = env.insert(home_var, home.to_string_lossy().into_owned());
+    }
+
+    Ok(env.into_iter().collect())
 }
 
 fn secret_states(agents: &[Value]) -> Vec<AgentSecretState> {
