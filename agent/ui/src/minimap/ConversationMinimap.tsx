@@ -1,13 +1,13 @@
 import './conversation-minimap.css'
 
 import type { ConversationTurn } from '@poietica/agent-timeline'
-import { memo, useCallback } from 'react'
+import { type CSSProperties, memo, useCallback } from 'react'
 import { railCapacity, useRailBudget } from './rail-budget'
-import { groupTurns } from './rail-groups'
+import { groupTurns, type RailRange, thumbSpan } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-density@v19 */
+/* poietica:conversation-minimap-density@v20 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -28,9 +28,16 @@ export interface ConversationMinimapProps {
   /** 人正在读的那一行;跳转期间是人要求看的那一行。 */
   readonly activeRow: number
   readonly onSelect: (rowIndex: number) => void
+  /**
+   * 视口此刻覆盖到哪一段,没有量到几何时缺席。
+   *
+   * 高亮回答"人在读哪一轮",游标回答"人看得见多长" —— 长会话里后者是前者答不了
+   * 的:一格代表八轮的时候,亮着的那一格并不说明屏幕上装下了多少。
+   */
+  readonly visibleRows?: RailRange | null
 }
 
-function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
+function Rail({ turns, activeRow, onSelect, visibleRows }: ConversationMinimapProps) {
   const fisheye = useFisheye()
   const { ref: measure, available } = useRailBudget()
 
@@ -70,8 +77,35 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
    */
   const active = turnIndexAtRow(items, activeRow)
 
+  /*
+   * 游标的几何是两个序号,不是两个像素。
+   *
+   * 位置与长度都是行距的整数倍,所以交给 calc 去乘 —— 样式表仍然是唯一
+   * 写下尺寸的地方,这里只说"第几格起、几格长"。脚本一旦开始算像素,
+   * 静息几何就不再读得出来了。
+   */
+  const thumb = thumbSpan(items, visibleRows ?? null)
+
+  const thumbStyle =
+    thumb === null
+      ? undefined
+      : ({
+          '--cp-thumb-from': String(thumb.from),
+          '--cp-thumb-span': String(thumb.span),
+        } as CSSProperties)
+
   return (
     <nav aria-label="会话轮次" className="conversation-minimap" ref={setRail}>
+      {/*
+       * 视口游标,画在条的下面。
+       *
+       * aria-hidden:它说的事 aria-current 已经说过了,而读屏用户拿不到"看得见
+       * 多长"这种视觉量 —— 报出来只是多念一遍。
+       */}
+      {thumb === null ? null : (
+        <span aria-hidden="true" className="conversation-minimap__thumb" style={thumbStyle} />
+      )}
+
       {items.map((item, index) => {
         /*
          * 序数在前,内容在后。

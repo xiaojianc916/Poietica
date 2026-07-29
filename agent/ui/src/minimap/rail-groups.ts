@@ -100,3 +100,64 @@ export function groupTurns(
 
   return items
 }
+/**
+ * 视口盖住了哪几格。
+ *
+ * 结构上与 feed 的 RowRange 一致,但这里自己声明一份:轨道要的是"一段行号",
+ * 它不需要知道那段行号是谁量出来的。跨目录引一个类型进来,是为了省一次声明而
+ * 把两层绑在一起 —— 结构类型本来就是这两层之间的胶水。
+ */
+export interface RailRange {
+  readonly from: number
+  readonly to: number
+}
+
+/** 游标在轨道上的位置与长度,单位是格。 */
+export interface RailThumb {
+  readonly from: number
+  readonly span: number
+}
+
+/**
+ * 行区间落在哪几格上。
+ *
+ * 一格的覆盖范围是"从它的 rowIndex 起,到下一格之前" —— 末格一直到底。第 0 格
+ * 例外:它从第 0 行起算,因为开场白与页眉不属于任何一轮,而人此刻在读的显然是
+ * 紧随其后那一轮。这与 rowAtAnchor 里"锚点在第一行之前时归第一行"是同一句话。
+ *
+ * 没有交集时返回 null,而不是返回一个零长的游标:画一个不存在的东西,比不画更
+ * 难解释。
+ */
+export function thumbSpan(items: readonly RailItem[], range: RailRange | null): RailThumb | null {
+  if (range === null || items.length === 0) {
+    return null
+  }
+
+  let first = -1
+  let last = -1
+
+  for (const [index, item] of items.entries()) {
+    const since = index === 0 ? 0 : item.rowIndex
+    const until = items[index + 1]?.rowIndex
+
+    if (since > range.to) {
+      break
+    }
+
+    if (until !== undefined && until - 1 < range.from) {
+      continue
+    }
+
+    if (first === -1) {
+      first = index
+    }
+
+    last = index
+  }
+
+  if (first === -1) {
+    return null
+  }
+
+  return { from: first, span: last - first + 1 }
+}

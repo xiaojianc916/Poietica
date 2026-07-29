@@ -98,14 +98,19 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
     }
 
     /*
-     * The rail's own children, live.
+     * The rail's buttons, live.
      *
      * A live collection rather than a query result: it is always current, so
      * there is no invalidation policy to get wrong when turns are added, and
      * it allocates nothing — this is read on every animation frame while the
-     * hand is near. The cast is honest; the rail renders buttons.
+     * hand is near.
+     *
+     * By tag rather than by children: the rail now also holds the viewport
+     * thumb, which is paint and not a target. Handed `children`, the falloff
+     * would give it a weight and let it stand for election as the aimed turn.
+     * 换掉之后连强转也一并没了 —— 这个集合本来就是按钮。
      */
-    const bars = node.children as HTMLCollectionOf<HTMLElement>
+    const bars = node.getElementsByTagName('button')
 
     let frame = 0
     let pointerX = Number.NaN

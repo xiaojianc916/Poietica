@@ -17,6 +17,17 @@ export interface RowSpan {
 }
 
 /**
+ * 视口此刻覆盖的行区间,闭区间。
+ *
+ * 行号,不是像素 —— 和 FeedPort 的其余部分同一个约定:浮层永远不该自己去量一行
+ * 在哪。两端都由同一次几何读取里的二分给出,所以它们不会各自代表不同的一帧。
+ */
+export interface RowRange {
+  readonly from: number
+  readonly to: number
+}
+
+/**
  * 锚点落在哪一行。
  *
  * 这是"人在读哪一行"的全部定义:一条视线,和它此刻穿过的那一行。不问哪一行

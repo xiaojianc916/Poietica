@@ -12,6 +12,15 @@
  */
 .conversation-minimap {
   --cp-rail-hit: 11px;
+  --cp-rail-gap: 2px;
+
+  /*
+   * 一格到下一格的距离。
+   *
+   * 游标的位置和长度都是它的整数倍,所以它得有个名字 —— 原先它只以字面量的
+   * 形式存在于 gap 里,而"命中区加间距"这件事没有任何地方写下来过。
+   */
+  --cp-rail-pitch: calc(var(--cp-rail-hit) + var(--cp-rail-gap));
   --cp-rail-len: 9px;
   --cp-rail-gain: 14px;
   --cp-rail-weight-line: 3px;
@@ -39,7 +48,7 @@
   inset-inline-end: var(--cp-optical);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--cp-rail-gap);
   translate: 0 -50%;
 
   /*
@@ -231,9 +240,35 @@
   color: var(--cp-ink-subtle);
 }
 
+/*
+ * 视口游标。
+ *
+ * 它回答的是高亮答不了的那个问题:屏幕上装得下多长。并格之后这一点尤其要紧 ——
+ * 一格代表八轮的时候,亮着的那一格并不说明视口盖住了多少。
+ *
+ * 画在条的下面(z-index: -1 相对于同级的按钮),因为它是背景而不是目标;
+ * pointer-events: none,因为鱼眼的入界判据是按几何算的,不该被一层挡板改写。
+ */
+.conversation-minimap__thumb {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: calc(var(--cp-thumb-from) * var(--cp-rail-pitch));
+  inset-inline-end: 0;
+  block-size: calc(var(--cp-thumb-span) * var(--cp-rail-pitch) - var(--cp-rail-gap));
+  inline-size: var(--cp-rail-len);
+  border-radius: 9999px;
+  background: var(--cp-rail-ink-rest);
+  opacity: 0.32;
+  pointer-events: none;
+  transition:
+    inset-block-start var(--cp-motion-swift) var(--cp-motion-ease),
+    block-size var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
-  .conversation-minimap__card {
+  .conversation-minimap__card,
+  .conversation-minimap__thumb {
     transition: none;
   }
 }
