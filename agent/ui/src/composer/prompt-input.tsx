@@ -10,6 +10,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useId,
   useImperativeHandle,
   useLayoutEffect,
@@ -305,6 +306,9 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
 export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
   const { registerTextarea, requestSubmit, setText, text } = usePromptInput()
   const editor = useRef<HTMLTextAreaElement | null>(null)
+  /* 量高度的替身，以及观察器要用的那一版量法。 */
+  const mirror = useRef<HTMLDivElement | null>(null)
+  const latest = useRef<() => void>(() => undefined)
 
   /* 一个 ref 两件事：谁持有这个元素归 PromptInput，量它的高度归这里。 */
   const bind = useCallback(
@@ -316,16 +320,18 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
   )
 
   /*
-   * 长高要能补间，就得有一个会变的长度。
+   * 长高要能补间，就得有一个会变的长度，而且这个元素自己的高度只许被写、不许被读。
    *
    * 样式表里的 field-sizing: content 改的是"用过的值"，计算 block-size 恒为
-   * auto，而过渡只在计算值变化时启动——那条路上没有任何 transition 能生效。
-   * 所以内容高度在这里量成像素写回行内样式，样式表的 min/max 继续钳住上下限，
-   * 时长继续由 --cp-motion-grow 说。
+   * auto，而过渡只在计算值变化时启动——单靠它，长高永远一帧到位。
    *
-   * 量之前先把高度交回内容：否则读到的永远是上一次写下的高度，长高一次就再也
-   * 回不去。两次写在同一个任务里完成，中间那一帧不会被画出来，浏览器看到的是
-   * 从旧像素值到新像素值的一次变化。
+   * 但"先归零再读 scrollHeight"同样不行：读一次就强制一次样式重算，于是变化前
+   * 的样式变成 auto，随后写像素值时两个端点是 auto → Npx，不可插值，过渡照样
+   * 不启动。这是上一版没长高的确切原因。
+   *
+   * 所以量的是一个替身：同宽、同字体、同行高、同内边距，装同样的文本。输入框
+   * 自己的 block-size 因此只经历"旧像素值 → 新像素值"，两端都是长度，过渡成立。
+   * 上下限仍由样式表的 min/max 钳住，时长仍由 --cp-motion-grow 说。
    */
   const measure = useCallback(() => {
     const node = editor.current
@@ -334,14 +340,63 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
       return
     }
 
-    node.style.setProperty('block-size', 'auto')
+    let ghost = mirror.current
 
-    const content = node.scrollHeight
+    if (ghost === null) {
+      ghost = document.createElement('div')
+      ghost.setAttribute('aria-hidden', 'true')
+      mirror.current = ghost
+      document.body.append(ghost)
+    }
 
-    node.style.setProperty('block-size', `${String(content)}px`)
-  }, [])
+    const style = getComputedStyle(node)
 
-  useLayoutEffect(measure, [measure, text])
+    /* 替身不参与布局、不接指针、不可见，也不能自己滚动。 */
+    ghost.style.cssText = [
+      'position: fixed',
+      'inset-block-start: 0',
+      'inset-inline-start: -9999px',
+      'visibility: hidden',
+      'pointer-events: none',
+      'overflow: hidden',
+      'white-space: pre-wrap',
+      'overflow-wrap: break-word',
+      `box-sizing: ${style.boxSizing}`,
+      `inline-size: ${String(node.clientWidth)}px`,
+      `padding-block: ${style.paddingBlockStart} ${style.paddingBlockEnd}`,
+      `padding-inline: ${style.paddingInlineStart} ${style.paddingInlineEnd}`,
+      `font-family: ${style.fontFamily}`,
+      `font-size: ${style.fontSize}`,
+      `font-weight: ${style.fontWeight}`,
+      `font-style: ${style.fontStyle}`,
+      `font-variant: ${style.fontVariant}`,
+      `letter-spacing: ${style.letterSpacing}`,
+      `line-height: ${style.lineHeight}`,
+      `tab-size: ${style.tabSize}`,
+      `word-break: ${style.wordBreak}`,
+    ].join(';')
+
+    /* 末尾补一个换行：最后一行为空时它也要占一行，否则按回车高度不动。 */
+    ghost.textContent = `${text}\n`
+
+    node.style.setProperty('block-size', `${String(ghost.offsetHeight)}px`)
+  }, [text])
+
+  useLayoutEffect(measure, [measure])
+
+  /* 观察器要用的是最新那一版量法，但它自己不该因为敲了一个字符就重建。 */
+  useLayoutEffect(() => {
+    latest.current = measure
+  }, [measure])
+
+  /* 替身随组件一起走。 */
+  useEffect(
+    () => () => {
+      mirror.current?.remove()
+      mirror.current = null
+    },
+    [],
+  )
 
   /*
    * 宽度变了换行就变了，高度跟着变：拖动侧栏、缩放窗口都算。观察器会把自己写下
@@ -364,7 +419,7 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
       }
 
       last = width
-      measure()
+      latest.current()
     })
 
     observer.observe(node)
@@ -372,7 +427,7 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
     return () => {
       observer.disconnect()
     }
-  }, [measure])
+  }, [])
 
   return (
     <textarea

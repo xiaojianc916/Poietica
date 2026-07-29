@@ -40,6 +40,14 @@ export interface AgentEventSource {
 
 export interface AgentBridgeOptions {
   /**
+   * 这一次要用哪一家 agent，由 registry 的档案说了算；不点名就交给原生兜底。
+   *
+   * 原生那侧的 agent_prompt 与 agent_open_thread 已经要求这一项，而这一层此前
+   * 从未送过它：typecheck 因此一直红着，运行期则每一次发言、每一次开对话都在
+   * 走兜底路径，界面选了哪一家根本没有传下去。
+   */
+  readonly agentId?: string
+  /**
    * 启动 agent 的一整行命令行，例如 `kimi acp`。
    *
    * 是「一行」而不是「可执行文件名」：原生侧把它交给 agent-client-protocol 的
@@ -137,6 +145,7 @@ async function call<T>(operation: () => Promise<T>): Promise<T> {
  * refused rather than acted on.
  */
 export function createAgentCommandBridge({
+  agentId,
   command,
   cwd,
 }: AgentBridgeOptions = {}): AgentCommandBridge {
@@ -146,6 +155,7 @@ export function createAgentCommandBridge({
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId ?? null,
+          agentId: agentId ?? null,
           command: command ?? null,
           cwd: cwd ?? null,
         }),
@@ -321,6 +331,7 @@ export interface AgentThreadBridge {
 }
 
 export function createAgentThreadBridge({
+  agentId,
   command,
   cwd,
 }: AgentBridgeOptions = {}): AgentThreadBridge {
@@ -331,6 +342,7 @@ export function createAgentThreadBridge({
       const opened = await call(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
+          agentId: agentId ?? null,
           command: command ?? null,
           cwd: cwd ?? null,
         }),
