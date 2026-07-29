@@ -60,7 +60,7 @@ impl AgentStore {
 
     /// Records which agent session a thread is holding.
     ///
-    /// updated_at is left alone. Reopening a conversation from a previous
+    /// `updated_at` is left alone. Reopening a conversation from a previous
     /// run makes it take a fresh session, and a conversation last spoken in
     /// a week ago is still a week old after being looked at. Touching the
     /// column here sent whatever was opened to the top of the list, which

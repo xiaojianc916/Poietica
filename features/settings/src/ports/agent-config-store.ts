@@ -15,15 +15,19 @@ export interface AgentSecretState {
   readonly configured: boolean
 }
 
+/**
+ * 一次受控的 agent CLI 调用。
+ *
+ * 没有 home 相关的字段：受控 home 由原生侧的 launch_env 现算，与 ACP 会话
+ * 共用同一个产地。渲染层报一个路径过去，只会得到两条各自算出不同目录的
+ * 管线，而那种错误在界面上表现为「明明配好了，模型列表却是空的」。
+ */
 export interface AgentCliInvocation {
   readonly agentId: string
   readonly command: string
   readonly args: readonly string[]
   /** 要注入的凭据环境变量名。留空表示这次调用不需要凭据。 */
   readonly secretVar: string
-  /** 数据根目录的环境变量名，例如 KIMI_CODE_HOME。留空表示不设置。 */
-  readonly homeVar: string
-  readonly homeDir: string
 }
 
 export interface AgentCliOutcome {

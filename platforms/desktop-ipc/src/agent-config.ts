@@ -7,14 +7,13 @@ export interface AgentSecretState {
   readonly configured: boolean
 }
 
-/** 受控 CLI 调用的请求。空字符串表示「这一项不需要」。 */
+/** 受控 CLI 调用的请求。受控 home 由原生侧现算，不在这里。 */
 export interface AgentCliRequest {
   readonly agentId: string
   readonly command: string
   readonly args: readonly string[]
+  /** 留空表示这次调用不需要凭据。 */
   readonly secretVar: string
-  readonly homeVar: string
-  readonly homeDir: string
 }
 
 export interface AgentCliResult {

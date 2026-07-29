@@ -1,7 +1,7 @@
 //! 终态轮次的压缩投影。
 //!
-//! run_events 仍然是唯一的事实来源，这里不改写它的任何一行。快照是第三个
-//! 投影，和 tool_calls、permissions 同一个身份：整张表随时可以删掉重建，
+//! `run_events` 仍然是唯一的事实来源，这里不改写它的任何一行。快照是第三个
+//! 投影，和 `tool_calls`、`permissions` 同一个身份：整张表随时可以删掉重建，
 //! 删了只是变慢，不会丢任何东西。
 //!
 //! 压缩只做协议层的一件事：把相邻的、同一种、纯文本的流式片段合并成一帧。
@@ -82,10 +82,10 @@ fn absorb(into: &mut Value, from: &Value) -> bool {
 ///
 /// 相邻才合并 —— 一旦中间隔着任何一帧，push 会先 sealTail，结果就不同了。
 /// 同类才合并 —— appendChunk 的判据是 tail.type === type，正文和思考链不并。
-/// 纯文本才合并 —— 见 chunk_of。
+/// 纯文本才合并 —— 见 `chunk_of`。
 /// 不跨轮次 —— 调用方一次只交一轮的帧。
 ///
-/// 合并出来的那一帧带的是这一串里第一帧的 seq 与 recorded_at，因为
+/// 合并出来的那一帧带的是这一串里第一帧的 `seq` 与 `recorded_at`，因为
 /// appendChunk 也正是用第一帧决定 id 与 at 的，后续片段只把文字接上去。
 pub(crate) fn fold(events: Vec<StoredEvent>) -> Vec<StoredEvent> {
     let mut folded: Vec<StoredEvent> = Vec::with_capacity(events.len());
@@ -96,16 +96,17 @@ pub(crate) fn fold(events: Vec<StoredEvent>) -> Vec<StoredEvent> {
             continue;
         };
 
-        let joins = folded
-            .last()
-            .is_some_and(|tail| chunk_of(&tail.payload) == Some(chunk));
-
-        if joins {
-            if let Some(tail) = folded.last_mut() {
-                if absorb(&mut tail.payload, &event.payload) {
-                    continue;
-                }
-            }
+        /*
+         * 三个判据是一条合取，不是三层结构：末帧存在、它与这一帧同类、
+         * 而且文字真的接上去了。此前它们被写成三层没有 else 的嵌套 if，
+         * 于是 last() 先算一遍"能不能并"，last_mut() 再借一次去并 ——
+         * 同一个末帧被问了两次。edition 2024 的 let-chain 让它回到一条。
+         */
+        if let Some(tail) = folded.last_mut()
+            && chunk_of(&tail.payload) == Some(chunk)
+            && absorb(&mut tail.payload, &event.payload)
+        {
+            continue;
         }
 
         folded.push(event);

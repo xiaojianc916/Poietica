@@ -194,7 +194,7 @@ impl AgentStore {
     /// did arrive is how an interface ends up claiming a conversation started
     /// where it did not.
     ///
-    /// One index scan over runs_thread_order, which is why it travels with
+    /// One index scan over `runs_thread_order`, which is why it travels with
     /// every read rather than being asked for separately.
     ///
     /// # Errors

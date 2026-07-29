@@ -11,11 +11,11 @@
 //!   - 显式禁止 --api-key：Windows 上任何用户都能读到别的进程的完整命令行，
 //!     密钥一律走环境变量注入。
 
-use crate::commands::agent_config::{KEYRING_SERVICE, keyring_account};
+use crate::commands::agent_config::{KEYRING_SERVICE, keyring_account, launch_env};
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{async_runtime, command};
+use tauri::{AppHandle, async_runtime, command};
 
 type AgentCliCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -40,9 +40,9 @@ pub struct AgentCliRequest {
     pub args: Vec<String>,
     /// 要注入的凭据环境变量名。留空表示这次调用不需要凭据。
     pub secret_var: String,
-    /// agent 数据根目录的环境变量名，例如 KIMI_CODE_HOME。留空表示不设置。
-    pub home_var: String,
-    pub home_dir: String,
+    /// 受控 home 不在这里：由原生侧的 launch_env 现算，与 ACP 会话同源。
+    ///
+    /// 让渲染层报一个路径过来，就等于给了两条管线各算出不同目录的自由。
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
@@ -132,14 +132,21 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
 /// 不算错误 —— 那是调用方需要看到的结果，通过 status 与 stderr 返回。
 #[command]
 #[specta::specta]
-pub async fn agent_cli_exec(request: AgentCliRequest) -> AgentCliCommandResult<AgentCliResult> {
+pub async fn agent_cli_exec(
+    app: AppHandle,
+    request: AgentCliRequest,
+) -> AgentCliCommandResult<AgentCliResult> {
     validate(&request).map_err(IpcError::from)?;
+
+    // 和 ACP 会话同一个产地。CLI 往哪个 home 写 provider，agent 起来就得从
+    // 哪个 home 读 —— 两处各算一次，迟早算出两个目录。
+    let env = launch_env(&app, &request.agent_id).map_err(IpcError::from)?;
 
     let secret = if request.secret_var.is_empty() {
         None
     } else {
         let account = keyring_account(&request.agent_id, &request.secret_var);
-        keyring::Entry::new(KEYRING_SERVICE, &account)
+        keyring::v1::Entry::new(KEYRING_SERVICE, &account)
             .ok()
             .and_then(|entry| entry.get_password().ok())
     };
@@ -147,13 +154,10 @@ pub async fn agent_cli_exec(request: AgentCliRequest) -> AgentCliCommandResult<A
     let spawned = async_runtime::spawn_blocking(move || {
         let mut command = std::process::Command::new(&request.command);
         command.args(&request.args);
+        command.envs(env);
 
         if let Some(value) = secret {
             command.env(&request.secret_var, value);
-        }
-
-        if !request.home_var.is_empty() && !request.home_dir.is_empty() {
-            command.env(&request.home_var, &request.home_dir);
         }
 
         command.output()
