@@ -1,11 +1,11 @@
 import './conversation-minimap.css'
 
 import type { ConversationTurn } from '@poietica/agent-timeline'
-import { type MouseEvent, memo, useCallback, useMemo } from 'react'
+import { memo } from 'react'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-perf@v14 */
+/* poietica:conversation-minimap-escape@v16 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -27,80 +27,71 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
 
   /*
-   * 有序数组上求"最后一个不晚于当前行的轮次",这是二分。原先是一次不提前
-   * 退出的 forEach 全扫,而且每次渲染都跑 —— 滚动引起的渲染频繁,答案却只在
-   * 跨越轮次边界时才变。
+   * 有序数组上求"最后一个不晚于当前行的轮次",这是二分。
+   *
+   * 不包 useMemo。轮次至多几十个,一次二分是个位数次比较,而 useMemo 自己要分配
+   * 依赖数组并逐项比较 —— 在一个已经 memo、很少重渲染的组件里,包装比被包装的
+   * 东西还贵。为省不掉的开销加缓存,是另一种不专业。
    */
-  const active = useMemo(() => turnIndexAtRow(turns, activeRow), [turns, activeRow])
-
-  /*
-   * 一个处理器,不是每格一个。
-   *
-   * 每格一个闭包,轮次有多少就重建多少,而它们做的是同一件事、只差一个数;
-   * 那个数写在格子上,从 currentTarget 读回来就行 —— 于是这个函数与轮次数量
-   * 无关,也跨渲染稳定。
-   *
-   * 它挂在 button 上,而不是挂在 nav 上做委托。委托同样能省下闭包,但那把点击
-   * 语义放到了一个非交互元素上:键盘能用只是因为 button 的 Enter 会派发 click
-   * 并冒泡上去 —— 那是巧合带来的正确,不是结构带来的正确。放在 button 上,
-   * 焦点、Enter、Space、辅助技术的激活语义全部由平台给,一行都不用写。
-   *
-   * dataset 是索引签名,所以是方括号:tsconfig 里 noPropertyAccessFromIndexSignature
-   * 开着,点号访问会被 tsc 拦下 —— 它拦的是"看起来像已知属性、实际是任意键"。
-   */
-  const handleSelect = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      const rowIndex = Number(event.currentTarget.dataset['row'])
-
-      /* 属性缺失时 Number(undefined) 是 NaN,而 NaN 不是整数。 */
-      if (!Number.isInteger(rowIndex)) {
-        return
-      }
-
-      onSelect(rowIndex)
-    },
-    [onSelect],
-  )
+  const active = turnIndexAtRow(turns, activeRow)
 
   return (
     <nav aria-label="会话轮次" className="conversation-minimap" ref={fisheye}>
-      {turns.map((turn, index) => (
-        <button
-          /*
-           * location,不是 true。WAI-ARIA 把 location 定义为"在环境或上下文
-           * 中的当前位置",目录里被高亮的那一项正是它举的例子;true 只说
-           * "是当前的",没说是哪一种当前。样式不再挑 token,只看属性在不在。
-           */
-          aria-current={index === active ? 'location' : undefined}
-          /*
-           * 序数在前,内容在后。
-           *
-           * 这一条在视觉上是一根短横,它在整根轨道里的位置就是它全部的空间
-           * 信息;而读屏用户拿不到这份信息 —— 只报内容,等于让人自己数到第几
-           * 根。目录类控件播报序数是通行做法,代价是一次字符串拼接。
-           */
-          aria-label={`第 ${String(index + 1)} 轮，共 ${String(turns.length)} 轮：${turn.label}`}
-          className="conversation-minimap__turn"
-          data-row={turn.rowIndex}
-          key={turn.id}
-          onClick={handleSelect}
-          type="button"
-        >
-          <span className="conversation-minimap__bar" />
+      {turns.map((turn, index) => {
+        /*
+         * 序数在前,内容在后。
+         *
+         * 这一条在视觉上是一根短横,它在整根轨道里的位置就是它全部的空间信息;
+         * 而读屏用户拿不到这份信息 —— 只报内容,等于让人自己数到第几根。目录类
+         * 控件播报序数是通行做法,代价是一次字符串拼接。
+         *
+         * 拆成两段不是为了好看:CJK 在宽度计算上按双宽算,一行写完会顶到格式化
+         * 上限;拆开之后"第几轮/共几轮"与"它是什么"各自成句,也更好读。
+         */
+        const position = `第 ${String(index + 1)} 轮，共 ${String(turns.length)} 轮`
+        const label = `${position}：${turn.label}`
 
-          {/*
-           * Preview card: a real element because it needs two semantic rows.
-           * aria-hidden so screen readers use the button's accessible name
-           * (aria-label) rather than reading the card prose twice.
-           */}
-          <div aria-hidden="true" className="conversation-minimap__card">
-            <p className="conversation-minimap__card-question">{turn.label}</p>
-            {turn.reply !== undefined && (
-              <p className="conversation-minimap__card-reply">{turn.reply}</p>
-            )}
-          </div>
-        </button>
-      ))}
+        return (
+          <button
+            /*
+             * location,不是 true。WAI-ARIA 把 location 定义为"在环境或上下文中的
+             * 当前位置",目录里被高亮的那一项正是它举的例子;true 只说"是当前的",
+             * 没说是哪一种当前。样式不再挑 token,只看属性在不在。
+             */
+            aria-current={index === active ? 'location' : undefined}
+            aria-label={label}
+            className="conversation-minimap__turn"
+            key={turn.id}
+            /*
+             * 一格一个闭包,就这样。
+             *
+             * 曾经改成"一个共享处理器 + data-row + Number() + 整数守卫",为的是
+             * 避免每次渲染重建 N 个闭包。下面的 memo 把那个前提消灭了:滚动帧里
+             * 这个组件根本不重渲染,闭包一年也建不了几次。留着那套就是拿一个 DOM
+             * 属性、一次字符串往返和一个只可能因自己写错才触发的分支,去换一个
+             * 不存在的开销。
+             */
+            onClick={() => {
+              onSelect(turn.rowIndex)
+            }}
+            type="button"
+          >
+            <span className="conversation-minimap__bar" />
+
+            {/*
+             * Preview card: a real element because it needs two semantic rows.
+             * aria-hidden so screen readers use the button's accessible name
+             * (aria-label) rather than reading the card prose twice.
+             */}
+            <div aria-hidden="true" className="conversation-minimap__card">
+              <p className="conversation-minimap__card-question">{turn.label}</p>
+              {turn.reply !== undefined && (
+                <p className="conversation-minimap__card-reply">{turn.reply}</p>
+              )}
+            </div>
+          </button>
+        )
+      })}
     </nav>
   )
 }
@@ -108,12 +99,14 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
 /**
  * 滚动帧里整棵跳过。
  *
- * 滚动区每一帧都重渲染 —— 虚拟器必须如此 —— 于是浮层每帧被调用一次,产出一个
- * 新元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这三个入参在构造上就是
- * 引用稳定的:turns 走时间线的 WeakMap 缓存,activeRow 是数字且跨行才变,
- * onSelect 是上游一个空依赖的 useCallback。所以浅比较几乎总是命中。
+ * 滚动区每一帧都重渲染 —— 虚拟器必须如此 —— 于是浮层每帧被调用一次,产出一个新
+ * 元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这三个入参在构造上就是引用稳定
+ * 的:turns 走时间线的弱表缓存,activeRow 是数字且跨行才变,onSelect 是上游一个空
+ * 依赖的 useCallback。所以浅比较几乎总是命中。
  *
- * 它不是万能的:流式输出时 turns 每段都重建,那时照旧全量比对。但那正好是鱼眼
- * 没在跑的时候 —— 两笔开销不会叠在同一帧上。
+ * 它不是万能的:流式输出时上游每帧重建 turns 数组,那时照旧全量比对。不过 reply
+ * 截断在 300 字符,所以答案超过 300 字之后每个 turn 的内容其实不再变化 —— 让
+ * 选择器复用未变的 turn 对象就能把这段也覆盖掉,那是 agent/timeline 包里的一次
+ * 独立改动,不在这一版。
  */
 export const ConversationMinimap = memo(Rail)

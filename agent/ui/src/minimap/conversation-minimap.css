@@ -27,28 +27,31 @@
   inset-inline-end: var(--cp-optical);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 2px;
   translate: 0 -50%;
-  opacity: 1;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 /*
- * Quiet until aimed at, and never invisible: a marker that vanishes cannot be
- * found, and one that shouts competes with the transcript it indexes.
+ * 一格的盒子,尺寸恒定。
+ *
+ * inline-size 是横条能达到的最大宽度。不写它的时候,列向 flex 的子项横向收缩
+ * 包裹到内容宽度,而内容就是那根 9px→23px 逐帧变化的横条 —— 于是按钮自己每帧
+ * 换宽度,挂在它 100% 上的卡片就跟着横向漂移 14px。那也是"逐帧测量卡片右边界"
+ * 那条路走不通的根因:卡片到轨道的距离恒等于一个间距,量它回答的是另一个问题。
+ *
+ * 固定之后:卡片的右边界是一条真正不动的竖线;轨道整体的盒子不再逐帧改变尺寸,
+ * 逐帧布局被关进单根横条内部;而卡片只在权重接近 1、横条已接近最大宽度时才
+ * 可见,所以它最终停的位置几乎不变 —— 变的只是淡入过程中的那段漂移。
+ *
+ * 父级的 align-items 因此可以去掉:所有子项等宽,对齐无从谈起。
  */
-.conversation-minimap:hover,
-.conversation-minimap:focus-within {
-  opacity: 1;
-}
-
 .conversation-minimap__turn {
   --cp-rail-weight: 0;
 
   position: relative;
   display: flex;
   block-size: var(--cp-rail-hit);
+  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
   align-items: center;
   justify-content: flex-end;
   border: 0;
@@ -57,8 +60,17 @@
   cursor: pointer;
 }
 
+/*
+ * 键盘焦点要看得见。
+ *
+ * 这里原本是 outline: none,替代品是一根 9×3px 的横条换个颜色 —— 按 WCAG 2.4.13
+ * 的面积与对比度要求那不够,而专业软件(VS Code 的大纲、Xcode 的跳转列表)都画
+ * 真环。用本文件已有的墨色,不引入新 token。
+ */
 .conversation-minimap__turn:focus-visible {
-  outline: none;
+  border-radius: 3px;
+  outline: 2px solid var(--cp-rail-ink-aimed);
+  outline-offset: 2px;
 }
 
 /*
@@ -99,7 +111,8 @@
  *
  * A real element, not ::after, because it needs two rows (question + reply)
  * with distinct typography. It lives to the left of the bar, vertically
- * centred on the button's hit area.
+ * centred on the button's hit area — and now at a fixed horizontal position,
+ * because the button it hangs off no longer changes width.
  *
  * Height model
  * ────────────
@@ -168,9 +181,17 @@
   word-break: break-word;
 }
 
-/* No pull and no travel: the weight is neutralised at the source. */
+/*
+ * 减弱动效:关掉过渡本身。
+ *
+ * 这里原本写的是把 --cp-rail-weight 覆盖成 0 —— 而它的基态就是 0,所以那是把 0
+ * 盖成 0,两条路径上都不做事:鱼眼在减弱动效下直接提前返回、根本不写内联值。
+ * 真正没人管的是过渡,而同一个功能的另一份样式表(agent-activity-feed.css)在
+ * 同样的媒体查询里写的就是 transition: none。按它统一。
+ */
 @media (prefers-reduced-motion: reduce) {
-  .conversation-minimap__turn {
-    --cp-rail-weight: 0;
+  .conversation-minimap__bar,
+  .conversation-minimap__card {
+    transition: none;
   }
 }
