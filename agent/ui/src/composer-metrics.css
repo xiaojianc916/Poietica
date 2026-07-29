@@ -69,8 +69,11 @@
   --cp-menu-min: 168px;
   --cp-menu-min-wide: calc(var(--cp-menu-min) + 40px);
 
-  /* motion: durations are design decisions, so they live in the token layer
-   * and the resize hook reads them from computed style. */
+  /* motion: durations are design decisions, so they live in the token layer.
+   *
+   * --cp-motion-grow 这条时长的消费者是输入框长高的那条 block-size 过渡
+   * （assistant.css）。它一度没有消费者：量高度的 resize 钩子被 field-sizing
+   * 取代时一起删掉了，而当时没有人补上过渡，长高因此变成一帧到位。 */
   --cp-motion-swift: 140ms;
   --cp-motion-grow: 240ms;
   --cp-motion-ease: var(--ui-ease-emphasized);

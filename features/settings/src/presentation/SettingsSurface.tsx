@@ -77,7 +77,7 @@ const SECTIONS: readonly SectionDefinition[] = [
   },
   {
     id: 'hooks',
-    label: 'Hook',
+    label: '钩子',
   },
   {
     id: 'plugins',

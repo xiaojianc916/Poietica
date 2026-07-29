@@ -11,10 +11,13 @@ use crate::error::{Result, StoreError};
 pub const KEY_SERVICE: &str = "poietica";
 
 /// Credential store account the key is filed under.
-/// KEY_ACCOUNT 的值刻意保持 "ai-store"，尽管类型已改名 AgentStore：这个字符串是
-/// 已装机用户钥匙串里那条记录的主键。改它等于找不到旧密钥，于是会生成一把新的，
-/// 于是已有的加密库再也打不开 —— 一次纯粹的命名整理不允许有这种代价。
-pub const KEY_ACCOUNT: &str = "ai-store";
+///
+/// 这个字符串是钥匙串里那条记录的主键，改它等于找不到旧密钥、生成一把新的、旧
+/// 库再也打不开。此前因此刻意保持着 ai 这个历史词汇；而 identifier 这一批也在
+/// 改，旧库的路径本身已经作废，那把旧密钥再没有对应的库，代价归零。
+///
+/// 旧记录（poietica / ai-store）不会被读取，可以手动删除。
+pub const KEY_ACCOUNT: &str = "agent-store";
 
 const KEY_BYTES: usize = 32;
 

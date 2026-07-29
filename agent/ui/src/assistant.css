@@ -90,6 +90,17 @@
   appearance: none;
 }
 
+/*
+ * 长高是内容的事，补间是动画的事。
+ *
+ * field-sizing: content 让高度跟着内容走，但它改的是内在尺寸——计算值是 auto，
+ * 而 auto 默认不可插值，所以此前粘一大段进去是一帧到位。interpolate-size 正是
+ * 为这件事存在的：允许关键字与内在尺寸参与插值，于是 block-size 的过渡成立，
+ * 不需要任何脚本去量高度、也不需要把那个已经删掉的 resize 钩子请回来。
+ *
+ * 时长用 --cp-motion-grow：它本来就是为"输入框长高"定的，钩子删掉之后一直没有
+ * 消费者。上下限仍由 min/max 钳住，撑满之后自己变成滚动，行为不变。
+ */
 [data-slot="prompt-input-textarea"] {
   display: block;
   inline-size: 100%;
@@ -105,6 +116,15 @@
   caret-color: var(--cp-accent);
   resize: none;
   field-sizing: content;
+  interpolate-size: allow-keywords;
+  transition: block-size var(--cp-motion-grow) var(--cp-motion-ease);
+}
+
+/* 减弱动态偏好下直接到位：长高本身是必要的，补间不是。 */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="prompt-input-textarea"] {
+    transition: none;
+  }
 }
 
 @supports not (field-sizing: content) {
