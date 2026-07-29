@@ -39,7 +39,14 @@ export interface AgentEventSource {
 }
 
 export interface AgentBridgeOptions {
-  /** The agent command line; the native side defaults to the Kimi ACP entry point. */
+  /**
+   * 启动 agent 的一整行命令行，例如 `kimi acp`。
+   *
+   * 是「一行」而不是「可执行文件名」：原生侧把它交给 agent-client-protocol 的
+   * AcpAgent::from_str 切分。只送可执行文件名，等于把参数丢在半路。
+   *
+   * 哪家 agent、哪几个参数，由 registry 的档案说了算，这一层不认识任何一家。
+   */
   readonly command?: string
   /** The working directory the session is created against. */
   readonly cwd?: string

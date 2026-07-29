@@ -395,9 +395,25 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   return { value: { profiles, defaultProfileId }, issues }
 }
 
-/** 供界面显示与复制的一行命令。执行时仍然走 command + args。 */
-export function acpAgentCommandLine(profile: AcpAgentProfile): string {
-  return [profile.command, ...profile.args].join(' ')
+/** 拼得出一行命令的东西：档案要这两格，接入档案也有这两格。 */
+export interface AcpAgentCommandSource {
+  readonly command: string
+  readonly args: readonly string[]
+}
+
+/**
+ * 一行命令。既是界面上显示与复制的那一行，也是真正送去启动进程的那一行。
+ *
+ * 原生侧的 AgentSpawn.command 收的就是这个形状（`kimi acp`），由
+ * agent-client-protocol 的 AcpAgent::from_str 自己切分 —— 所以这不是给人看的
+ * 装饰，而是这条管线唯一的出境序列化点。名单里存的始终是结构化的
+ * command + args，字符串只在这里生成一次，我方不再把它解析回去。
+ *
+ * 只要两格就够，因此不强求一整份 AcpAgentProfile：接入档案与用户档案都能直接
+ * 传进来，不必先补出一堆用不上的字段。
+ */
+export function acpAgentCommandLine(agent: AcpAgentCommandSource): string {
+  return [agent.command, ...agent.args].join(' ')
 }
 
 /**
