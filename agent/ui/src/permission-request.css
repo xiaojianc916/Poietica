@@ -4,9 +4,11 @@
  * outcome card carry, because <Surface> is the only thing that draws a
  * card on this surface.
  *
- * 这段话上一版就是这么写的,而代码并不是:这个选择器当时自己把 --cp-card-line
- * 和 --cp-card-radius 又定义了一遍,于是"只定义一次"变成了三处定义。现在这里
- * 真的不决定任何关于外框的事 —— 剩下的只有这张卡自己的排布与留白。
+ * 这段话有两版都是这么写的,而代码两版都不是:这个选择器先是自己把外框的颜色
+ * 与圆角又定义了一遍,后来改成借那两个 token,而那两个 token 带着字面量兜底 ——
+ * 于是"只定义一次"实际上是三处定义加一个静默回退。现在它们整个不存在了:外框
+ * 由 design-system 的 [data-surface] 一处画完,这个文件只剩下这张卡自己的排布
+ * 与留白,以及下面那个按钮 —— 它的边框走控件令牌,不再借卡片的。
  *
  * An answered request is not drawn here at all. It stops being a request the
  * moment it is answered, and what stays in the transcript is the same outcome
@@ -40,7 +42,7 @@
 
 .assistant-permission__path {
   padding: 0.125rem 0.4375rem;
-  border-radius: var(--ui-radius-sm, 0.375rem);
+  border-radius: var(--ui-radius-sm);
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
   font-size: 0.78125rem;
@@ -63,7 +65,7 @@
   min-block-size: var(--ui-control-height-sm);
   padding-inline: 0.9375rem;
   border: var(--ui-region-divider-width) solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 0.5rem);
+  border-radius: var(--ui-radius-md);
   background: var(--cp-surface);
   font: inherit;
   font-size: 0.8125rem;
@@ -145,7 +147,7 @@
   margin: 0;
   padding: 0.5rem 0.625rem;
   overflow: auto;
-  border-radius: var(--ui-radius-sm, 0.375rem);
+  border-radius: var(--ui-radius-sm);
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
   font-size: 0.75rem;

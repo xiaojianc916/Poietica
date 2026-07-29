@@ -4,6 +4,7 @@ import type { FeedRow } from '@poietica/agent-timeline'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { type RowSpan, rowAtAnchor } from './reading-position'
+import { useDevicePixels } from './use-device-pixels'
 import { useRevealIntent } from './use-reveal-intent'
 
 /* poietica:conversation-minimap-audit@v15 */
@@ -128,6 +129,17 @@ export function AgentActivityFeed({
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLDivElement | null>(null)
+
+  /*
+   * 行的落点要踩在设备像素上。
+   *
+   * item.start 是 measureElement 测回的高度累加 —— 小数,而且同屏就有现成的
+   * 小数源(.assistant-permission__ask 是 13px × 1.6 = 20.8px)。落在半个设备
+   * 像素上,这一行里所有 1px 的边就被摊到两行、墨色减半:一张卡的外框因此在
+   * 同一屏上时而是 1px #e0e0e0、时而是 2px #ececec。取整只动这一处 —— 位置
+   * 只有一个写入点,所以对齐也只需要一个。
+   */
+  const snapToDevicePixels = useDevicePixels()
 
   /*
    * 画布相对滚动区的偏移:画布上面还有滚动区自己的上内边距,这段距离必须告诉
@@ -437,7 +449,9 @@ export function AgentActivityFeed({
                 data-type={row.item.type}
                 key={item.key}
                 ref={virtualizer.measureElement}
-                style={{ transform: `translateY(${String(item.start - scrollMargin)}px)` }}
+                style={{
+                  transform: `translateY(${String(snapToDevicePixels(item.start - scrollMargin))}px)`,
+                }}
               >
                 {renderRow(row)}
               </div>

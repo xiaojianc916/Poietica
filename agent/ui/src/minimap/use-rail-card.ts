@@ -82,7 +82,10 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
       }
 
       /* 定位到这一格的中线。卡片是 nav 的绝对定位子节点,量的是格子在 nav 里的位置。 */
-      box.style.setProperty('--cp-card-y', `${String(turn.offsetTop + turn.offsetHeight / 2)}px`)
+      box.style.setProperty(
+        '--cp-rail-card-y',
+        `${String(turn.offsetTop + turn.offsetHeight / 2)}px`,
+      )
     }
 
     const settle = (): void => {
