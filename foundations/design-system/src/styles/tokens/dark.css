@@ -20,16 +20,16 @@
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
   /*
-   * 与 light.css 同构的两档线，相对画布（--ui-palette-dark-975）定档，同样
-   * 保持 3～6 倍的对比度差。深色下绝对差比浅色略大、投影比浅色重：底色越
-   * 暗，同样的差越难读出来。
+   * 与 light.css 同构，相对画布（--ui-palette-dark-975）定档，同样保持
+   * 3～6 倍的对比度差。深色下绝对差比浅色略大、投影比浅色重：底色越暗，
+   * 同样的差越难读出来。
    */
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: #1c1c1c;
+  --ui-divider-subtle: #191919;
   --ui-border: var(--ui-region-divider-color);
-  --ui-surface-frame: #303030;
-  --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 22%);
+  --ui-surface-frame: #2a2a2a;
+  --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 18%);
   --ui-input: rgb(255 255 255 / 24%);
   --ui-ring: var(--ui-palette-blue-400);
 

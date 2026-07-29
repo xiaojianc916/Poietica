@@ -7,8 +7,15 @@ import { describe, expect, it } from 'vitest'
  * 一、主题契约完整性。起因：一次用正则替换注释的改动把 --ui-card /
  *     --ui-chrome / --ui-sidebar 等七个 token 连带删掉，设置页分组卡与侧栏
  *     底色变成一片白，而当时的测试只看几个颜色字面值，全绿。
- * 二、两档线的数值不变量。外框相对画布的对比度必须是卡内线的 3～6 倍 ——
- *     低于 3 卡片就"化开"成一叠平行线（曾经是 1 倍，后来 2.2 倍，都不够）。
+ *
+ * 二、两档线的比例不变量：同一张卡内，外框相对画布的对比度是卡内线的
+ *     3～6 倍。低于 3 卡片会"化开"成一叠平行线（曾经是 1 倍，后来 2.2 倍，
+ *     都不够）。这条是核心，值可以整体升降，比例不许塌。
+ *
+ *     这里曾经还有一条"外框必须比窗格分隔线重"，已删除：窗格线是整屏宽的
+ *     区域边界，卡框是几百像素宽的容器边界，同墨量下视觉重量差一个量级，
+ *     卡框比窗格线淡是常态而非缺陷。换成绝对墨量的上下限。
+ *
  * 三、卡片不许自己造背景，也不许自己开宽度档。
  */
 
@@ -42,6 +49,10 @@ const metrics = readFileSync(join(repoRoot, 'agent', 'ui', 'src', 'composer-metr
 
 /* 画布取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
 const CANVAS = { light: 0xf8, dark: 0x14 }
+const THEMES = [
+  ['light', light],
+  ['dark', dark],
+] as const
 
 const REQUIRED = [
   '--ui-background',
@@ -64,12 +75,12 @@ const REQUIRED = [
   '--ui-ring',
 ]
 
+const inkOf = (name: 'light' | 'dark', css: string, token: string) =>
+  Math.abs(grayOf(declOf(css, token)) - CANVAS[name])
+
 describe('theme token contract', () => {
   it('两个主题都覆盖必需的 token', () => {
-    for (const [name, css] of [
-      ['light', light],
-      ['dark', dark],
-    ] as const) {
+    for (const [name, css] of THEMES) {
       const declared = declaredTokens(css)
       const missing = REQUIRED.filter((token) => !declared.has(token))
       expect(missing, `${name}.css 缺少 token`).toEqual([])
@@ -86,13 +97,9 @@ describe('theme token contract', () => {
 
 describe('two-tier border scale', () => {
   it('外框相对画布的对比度是卡内线的 3～6 倍', () => {
-    for (const [name, css] of [
-      ['light', light],
-      ['dark', dark],
-    ] as const) {
-      const canvas = CANVAS[name]
-      const frame = Math.abs(grayOf(declOf(css, '--ui-surface-frame')) - canvas)
-      const rule = Math.abs(grayOf(declOf(css, '--ui-divider-subtle')) - canvas)
+    for (const [name, css] of THEMES) {
+      const frame = inkOf(name, css, '--ui-surface-frame')
+      const rule = inkOf(name, css, '--ui-divider-subtle')
       expect(rule, `${name}: 卡内线不能与画布同色`).toBeGreaterThan(0)
       const ratio = frame / rule
       expect(ratio, `${name}: 外框/卡内线 对比度比例`).toBeGreaterThanOrEqual(3)
@@ -100,11 +107,13 @@ describe('two-tier border scale', () => {
     }
   })
 
-  it('外框比窗格线重，但不重到抢戏', () => {
-    const frame = grayOf(declOf(light, '--ui-surface-frame'))
-    const region = grayOf(declOf(light, '--ui-region-divider-color'))
-    expect(frame).toBeLessThan(region)
-    expect(CANVAS.light - frame).toBeLessThanOrEqual(42)
+  it('外框墨量不过重，卡内线不彻底消失', () => {
+    for (const [name, css] of THEMES) {
+      expect(inkOf(name, css, '--ui-surface-frame'), `${name}: 外框墨量`).toBeLessThanOrEqual(42)
+      expect(inkOf(name, css, '--ui-divider-subtle'), `${name}: 卡内线墨量`).toBeGreaterThanOrEqual(
+        3,
+      )
+    }
   })
 
   it('卡片不造背景，存在感由投影给', () => {
@@ -126,7 +135,7 @@ describe('two-tier border scale', () => {
   })
 
   it('--ui-border 归控件，跟随区域线', () => {
-    for (const css of [light, dark]) {
+    for (const [, css] of THEMES) {
       expect(declOf(css, '--ui-border')).toBe('var(--ui-region-divider-color)')
     }
   })
