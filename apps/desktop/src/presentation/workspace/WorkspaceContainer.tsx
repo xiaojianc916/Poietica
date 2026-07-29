@@ -38,8 +38,7 @@ import { failureCoordinator } from '../../application/failures/failure-coordinat
 import { reportFailure } from '../../application/failures/failure-policy'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
-import { createAssistantSurfaceRenderers } from './assistant-surface-renderers'
-import { ConversationSurface } from './ConversationSurface'
+import { createAssistantWiring } from './assistant-wiring'
 import { DocumentQuarantineSurface } from './DocumentQuarantineSurface'
 
 const EMPTY_EDITOR_SESSION_SNAPSHOT = Object.freeze({
@@ -329,21 +328,15 @@ export function WorkspaceContainer({
     [port.workspace],
   )
 
-  const surfaceRenderers = useMemo(
-    () => createAssistantSurfaceRenderers(agentSession, startConversation),
+  const assistant = useMemo(
+    () => createAssistantWiring(agentSession, startConversation),
     [agentSession, startConversation],
   )
 
   const mainContent = renderActiveSurface({
     activeSurface: workbench.activeSurface,
-    surfaceRenderers,
-    renderConversation: (threadId) => (
-      <ConversationSurface
-        onStarted={startConversation}
-        session={agentSession}
-        threadId={threadId}
-      />
-    ),
+    surfaceRenderers: assistant.surfaces,
+    renderConversation: assistant.renderConversation,
     activeSessionId,
     hostedSessions,
     quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],
