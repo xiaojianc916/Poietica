@@ -40,10 +40,6 @@ const STORE_KEY: &str = "agentConfig";
 pub struct AgentConfigSnapshot {
     pub agents: Vec<Value>,
     pub default_agent_id: String,
-    /// models.dev 目录缓存。Null 表示还没成功拉取过。
-    pub catalog: Value,
-    /// 目录缓存的拉取时间（ISO-8601）。空串表示从未拉取。
-    pub catalog_fetched_at: String,
     /// 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
     pub legacy_providers: Vec<Value>,
     /// agents.json 中存在但无法反序列化的内容。界面应显示出来。
@@ -56,8 +52,6 @@ pub struct AgentConfigSnapshot {
 struct PersistedAgentConfig {
     agents: Vec<Value>,
     default_agent_id: String,
-    catalog: Value,
-    catalog_fetched_at: String,
     /// 旧字段。serde 默认会丢弃未知字段，若不显式接住，用户既有的 provider
     /// 配置会在第一次保存时无声蒸发。
     #[serde(rename = "providers")]
@@ -162,8 +156,6 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
     AgentConfigSnapshot {
         agents: config.agents,
         default_agent_id: config.default_agent_id,
-        catalog: config.catalog,
-        catalog_fetched_at: config.catalog_fetched_at,
         legacy_providers: config.legacy_providers,
         issues,
     }
@@ -215,30 +207,13 @@ pub async fn agent_config_save_agents(
     .map_err(IpcError::from)
 }
 
-/// 写入 models.dev 目录缓存。
-///
-/// 目录本身不是敏感数据，随 agents.json 落盘。它只是「离线也能看见模型清单」
-/// 的副本，权威始终是联网拉取的结果。
-///
-/// # Errors
-///
-/// store 无法写入时返回错误。
-#[command]
-#[specta::specta]
-pub async fn agent_config_save_catalog(
-    app: AppHandle,
-    catalog: Value,
-    fetched_at: String,
-) -> AgentConfigCommandResult<AgentConfigSnapshot> {
-    (|| -> Result<AgentConfigSnapshot> {
-        let (mut config, issues) = read_config(&app)?;
-        config.catalog = catalog;
-        config.catalog_fetched_at = fetched_at;
-        save_config(&app, &config)?;
-        Ok(to_snapshot(config, issues))
-    })()
-    .map_err(IpcError::from)
-}
+/*
+ * agent_config_save_catalog 曾在这里。
+ *
+ * 它把 models.dev 的响应体缓存进 agents.json。缓存的是我们自己拉的那一份，而
+ * agent 内部也拉同一份、并且只认自己那份 —— 候选模型改问它的
+ * provider catalog list，这里就没有第二份目录需要存了。
+ */
 
 /*
  * agent_config_set_secret、agent_config_clear_secret 与

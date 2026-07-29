@@ -21,13 +21,11 @@ export interface AgentCliResult {
  * 完整的 agent 配置快照。
  *
  * agents 是不透明对象，由 @poietica/agent-registry 在 TS 侧校验；Rust 侧只
- * 负责原样存取。catalog 同理，它是 models.dev 响应体的缓存。
+ * 负责原样存取。
  */
 export interface AgentConfigSnapshot {
   readonly agents: readonly unknown[]
   readonly defaultAgentId: string
-  readonly catalog: unknown
-  readonly catalogFetchedAt: string
   /** 旧版顶层 provider 列表，仅供一次性迁移使用。 */
   readonly legacyProviders: readonly unknown[]
   /** agents.json 中解析失败、已被丢弃的条目。 */
@@ -40,7 +38,6 @@ export interface AgentConfigBridge {
     agents: readonly unknown[],
     defaultAgentId: string,
   ) => Promise<AgentConfigSnapshot>
-  readonly saveCatalog: (catalog: unknown, fetchedAt: string) => Promise<AgentConfigSnapshot>
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
 }

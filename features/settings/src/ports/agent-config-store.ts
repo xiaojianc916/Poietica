@@ -32,9 +32,6 @@ export interface AgentCliOutcome {
 export interface AgentConfigSnapshot {
   readonly agents: readonly AcpAgentProfile[]
   readonly defaultAgentId: string
-  /** models.dev 目录缓存的原始响应体。未拉取过时为 null。 */
-  readonly catalog: unknown
-  readonly catalogFetchedAt: string
   /** 旧版顶层 provider 列表，仅供一次性迁移。迁移完应清空。 */
   readonly legacyProviders: readonly unknown[]
   /** 配置文件里被丢弃的坏条目。界面应该显示出来，而不是假装配置是干净的。 */
@@ -50,6 +47,9 @@ export interface AgentConfigSnapshot {
  * 模式 B 下，模型与 provider 的权威副本在各 agent 自己的配置文件里，由 agent
  * 进程自己 watch 并热重载 —— 所以这里没有「保存 provider」这个动作，写入统一
  * 经由 execCli 调用 agent 官方 CLI。我们不自己拼对方的配置文件格式。
+ *
+ * 候选模型也一样：agent 自己就会拉 models.dev，而写入要过它的校验，所以「有哪些
+ * 模型可加」问它的 provider catalog list，不在这里存第二份目录。
  *
  * 密钥不存在这里，也不存在别处。它随 execCli 的一次调用交给 agent 的 CLI，写进
  * agent 自己的配置文件之后就与我们无关 —— 那份文件里它是明文，所以我们再存一份

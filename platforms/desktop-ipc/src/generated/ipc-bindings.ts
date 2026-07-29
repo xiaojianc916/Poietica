@@ -112,7 +112,7 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
  * 
  * 能力属于 agent，不属于某一轮对话 —— 模型清单在 ACP 里由 initialize 阶段的
  * 握手与 agent 自己的配置决定，一条会话只是从里面选了一个当前值。此前这张表
- * 只有两个出口，都要先有一个会话，而会话的归属要先有一条对话（session_for）：
+ * 只有两个出口，都要先有一个会话，而会话的归属要先有一条对话（`session_for`）：
  * 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
  * 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
  * 
@@ -177,7 +177,7 @@ async agentSessions() : Promise<AgentSessionSummary[]> {
  * Dropping it takes a subprocess round trip and a write transaction off the
  * path that draws the sidebar, and takes the whole read off the main thread.
  * The names shown are now decided in one place, by the ranking in
- * TitleSource.
+ * `TitleSource.`
  * 
  * # Errors
  * 
@@ -189,7 +189,7 @@ async agentThreads() : Promise<AgentThread[]> {
 /**
  * 打开一条对话：让它握住一个这条连接认得的会话。
  * 
- * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，session_for
+ * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
  * 认出它存着的会话号不是本次连接开的，于是重开一个并改写持有关系。两条路都在
  * 同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
  * 因此被删掉的。
@@ -388,19 +388,6 @@ async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promi
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
 },
 /**
- * 写入 models.dev 目录缓存。
- * 
- * 目录本身不是敏感数据，随 agents.json 落盘。它只是「离线也能看见模型清单」
- * 的副本，权威始终是联网拉取的结果。
- * 
- * # Errors
- * 
- * store 无法写入时返回错误。
- */
-async agentConfigSaveCatalog(catalog: JsonValue, fetchedAt: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_save_catalog", { catalog, fetchedAt });
-},
-/**
  * 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
  * 
  * # Errors
@@ -465,7 +452,7 @@ command: string; args: string[];
 secretVar: string; 
 /**
  * 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
- * 日志，也永远不上命令行（见 FORBIDDEN_FLAGS）。留空表示不注入。
+ * 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。留空表示不注入。
  */
 secretValue: string }
 export type AgentCliResult = { 
@@ -548,14 +535,6 @@ export type AgentConfigPurpose =
  */
 export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; 
 /**
- * models.dev 目录缓存。Null 表示还没成功拉取过。
- */
-catalog: JsonValue; 
-/**
- * 目录缓存的拉取时间（ISO-8601）。空串表示从未拉取。
- */
-catalogFetchedAt: string; 
-/**
  * 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
  */
 legacyProviders: JsonValue[]; 
@@ -568,7 +547,7 @@ issues: string[] }
  * 
  * 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
  * command: Option<String>，两处都在撒谎：文档注释写着 defaults to the Kimi
- * ACP entry point，而 resolve_command 里根本没有默认值；字段写着可选，而缺
+ * ACP entry point，而 `resolve_command` 里根本没有默认值；字段写着可选，而缺
  * 了它必然报错。
  * 
  * 名字与参数分开传，因为拼成一行再让 shell 词法切回来是有损的。
@@ -598,7 +577,7 @@ runId: string;
  * Resume after this position; omit to read from the beginning.
  * 
  * The width is deliberate. Sequence numbers are 64-bit in the log, but
- * the generated TypeScript refuses a 64-bit integer rather than hand the
+ * the generated `TypeScript` refuses a 64-bit integer rather than hand the
  * renderer a value it cannot represent, and no single run is going to
  * reach four billion frames.
  */
@@ -844,7 +823,7 @@ export type AppSettings = { theme: ThemePreference; language: string; autoSave: 
 /**
  * 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。
  * 
- * u32 是故意的：生成的 TypeScript 用 number，u64 会要求 bigint，而
+ * u32 是故意的：生成的 `TypeScript` 用 number，u64 会要求 bigint，而
  * tauri-specta 拒绝 bigint。
  */
 autoSaveIntervalMs: number; shortcuts: Partial<{ [key in string]: string }>; canvas: CanvasSettings; editor: EditorSettings; export: ExportSettings; privacy: PrivacySettings }
@@ -886,7 +865,7 @@ export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; upd
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 
- * 写成枚举，生成的 TypeScript 就是 `"light" | "dark" | "system"`，与 design
+ * 写成枚举，生成的 `TypeScript` 就是 `"light" | "dark" | "system"`，与 design
  * system 的 `ThemePreference` 是同一个集合，界面不必在每个调用点各自断言一次。
  */
 export type ThemePreference = "light" | "dark" | "system"

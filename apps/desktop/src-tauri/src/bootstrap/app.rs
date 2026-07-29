@@ -174,7 +174,6 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::settings::settings_reset,
             commands::agent_config::agent_config_get,
             commands::agent_config::agent_config_save_agents,
-            commands::agent_config::agent_config_save_catalog,
             commands::agent_config::agent_config_clear_legacy_providers,
             commands::agent_cli::agent_cli_exec,
         ])
