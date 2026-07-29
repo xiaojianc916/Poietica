@@ -30,17 +30,15 @@ use specta::Type;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
+use crate::agent_log::SharedLog;
 use crate::commands::agent_config::launch_env;
-use crate::commands::agent_log::SharedLog;
 use crate::error::{Error, IpcError, Result};
+use crate::paths::agent_database;
 
 type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";
-
-/// The encrypted database, kept beside the rest of the application data.
-const DATABASE_FILE: &str = "ai.sqlite3";
 
 /// Reported when nothing named an agent to start.
 ///
@@ -130,9 +128,6 @@ impl AgentRuntime {
     /// Fails when the data directory or the home directory cannot be resolved,
     /// or when the data directory cannot be created.
     pub fn new<R: Runtime>(handle: &AppHandle<R>) -> Result<Self> {
-        let directory = handle.path().app_data_dir()?;
-        std::fs::create_dir_all(&directory)?;
-
         // The session root is resolved here, once, from the platform rather than
         // from the process. A development run starts the binary inside src-tauri,
         // so the process directory is a build location and never a place the user
@@ -140,7 +135,7 @@ impl AgentRuntime {
         let root = handle.path().home_dir()?;
 
         Ok(Self {
-            database: directory.join(DATABASE_FILE),
+            database: agent_database(handle)?,
             root,
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),

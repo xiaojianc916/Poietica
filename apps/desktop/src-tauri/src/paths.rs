@@ -14,7 +14,7 @@
 
 use std::path::PathBuf;
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::Result;
 
@@ -26,6 +26,16 @@ pub const AGENTS_STORE: &str = "agents.json";
 
 /// 上一次原生崩溃。与日志同目录（app_log_dir）：它是诊断产物，不是用户数据。
 pub const CRASH_REPORT_FILE_NAME: &str = "last-native-crash.json";
+
+/// 全部 AI 对话，SQLCipher 加密；密钥在系统钥匙串，从不与它同行。
+///
+/// 库开在 WAL 模式下，所以磁盘上实际是三个文件：这一个，加上同名的 -wal 与
+/// -shm。备份或迁移必须三个一起，只拷主文件会丢掉最后一批未 checkpoint 的
+/// 事件 —— 这正是布局需要一处声明的原因。
+///
+/// 名字里的 ai 是历史词汇（类型已叫 AgentStore）。改它等于让已装机用户的对话
+/// 从磁盘上消失，所以只在正式发布之前的窗口里改，不作为一次命名整理的代价。
+pub const AGENT_DATABASE: &str = "ai.sqlite3";
 
 /// 按 agent 隔离的私有数据根，位于 app_data_dir 之下。
 const AGENTS_DIRECTORY: &str = "agents";
@@ -41,7 +51,7 @@ const AGENT_HOME_DIRECTORY: &str = "home";
 /// # Errors
 ///
 /// 平台目录无法解析、或目录无法创建时返回错误。
-pub fn agent_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+pub fn agent_home<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<PathBuf> {
     let directory = app
         .path()
         .app_data_dir()?
@@ -52,4 +62,29 @@ pub fn agent_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     std::fs::create_dir_all(&directory)?;
 
     Ok(directory)
+}
+
+/// 应用私有数据的根，创建后返回。
+///
+/// # Errors
+///
+/// 平台目录无法解析、或目录无法创建时返回错误。
+fn data_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = app.path().app_data_dir()?;
+
+    std::fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 加密对话库的位置。
+///
+/// 此前这个名字与它的目录创建都写在 commands/agent.rs 里，也就是说这个应用
+/// 最重要的一个文件，是唯一一个不在布局声明中的落点。
+///
+/// # Errors
+///
+/// 平台目录无法解析、或数据目录无法创建时返回错误。
+pub fn agent_database<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    Ok(data_root(app)?.join(AGENT_DATABASE))
 }

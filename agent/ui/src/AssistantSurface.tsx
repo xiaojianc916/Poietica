@@ -290,7 +290,7 @@ export function AssistantSurface({
               />
             </div>
 
-            <div className="assistant-surface__starters" inert={started}>
+            <div className="assistant-surface__starters" inert={settled}>
               <AssistantQuickActions
                 onSelect={(actionId) => {
                   const starter = STARTERS[actionId]
@@ -306,7 +306,14 @@ export function AssistantSurface({
         }
         footer={renderFooter(footer)}
         header={
-          <div className="assistant-surface__intro" inert={started}>
+          /*
+           * 让位就该退出 tab 序列。
+           *
+           * 视觉上的让位由 data-started 驱动，而它跟的是 settled。inert 此前
+           * 跟的是 started，于是回放一条已有对话的那几帧里，开场白已经看不见
+           * 了，却仍然可聚焦。同一件事只能有一个判据。
+           */
+          <div className="assistant-surface__intro" inert={settled}>
             <header className="assistant-masthead">
               <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
