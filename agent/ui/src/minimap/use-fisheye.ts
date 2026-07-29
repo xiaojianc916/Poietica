@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap-perf@v14 */
+/* poietica:conversation-minimap-perf@v15 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -116,20 +116,42 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
     let aimed: HTMLElement | null = null
 
     /*
-     * Bar centres, reused across frames.
+     * 落点邻域的中心值,一帧一填。
      *
-     * Not a cache — it is refilled every frame. It exists only so that the
-     * measuring pass can finish before the writing pass begins.
+     * 只装参与计算的那几根:高斯衰减在三个半宽之外已经低于 EPSILON,再远的
+     * 柱子算出来的权重与静止态没有区别。它存在的唯一理由仍然是让读的一趟先
+     * 结束,写的一趟才开始。
      */
     const centres: number[] = []
 
+    /*
+     * 上一帧真正写过的区间。
+     *
+     * 交还样式表只需要交还写出去的那些。此前 clear 遍历整条轨,而一条长会话
+     * 的轨上绝大多数柱子从头到尾没被写过 —— 对它们调 removeProperty 仍然要
+     * 作废一次内联声明,那是白付的代价。
+     */
+    let painted = { from: 0, to: -1 }
+
+    /** 一根柱子的中心,在轨道自身的坐标里。 */
+    const centreOf = (index: number): number => {
+      const bar = bars[index]
+
+      return bar === undefined ? Number.NaN : bar.offsetTop + bar.offsetHeight / 2
+    }
+
+    const unpaint = (from: number, to: number) => {
+      for (let index = from; index <= to; index += 1) {
+        bars[index]?.style.removeProperty(WEIGHT_VAR)
+      }
+    }
+
     /* Hand the bars back to the stylesheet rather than pinning them at zero. */
     const clear = () => {
-      for (const bar of bars) {
-        bar.style.removeProperty(WEIGHT_VAR)
-        bar.removeAttribute(AIMED_ATTR)
-      }
+      unpaint(painted.from, painted.to)
+      painted = { from: 0, to: -1 }
 
+      aimed?.removeAttribute(AIMED_ATTR)
       aimed = null
     }
 
@@ -155,53 +177,92 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
 
       engaged = true
 
-      /*
-       * First pass: read only.
-       *
-       * The weight drives block-size and inline-size, and the bars share one
-       * flex column — so writing a weight dirties the layout of every bar
-       * below it. Interleaving the two, which is what this used to do, forces
-       * a synchronous layout on every iteration: N reflows per frame, every
-       * frame the hand is near the rail. Separating the passes leaves exactly
-       * one flush, at the getBoundingClientRect above; every offsetTop after
-       * it is served from a clean layout.
-       */
-      let cursor = 0
+      const count = bars.length
 
-      for (const bar of bars) {
-        centres[cursor] = rect.top + bar.offsetTop + bar.offsetHeight / 2
-        cursor += 1
+      if (count === 0) {
+        return
       }
 
-      centres.length = cursor
+      /*
+       * 指针落在哪一根上,用二分回答。
+       *
+       * 柱子在同一个 flex 列里首尾相接,offsetTop 因此单调递增 —— 前提成立,
+       * 所以"最后一个中心不低于指针"是二分,读 O(log N) 次布局而不是 N 次。
+       * 此前这里是一趟全量遍历:五百轮的会话,手在轨道附近的每一帧都要读五百
+       * 次 offsetTop,而其中四百八十几次算出来的权重是同一个 '0'。
+       */
+      const anchor = pointerY - rect.top
 
-      /* Second pass: write only. Nothing below reads layout. */
+      let low = 0
+      let high = count - 1
+      let nearest = 0
+
+      while (low <= high) {
+        const middle = (low + high) >> 1
+
+        if (centreOf(middle) <= anchor) {
+          nearest = middle
+          low = middle + 1
+        } else {
+          high = middle - 1
+        }
+      }
+
+      /*
+       * 从落点向两侧展开到衰减耗尽为止。
+       *
+       * 展开条件用真实中心距,不用"每根多高"的估算:柱子被放大之后间距本来就
+       * 不等距,估算会在放大最厉害的地方把波峰截断 —— 那是一个看得见的退化,
+       * 而这里一次都不会发生。
+       */
+      const REACH_PX = FALLOFF_PX * 3
+
+      let from = nearest
+
+      while (from > 0 && Math.abs(centreOf(from - 1) - anchor) <= REACH_PX) {
+        from -= 1
+      }
+
+      let to = nearest
+
+      while (to < count - 1 && Math.abs(centreOf(to + 1) - anchor) <= REACH_PX) {
+        to += 1
+      }
+
+      /* 读的一趟到此为止。下面一个字都不再读布局。 */
+      centres.length = 0
+
+      for (let index = from; index <= to; index += 1) {
+        centres[index - from] = centreOf(index)
+      }
+
+      /* 出了窗口的交还样式表,而且只交还上一帧写过的。 */
+      if (painted.to >= painted.from) {
+        unpaint(painted.from, Math.min(painted.to, from - 1))
+        unpaint(Math.max(painted.from, to + 1), painted.to)
+      }
+
+      painted = { from, to }
+
+      /* 写的一趟。Nothing below reads layout. */
       let winner: HTMLElement | null = null
       let best = AIMED_MIN_WEIGHT
 
-      cursor = 0
+      for (let index = from; index <= to; index += 1) {
+        const bar = bars[index]
+        const centre = centres[index - from]
 
-      for (const bar of bars) {
-        const centre = centres[cursor]
-
-        cursor += 1
-
-        if (centre === undefined) {
+        if (bar === undefined || centre === undefined) {
           continue
         }
 
-        const ratio = (centre - pointerY) / FALLOFF_PX
+        const ratio = (centre - anchor) / FALLOFF_PX
         const weight = Math.exp(-(ratio * ratio))
         const next = weight < EPSILON ? '0' : weight.toFixed(3)
 
         /*
-         * Only write a weight that changed.
-         *
-         * The falloff dies out about eight bars out, so in a long conversation
-         * most of the rail is being handed the same '0' on every frame, and
-         * every one of those writes invalidates that element's style for
-         * nothing. Reading the inline declaration back is CSSOM, not layout —
-         * it cannot force a flush.
+         * Only write a weight that changed. Reading the inline declaration
+         * back is CSSOM, not layout — it cannot force a flush.
          */
         if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
           bar.style.setProperty(WEIGHT_VAR, next)
@@ -215,10 +276,7 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
 
       /*
        * One winner, decided from the same weights the pull was drawn from.
-       *
-       * At most two bars change hands per frame, so touch two — not N. The
-       * attribute is a selector for three rules, so each needless write is a
-       * needless selector rematch.
+       * At most two bars change hands per frame, so touch two — not N.
        */
       if (winner !== aimed) {
         aimed?.removeAttribute(AIMED_ATTR)

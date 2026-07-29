@@ -19,11 +19,12 @@ import { useRevealIntent } from './use-reveal-intent'
  * 这些数字是保守的下界:估小了只是补偿一次,估大了会在到达前留白。
  */
 const ESTIMATED_ROW_PX: Record<string, number> = {
-  userMessage: 72,
-  assistantMessage: 240,
-  reasoning: 120,
-  toolCall: 160,
+  user_message: 72,
+  agent_text: 240,
+  agent_thought: 120,
+  tool_call: 160,
   plan: 200,
+  permission: 140,
   error: 96,
 }
 
@@ -194,6 +195,23 @@ export function AgentActivityFeed({
   const opened = useRef(false)
 
   /*
+   * 上边界已经报过了。
+   *
+   * 判据成立期间每一个 scroll 事件都会命中,一次向上滚动就是几十次调用。位置
+   * 只有这一层知道,所以"进入阈值区"也只能在这一层判一次 —— 把幂等寄望于调用
+   * 方,是把这一层自己制造的重复推给别人。离开之后才重新武装。
+   */
+  const reported = useRef(false)
+
+  /*
+   * 本帧已经排好的那次几何读取。
+   *
+   * 0 表示没有。一次滚轮滚动派发几十个事件,而它们读的是同一帧的同一份布局:
+   * 读第二次不会得到新答案,只会多两次二分和三次 setState。
+   */
+  const frame = useRef(0)
+
+  /*
    * 一次读取,三个派生量。
    *
    * 分开写会读三次几何,还会让三个真源在时间上错开。这里全部是读,没有写夹在
@@ -218,7 +236,12 @@ export function AgentActivityFeed({
        * 判据就是一个减法,和上面那个贴底判据是同一句话的两头。
        */
       if (viewport.scrollTop <= PREFETCH_START_PX) {
-        onReachStart?.()
+        if (!reported.current) {
+          reported.current = true
+          onReachStart?.()
+        }
+      } else {
+        reported.current = false
       }
 
       const spans = spansRef.current
@@ -240,6 +263,28 @@ export function AgentActivityFeed({
     },
     [onReachStart, settleReveal],
   )
+
+  /*
+   * 几何读取一帧一次。
+   *
+   * 合并到 rAF 之后,读取次数与帧数对齐 —— 那也是浏览器唯一保证布局稳定的
+   * 时机。此前每一个 scroll 事件各读一遍,答案完全相同。
+   */
+  const scheduleSync = useCallback(() => {
+    if (frame.current !== 0) {
+      return
+    }
+
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0
+
+      const viewport = viewportRef.current
+
+      if (viewport !== null) {
+        syncScrollState(viewport)
+      }
+    })
+  }, [syncScrollState])
 
   /*
    * 只听滚动区自己的滚动。
@@ -264,21 +309,23 @@ export function AgentActivityFeed({
         return
       }
 
-      const handleScroll = () => {
-        syncScrollState(viewport)
-      }
-
-      viewport.addEventListener('scroll', handleScroll, { passive: true })
+      viewport.addEventListener('scroll', scheduleSync, { passive: true })
 
       const unwatch = watchReveal(viewport)
 
       return () => {
-        viewport.removeEventListener('scroll', handleScroll)
+        viewport.removeEventListener('scroll', scheduleSync)
+
+        if (frame.current !== 0) {
+          cancelAnimationFrame(frame.current)
+          frame.current = 0
+        }
+
         unwatch()
         viewportRef.current = null
       }
     },
-    [syncScrollState, watchReveal],
+    [scheduleSync, watchReveal],
   )
 
   /*
@@ -339,21 +386,27 @@ export function AgentActivityFeed({
   const items = virtualizer.getVirtualItems()
 
   /*
-   * 每一次布局之后,唯一的那次几何读取。
+   * 区间表是渲染的产物,不是几何的产物。
    *
-   * 三件事按依赖顺序排,用早返回表达"上一步还没定,这一轮不作数":
+   * 它每次渲染都要更新 —— 虚拟器铺出来的区间就是这一帧的事实 —— 但这里一个
+   * 布局量都不读,所以它不再拖着一次强制回流。
+   */
+  useLayoutEffect(() => {
+    spansRef.current = items
+  })
+
+  /*
+   * 画布偏移只在它真的会变的时候量。
    *
-   *   1. 画布偏移。它是虚拟器全部偏移的基准,基准不对,下面两步算什么都没意义。
-   *      写回 state 会引起一次重渲染,而布局效应里的 setState 是在绘制之前
-   *      同步冲刷的,所以人看不到中间态。
-   *   2. 区间表。基准对了,虚拟器给出的位置才可用。
-   *   3. 开场定位,或者位置同步。开场那一次必须排在基准之后 —— 这正是它以前
-   *      出错的地方:它当时是一个独立的 [virtualizer] 效应,必然在首帧、也就是
-   *      scrollMargin 还是 0 的时候跑。
+   * 此前这次 offsetTop 挂在一个无依赖的布局效应里:每一次渲染强制一次同步
+   * 布局,紧接着 syncScrollState 又读三个几何量再写三个 state —— 流式输出每
+   * 个 token 一次渲染,那就是每个 token 两次强制回流加一轮额外重渲染。而偏移
+   * 由滚动区的内边距与页眉决定,与转录长度无关:它变,只可能是因为容器变了,
+   * 而容器变了下面那个 ResizeObserver 会说。
    *
-   * 不会自激:画布偏移由滚动区的内边距与页眉决定,与画布自身的高度无关
-   * (样式里 flex: none),所以写回 scrollMargin 不会反过来改变 offsetTop;
-   * 另外两个写入都由 React 的等值短路兜底。
+   * 开场定位仍然排在偏移之后 —— 基准不对,scrollToEnd 就差一个偏移 —— 并且
+   * 多了一个条件:表里得有东西。此前它在首帧就把 opened 置真,于是从列表打开
+   * 一段既存对话时,那一次 scrollToEnd 落在空表上,而它再也不会重来。
    */
   useLayoutEffect(() => {
     const viewport = viewportRef.current
@@ -371,17 +424,39 @@ export function AgentActivityFeed({
       return
     }
 
-    spansRef.current = items
-
-    if (!opened.current) {
-      opened.current = true
-      virtualizer.scrollToEnd()
-
+    if (opened.current || items.length === 0) {
       return
     }
 
-    syncScrollState(viewport)
-  })
+    opened.current = true
+    virtualizer.scrollToEnd()
+  }, [items.length, scrollMargin, virtualizer])
+
+  /*
+   * 尺寸变了,同一个滚动位置就对应到另一行上。
+   *
+   * 流式输出把行撑高、面板被拖窄、抽屉展开 —— 三者都改变几何,都不产生滚动
+   * 事件。此前靠"每次渲染后重读一遍"覆盖,那是用一次强制回流去换一个通知;
+   * ResizeObserver 就是这个通知的官方形态,而且它连不经过 React 的尺寸变化
+   * (图片解码完成、字体换页)也一并覆盖。
+   */
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current
+    const canvas = canvasRef.current
+
+    if (viewport === null || canvas === null) {
+      return
+    }
+
+    const observer = new ResizeObserver(scheduleSync)
+
+    observer.observe(viewport)
+    observer.observe(canvas)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [scheduleSync])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。

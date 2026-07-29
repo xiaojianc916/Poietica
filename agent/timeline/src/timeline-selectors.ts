@@ -96,7 +96,7 @@ export interface ConversationTurn {
   readonly reply?: string
 }
 
-/* poietica:turn-identity@v17 */
+/* poietica:turn-identity@v18 */
 
 /** 一次收集的产物:提出这一轮的那一行,加上它的位置与标题。 */
 interface StagedTurn {
@@ -147,10 +147,15 @@ function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn 
  * 浅比较照样落空。内容一致就把上一次那个数组原样还回去 —— reselect 一类库
  * 管这叫 last-result 记忆,这里没必要为它引一个库。
  *
- * 只记一份。两段会话交替读取会互相冲掉对方的缓存,那时退化成今天的行为:不会
- * 算错,只是不再省。真出现多会话同屏,再按会话分桶。
+ * 但记忆不能是一份模块单例。这个文件开头写着 Pure derivations only,而一个
+ * 跨调用可变的模块变量恰好是它的反面:两段会话同屏时互相冲掉对方的缓存,
+ * 上一版注释里那句"真出现多会话同屏,再按会话分桶"就是承认了这件事。
+ *
+ * 所以按对话身份分桶,键取首行的条目 —— 一条对话的开头在它整个生命里都是
+ * 同一个对象,而向上回填历史会换掉它,那时正该重建一次。弱引用,所以一段会话
+ * 被丢掉,它的记忆跟着一起走。
  */
-let previous: readonly ConversationTurn[] = []
+const LAST_TURNS = new WeakMap<TimelineItem, readonly ConversationTurn[]>()
 
 function sameTurns(left: readonly ConversationTurn[], right: readonly ConversationTurn[]): boolean {
   return left.length === right.length && left.every((turn, index) => turn === right[index])
@@ -209,11 +214,19 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
     return toTurn(entry, reply)
   })
 
-  if (sameTurns(previous, built)) {
-    return previous
+  const anchor = rows[0]?.item
+
+  if (anchor === undefined) {
+    return built
   }
 
-  previous = built
+  const held = LAST_TURNS.get(anchor)
+
+  if (held !== undefined && sameTurns(held, built)) {
+    return held
+  }
+
+  LAST_TURNS.set(anchor, built)
 
   return built
 }
