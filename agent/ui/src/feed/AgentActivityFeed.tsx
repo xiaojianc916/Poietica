@@ -3,6 +3,10 @@ import './agent-activity-feed.css'
 import type { FeedRow } from '@poietica/agent-timeline'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { type RowSpan, rowAtAnchor } from './reading-position'
+import { useRevealIntent } from './use-reveal-intent'
+
+/* poietica:conversation-minimap-jump@v11 */
 
 /**
  * 各类条目的首屏估高。
@@ -36,6 +40,15 @@ const BOTTOM_THRESHOLD_PX = 48
 const OVERSCAN_ROWS = 6
 
 /**
+ * 视线在视口里的位置,自上而下的比例。
+ *
+ * 高亮问的是"人在读哪一轮",而不是"哪一行碰到了视口上沿"。上沿是一条
+ * 边,上一轮的残留一个像素就会占住它;三分之一处是人真正在看的地方,
+ * 越界时机因此与阅读感知一致,而不与像素巧合一致。
+ */
+const READING_ANCHOR_RATIO = 1 / 3
+
+/**
  * 会话流的滚动区。
  *
  * 一列三段:滚动区装会滚的东西(开场白与对话),输入框是它的兄弟而不是粘在
@@ -46,9 +59,13 @@ const OVERSCAN_ROWS = 6
  * 存在的理由,不该在产品代码里复刻。浏览器原生的滚动锚定因此在样式里显式
  * 关闭:两个纠正者对同一次尺寸变化各补偿一次,位移就会翻倍。
  *
- * 本组件不做任何几何计算。唯一的量是画布相对滚动区的偏移,它由 offsetTop
- * 一次读出并存在 ref 里:这个值是虚拟器全部偏移的基准,让它进 state,开场白
- * 那段 flex-grow 动画的每一帧都会重渲染整条对话并挪动基准本身。
+ * 本组件不做任何几何计算 —— 除了两个派生量,而它们共用一次读取:人是不是
+ * 贴在末端,以及视线落在哪一行。两者都只是读现成的滚动量,都只在翻转时进
+ * state,都挂在同一个 scroll 监听上。不引第二个位置来源。
+ *
+ * 唯一的量是画布相对滚动区的偏移,它由 offsetTop 一次读出并存在 ref 里:
+ * 这个值是虚拟器全部偏移的基准,让它进 state,开场白那段 flex-grow 动画的
+ * 每一帧都会重渲染整条对话并挪动基准本身。
  *
  * 它不认识条目类型 —— 除了估高。条目从渲染插槽进来,所以思考链与工具卡片的
  * 演化不触碰滚动。
@@ -60,7 +77,7 @@ const OVERSCAN_ROWS = 6
  * 行号,不是像素。浮层永远不该自己去量一行在哪。
  */
 export interface FeedPort {
-  /** 滚动区里最靠上的那一行。 */
+  /** 人正在读的那一行;跳转期间是人要求看的那一行。 */
   readonly activeRow: number
   readonly scrollToRow: (index: number) => void
 }
@@ -111,10 +128,45 @@ export function AgentActivityFeed({
    */
   const [isPinnedToEnd, setIsPinnedToEnd] = useState(true)
 
-  const syncPinnedToEnd = useCallback((viewport: HTMLDivElement) => {
+  /*
+   * 视线落在哪一行。
+   *
+   * null 是"还没读到过",不是"第 0 行"。首帧的布局效果会把视口送到末尾,
+   * 那一帧还没有任何 scroll 事件发生过,若此时谎称 0,缩略导航会先高亮第一
+   * 轮再跳到最后一轮 —— 开场那一下闪跳就是这么来的。
+   */
+  const [readingRow, setReadingRow] = useState<number | null>(null)
+
+  const { row: revealRow, begin: beginReveal, watch: watchReveal } = useRevealIntent()
+
+  /*
+   * 虚拟器此刻铺出来的区间表。
+   *
+   * scroll 监听要用它做二分,而监听装在 ref 回调里、装载时虚拟器还不存在,
+   * 所以在每次渲染之后把表放进 ref。渲染期间不写 ref:渲染要保持是纯的。
+   *
+   * 表比事件滞后至多一帧,而这不影响判据:视线跨过行边界的时候,那两行都
+   * 已经在表里了。
+   */
+  const spansRef = useRef<readonly RowSpan[]>([])
+
+  /*
+   * 一次读取,两个派生量。
+   *
+   * 贴底与视线是同一次滚动的两个侧面,合在一个回调里意味着一次滚动只读一
+   * 次几何。分开写会读两次,还会让两个真源在时间上错开。
+   */
+  const syncScrollState = useCallback((viewport: HTMLDivElement) => {
     const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
 
     setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
+
+    const anchor = viewport.scrollTop + viewport.clientHeight * READING_ANCHOR_RATIO
+    const row = rowAtAnchor(spansRef.current, anchor)
+
+    if (row !== null) {
+      setReadingRow((held) => (held === row ? held : row))
+    }
   }, [])
 
   /*
@@ -128,6 +180,9 @@ export function AgentActivityFeed({
    * 所以监听挂在元素上,由 ref 回调负责装卸:内层滚动在事件层就到不了这里,不需要
    * 任何 target 比对 —— 比对是让错误先进门再赶出去,而这里可以让它根本进不来。
    * passive:读一个已有的几何量,永远不该让滚动等我们。
+   *
+   * 跳转闩锁的解闩也装在这里。它听的是输入设备事件,与滚动同源、同寿、同一个
+   * 装卸点 —— 一个滚动区,一处装卸,没有第二条生命周期要维护。
    */
   const bindViewport = useCallback(
     (viewport: HTMLDivElement | null) => {
@@ -138,17 +193,20 @@ export function AgentActivityFeed({
       }
 
       const handleScroll = () => {
-        syncPinnedToEnd(viewport)
+        syncScrollState(viewport)
       }
 
       viewport.addEventListener('scroll', handleScroll, { passive: true })
 
+      const unwatch = watchReveal(viewport)
+
       return () => {
         viewport.removeEventListener('scroll', handleScroll)
+        unwatch()
         viewportRef.current = null
       }
     },
-    [syncPinnedToEnd],
+    [syncScrollState, watchReveal],
   )
 
   const canvasRef = useRef<HTMLDivElement | null>(null)
@@ -166,6 +224,19 @@ export function AgentActivityFeed({
   useLayoutEffect(() => {
     scrollMarginRef.current = canvasRef.current?.offsetTop ?? 0
   })
+
+  /*
+   * 一次主动跳转期间,末端不再是家。
+   *
+   * anchorTo 与 followOnAppend 原本只看"忙不忙"和"贴没贴底",跳转不在它们
+   * 的判据里 —— 于是流式输出时点开上面某一轮,会同时挨两下:末端反推让落点
+   * 随每一次吐字整体位移,追随又把视口拽回最新一条。两者都在做正确的事,只是
+   * 没人告诉它们人已经走开了。
+   *
+   * 所以把"人已经走开了"变成一个显式的事实,让它排在前面。这不是兼容层,是
+   * 优先级:导航是人下的指令,自动跟随是默认行为,指令高于默认。
+   */
+  const revealing = revealRow !== null
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -195,12 +266,16 @@ export function AgentActivityFeed({
      * 它下面的内容，偏移从顶部量起、原本就不变，被展开的那一行天然留在原地。
      * 没有错误发生，也就没有任何需要纠正的东西 —— 补偿本身就是那道抖动。
      *
+     * 跳转也归入 start,而且优先于末端:落点之上的行此后才被真正测量,估高与
+     * 真高的全部落差都会在那里结算。从顶部量起,这些落差发生在视口之外;从末端
+     * 反推,它们会推着落点走 —— 那就是"跳过去之后又滑一下"。
+     *
      * 历史回填仍然安全：它只发生在人向上读的时候，而那时增长在视口之上，由
      * 稳定的 getItemKey 认回同一条并保持它的视觉位置。
      */
-    anchorTo: isBusy && isPinnedToEnd ? 'end' : 'start',
-    /* 只在用户本来就在看最新一条时跟随;读历史的人不该被拽走。 */
-    followOnAppend: true,
+    anchorTo: !revealing && isBusy && isPinnedToEnd ? 'end' : 'start',
+    /* 人正在别处看的时候,新消息不夺取视口。 */
+    followOnAppend: !revealing,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
     overscan: OVERSCAN_ROWS,
   })
@@ -210,15 +285,42 @@ export function AgentActivityFeed({
     virtualizer.scrollToEnd()
   }, [virtualizer])
 
+  /*
+   * 跳转是瞬移,而且必须是瞬移。
+   *
+   * 平滑滚动在这里不是一个体验选项:行是动态测量的(下面的 measureElement),
+   * 而平滑滚动要求目标偏移在一段动画期间保持不变 —— 途中每挂载一行,估高就
+   * 被真高替换一次,总高度与偏移随之改变,目标自己跑掉了。这也正是虚拟化的
+   * 收益所在:瞬移只挂载落点周围的十来行,与会话多长无关;而平滑滚动会让滚动
+   * 位置连续经过中间每一个像素,于是中间每一行都要挂载、测量、卸载一遍 ——
+   * 那等于把整条会话读了一遍,长会话上这是唯一真正的性能悬崖。
+   *
+   * 落点的稳定不靠动画去掩饰,靠 anchorTo: 'start' 去保证;高亮的连续不靠
+   * 动画去补,靠闩锁去锁。
+   */
   const scrollToRow = useCallback(
     (index: number) => {
+      beginReveal(index)
       virtualizer.scrollToIndex(index, { align: 'start' })
     },
-    [virtualizer],
+    [beginReveal, virtualizer],
   )
 
   const items = virtualizer.getVirtualItems()
   const scrollMargin = virtualizer.options.scrollMargin
+
+  useLayoutEffect(() => {
+    spansRef.current = items
+  })
+
+  /*
+   * 高亮的真源,按优先级排。
+   *
+   * 人刚要求看的那一轮最权威;其次是视线推出来的那一行;两者都还没有的那一
+   * 帧 —— 只有首帧 —— 是末尾,因为上面的布局效果刚把视口送到那里。原先这里
+   * 写 0,于是开场必然先亮第一轮再跳到最后一轮。
+   */
+  const activeRow = revealRow ?? readingRow ?? Math.max(0, rows.length - 1)
 
   return (
     <div className="agent-activity-feed" data-scrollbar-track>
@@ -260,9 +362,7 @@ export function AgentActivityFeed({
 
       {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
 
-      {overlay === undefined
-        ? null
-        : overlay({ activeRow: virtualizer.range?.startIndex ?? 0, scrollToRow })}
+      {overlay === undefined ? null : overlay({ activeRow, scrollToRow })}
     </div>
   )
 }

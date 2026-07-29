@@ -84,7 +84,7 @@
  * is exactly one; the aimed turn is derived from the pointer and there is at
  * most one; it wins, because it is the thing under the hand.
  */
-.conversation-minimap__turn[aria-current="true"] .conversation-minimap__bar {
+.conversation-minimap__turn[aria-current] .conversation-minimap__bar {
   background: var(--cp-rail-ink-active);
 }
 
