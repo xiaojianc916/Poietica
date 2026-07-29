@@ -52,12 +52,6 @@ export function createAgentConfigBridge(): AgentConfigBridge {
         defaultAgentId,
       }),
 
-    saveCatalog: (catalog, fetchedAt) =>
-      invoke<AgentConfigSnapshot>('agent_config_save_catalog', {
-        catalog,
-        fetchedAt,
-      }),
-
     clearLegacyProviders: () => invoke<AgentConfigSnapshot>('agent_config_clear_legacy_providers'),
 
     execCli: (request) => invoke<AgentCliResult>('agent_cli_exec', { request }),

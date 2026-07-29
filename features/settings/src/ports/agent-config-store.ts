@@ -61,10 +61,6 @@ export interface AgentConfigStore {
     readonly agents: readonly AcpAgentProfile[]
     readonly defaultAgentId: string
   }) => Promise<AgentConfigSnapshot>
-  readonly saveCatalog: (args: {
-    readonly catalog: unknown
-    readonly fetchedAt: string
-  }) => Promise<AgentConfigSnapshot>
   /*
    * setSecret、clearSecret 与 migrateSecret 曾在这里。三者都在维护一份我们保
    * 护不了的副本 —— 理由见上面那段。migrateSecret 更是把钥匙串的旧账户名搬到

@@ -28,10 +28,6 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
       return fromDto(await bridge.saveAgents(agents, defaultAgentId))
     },
 
-    async saveCatalog({ catalog, fetchedAt }) {
-      return fromDto(await bridge.saveCatalog(catalog, fetchedAt))
-    },
-
     async clearLegacyProviders() {
       return fromDto(await bridge.clearLegacyProviders())
     },
