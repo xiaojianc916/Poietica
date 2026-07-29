@@ -14,11 +14,19 @@
  * 暗色下不会从 16% 加深到 40%，浮层会糊进背景 —— Dialog 一直写的是
  * shadow-[var(--ui-shadow-xl)]，走的是令牌，此处与它对齐。
  */
+/*
+ * round 104：菜单在哪里打开都是同一个菜单。
+ *
+ * 圆角 8px 而不是 rounded-md（10px 级）：10px 是卡片圆角，落在 28px 的行上
+ * 读起来是气泡。阴影换成三层紧阴影，扩散半径从 --ui-shadow-lg 的"浮起一张
+ * 卡"收到"控件展开了一层"。两组值与编排器菜单（--am-radius / --am-shadow）
+ * 同数，等到主题层收口时再合并成一处声明。
+ */
 export const popupSurfaceClassName = [
   'overflow-hidden',
-  'rounded-md border border-divider',
+  'rounded-[8px] border border-divider',
   'bg-popover text-popover-foreground',
-  'shadow-[var(--ui-shadow-lg)]',
+  'shadow-[0_0_0_0.5px_color-mix(in_srgb,var(--ui-foreground)_4%,transparent),0_1px_2px_color-mix(in_srgb,var(--ui-foreground)_6%,transparent),0_8px_24px_-8px_color-mix(in_srgb,var(--ui-foreground)_18%,transparent)]',
   'outline-none',
   'origin-[var(--transform-origin)]',
   'transition-[transform,scale,opacity]',

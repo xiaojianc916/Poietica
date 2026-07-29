@@ -853,7 +853,8 @@ function SettingsSelect<TValue extends string>({
     >
       <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger" tone="plain" />
 
-      <SelectContent>
+      {/* 值是右对齐的（.settings-row__control），菜单也从同一条边长出来。 */}
+      <SelectContent align="end">
         <SelectList>
           <SelectGroup>
             {options.map(([optionValue, label]) => (

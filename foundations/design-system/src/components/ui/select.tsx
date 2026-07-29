@@ -1,5 +1,5 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
-import { Check, ChevronsUpDown } from '@mynaui/icons-react'
+import { Check, ChevronDown } from '@mynaui/icons-react'
 import {
   type ComponentPropsWithoutRef,
   createContext,
@@ -137,7 +137,17 @@ const TRIGGER_ICON: Record<SelectTriggerSize, string> = {
  * 字号与文案长度变化后不会更新，首帧还得先猜一个 200。
  */
 const POPUP_MIN_INLINE_SIZE = '168px'
-const POPUP_MAX_INLINE_SIZE = '320px'
+
+/*
+ * 上限跟着档位走，不是一个通用数。
+ *
+ * sm 档的 220px 与设置页 .settings-select-trigger 的上限同数：面板的水平范围
+ * 由锚点决定，不由内容随意撑开，否则勾号被推到很远，和标签之间空出一大片。
+ */
+const POPUP_MAX_INLINE_SIZE: Record<SelectTriggerSize, string> = {
+  sm: '220px',
+  md: '320px',
+}
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   function SelectTrigger({ children, className, tone = 'outline', ...props }, forwardedRef) {
@@ -169,8 +179,13 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
               {selectedItem?.label ?? `选择${type}…`}
             </span>
 
+            {/*
+              ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
+              走"，那是 combobox / 步进器的记号（见 combobox.tsx）。这里是有限
+              离散值的弹出菜单，说的是"下面会展开一张列表"。
+            */}
             <BaseSelect.Icon>
-              <ChevronsUpDown
+              <ChevronDown
                 aria-hidden="true"
                 className={cn(TRIGGER_ICON[size], 'shrink-0', 'text-muted-foreground')}
               />
@@ -182,16 +197,23 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   },
 )
 
-export type SelectContentProps = ComponentPropsWithoutRef<typeof BaseSelect.Popup>
+/** 面板沿触发器的哪一条边展开。值右对齐的行用 end，与触发器同一条边。 */
+export type SelectContentAlign = 'start' | 'end'
+
+export type SelectContentProps = ComponentPropsWithoutRef<typeof BaseSelect.Popup> & {
+  readonly align?: SelectContentAlign
+}
 
 export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(function SelectContent(
-  { className, style, ...props },
+  { align = 'start', className, style, ...props },
   ref,
 ) {
+  const { size } = useSelectContext()
+
   return (
     <BaseSelect.Portal>
       <BaseSelect.Positioner
-        align="start"
+        align={align}
         alignItemWithTrigger={false}
         className={popupPositionerClassName}
         sideOffset={4}
@@ -201,7 +223,7 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
           ref={ref}
           style={{
             minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
-            maxInlineSize: POPUP_MAX_INLINE_SIZE,
+            maxInlineSize: POPUP_MAX_INLINE_SIZE[size],
             ...style,
           }}
           {...props}
@@ -245,9 +267,19 @@ export type SelectItemProps = Omit<ComponentPropsWithoutRef<typeof BaseSelect.It
   readonly value: string
 }
 
+/*
+ * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
+ * sm 档的 28px / 12px 与编排器菜单同值。
+ */
 const ITEM_SIZE: Record<SelectTriggerSize, string> = {
-  sm: 'min-h-8 px-2 py-1 text-xs',
+  sm: 'min-h-7 px-2 text-xs',
   md: 'min-h-9 px-2 py-1.5 text-sm',
+}
+
+/* 行圆角比面板圆角小一档，且都不用卡片圆角。 */
+const ITEM_SHAPE: Record<SelectTriggerSize, string> = {
+  sm: 'rounded-[5px]',
+  md: 'rounded-sm',
 }
 
 export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function SelectItem(
@@ -263,11 +295,16 @@ export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function S
         ITEM_SIZE[size],
         'cursor-default select-none',
         'items-center gap-2',
-        'rounded-sm',
+        ITEM_SHAPE[size],
         'outline-none',
         'transition-colors',
-        'data-[highlighted]:bg-accent',
-        'data-[highlighted]:text-accent-foreground',
+        /*
+         * 高亮是中性的：勾号说"当前生效的值"，高亮说"指针或键盘现在指着谁"。
+         * 用 --ui-accent 去画一个瞬时指向，等于给临时状态派了个语义色，而它
+         * 还是命令面板与菜单的全局强调色，改动波及整个应用。
+         */
+        'data-[highlighted]:bg-[var(--ui-sidebar-accent)]',
+        'data-[highlighted]:text-[var(--ui-foreground)]',
         'data-[disabled]:pointer-events-none',
         'data-[disabled]:opacity-50',
         className,

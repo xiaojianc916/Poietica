@@ -231,7 +231,14 @@
   justify-content: flex-end;
 }
 
-/* 触发器高度与字号来自 size="sm"，这里只限制宽度上限。 */
+/*
+ * 触发器高度与字号来自 size="sm"，这里只限制宽度上限。
+ *
+ * 弹出面板一条都不写在这里，而且写了也不生效：面板经 BaseSelect.Portal 渲染在
+ * body 下，本表的 --settings-* 不会级联到它。面板的圆角、内距、行高、行圆角与
+ * 高亮色随 size="sm" 从 design-system 的 popup-surface / select 一处取值 ——
+ * 菜单在哪里打开都是同一个菜单。使用方只有两个旋钮：size 与 align。
+ */
 .settings-select-trigger {
   max-inline-size: 220px;
 }
