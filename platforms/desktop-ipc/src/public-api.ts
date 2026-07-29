@@ -19,11 +19,9 @@ export {
   createAgentThreadBridge,
   shutdownAgent,
 } from './agent'
-export {
-  type AgentConfigBridge,
-  type AgentConfigSnapshot,
-  createAgentConfigBridge,
-  type ProviderSecretState,
+export type {
+  AgentConfigSnapshot,
+  ProviderSecretState,
 } from './agent-config'
 export {
   type IpcError,

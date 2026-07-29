@@ -148,8 +148,8 @@ interface ThreadRowProps {
   readonly onBeginRename: (threadId: string) => void
   readonly onCommitRename: (threadId: string, title: string) => void
   readonly onCancelRename: () => void
-  readonly onDelete?: (threadId: string) => void
-  readonly onOpenInNewTab?: (threadId: string) => void
+  readonly onDelete?: ((threadId: string) => void) | undefined
+  readonly onOpenInNewTab?: ((threadId: string) => void) | undefined
 }
 
 /*
