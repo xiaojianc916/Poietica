@@ -96,6 +96,66 @@ export interface ConversationTurn {
   readonly reply?: string
 }
 
+/* poietica:turn-identity@v17 */
+
+/** 一次收集的产物:提出这一轮的那一行,加上它的位置与标题。 */
+interface StagedTurn {
+  readonly row: FeedRow
+  readonly id: TimelineItemId
+  readonly rowIndex: number
+  readonly label: string
+}
+
+/*
+ * 一轮的身份,和提出它的那一行一样长寿。
+ *
+ * 这是上面 toRow 的同一招,用在下一层。流式输出时 reducer 每帧换掉末尾那一条,
+ * buildFeedRows 的 map 于是每帧产出一个新数组 —— 里面的元素几乎全是复用的,
+ * 但数组本身是新的,而 TURNS 以数组为键,所以每帧必然落空、必然重建全部 N 个
+ * 轮次对象。下游那个 memo 过的缩略导航因此在整段流式期间形同虚设。
+ *
+ * 复用条件只看 rowIndex 和 reply。id 与 label 都是这一行自己的函数,而行就是
+ * 键 —— 键相同,它们不可能不同,比较它们只是自我安慰。
+ */
+const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
+
+function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn {
+  const held = TURN_OF.get(entry.row)
+
+  if (held !== undefined && held.rowIndex === entry.rowIndex && held.reply === reply) {
+    return held
+  }
+
+  /*
+   * exactOptionalPropertyTypes 打开时,reply?: string 不接受显式的 undefined,
+   * 所以按有无分两支构造,而不是写成 { ..., reply } 一了百了。
+   */
+  const turn: ConversationTurn =
+    reply === undefined
+      ? { id: entry.id, label: entry.label, rowIndex: entry.rowIndex }
+      : { id: entry.id, label: entry.label, reply, rowIndex: entry.rowIndex }
+
+  TURN_OF.set(entry.row, turn)
+
+  return turn
+}
+
+/*
+ * 上一次的结果,用来保住数组本身的引用。
+ *
+ * 逐个复用还不够:哪怕 N 个元素全是旧对象,map 出来的仍是一个新数组,下游的
+ * 浅比较照样落空。内容一致就把上一次那个数组原样还回去 —— reselect 一类库
+ * 管这叫 last-result 记忆,这里没必要为它引一个库。
+ *
+ * 只记一份。两段会话交替读取会互相冲掉对方的缓存,那时退化成今天的行为:不会
+ * 算错,只是不再省。真出现多会话同屏,再按会话分桶。
+ */
+let previous: readonly ConversationTurn[] = []
+
+function sameTurns(left: readonly ConversationTurn[], right: readonly ConversationTurn[]): boolean {
+  return left.length === right.length && left.every((turn, index) => turn === right[index])
+}
+
 const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
 
 export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
@@ -118,15 +178,11 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
    * The result is a plain mutable staging array; the readonly ConversationTurn
    * objects are built in the second pass once reply text is known.
    */
-  const staged: Array<{
-    id: TimelineItemId
-    rowIndex: number
-    label: string
-  }> = []
+  const staged: StagedTurn[] = []
 
   rows.forEach((row, rowIndex) => {
     if (row.item.type === 'user_message') {
-      staged.push({ id: row.item.id, label: firstLine(row.item.text), rowIndex })
+      staged.push({ id: row.item.id, label: firstLine(row.item.text), row, rowIndex })
     }
   })
 
@@ -137,24 +193,29 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
    * The scan is bounded by the next turn's rowIndex, so each chunk is assigned
    * to exactly one turn and the loop is O(n) over the feed in total.
    */
-  return staged.map((entry, turnIndex) => {
+  const built = staged.map((entry, turnIndex) => {
     const until = staged[turnIndex + 1]?.rowIndex ?? rows.length
-    const turn: ConversationTurn = {
-      id: entry.id,
-      rowIndex: entry.rowIndex,
-      label: entry.label,
-    }
+    let reply: string | undefined
 
     for (let index = entry.rowIndex + 1; index < until; index += 1) {
       const row = rows[index]
 
       if (row !== undefined && row.item.type === 'agent_text' && row.item.text.length > 0) {
-        return { ...turn, reply: row.item.text.slice(0, 300) }
+        reply = row.item.text.slice(0, 300)
+        break
       }
     }
 
-    return turn
+    return toTurn(entry, reply)
   })
+
+  if (sameTurns(previous, built)) {
+    return previous
+  }
+
+  previous = built
+
+  return built
 }
 
 function firstLine(text: string): string {
