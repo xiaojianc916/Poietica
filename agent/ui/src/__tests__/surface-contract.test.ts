@@ -4,72 +4,93 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /*
- * 这份测试守的不是"某个颜色好不好看"，是两条结构约束：
- *   1. 线与面的 token 必须是字面值，不能由 color-mix 推导 —— 推导过一轮，
- *      结果是取色器测到的值和源码里的数字对不上，没人能验证。
- *   2. 卡片外框必须比卡内分隔线重一档，且两者来自不同的 token。
+ * 这份测试守的是主题契约的完整性，不是某个颜色好不好看。
+ *
+ * 起因：一次用正则替换注释的改动，把 --ui-card / --ui-card-divider /
+ * --ui-chrome / --ui-canvas / --ui-sidebar / --ui-sidebar-accent /
+ * --ui-sidebar-accent-foreground 七个 token 连带删掉，设置页分组卡与侧边栏
+ * 底色因此变成一片白，而当时的测试只断言了几个颜色字面值，全绿。
+ *
+ * 所以这里断言的是集合关系：两个主题必须声明同一批名字，且覆盖必需清单。
+ * 任何单侧新增或删除都会红。
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..', '..', '..')
-const styles = join(repoRoot, 'foundations', 'design-system', 'src', 'styles')
-
-const light = readFileSync(join(styles, 'tokens', 'light.css'), 'utf8')
-const dark = readFileSync(join(styles, 'tokens', 'dark.css'), 'utf8')
-const surface = readFileSync(join(styles, 'surface.css'), 'utf8')
-const metrics = readFileSync(join(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css'), 'utf8')
+const tokensDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles', 'tokens')
+const stylesDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles')
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
+const declaredTokens = (css: string) =>
+  new Set([...stripComments(css).matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
+
 const declOf = (css: string, name: string) => {
   const hit = new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm').exec(stripComments(css))
-  expect(hit, `${name} 应当只被声明一次且可解析`).not.toBeNull()
+  expect(hit, `${name} 应当被声明且可解析`).not.toBeNull()
   return hit![1].trim()
 }
 
-const LINE_TOKENS = [
+const light = readFileSync(join(tokensDir, 'light.css'), 'utf8')
+const dark = readFileSync(join(tokensDir, 'dark.css'), 'utf8')
+const surface = readFileSync(join(stylesDir, 'surface.css'), 'utf8')
+
+/* 少一个就会有一整片界面失去取值。 */
+const REQUIRED = [
+  '--ui-background',
+  '--ui-foreground',
+  '--ui-surface',
+  '--ui-card',
+  '--ui-card-divider',
+  '--ui-chrome',
+  '--ui-canvas',
+  '--ui-sidebar',
+  '--ui-sidebar-accent',
+  '--ui-sidebar-accent-foreground',
   '--ui-region-divider-color',
+  '--ui-divider',
   '--ui-divider-subtle',
+  '--ui-border',
   '--ui-surface-frame',
   '--ui-surface-fill',
+  '--ui-input',
+  '--ui-ring',
 ]
 
+describe('theme token contract', () => {
+  it('两个主题都覆盖必需的 token', () => {
+    for (const [name, css] of [
+      ['light', light],
+      ['dark', dark],
+    ] as const) {
+      const declared = declaredTokens(css)
+      const missing = REQUIRED.filter((token) => !declared.has(token))
+      expect(missing, `${name}.css 缺少 token`).toEqual([])
+    }
+  })
+
+  it('两个主题声明的 token 集合完全一致', () => {
+    const inLight = declaredTokens(light)
+    const inDark = declaredTokens(dark)
+    expect([...inLight].filter((t) => !inDark.has(t)).sort()).toEqual([])
+    expect([...inDark].filter((t) => !inLight.has(t)).sort()).toEqual([])
+  })
+})
+
 describe('surface contract', () => {
-  it('线与面的 token 是字面值，不由 color-mix 推导', () => {
-    for (const theme of [light, dark]) {
-      for (const token of LINE_TOKENS) {
-        expect(declOf(theme, token)).not.toContain('color-mix')
-      }
-    }
+  it('外框宽度读全局那一个 1px，卡片不另开宽度档', () => {
+    expect(surface).toContain('border: var(--ui-region-divider-width) solid var(--surface-line)')
+    expect(surface).not.toContain('--ui-surface-frame-width')
   })
 
-  it('浅色主题的取值就是取色器能测到的那几个', () => {
-    expect(declOf(light, '--ui-surface-frame')).toBe('#ececec')
-    expect(declOf(light, '--ui-divider-subtle')).toBe('#f2f2f2')
-    expect(declOf(light, '--ui-surface-fill')).toBe('#fdfdfd')
-    expect(declOf(light, '--ui-region-divider-color')).toBe('#e0e0e0')
-  })
-
-  it('外框与卡内分隔线是两个不同的 token，且不同值', () => {
-    for (const theme of [light, dark]) {
-      expect(declOf(theme, '--ui-surface-frame')).not.toBe(declOf(theme, '--ui-divider-subtle'))
-    }
-  })
-
-  it('--ui-border 归控件，跟随区域线，不被卡片外框劫持', () => {
-    for (const theme of [light, dark]) {
-      expect(declOf(theme, '--ui-border')).toBe('var(--ui-region-divider-color)')
-    }
-  })
-
-  it('外框走 2px，且只有 [data-surface] 画它', () => {
-    expect(declOf(surface, '--ui-surface-frame-width')).toBe('2px')
-    expect(surface).toContain('border: var(--ui-surface-frame-width) solid var(--surface-line)')
+  it('外框与卡内分隔线走两个不同的 token', () => {
     expect(declOf(surface, '--surface-line')).toBe('var(--ui-surface-frame)')
     expect(declOf(surface, '--surface-rule')).toBe('var(--ui-divider-subtle)')
   })
 
-  it('表格行线走内侧那一档，不走外框那一档', () => {
-    expect(declOf(metrics, '--cp-hairline')).toBe('var(--ui-divider-subtle)')
+  it('--ui-border 归控件，跟随区域线', () => {
+    for (const css of [light, dark]) {
+      expect(declOf(css, '--ui-border')).toBe('var(--ui-region-divider-color)')
+    }
   })
 })

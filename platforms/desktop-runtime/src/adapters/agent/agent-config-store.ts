@@ -1,4 +1,8 @@
-import { parseAcpAgentProfileSet } from '@poietica/agent-registry'
+import {
+  builtinAcpAgentProfiles,
+  defaultAcpAgent,
+  parseAcpAgentProfileSet,
+} from '@poietica/agent-registry'
 import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/features-settings'
 import {
   type AgentConfigSnapshot as AgentConfigSnapshotDto,
@@ -21,7 +25,23 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
 
   return {
     async load() {
-      return fromDto(await bridge.load())
+      const dto = await bridge.load()
+
+      /*
+       * 磁盘上一条档案都没有 —— 那就把内置档案真的写下去，而不是在内存里假装有。
+       *
+       * parseAcpAgentProfileSet 的回退只活在这一次渲染里：渲染层于是看得见 kimi，
+       * 而 agents.json 仍然是空的，原生侧的 agent_program 与 launch_env 读的是那个
+       * 空文件。两个真相里只有一个能起进程，另一个只能让界面报错。
+       *
+       * 判据是 dto.agents.length === 0，而不是「解析后为空」：一份被手改坏的档案也
+       * 会解析成空，覆盖过去等于替用户删文件。
+       */
+      if (dto.agents.length === 0) {
+        return fromDto(await bridge.saveAgents(builtinAcpAgentProfiles(), defaultAcpAgent().id))
+      }
+
+      return fromDto(dto)
     },
 
     async saveAgents({ agents, defaultAgentId }) {

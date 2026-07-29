@@ -50,6 +50,15 @@ export function createApplicationRuntime({
   const mainWindow = createMainWindowController()
   const settings = createDesktopSettingsStore()
   const agentConfig = createDesktopAgentConfigStore()
+
+  /*
+   * Read the agent profiles once at startup. That first read is what writes the
+   * builtin profiles to agents.json when the file is still empty, and the native
+   * side looks up both the program to spawn and its environment in that file.
+   * The assistant reaches that path without ever opening the settings page, so
+   * seeding only from there would leave it reading an empty file.
+   */
+  void agentConfig.load().catch(() => undefined)
   const editorSessions = createEditorSessionRegistry(createNativeTLAssetStoreSession)
 
   const documents = createCanvasDocumentService({

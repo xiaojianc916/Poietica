@@ -2,7 +2,6 @@ import {
   type AcpAgentProfile,
   type AgentModelState,
   acpAgents,
-  builtinAcpAgentProfiles,
   defaultAcpAgent,
 } from '@poietica/agent-registry'
 import {
@@ -196,21 +195,24 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * 让下拉干等一次往返只会显得迟钝。回滚用的是点击前的那个值，而不是「默认值」——
    * 否则一次失败会把用户先前的选择也一并抹掉。
    *
-   * 档案为空时补一份内置档案：首次写入要让 agents.json 里真的有东西，否则存进去
-   * 一个空名单，读回来又被回退逻辑换成内置的，落盘等于没发生。
+   * 档案一定不为空：store.load() 在磁盘为空时已经把内置档案写进 agents.json 了，
+   * 所以这里没有「补一份内置的」这一步。真的读到空只可能是那次读取失败，而这时写
+   * 一份空名单进去，原生侧连该起哪个程序都查不到 —— 宁可什么都不做，并说出原因。
    */
   const selectAgent = useCallback(
     (nextId: string) => {
       const previousId = agentId
 
+      if (profiles.length === 0) {
+        setAgentError('还没有读到 agent 接入档案，请稍后重试。')
+        return
+      }
+
       setAgentId(nextId)
       setAgentError(null)
 
       void store
-        .saveAgents({
-          agents: profiles.length > 0 ? profiles : builtinAcpAgentProfiles(),
-          defaultAgentId: nextId,
-        })
+        .saveAgents({ agents: profiles, defaultAgentId: nextId })
         .then(applySnapshot, (cause: unknown) => {
           setAgentId(previousId)
           setAgentError(describeAgentError(cause))

@@ -7,32 +7,43 @@
   --ui-surface: var(--ui-palette-white);
 
   /*
-   * 线与面，全部写字面十六进制。
+   * 抬起的一张卡。浅色下它比页面暗，取值沿用设置界面此前写死的那两个
+   * 十六进制，所以浅色主题是零像素差；深色主题在 dark.css 里给。
+   */
+  --ui-card: #efefef;
+  --ui-card-divider: #e7e7e7;
+  --ui-chrome: var(--ui-palette-neutral-75);
+  --ui-canvas: var(--ui-palette-neutral-50);
+
+  --ui-sidebar: var(--ui-palette-neutral-75);
+  /*
+   * 侧边栏这一层唯一的压深色。导航行的悬停与选中、AI 会话行的悬停与当前、
+   * 标题栏里贴着侧栏的那几个图标按钮，全部读这一个值：一列界面一个色阶，
+   * 不允许第二份。深色主题的同名 token 在 dark.css，两边各自成立。
+   */
+  --ui-sidebar-accent: #e6e6e6;
+  --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
+
+  /*
+   * 线与面。取值写字面十六进制，取色器测到什么这里就写着什么 —— 上一版把
+   * 它们写成 color-mix(var(--ui-foreground) N%)，而 N 是从实测值反解的，
+   * 反解时 --ui-foreground 被当成了 46（真值 oklch(0.19) ≈ 33），且 oklab
+   * 是感知插值、用 sRGB 算术预测不出结果，于是源码里的数字和屏幕上的颜色
+   * 再也对不上。这一层不该有可推导量。
    *
-   * 上一版这里是 color-mix(in oklab, var(--ui-foreground) N%)，N 由实测值
-   * 反解。两个后果：一是 --ui-foreground 是 oklch(0.19)（sRGB ≈ 33），反解
-   * 时按 46 算，台阶整体偏深；二是 oklab 是感知插值，用 sRGB 算术预测不出
-   * 它的结果。于是"取色器测到的值"和"源码里的数字"再也对不上。
-   *
-   * 颜色在这一层不该是可推导量。Notion、Linear 的 token 都是写死的十六进制，
-   * 图省事的推导链换来的是不可验证。这里的每个值都能被取色器一比一核对。
-   *
-   *   #e0e0e0 (224)  窗格与区域分隔、按钮与输入框边框（原值，零像素差）
-   *   #ececec (236)  卡片外框
+   *   #e0e0e0 (224)  窗格与区域分隔、控件边框、卡片外框
    *   #f2f2f2 (242)  卡片内部分隔线、表格行线
-   *   #fdfdfd (253)  卡面
    *
-   * 画布是 #f8f8f8 (248)：外框比画布深 12，内线只深 6 —— 外框稳定重一档，
-   * 卡片有边界、内部有节奏。而"盒子读起来是盒子"来自卡面比画布亮 5 的表面
-   * 分离，不来自把线加深加粗。这是 Notion / Linear / Slack 那一派卡片的做法，
-   * 与 GitHub 的清晰细框派是两条路，本项目走前者。深色在 dark.css。
+   * 宽度只有一个拼写：--ui-region-divider-width（controls.css，1px）。宽度
+   * 不承担分级 —— 非整数显示缩放下，任何非 1px 的 CSS 宽度都会栅格化成
+   * 不确定的设备像素数（2px 在 150% 缩放下是 3 个设备像素）。
    */
   --ui-region-divider-color: #e0e0e0;
   --ui-divider: var(--ui-region-divider-color);
   --ui-divider-subtle: #f2f2f2;
   --ui-border: var(--ui-region-divider-color);
-  --ui-surface-frame: #ececec;
-  --ui-surface-fill: #fdfdfd;
+  --ui-surface-frame: var(--ui-region-divider-color);
+  --ui-surface-fill: transparent;
   --ui-input: var(--ui-palette-neutral-300);
   --ui-ring: var(--ui-palette-blue-500);
 

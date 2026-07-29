@@ -6,19 +6,29 @@
   --ui-surface: var(--ui-palette-dark-850);
 
   /*
-   * 与 light.css 同一套关系，值同样写死。画布是 #141414 (20)：
-   *   rgb(255 255 255 / 16%)  窗格与区域分隔（原值，零像素差）
-   *   #2e2e2e (46)  卡片外框，Δ26
-   *   #232323 (35)  卡内分隔线、表格行线，Δ15
-   *   #1a1a1a (26)  卡面，比画布亮 6
-   * 深色下的绝对差比浅色大：底色越暗，同样的差需要更多绝对值才读得出来。
+   * 页面上抬起的一张卡（设置分组、关于面板）。
+   * 和 --ui-surface 分开：浅色主题下这张卡比页面暗（下沉），深色下比页面
+   * 亮（抬起），极性相反，一个令牌表达不了两种关系。
+   */
+  --ui-card: var(--ui-palette-dark-900);
+  --ui-card-divider: var(--ui-region-divider-color);
+  --ui-chrome: var(--ui-palette-dark-950);
+  --ui-canvas: var(--ui-palette-dark-900);
+
+  --ui-sidebar: var(--ui-palette-dark-950);
+  --ui-sidebar-accent: var(--ui-palette-dark-700);
+  --ui-sidebar-accent-foreground: var(--ui-palette-white);
+
+  /*
+   * 线与面，与 light.css 同构。区域线沿用原值（半透明白，压在任何深色底上
+   * 都成立）；卡内分隔线写字面值。宽度同样只有 --ui-region-divider-width。
    */
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
   --ui-divider-subtle: #232323;
   --ui-border: var(--ui-region-divider-color);
-  --ui-surface-frame: #2e2e2e;
-  --ui-surface-fill: #1a1a1a;
+  --ui-surface-frame: var(--ui-region-divider-color);
+  --ui-surface-fill: transparent;
   --ui-input: rgb(255 255 255 / 24%);
   --ui-ring: var(--ui-palette-blue-400);
 

@@ -67,6 +67,14 @@ struct PersistedAgentConfig {
  * snapshot.secrets 从第一天起就是空数组。没有人看得出来，因为也没有人读它。
  */
 
+/// 「这个 agent 没有接入档案」只有一句话。
+///
+/// launch_env 与 agent_program 找的是同一条档案。各写一句，迟早写出两种说法，
+/// 而用户看到的是哪一句取决于他先点了什么 —— 那种差异没有任何信息量。
+fn profile_missing(agent_id: &str) -> String {
+    format!("agents.json 里没有 {agent_id} 的接入档案")
+}
+
 /// 读取某个 agent 声明的 home 环境变量名。
 ///
 /// 约定同 secretVars：档案里的 homeVar 是一个字符串。缺失表示这个 agent 不
@@ -103,19 +111,24 @@ fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
 /// 只有非密文的启动变量。密钥不在这里：模式 B 下它们由 agent 自己的 CLI 写
 /// 进受控 home 里的配置文件，从不经过 ACP 的启动环境。
 ///
+/// 档案不存在不再当作「没有变量要设」。
+///
+/// 那样 homeVar 就不会被设上，agent 会安静地改用用户全局的 ~/.kimi-code，而受控
+/// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 ACP 会话看不看得见
+/// 同一份配置，全靠它。从安装那天起它一直是这么静默降级的，因为在此之前没有任何
+/// 代码路径往 agents.json 里写过东西。
+///
 /// # Errors
 ///
-/// store 无法打开、或受控 home 无法创建时返回错误。
+/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
     let (config, _issues) = read_config(app)?;
 
-    let Some(found) = config
+    let found = config
         .agents
         .iter()
         .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
-    else {
-        return Ok(Vec::new());
-    };
+        .ok_or_else(|| Error::AgentCli(profile_missing(agent_id)))?;
 
     // 档案声明的变量先进去，受控 home 后进去 —— 后者必须压过前者。用户在 env
     // 里手写的 home 路径可能根本不存在，而 agent_home 交回来的目录是刚刚
@@ -150,7 +163,7 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
         .agents
         .iter()
         .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
-        .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))?;
+        .ok_or_else(|| Error::AgentCli(profile_missing(agent_id)))?;
 
     let program = found
         .get("command")
