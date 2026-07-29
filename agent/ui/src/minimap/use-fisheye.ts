@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap@v10 */
+/* poietica:conversation-minimap-perf@v14 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -16,8 +16,9 @@ const FALLOFF_PX = 44
  *
  * This is the one number to turn. Larger arms the rail earlier — the hand is
  * still crossing the transcript when the crest appears; smaller waits until it
- * is nearly there. Around 32 is conservative, 48 is this build, past 96 the
- * rail starts answering to pointer traffic that was never headed for it.
+ * is nearly there. Past roughly 96 the rail starts answering to pointer
+ * traffic that was never headed for it. The current value was arrived at by
+ * hand, against the running build.
  *
  * It is written down rather than measured on purpose. The obvious landmark to
  * measure against is the preview card, but the card is positioned against its
@@ -67,8 +68,7 @@ const EPSILON = 0.002
  * The pointer is tracked on the window rather than on the rail, because the
  * rail is eleven pixels wide and the boundary that matters is outside it. One
  * write per animation frame no matter how many move events the platform
- * delivers, and the rail's box is read once per frame rather than once per
- * event. Returned as a ref callback with a cleanup, which React 19 calls on
+ * delivers. Returned as a ref callback with a cleanup, which React 19 calls on
  * unmount.
  */
 export function useFisheye(): (node: HTMLElement | null) => void {
@@ -97,17 +97,38 @@ export function useFisheye(): (node: HTMLElement | null) => void {
       return
     }
 
+    /*
+     * The rail's own children, live.
+     *
+     * A live collection rather than a query result: it is always current, so
+     * there is no invalidation policy to get wrong when turns are added, and
+     * it allocates nothing — this is read on every animation frame while the
+     * hand is near. The cast is honest; the rail renders buttons.
+     */
+    const bars = node.children as HTMLCollectionOf<HTMLElement>
+
     let frame = 0
     let pointerX = Number.NaN
     let pointerY = Number.NaN
     let engaged = false
+    let aimed: HTMLElement | null = null
+
+    /*
+     * Bar centres, reused across frames.
+     *
+     * Not a cache — it is refilled every frame. It exists only so that the
+     * measuring pass can finish before the writing pass begins.
+     */
+    const centres: number[] = []
 
     /* Hand the bars back to the stylesheet rather than pinning them at zero. */
     const clear = () => {
-      for (const bar of node.querySelectorAll<HTMLElement>(':scope > *')) {
+      for (const bar of bars) {
         bar.style.removeProperty(WEIGHT_VAR)
         bar.removeAttribute(AIMED_ATTR)
       }
+
+      aimed = null
     }
 
     const paint = () => {
@@ -132,31 +153,75 @@ export function useFisheye(): (node: HTMLElement | null) => void {
 
       engaged = true
 
-      /* The rail's own children, not a class name owned by another file. */
-      const bars = Array.from(node.querySelectorAll<HTMLElement>(':scope > *'))
-      let aimed: HTMLElement | null = null
-      let best = AIMED_MIN_WEIGHT
+      /*
+       * First pass: read only.
+       *
+       * The weight drives block-size and inline-size, and the bars share one
+       * flex column — so writing a weight dirties the layout of every bar
+       * below it. Interleaving the two, which is what this used to do, forces
+       * a synchronous layout on every iteration: N reflows per frame, every
+       * frame the hand is near the rail. Separating the passes leaves exactly
+       * one flush, at the getBoundingClientRect above; every offsetTop after
+       * it is served from a clean layout.
+       */
+      let cursor = 0
 
       for (const bar of bars) {
-        const center = rect.top + bar.offsetTop + bar.offsetHeight / 2
-        const ratio = (center - pointerY) / FALLOFF_PX
-        const weight = Math.exp(-(ratio * ratio))
+        centres[cursor] = rect.top + bar.offsetTop + bar.offsetHeight / 2
+        cursor += 1
+      }
 
-        bar.style.setProperty(WEIGHT_VAR, weight < EPSILON ? '0' : weight.toFixed(3))
+      centres.length = cursor
+
+      /* Second pass: write only. Nothing below reads layout. */
+      let winner: HTMLElement | null = null
+      let best = AIMED_MIN_WEIGHT
+
+      cursor = 0
+
+      for (const bar of bars) {
+        const centre = centres[cursor]
+
+        cursor += 1
+
+        if (centre === undefined) {
+          continue
+        }
+
+        const ratio = (centre - pointerY) / FALLOFF_PX
+        const weight = Math.exp(-(ratio * ratio))
+        const next = weight < EPSILON ? '0' : weight.toFixed(3)
+
+        /*
+         * Only write a weight that changed.
+         *
+         * The falloff dies out about eight bars out, so in a long conversation
+         * most of the rail is being handed the same '0' on every frame, and
+         * every one of those writes invalidates that element's style for
+         * nothing. Reading the inline declaration back is CSSOM, not layout —
+         * it cannot force a flush.
+         */
+        if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
+          bar.style.setProperty(WEIGHT_VAR, next)
+        }
 
         if (weight > best) {
           best = weight
-          aimed = bar
+          winner = bar
         }
       }
 
-      /* One winner, decided from the same weights the pull was drawn from. */
-      for (const bar of bars) {
-        if (bar === aimed) {
-          bar.setAttribute(AIMED_ATTR, '')
-        } else {
-          bar.removeAttribute(AIMED_ATTR)
-        }
+      /*
+       * One winner, decided from the same weights the pull was drawn from.
+       *
+       * At most two bars change hands per frame, so touch two — not N. The
+       * attribute is a selector for three rules, so each needless write is a
+       * needless selector rematch.
+       */
+      if (winner !== aimed) {
+        aimed?.removeAttribute(AIMED_ATTR)
+        winner?.setAttribute(AIMED_ATTR, '')
+        aimed = winner
       }
     }
 

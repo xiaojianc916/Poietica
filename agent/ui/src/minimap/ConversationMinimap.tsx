@@ -1,11 +1,11 @@
 import './conversation-minimap.css'
 
 import type { ConversationTurn } from '@poietica/agent-timeline'
-import { type MouseEvent, useCallback, useMemo } from 'react'
+import { type MouseEvent, memo, useCallback, useMemo } from 'react'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-jump@v13 */
+/* poietica:conversation-minimap-perf@v14 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -23,7 +23,7 @@ export interface ConversationMinimapProps {
   readonly onSelect: (rowIndex: number) => void
 }
 
-export function ConversationMinimap({ turns, activeRow, onSelect }: ConversationMinimapProps) {
+function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
 
   /*
@@ -104,3 +104,16 @@ export function ConversationMinimap({ turns, activeRow, onSelect }: Conversation
     </nav>
   )
 }
+
+/**
+ * 滚动帧里整棵跳过。
+ *
+ * 滚动区每一帧都重渲染 —— 虚拟器必须如此 —— 于是浮层每帧被调用一次,产出一个
+ * 新元素,React 就得逐个比对 N 个按钮和 N 张卡片。但这三个入参在构造上就是
+ * 引用稳定的:turns 走时间线的 WeakMap 缓存,activeRow 是数字且跨行才变,
+ * onSelect 是上游一个空依赖的 useCallback。所以浅比较几乎总是命中。
+ *
+ * 它不是万能的:流式输出时 turns 每段都重建,那时照旧全量比对。但那正好是鱼眼
+ * 没在跑的时候 —— 两笔开销不会叠在同一帧上。
+ */
+export const ConversationMinimap = memo(Rail)
