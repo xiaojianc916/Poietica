@@ -1,10 +1,10 @@
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { RAIL_INSET_PX, RAIL_PITCH_PX, railCapacity } from '../minimap/rail-budget'
-import { groupTurns, thumbSpan } from '../minimap/rail-groups'
+import { groupTurns } from '../minimap/rail-groups'
 import { turnIndexAtRow } from '../minimap/turn-index'
 
-/* poietica:conversation-minimap-density@v20 */
+/* poietica:conversation-minimap-density@v21 */
 
 /*
  * 造一个轮次。
@@ -155,63 +155,5 @@ describe('groupTurns', () => {
 
     expect(items).toHaveLength(1)
     expect(span(items[0]!)).toEqual([1, 200])
-  })
-})
-describe('thumbSpan', () => {
-  it('没量到几何时不画', () => {
-    expect(thumbSpan(groupTurns(conversation(10), 10), null)).toBeNull()
-  })
-
-  it('没有轮次时不画', () => {
-    expect(thumbSpan([], { from: 0, to: 10 })).toBeNull()
-  })
-
-  it('视口停在一轮之内,只盖一格', () => {
-    const items = groupTurns(conversation(10), 10)
-
-    /* 第 4 轮起于第 12 行(ordinal * 3),下一轮在第 15 行。 */
-    expect(thumbSpan(items, { from: 12, to: 14 })).toEqual({ from: 3, span: 1 })
-  })
-
-  it('视口跨几轮,就盖几格', () => {
-    const items = groupTurns(conversation(10), 10)
-
-    expect(thumbSpan(items, { from: 12, to: 20 })).toEqual({ from: 3, span: 3 })
-  })
-
-  it('视口停在第一轮之前,归第一格', () => {
-    const items = groupTurns(conversation(10), 10)
-
-    expect(thumbSpan(items, { from: 0, to: 1 })).toEqual({ from: 0, span: 1 })
-  })
-
-  it('视口到底时盖住末格', () => {
-    const items = groupTurns(conversation(10), 10)
-    const last = items.length - 1
-
-    expect(thumbSpan(items, { from: 30, to: 999 })).toEqual({ from: last, span: 1 })
-  })
-
-  /*
-   * 并格之后游标仍然说得出话。
-   *
-   * 这正是它存在的理由:一格代表二十轮的时候,亮着的那一格说明不了视口装下了
-   * 多少,而游标的长度可以。
-   */
-  it('并格之后落在对应的簇上', () => {
-    const items = groupTurns(conversation(200), 10)
-    const thumb = thumbSpan(items, { from: 0, to: 5 })
-
-    expect(thumb).not.toBeNull()
-    expect(thumb?.from).toBe(0)
-    expect(thumb?.span).toBeGreaterThanOrEqual(1)
-  })
-
-  it('游标不会伸出轨道', () => {
-    const items = groupTurns(conversation(200), 10)
-    const thumb = thumbSpan(items, { from: 0, to: 10_000 })
-
-    expect(thumb).not.toBeNull()
-    expect((thumb?.from ?? 0) + (thumb?.span ?? 0)).toBeLessThanOrEqual(items.length)
   })
 })

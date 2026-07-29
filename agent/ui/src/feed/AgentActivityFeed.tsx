@@ -2,8 +2,8 @@ import './agent-activity-feed.css'
 
 import type { FeedRow } from '@poietica/agent-timeline'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { type RowRange, type RowSpan, rowAtAnchor } from './reading-position'
+import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useRevealIntent } from './use-reveal-intent'
 
 /* poietica:conversation-minimap-audit@v15 */
@@ -90,14 +90,6 @@ export interface FeedPort {
   /** 人正在读的那一行;跳转期间是人要求看的那一行。 */
   readonly activeRow: number
   readonly scrollToRow: (index: number) => void
-  /**
-   * 视口此刻覆盖到哪一段。
-   *
-   * null 是"还没读到过几何",不是"第 0 行到第 0 行" —— 与 activeRow 那条同一个
-   * 理由:首帧的布局效应把视口送到末尾,那一帧没有任何区间可读,谎称一个会让浮层
-   * 先画在开头再跳走。
-   */
-  readonly visibleRows: RowRange | null
 }
 
 export interface AgentActivityFeedProps {
@@ -179,19 +171,6 @@ export function AgentActivityFeed({
    */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
-  /*
-   * 视口的两端,分开存成两个数。
-   *
-   * 存成一个 { from, to } 对象是更顺手的写法,而且是错的:滚动每一帧都会
-   * 产出一个新对象,于是上面那句"React 对 Object.is 相等的新值本来就跳过
-   * 重渲染"当场失效 —— 整条对话每帧重渲一次,只为了两个多半没变的数字。
-   *
-   * 数字进 state,对象在 useMemo 里合成:identity 只在数字真的变了才换,
-   * 下游那个 memo 过的浮层也才不会因为多收了这个 prop 而全程落空。
-   */
-  const [visibleFrom, setVisibleFrom] = useState<number | null>(null)
-  const [visibleTo, setVisibleTo] = useState<number | null>(null)
-
   const {
     pending,
     begin: beginReveal,
@@ -248,26 +227,11 @@ export function AgentActivityFeed({
         setReadingRow(reading)
       }
 
-      /*
-       * 顶行有两个用处:回答那次跳转到了没有,以及视口从哪一行开始。
-       *
-       * 底行是同一次读取里的第二次二分。不另开观察者,也不另读一次几何 ——
-       * 视口的上下沿是同一帧布局的两个侧面,分两处去问就会错开。
-       *
-       * 减一是因为下沿是开区间:scrollTop + clientHeight 落在下一行的起点上,
-       * 而那一行还一个像素都没露出来。
-       */
+      /* 顶行只为一件事:回答那次跳转到了没有。 */
       const top = rowAtAnchor(spans, viewport.scrollTop)
 
       if (top !== null) {
         settleReveal(top)
-        setVisibleFrom(top)
-      }
-
-      const bottom = rowAtAnchor(spans, viewport.scrollTop + viewport.clientHeight - 1)
-
-      if (bottom !== null) {
-        setVisibleTo(bottom)
       }
     },
     [onReachStart, settleReveal],
@@ -449,13 +413,6 @@ export function AgentActivityFeed({
    */
   const activeRow = pending ?? readingRow ?? Math.max(0, rows.length - 1)
 
-  /* 两个数字合成一个区间,只在数字变了的时候换身份。 */
-  const visibleRows = useMemo<RowRange | null>(
-    () =>
-      visibleFrom === null || visibleTo === null ? null : { from: visibleFrom, to: visibleTo },
-    [visibleFrom, visibleTo],
-  )
-
   const scrollToRow = useCallback(
     (index: number) => {
       beginReveal(index)
@@ -503,7 +460,7 @@ export function AgentActivityFeed({
 
       {dock === undefined ? null : <div className="agent-activity-feed__dock">{dock}</div>}
 
-      {overlay === undefined ? null : overlay({ activeRow, scrollToRow, visibleRows })}
+      {overlay === undefined ? null : overlay({ activeRow, scrollToRow })}
     </div>
   )
 }

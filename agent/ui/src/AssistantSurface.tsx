@@ -312,7 +312,6 @@ export function AssistantSurface({
               activeRow={port.activeRow}
               onSelect={port.scrollToRow}
               turns={turns}
-              visibleRows={port.visibleRows}
             />
           )
         }
