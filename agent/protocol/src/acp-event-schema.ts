@@ -11,11 +11,19 @@ import type { RunEvent } from './run-contract'
  * a rejected event rather than a corrupted timeline.
  */
 
+/* 文本资源与二进制资源是两种形状，不是一种形状的两个可选字段：写成
+   可选会让「两个都没有」通过校验，而那不是协议里存在的东西。 */
+const embeddedResourceSchema = v.union([
+  v.object({ uri: v.string(), mimeType: v.optional(v.string()), text: v.string() }),
+  v.object({ uri: v.string(), mimeType: v.optional(v.string()), blob: v.string() }),
+])
+
 const contentBlockSchema = v.variant('type', [
   v.object({ type: v.literal('text'), text: v.string() }),
   v.object({ type: v.literal('image'), mimeType: v.string(), data: v.string() }),
+  v.object({ type: v.literal('audio'), mimeType: v.string(), data: v.string() }),
   v.object({ type: v.literal('resource_link'), uri: v.string(), name: v.optional(v.string()) }),
-  v.object({ type: v.literal('resource'), uri: v.string(), text: v.optional(v.string()) }),
+  v.object({ type: v.literal('resource'), resource: embeddedResourceSchema }),
 ])
 
 /* ToolCallContent is a tagged envelope rather than a bare content block. The

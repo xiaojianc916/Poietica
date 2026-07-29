@@ -24,11 +24,23 @@ export type AcpToolKind =
   | 'switch_mode'
   | 'other'
 
+/**
+ * 一个内嵌资源的载荷。
+ *
+ * 协议把它套在 `resource` 下面而不是平铺进块里，因为资源自带 uri，并且
+ * 要么是文本要么是二进制、不会两者都有 —— 这个"二选一"只有在它自成一层
+ * 时才表达得出来。
+ */
+export type AcpEmbeddedResource =
+  | { readonly uri: string; readonly mimeType?: string; readonly text: string }
+  | { readonly uri: string; readonly mimeType?: string; readonly blob: string }
+
 export type AcpContentBlock =
   | { readonly type: 'text'; readonly text: string }
   | { readonly type: 'image'; readonly mimeType: string; readonly data: string }
+  | { readonly type: 'audio'; readonly mimeType: string; readonly data: string }
   | { readonly type: 'resource_link'; readonly uri: string; readonly name?: string }
-  | { readonly type: 'resource'; readonly uri: string; readonly text?: string }
+  | { readonly type: 'resource'; readonly resource: AcpEmbeddedResource }
 
 /**
  * What a tool call produces.

@@ -3,6 +3,7 @@ export { parseRunEvent, runEventSchema, sessionUpdateSchema } from './acp-event-
 export type {
   AcpAvailableCommand,
   AcpContentBlock,
+  AcpEmbeddedResource,
   AcpPlanEntry,
   AcpPlanEntryPriority,
   AcpPlanEntryStatus,
