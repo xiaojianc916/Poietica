@@ -8,10 +8,9 @@ import { useSyncExternalStore } from 'react'
  * session lets us change"），于是能力表唯一的到达口是 port.open(threadId)：
  * 必须先有一条对话、先 spawn 进程握两趟手，才知道有哪些模型。后果有三个：
  *
- *   · 入口那一格恒为 NO_CONTROLS，模型选择器根本没有数据可画（这就是那个
- *     "新建会话没有模型选择器"）；
+ *   · 入口那一格恒为空，模型选择器根本没有数据可画；
  *   · 每条对话各问一遍同一张表；
- *   · 有人为了绕开它，把 onIdentify 挂在 onPointerEnter 上偷偷开一条真对话 ——
+ *   · 有人为绕开它，把 onIdentify 挂在 onPointerEnter 上偷偷开一条真对话 ——
  *     那个补丁就是输入框乱跳的源头。
  *
  * 这里把三件生命周期不同的事分开：
@@ -49,7 +48,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-/** 把缓存读回来，逐字段验。缓存是不可信输入，和 agent 一样。 */
+/*
+ * 缓存是不可信输入，和 agent 报回来的东西一样。
+ *
+ * isRecord 收窄出来的是索引签名，所以每一层都解构再 typeof —— 不用 . 访问、
+ * 不用 as。有一处不合规就整张表作废：半张表比没有表更难查。
+ */
+function parseChoices(value: unknown): readonly { value: string; label: string }[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const offered: { value: string; label: string }[] = []
+
+  for (const raw of value) {
+    if (!isRecord(raw)) {
+      return null
+    }
+
+    const { label, value: option } = raw
+
+    if (typeof option !== 'string' || typeof label !== 'string') {
+      return null
+    }
+
+    offered.push({ value: option, label })
+  }
+
+  return offered
+}
+
 function parseTable(raw: string | null): readonly SessionConfigControl[] {
   if (raw === null) {
     return NO_CONTROLS
@@ -75,6 +103,7 @@ function parseTable(raw: string | null): readonly SessionConfigControl[] {
     }
 
     const { choices, current, id, label, purpose } = entry
+    const offered = parseChoices(choices)
 
     if (
       typeof id !== 'string' ||
@@ -82,23 +111,9 @@ function parseTable(raw: string | null): readonly SessionConfigControl[] {
       typeof current !== 'string' ||
       typeof purpose !== 'string' ||
       !PURPOSES.includes(purpose) ||
-      !Array.isArray(choices)
+      offered === null
     ) {
       return NO_CONTROLS
-    }
-
-    const offered: Array<{ value: string; label: string }> = []
-
-    for (const choice of choices) {
-      if (
-        !isRecord(choice) ||
-        typeof choice.value !== 'string' ||
-        typeof choice.label !== 'string'
-      ) {
-        return NO_CONTROLS
-      }
-
-      offered.push({ value: choice.value, label: choice.label })
     }
 
     controls.push({
@@ -157,9 +172,11 @@ function project(): readonly SessionConfigControl[] {
   return table.map((control) => {
     const wanted = choice[control.id]
 
-    return wanted === undefined || wanted === control.current
-      ? control
-      : { ...control, current: wanted }
+    if (wanted === undefined || wanted === control.current) {
+      return control
+    }
+
+    return { ...control, current: wanted }
   })
 }
 
@@ -180,6 +197,15 @@ function persist(key: string, value: unknown): void {
     store()?.setItem(key, JSON.stringify(value))
   } catch {
     /* 写不进去就只在这次运行里有效。不值得打断任何事。 */
+  }
+}
+
+function shapeOf(control: SessionConfigControl): unknown {
+  return {
+    id: control.id,
+    label: control.label,
+    purpose: control.purpose,
+    choices: control.choices.map((option) => ({ value: option.value, label: option.label })),
   }
 }
 
@@ -205,15 +231,6 @@ export function learnAgentControls(offered: readonly SessionConfigControl[]): vo
   publish()
 }
 
-function shapeOf(control: SessionConfigControl): unknown {
-  return {
-    id: control.id,
-    label: control.label,
-    purpose: control.purpose,
-    choices: control.choices.map((choice) => ({ value: choice.value, label: choice.label })),
-  }
-}
-
 /** 人选了一个值。没有会话的时候，这就是一次偏好。 */
 export function chooseAgentControl(controlId: string, value: string): void {
   if (choice[controlId] === value) {
@@ -230,11 +247,6 @@ export function preferredAgentControl(controlId: string): string | undefined {
   return choice[controlId]
 }
 
-/** 入口那一格（以及任何还没拿到会话表的那一格）要画的选择器。 */
-export function useAgentControls(): readonly SessionConfigControl[] {
-  return useSyncExternalStore(subscribeAgentControls, readAgentControls)
-}
-
 function subscribeAgentControls(listener: () => void): () => void {
   listeners.add(listener)
 
@@ -245,4 +257,9 @@ function subscribeAgentControls(listener: () => void): () => void {
 
 function readAgentControls(): readonly SessionConfigControl[] {
   return snapshot
+}
+
+/** 入口那一格（以及任何还没拿到会话表的那一格）要画的选择器。 */
+export function useAgentControls(): readonly SessionConfigControl[] {
+  return useSyncExternalStore(subscribeAgentControls, readAgentControls)
 }
