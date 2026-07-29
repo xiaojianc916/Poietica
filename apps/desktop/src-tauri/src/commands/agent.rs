@@ -81,6 +81,13 @@ const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50)
 #[derive(Debug)]
 struct Session {
     client: AgentClient,
+    /// 这条连接自带的那个会话号。
+    ///
+    /// connect() 建立连接时就开了它，而没有任何对话持有它 —— 模块头那段注释里
+    /// 被吐槽过的"凭空建一条对话"说的就是它当年的下场。它现在有了用途：问这个
+    /// agent 提供什么的时候，总得有一个会话可以问，而那个问题与任何一条对话都
+    /// 无关。所以它是锚，不是对话的会话。
+    anchor: String,
 }
 
 /// Managed state for everything the agent commands need.
@@ -603,6 +610,53 @@ pub async fn agent_set_config_option(
     Ok(offered.into_iter().map(restate).collect())
 }
 
+/// 问这个 agent 提供什么，不点名任何一条对话。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCapabilitiesRequest {
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
+}
+
+/// 这个 agent 提供哪些选择器。
+///
+/// 能力属于 agent，不属于某一轮对话 —— 模型清单在 ACP 里由 initialize 阶段的
+/// 握手与 agent 自己的配置决定，一条会话只是从里面选了一个当前值。此前这张表
+/// 只有两个出口，都要先有一个会话，而会话的归属要先有一条对话（session_for）：
+/// 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
+/// 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
+///
+/// 这里问的是锚会话：connect() 建立连接时本来就交回一个会话号，没有任何对话
+/// 持有它。所以这条命令不新开会话、不写库、不碰任何 thread。
+///
+/// 它仍然会按需起进程：一个从没打开过助手的启动不该为此付钱，而一旦有人要看
+/// 模型清单，进程就是要起的。
+///
+/// # Errors
+///
+/// Fails when the agent cannot be started, when a turn is in flight on the
+/// connection, or when the agent refuses to report its selectors.
+#[tauri::command]
+#[specta::specta]
+pub async fn agent_capabilities(
+    app: AppHandle,
+    state: State<'_, AgentRuntime>,
+    request: AgentCapabilitiesRequest,
+) -> AgentCommandResult<Vec<AgentConfigControl>> {
+    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
+
+    let answer = live.client.selectors(live.anchor).map_err(translate)?;
+
+    let offered = answer
+        .await
+        .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+        .map_err(translate)?;
+
+    Ok(offered.into_iter().map(restate).collect())
+}
+
 /// Restates one selector in the shape the generated bindings carry.
 fn restate(control: ConfigControl) -> AgentConfigControl {
     AgentConfigControl {
@@ -635,6 +689,8 @@ fn restate(control: ConfigControl) -> AgentConfigControl {
 /// 生效的字段，就是一条只在出错时才走的代码路径。
 struct Handle {
     client: AgentClient,
+    /// 这条连接的锚会话。问 agent 能力时发往它。
+    anchor: String,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -702,17 +758,22 @@ async fn ensure_session(
 
         return Ok(Handle {
             client: live.client.clone(),
+            anchor: live.anchor.clone(),
         });
     }
 
     *guard = Some(Session {
         client: client.clone(),
+        anchor: session_id.clone(),
     });
 
     /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
     remember(state, &session_id)?;
 
-    Ok(Handle { client })
+    Ok(Handle {
+        client,
+        anchor: session_id,
+    })
 }
 
 /// Reads the session without holding the lock across an await point.
@@ -721,6 +782,7 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
+        anchor: live.anchor.clone(),
     }))
 }
 

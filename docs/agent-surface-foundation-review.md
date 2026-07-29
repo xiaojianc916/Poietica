@@ -238,3 +238,37 @@ per-session。
 
 - 能力表仍没有 initialize 阶段的上报（Rust 侧）。
 - minimap 两处复杂度与 `agent-config-store.ts` 的 `useAwait`。
+
+## 缺陷 6 余款已修（原生侧）：能力表的所有者不再是会话
+
+- `apps/desktop/src-tauri/src/commands/agent.rs`：选择器表此前只有两个出口，
+  `agent_new_session` 的 `AgentOpenedSession.selectors` 与 `agent_open_thread` 里的
+  `live.client.selectors(held.session_id)`。两者都要先有一个会话，而会话的归属由
+  `session_for` 按 thread UUID 决定；`agent_set_config_option` 更是直接
+  `ok_or(NO_CONVERSATION)`。
+- `agent/protocol/src/session-config-port.ts` 的注释写明了这件事："这里没有'读'。
+  选择器随会话一起交回来。"
+- 于是入口界面（没有对话、没有会话）在结构上拿不到模型清单，渲染层只能靠
+  localStorage 里上一次学到的表 —— 那是替一条不存在的取数路径打掩护，不是修复。
+
+行业对照：ACP 的 initialize 阶段就是交换能力的地方，模型清单是 agent 级的，会话
+只是选了一个当前值。Zed 的 agent panel、Copilot Chat、Cursor 都能在没有任何会话
+时画出模型选择器。
+
+现状：`connect()` 交回的那个没有对话持有的会话号被命名为**锚会话**，存进
+`Session.anchor` 并随 `Handle` 交出；新命令 `agent_capabilities` 不点名任何对话，
+直接问锚会话要整张表，不新开会话、不写库、不碰 thread。
+
+## 下一刀（TS 半刀，必须排在绑定导出之后）
+
+`platforms/desktop-ipc/src/generated/ipc-bindings.ts` 是 specta 生成物，
+`commands.agentCapabilities` 在导出跑过之前不存在，所以这半刀编译不过：
+
+1. `platforms/desktop-ipc/src/agent.ts`：在会话配置桥上加 `capabilities()`。
+2. 入口界面装载时学一次，把 `learnAgentControls` 从"会话开出来才学"改成"连上就学"。
+3. `agent/runtime/src/agent-capability-store.ts` 的 localStorage 从唯一来源降级为
+   离线兜底，并搬进真正的 preferences 端口。
+
+## 还欠着
+
+- minimap 两处复杂度与 `agent-config-store.ts` 的 `useAwait`。

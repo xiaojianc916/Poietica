@@ -151,6 +151,7 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::agent::agent_load_run,
             commands::agent::agent_load_thread,
             commands::agent::agent_set_config_option,
+            commands::agent::agent_capabilities,
             commands::agent::agent_new_session,
             commands::agent::agent_sessions,
             commands::agent::agent_threads,

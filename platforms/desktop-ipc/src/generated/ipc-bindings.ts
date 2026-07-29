@@ -108,6 +108,29 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
     return await TAURI_INVOKE("agent_set_config_option", { request });
 },
 /**
+ * 这个 agent 提供哪些选择器。
+ * 
+ * 能力属于 agent，不属于某一轮对话 —— 模型清单在 ACP 里由 initialize 阶段的
+ * 握手与 agent 自己的配置决定，一条会话只是从里面选了一个当前值。此前这张表
+ * 只有两个出口，都要先有一个会话，而会话的归属要先有一条对话（session_for）：
+ * 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
+ * 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
+ * 
+ * 这里问的是锚会话：connect() 建立连接时本来就交回一个会话号，没有任何对话
+ * 持有它。所以这条命令不新开会话、不写库、不碰任何 thread。
+ * 
+ * 它仍然会按需起进程：一个从没打开过助手的启动不该为此付钱，而一旦有人要看
+ * 模型清单，进程就是要起的。
+ * 
+ * # Errors
+ * 
+ * Fails when the agent cannot be started, when a turn is in flight on the
+ * connection, or when the agent refuses to report its selectors.
+ */
+async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfigControl[]> {
+    return await TAURI_INVOKE("agent_capabilities", { request });
+},
+/**
  * Opens one more session on the running agent.
  * 
  * One agent process keeps many sessions, and every frame the agent sends
@@ -447,6 +470,18 @@ async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
 
 /** user-defined types **/
 
+/**
+ * 问这个 agent 提供什么，不点名任何一条对话。
+ */
+export type AgentCapabilitiesRequest = { 
+/**
+ * 起哪个 agent。
+ */
+launch: AgentLaunch; 
+/**
+ * The working directory the session is created against.
+ */
+cwd: string | null }
 export type AgentCliRequest = { 
 /**
  * 用于定位钥匙串条目。

@@ -10,10 +10,10 @@ use tauri_specta::{Builder, ErrorHandlingMode};
 use crate::{
     commands::{
         agent::{
-            AgentConfigChoice, AgentConfigControl, AgentConfigPurpose, AgentLoadRunRequest,
-            AgentLoadThreadRequest, AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult,
-            AgentRenameThreadRequest, AgentResolvePermissionRequest, AgentRunSnapshot,
-            AgentSelectConfigRequest, AgentThreadRequest, AgentThreadTranscript,
+            AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
+            AgentLoadRunRequest, AgentLoadThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
+            AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
+            AgentRunSnapshot, AgentSelectConfigRequest, AgentThreadRequest, AgentThreadTranscript,
         },
         agent_cli::{AgentCliRequest, AgentCliResult},
         agent_config::{AgentConfigSnapshot, AgentSecretState},
@@ -58,6 +58,7 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_load_run,
             crate::commands::agent::agent_load_thread,
             crate::commands::agent::agent_set_config_option,
+            crate::commands::agent::agent_capabilities,
             crate::commands::agent::agent_new_session,
             crate::commands::agent::agent_sessions,
             crate::commands::agent::agent_threads,
@@ -96,6 +97,7 @@ pub fn export_document_bindings() {
         .typ::<AgentConfigPurpose>()
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()
+        .typ::<AgentCapabilitiesRequest>()
         .typ::<AgentSelectConfigRequest>()
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentThreadRequest>()
