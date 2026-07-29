@@ -16,7 +16,8 @@ use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use tauri::{AppHandle, command};
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
@@ -99,6 +100,61 @@ fn secret_vars_of(agent: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// 读取某个 agent 声明的 home 环境变量名。
+///
+/// 约定同 secretVars：档案里的 homeVar 是一个字符串。缺失表示这个 agent 不
+/// 接受受控 home，启动时就不设这个变量。
+fn home_var_of(agent: &Value) -> Option<String> {
+    agent
+        .get("homeVar")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+}
+
+/// 这个 agent 的受控 home 在磁盘上的位置。
+///
+/// 由 Rust 算，不由渲染层传：渲染层不该发明文件系统路径，而写 provider 的
+/// CLI 与起会话的连接必须落在同一个目录，否则配置写进了一个 home、对话读的
+/// 是另一个。让两边各自传参数，就是在等它们哪天不一致。
+fn controlled_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+    let directory = app
+        .path()
+        .app_data_dir()?
+        .join("agents")
+        .join(agent_id)
+        .join("home");
+
+    std::fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 启动这个 agent 的子进程时要设的环境变量。
+///
+/// 只有非密文的启动变量。密钥不在这里：模式 B 下它们由 agent 自己的 CLI 写
+/// 进受控 home 里的配置文件，从不经过 ACP 的启动环境。
+///
+/// # Errors
+///
+/// store 无法打开、或受控 home 无法创建时返回错误。
+pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
+    let (config, _issues) = read_config(app)?;
+
+    let found = config
+        .agents
+        .iter()
+        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id));
+
+    let Some(home_var) = found.and_then(home_var_of) else {
+        return Ok(Vec::new());
+    };
+
+    let home = controlled_home(app, agent_id)?;
+
+    Ok(vec![(home_var, home.to_string_lossy().into_owned())])
 }
 
 fn secret_states(agents: &[Value]) -> Vec<AgentSecretState> {

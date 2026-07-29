@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionNotification, SetSessionConfigOptionRequest, TextContent,
+    ContentBlock, EnvVariable, InitializeRequest, McpServer as SchemaMcpServer, NewSessionRequest,
+    PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome, SessionNotification, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -53,6 +53,13 @@ pub struct AgentSpawn {
     pub command: String,
     /// The working directory the session is created against.
     pub cwd: PathBuf,
+    /// Environment variables the child process is started with.
+    ///
+    /// 只放非密文的启动变量，受控 home 的路径就是其一。密钥不走这里：模式 B
+    /// 下它们由 agent 自己的 CLI 写进那个 home 里的配置文件。命令行也不行 ——
+    /// Windows 上任何用户都读得到别的进程的完整命令行，而 from_str 的 shell
+    /// 词法还会把路径里的反斜杠当成转义符吃掉。
+    pub env: Vec<(String, String)>,
 }
 
 /// What the driver is asked to do next.
@@ -316,11 +323,26 @@ fn reply(decision: &Decision) -> RequestPermissionResponse {
 ///
 /// Fails when the command line cannot be turned into a process.
 pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result<AgentConnection> {
-    let AgentSpawn { command, cwd } = spawn;
+    let AgentSpawn { command, cwd, env } = spawn;
 
     let agent = AcpAgent::from_str(&command).map_err(|error| AcpError::Spawn {
         message: error.to_string(),
     })?;
+
+    // 启动变量在这里进入进程。SDK 在 1.x 把启动配置表示成 MCP 的 stdio 形状，
+    // 它自己 spawn 时会把 env 逐条设给子进程，所以这里改的是那份配置，而不是
+    // 传输层。装回去必须赶在 with_debug 之前：那个方法要走 self。
+    let agent = AcpAgent::new(match agent.into_server() {
+        SchemaMcpServer::Stdio(mut stdio) => {
+            for (name, value) in env {
+                stdio.env.push(EnvVariable::new(name, value));
+            }
+
+            SchemaMcpServer::Stdio(stdio)
+        }
+        // 只有 stdio 会被 spawn；其余变体由 SDK 自己拒绝，这里不替它判断。
+        other => other,
+    });
 
     // What the agent says for itself. A provider rejection is reported on the
     // process error stream and the turn still ends normally, so this is the

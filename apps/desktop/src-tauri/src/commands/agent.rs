@@ -30,6 +30,7 @@ use specta::Type;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
+use crate::commands::agent_config::launch_env;
 use crate::commands::agent_log::SharedLog;
 use crate::error::{Error, IpcError, Result};
 
@@ -158,6 +159,11 @@ pub struct AgentPromptRequest {
     pub text: String,
     /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
+    /// 要启动的 agent；它决定受控 home 落在哪里。
+    ///
+    /// 不点名就没有受控 home，agent 读它自己的默认目录 —— 也就是这一改之前
+    /// 的行为。
+    pub agent_id: Option<String>,
     /// The agent command line; defaults to the Kimi ACP entry point.
     pub command: Option<String>,
     /// The working directory the session is created against.
@@ -232,7 +238,8 @@ pub async fn agent_prompt(
         return Err(Error::Validation("the prompt is empty".to_owned()).into());
     }
 
-    let session = ensure_session(&state, request.command, request.cwd).await?;
+    let session =
+        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
 
     // 一条对话持有一个会话，这一轮就发往它。
     //
@@ -634,7 +641,9 @@ struct Handle {
 
 /// Returns the running session, starting one if there is none.
 async fn ensure_session(
+    app: &AppHandle,
     state: &State<'_, AgentRuntime>,
+    agent_id: Option<String>,
     command: Option<String>,
     cwd: Option<String>,
 ) -> Result<Handle> {
@@ -651,9 +660,19 @@ async fn ensure_session(
         None => state.root.clone(),
     };
 
+    // 受控 home 在这里被解析成一个环境变量。写 provider 用的是 agent 自己的
+    // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
+    // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
+    // 说没有可用的模型。
+    let env = match agent_id.as_deref() {
+        Some(named) => launch_env(app, named)?,
+        None => Vec::new(),
+    };
+
     let spawn = AgentSpawn {
         command: resolve_command(command)?,
         cwd: working_directory,
+        env,
     };
 
     // The book that files frames under the session that names them belongs
@@ -899,6 +918,8 @@ fn translate(error: AcpError) -> Error {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentNewSessionRequest {
+    /// 要启动的 agent；它决定受控 home 落在哪里。
+    pub agent_id: Option<String>,
     /// The agent command line; defaults to the Kimi ACP entry point.
     pub command: Option<String>,
     /// The working directory the session is created against.
@@ -943,11 +964,13 @@ pub struct AgentSessionSummary {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_new_session(
+    app: AppHandle,
     state: State<'_, AgentRuntime>,
     request: AgentNewSessionRequest,
 ) -> AgentCommandResult<AgentOpenedSession> {
     let asked = request.cwd.clone();
-    let live = ensure_session(&state, request.command, request.cwd).await?;
+    let live =
+        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
 
     // The session root is the platform's answer, not the process's, so a
     // caller that names no directory gets the same one the first session
@@ -1090,6 +1113,8 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
 pub struct AgentOpenThreadRequest {
     /// 已经存在的对话；不点名就新开一条。
     pub thread_id: Option<String>,
+    /// 要启动的 agent；它决定受控 home 落在哪里。
+    pub agent_id: Option<String>,
     /// The agent command line; defaults to the Kimi ACP entry point.
     pub command: Option<String>,
     /// The working directory the session is created against.
@@ -1110,10 +1135,12 @@ pub struct AgentOpenThreadRequest {
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_open_thread(
+    app: AppHandle,
     state: State<'_, AgentRuntime>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
-    let live = ensure_session(&state, request.command, request.cwd).await?;
+    let live =
+        ensure_session(&app, &state, request.agent_id, request.command, request.cwd).await?;
 
     let named = match request.thread_id {
         Some(given) => given,

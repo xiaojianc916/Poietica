@@ -149,6 +149,11 @@ async agentSessions() : Promise<AgentSessionSummary[]> {
  * sessions, and the right answer then is the names already stored, not
  * an error where a list of conversations belongs.
  * 
+ * Listing does not reorder. Folding in a name used to stamp updated_at,
+ * which is the column the list is ordered by, so every refresh of the
+ * sidebar sent every conversation the agent still knew about back to the
+ * top and relabelled it as just now.
+ * 
  * # Errors
  * 
  * Fails when the database cannot be opened or read.
@@ -336,63 +341,97 @@ async settingsReset() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_reset");
 },
 /**
- * Loads the full configuration snapshot.
+ * 读取完整配置快照。
  * 
- * A missing or corrupt `agents.json` is not a failure: it returns an
- * empty configuration with any parse problems in `issues`.
+ * agents.json 缺失或损坏都不算失败：返回空配置，把解析问题放进 issues。
  * 
  * # Errors
  * 
- * Returns an error when the store plugin cannot be opened.
+ * 仅当 store 插件无法打开时返回错误。
  */
 async agentConfigGet() : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_get");
 },
 /**
- * Replaces the provider list and writes the result back to `agents.json`.
+ * 替换 agent 列表与默认 agent。
  * 
  * # Errors
  * 
- * Returns an error when the store cannot be written.
- */
-async agentConfigSaveProviders(providers: JsonValue[]) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_save_providers", { providers });
-},
-/**
- * Replaces the agent list and default agent, then writes the result back.
- * 
- * # Errors
- * 
- * Returns an error when the store cannot be written.
+ * store 无法写入时返回错误。
  */
 async agentConfigSaveAgents(agents: JsonValue[], defaultAgentId: string) : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_save_agents", { agents, defaultAgentId });
 },
 /**
- * Writes an API key to the system keychain for the given provider.
- * 
- * The secret never touches disk. Only `configured: true` reaches the
- * renderer in the returned snapshot.
+ * 把某个凭据写进系统钥匙串。
  * 
  * # Errors
  * 
- * Returns an error when the keychain entry cannot be created or stored.
+ * 钥匙串条目无法创建或写入时返回错误。
  */
-async agentConfigSetSecret(providerId: string, value: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_set_secret", { providerId, value });
+async agentConfigSetSecret(agentId: string, varName: string, value: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_set_secret", { agentId, varName, value });
 },
 /**
- * Removes an API key from the system keychain for the given provider.
- * 
- * Absence of a credential is treated as success. The snapshot returned
- * reflects `configured: false` for this provider.
+ * 从系统钥匙串移除某个凭据。凭据本来就不存在也算成功。
  * 
  * # Errors
  * 
- * Returns an error only when the keychain itself cannot be reached.
+ * 仅当 store 无法读取时返回错误。
  */
-async agentConfigClearSecret(providerId: string) : Promise<AgentConfigSnapshot> {
-    return await TAURI_INVOKE("agent_config_clear_secret", { providerId });
+async agentConfigClearSecret(agentId: string, varName: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_clear_secret", { agentId, varName });
+},
+/**
+ * 写入 models.dev 目录缓存。
+ * 
+ * 目录本身不是敏感数据，随 agents.json 落盘。它只是「离线也能看见模型清单」
+ * 的副本，权威始终是联网拉取的结果。
+ * 
+ * # Errors
+ * 
+ * store 无法写入时返回错误。
+ */
+async agentConfigSaveCatalog(catalog: JsonValue, fetchedAt: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_save_catalog", { catalog, fetchedAt });
+},
+/**
+ * 把旧账户名 provider:{id} 下的密钥搬到 agent:{id}:{var}。
+ * 
+ * 由界面驱动，一条一条搬：只有渲染层知道旧 provider 该归到哪个 agent 的哪个
+ * 变量。旧条目搬完即删，避免钥匙串里留下两份同样的密钥。
+ * 
+ * 旧条目不存在不是错误 —— 重复调用是安全的。
+ * 
+ * # Errors
+ * 
+ * 新条目无法写入时返回错误。此时旧条目不会被删除。
+ */
+async agentConfigMigrateSecret(providerId: string, agentId: string, varName: string) : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_migrate_secret", { providerId, agentId, varName });
+},
+/**
+ * 清空旧的顶层 provider 列表。界面确认迁移完成后调用一次。
+ * 
+ * # Errors
+ * 
+ * store 无法写入时返回错误。
+ */
+async agentConfigClearLegacyProviders() : Promise<AgentConfigSnapshot> {
+    return await TAURI_INVOKE("agent_config_clear_legacy_providers");
+},
+/**
+ * 在白名单内调用 agent 的 CLI。
+ * 
+ * 凭据从钥匙串取出后经环境变量注入子进程，既不落盘也不上命令行。
+ * 
+ * # Errors
+ * 
+ * 参数未通过白名单校验、或子进程无法启动时返回错误。子进程本身以非零码退出
+ * 不算错误 —— 那是调用方需要看到的结果，通过 status 与 stderr 返回。
+ */
+async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
+    return await TAURI_INVOKE("agent_cli_exec", { request });
 }
 }
 
@@ -406,6 +445,28 @@ async agentConfigClearSecret(providerId: string) : Promise<AgentConfigSnapshot> 
 
 /** user-defined types **/
 
+export type AgentCliRequest = { 
+/**
+ * 用于定位钥匙串条目。
+ */
+agentId: string; 
+/**
+ * 可执行文件名或绝对路径。
+ */
+command: string; args: string[]; 
+/**
+ * 要注入的凭据环境变量名。留空表示这次调用不需要凭据。
+ */
+secretVar: string; 
+/**
+ * agent 数据根目录的环境变量名，例如 KIMI_CODE_HOME。留空表示不设置。
+ */
+homeVar: string; homeDir: string }
+export type AgentCliResult = { 
+/**
+ * 进程退出码。被信号终止时为 -1。
+ */
+status: number; stdout: string; stderr: string }
 /**
  * One value a selector will accept.
  */
@@ -474,16 +535,26 @@ export type AgentConfigPurpose =
  */
 "other"
 /**
- * The full configuration snapshot the renderer works from.
+ * 渲染层工作所依据的完整配置快照。
  * 
- * `providers` and `agents` are opaque JSON values validated on the
- * TypeScript side by `@poietica/agent-registry`. The Rust side stores
- * and retrieves them without interpreting their fields.
+ * agents 是不透明 JSON，由 TS 侧的 @poietica/agent-registry 校验；Rust 侧
+ * 只负责存取，不解释任何字段。
  */
-export type AgentConfigSnapshot = { providers: JsonValue[]; agents: JsonValue[]; defaultAgentId: string; secrets: ProviderSecretState[]; 
+export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string; secrets: AgentSecretState[]; 
 /**
- * Entries that were present in `agents.json` but could not be
- * deserialised. The renderer shows them so the user can correct them.
+ * models.dev 目录缓存。Null 表示还没成功拉取过。
+ */
+catalog: JsonValue; 
+/**
+ * 目录缓存的拉取时间（ISO-8601）。空串表示从未拉取。
+ */
+catalogFetchedAt: string; 
+/**
+ * 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
+ */
+legacyProviders: JsonValue[]; 
+/**
+ * agents.json 中存在但无法反序列化的内容。界面应显示出来。
  */
 issues: string[] }
 /**
@@ -524,6 +595,10 @@ recentRuns: number | null }
  */
 export type AgentNewSessionRequest = { 
 /**
+ * 要启动的 agent；它决定受控 home 落在哪里。
+ */
+agentId: string | null; 
+/**
  * The agent command line; defaults to the Kimi ACP entry point.
  */
 command: string | null; 
@@ -539,6 +614,10 @@ export type AgentOpenThreadRequest = {
  * 已经存在的对话；不点名就新开一条。
  */
 threadId: string | null; 
+/**
+ * 要启动的 agent；它决定受控 home 落在哪里。
+ */
+agentId: string | null; 
 /**
  * The agent command line; defaults to the Kimi ACP entry point.
  */
@@ -596,6 +675,13 @@ text: string;
  */
 threadId: string | null; 
 /**
+ * 要启动的 agent；它决定受控 home 落在哪里。
+ * 
+ * 不点名就没有受控 home，agent 读它自己的默认目录 —— 也就是这一改之前
+ * 的行为。
+ */
+agentId: string | null; 
+/**
  * The agent command line; defaults to the Kimi ACP entry point.
  */
 command: string | null; 
@@ -651,6 +737,12 @@ runId: string;
  * The frames, in order, exactly as they were broadcast when live.
  */
 events: JsonValue[] }
+/**
+ * 某个 agent 的某个凭据变量是否已配置。
+ * 
+ * 只有布尔值会到达渲染层，明文永远不会。
+ */
+export type AgentSecretState = { agentId: string; varName: string; configured: boolean }
 /**
  * A change made in the interface.
  */
@@ -783,14 +875,6 @@ export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "plat
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
-/**
- * Whether a provider's API key is stored in the system keychain.
- * 
- * The secret value is never handed to the renderer; only the boolean
- * reaches it. The renderer uses this to decide whether to show a
- * "configured" badge or an empty key field.
- */
-export type ProviderSecretState = { providerId: string; configured: boolean }
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 
