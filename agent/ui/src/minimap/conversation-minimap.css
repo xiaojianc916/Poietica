@@ -57,6 +57,32 @@
 }
 
 /*
+ * 整条轨道站在整数像素上。
+ *
+ * 总高是 13N − 2,N 为奇数时它就是奇数,而 translate: -50% 于是给出半个像素 ——
+ * 55 格时是 −356.5px。整条列跨在设备像素边界上,每根 3px 的横条都被摊成四行
+ * 部分覆盖,看上去比它实际更粗、更糊。这不是某一根的问题,是所有根一起偏了
+ * 半格;而只要再叠上任何一点逐格的小数差,偏移量就不再一致,"有的粗有的细"
+ * 就是这么来的。
+ *
+ * 向下取整。轨道比完美居中高半个像素 —— 那个看不见,糊边看得见。
+ *
+ * 为什么不改步距:把命中区从 11px 提到 12px 能让总高恒为偶数,但杠是 3px,
+ * 居中偏移就成了 (12−3)/2 = 4.5px —— 半像素只是从容器搬到了杠自己身上。要真
+ * 修就得连杠的厚度一起改成偶数,那是拿一个已经调好的数去换另一个问题。
+ *
+ * @supports 是护栏而不是客套:round() 里放百分比需要较新的引擎,而这里是
+ * 定位属性 —— 声明一旦无效被丢掉,inset-block-start 会退回 auto,轨道直接甩
+ * 到容器顶上。包起来就只是不生效,退回现在的行为。
+ */
+@supports (inset-block-start: round(down, 50%, 1px)) {
+  .conversation-minimap {
+    inset-block-start: round(down, 50%, 1px);
+    translate: 0 calc(-1 * round(down, 50%, 1px));
+  }
+}
+
+/*
  * 一格的盒子,尺寸恒定。
  *
  * inline-size 是横条能达到的最大宽度。不写它的时候,列向 flex 的子项横向收缩
@@ -75,6 +101,20 @@
 
   position: relative;
   display: flex;
+
+  /*
+   * 步距是契约,不是建议。
+   *
+   * 列向 flex 的子项默认可以收缩,而容器有 max-block-size —— 总高一旦超限,
+   * 每一格就被压成 10.63px 这类各不相同的小数,杠随之落在各不相同的亚像素
+   * 相位上,于是逐根的抗锯齿不一样,读作"有的粗有的细"。
+   *
+   * 而这不止是观感:rail-budget.ts 的 RAIL_PITCH_PX = 13 是容量模型的地基。
+   * 格子被压扁的那一刻步距就不是 13 了,railCapacity() 算出来的数是假的 ——
+   * 布局和预算在互相撒谎。溢出该由并格吸收,那本来就是它的职责。
+   */
+  flex-shrink: 0;
+
   block-size: var(--cp-rail-hit);
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
   align-items: center;
@@ -104,8 +144,19 @@
  * target still reads as one continuous pull rather than as steps.
  */
 .conversation-minimap__bar {
+  /*
+   * 长度的比例。并格的那一格用它,其余一律是 1。
+   *
+   * 写成比例而不是另一套 len/gain:比例在任何权重下都成立,静息和拉满是同一
+   * 个关系,而两套并列的数迟早会各自漂。调上面那两个 token 时这里自动跟上。
+   */
+  --cp-rail-scale: 1;
+
   block-size: calc(var(--cp-rail-weight-line) + var(--cp-rail-weight) * var(--cp-rail-weight-gain));
-  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
+  inline-size: calc(
+    (var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain)) *
+    var(--cp-rail-scale)
+  );
   border-radius: 1px;
   background: var(--cp-rail-ink-rest);
   transition:
@@ -215,17 +266,21 @@
  * 同样的媒体查询里写的就是 transition: none。按它统一。
  */
 /*
- * 并格之后的那一格。
+ * 并格之后的那一格:只短一截,不淡。
  *
- * 它代表一段而不是一轮,所以要看得出不同 —— 但只用已有的两个量:短一点、淡
- * 一点。不引入新 token,也不引入新形状:一根短横还是一根短横,读者的扫视习惯
- * 不该因为密度变化而重学一遍。
+ * 原先是双通道 —— 又短又淡。淡这一档是错的:静息墨色本就是 #d2d3d3,再乘
+ * 0.72 就低到读不出是一根横条还是一道脏印;而 opacity 会把这一根单独提进一个
+ * 合成层,它的抗锯齿从此和邻居不是同一套,这本身就是"静息态看着不一样"的一
+ * 个来源。
+ *
+ * 一个通道说一件事。长度说这一格管多宽,厚度说指针离得多近,墨色说读到了
+ * 哪里 —— 三件事三条通道,谁也别兼职。
+ *
+ * 三分之二是个整除得开的比例:静息 9 × 2/3 = 6px,不落在半像素上。到底代表
+ * 几轮由卡片上的 kicker 直说,形状不必替它把话讲完。
  */
 .conversation-minimap__turn[data-cluster] .conversation-minimap__bar {
-  --cp-rail-len: 6px;
-  --cp-rail-gain: 14px;
-
-  opacity: 0.72;
+  --cp-rail-scale: calc(2 / 3);
 }
 
 /* 这一格代表几轮。数字用等宽字形,免得逐格跳动。 */

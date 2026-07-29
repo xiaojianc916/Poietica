@@ -64,6 +64,40 @@ function placesOf(toolCall: PermissionToolCall | undefined): readonly string[] {
   return changed.length > 0 ? changed : (toolCall?.locations ?? []).map((location) => location.path)
 }
 
+/*
+ * 这次调用自己说的那段文本，一处算法。
+ *
+ * 主体那一段和答复之后的结果卡取的是同一段东西，和 placesOf 同理，只该有一份。
+ */
+function saidOf(toolCall: PermissionToolCall | undefined): string {
+  return toToolContentParts(toolCall?.content)
+    .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+    .join('\n')
+}
+
+/*
+ * 题面是这次调用要做的那件事，不是它的工具名。
+ *
+ * title 在 wire 上是 adapter 写死的分类词：一次 shell 调用送来的是「Bash」，而
+ * 用户要审的是 `pnpm test`。一张写着工具名的卡片复述不了任何事 —— 这一点提问那
+ * 边早就踩过，结论就写在 QuestionOutcome 的注释里（题面取自 readQuestionPrompt
+ * 而不是 item.title），权限这边同样成立，此前却照着 title 写了。
+ *
+ * 所以优先取这次调用自己声明的文本。没有文本才退回工具名，并把落点接在后面 ——
+ * 一句光秃秃的「修改文件」至少要指得出改的是哪一个。
+ */
+function askedOf(item: PermissionItem): string {
+  const said = saidOf(item.toolCall).trim()
+
+  if (said.length > 0) {
+    return said
+  }
+
+  const places = placesOf(item.toolCall)
+
+  return places.length === 0 ? item.title : `${item.title} ${places.join(' ')}`
+}
+
 /**
  * 到底在批准什么。
  *
@@ -77,7 +111,7 @@ function PermissionSubject({ toolCall }: { readonly toolCall: PermissionToolCall
   const stat = toDiffStat(parts)
   const places = placesOf(toolCall)
 
-  const said = parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  const said = saidOf(toolCall)
 
   return (
     <div className="assistant-permission__subject">
@@ -167,7 +201,6 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
    */
   if (resolution !== undefined) {
     const cancelled = resolution.outcome === 'cancelled'
-    const places = placesOf(item.toolCall)
 
     return (
       <OutcomeCard
@@ -176,7 +209,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
         }
         answered={!cancelled}
         note={cancelled ? '请求已取消' : undefined}
-        prompt={places.length === 0 ? item.title : `${item.title} ${places.join(' ')}`}
+        prompt={askedOf(item)}
       />
     )
   }

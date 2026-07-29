@@ -37,6 +37,8 @@
   font-weight: 400;
   line-height: 1.5;
   color: var(--cp-timeline-quiet-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* 结局是这张卡片的主行：比题面大半档、重一点，正文墨色，不带底色也不带框。 */
@@ -46,6 +48,7 @@
   font-weight: 500;
   line-height: 1.5;
   color: var(--cp-ink);
+  overflow-wrap: anywhere;
 }
 
 .assistant-outcome__note {
