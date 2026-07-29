@@ -1,4 +1,7 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
+import { defaultAcpAgent } from '@poietica/agent-registry'
+import type { AgentDialect } from '@poietica/agent-ui'
+import { AgentDialectProvider } from '@poietica/agent-ui'
 import { EditorProvider } from '@poietica/editor-core/react'
 import type { SettingsStore } from '@poietica/features-settings'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
@@ -19,6 +22,23 @@ import {
   type WorkspaceCanvasUIPort,
   WorkspaceContainer,
 } from './workspace/WorkspaceContainer'
+
+/**
+ * 对面那家 agent 的方言。
+ *
+ * 会话本来就是拿这份档案建起来的(见 application/ai/agent-session.ts),
+ * 所以「跟谁说话」和「它怎么说话」出自同一个答案,不会各说各的。
+ * 界面包不认识名单,名单只在这一行露面。
+ */
+function dialectOf(agent: ReturnType<typeof defaultAcpAgent>): AgentDialect {
+  return {
+    optionLabels: agent.optionLabels,
+    questions: agent.questionDialect === undefined ? [] : [agent.questionDialect],
+  }
+}
+
+/* 一个进程一份:每次渲染新建一个对象会让整棵子树的记忆化失效。 */
+const DIALECT = dialectOf(defaultAcpAgent())
 
 export interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -204,47 +224,49 @@ export function AppShell({ runtime }: AppShellProps) {
      * 它比编辑器更早、比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的
      * 选择器读的是同一份，否则列表亮着一条而标签停在另一条。
      */
-    <ThreadsProvider>
-      <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
-        <WorkspaceContainer
-          agentSession={runtime.agentSession}
-          capabilities={capabilities}
-          isSettingsOpen={isSettingsOpen && capabilities.settings}
-          isWindowMaximized={isWindowMaximized}
-          onCommandPaletteOpen={openCommandPalette}
-          onDeveloperToolsOpen={openDeveloperTools}
-          onSettingsClose={closeSettings}
-          onSettingsOpen={openSettings}
-          onWindowClose={requestApplicationClose}
-          onWindowMaximize={maximizeWindow}
-          onWindowMinimize={minimizeWindow}
-          port={workspacePort}
-          settingsStore={runtime.settings}
-        />
+    <AgentDialectProvider dialect={DIALECT}>
+      <ThreadsProvider>
+        <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
+          <WorkspaceContainer
+            agentSession={runtime.agentSession}
+            capabilities={capabilities}
+            isSettingsOpen={isSettingsOpen && capabilities.settings}
+            isWindowMaximized={isWindowMaximized}
+            onCommandPaletteOpen={openCommandPalette}
+            onDeveloperToolsOpen={openDeveloperTools}
+            onSettingsClose={closeSettings}
+            onSettingsOpen={openSettings}
+            onWindowClose={requestApplicationClose}
+            onWindowMaximize={maximizeWindow}
+            onWindowMinimize={minimizeWindow}
+            port={workspacePort}
+            settingsStore={runtime.settings}
+          />
 
-        <CommandPalette
-          onOpenChange={setCommandPaletteOpen}
-          open={isCommandPaletteOpen}
-          registry={runtime.commands}
-        />
+          <CommandPalette
+            onOpenChange={setCommandPaletteOpen}
+            open={isCommandPaletteOpen}
+            registry={runtime.commands}
+          />
 
-        <UiFeedbackRegion />
+          <UiFeedbackRegion />
 
-        <ConfirmationDialog
-          confirmLabel="放弃全部并退出"
-          description={
-            termination.state === 'confirmation-required'
-              ? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`
-              : ''
-          }
-          destructive
-          onCancel={runtime.termination.cancel}
-          onConfirm={runtime.termination.confirmDiscard}
-          open={termination.state === 'confirmation-required'}
-          title="退出并放弃未保存的更改？"
-        />
-      </EditorProvider>
-    </ThreadsProvider>
+          <ConfirmationDialog
+            confirmLabel="放弃全部并退出"
+            description={
+              termination.state === 'confirmation-required'
+                ? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`
+                : ''
+            }
+            destructive
+            onCancel={runtime.termination.cancel}
+            onConfirm={runtime.termination.confirmDiscard}
+            open={termination.state === 'confirmation-required'}
+            title="退出并放弃未保存的更改？"
+          />
+        </EditorProvider>
+      </ThreadsProvider>
+    </AgentDialectProvider>
   )
 }
 
