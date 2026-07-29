@@ -7,21 +7,31 @@ export {
   AGENT_EVENT,
   type AgentBridgeOptions,
   type AgentCommandBridge,
-  type AgentConfigBridge,
   type AgentConfigChoiceDescription,
   type AgentConfigControlDescription,
   type AgentConfigPurposeName,
   type AgentEventSource,
   type AgentEventSourceOptions,
+  /*
+   * 会话的设置，和 agent 的配置，是两件事。
+   *
+   * 此前两者都叫 AgentConfigBridge / createAgentConfigBridge，还都从这里
+   * 导出：一个名字指向两个毫无关系的实现，谁赢由打包顺序决定。桌面那侧把
+   * 它当 SessionConfigPort 用，赢的若是下面那个，拿回来的对象根本没有
+   * select。名字分开，问题就不存在了。
+   */
+  type AgentSessionConfigBridge,
   createAgentCommandBridge,
-  createAgentConfigBridge,
   createAgentEventSource,
+  createAgentSessionConfigBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from './agent'
-export type {
-  AgentConfigSnapshot,
-  ProviderSecretState,
+export {
+  type AgentConfigBridge,
+  type AgentConfigSnapshot,
+  createAgentConfigBridge,
+  type ProviderSecretState,
 } from './agent-config'
 export {
   type IpcError,

@@ -98,25 +98,42 @@ impl AiStore {
         Ok(events)
     }
 
-    /// Reads every frame of a conversation, turn by turn.
+    /// Reads the most recent turns of a conversation, frame by frame.
     ///
-    /// A conversation is more than its last turn, so opening one has to read
-    /// all of them. Runs are ordered by when they started and frames by their
-    /// position inside the run, which is the order they happened in.
+    /// A window, not the whole log. One frame is a streamed fragment of a few
+    /// characters, so a conversation that has been used for a while holds tens
+    /// of thousands of them; reading all of them meant opening a conversation
+    /// cost time proportional to everything ever said in it, parsed once here
+    /// and replayed once in the interface. No chat client opens a conversation
+    /// that way, and the cost landed on the click.
+    ///
+    /// The window is cut by turn rather than by frame, because half a turn is
+    /// not a thing anyone should be shown. Within it, runs are ordered by when
+    /// they started and frames by their position inside the run, which is the
+    /// order they happened in.
     ///
     /// # Errors
     ///
     /// Fails when a row cannot be read or a payload cannot be decoded.
-    pub fn thread_events(&self, thread_id: Uuid) -> Result<Vec<StoredEvent>> {
+    pub fn thread_events(&self, thread_id: Uuid, recent_runs: i64) -> Result<Vec<StoredEvent>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT run_events.seq, run_events.kind, run_events.payload, run_events.recorded_at
                FROM run_events
                JOIN runs ON runs.id = run_events.run_id
               WHERE runs.thread_id = ?1
+                AND runs.id IN (
+                      SELECT id
+                        FROM runs
+                       WHERE thread_id = ?1
+                       ORDER BY started_at DESC, id DESC
+                       LIMIT ?2
+                    )
               ORDER BY runs.started_at, runs.id, run_events.seq",
         )?;
 
-        let rows = statement.query_map(rusqlite::params![thread_id.to_string()], |row| {
+        let rows = statement.query_map(
+            rusqlite::params![thread_id.to_string(), recent_runs],
+            |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,

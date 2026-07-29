@@ -61,6 +61,16 @@ const NO_SESSION_ID: &str = "the agent closed the connection before creating a s
 const NO_ANSWER: &str = "the agent session ended before answering";
 const NO_READ: &str = "the log read did not finish";
 
+/// How many turns a conversation opens with.
+///
+/// Opening a conversation used to read every frame ever recorded under it.
+/// A frame is a streamed fragment, so that is tens of thousands of rows for a
+/// conversation that has seen real use — parsed on the way out, serialised
+/// again over IPC, and reduced once more in the interface, all of it on the
+/// click that opened it. Chat clients open a window and reach further back on
+/// demand; this is the window.
+const RECENT_RUNS: i64 = 40;
+
 /// The live session, if one has been started.
 ///
 /// The connection's own session identifier is deliberately absent. Which
@@ -426,7 +436,7 @@ pub async fn agent_load_thread(
 
     let events = on_store(&state, move |store| {
         Ok(store
-            .thread_events(thread_id)
+            .thread_events(thread_id, RECENT_RUNS)
             .map_err(persistence)?
             .into_iter()
             .map(|event| event.payload)

@@ -9,8 +9,8 @@ import { createIpcSession } from '@poietica/agent-transport'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCommandBridge,
-  createAgentConfigBridge,
   createAgentEventSource,
+  createAgentSessionConfigBridge,
   createAgentThreadBridge,
   shutdownAgent,
 } from '@poietica/platforms-desktop-ipc'
@@ -38,7 +38,7 @@ import {
 let sessionConfig: SessionConfigPort | undefined
 
 export function desktopSessionConfig(): SessionConfigPort {
-  sessionConfig ??= createAgentConfigBridge()
+  sessionConfig ??= createAgentSessionConfigBridge()
 
   return sessionConfig
 }
