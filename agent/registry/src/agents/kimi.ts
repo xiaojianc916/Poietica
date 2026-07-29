@@ -1,4 +1,4 @@
-import type { AcpAgentDescriptor, AcpToolCallContentEntry } from '../acp-agent-contract'
+import type { AcpAgentDescriptor } from '../acp-agent-contract'
 
 /*
  * Kimi Code CLI 的档案。
@@ -24,44 +24,6 @@ import type { AcpAgentDescriptor, AcpToolCallContentEntry } from '../acp-agent-c
 const QUESTION_DIALECT = {
   option: /^q(\d+)_opt_(\d+)$/,
   skip: /^q(\d+)_skip$/,
-}
-
-/**
- * Kimi 把 diff 挂在开头那一帧，终局帧不带。
- *
- * 证据全在 events-map.ts：
- *  - toolCallStartToSessionUpdate 把 displayBlockToAcpContent(event.display)
- *    unshift 进 CREATE 帧的 content；
- *  - toolResultToSessionUpdate 的 content 整个来自 toolResultToAcpContent(event)，
- *    其中没有 diff；
- *  - 该文件自己的注释写明这是有意为之："ToolCallUpdate.content is REPLACE, not
- *    APPEND" / "the result's content array overwrites the streaming args preview
- *    with the final tool output"。
- *
- * 所以这不是 Kimi 的 bug，是它选择的发法：diff 前置一次，此后由客户端负责留住。
- * 照字面替换的话，diff 会在调用完成的那一瞬间消失 —— 而完成恰好是最需要看到
- * 它的时刻。
- *
- * 为什么是钩子而不是一个布尔声明：另一家如果把 diff 一直挂在 content 里，同一
- * 条规则会让它显示两遍；再一家可能要按 path 合并。三种落法是三段不同的算法，
- * 通用层没法靠换参数伺候，只能各家自带一段。
- */
-export function carryForwardDiff<TEntry extends AcpToolCallContentEntry>(
-  current: readonly TEntry[],
-  incoming: readonly TEntry[] | undefined,
-): readonly TEntry[] {
-  if (incoming === undefined) {
-    return current
-  }
-
-  /* 新帧自带 diff：它更新，整份采用。 */
-  if (incoming.some((entry) => entry.type === 'diff')) {
-    return incoming
-  }
-
-  const held = current.filter((entry) => entry.type === 'diff')
-
-  return held.length === 0 ? incoming : [...held, ...incoming]
 }
 
 /**
@@ -100,5 +62,4 @@ export const kimiCode = {
   args: ['acp'],
   optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
-  toolCallContentRule: carryForwardDiff,
 } as const satisfies AcpAgentDescriptor

@@ -13,19 +13,10 @@
  * 默认走声明。要用钩子，必须在档案里写清为什么声明不够 —— 没写理由的钩子只是
  * 把一个 if 换了个地方，不是解耦。
  *
- * 一份档案至多一个钩子，签名钉死，纯函数（不碰全局状态、界面、网络、时钟），
- * 只在入站边界调用。通用层因此永远只有一个调用点，接第十家也还是一个。
+ * 今天一个钩子都没有：已经发现的各家差异全都落在「值」这一侧。判据仍然写在
+ * 这里，是为了将来真需要钩子时有个门槛 —— 一份档案至多一个，签名钉死，纯函数
+ * （不碰全局状态、界面、网络、时钟），只在入站边界调用，通用层只有一个调用点。
  */
-
-/**
- * 一段工具调用内容。
- *
- * 这一层只认 type，不认里面装的是什么：档案要判的是「有没有 diff」这一类
- * 问题，绑死时间线的条目类型只会让两个包互相咬住。
- */
-export interface AcpToolCallContentEntry {
-  readonly type: string
-}
 
 /**
  * 「向用户提问」在这一家的写法。
@@ -42,21 +33,6 @@ export interface AcpQuestionDialect {
   /** 捕获 (题号)。 */
   readonly skip: RegExp
 }
-
-/**
- * 终局帧到达时，这一家的工具调用内容该怎么落。
- *
- * ACP 规定 tool_call_update 的 content 是整体替换（"Replace the content
- * collection"）。但替换之后屏幕上该剩什么，各家不一样：有的把 diff 一直挂在
- * content 里，照字面替换即可；有的只在开头挂一次、终局帧不带，要客户端自己
- * 留住；将来还可能有按 path 去重合并的。
- *
- * 这三件事没法用同一段代码加一个参数搞定 —— 变的是做法，所以是钩子。
- */
-export type AcpToolCallContentRule = <TEntry extends AcpToolCallContentEntry>(
-  current: readonly TEntry[],
-  incoming: readonly TEntry[] | undefined,
-) => readonly TEntry[]
 
 export interface AcpAgentDescriptor {
   readonly id: string
@@ -76,6 +52,4 @@ export interface AcpAgentDescriptor {
   readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: AcpQuestionDialect | undefined
-  /** 缺席表示照 ACP 字面语义整体替换。 */
-  readonly toolCallContentRule?: AcpToolCallContentRule | undefined
 }

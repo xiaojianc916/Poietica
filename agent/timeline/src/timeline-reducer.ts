@@ -619,6 +619,11 @@ function positionOf(draft: Draft, id: string): number {
  * 需要看到它的时刻。这是对协议的容差，不针对任何一家 agent。
  *
  * 于是：新帧自带 diff 就整份采用（它更新），否则把旧的 diff 留在前面。
+ *
+ * 这一条对每一家都成立，所以它留在通用层，不做成每家档案自带的钩子：把 diff
+ * 一直挂在 content 里的 agent 每帧都命中第一个分支（整份采用，不会显示两遍），
+ * 只在开头挂一次的命中第二个。两种发法同一段代码就够了 —— 各家不同的是数据，
+ * 不是做法。
  */
 function carryForwardDiff(
   current: ToolCallTimelineItem['content'],

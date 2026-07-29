@@ -1,8 +1,4 @@
-export type {
-  AcpQuestionDialect,
-  AcpToolCallContentEntry,
-  AcpToolCallContentRule,
-} from './acp-agent-contract'
+export type { AcpQuestionDialect } from './acp-agent-contract'
 export type {
   AcpAgentProfile,
   AcpAgentProfileParse,
@@ -22,7 +18,7 @@ export {
 } from './acp-agent-profile'
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
-export { carryForwardDiff, kimiCode } from './agents/kimi'
+export { kimiCode } from './agents/kimi'
 export type { LaunchEnvInput, LaunchEnvResult } from './credential-injection'
 export { redactEnv, resolveAgentLaunchEnv } from './credential-injection'
 export type { CatalogModel, CatalogProvider, ModelCatalog } from './model-catalog'
