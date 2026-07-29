@@ -1,9 +1,11 @@
 /*
  * AskUserQuestion —— 协议层。
  *
- * kimi-code（TS）的 AskUserQuestion 工具一次可携带 1–4 道题、每题 2–4 个选项，
- * 但它的 ACP adapter 目前把多题降级为单题（questionIndex 恒为 0，multi_select
- * 收窄成单选）。一道题在 wire 上就是一个 session/request_permission：
+ * ACP 本身没有「提问」。一道题在 wire 上就是一个 session/request_permission，
+ * agent 借选项的命名与 kind 把题面编进去。本文件描述的是这个通用形状，具体
+ * 用什么命名空间由方言表决定（见 ACP_QUESTION_DIALECTS）。
+ *
+ * 以目前唯一登记的方言（kimi-code 的 ACP adapter）为例，一道题长这样：
  *
  *   options: [
  *     { optionId: 'q0_opt_0', name: '<label>', kind: 'allow_once' },
@@ -11,8 +13,8 @@
  *     { optionId: 'q0_skip',  name: 'Skip',    kind: 'reject_once' },   // 自动追加
  *   ]
  *
- * 回包只能带一个 optionId；回 'q<N>_skip' 或 cancelled 都被 adapter 解成 null，
- * 也就是"用户跳过了这道题"。因此：
+ * 回包只能带一个 optionId；回 skip 选项或 cancelled 都被 agent 解成"这道题跳过"。
+ * 因此：
  *
  *   - 不做多选：回包带不回去。
  *   - 不做自由填写：工具侧没有这个通道。
@@ -29,12 +31,20 @@ export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
  * 什么形状把一道题塞进权限请求，是那个 agent 的方言，所以它是一张表而不是
  * 两条写死的正则 —— 接第二个 ACP agent 是加一行，不是改判据。
  */
-interface QuestionDialect {
+export interface QuestionDialect {
+  /** 匹配一个可选项，捕获 (题号, 选项号)。 */
   readonly option: RegExp
+  /** 匹配「跳过这道题」，捕获 (题号)。 */
   readonly skip: RegExp
 }
 
-const DIALECTS: readonly QuestionDialect[] = [
+/**
+ * 已登记的方言。
+ *
+ * 接一个新的 ACP agent：要么往这张表里加一行，要么在调用处把自己的表传进来。
+ * 本文件的任何一支函数都不必因此改动。
+ */
+export const ACP_QUESTION_DIALECTS: readonly QuestionDialect[] = [
   /* kimi-code 的 ACP adapter：q0_opt_0 / q0_skip。 */
   { option: /^q(\d+)_opt_(\d+)$/, skip: /^q(\d+)_skip$/ },
 ]
@@ -43,9 +53,12 @@ export type QuestionOptionId =
   | { readonly kind: 'option'; readonly questionIndex: number; readonly optionIndex: number }
   | { readonly kind: 'skip'; readonly questionIndex: number }
 
-/** 解析 ACP optionId。不属于提问命名空间的一律返回 null。 */
-export function parseQuestionOptionId(optionId: string): QuestionOptionId | null {
-  for (const dialect of DIALECTS) {
+/** 解析 ACP optionId。不属于任何已知提问命名空间的一律返回 null。 */
+export function parseQuestionOptionId(
+  optionId: string,
+  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
+): QuestionOptionId | null {
+  for (const dialect of dialects) {
     const option = dialect.option.exec(optionId)
 
     if (option) {
@@ -91,12 +104,15 @@ export interface QuestionDeck {
 /**
  * 一个 pending 请求像不像 AskUserQuestion。
  *
- * 判据是 optionId 的形状，不是工具名：工具名在不同 agent / 版本下写法不一，
- * 而 q0_opt_0 / q0_skip 这套命名空间是 adapter 自己造的、稳定的。
+ * 判据是 optionId 的形状加上 ACP kind，不是工具名：工具名在不同 agent / 版本下
+ * 写法不一，而方言的命名空间是 adapter 自己造的、在该 agent 内稳定的。
  */
-export function isQuestionRequest(request: {
-  readonly options: readonly { readonly optionId: string; readonly kind?: string }[]
-}): boolean {
+export function isQuestionRequest(
+  request: {
+    readonly options: readonly { readonly optionId: string; readonly kind?: string }[]
+  },
+  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
+): boolean {
   if (request.options.length === 0) {
     return false
   }
@@ -113,7 +129,7 @@ export function isQuestionRequest(request: {
    * 已经在上游按完整的 PermissionOption 判过一次了。
    */
   return request.options.every((option) => {
-    const parsed = parseQuestionOptionId(option.optionId)
+    const parsed = parseQuestionOptionId(option.optionId, dialects)
 
     if (parsed === null) {
       return false
@@ -141,12 +157,13 @@ export function buildQuestionDeck(
     readonly header?: string | undefined
     readonly options: readonly { readonly optionId: string; readonly label: string }[]
   }[],
+  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
 ): QuestionDeck | null {
   const seen = new Set<number>()
   const ordered: { index: number; card: QuestionCard }[] = []
 
   for (const request of requests) {
-    if (!isQuestionRequest(request)) {
+    if (!isQuestionRequest(request, dialects)) {
       continue
     }
 
@@ -156,7 +173,7 @@ export function buildQuestionDeck(
       continue
     }
 
-    const first = parseQuestionOptionId(head.optionId)
+    const first = parseQuestionOptionId(head.optionId, dialects)
 
     if (first === null || seen.has(first.questionIndex)) {
       continue
@@ -168,7 +185,7 @@ export function buildQuestionDeck(
     let skipOptionId: string | undefined
 
     for (const option of request.options) {
-      const parsed = parseQuestionOptionId(option.optionId)
+      const parsed = parseQuestionOptionId(option.optionId, dialects)
 
       if (parsed === null) {
         continue
@@ -215,9 +232,8 @@ export interface QuestionAnswer {
 /*
  * 一道题真正的题面。
  *
- * permission 帧的 title 由 adapter 写死成 'AskUserQuestion'（session.ts 里就是
- * 一个字面量），问题本身被塞进 toolCall.content 的第一段文本。所以凡是要显示
- * 「问了什么」的地方都必须走这里，读 title 只能读到工具名。
+ * permission 帧的 title 是工具名而不是题面 —— 题面被塞进 toolCall.content 的第一
+ * 段文本。所以凡是要显示「问了什么」的地方都必须走这里；读 title 只能读到工具名。
  *
  * 参数按结构收，不绑 PermissionItem：这支函数的前提只有"有个 title、可能有个
  * toolCall.content"，绑死契约类型会让它跟着契约一起改。

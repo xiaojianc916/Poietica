@@ -1,5 +1,6 @@
 import * as v from 'valibot'
 
+import type { AcpSessionUpdate } from './acp-session-contract'
 import type { RunEvent } from './run-contract'
 
 /**
@@ -162,6 +163,29 @@ export const runEventSchema = v.variant('kind', [
   }),
 ])
 
+/*
+ * 判别式清单不允许漂移。
+ *
+ * 同一段 wire format 在本仓库有两份描述：acp-session-contract.ts 的手写类型，
+ * 与本文件的 valibot schema。合并成一份行不通 —— exactOptionalPropertyTypes 下
+ * v.optional 推导出的 `X | undefined` 赋不回契约的 exactOptional 成员，而手写那
+ * 份带着 readonly 与 exactOptional 语义，精度更高，所以真源在那边。
+ *
+ * 于是这里锁住真正会失效的那一面：成员清单。漏掉一个分支，编译就过不去。
+ */
+type Exactly<TLeft, TRight> = [TLeft] extends [TRight]
+  ? [TRight] extends [TLeft]
+    ? true
+    : never
+  : never
+
+type AssertSessionUpdateKinds = Exactly<
+  v.InferOutput<typeof sessionUpdateSchema>['sessionUpdate'],
+  AcpSessionUpdate['sessionUpdate']
+>
+type AssertRunEventKinds = Exactly<v.InferOutput<typeof runEventSchema>['kind'], RunEvent['kind']>
+
+export type AcpSchemaIsAligned = AssertSessionUpdateKinds & AssertRunEventKinds
 export type ParsedRunEvent =
   | { readonly ok: true; readonly event: RunEvent }
   | { readonly ok: false; readonly issue: string }

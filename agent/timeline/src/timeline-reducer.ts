@@ -454,7 +454,7 @@ function applyToolCallUpdate(
     title: update.title ?? current.title,
     kind: update.kind ?? current.kind,
     status,
-    content: mergeContent(current.content, update.content),
+    content: carryForwardDiff(current.content, update.content),
     locations: update.locations ?? current.locations,
     rawOutput: update.rawOutput ?? current.rawOutput,
     ...(endedAt === undefined ? {} : { endedAt }),
@@ -575,17 +575,16 @@ function positionOf(draft: Draft, id: string): number {
 }
 
 /**
- * 保住工具调用的 diff。
+ * 把已经看见过的 diff 带到后续帧里。
  *
- * 协议规定 tool_call_update.content 是整体替换而不是追加，而 Kimi 只在
- * tool.call.started 那一帧挂上 diff:packages/acp-adapter/src/events-map.ts 把它
- * unshift 进 content，终局帧的 content 由 toolResultToAcpContent 重建，那个函数的
- * 注释明写 diff 不从这里来。照字面替换，diff 就在调用完成的瞬间消失了,而完成
- * 恰好是最需要看到它的时刻。
+ * 协议规定 tool_call_update.content 是整体替换而不是追加，但它并不要求每一帧都
+ * 重新带上 diff —— agent 通常只在调用开始时给出一次，终局帧的 content 由工具结果
+ * 重建，不含 diff。照字面替换，diff 会在调用完成的那一瞬间消失，而完成恰好是最
+ * 需要看到它的时刻。这是对协议的容差，不针对任何一家 agent。
  *
  * 于是：新帧自带 diff 就整份采用（它更新），否则把旧的 diff 留在前面。
  */
-function mergeContent(
+function carryForwardDiff(
   current: ToolCallTimelineItem['content'],
   incoming: ToolCallTimelineItem['content'] | undefined,
 ): ToolCallTimelineItem['content'] {
