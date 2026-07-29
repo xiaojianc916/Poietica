@@ -64,6 +64,16 @@ export interface AcpAgentDescriptor {
   /** 可执行文件名，不含参数。 */
   readonly command: string
   readonly args: readonly string[]
+  /**
+   * 权限选项按钮上写什么。
+   *
+   * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是
+   * 分类，一次请求里会重复，拿它当标签会让几个不同的选项显示成同一个词。
+   * 查不到的一律照原文显示，所以这张表只需要列出想改口的那几条。
+   *
+   * 各家不同的只是这张表，通用层查表那一行对谁都一样 —— 变的是值，所以是声明。
+   */
+  readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: AcpQuestionDialect | undefined
   /** 缺席表示照 ACP 字面语义整体替换。 */

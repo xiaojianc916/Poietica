@@ -3,6 +3,7 @@ import './permission-request.css'
 import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { useCallback, useState } from 'react'
+import { useAgentDialect } from './domain/agent-dialect'
 import { isQuestionRequest } from './domain/ask-user-question'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { toDiffStat, toToolContentParts } from './timeline/tool-call-content'
@@ -32,34 +33,20 @@ const KIND_LABELS: Record<string, string> = {
 }
 
 /*
- * 按钮上的字是显示，不是身份。回给 agent 的永远是 optionId，所以这里只换文案。
+ * 按钮上的字是显示，不是身份。回给 agent 的永远是 optionId，这里只换文案。
  *
- * 认 name，不认 kind。kind 是分类：它决定按钮长什么样、有多危险，那件事已经由
- * data-kind 交给样式表了；而分类会重复 —— 一次计划评审同时送来两个 allow_once
- * 和两个 reject_once，按 kind 查表的结果是四个按钮写着同两个词，用户无从分辨
- * 自己在选哪一个。name 是协议里的 human-readable label，agent 保证它是这枚选项
- * 说的话。
+ * 认 name，不认 kind。kind 是分类：它决定按钮长什么样、有多危险，那件事已经
+ * 交给 data-kind 和样式表了；而分类会重复 —— 一次计划评审同时送来两个
+ * allow_once 和两个 reject_once，按 kind 查表的结果是四个按钮写着同两个词，
+ * 用户无从分辨自己在选哪一个。name 是协议里的 human-readable label，agent 保证
+ * 它是这枚选项说的话。
  *
- * 表里只放规范英文标签的译法，查不到就原样显示 agent 的原文：宁可显示英文，
- * 也不能显示一个错的中文。
- *
- * 这张表认得的字符串是某个 agent 说的话，不是协议的一部分 —— 它的归宿是 agent
- * 档案里的一个声明字段，由装配点作为 prop 传进来。搬家是纯位移，取值语义得先对。
+ * 表由外面交进来。它认得的那些字符串（Revise、Reject and Exit……）是某一家
+ * agent 说的话，不是协议的一部分，所以归它自己的档案，不归这个文件。查不到就
+ * 照原文显示：宁可显示英文，也不能显示一个错的中文。
  */
-const OPTION_LABELS: Record<string, string> = {
-  Allow: '批准',
-  'Allow Always': '始终批准',
-  Approve: '批准',
-  'Approve for this session': '本次会话内始终批准',
-  'Approve once': '批准',
-  Reject: '拒绝',
-  'Reject and Exit': '拒绝并退出',
-  Revise: '修改方案',
-  Skip: '跳过',
-}
-
-function labelFor(option: PermissionOption): string {
-  return OPTION_LABELS[option.name] ?? option.name
+function labelFor(option: PermissionOption, labels: Readonly<Record<string, string>>): string {
+  return labels[option.name] ?? option.name
 }
 
 /**
@@ -133,6 +120,8 @@ export interface PermissionRequestProps {
 }
 
 export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
+  const dialect = useAgentDialect()
+
   const [submittedOptionId, setSubmittedOptionId] = useState<string | undefined>(undefined)
 
   const resolution = item.resolution
@@ -154,7 +143,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
    *
    * 位置在所有 hook 之后：提前到 useState 上面就是条件调用 hook。
    */
-  if (isQuestionRequest(item)) {
+  if (isQuestionRequest(item, dialect.questions)) {
     return <QuestionOutcome item={item} />
   }
 
@@ -168,7 +157,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
         <p className="assistant-permission__outcome">
           {resolution.outcome === 'cancelled'
             ? '请求已取消'
-            : `已选择：${labelOf(item.options, resolution.optionId)}`}
+            : `已选择：${labelOf(item.options, resolution.optionId, dialect.optionLabels)}`}
         </p>
       </div>
     )
@@ -195,7 +184,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
             }}
             type="button"
           >
-            {labelFor(option)}
+            {labelFor(option, dialect.optionLabels)}
           </button>
         ))}
       </div>
@@ -203,8 +192,12 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
   )
 }
 
-function labelOf(options: readonly PermissionOption[], optionId: string): string {
+function labelOf(
+  options: readonly PermissionOption[],
+  optionId: string,
+  labels: Readonly<Record<string, string>>,
+): string {
   const option = options.find((candidate) => candidate.optionId === optionId)
 
-  return option === undefined ? optionId : labelFor(option)
+  return option === undefined ? optionId : labelFor(option, labels)
 }

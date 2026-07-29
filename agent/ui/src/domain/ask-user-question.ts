@@ -3,7 +3,7 @@
  *
  * ACP 本身没有「提问」。一道题在 wire 上就是一个 session/request_permission，
  * agent 借选项的命名与 kind 把题面编进去。本文件描述的是这个通用形状，具体
- * 用什么命名空间由方言表决定（见 ACP_QUESTION_DIALECTS）。
+ * 用什么命名空间由调用方交进来的方言决定 —— 本文件不认识任何一家 agent。
  *
  * 以目前唯一登记的方言（kimi-code 的 ACP adapter）为例，一道题长这样：
  *
@@ -38,17 +38,6 @@ export interface QuestionDialect {
   readonly skip: RegExp
 }
 
-/**
- * 已登记的方言。
- *
- * 接一个新的 ACP agent：要么往这张表里加一行，要么在调用处把自己的表传进来。
- * 本文件的任何一支函数都不必因此改动。
- */
-export const ACP_QUESTION_DIALECTS: readonly QuestionDialect[] = [
-  /* kimi-code 的 ACP adapter：q0_opt_0 / q0_skip。 */
-  { option: /^q(\d+)_opt_(\d+)$/, skip: /^q(\d+)_skip$/ },
-]
-
 export type QuestionOptionId =
   | { readonly kind: 'option'; readonly questionIndex: number; readonly optionIndex: number }
   | { readonly kind: 'skip'; readonly questionIndex: number }
@@ -56,7 +45,7 @@ export type QuestionOptionId =
 /** 解析 ACP optionId。不属于任何已知提问命名空间的一律返回 null。 */
 export function parseQuestionOptionId(
   optionId: string,
-  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
+  dialects: readonly QuestionDialect[],
 ): QuestionOptionId | null {
   for (const dialect of dialects) {
     const option = dialect.option.exec(optionId)
@@ -111,7 +100,7 @@ export function isQuestionRequest(
   request: {
     readonly options: readonly { readonly optionId: string; readonly kind?: string }[]
   },
-  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
+  dialects: readonly QuestionDialect[],
 ): boolean {
   if (request.options.length === 0) {
     return false
@@ -157,7 +146,7 @@ export function buildQuestionDeck(
     readonly header?: string | undefined
     readonly options: readonly { readonly optionId: string; readonly label: string }[]
   }[],
-  dialects: readonly QuestionDialect[] = ACP_QUESTION_DIALECTS,
+  dialects: readonly QuestionDialect[],
 ): QuestionDeck | null {
   const seen = new Set<number>()
   const ordered: { index: number; card: QuestionCard }[] = []

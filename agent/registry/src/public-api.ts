@@ -21,7 +21,7 @@ export {
   parseAcpAgentProfileSet,
 } from './acp-agent-profile'
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
-export { acpAgentById, acpAgents, acpQuestionDialects, defaultAcpAgent } from './acp-agents'
+export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
 export { carryForwardDiff, kimiCode } from './agents/kimi'
 export type { LaunchEnvInput, LaunchEnvResult } from './credential-injection'
 export { redactEnv, resolveAgentLaunchEnv } from './credential-injection'

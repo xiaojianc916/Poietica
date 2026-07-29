@@ -13,6 +13,7 @@ import { type ReactNode, useMemo, useRef } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
+import { useAgentDialect } from './domain/agent-dialect'
 import {
   buildQuestionDeck,
   isQuestionRequest,
@@ -110,6 +111,9 @@ export function AssistantSurface({
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
+  /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
+  const dialect = useAgentDialect()
+
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
 
@@ -160,7 +164,7 @@ export function AssistantSurface({
         continue
       }
 
-      if (!isQuestionRequest(item)) {
+      if (!isQuestionRequest(item, dialect.questions)) {
         continue
       }
 
@@ -168,7 +172,7 @@ export function AssistantSurface({
     }
 
     return found
-  }, [rows])
+  }, [dialect.questions, rows])
 
   const questionDeck = useMemo(() => {
     const first = pendingQuestions[0]
@@ -187,8 +191,9 @@ export function AssistantSurface({
           label: option.name,
         })),
       })),
+      dialect.questions,
     )
-  }, [pendingQuestions])
+  }, [dialect.questions, pendingQuestions])
 
   /* 摘出去的那几行不再进流，否则同一道题会同时长在两个地方。 */
   const visibleRows = useMemo(
@@ -200,10 +205,10 @@ export function AssistantSurface({
               !(
                 row.item.type === 'permission' &&
                 row.item.resolution === undefined &&
-                isQuestionRequest(row.item)
+                isQuestionRequest(row.item, dialect.questions)
               ),
           ),
-    [questionDeck, rows],
+    [dialect.questions, questionDeck, rows],
   )
 
   /*
@@ -223,7 +228,7 @@ export function AssistantSurface({
    * 拒绝仍然在流里就地回答。
    */
   const renderPermission = (item: PermissionItem) =>
-    isQuestionRequest(item) ? (
+    isQuestionRequest(item, dialect.questions) ? (
       <QuestionOutcome item={item} />
     ) : (
       <PermissionRequest item={item} onResolve={assistant.resolvePermission} />

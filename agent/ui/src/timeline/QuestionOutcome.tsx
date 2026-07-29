@@ -1,7 +1,8 @@
 import './question-outcome.css'
 
 import type { PermissionItem } from '@poietica/agent-timeline'
-import { readQuestionPrompt } from '../domain/ask-user-question'
+import { useAgentDialect } from '../domain/agent-dialect'
+import { parseQuestionOptionId, readQuestionPrompt } from '../domain/ask-user-question'
 
 /**
  * 答完之后留在流里的那张卡片。
@@ -18,14 +19,16 @@ import { readQuestionPrompt } from '../domain/ask-user-question'
  * 细节；把它摆进列表，用户会以为自己当初有第五个选择。真跳过了就在底下说一句。
  */
 
-const SKIP = /^q\d+_skip$/
-
 export interface QuestionOutcomeProps {
   readonly item: PermissionItem
 }
 
 /** 卡片底下那句话：没答、跳过了，或者什么也不必说。 */
-function noteFor(item: PermissionItem, picked: string | undefined): string | null {
+function noteFor(
+  item: PermissionItem,
+  picked: string | undefined,
+  skipped: boolean,
+): string | null {
   if (item.resolution === undefined) {
     return '等待回答…'
   }
@@ -34,20 +37,26 @@ function noteFor(item: PermissionItem, picked: string | undefined): string | nul
     return '已跳过，未回答'
   }
 
-  return SKIP.test(picked) ? '已跳过，未回答' : null
+  return skipped ? '已跳过，未回答' : null
 }
 
 export function QuestionOutcome({ item }: QuestionOutcomeProps) {
+  const dialect = useAgentDialect()
+
   const resolution = item.resolution
 
   const picked =
     resolution === undefined || resolution.outcome === 'cancelled' ? undefined : resolution.optionId
 
-  const note = noteFor(item, picked)
+  /* 哪一枚 optionId 表示「跳过」，由方言说了算，不由这里自带一条正则。 */
+  const skipped =
+    picked !== undefined && parseQuestionOptionId(picked, dialect.questions)?.kind === 'skip'
+
+  const note = noteFor(item, picked, skipped)
 
   /* 只取被选中的那一个；取不到就什么也不画，底下那句话负责交代。 */
   const answer =
-    picked === undefined || SKIP.test(picked)
+    picked === undefined || skipped
       ? undefined
       : item.options.find((option) => option.optionId === picked)?.name
 

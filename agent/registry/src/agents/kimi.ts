@@ -64,6 +64,30 @@ export function carryForwardDiff<TEntry extends AcpToolCallContentEntry>(
   return held.length === 0 ? incoming : [...held, ...incoming]
 }
 
+/**
+ * 按钮上的字。
+ *
+ * 键取自 approval.ts 自己的常量表：CANONICAL_OPTIONS 三条（Approve once /
+ * Approve for this session / Reject），计划评审两条（Revise / Reject and Exit），
+ * question.ts 追加的一条（Skip）。Allow / Allow Always / Approve 是 Python 时期
+ * kimi-cli 的旧文案，上游的 permissionResponseToApprovalResponse 至今仍收它们的
+ * optionId，所以旧版进程接上来时也不会露出英文。
+ *
+ * 计划评审里 plan_opt_* 的 name 是策略当场给的方案标签，本来就该原样显示，
+ * 因此不在表内 —— 表只负责把规范英文换成中文，不负责改写 agent 说的话。
+ */
+const OPTION_LABELS = {
+  Allow: '批准',
+  'Allow Always': '始终批准',
+  Approve: '批准',
+  'Approve for this session': '本次会话内始终批准',
+  'Approve once': '批准',
+  Reject: '拒绝',
+  'Reject and Exit': '拒绝并退出',
+  Revise: '修改方案',
+  Skip: '跳过',
+} as const
+
 /*
  * 启动方式取自上游 README 给 ACP 客户端的配置：command "kimi"，args ["acp"]。
  * 它是一个可执行名加一串参数，不是一行待解析的命令行 —— 拼成字符串再拆开只会
@@ -74,6 +98,7 @@ export const kimiCode = {
   displayName: 'Kimi Code',
   command: 'kimi',
   args: ['acp'],
+  optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
   toolCallContentRule: carryForwardDiff,
 } as const satisfies AcpAgentDescriptor

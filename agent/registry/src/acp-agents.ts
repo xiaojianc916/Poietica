@@ -1,4 +1,4 @@
-import type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contract'
+import type { AcpAgentDescriptor } from './acp-agent-contract'
 import { kimiCode } from './agents/kimi'
 
 export type {
@@ -39,22 +39,4 @@ export function defaultAcpAgent(): AcpAgentDescriptor {
 /** 按 id 取档案。名单封闭，取不到不是常态，所以由调用方决定怎么处置。 */
 export function acpAgentById(id: string): AcpAgentDescriptor | undefined {
   return AGENTS.find((agent) => agent.id === id)
-}
-
-/**
- * 名单里所有的提问方言。
- *
- * 认一道题的时候还不知道对面是谁 —— 判据只看 optionId 的形状 —— 所以把全部
- * 方言摘出来一起试。名单封闭，长度是常数。
- */
-export function acpQuestionDialects(): readonly AcpQuestionDialect[] {
-  const dialects: AcpQuestionDialect[] = []
-
-  for (const agent of AGENTS) {
-    if (agent.questionDialect !== undefined) {
-      dialects.push(agent.questionDialect)
-    }
-  }
-
-  return dialects
 }
