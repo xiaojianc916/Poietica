@@ -20,22 +20,20 @@
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
   /*
-   * 与 light.css 同构的两档线。画布是 --ui-palette-dark-975 (#141414 = 20)：
+   * 与 light.css 同构。画布 --ui-palette-dark-975 (#141414 = 20)：
    *
    *   rgb(255 255 255 / 16%)  窗格与区域分隔、控件边框 —— 原值不动
-   *   #333333 (51, Δ31)       卡片外框
-   *   #242424 (36, Δ16)       卡内分隔线、表格行线
-   *   #1a1a1a (26, +6)        卡面（深色下卡是抬起的，所以比画布亮）
+   *   #3a3a3a (58, Δ38)       容器外框
+   *   #202020 (32, Δ12)       容器内部分隔线、表格行线
    *
-   * 绝对差比浅色大：底色越暗，同样的差越难读出来。比例仍是外框 ≈ 卡内线 ×2。
-   * 宽度同样只有 --ui-region-divider-width。
+   * 比例 38:12 ≈ 3.2 倍。深色下投影要更重才看得出抬起。
    */
   --ui-region-divider-color: rgb(255 255 255 / 16%);
   --ui-divider: var(--ui-region-divider-color);
-  --ui-divider-subtle: #242424;
+  --ui-divider-subtle: #202020;
   --ui-border: var(--ui-region-divider-color);
-  --ui-surface-frame: #333333;
-  --ui-surface-fill: #1a1a1a;
+  --ui-surface-frame: #3a3a3a;
+  --ui-surface-shadow: 0 1px 2px rgb(0 0 0 / 30%);
   --ui-input: rgb(255 255 255 / 24%);
   --ui-ring: var(--ui-palette-blue-400);
 
