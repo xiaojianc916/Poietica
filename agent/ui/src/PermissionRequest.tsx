@@ -32,21 +32,34 @@ const KIND_LABELS: Record<string, string> = {
 }
 
 /*
- * 按钮上的字是显示，不是身份。
+ * 按钮上的字是显示，不是身份。回给 agent 的永远是 optionId，所以这里只换文案。
  *
- * agent 送来的 name 是英文（Allow / Allow Always / Reject），但回给它的永远是
- * optionId，所以这里只换文案，按协议自己的 kind 枚举翻译。遇到没见过的 kind
- * 就退回 agent 的原文：宁可显示英文，也不能显示一个空按钮。
+ * 认 name，不认 kind。kind 是分类：它决定按钮长什么样、有多危险，那件事已经由
+ * data-kind 交给样式表了；而分类会重复 —— 一次计划评审同时送来两个 allow_once
+ * 和两个 reject_once，按 kind 查表的结果是四个按钮写着同两个词，用户无从分辨
+ * 自己在选哪一个。name 是协议里的 human-readable label，agent 保证它是这枚选项
+ * 说的话。
+ *
+ * 表里只放规范英文标签的译法，查不到就原样显示 agent 的原文：宁可显示英文，
+ * 也不能显示一个错的中文。
+ *
+ * 这张表认得的字符串是某个 agent 说的话，不是协议的一部分 —— 它的归宿是 agent
+ * 档案里的一个声明字段，由装配点作为 prop 传进来。搬家是纯位移，取值语义得先对。
  */
 const OPTION_LABELS: Record<string, string> = {
-  allow_always: '始终批准',
-  allow_once: '批准',
-  reject_always: '始终拒绝',
-  reject_once: '拒绝',
+  Allow: '批准',
+  'Allow Always': '始终批准',
+  Approve: '批准',
+  'Approve for this session': '本次会话内始终批准',
+  'Approve once': '批准',
+  Reject: '拒绝',
+  'Reject and Exit': '拒绝并退出',
+  Revise: '修改方案',
+  Skip: '跳过',
 }
 
 function labelFor(option: PermissionOption): string {
-  return OPTION_LABELS[option.kind] ?? option.name
+  return OPTION_LABELS[option.name] ?? option.name
 }
 
 /**
