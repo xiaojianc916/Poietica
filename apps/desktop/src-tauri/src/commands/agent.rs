@@ -1043,6 +1043,11 @@ pub struct AgentOpenedThread {
 /// sessions, and the right answer then is the names already stored, not
 /// an error where a list of conversations belongs.
 ///
+/// Listing does not reorder. Folding in a name used to stamp updated_at,
+/// which is the column the list is ordered by, so every refresh of the
+/// sidebar sent every conversation the agent still knew about back to the
+/// top and relabelled it as just now.
+///
 /// # Errors
 ///
 /// Fails when the database cannot be opened or read.
@@ -1061,21 +1066,15 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
     let store = borrow_store(&shared)?;
 
     if let Some(listed) = official {
-        for info in listed {
-            let Some(title) = info.title else { continue };
-            let Ok(Some(thread)) = store.thread_for_session(&info.session_id) else {
-                continue;
-            };
-            let Ok(id) = Uuid::parse_str(&thread) else {
-                continue;
-            };
+        /* 未命名的会话没有名字可以采纳，在到达库之前就落下。 */
+        let named: Vec<(String, String)> = listed
+            .into_iter()
+            .filter_map(|info| info.title.map(|title| (info.session_id, title)))
+            .collect();
 
-            let official = poietica_agent_persistence_native::TitleSource::Official;
-
-            store
-                .rename_thread(id, &title, official)
-                .map_err(|failure| Error::Internal(failure.to_string()))?;
-        }
+        store
+            .adopt_official_titles(&named)
+            .map_err(|failure| Error::Internal(failure.to_string()))?;
     }
 
     let stored = store

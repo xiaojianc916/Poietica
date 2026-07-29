@@ -58,73 +58,114 @@ impl AiStore {
         Ok(found)
     }
 
-    /// Names a thread, recording where the name came from.
+    /// Takes on the agent's own names for the conversations holding these
+    /// sessions.
     ///
     /// An official name is the agent's own. Anything else is a stand in the
     /// interface chose while waiting, and recording which is which is what
     /// stops a stand in from replacing a real name that arrived first.
     ///
+    /// Listing conversations is a read. It writes here at all only because
+    /// the agent is the one authority on what a session is called, so the
+    /// write is narrowed until, in the ordinary case, it is no write: the
+    /// statement matches nothing when the stored name already agrees, and
+    /// nothing when the user has named the conversation themselves.
+    ///
+    /// What it deliberately leaves alone is updated_at. That column orders
+    /// the list, and being renamed is not something that happened in a
+    /// conversation — the same reason set_pinned leaves it alone. Writing
+    /// it here meant every refresh of the sidebar reshuffled the sidebar,
+    /// and every conversation the agent still knew about claimed to have
+    /// been spoken in just now.
+    ///
+    /// One transaction, because the alternative is one implicit transaction
+    /// per name, each with its own commit to the write ahead log, for a
+    /// list that usually has nothing to say.
+    ///
     /// # Errors
     ///
-    /// Fails when the update is rejected.
-    pub fn rename_thread(&self, id: Uuid, title: &str, source: TitleSource) -> Result<()> {
-        let timestamp = now()?;
+    /// Fails when an update is rejected.
+    pub fn adopt_official_titles(&self, named: &[(String, String)]) -> Result<()> {
+        if named.is_empty() {
+            return Ok(());
+        }
 
-        self.connection.execute(
+        self.connection.execute_batch("BEGIN IMMEDIATE")?;
+
+        match self.adopt_each(named) {
+            Ok(()) => {
+                self.connection.execute_batch("COMMIT")?;
+
+                Ok(())
+            }
+            Err(error) => {
+                // Best effort: the failure worth reporting is the one that
+                // got us here, not whatever the rollback then says.
+                let _ignored = self.connection.execute_batch("ROLLBACK");
+
+                Err(error)
+            }
+        }
+    }
+
+    /// The body of the transaction above, split out so the failure path has
+    /// somewhere to return to.
+    ///
+    /// Addressed by session_id rather than by thread: that column carries a
+    /// unique index, so this is the same single lookup the old two-statement
+    /// round trip paid for, with the update folded into it.
+    fn adopt_each(&self, named: &[(String, String)]) -> Result<()> {
+        let official = TitleSource::Official.as_str();
+
+        let mut statement = self.connection.prepare_cached(
             "UPDATE threads
-                SET title = ?2, title_source = ?3, updated_at = ?4
-              WHERE id = ?1 AND title_source <> 'manual'",
-            rusqlite::params![id.to_string(), title, source.as_str(), timestamp],
+                SET title = ?2, title_source = ?3
+              WHERE session_id = ?1
+                AND title_source <> 'manual'
+                AND (title <> ?2 OR title_source <> ?3)",
         )?;
+
+        for (session_id, title) in named {
+            statement.execute(rusqlite::params![session_id, title, official])?;
+        }
 
         Ok(())
     }
 
     /// Records which agent session a thread is holding.
     ///
+    /// updated_at is left alone. Reopening a conversation from a previous
+    /// run makes it take a fresh session, and a conversation last spoken in
+    /// a week ago is still a week old after being looked at. Touching the
+    /// column here sent whatever was opened to the top of the list, which
+    /// is the opposite of what opening it was for.
+    ///
     /// # Errors
     ///
     /// Fails when the update is rejected.
     pub fn attach_session(&self, id: Uuid, session_id: &str) -> Result<()> {
-        let timestamp = now()?;
-
         self.connection.execute(
             "UPDATE threads
-                SET session_id = ?2, updated_at = ?3
+                SET session_id = ?2
               WHERE id = ?1",
-            rusqlite::params![id.to_string(), session_id, timestamp],
+            rusqlite::params![id.to_string(), session_id],
         )?;
 
         Ok(())
     }
 
-    /// Finds the thread holding one agent session.
-    ///
-    /// Every frame the agent sends names its session, so this is how a frame
-    /// finds the conversation it belongs to.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the query is rejected.
-    pub fn thread_for_session(&self, session_id: &str) -> Result<Option<String>> {
-        let mut statement = self
-            .connection
-            .prepare_cached("SELECT id FROM threads WHERE session_id = ?1")?;
-
-        let mut rows = statement.query(rusqlite::params![session_id])?;
-
-        match rows.next()? {
-            Some(row) => Ok(Some(row.get(0)?)),
-            None => Ok(None),
-        }
-    }
-
     /// Finds the agent session a conversation is holding.
     ///
-    /// The mirror of [`Self::thread_for_session`]. A frame arrives naming
-    /// its session and has to find its conversation; a turn is asked for by
-    /// the conversation on screen and has to find its session. Both
-    /// directions of the same fact, and both are read from the same column.
+    /// This is the only direction that gets asked. A conversation is
+    /// picked on screen and has to find the session it is holding, which is
+    /// what addressing a turn needs.
+    ///
+    /// The reverse — which conversation a frame belongs to — reads as though
+    /// it must also be needed, and a method for it lived here for a long
+    /// time saying exactly that. It was never how a frame found its
+    /// conversation: a frame is filed under its run, and a run already names
+    /// its thread. Its one real caller was folding the agent's own titles
+    /// into the list, and that now updates by session_id directly.
     ///
     /// # Errors
     ///
