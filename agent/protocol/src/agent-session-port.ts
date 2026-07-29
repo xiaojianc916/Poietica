@@ -22,8 +22,20 @@ export interface AgentPromptHandle {
 }
 
 export interface AgentSessionPort {
-  /** Emits run events in seq order; returns an unsubscribe function. */
-  readonly subscribe: (listener: (event: RunEvent) => void) => () => void
+  /**
+   * Emits run events with the run they belong to; returns an unsubscribe function.
+   *
+   * The run identifier is a parameter rather than a field on the frame because
+   * the frames themselves carry no address: every variant in run-contract.ts is
+   * { kind, seq, at, ... }. A subscriber that is handed a frame without one can
+   * only guess which conversation it belongs to, and seq is numbered per run, so
+   * two turns both have a seq 3 and de-duplicating by seq cannot tell them apart.
+   *
+   * Multiplexed transports address every message: JSON-RPC has id, LSP has the
+   * request id, gRPC has the stream id, ACP's session/update carries sessionId.
+   * This is that, and nothing more.
+   */
+  readonly subscribe: (listener: (event: RunEvent, runId: RunId) => void) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   /** Replays a persisted run out of the encrypted event log. */

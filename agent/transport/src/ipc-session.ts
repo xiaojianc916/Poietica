@@ -20,7 +20,8 @@ import { parseRunEvent } from '@poietica/agent-protocol'
  */
 
 export interface AgentEventSource {
-  readonly listen: (handler: (payload: unknown) => void) => () => void
+  /** Hands out the frame and the run it belongs to; the frames carry no address. */
+  readonly listen: (handler: (payload: unknown, runId: RunId) => void) => () => void
 }
 
 export interface AgentCommandBridge {
@@ -49,14 +50,21 @@ export function createIpcSession({
 }: IpcSessionOptions): AgentSessionPort {
   return {
     subscribe: (listener) =>
-      source.listen((payload) => {
+      source.listen((payload, runId) => {
         const parsed = parseRunEvent(payload)
         if (!parsed.ok) {
           onInvalidFrame?.(parsed.issue, payload)
-          listener(refusedFrame(parsed.issue))
+
+          /*
+           * 内容坏了，地址还在。
+           *
+           * 所以这次拒收落在它本来属于的那一轮上，而不是落在"当前那一轮"——
+           * 后者会让一条对话的解析失败显示在另一条对话里。
+           */
+          listener(refusedFrame(parsed.issue), runId)
           return
         }
-        listener(parsed.event)
+        listener(parsed.event, runId)
       }),
 
     prompt: async (request): Promise<AgentPromptHandle> => {

@@ -265,7 +265,6 @@
         }
       }
     },
-
     {
       "includes": ["**/src/generated/**/*.ts", "**/generated/**/*.ts", "**/*.generated.ts"],
       "formatter": {

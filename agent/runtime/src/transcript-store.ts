@@ -19,14 +19,13 @@ import {
  * 按对话规范化的状态、一个订阅入口、以及唯一的写入方。同一个仓库里的
  * agent/ui/src/time.ts 已经是这个形状。
  *
- * 顺带解决路由：这里是全进程唯一的帧订阅者，也是唯一的 run 发起者，所以
- * "这一帧属于哪条对话"是它记下来的事实，而不是从帧里猜的 —— 帧上根本没有
- * 地址（run-contract.ts 的六个变体全是 { kind, seq, at, ... }）。同一条 ACP
- * 连接上最多只有一轮在飞，所以这个归属是精确的，不是启发式的。
+ * 路由也在这里，而且是查表：线路上每一帧都带着它的 runId（见
+ * AgentSessionPort.subscribe 的第二个参数），这里按 runId 找主人。帧上仍然没有
+ * 地址（run-contract.ts 的六个变体全是 { kind, seq, at, ... }），地址在信封上。
  *
- * 真地址仍然欠着：信封里有 runId，在 platforms/desktop-ipc/src/agent.ts 的
- * module.listen 那一行被丢弃。补上之后，路由改成按 runId 查表，这里的其余部分
- * 一行都不用动。
+ * 那张欠条已经还了：runId 此前在 platforms/desktop-ipc/src/agent.ts 的
+ * module.listen 那一行被丢弃，现在一路交到这里。于是"当前那一轮"这个概念不再
+ * 存在 —— 它曾经是一条靠代码顺序维持的约定，而不是一个事实。
  */
 
 /** 还没有真 run 之前，转录的占位轮次。 */
@@ -195,27 +194,104 @@ export function failTranscript(key: string, cause: unknown): void {
 
 let attachedTo: AgentSessionPort | null = null
 let detach: (() => void) | null = null
-/** 当前这一轮属于哪条对话。 */
-let live: string | null = null
 
-function route(event: RunEvent): void {
-  if (live === null) {
-    /*
-     * 没有主人的帧不属于任何一条对话。
-     *
-     * 此前它会落进每一个挂载着的界面 —— 而正因为它落进了别人的转录，排版才会
-     * 被别人的轮次搬动。丢掉是正确的：这个进程没有发起过它。
-     */
-    return
-  }
+/*
+ * 归属是一张按 runId 的表，不是"当前那一轮"。
+ *
+ * 上一版这里是一个模块级可变量，记着此刻在飞的那一轮属于谁，靠"这个进程同时
+ * 只有一轮在飞"这条约定活着。那是一条约定，不是一个事实：它由代码顺序维持
+ * （在 prompt 之前赋值），任何一次并发、一次重试、一次未来的多 agent 都会让它
+ * 悄悄对不上，而对不上的表现是帧落进别人的转录 —— 也就是我们查了很久的那种
+ * 排版被别人的轮次搬动。
+ *
+ * 现在地址由线路给出（AgentSessionPort.subscribe 的第二个参数），归属因此是
+ * 查表，错误状态在这套结构里无法被表达：查不到就是查不到，不会猜成手边那条。
+ */
+const routes = new Map<string, string>()
 
-  const owner = live
+/** 同时记得多少轮的归属。一轮结束就删，这个上限只是兜底。 */
+const ROUTED_RUNS = 64
+
+/*
+ * 地址已知、主人还没登记的帧。
+ *
+ * 原生广播和 prompt 的返回是两条路，广播先到是常态而不是异常 —— 上一版靠"发
+ * 出去之前先记下归属"掩盖了它。这里正面收着：按 runId 攒，登记那一刻补投，
+ * 顺序不变。攒不下就丢最早的，因为一段无主的帧流不该把内存吃光。
+ */
+const orphans = new Map<string, RunEvent[]>()
+const ORPHAN_FRAMES = 200
+let orphaned = 0
+
+function handOver(owner: string, event: RunEvent): void {
   const current = readTranscript(owner)
 
   put(owner, { ...current, timeline: applyRunEvent(current.timeline, event) })
+}
+
+function hold(runId: string, event: RunEvent): void {
+  const queue = orphans.get(runId) ?? []
+
+  queue.push(event)
+  orphans.set(runId, queue)
+  orphaned += 1
+
+  while (orphaned > ORPHAN_FRAMES) {
+    const first = orphans.keys().next().value
+
+    if (first === undefined) {
+      orphaned = 0
+
+      return
+    }
+
+    orphaned -= orphans.get(first)?.length ?? 0
+    orphans.delete(first)
+  }
+}
+
+function route(event: RunEvent, runId: string): void {
+  const owner = routes.get(runId)
+
+  if (owner === undefined) {
+    hold(runId, event)
+
+    return
+  }
+
+  handOver(owner, event)
 
   if (event.kind === 'run_finished' || event.kind === 'run_failed') {
-    live = null
+    routes.delete(runId)
+    orphans.delete(runId)
+  }
+}
+
+/** 这一轮属于这条对话。在它之前到的帧在这里补投。 */
+export function claimRun(runId: string, key: string): void {
+  routes.set(runId, key)
+
+  while (routes.size > ROUTED_RUNS) {
+    const oldest = routes.keys().next().value
+
+    if (oldest === undefined) {
+      break
+    }
+
+    routes.delete(oldest)
+  }
+
+  const waiting = orphans.get(runId)
+
+  if (waiting === undefined) {
+    return
+  }
+
+  orphans.delete(runId)
+  orphaned -= waiting.length
+
+  for (const event of waiting) {
+    route(event, runId)
   }
 }
 
@@ -368,15 +444,17 @@ export function sendToTranscript({
 
       onUserMessage?.(threadId, text)
 
-      /*
-       * 归属在发出去之前就记下。
-       *
-       * 帧只可能在这之后到来，所以这里不存在"帧比归属先到"的窗口。
-       */
-      live = threadId
-
       return port.prompt({ threadId, text }).then((handle) => {
         cancels.set(threadId, handle.cancel)
+
+        /*
+         * 地址在这里落表。
+         *
+         * 比它先到的帧不会丢：那些帧带着同一个 runId 在 orphans 里等着，
+         * claimRun 按原顺序补投。此前这里是"发出去之前先记下归属"，那不是解决
+         * 竞态，那是把竞态藏进代码顺序里。
+         */
+        claimRun(handle.runId, threadId)
 
         const held2 = readTranscript(threadId)
 
@@ -386,10 +464,7 @@ export function sendToTranscript({
       })
     })
     .catch((cause: unknown) => {
-      if (live === resolveKey(key)) {
-        live = null
-      }
-
+      /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
       failTranscript(key, cause)
     })
 }

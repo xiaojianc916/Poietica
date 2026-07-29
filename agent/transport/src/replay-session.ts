@@ -3,6 +3,7 @@ import type {
   AgentPromptRequest,
   AgentSessionPort,
   RunEvent,
+  RunId,
 } from '@poietica/agent-protocol'
 import { SAMPLE_RUN_EVENTS } from '@poietica/agent-timeline/fixtures'
 
@@ -33,9 +34,11 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
   const stepMs = options.stepMs ?? 40
   const scheduler = options.scheduler ?? defaultScheduler
 
-  const listeners = new Set<(event: RunEvent) => void>()
+  const listeners = new Set<(event: RunEvent, runId: RunId) => void>()
   let pending: Array<() => void> = []
   let runCounter = 0
+  /* 录像也得报出这一帧属于哪一轮：假的端口按真的契约说话，否则它测不出什么。 */
+  let current: RunId = 'run_replay_0'
 
   const clearPending = () => {
     for (const cancel of pending) {
@@ -46,7 +49,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
 
   const emit = (event: RunEvent) => {
     for (const listener of listeners) {
-      listener(event)
+      listener(event, current)
     }
   }
 
@@ -62,6 +65,8 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
       clearPending()
       runCounter += 1
       const runId = `run_replay_${String(runCounter)}`
+
+      current = runId
 
       events.forEach((event, index) => {
         pending.push(scheduler(() => emit(event), stepMs * index))

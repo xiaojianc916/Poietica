@@ -159,3 +159,29 @@ per-session。
 
 仍欠：线路上没有 initialize 阶段的能力上报（Rust 侧），所以全新安装、一条对话都
 没开过时这张表是空的；localStorage 缓存是权宜，正确的家是一个 preferences 端口。
+
+## 缺陷 1 已修：帧在线路上有了地址
+
+- `platforms/desktop-ipc/src/agent.ts`：`handler(event.payload.frame)` —— 信封里的
+  `runId` 被一句 "the envelope is not the contract" 说服自己扔掉了。
+- `agent/protocol/src/run-contract.ts`：六个帧变体全是 `{ kind, seq, at, ... }`，
+  帧本身没有地址。
+- 因此 `AgentSessionPort.subscribe` 交出的是一封没有收件人的信，接收方只能猜
+  "大概是当前那一轮"；而 `seq` 按 run 计数，两轮都有 seq 3，按 seq 去重分不开。
+
+行业对照：JSON-RPC 的 `id`、LSP 的 request id、gRPC 的 stream id、ACP 的
+`session/update`（带 `sessionId`）—— 多路复用的第一条规矩是每条消息自带地址，
+接收方从不靠"我记得我刚发了什么"配对。
+
+现状：`listen(frame, runId)` → `subscribe(event, runId)` → `transcript-store` 按
+`runId` 查表；那个记着"当前那一轮"的模块级可变量删除；广播早于 prompt 返回的
+竞态由 `orphans` 正面接住，不再靠代码顺序掩盖；拒收帧同样带地址，所以解析失败
+落在它本来那一轮上。
+
+不需要 Rust 改动：地址早就到渲染进程了。
+
+## 还欠着
+
+- 缺陷 3：入口态与会话态仍是同一个视图在两种姿势之间插值，应当是两个视图。
+- 缺陷 4：输入框增高的 WAAPI 补间至今没有成功落过一次。
+- 能力表仍没有 initialize 阶段的上报（Rust 侧），全新安装时入口那一格仍为空。

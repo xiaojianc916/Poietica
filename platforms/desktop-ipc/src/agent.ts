@@ -35,7 +35,15 @@ export interface AgentEventSourceOptions {
 }
 
 export interface AgentEventSource {
-  readonly listen: (handler: (payload: unknown) => void) => () => void
+  /**
+   * Hands out the frame together with the run it belongs to.
+   *
+   * The envelope is not the frame contract, but the run identifier in it is the
+   * only address that exists: the frames carry none. Dropping it here forced
+   * every layer above to guess, so it is passed on as a separate argument —
+   * routing beside content, not inside it.
+   */
+  readonly listen: (handler: (payload: unknown, runId: string) => void) => () => void
 }
 
 export interface AgentBridgeOptions {
@@ -98,8 +106,8 @@ export function createAgentEventSource({
       void import('@tauri-apps/api/event')
         .then((module) =>
           module.listen<AgentEventEnvelope>(AGENT_EVENT, (event) => {
-            // The frame is the contract; the envelope is not.
-            handler(event.payload.frame)
+            // The frame is the contract; the run identifier is its address.
+            handler(event.payload.frame, event.payload.runId)
           }),
         )
         .then((unlisten) => {
