@@ -1,28 +1,26 @@
 /*
- * 一张有框的面。
+ * 一张卡的外壳。AI 回复里有框的三张卡（工具卡、审批请求卡、审批结果卡）
+ * 都只戴 data-surface，边框、圆角、卡面一律由这里给，卡自己的 CSS 不许再
+ * 声明 border / border-radius / background。
  *
- * 两档线,与 VS Code、Linear、GitHub 同一种分法:外框读容器档,面里的任何
- * 一条线读内部档。两档的关系由令牌层的台阶保证(见 tokens/light.css),不由
- * 这里推导 —— 上一版这里写的是"内线由外框兑背景推出",那是在台阶还不存在
- * 时替它顶了一阵,台阶就位之后它只是多一层间接,而且卡片之外的表格没法共用
- * 同一档。一个档位一个名字,谁需要就直接读。
+ * 外框比卡内分隔线重一档，而"盒子感"由卡面与画布的亮度差提供，不由线的
+ * 重量提供 —— 线一加重，卡片就从"一个盒子"变成"一个被框住的表格"。
  *
- * 内侧那一档由这张面下发给内部,面之外取不到 --surface-rule:一条卡内横线
- * 不会因为有人手滑而拿到容器档。宽度用 --ui-region-divider-width,一条线的
- * 宽度在这个应用里只有一个来源。
- *
- * 没有任何字面量兜底。缺令牌要报废,不要换一种长相。
+ * 宽度 2px 不只是视觉选择：偶数设备像素宽的边线对小数偏移远比 1px 宽容，
+ * 1px 在半像素相位上会被摊成两行半深的灰（这也是之前同一条声明测出两种
+ * 颜色的成因，行偏移的吸附在 feed/use-device-pixels.ts）。
  */
 
 :root {
   --ui-surface-radius: var(--ui-radius-xl);
+  --ui-surface-frame-width: 2px;
 }
 
 [data-surface] {
-  --surface-line: var(--ui-border);
+  --surface-line: var(--ui-surface-frame);
   --surface-rule: var(--ui-divider-subtle);
 
-  border: var(--ui-region-divider-width) solid var(--surface-line);
+  border: var(--ui-surface-frame-width) solid var(--surface-line);
   border-radius: var(--ui-surface-radius);
-  background: transparent;
+  background: var(--ui-surface-fill);
 }
