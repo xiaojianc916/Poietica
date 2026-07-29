@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::compaction::SNAPSHOT_VERSION;
 use crate::error::{Result, StoreError};
-use crate::store::{AiStore, now};
+use crate::store::{AgentStore, now};
 
 /// One recorded entry of the event log.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -23,7 +23,7 @@ pub struct StoredEvent {
     pub recorded_at: String,
 }
 
-impl AiStore {
+impl AgentStore {
     /// Appends an event to a run.
     ///
     /// # Errors

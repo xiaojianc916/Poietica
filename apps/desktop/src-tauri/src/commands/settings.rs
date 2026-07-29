@@ -1,4 +1,5 @@
 use crate::error::{IpcError, Result};
+use crate::paths::SETTINGS_STORE;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
@@ -160,7 +161,7 @@ impl Default for PrivacySettings {
 #[specta::specta]
 pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> {
     (|| -> Result<AppSettings> {
-        let store = app.store("settings.json")?;
+        let store = app.store(SETTINGS_STORE)?;
 
         /*
          * 一份读不动的设置不是一次失败，是一次回退。
@@ -185,7 +186,7 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
 #[specta::specta]
 pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsCommandResult<()> {
     (|| -> Result<()> {
-        let store = app.store("settings.json")?;
+        let store = app.store(SETTINGS_STORE)?;
         store.set("settings", serde_json::to_value(&settings)?);
         store.save()?;
         Ok(())
@@ -202,7 +203,7 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
 pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings> {
     (|| -> Result<AppSettings> {
         let defaults = AppSettings::default();
-        let store = app.store("settings.json")?;
+        let store = app.store(SETTINGS_STORE)?;
         store.set("settings", serde_json::to_value(&defaults)?);
         store.save()?;
         Ok(defaults)

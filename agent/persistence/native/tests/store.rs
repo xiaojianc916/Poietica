@@ -5,7 +5,7 @@
 )]
 use std::path::PathBuf;
 
-use poietica_agent_persistence_native::{AiStore, DatabaseKey, RunStatus, StoreError};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey, RunStatus, StoreError};
 use tempfile::TempDir;
 
 fn database_path(directory: &TempDir) -> PathBuf {
@@ -16,7 +16,7 @@ fn database_path(directory: &TempDir) -> PathBuf {
 fn events_replay_in_sequence_order() {
     let directory = TempDir::new().expect("temporary directory");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&database_path(&directory), &key).expect("open");
+    let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
 
     let thread = store.create_thread("first thread").expect("thread");
     let run = store.start_run(thread).expect("run");
@@ -44,7 +44,7 @@ fn events_replay_in_sequence_order() {
 fn a_redelivered_event_is_rejected() {
     let directory = TempDir::new().expect("temporary directory");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&database_path(&directory), &key).expect("open");
+    let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
 
     let thread = store.create_thread("thread").expect("thread");
     let run = store.start_run(thread).expect("run");
@@ -64,11 +64,11 @@ fn the_database_is_unreadable_with_another_key() {
     let path = database_path(&directory);
 
     {
-        let store = AiStore::open_with_key(&path, &DatabaseKey::generate()).expect("open");
+        let store = AgentStore::open_with_key(&path, &DatabaseKey::generate()).expect("open");
         store.create_thread("thread").expect("thread");
     }
 
-    let intruder = AiStore::open_with_key(&path, &DatabaseKey::generate());
+    let intruder = AgentStore::open_with_key(&path, &DatabaseKey::generate());
 
     assert!(matches!(intruder, Err(StoreError::WrongKey)));
 }

@@ -13,12 +13,15 @@
     reason = "async dispatches a command onto the async runtime; sync would run it on the main thread"
 )]
 
+mod agent_log;
+
 pub mod asset_protocol;
 pub mod bootstrap;
 pub mod commands;
 pub mod diagnostics;
 pub mod error;
 pub mod ipc;
+pub mod paths;
 
 pub use bootstrap::app;
 pub use error::{Error, Result};

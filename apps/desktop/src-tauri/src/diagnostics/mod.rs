@@ -1,7 +1,6 @@
 use std::{
     backtrace::Backtrace,
-    fs::{self, File},
-    io::Write,
+    fs,
     panic::PanicHookInfo,
     path::{Path, PathBuf},
 };
@@ -10,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use poietica_editor_persistence_native::atomic_write;
 use uuid::Uuid;
 
 use crate::Result;
+use crate::paths::CRASH_REPORT_FILE_NAME;
 
-const CRASH_REPORT_FILE_NAME: &str = "last-native-crash.json";
-const CRASH_REPORT_TEMP_FILE_NAME: &str = "last-native-crash.tmp";
 const MAX_MESSAGE_LENGTH: usize = 8_192;
 const MAX_BACKTRACE_LENGTH: usize = 64_000;
 const MAX_LOCATION_LENGTH: usize = 4_096;
@@ -59,7 +58,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
     std::panic::set_hook(Box::new(move |panic_info| {
         let report = create_report(panic_info, &app_version);
 
-        if let Err(error) = write_report_atomically(&report_directory, &report) {
+        if let Err(error) = write_report(&report_directory, &report) {
             eprintln!("[Poietica] failed to persist native crash report: {error}");
         }
 
@@ -157,42 +156,20 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
     "Rust panic with a non-string payload".to_owned()
 }
 
-fn write_report_atomically(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
-    fs::create_dir_all(directory)?;
-
-    let target_path = directory.join(CRASH_REPORT_FILE_NAME);
-    let temporary_path = directory.join(CRASH_REPORT_TEMP_FILE_NAME);
-
+/// 崩溃报告与用户文档走同一条物理保存算法。
+///
+/// 此前这里手写了第二条：临时文件 → sync → 若目标存在则 remove_file → rename。
+/// 在 Windows 上"先删后改名"根本不是原子替换：删除与改名之间进程消失，两份就都
+/// 没有了 —— 而写这份报告的前提恰恰是进程已经在 panic。
+///
+/// 仓库里已经有唯一一份经过审计的实现（editor/persistence/native 的 atomic_write：
+/// ReplaceFileW / MoveFileExW(WRITE_THROUGH) / POSIX rename + 目录 fsync，且明确
+/// 不含任何非原子回退），本 crate 本来就依赖它。目录创建也由它负责。
+fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
-    let mut file = File::create(&temporary_path)?;
-    file.write_all(&serialized)?;
-    file.sync_all()?;
-    drop(file);
-
-    if target_path.exists() {
-        fs::remove_file(&target_path)?;
-    }
-
-    fs::rename(&temporary_path, &target_path)?;
-
-    sync_directory(directory);
-
-    Ok(())
-}
-
-fn sync_directory(directory: &Path) {
-    #[cfg(unix)]
-    {
-        if let Ok(file) = File::open(directory) {
-            let _ = file.sync_all();
-        }
-    }
-
-    #[cfg(not(unix))]
-    {
-        let _ = directory;
-    }
+    atomic_write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
+        .map_err(std::io::Error::other)
 }
 
 fn crash_report_path(app: &AppHandle) -> Result<PathBuf> {

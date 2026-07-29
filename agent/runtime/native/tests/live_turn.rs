@@ -57,7 +57,7 @@ use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
     RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_agent_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use tempfile::TempDir;
 
 const DEFAULT_COMMAND: &str = "kimi acp";
@@ -131,7 +131,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let directory = TempDir::new().expect("a temporary directory");
     let database = directory.path().join("ai.sqlite3");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&database, &key).expect("an encrypted store");
+    let store = AgentStore::open_with_key(&database, &key).expect("an encrypted store");
     let thread_id = store.create_thread("live turn").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
 
@@ -234,7 +234,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     // Reopening the file is the point: this reads what survived, not what was
     // remembered.
-    let reopened = AiStore::open_with_key(&database, &key).expect("the store to reopen");
+    let reopened = AgentStore::open_with_key(&database, &key).expect("the store to reopen");
     let recorded = reopened
         .events_since(run_id, 0)
         .expect("the log to be readable");

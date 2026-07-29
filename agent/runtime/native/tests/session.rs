@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{AcpError, RecordedEvent, Recorder, RunSlot};
-use poietica_agent_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use tempfile::TempDir;
 
 struct Fixture {
@@ -26,7 +26,7 @@ fn fixture() -> Fixture {
     let directory = TempDir::new().expect("a temporary directory");
     let path = directory.path().join("ai.sqlite3");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
+    let store = AgentStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("slot fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
     let store = Arc::new(Mutex::new(store));

@@ -22,5 +22,5 @@ pub use events::StoredEvent;
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};
 pub use runs::RunStatus;
-pub use store::AiStore;
+pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};

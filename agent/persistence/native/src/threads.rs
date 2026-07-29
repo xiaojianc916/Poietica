@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{AiStore, now};
+use crate::store::{AgentStore, now};
 
-impl AiStore {
+impl AgentStore {
     /// Creates a thread and returns its identifier.
     ///
     /// # Errors

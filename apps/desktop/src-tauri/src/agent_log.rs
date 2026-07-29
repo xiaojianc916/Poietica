@@ -11,7 +11,7 @@
 use std::sync::{Arc, Mutex};
 
 use poietica_agent_persistence_native::{
-    AiStore, PermissionOutcome, Result as StoreResult, RunStatus, ToolCallStatus,
+    AgentStore, PermissionOutcome, Result as StoreResult, RunStatus, ToolCallStatus,
 };
 use poietica_agent_runtime_native::{
     LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
@@ -24,17 +24,17 @@ const POISONED: &str = "the encrypted store was left locked by a panicking task"
 
 /// The application's one store, presented as a run log.
 pub(crate) struct SharedLog {
-    store: Arc<Mutex<AiStore>>,
+    store: Arc<Mutex<AgentStore>>,
 }
 
 impl SharedLog {
     /// Presents an existing share of the store as a log.
-    pub(crate) const fn new(store: Arc<Mutex<AiStore>>) -> Self {
+    pub(crate) const fn new(store: Arc<Mutex<AgentStore>>) -> Self {
         Self { store }
     }
 
     /// Takes the store for the length of one statement.
-    fn with<T>(&self, act: impl FnOnce(&AiStore) -> StoreResult<T>) -> LogResult<T> {
+    fn with<T>(&self, act: impl FnOnce(&AgentStore) -> StoreResult<T>) -> LogResult<T> {
         let guard = self
             .store
             .lock()

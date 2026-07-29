@@ -167,7 +167,6 @@ pnpm dev
 | Command | Purpose |
 | --- | --- |
 | `pnpm dev` | Start the desktop frontend development workflow. |
-| `pnpm dev` | Start the complete Tauri desktop application. |
 | `pnpm check` | Run formatting, linting, types, architecture tests, frontend tests, and Rust checks. |
 | `pnpm typecheck` | Type-check the TypeScript workspace. |
 | `pnpm lint` | Run Biome linting. |
@@ -175,7 +174,6 @@ pnpm dev
 | `pnpm test:architecture` | Verify architectural, state-ownership, and UI-boundary constraints. |
 | `pnpm test` | Run frontend and Rust tests. |
 | `pnpm build` | Build the desktop frontend. |
-| `pnpm build` | Build the Tauri desktop application. |
 | `pnpm clippy` | Run Rust Clippy with warnings treated as errors. |
 | `pnpm audit` | Audit JavaScript dependencies for high-severity vulnerabilities. |
 | `pnpm audit:rust` | Check Rust advisories, licenses, dependency sources, and policy rules. |

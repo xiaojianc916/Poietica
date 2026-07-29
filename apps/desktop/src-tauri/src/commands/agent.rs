@@ -23,7 +23,7 @@ use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
     PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
 };
-use poietica_agent_persistence_native::{AiStore, StoreError};
+use poietica_agent_persistence_native::{AgentStore, StoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -115,7 +115,7 @@ pub struct AgentRuntime {
     /// read, a SQLCipher attach and a full migrate, all of it again for
     /// something as ordinary as refreshing the sidebar. The single writer
     /// the log claims to be had never actually existed.
-    store: OnceLock<Arc<Mutex<AiStore>>>,
+    store: OnceLock<Arc<Mutex<AgentStore>>>,
 }
 
 impl AgentRuntime {
@@ -735,13 +735,13 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 /// Not at boot: opening it reads the operating system credential store, and
 /// a launch that never opens the assistant should not pay for that. Once,
 /// though, and not once per command.
-fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AiStore>>> {
+fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AgentStore>>> {
     if let Some(held) = state.store.get() {
         return Ok(Arc::clone(held));
     }
 
     let opened = Arc::new(Mutex::new(
-        AiStore::open(&state.database).map_err(persistence)?,
+        AgentStore::open(&state.database).map_err(persistence)?,
     ));
 
     // Two commands can race to be the first. The loser's connection is
@@ -767,7 +767,7 @@ fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AiStore>>> 
 ///
 /// 这一趟没跑完也没关系，剩下的轮次下一次运行接着补，中途读到它们只是走回
 /// 日志那条慢路 —— 也就是今天的行为。
-fn catch_up_snapshots(shared: Arc<Mutex<AiStore>>) {
+fn catch_up_snapshots(shared: Arc<Mutex<AgentStore>>) {
     async_runtime::spawn_blocking(move || {
         loop {
             let done = match shared.lock() {
@@ -792,7 +792,7 @@ fn catch_up_snapshots(shared: Arc<Mutex<AiStore>>) {
 /// Never held across an await: a guard that is would make the command's
 /// future not Send, which is why this is a separate step from taking the
 /// share above rather than one call that does both.
-fn borrow_store(shared: &Arc<Mutex<AiStore>>) -> Result<MutexGuard<'_, AiStore>> {
+fn borrow_store(shared: &Arc<Mutex<AgentStore>>) -> Result<MutexGuard<'_, AgentStore>> {
     shared
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
@@ -813,7 +813,7 @@ fn borrow_store(shared: &Arc<Mutex<AiStore>>) -> Result<MutexGuard<'_, AiStore>>
 async fn on_store<T, F>(state: &State<'_, AgentRuntime>, work: F) -> Result<T>
 where
     T: Send + 'static,
-    F: FnOnce(&AiStore) -> Result<T> + Send + 'static,
+    F: FnOnce(&AgentStore) -> Result<T> + Send + 'static,
 {
     let shared = shared_store(state)?;
 

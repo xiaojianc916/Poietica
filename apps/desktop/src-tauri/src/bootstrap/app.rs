@@ -6,6 +6,7 @@ use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
 use crate::commands::document::DocumentRegistry;
+use crate::paths::{AGENTS_STORE, SETTINGS_STORE};
 
 /// Label of the only window this application declares. Matches tauri.conf.json.
 pub const MAIN_WINDOW: &str = "main";
@@ -90,8 +91,8 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            app.store("settings.json")?;
-            app.store("agents.json")?;
+            app.store(SETTINGS_STORE)?;
+            app.store(AGENTS_STORE)?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

@@ -13,11 +13,11 @@
 //! provider 列表原样保留在 legacy_providers 里交给界面处置。
 
 use crate::error::{Error, IpcError, Result};
+use crate::paths::{AGENTS_STORE, agent_home};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
-use std::path::PathBuf;
-use tauri::{AppHandle, Manager, command};
+use tauri::{AppHandle, command};
 use tauri_plugin_store::StoreExt;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
@@ -80,7 +80,7 @@ fn legacy_keyring_account(provider_id: &str) -> String {
 }
 
 fn has_secret(account: &str) -> bool {
-    keyring::Entry::new(KEYRING_SERVICE, account)
+    keyring::v1::Entry::new(KEYRING_SERVICE, account)
         .map(|entry| entry.get_password().is_ok())
         .unwrap_or(false)
 }
@@ -114,24 +114,6 @@ fn home_var_of(agent: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// 这个 agent 的受控 home 在磁盘上的位置。
-///
-/// 由 Rust 算，不由渲染层传：渲染层不该发明文件系统路径，而写 provider 的
-/// CLI 与起会话的连接必须落在同一个目录，否则配置写进了一个 home、对话读的
-/// 是另一个。让两边各自传参数，就是在等它们哪天不一致。
-fn controlled_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
-    let directory = app
-        .path()
-        .app_data_dir()?
-        .join("agents")
-        .join(agent_id)
-        .join("home");
-
-    std::fs::create_dir_all(&directory)?;
-
-    Ok(directory)
-}
-
 /// 启动这个 agent 的子进程时要设的环境变量。
 ///
 /// 只有非密文的启动变量。密钥不在这里：模式 B 下它们由 agent 自己的 CLI 写
@@ -152,7 +134,7 @@ pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String
         return Ok(Vec::new());
     };
 
-    let home = controlled_home(app, agent_id)?;
+    let home = agent_home(app, agent_id)?;
 
     Ok(vec![(home_var, home.to_string_lossy().into_owned())])
 }
@@ -179,7 +161,7 @@ fn secret_states(agents: &[Value]) -> Vec<AgentSecretState> {
 }
 
 fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
-    let store = app.store("agents.json")?;
+    let store = app.store(AGENTS_STORE)?;
     let mut issues = Vec::new();
 
     let config = match store.get(STORE_KEY) {
@@ -211,7 +193,7 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
 }
 
 fn save_config(app: &AppHandle, config: &PersistedAgentConfig) -> Result<()> {
-    let store = app.store("agents.json")?;
+    let store = app.store(AGENTS_STORE)?;
     store.set(STORE_KEY, serde_json::to_value(config)?);
     store.save()?;
     Ok(())
@@ -296,7 +278,7 @@ pub async fn agent_config_set_secret(
 ) -> AgentConfigCommandResult<AgentConfigSnapshot> {
     (|| -> Result<AgentConfigSnapshot> {
         let account = keyring_account(&agent_id, &var_name);
-        let entry = keyring::Entry::new(KEYRING_SERVICE, &account)
+        let entry = keyring::v1::Entry::new(KEYRING_SERVICE, &account)
             .map_err(|error| Error::Internal(error.to_string()))?;
         entry
             .set_password(&value)
@@ -321,7 +303,7 @@ pub async fn agent_config_clear_secret(
 ) -> AgentConfigCommandResult<AgentConfigSnapshot> {
     (|| -> Result<AgentConfigSnapshot> {
         let account = keyring_account(&agent_id, &var_name);
-        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, &account) {
+        if let Ok(entry) = keyring::v1::Entry::new(KEYRING_SERVICE, &account) {
             let _removed = entry.delete_credential();
         }
         let (config, issues) = read_config(&app)?;
@@ -351,19 +333,19 @@ pub async fn agent_config_migrate_secret(
     (|| -> Result<AgentConfigSnapshot> {
         let legacy_account = legacy_keyring_account(&provider_id);
 
-        let legacy_value = keyring::Entry::new(KEYRING_SERVICE, &legacy_account)
+        let legacy_value = keyring::v1::Entry::new(KEYRING_SERVICE, &legacy_account)
             .ok()
             .and_then(|entry| entry.get_password().ok());
 
         if let Some(value) = legacy_value {
             let account = keyring_account(&agent_id, &var_name);
-            let entry = keyring::Entry::new(KEYRING_SERVICE, &account)
+            let entry = keyring::v1::Entry::new(KEYRING_SERVICE, &account)
                 .map_err(|error| Error::Internal(error.to_string()))?;
             entry
                 .set_password(&value)
                 .map_err(|error| Error::Internal(error.to_string()))?;
 
-            if let Ok(legacy) = keyring::Entry::new(KEYRING_SERVICE, &legacy_account) {
+            if let Ok(legacy) = keyring::v1::Entry::new(KEYRING_SERVICE, &legacy_account) {
                 let _removed = legacy.delete_credential();
             }
         }

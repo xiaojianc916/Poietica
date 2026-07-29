@@ -8,14 +8,14 @@
 //! These run against a real encrypted file with a throwaway key, so nothing
 //! here touches the operating system credential store.
 
-use poietica_agent_persistence_native::{AiStore, DatabaseKey, PermissionOutcome, ToolCallStatus};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey, PermissionOutcome, ToolCallStatus};
 use tempfile::TempDir;
 use uuid::Uuid;
 
 struct Fixture {
     // Held so the directory outlives the connection.
     _directory: TempDir,
-    store: AiStore,
+    store: AgentStore,
     run_id: Uuid,
 }
 
@@ -23,7 +23,7 @@ fn fixture() -> Fixture {
     let directory = TempDir::new().expect("a temporary directory");
     let path = directory.path().join("ai.sqlite3");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
+    let store = AgentStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("projection fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
 

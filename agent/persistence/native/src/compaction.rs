@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use crate::error::Result;
 use crate::events::StoredEvent;
-use crate::store::{AiStore, now};
+use crate::store::{AgentStore, now};
 
 /// 快照的格式版本。
 ///
@@ -114,7 +114,7 @@ pub(crate) fn fold(events: Vec<StoredEvent>) -> Vec<StoredEvent> {
     folded
 }
 
-impl AiStore {
+impl AgentStore {
     /// 为一轮建快照，覆盖它已有的那一份。
     ///
     /// # Errors

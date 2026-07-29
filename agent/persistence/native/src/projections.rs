@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{AiStore, now};
+use crate::store::{AgentStore, now};
 
 /// The four tool call states defined by the Agent Client Protocol.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -197,7 +197,7 @@ const PERMISSION_COLUMNS: &str = "request_id, tool_call_id, outcome, requested_a
 
 // the projections are a separate concern from opening the store, and keeping them in their own
 // file is what keeps both files readable
-impl AiStore {
+impl AgentStore {
     /// Records a tool call the agent just announced.
     ///
     /// A redelivered announcement folds into the existing row rather than

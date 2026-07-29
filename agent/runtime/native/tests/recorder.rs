@@ -18,7 +18,7 @@ use agent_client_protocol::schema::v1::{
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder};
-use poietica_agent_persistence_native::{AiStore, DatabaseKey};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey};
 use serde_json::Value;
 use tempfile::TempDir;
 
@@ -30,7 +30,7 @@ struct Fixture {
     /// Reading the projections back through the writer is what forced it to
     /// hand its connection out; a reader that holds its own share needs no
     /// such door, and the sharing itself is now what the test exercises.
-    store: Arc<Mutex<AiStore>>,
+    store: Arc<Mutex<AgentStore>>,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
@@ -38,7 +38,7 @@ fn fixture() -> Fixture {
     let directory = TempDir::new().expect("a temporary directory");
     let path = directory.path().join("ai.sqlite3");
     let key = DatabaseKey::generate();
-    let store = AiStore::open_with_key(&path, &key).expect("an encrypted store");
+    let store = AgentStore::open_with_key(&path, &key).expect("an encrypted store");
     let thread_id = store.create_thread("recorder fixture").expect("a thread");
     let run_id = store.start_run(thread_id).expect("a run");
     let store = Arc::new(Mutex::new(store));
@@ -64,7 +64,7 @@ fn fixture() -> Fixture {
 
 impl Fixture {
     /// The projections, for the length of one assertion.
-    fn store(&self) -> MutexGuard<'_, AiStore> {
+    fn store(&self) -> MutexGuard<'_, AgentStore> {
         self.store.lock().expect("the store")
     }
 

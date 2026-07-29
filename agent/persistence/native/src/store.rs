@@ -22,7 +22,7 @@ use crate::migrations::migrate;
 /// ordering is what everything else relies on, so serialising writes here is
 /// simpler and safer than reconciling interleaved sequence numbers later.
 #[derive(Debug)]
-pub struct AiStore {
+pub struct AgentStore {
     pub(crate) connection: Connection,
 }
 
@@ -30,7 +30,7 @@ pub(crate) fn now() -> Result<String> {
     Ok(OffsetDateTime::now_utc().format(&Rfc3339)?)
 }
 
-impl AiStore {
+impl AgentStore {
     /// Opens the store with the key held in the operating system credential
     /// store.
     ///

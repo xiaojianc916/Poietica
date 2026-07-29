@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::store::{AiStore, now};
+use crate::store::{AgentStore, now};
 
 /// Lifecycle of a single agent run.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -31,7 +31,7 @@ impl RunStatus {
     }
 }
 
-impl AiStore {
+impl AgentStore {
     /// Starts a run inside a thread and returns its identifier.
     ///
     /// # Errors
