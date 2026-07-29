@@ -1,5 +1,6 @@
 import {
   type AcpAgentProfile,
+  type AgentModelState,
   acpAgents,
   builtinAcpAgentProfiles,
   defaultAcpAgent,
@@ -16,42 +17,32 @@ import {
 } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
+import { useAgentProviders } from './useAgentProviders'
 import './models-settings.css'
 
 /*
- * 设置 · 模型：当前只有界面。
- *
- * AppSettings 里还没有任何模型字段，Provider、密钥存储与网络边界也还没有 owner，
- * 所以状态全部留在组件本地草稿：不写 store、不落盘、不发请求、不读环境变量。
- * 等 domain/settings.ts 与 ports 补上模型契约后，把 useState 换成 controller.update 即可。
+ * 设置 · 模型：模型清单是问出来的。
  *
  * 「智能体」那一行选的是 ACP agent，名单来自 @poietica/agent-registry，是封闭的。
- * 这一行已经落盘：读写经由 AgentConfigStore 走到 agents.json，与 settings.json
- * 各自独立。下面的模型开关与密钥输入框仍然只是本地草稿。
+ * 这一行落在 agents.json，与 settings.json 各自独立。
+ *
+ * 模型清单来自所选 agent 自己的 provider list —— 我们不存目录、不存模型、不存
+ * 密钥。所以这一页没有「保存」这个动作，它显示的就是 agent 此刻的真实配置。
+ *
+ * 密钥输入框还只有界面。写入要走 agent 官方 CLI，那是下一刀。
  *
  * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
  * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
  */
 
-interface ModelEntry {
-  readonly id: string
-  readonly label: string
-  readonly enabled: boolean
-}
-
-const MODEL_CATALOG: readonly ModelEntry[] = [
-  { id: 'grok-4.5-fast', label: 'Cursor Grok 4.5 Fast', enabled: true },
-  { id: 'composer-2.5-fast', label: 'Composer 2.5 Fast', enabled: true },
-  { id: 'opus-5', label: 'Opus 5', enabled: true },
-  { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', enabled: true },
-  { id: 'fable-5', label: 'Fable 5', enabled: true },
-  { id: 'sonnet-5', label: 'Sonnet 5', enabled: true },
-  { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra', enabled: true },
-  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', enabled: true },
-  { id: 'grok-4.5-low', label: 'Cursor Grok 4.5 Low', enabled: false },
-  { id: 'grok-4.5-low-fast', label: 'Cursor Grok 4.5 Low Fast', enabled: false },
-  { id: 'grok-4.5-medium', label: 'Cursor Grok 4.5 Medium', enabled: false },
-]
+/*
+ * 折叠时显示多少条。
+ *
+ * 这个数字不能等于任何一份数据的长度。上一版它是 11，而写死的目录恰好 11 项，
+ * 于是展开与折叠返回同一个数组，「查看全部模型」点了不动。数字与数据长度相等
+ * 本身就是那份目录不该存在的证据。
+ */
+const COLLAPSED_MODEL_LIMIT = 8
 
 /*
  * 可选的 ACP agent。
@@ -106,32 +97,61 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     useState<readonly (readonly [string, string])[]>(AGENT_OPTIONS)
   const [profiles, setProfiles] = useState<readonly AcpAgentProfile[]>([])
   const [agentError, setAgentError] = useState<string | null>(null)
-  const [models, setModels] = useState<readonly ModelEntry[]>(MODEL_CATALOG)
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [keys, setKeys] = useState<KeyDraft>(EMPTY_KEY_DRAFT)
 
+  const providers = useAgentProviders(store, agentId)
+
+  /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
+  const allModels = useMemo(() => {
+    return providers.snapshot?.providers.flatMap((provider) => provider.models) ?? []
+  }, [providers.snapshot])
+
   const visibleModels = useMemo(() => {
     const keyword = query.trim().toLowerCase()
     const matched = keyword
-      ? models.filter((model) => model.label.toLowerCase().includes(keyword))
-      : models
-    return showAll || keyword ? matched : matched.slice(0, 11)
-  }, [models, query, showAll])
-
-  const toggleModel = useCallback((id: string, enabled: boolean) => {
-    setModels((current) =>
-      current.map((model) => (model.id === id ? { ...model, enabled } : model)),
-    )
-  }, [])
-
-  const resetQuery = useCallback(() => {
-    setQuery('')
-  }, [])
+      ? allModels.filter((model) => model.displayName.toLowerCase().includes(keyword))
+      : allModels
+    return showAll || keyword ? matched : matched.slice(0, COLLAPSED_MODEL_LIMIT)
+  }, [allModels, query, showAll])
 
   const patchKeys = useCallback((patch: Partial<KeyDraft>) => {
     setKeys((current) => ({ ...current, ...patch }))
   }, [])
+
+  /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
+  const providerIssues = useMemo(() => {
+    const issues = providers.snapshot?.issues ?? []
+
+    return issues.length > 0 ? issues.join('；') : null
+  }, [providers.snapshot])
+
+  /*
+   * 列表位置该显示什么。
+   *
+   * 四种情况算在一处而不是在 JSX 里套三层三元：出错、正在问、一个模型都没配、
+   * 筛没了。返回 null 表示该画列表。
+   */
+  const modelListMessage = useMemo(() => {
+    if (providers.error !== null) {
+      return providers.error
+    }
+
+    if (providers.loading) {
+      return '正在向 agent 询问已配置的模型…'
+    }
+
+    if (allModels.length === 0) {
+      return '这个 agent 还没有配置任何模型。填入密钥后它会自己拉取模型清单。'
+    }
+
+    if (visibleModels.length === 0) {
+      return '没有匹配的模型。'
+    }
+
+    return null
+  }, [allModels.length, providers.error, providers.loading, visibleModels.length])
 
   const applySnapshot = useCallback((snapshot: AgentConfigSnapshot) => {
     const options = snapshot.agents.map((agent) => [agent.id, agent.displayName] as const)
@@ -202,8 +222,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   return (
     <section className="models-page">
       <p className="models-notice">
-        智能体选择会写入
-        agents.json；下面的模型开关与密钥输入框目前只有界面，改动仅保留在本次会话中。
+        模型清单来自所选 agent 自己的配置，Poietica 不保存第二份。下面的密钥输入框还只有界面。
       </p>
 
       <div className="models-block">
@@ -213,7 +232,9 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
           <div className="models-row">
             <div className="models-row__copy">
               <strong>ACP Agent</strong>
-              <p>{agentError ?? '选择用于对话的 agent，可用模型与密钥由所选 agent 提供'}</p>
+              <p>
+                {agentError ?? providerIssues ?? '选择用于对话的 agent，可用模型与密钥由它提供'}
+              </p>
             </div>
 
             <div className="models-row__control">
@@ -242,9 +263,9 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
           />
 
           <button
-            aria-label="重置模型筛选"
+            aria-label="重新向 agent 询问模型清单"
             className="models-icon-button"
-            onClick={resetQuery}
+            onClick={providers.reload}
             type="button"
           >
             <RefreshIcon />
@@ -252,37 +273,24 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         </div>
 
         <div className="models-list">
-          {visibleModels.length === 0 ? (
-            <p className="models-empty">没有匹配的模型。</p>
+          {modelListMessage !== null ? (
+            <p className="models-empty">{modelListMessage}</p>
           ) : (
-            visibleModels.map((model) => (
-              <div className="models-row models-row--compact" key={model.id}>
-                <span className="models-row__name">{model.label}</span>
-
-                <div className="models-row__control">
-                  <Switch
-                    aria-label={model.label}
-                    checked={model.enabled}
-                    onCheckedChange={(checked) => {
-                      toggleModel(model.id, checked)
-                    }}
-                    size="sm"
-                  />
-                </div>
-              </div>
-            ))
+            visibleModels.map((model) => <ModelRow key={model.alias} model={model} />)
           )}
         </div>
 
-        <button
-          className="models-link"
-          onClick={() => {
-            setShowAll((current) => !current)
-          }}
-          type="button"
-        >
-          {showAll ? '收起模型列表' : '查看全部模型'}
-        </button>
+        {allModels.length > COLLAPSED_MODEL_LIMIT ? (
+          <button
+            className="models-link"
+            onClick={() => {
+              setShowAll((current) => !current)
+            }}
+            type="button"
+          >
+            {showAll ? '收起模型列表' : '查看全部模型'}
+          </button>
+        ) : null}
       </div>
 
       <details className="models-keys">
@@ -460,6 +468,44 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       </details>
     </section>
   )
+}
+
+interface ModelRowProps {
+  readonly model: AgentModelState
+}
+
+/*
+ * 一行模型。
+ *
+ * 右侧没有开关。agent 报回来的模型就是它此刻能用的模型，我们这边拨一下不会让
+ * 它多一个或少一个；上一版那个开关拨了确实什么也没发生。「哪些模型出现在选择
+ * 器里」是我们自己的偏好，需要一个自己的落脚处，那是下一刀。
+ */
+function ModelRow({ model }: ModelRowProps) {
+  return (
+    <div className="models-row models-row--compact">
+      <span className="models-row__name">{model.displayName}</span>
+
+      <div className="models-row__control">
+        <span className="models-row__meta">{describeModel(model)}</span>
+      </div>
+    </div>
+  )
+}
+
+/* 右侧那行小字：谁提供的，能装多少。取不到就留空，不编。 */
+function describeModel(model: AgentModelState): string {
+  const parts: string[] = []
+
+  if (model.providerId !== undefined) {
+    parts.push(model.providerId)
+  }
+
+  if (model.maxContextSize !== undefined) {
+    parts.push(`${Math.round(model.maxContextSize / 1000)}K 上下文`)
+  }
+
+  return parts.join(' · ')
 }
 
 interface KeyFieldProps {

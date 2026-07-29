@@ -67,12 +67,22 @@ export interface AgentProviderSnapshot {
   readonly issues: readonly string[]
 }
 
+/** 一次 agent CLI 调用的命令与参数。 */
+export interface AgentCliCommand {
+  readonly command: string
+  readonly args: readonly string[]
+}
+
 /**
- * 问 agent 要这份投影的命令行参数。
+ * 问 agent 要这份投影的那条命令。
  *
- * 放在这里而不是散在调用点：命令名变了只改一处，而原生侧的白名单也要认得它。
+ * 拆成两段而不是一个扁平数组：端口的 AgentCliInvocation 就是这么分的，原生侧
+ * 的白名单也按这两段判定。合成一个数组只会让每个调用点再拆一次。
  */
-export const AGENT_PROVIDER_LIST_ARGS: readonly string[] = ['provider', 'list', '--json']
+export const AGENT_PROVIDER_LIST: AgentCliCommand = {
+  command: 'provider',
+  args: ['list', '--json'],
+}
 
 const SYNTHETIC_PROVIDER_ID = '__kimi_env__'
 

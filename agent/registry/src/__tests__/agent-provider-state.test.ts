@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AGENT_PROVIDER_LIST_ARGS,
+  AGENT_PROVIDER_LIST,
   parseAgentProviderList,
   parseAgentProviderListOutput,
 } from '../agent-provider-state'
@@ -149,9 +149,12 @@ describe('parseAgentProviderListOutput', () => {
   })
 })
 
-describe('AGENT_PROVIDER_LIST_ARGS', () => {
-  /* 参数始终是数组，不是一行待切的命令行。 */
-  it('是分好的参数数组', () => {
-    expect(AGENT_PROVIDER_LIST_ARGS).toEqual(['provider', 'list', '--json'])
+describe('AGENT_PROVIDER_LIST', () => {
+  /* 参数始终是分好的数组，不是一行待切的命令行。 */
+  it('把命令与参数分开给出', () => {
+    expect(AGENT_PROVIDER_LIST).toEqual({
+      command: 'provider',
+      args: ['list', '--json'],
+    })
   })
 })

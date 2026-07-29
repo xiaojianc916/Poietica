@@ -18,13 +18,14 @@ export {
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
 export type {
+  AgentCliCommand,
   AgentCredentialKind,
   AgentModelState,
   AgentProviderSnapshot,
   AgentProviderState,
 } from './agent-provider-state'
 export {
-  AGENT_PROVIDER_LIST_ARGS,
+  AGENT_PROVIDER_LIST,
   parseAgentProviderList,
   parseAgentProviderListOutput,
 } from './agent-provider-state'

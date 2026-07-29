@@ -206,7 +206,7 @@
  * an ellipsis, so its height is fixed at one line-height.
  *
  * The reply row's line-height is declared as a CSS custom property
- * (--cp-card-lh) and max-block-size is set to exactly three times that value.
+ * (--cp-rail-card-line) and max-block-size is set to exactly three times that value.
  * Because max-block-size is an integer multiple of line-height, the overflow
  * clip always falls on a line boundary — a partial line is never visible.
  * When the reply is shorter than three lines the block shrinks naturally to
@@ -216,7 +216,7 @@
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: calc(100% + var(--cp-pad-mid));
-  translate: 0 calc(var(--cp-card-y, 0px) - 50%);
+  translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
   inline-size: 220px;
   overflow: hidden;
   border-radius: var(--am-item);
@@ -251,16 +251,16 @@
 /*
  * Reply: up to three complete lines, never a partial one.
  *
- * --cp-card-lh is the sole source of truth for the line pitch here. Setting
+ * --cp-rail-card-line is the sole source of truth for the line pitch here. Setting
  * max-block-size to exactly 3× that value means the clip is always a
  * line-boundary cut, regardless of how many characters the text contains.
  */
 .conversation-minimap__card-reply {
-  --cp-card-lh: 1.4em;
+  --cp-rail-card-line: 1.4em;
 
   margin: 4px 0 0;
-  line-height: var(--cp-card-lh);
-  max-block-size: calc(var(--cp-card-lh) * 3);
+  line-height: var(--cp-rail-card-line);
+  max-block-size: calc(var(--cp-rail-card-line) * 3);
   overflow: hidden;
   color: var(--cp-ink-subtle);
   white-space: pre-wrap;

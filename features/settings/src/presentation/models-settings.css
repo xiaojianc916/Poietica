@@ -111,6 +111,13 @@
   justify-content: flex-end;
 }
 
+.models-row__meta {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  /* 等宽数字：上下文窗口那一列不该随数字宽度左右跳。 */
+  font-variant-numeric: tabular-nums;
+}
+
 .models-toolbar {
   position: relative;
   display: flex;
