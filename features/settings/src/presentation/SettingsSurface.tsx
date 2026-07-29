@@ -847,15 +847,11 @@ function SettingsSelect<TValue extends string>({
       onValueChange={(nextValue) => {
         onChange(nextValue as TValue)
       }}
+      size="sm"
       type={ariaLabel}
       value={value}
     >
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="settings-select-trigger"
-        size="sm"
-        tone="plain"
-      />
+      <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger" tone="plain" />
 
       <SelectContent>
         <SelectList>

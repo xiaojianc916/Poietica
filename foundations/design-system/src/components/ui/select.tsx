@@ -6,8 +6,6 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
-  useEffect,
-  useState,
 } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
@@ -22,7 +20,6 @@ interface SelectContextValue {
   readonly type: string
   readonly value: string
   readonly size: SelectTriggerSize
-  readonly setSize: (size: SelectTriggerSize) => void
 }
 
 const SelectContext = createContext<SelectContextValue | null>(null)
@@ -45,6 +42,11 @@ export interface SelectProps {
   readonly open?: boolean
   readonly defaultOpen?: boolean
   readonly disabled?: boolean
+  /**
+   * 触发器与选项行必须同档，所以档位属于整个 Select，不属于触发器：
+   * 它在 render 期间就进 context，选项行首帧即正确。
+   */
+  readonly size?: SelectTriggerSize
   readonly onValueChange: (value: string) => void
   readonly onOpenChange?: (open: boolean) => void
 }
@@ -64,12 +66,10 @@ export function Select({
   open,
   defaultOpen,
   disabled = false,
+  size = 'md',
   onValueChange,
   onOpenChange,
 }: SelectProps) {
-  /* 触发器与选项行必须同档，尺寸只有 SelectTrigger 的 size 一个来源。 */
-  const [size, setSize] = useState<SelectTriggerSize>('md')
-
   return (
     <SelectContext.Provider
       value={{
@@ -77,7 +77,6 @@ export function Select({
         type,
         value,
         size,
-        setSize,
       }}
     >
       <BaseSelect.Root<string>
@@ -105,8 +104,6 @@ export type SelectTriggerSize = 'sm' | 'md'
 export type SelectTriggerTone = 'outline' | 'plain'
 
 export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trigger> & {
-  /** sm 用于设置页这类密集列表，md 为默认尺寸。 */
-  readonly size?: SelectTriggerSize
   /** plain 去掉边框与阴影，背景透明因此与所在卡片同色。 */
   readonly tone?: SelectTriggerTone
 }
@@ -143,16 +140,9 @@ const POPUP_MIN_INLINE_SIZE = '168px'
 const POPUP_MAX_INLINE_SIZE = '320px'
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
-  function SelectTrigger(
-    { children, className, size = 'md', tone = 'outline', ...props },
-    forwardedRef,
-  ) {
-    const { data, type, value, setSize } = useSelectContext()
+  function SelectTrigger({ children, className, tone = 'outline', ...props }, forwardedRef) {
+    const { data, type, value, size } = useSelectContext()
     const selectedItem = data.find((item) => item.value === value)
-
-    useEffect(() => {
-      setSize(size)
-    }, [size, setSize])
 
     return (
       <BaseSelect.Trigger
@@ -207,7 +197,7 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
         sideOffset={4}
       >
         <BaseSelect.Popup
-          className={cn(popupSurfaceClassName, 'shadow-xl', className)}
+          className={cn(popupSurfaceClassName, className)}
           ref={ref}
           style={{
             minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,

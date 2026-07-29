@@ -550,13 +550,8 @@ function OptionSelect({ ariaLabel, value, options, onChange }: OptionSelectProps
   }))
 
   return (
-    <Select data={data} onValueChange={onChange} type={ariaLabel} value={value}>
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="models-select-trigger"
-        size="sm"
-        tone="plain"
-      />
+    <Select data={data} onValueChange={onChange} size="sm" type={ariaLabel} value={value}>
+      <SelectTrigger aria-label={ariaLabel} className="models-select-trigger" tone="plain" />
 
       <SelectContent>
         <SelectList>

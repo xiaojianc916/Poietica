@@ -6,13 +6,19 @@
  * calc(--ui-z-dialog + 1) 绕过了栈序表，于是只有 Select 逃过了
  * "对话框内弹层被遮挡"，Menu 一直是坏的。差异不是设计意图，是抄漏。
  *
- * 阴影刻意留在调用处：Menu 用 md、Select 用 xl 是尚未裁决的视觉档位，
- * 收进这里会把"待决策"伪装成"已统一"。
+ * 阴影用 --ui-shadow-lg，不用 Tailwind 的 shadow-md / shadow-xl。
+ *
+ * 应用没有 @theme 重映射阴影刻度（见 apps/desktop/src/app.css 里那句裸的
+ * @import "tailwindcss"），所以那两个类拿到的是 Tailwind 出厂值，与
+ * shadows.css 是两套数。更要紧的是出厂值没有 [data-theme="dark"] 分支，
+ * 暗色下不会从 16% 加深到 40%，浮层会糊进背景 —— Dialog 一直写的是
+ * shadow-[var(--ui-shadow-xl)]，走的是令牌，此处与它对齐。
  */
 export const popupSurfaceClassName = [
   'overflow-hidden',
   'rounded-md border border-divider',
   'bg-popover text-popover-foreground',
+  'shadow-[var(--ui-shadow-lg)]',
   'outline-none',
   'origin-[var(--transform-origin)]',
   'transition-[transform,scale,opacity]',

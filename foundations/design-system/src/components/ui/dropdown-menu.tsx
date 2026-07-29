@@ -8,8 +8,6 @@ export const DropdownMenu = Menu.Root
 
 export const DropdownMenuGroup = Menu.Group
 
-export const DropdownMenuPortal = Menu.Portal
-
 export const DropdownMenuSub = Menu.SubmenuRoot
 
 export const DropdownMenuRadioGroup = Menu.RadioGroup
@@ -43,7 +41,7 @@ type DropdownMenuContentProps = ComponentPropsWithoutRef<typeof Menu.Popup> & {
   readonly align?: ComponentPropsWithoutRef<typeof Menu.Positioner>['align']
 }
 
-const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1 shadow-md')
+const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1')
 
 export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>(
   function DropdownMenuContent(
@@ -182,14 +180,16 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
     ref,
   ) {
     return (
-      <Menu.Positioner
-        align={align}
-        className={popupPositionerClassName}
-        side={side}
-        sideOffset={sideOffset}
-      >
-        <Menu.Popup className={cn(popupClassName, className)} ref={ref} {...props} />
-      </Menu.Positioner>
+      <Menu.Portal>
+        <Menu.Positioner
+          align={align}
+          className={popupPositionerClassName}
+          side={side}
+          sideOffset={sideOffset}
+        >
+          <Menu.Popup className={cn(popupClassName, className)} ref={ref} {...props} />
+        </Menu.Positioner>
+      </Menu.Portal>
     )
   },
 )
