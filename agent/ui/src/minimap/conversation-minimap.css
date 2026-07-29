@@ -19,7 +19,11 @@
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
+  /* 从没有卡片到有卡片,等这么久。已经有卡片时换格不等 —— 门槛只翻一次。 */
   --cp-rail-card-delay: 90ms;
+
+  /* 指针离开轨道后的宽限。擦边而过不该让卡片闪一下。 */
+  --cp-rail-card-leave: 60ms;
 
   /*
    * 轨道离面板上下边缘留多少。
@@ -149,9 +153,9 @@
  */
 .conversation-minimap__card {
   position: absolute;
-  inset-block-start: 50%;
+  inset-block-start: 0;
   inset-inline-end: calc(100% + var(--cp-pad-mid));
-  translate: 0 -50%;
+  translate: 0 calc(var(--cp-card-y, 0px) - 50%);
   inline-size: 220px;
   overflow: hidden;
   border-radius: var(--am-item);
@@ -166,11 +170,11 @@
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.conversation-minimap__turn[data-aimed] .conversation-minimap__card,
-.conversation-minimap__turn:hover .conversation-minimap__card,
-.conversation-minimap__turn:focus-visible .conversation-minimap__card {
+.conversation-minimap__card[data-shown] {
   opacity: 1;
-  transition-delay: var(--cp-rail-card-delay);
+  transition:
+    opacity var(--cp-motion-swift) var(--cp-motion-ease),
+    translate var(--cp-motion-settle) var(--cp-motion-settle-ease);
 }
 
 /* Question: one line, bold, truncated. */
@@ -234,7 +238,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
-  .conversation-minimap__card {
+  .conversation-minimap__card,
+  .conversation-minimap__card[data-shown] {
     transition: none;
   }
 }

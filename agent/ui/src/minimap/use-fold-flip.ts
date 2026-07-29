@@ -51,7 +51,9 @@ export function useFoldFlip(): (node: HTMLElement | null) => void {
 
     const before = beforeRef.current
     const after = new Map<string, number>()
-    const bars = node.children as HTMLCollectionOf<HTMLElement>
+    const bars = node.getElementsByClassName(
+      'conversation-minimap__turn',
+    ) as HTMLCollectionOf<HTMLElement>
 
     /* 先读完再写。读 offsetTop 会 flush 布局,读写交替就是每格一次回流。 */
     for (const bar of bars) {

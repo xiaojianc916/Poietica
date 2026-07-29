@@ -105,7 +105,9 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
      * it allocates nothing — this is read on every animation frame while the
      * hand is near. The cast is honest; the rail renders buttons.
      */
-    const bars = node.children as HTMLCollectionOf<HTMLElement>
+    const bars = node.getElementsByClassName(
+      'conversation-minimap__turn',
+    ) as HTMLCollectionOf<HTMLElement>
 
     let frame = 0
     let pointerX = Number.NaN

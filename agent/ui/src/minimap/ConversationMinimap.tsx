@@ -7,8 +7,9 @@ import { groupTurns } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
+import { useRailCard } from './use-rail-card'
 
-/* poietica:conversation-minimap-density@v23 */
+/* poietica:conversation-minimap-card@v24 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -34,6 +35,7 @@ export interface ConversationMinimapProps {
 function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
   const flip = useFoldFlip()
+  const card = useRailCard()
   const { ref: measure, available } = useRailBudget()
 
   /*
@@ -47,15 +49,17 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
     (node: HTMLElement | null) => {
       const detachFisheye = fisheye(node)
       const detachMeasure = measure(node)
+      const detachCard = card(node)
 
       flip(node)
 
       return () => {
         detachFisheye?.()
         detachMeasure?.()
+        detachCard?.()
       }
     },
-    [fisheye, flip, measure],
+    [card, fisheye, flip, measure],
   )
 
   /*
@@ -105,6 +109,11 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
             aria-current={index === active ? 'location' : undefined}
             aria-label={label}
             className="conversation-minimap__turn"
+            data-card-kicker={
+              item.kind === 'cluster' ? `${String(item.to - item.from + 1)} 项` : undefined
+            }
+            data-card-label={item.label}
+            data-card-reply={item.reply}
             data-cluster={item.kind === 'cluster' ? '' : undefined}
             data-rail-id={item.id}
             key={item.id}
@@ -139,6 +148,19 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
           </button>
         )
       })}
+
+      {/*
+       * 一张卡片,不是每格一张。
+       *
+       * 内容由 use-rail-card 写入:文字仍然是 React 产出的(在按钮的 data-card-*
+       * 上),这里只是那些文字唯一的落脚处。aria-hidden 照旧 —— 读屏拿的是按钮的
+       * aria-label,那份文案已经把序数、区间和标题说全了。
+       */}
+      <div aria-hidden="true" className="conversation-minimap__card">
+        <p className="conversation-minimap__card-kicker" hidden />
+        <p className="conversation-minimap__card-question" />
+        <p className="conversation-minimap__card-reply" hidden />
+      </div>
     </nav>
   )
 }
