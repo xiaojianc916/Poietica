@@ -144,6 +144,16 @@ export function useAssistantSession({
   const [shown, setShown] = useState(endpoint)
   const [isRestoring, setIsRestoring] = useState(() => endpoint !== null && !restored.has(endpoint))
   const cancelRef = useRef<(() => Promise<void>) | undefined>(undefined)
+  /*
+   * 第几次读。
+   *
+   * 此前挡住过期结果用的是闭包里的一个布尔（let current）。它只让晚到的
+   * 结果不落进 state，读本身照跑不误：在列表里连着点五条对话，就是五份
+   * 全量回放同时在飞，而其中四份的结果从一开始就注定要被丢掉。代际号是
+   * 一个跨渲染的事实而不是每个 effect 各揣一份的布尔，谁是最后一次一目
+   * 了然。
+   */
+  const reading = useRef(0)
 
   /*
    * The conversation on screen changes during render, not a paint later.
@@ -213,33 +223,73 @@ export function useAssistantSession({
    * belongs to the conversation the user has already left.
    */
   useEffect(() => {
+    reading.current += 1
+
     if (endpoint === null || session?.loadThread === undefined) {
       setIsRestoring(false)
 
       return undefined
     }
 
-    let current = true
+    /*
+     * 读过的对话不再读第二遍。
+     *
+     * 上面那个 Map 一直号称"回访是一次 Map 查找"，但它此前只决定首帧画
+     * 什么：紧接着这里照样发一次 IPC、逐帧校验、把成千上万帧重新 reduce
+     * 一遍，然后用一个和屏幕上一模一样的转录覆盖它。命中与否，代价一分
+     * 不少，而它落在点击那一帧上。
+     *
+     * 帧是不会变的历史，而这个进程是它唯一的写入方：这一轮说的话由订阅
+     * 送进同一份转录，下面那个 effect 让它留在原处。所以回到一条打开过的
+     * 对话，正确的做法是把它拿出来。
+     */
+    if (restored.has(endpoint)) {
+      setIsRestoring(false)
+
+      return undefined
+    }
+
+    const mine = reading.current
 
     void session
       .loadThread(endpoint)
       .then((events) => {
-        if (current) {
-          setTimeline(remember(endpoint, replayThreadEvents(RUN_PLACEHOLDER, events)))
-          setIsRestoring(false)
+        if (reading.current !== mine) {
+          return
         }
+
+        setTimeline(remember(endpoint, replayThreadEvents(RUN_PLACEHOLDER, events)))
+        setIsRestoring(false)
       })
       .catch((cause: unknown) => {
-        if (current) {
-          setIsRestoring(false)
-          fail(cause)
+        if (reading.current !== mine) {
+          return
         }
+
+        setIsRestoring(false)
+        fail(cause)
       })
 
     return () => {
-      current = false
+      reading.current += 1
     }
   }, [endpoint, fail, session])
+
+  /*
+   * 这一轮说的话，留在读过的那份转录里。
+   *
+   * 缓存此前只在读完那一刻写一次，之后整轮对话都流进 state 却没有回到
+   * 缓存里：离开再回来时它是过期的——而正因为它过期，上面那次无条件重读
+   * 才显得"必要"。两件事是一个因果，所以一起解决。历史只有这里在写，
+   * 把它留下就够了。
+   */
+  useEffect(() => {
+    if (endpoint === null || !restored.has(endpoint)) {
+      return
+    }
+
+    remember(endpoint, timeline)
+  }, [endpoint, timeline])
 
   const send = useCallback(
     (submission: AssistantSubmission) => {
