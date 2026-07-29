@@ -1,3 +1,5 @@
+import '../assistant-card.css'
+
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
@@ -56,7 +58,7 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
 
   return (
     <section
-      className="timeline-tool"
+      className="assistant-card timeline-tool"
       data-open={isOpen ? 'true' : undefined}
       data-status={item.status}
     >

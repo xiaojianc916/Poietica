@@ -1,3 +1,4 @@
+import '../assistant-card.css'
 import './outcome-card.css'
 
 /**
@@ -20,7 +21,10 @@ export interface OutcomeCardProps {
 
 export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps) {
   return (
-    <div className="assistant-outcome" data-answered={answered === true ? 'true' : undefined}>
+    <div
+      className="assistant-card assistant-outcome"
+      data-answered={answered === true ? 'true' : undefined}
+    >
       <p className="assistant-outcome__prompt">{prompt}</p>
 
       {answer === undefined ? null : <p className="assistant-outcome__answer">{answer}</p>}

@@ -1,15 +1,12 @@
 /*
  * The request must read as an interruption, not as another paragraph, so it
- * carries its own card — the same card the tool call and the code block draw.
- * The radius and both tiers of the edge are named once, in composer-metrics;
- * nothing about the frame is decided here.
+ * carries a card — and now it carries the same one the tool call and the
+ * outcome card carry, because .assistant-card is the only thing that draws a
+ * card on this surface.
  *
- * Two properties keep a fallback chain and only two: they resolve against the
- * design system first and a literal last, so the component still renders when
- * hosted outside the assistant skin, which is how fixtures run it.
- *
- * The edge is a stated hairline, never the text colour: a border that follows
- * the ink turns into a black frame the moment the card sits in body copy.
+ * 这段话上一版就是这么写的,而代码并不是:这个选择器当时自己把 --cp-card-line
+ * 和 --cp-card-radius 又定义了一遍,于是"只定义一次"变成了三处定义。现在这里
+ * 真的不决定任何关于外框的事 —— 剩下的只有这张卡自己的排布与留白。
  *
  * An answered request is not drawn here at all. It stops being a request the
  * moment it is answered, and what stays in the transcript is the same outcome
@@ -18,16 +15,10 @@
  */
 
 .assistant-permission {
-  --cp-card-line: var(--ui-border, #e5e5e5);
-  --cp-card-radius: var(--ui-radius-xl, 0.75rem);
-
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
   padding: 0.875rem 1rem;
-  border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-card-radius);
-  background: var(--cp-card-surface, transparent);
 }
 
 /*
@@ -71,7 +62,7 @@
 .assistant-permission__option {
   min-block-size: var(--ui-control-height-sm);
   padding-inline: 0.9375rem;
-  border: 1px solid var(--cp-card-line);
+  border: 1px solid var(--cp-card-line, #e5e5e5);
   border-radius: var(--ui-radius-md, 0.5rem);
   background: var(--cp-surface, #fff);
   font: inherit;

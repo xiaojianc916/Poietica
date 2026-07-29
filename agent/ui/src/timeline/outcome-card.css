@@ -13,21 +13,16 @@
  * 卡片里不出现任何强调色 —— 一个已经落定的答案不需要再被点亮，那块底色只会把
  * 一条平静的记录读成一个待办。
  *
- * 外框与圆角和工具调用卡同源，只保留一条兜底链：先取设计系统的令牌，再退到字
- * 面量，脱离 assistant skin 也能正确渲染，fixtures 与组件单测就是这么跑的。
+ * 外框与圆角不在这个文件里 —— 它们和工具卡、权限卡一样来自 .assistant-card，
+ * 那条兜底链也只在那里写一次。上一版这里自称"同源"，实际却是自己又定义了一
+ * 遍令牌：同源的是取值，不是来源。
  */
 
 .assistant-outcome {
-  --cp-card-line: var(--ui-border, #e5e5e5);
-  --cp-card-radius: var(--ui-radius-xl, 0.75rem);
-
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.875rem 1rem;
-  border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-card-radius);
-  background: var(--cp-card-surface, transparent);
 }
 
 /* 题面是上下文，不是主行：小半档、淡一档。 */

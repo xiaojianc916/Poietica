@@ -1,0 +1,25 @@
+/*
+ * AI 回复里的一张卡，只在这里成形。
+ *
+ * 这条流里会长出卡片的东西恰好三样，而且是可以穷举的 —— TimelineRow 的分发是
+ * 穷尽的：一次工具调用、一次待答复的权限请求、以及一件已经落定的事留下的结果
+ * 卡。思维链、计划、报错都不是卡（前两者无框，报错是两侧的渐变线），用户气泡
+ * 不是 AI 说的话，代码块与表格是回复正文内部的块，由 Streamdown 产出 —— 它们
+ * 都不挂这个类。
+ *
+ * 此前这三样各写各的：工具卡在 timeline.css 里裸取令牌，权限卡和结果卡则各自
+ * 在自己身上把 --cp-card-line 和 --cp-card-radius 重新定义了一遍、再加一条字
+ * 面量兜底。三个消费点，两套回退链，而两个文件的头部注释都写着「外框只在
+ * composer-metrics 里定义一次，这里不决定任何关于边框的事」—— 注释是对的，代
+ * 码不是。它们今天同色纯属 --ui-border 恰好等于那个十六进制；任何一头一动就
+ * 当场分叉，而且不报错，只是长得不一样。
+ *
+ * 兜底链因此也只留一条，就在这里。脱离 assistant skin 时那三个 --cp-card-* 不
+ * 存在，fixtures 与组件单测正是这么跑的，所以回退写在消费点而不是定义点。
+ */
+
+.assistant-card {
+  border: 1px solid var(--cp-card-line, #e5e5e5);
+  border-radius: var(--cp-card-radius, 0.75rem);
+  background: var(--cp-card-surface, transparent);
+}

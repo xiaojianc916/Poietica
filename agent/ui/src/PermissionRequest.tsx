@@ -1,3 +1,4 @@
+import './assistant-card.css'
 import './permission-request.css'
 
 import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
@@ -217,7 +218,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
   const isSubmitting = submittedOptionId !== undefined
 
   return (
-    <div aria-busy={isSubmitting} className="assistant-permission">
+    <div aria-busy={isSubmitting} className="assistant-card assistant-permission">
       <PermissionAsk title={item.title} toolCall={item.toolCall} />
 
       {item.toolCall === undefined ? null : <PermissionSubject toolCall={item.toolCall} />}
