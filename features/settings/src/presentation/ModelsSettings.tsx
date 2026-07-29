@@ -1,3 +1,4 @@
+import { acpAgents, defaultAcpAgent } from '@poietica/agent-registry'
 import {
   Select,
   SelectContent,
@@ -17,6 +18,9 @@ import './models-settings.css'
  * AppSettings 里还没有任何模型字段，Provider、密钥存储与网络边界也还没有 owner，
  * 所以状态全部留在组件本地草稿：不写 store、不落盘、不发请求、不读环境变量。
  * 等 domain/settings.ts 与 ports 补上模型契约后，把 useState 换成 controller.update 即可。
+ *
+ * 「智能体」那一行选的是 ACP agent，名单来自 @poietica/agent-registry，是封闭的。
+ * 它同样还只是本地草稿：agents.json 的读写要等 AgentConfigStore 接上来之后。
  *
  * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
  * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
@@ -42,9 +46,16 @@ const MODEL_CATALOG: readonly ModelEntry[] = [
   { id: 'grok-4.5-medium', label: 'Cursor Grok 4.5 Medium', enabled: false },
 ]
 
-const TASK_MODEL_OPTIONS: readonly (readonly [string, string])[] = MODEL_CATALOG.filter(
-  (model) => model.enabled,
-).map((model) => [model.id, model.label] as const)
+/*
+ * 可选的 ACP agent。
+ *
+ * 名单来自 @poietica/agent-registry，是封闭的 —— 用户在注册过的几家里选，不能自带
+ * 一条命令。今天只注册了 Kimi Code 一家，所以下拉里只会有一项；接第二家时这里一个
+ * 字都不用改，加的是 agents/<name>.ts。
+ */
+const AGENT_OPTIONS: readonly (readonly [string, string])[] = acpAgents().map(
+  (agent) => [agent.id, agent.displayName] as const,
+)
 
 interface KeyDraft {
   readonly openaiKey: string
@@ -79,7 +90,7 @@ const EMPTY_KEY_DRAFT: KeyDraft = {
 }
 
 export function ModelsSettings() {
-  const [taskModel, setTaskModel] = useState<string>('grok-4.5-fast')
+  const [agentId, setAgentId] = useState<string>(() => defaultAcpAgent().id)
   const [models, setModels] = useState<readonly ModelEntry[]>(MODEL_CATALOG)
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
@@ -114,21 +125,21 @@ export function ModelsSettings() {
       </p>
 
       <div className="models-block">
-        <span className="models-block__label">任务模型</span>
+        <span className="models-block__label">智能体</span>
 
         <div className="models-card">
           <div className="models-row">
             <div className="models-row__copy">
-              <strong>Explore 子智能体模型</strong>
-              <p>选择 Explore 子智能体在初始调研阶段使用的模型</p>
+              <strong>ACP Agent</strong>
+              <p>选择用于对话的 agent，可用模型与密钥由所选 agent 提供</p>
             </div>
 
             <div className="models-row__control">
-              <ModelSelect
-                ariaLabel="Explore 子智能体模型"
-                onChange={setTaskModel}
-                options={TASK_MODEL_OPTIONS}
-                value={taskModel}
+              <OptionSelect
+                ariaLabel="ACP Agent"
+                onChange={setAgentId}
+                options={AGENT_OPTIONS}
+                value={agentId}
               />
             </div>
           </div>
@@ -438,14 +449,15 @@ function SubField({
   )
 }
 
-interface ModelSelectProps {
+/* 通用的枚举下拉。它只认 [value, label]，喂模型还是喂 agent 对它没区别。 */
+interface OptionSelectProps {
   readonly ariaLabel: string
   readonly value: string
   readonly options: readonly (readonly [string, string])[]
   readonly onChange: (value: string) => void
 }
 
-function ModelSelect({ ariaLabel, value, options, onChange }: ModelSelectProps) {
+function OptionSelect({ ariaLabel, value, options, onChange }: OptionSelectProps) {
   const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
     value: optionValue,
     label,
