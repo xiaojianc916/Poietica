@@ -9,8 +9,10 @@ export {
 } from './domain/settings'
 
 export type {
+  AgentCliInvocation,
+  AgentCliOutcome,
   AgentConfigSnapshot,
   AgentConfigStore,
-  ProviderSecretState,
+  AgentSecretState,
 } from './ports/agent-config-store'
 export type { SettingsStore } from './ports/settings-store'

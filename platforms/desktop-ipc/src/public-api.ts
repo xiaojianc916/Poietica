@@ -29,10 +29,12 @@ export {
   shutdownAgent,
 } from './agent'
 export {
+  type AgentCliRequest,
+  type AgentCliResult,
   type AgentConfigBridge,
   type AgentConfigSnapshot,
+  type AgentSecretState,
   createAgentConfigBridge,
-  type ProviderSecretState,
 } from './agent-config'
 export {
   type IpcError,

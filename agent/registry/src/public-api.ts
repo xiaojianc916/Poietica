@@ -25,6 +25,13 @@ export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
 export { carryForwardDiff, kimiCode } from './agents/kimi'
 export type { LaunchEnvInput, LaunchEnvResult } from './credential-injection'
 export { redactEnv, resolveAgentLaunchEnv } from './credential-injection'
+export type { CatalogModel, CatalogProvider, ModelCatalog } from './model-catalog'
+export {
+  catalogProviderById,
+  fetchModelCatalog,
+  MODELS_DEV_URL,
+  parseModelCatalog,
+} from './model-catalog'
 export type {
   ModelProviderDialect,
   ModelProviderProfile,

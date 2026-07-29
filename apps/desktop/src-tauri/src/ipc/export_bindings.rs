@@ -24,7 +24,8 @@ use crate::{
             DocumentCloseRequest, DocumentDescriptor, DocumentId, DocumentOpenResponse,
             DocumentOpenResult, DocumentSaveAsRequest, DocumentSaveAsResult, DocumentSaveRequest,
         },
-        agent_config::{AgentConfigSnapshot, ProviderSecretState},
+        agent_cli::{AgentCliRequest, AgentCliResult},
+        agent_config::{AgentConfigSnapshot, AgentSecretState},
         settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},
     },
     diagnostics::NativeCrashReport,
@@ -78,10 +79,13 @@ pub fn export_document_bindings() {
             crate::commands::settings::settings_set,
             crate::commands::settings::settings_reset,
             crate::commands::agent_config::agent_config_get,
-            crate::commands::agent_config::agent_config_save_providers,
             crate::commands::agent_config::agent_config_save_agents,
             crate::commands::agent_config::agent_config_set_secret,
             crate::commands::agent_config::agent_config_clear_secret,
+            crate::commands::agent_config::agent_config_save_catalog,
+            crate::commands::agent_config::agent_config_migrate_secret,
+            crate::commands::agent_config::agent_config_clear_legacy_providers,
+            crate::commands::agent_cli::agent_cli_exec,
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
@@ -117,7 +121,9 @@ pub fn export_document_bindings() {
         .typ::<ExportSettings>()
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()
-        .typ::<ProviderSecretState>()
+        .typ::<AgentSecretState>()
+        .typ::<AgentCliRequest>()
+        .typ::<AgentCliResult>()
         .export(Typescript::default(), OUTPUT_PATH)
         .expect("failed to export document IPC TypeScript bindings");
 }
