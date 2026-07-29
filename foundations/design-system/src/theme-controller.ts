@@ -10,8 +10,16 @@ export function applyThemePreference(theme: ThemePreference): void {
 
   const root = document.documentElement
 
+  /*
+   * data-theme 之外必须同时写 color-scheme：原生滚动条、表单控件与
+   * <input type="date"> 的下拉面板只认 color-scheme，不认自定义属性，
+   * 否则暗色下这些原生表面仍然是亮的。
+   */
   const apply = (dark: boolean) => {
-    root.setAttribute('data-theme', dark ? 'dark' : 'light')
+    const scheme = dark ? 'dark' : 'light'
+
+    root.setAttribute('data-theme', scheme)
+    root.style.colorScheme = scheme
   }
 
   if (theme === 'light' || theme === 'dark') {

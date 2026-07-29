@@ -94,5 +94,3 @@ export {
 } from './components/ui/tooltip'
 export { cn } from './lib/utils'
 export { applyThemePreference, type ThemePreference } from './theme-controller'
-
-export { type UiTokens, uiTokens } from './tokens'

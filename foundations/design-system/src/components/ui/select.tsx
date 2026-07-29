@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '../../lib/utils'
+import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 export interface SelectOption {
   readonly value: string
@@ -20,9 +21,6 @@ interface SelectContextValue {
   readonly data: readonly SelectOption[]
   readonly type: string
   readonly value: string
-  /** 触发器宽度。仅作为弹出层的宽度下限，不是弹出层宽度。 */
-  readonly width: number
-  readonly setWidth: (width: number) => void
   readonly size: SelectTriggerSize
   readonly setSize: (size: SelectTriggerSize) => void
 }
@@ -69,7 +67,6 @@ export function Select({
   onValueChange,
   onOpenChange,
 }: SelectProps) {
-  const [width, setWidth] = useState(200)
   /* 触发器与选项行必须同档，尺寸只有 SelectTrigger 的 size 一个来源。 */
   const [size, setSize] = useState<SelectTriggerSize>('md')
 
@@ -79,8 +76,6 @@ export function Select({
         data,
         type,
         value,
-        width,
-        setWidth,
         size,
         setSize,
       }}
@@ -138,20 +133,21 @@ const TRIGGER_ICON: Record<SelectTriggerSize, string> = {
 }
 
 /*
- * 弹出层宽度自适应内容，触发器宽度只是下限。
+ * 弹出层宽度自适应内容，锚点宽度只是下限。
  *
- * 把触发器宽度当作固定宽度会在触发器变窄（w-auto）时把选项文字压没，
- * 因为选项内部还有内距、间距和右侧的勾选图标。
+ * 下限来自 Base UI Positioner 暴露的 --anchor-width，不再由 React 读
+ * offsetWidth 再 setState：那既在 commit 阶段强制同步布局，又在窗口尺寸、
+ * 字号与文案长度变化后不会更新，首帧还得先猜一个 200。
  */
-const POPUP_MIN_INLINE_SIZE = 168
-const POPUP_MAX_INLINE_SIZE = 320
+const POPUP_MIN_INLINE_SIZE = '168px'
+const POPUP_MAX_INLINE_SIZE = '320px'
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   function SelectTrigger(
     { children, className, size = 'md', tone = 'outline', ...props },
     forwardedRef,
   ) {
-    const { data, type, value, setWidth, setSize } = useSelectContext()
+    const { data, type, value, setSize } = useSelectContext()
     const selectedItem = data.find((item) => item.value === value)
 
     useEffect(() => {
@@ -173,17 +169,7 @@ export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
           TRIGGER_TONE[tone],
           className,
         )}
-        ref={(element) => {
-          if (element && element.offsetWidth > 0) {
-            setWidth(element.offsetWidth)
-          }
-
-          if (typeof forwardedRef === 'function') {
-            forwardedRef(element)
-          } else if (forwardedRef) {
-            forwardedRef.current = element
-          }
-        }}
+        ref={forwardedRef}
         type="button"
         {...props}
       >
@@ -212,37 +198,19 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
   { className, style, ...props },
   ref,
 ) {
-  const { width } = useSelectContext()
-
   return (
     <BaseSelect.Portal>
       <BaseSelect.Positioner
         align="start"
         alignItemWithTrigger={false}
-        className={cn('z-[calc(var(--ui-z-dialog)+1)]', 'outline-none')}
+        className={popupPositionerClassName}
         sideOffset={4}
       >
         <BaseSelect.Popup
-          className={cn(
-            'overflow-hidden',
-            'rounded-md border',
-            'border-divider',
-            'bg-popover',
-            'text-popover-foreground',
-            'shadow-xl outline-none',
-            'origin-[var(--transform-origin)]',
-            'transition-[transform,scale,opacity]',
-            'duration-[var(--ui-duration-fast)]',
-            'ease-[var(--ui-ease-standard)]',
-            'data-[starting-style]:scale-95',
-            'data-[starting-style]:opacity-0',
-            'data-[ending-style]:scale-95',
-            'data-[ending-style]:opacity-0',
-            className,
-          )}
+          className={cn(popupSurfaceClassName, 'shadow-xl', className)}
           ref={ref}
           style={{
-            minInlineSize: Math.max(width, POPUP_MIN_INLINE_SIZE),
+            minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
             maxInlineSize: POPUP_MAX_INLINE_SIZE,
             ...style,
           }}

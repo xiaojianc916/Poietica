@@ -2,6 +2,7 @@ import { Menu } from '@base-ui/react/menu'
 import { ChevronRight } from '@mynaui/icons-react'
 import { type ComponentPropsWithoutRef, forwardRef } from 'react'
 import { cn } from '../../lib/utils'
+import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 export const DropdownMenu = Menu.Root
 
@@ -42,20 +43,7 @@ type DropdownMenuContentProps = ComponentPropsWithoutRef<typeof Menu.Popup> & {
   readonly align?: ComponentPropsWithoutRef<typeof Menu.Positioner>['align']
 }
 
-const popupClassName = [
-  'min-w-32 overflow-hidden',
-  'rounded-md border border-divider',
-  'bg-popover p-1',
-  'text-popover-foreground',
-  'shadow-md outline-none',
-  'origin-[var(--transform-origin)]',
-  'transition-[transform,scale,opacity]',
-  'duration-[var(--ui-duration-fast)]',
-  'data-[starting-style]:scale-95',
-  'data-[starting-style]:opacity-0',
-  'data-[ending-style]:scale-95',
-  'data-[ending-style]:opacity-0',
-].join(' ')
+const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1 shadow-md')
 
 export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>(
   function DropdownMenuContent(
@@ -66,7 +54,7 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
       <Menu.Portal>
         <Menu.Positioner
           align={align}
-          className="z-[var(--ui-z-popover)] outline-none"
+          className={popupPositionerClassName}
           side={side}
           sideOffset={sideOffset}
         >
@@ -196,7 +184,7 @@ export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSub
     return (
       <Menu.Positioner
         align={align}
-        className="z-[var(--ui-z-popover)] outline-none"
+        className={popupPositionerClassName}
         side={side}
         sideOffset={sideOffset}
       >
