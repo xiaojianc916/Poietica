@@ -8,6 +8,8 @@ import {
 } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import {
+  type AgentConfigStore,
+  createDesktopAgentConfigStore,
   createDesktopSettingsStore,
   createDocumentFileCommands,
   createMainWindowController,
@@ -33,6 +35,7 @@ export interface ApplicationRuntime {
   readonly termination: ApplicationTerminationCoordinator
   readonly mainWindow: MainWindowController
   readonly settings: SettingsStore
+  readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
   readonly tldrawLicenseKey: string
   readonly dispose: () => Promise<void>
@@ -46,6 +49,7 @@ export function createApplicationRuntime({
   const documentsGateway = createDocumentFileCommands()
   const mainWindow = createMainWindowController()
   const settings = createDesktopSettingsStore()
+  const agentConfig = createDesktopAgentConfigStore()
   const editorSessions = createEditorSessionRegistry(createNativeTLAssetStoreSession)
 
   const documents = createCanvasDocumentService({
@@ -74,6 +78,7 @@ export function createApplicationRuntime({
     termination,
     mainWindow,
     settings,
+    agentConfig,
     agentSession: agent.port,
     tldrawLicenseKey,
 

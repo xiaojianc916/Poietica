@@ -3,7 +3,7 @@ import { defaultAcpAgent } from '@poietica/agent-registry'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectProvider } from '@poietica/agent-ui'
 import { EditorProvider } from '@poietica/editor-core/react'
-import type { SettingsStore } from '@poietica/features-settings'
+import type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { CommandPalette, useCommandKeybindings } from '@poietica/features-workspace/react'
@@ -47,6 +47,7 @@ export interface AppShellRuntime {
   readonly termination: ApplicationTerminationCoordinator
   readonly mainWindow: MainWindowController
   readonly settings: SettingsStore
+  readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
   readonly tldrawLicenseKey: string
 }
@@ -228,6 +229,7 @@ export function AppShell({ runtime }: AppShellProps) {
       <ThreadsProvider>
         <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
           <WorkspaceContainer
+            agentConfigStore={runtime.agentConfig}
             agentSession={runtime.agentSession}
             capabilities={capabilities}
             isSettingsOpen={isSettingsOpen && capabilities.settings}

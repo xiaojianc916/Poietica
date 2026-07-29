@@ -8,7 +8,7 @@ import {
   useCanvasInspectorAvailability,
 } from '@poietica/editor-core/react'
 import type { CanvasCloseIntent, CanvasCloseSnapshot } from '@poietica/editor-document'
-import type { SettingsStore } from '@poietica/features-settings'
+import type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
 import {
   SettingsContentRegion,
   SettingsNavigationRegion,
@@ -84,6 +84,7 @@ export interface WorkspaceContainerProps {
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
+  readonly agentConfigStore: AgentConfigStore
   readonly isWindowMaximized: boolean
   readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -100,6 +101,7 @@ export function WorkspaceContainer({
   isSettingsOpen,
   onSettingsClose,
   settingsStore,
+  agentConfigStore,
   isWindowMaximized,
   onCommandPaletteOpen,
   onDeveloperToolsOpen,
@@ -475,7 +477,11 @@ export function WorkspaceContainer({
    * 工作区留在下面不卸载，返回要回到进入设置前的那个标签页。
    */
   return (
-    <SettingsProvider onDismiss={onSettingsClose} store={settingsStore}>
+    <SettingsProvider
+      agentConfigStore={agentConfigStore}
+      onDismiss={onSettingsClose}
+      store={settingsStore}
+    >
       {shell}
     </SettingsProvider>
   )

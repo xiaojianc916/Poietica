@@ -1,10 +1,10 @@
-export type { SettingsStore } from '@poietica/features-settings'
+export type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
+export { createDesktopAgentConfigStore } from './adapters/agent/agent-config-store'
 export {
   createNativeTLAssetStoreSession,
   type NativeAssetStoreSessionRestore,
   type NativeTLAssetStoreSession,
 } from './adapters/assets/native-tl-asset-store'
-
 export type {
   DocumentFileCommands,
   DocumentId,

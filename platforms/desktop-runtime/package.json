@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@poietica/agent-registry": "workspace:*",
     "@poietica/platforms-desktop-ipc": "workspace:*",
     "@poietica/editor-persistence": "workspace:*",
     "@poietica/features-settings": "workspace:*",

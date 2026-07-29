@@ -654,6 +654,9 @@ importers:
 
   platforms/desktop-runtime:
     dependencies:
+      '@poietica/agent-registry':
+        specifier: workspace:*
+        version: link:../../agent/registry
       '@poietica/editor-persistence':
         specifier: workspace:*
         version: link:../../editor/persistence

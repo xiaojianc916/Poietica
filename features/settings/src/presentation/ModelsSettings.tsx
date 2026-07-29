@@ -1,4 +1,9 @@
-import { acpAgents, defaultAcpAgent } from '@poietica/agent-registry'
+import {
+  type AcpAgentProfile,
+  acpAgents,
+  builtinAcpAgentProfiles,
+  defaultAcpAgent,
+} from '@poietica/agent-registry'
 import {
   Select,
   SelectContent,
@@ -9,7 +14,8 @@ import {
   SelectTrigger,
   Switch,
 } from '@poietica/foundations-design-system'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import './models-settings.css'
 
 /*
@@ -20,7 +26,8 @@ import './models-settings.css'
  * 等 domain/settings.ts 与 ports 补上模型契约后，把 useState 换成 controller.update 即可。
  *
  * 「智能体」那一行选的是 ACP agent，名单来自 @poietica/agent-registry，是封闭的。
- * 它同样还只是本地草稿：agents.json 的读写要等 AgentConfigStore 接上来之后。
+ * 这一行已经落盘：读写经由 AgentConfigStore 走到 agents.json，与 settings.json
+ * 各自独立。下面的模型开关与密钥输入框仍然只是本地草稿。
  *
  * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
  * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
@@ -89,8 +96,16 @@ const EMPTY_KEY_DRAFT: KeyDraft = {
   bedrockRegion: '',
 }
 
-export function ModelsSettings() {
+export interface ModelsSettingsProps {
+  readonly store: AgentConfigStore
+}
+
+export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [agentId, setAgentId] = useState<string>(() => defaultAcpAgent().id)
+  const [agentOptions, setAgentOptions] =
+    useState<readonly (readonly [string, string])[]>(AGENT_OPTIONS)
+  const [profiles, setProfiles] = useState<readonly AcpAgentProfile[]>([])
+  const [agentError, setAgentError] = useState<string | null>(null)
   const [models, setModels] = useState<readonly ModelEntry[]>(MODEL_CATALOG)
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
@@ -118,10 +133,77 @@ export function ModelsSettings() {
     setKeys((current) => ({ ...current, ...patch }))
   }, [])
 
+  const applySnapshot = useCallback((snapshot: AgentConfigSnapshot) => {
+    const options = snapshot.agents.map((agent) => [agent.id, agent.displayName] as const)
+
+    setProfiles(snapshot.agents)
+    setAgentOptions(options.length > 0 ? options : AGENT_OPTIONS)
+    setAgentId(snapshot.defaultAgentId)
+    setAgentError(snapshot.issues.length > 0 ? snapshot.issues.join('；') : null)
+  }, [])
+
+  /*
+   * 读一次落盘的配置。
+   *
+   * active 标志防的是「切走设置页时请求才回来」：卸载之后再 setState 是一次无处
+   * 可去的更新。
+   */
+  useEffect(() => {
+    let active = true
+
+    void store.load().then(
+      (snapshot) => {
+        if (active) {
+          applySnapshot(snapshot)
+        }
+      },
+      (cause: unknown) => {
+        if (active) {
+          setAgentError(describeAgentError(cause))
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [applySnapshot, store])
+
+  /*
+   * 选中即落盘。
+   *
+   * 先把界面切过去，失败再切回来：这一步只改 agents.json 的一个字段，成功是常态，
+   * 让下拉干等一次往返只会显得迟钝。回滚用的是点击前的那个值，而不是「默认值」——
+   * 否则一次失败会把用户先前的选择也一并抹掉。
+   *
+   * 档案为空时补一份内置档案：首次写入要让 agents.json 里真的有东西，否则存进去
+   * 一个空名单，读回来又被回退逻辑换成内置的，落盘等于没发生。
+   */
+  const selectAgent = useCallback(
+    (nextId: string) => {
+      const previousId = agentId
+
+      setAgentId(nextId)
+      setAgentError(null)
+
+      void store
+        .saveAgents({
+          agents: profiles.length > 0 ? profiles : builtinAcpAgentProfiles(),
+          defaultAgentId: nextId,
+        })
+        .then(applySnapshot, (cause: unknown) => {
+          setAgentId(previousId)
+          setAgentError(describeAgentError(cause))
+        })
+    },
+    [agentId, applySnapshot, profiles, store],
+  )
+
   return (
     <section className="models-page">
       <p className="models-notice">
-        模型配置目前只有界面：改动仅保留在本次会话中，不会写入本地设置，也不会发起任何网络请求。
+        智能体选择会写入
+        agents.json；下面的模型开关与密钥输入框目前只有界面，改动仅保留在本次会话中。
       </p>
 
       <div className="models-block">
@@ -131,14 +213,14 @@ export function ModelsSettings() {
           <div className="models-row">
             <div className="models-row__copy">
               <strong>ACP Agent</strong>
-              <p>选择用于对话的 agent，可用模型与密钥由所选 agent 提供</p>
+              <p>{agentError ?? '选择用于对话的 agent，可用模型与密钥由所选 agent 提供'}</p>
             </div>
 
             <div className="models-row__control">
               <OptionSelect
                 ariaLabel="ACP Agent"
-                onChange={setAgentId}
-                options={AGENT_OPTIONS}
+                onChange={selectAgent}
+                options={agentOptions}
                 value={agentId}
               />
             </div>
@@ -447,6 +529,10 @@ function SubField({
       </div>
     </div>
   )
+}
+
+function describeAgentError(cause: unknown): string {
+  return cause instanceof Error ? cause.message : 'agent 配置操作失败，请重试。'
 }
 
 /* 通用的枚举下拉。它只认 [value, label]，喂模型还是喂 agent 对它没区别。 */
