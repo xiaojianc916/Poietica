@@ -26,6 +26,15 @@
 
   --ui-region-divider-color: oklch(0.9067 0 0);
   --ui-divider: var(--ui-region-divider-color);
+
+  /*
+   * 卡片内部的分隔线，比容器外框淡一档。
+   *
+   * --ui-border 与 --ui-divider 此前是同一个取值，于是外框、卡内横线、
+   * 表格行线三者同色同粗，一张展开的卡片读起来是一叠平行线而不是一个盒子。
+   * 分级只加在内侧：外框归 --ui-border，它同时被按钮与输入框消费，不动。
+   */
+  --ui-divider-subtle: color-mix(in srgb, var(--ui-foreground) 5%, transparent);
   --ui-border: var(--ui-region-divider-color);
   --ui-input: var(--ui-palette-neutral-300);
   --ui-ring: var(--ui-palette-blue-500);

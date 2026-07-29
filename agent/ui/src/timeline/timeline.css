@@ -18,7 +18,7 @@
   inline-size: fit-content;
   max-inline-size: min(100%, 32rem);
   padding: var(--cp-timeline-pad, 0.625rem 0.875rem);
-  border-radius: var(--cp-timeline-radius, 0.75rem);
+  border-radius: var(--cp-card-radius);
   background: var(--cp-timeline-user-surface);
 }
 
@@ -227,8 +227,8 @@
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
   border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-timeline-radius, 0.75rem);
-  background: var(--cp-timeline-card-surface, transparent);
+  border-radius: var(--cp-card-radius);
+  background: var(--cp-card-surface);
 }
 
 .timeline-prose > [data-streamdown="code-block"]:first-child,
@@ -238,7 +238,7 @@
 
 .timeline-prose [data-streamdown="code-block-header"],
 .timeline-prose [data-streamdown="code-block"] > :has(> [data-streamdown="code-block-actions"]) {
-  border-block-end: 1px solid var(--cp-card-line);
+  border-block-end: 1px solid var(--cp-card-rule);
   background: var(--cp-timeline-output-surface);
 }
 
@@ -538,8 +538,8 @@
 .timeline-tool {
   overflow: hidden;
   border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-timeline-radius, 0.75rem);
-  background: var(--cp-timeline-card-surface, transparent);
+  border-radius: var(--cp-card-radius);
+  background: var(--cp-card-surface);
 }
 
 .timeline-tool__header {
@@ -614,12 +614,12 @@
 .timeline-tool__body {
   display: grid;
   gap: 0;
-  border-block-start: 1px solid var(--cp-card-line);
+  border-block-start: 1px solid var(--cp-card-rule);
 }
 
 .timeline-tool__body > * + *,
 .timeline-tool__diff > * + * {
-  border-block-start: 1px solid var(--cp-card-line);
+  border-block-start: 1px solid var(--cp-card-rule);
 }
 
 /* A diff is one unit: its parts stack flush and share its edges. */
@@ -923,8 +923,8 @@
   margin-block: var(--cp-prose-flow) 0;
   padding: 0;
   border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-timeline-radius, 0.5rem);
-  background: transparent;
+  border-radius: var(--cp-card-radius);
+  background: var(--cp-card-surface);
 }
 
 /*
@@ -1043,7 +1043,7 @@
   [data-streamdown="table-body"]
   [data-streamdown="table-row"]
   + [data-streamdown="table-row"] {
-  border-block-start: 1px solid var(--cp-hairline);
+  border-block-start: 1px solid var(--cp-card-rule);
 }
 
 /*

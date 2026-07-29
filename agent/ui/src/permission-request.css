@@ -1,8 +1,12 @@
 /*
  * The request must read as an interruption, not as another paragraph, so it
- * carries its own card. Every custom property has a literal fallback: the
- * component renders correctly even when hosted outside the assistant skin,
- * which is how fixtures and isolated component work run it.
+ * carries its own card — the same card the tool call and the code block draw.
+ * The radius and both tiers of the edge are named once, in composer-metrics;
+ * nothing about the frame is decided here.
+ *
+ * Two properties keep a fallback chain and only two: they resolve against the
+ * design system first and a literal last, so the component still renders when
+ * hosted outside the assistant skin, which is how fixtures run it.
  *
  * The edge is a stated hairline, never the text colour: a border that follows
  * the ink turns into a black frame the moment the card sits in body copy.
@@ -13,15 +17,16 @@
  */
 
 .assistant-permission {
-  --cp-card-line: #e5e5e5;
+  --cp-card-line: var(--ui-border, #e5e5e5);
+  --cp-card-radius: var(--ui-radius-xl, 0.75rem);
 
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
   padding: 0.875rem 1rem;
   border: 1px solid var(--cp-card-line);
-  border-radius: var(--cp-permission-radius, 0.625rem);
-  background: var(--cp-permission-surface, transparent);
+  border-radius: var(--cp-card-radius);
+  background: var(--cp-card-surface, transparent);
 }
 
 /* Answered: the question, then the answer. Two lines, one card, one edge. */
@@ -48,9 +53,9 @@
 
 .assistant-permission__path {
   padding: 0.125rem 0.4375rem;
-  border-radius: 0.375rem;
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 4%));
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  border-radius: var(--ui-radius-sm, 0.375rem);
+  background: var(--cp-timeline-output-surface);
+  font-family: var(--cp-font-mono);
   font-size: 0.78125rem;
   line-height: 1.5;
   word-break: break-all;
@@ -60,7 +65,7 @@
   margin: 0;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 /*
@@ -75,11 +80,11 @@
 }
 
 .assistant-permission__option {
-  min-block-size: var(--ui-control-height-sm, 2rem);
+  min-block-size: var(--ui-control-height-sm);
   padding-inline: 0.9375rem;
   border: 1px solid var(--cp-card-line);
-  border-radius: 0.5rem;
-  background: var(--cp-permission-surface, #fff);
+  border-radius: var(--ui-radius-md, 0.5rem);
+  background: var(--cp-surface, #fff);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -89,19 +94,19 @@
 }
 
 .assistant-permission__option:hover:not(:disabled) {
-  background: var(--cp-hover, rgb(0 0 0 / 5%));
+  background: var(--cp-hover);
 }
 
 /* One option is what the agent is asking for, and it is the only one painted. */
 .assistant-permission__option[data-kind="allow_once"] {
   border-color: transparent;
-  background: var(--cp-accent, #2563eb);
-  color: var(--cp-accent-foreground, #fff);
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
   font-weight: 600;
 }
 
 .assistant-permission__option[data-kind="allow_once"]:hover:not(:disabled) {
-  background: var(--cp-accent-hover, #1d4ed8);
+  background: var(--cp-accent-hover);
 }
 
 .assistant-permission__option[data-pending="true"] {
@@ -113,7 +118,7 @@
 }
 
 .assistant-permission__option:focus-visible {
-  outline: 2px solid var(--cp-accent, #2563eb);
+  outline: 2px solid var(--cp-accent);
   outline-offset: 2px;
 }
 
@@ -137,22 +142,22 @@
   margin: 0;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: var(--cp-timeline-quiet-text, rgb(0 0 0 / 55%));
+  color: var(--cp-timeline-quiet-text);
 }
 
 .assistant-permission__diffstat {
   display: inline-flex;
   gap: 0.375rem;
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  font-family: var(--cp-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .assistant-permission__diffstat [data-sign="added"] {
-  color: var(--cp-diff-added-text, #1c8c50);
+  color: var(--cp-diff-added-text);
 }
 
 .assistant-permission__diffstat [data-sign="removed"] {
-  color: var(--cp-diff-removed-text, #b42318);
+  color: var(--cp-diff-removed-text);
 }
 
 .assistant-permission__command {
@@ -160,9 +165,9 @@
   margin: 0;
   padding: 0.5rem 0.625rem;
   overflow: auto;
-  border-radius: 0.375rem;
-  background: var(--cp-timeline-output-surface, rgb(0 0 0 / 3%));
-  font-family: var(--cp-font-mono, ui-monospace, monospace);
+  border-radius: var(--ui-radius-sm, 0.375rem);
+  background: var(--cp-timeline-output-surface);
+  font-family: var(--cp-font-mono);
   font-size: 0.75rem;
   line-height: 1.5;
   white-space: pre-wrap;
