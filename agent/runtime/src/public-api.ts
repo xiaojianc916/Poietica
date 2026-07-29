@@ -1,3 +1,9 @@
+export {
+  chooseAgentControl,
+  learnAgentControls,
+  preferredAgentControl,
+  useAgentControls,
+} from './agent-capability-store'
 export type { ThreadListItem, ThreadsList } from './threads-store'
 export { shorten, ThreadsStore } from './threads-store'
 export type {

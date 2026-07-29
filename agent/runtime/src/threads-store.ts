@@ -4,6 +4,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
+import { learnAgentControls, preferredAgentControl } from './agent-capability-store'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -201,6 +202,20 @@ export class ThreadsStore {
         failure: null,
       })
 
+      /*
+       * 入口那一格选的值在这里落地。
+       *
+       * 它是在没有会话的时候选的（选择器画的是偏好），所以会话一开出来就得把
+       * 差异补上，否则那个选择器只是装饰。只补真的不一致的项。
+       */
+      for (const control of opened.selectors) {
+        const wanted = preferredAgentControl(control.id)
+
+        if (wanted !== undefined && wanted !== control.current) {
+          this.selectControl(threadId, control.id, wanted)
+        }
+      }
+
       return threadId
     } catch (reason) {
       this.#commit({ failure: this.#reasonOf(reason) })
@@ -359,6 +374,9 @@ export class ThreadsStore {
   }
 
   #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
+    /* 这张表属于这个 agent，不属于这一条对话；入口那一格靠它才有东西可画。 */
+    learnAgentControls(offered)
+
     this.#commit({
       selectors: this.#with(this.#held.selectors, threadId, offered),
       selectorFailure: this.#without(this.#held.selectorFailure, threadId),

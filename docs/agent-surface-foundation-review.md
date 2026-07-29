@@ -136,3 +136,26 @@ routing, not content），在这一行被丢弃。所以 store 的归属依据�
 
 下一刀（纯 TS，不动 Rust、不动 zod schema）：`AgentEventSource.listen` 交出
 `{ runId, frame }`，store 按 runId → threadId 查表路由。
+
+## 缺陷 6 已修：可选项被绑在会话生命周期上
+
+- `apps/desktop/src/presentation/workspace/ConversationSurface.tsx`：
+  `const controls = threadId === null ? NO_CONTROLS : ...` —— 入口那一格恒为空。
+- `agent/runtime/src/threads-store.ts`：`selectorsOf(threadId)`，表按 threadId 存；
+  唯一到达口是 `port.open(threadId)`（`#read` / `create`）。
+- `agent/protocol/src/session-config-contract.ts` 文件头：
+  "What the running session lets us change."
+
+后果：新建会话界面没有模型选择器；每条对话各问一遍同一张表；并且有人为绕开它，
+把 `onIdentify` 挂到 `onPointerEnter` 上偷偷开一条真对话 —— 那个补丁就是输入框
+乱跳的源头。一个地基错误，两张脸。
+
+行业对照：ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面选择器一直
+在，画的是偏好，新会话继承它；ACP 把能力放在 initialize 阶段，只有当前选中值是
+per-session。
+
+现状：能力表升到进程级（`agent-capability-store.ts`），偏好独立持久，入口那一格
+画偏好，`ThreadsStore.create` 在会话开出来时把偏好补下去。
+
+仍欠：线路上没有 initialize 阶段的能力上报（Rust 侧），所以全新安装、一条对话都
+没开过时这张表是空的；localStorage 缓存是权宜，正确的家是一个 preferences 端口。

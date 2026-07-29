@@ -1,4 +1,5 @@
-import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-protocol'
+import type { AgentSessionPort } from '@poietica/agent-protocol'
+import { chooseAgentControl, useAgentControls } from '@poietica/agent-runtime'
 import { AssistantSurface } from '@poietica/agent-ui'
 import { useSharedThreads } from '../../application/ai/threads-context'
 
@@ -14,9 +15,6 @@ import { useSharedThreads } from '../../application/ai/threads-context'
  * 对话的 id 随那句话一起送来，不从这里的闭包里取：入口那一格在说话的那一刻
  * 才知道自己是哪条对话，闭包里的还是说话之前的答案，也就是没有答案。
  */
-
-/** 还不知道这条对话有什么可选时画的东西：什么都不画。 */
-const NO_CONTROLS: readonly SessionConfigControl[] = []
 
 export interface ConversationSurfaceProps {
   /** 取得这一格即将成为的那条对话。只有入口那一格需要它。 */
@@ -61,7 +59,19 @@ export function ConversationSurface({
     threads.adopt(threadId)
   }
 
-  const controls = threadId === null ? NO_CONTROLS : (threads.selectorsOf(threadId) ?? NO_CONTROLS)
+  /*
+   * 没有会话的那一格，画的是偏好。
+   *
+   * 此前它是 NO_CONTROLS —— 一个空数组，于是工具条里那个模型选择器连数据都
+   * 没有，画不出来。可"有哪些模型可选"是这个 agent 的能力，不是某条会话的
+   * 属性；人想用哪个更是他自己的事。两者都不需要一条对话存在。
+   *
+   * 已有对话在自己的表到达之前也落在这里：先画已知的那张，而不是先画一个空
+   * 工具条再让它长出来。
+   */
+  const known = useAgentControls()
+
+  const controls = threadId === null ? known : (threads.selectorsOf(threadId) ?? known)
 
   return (
     <AssistantSurface
@@ -76,6 +86,15 @@ export function ConversationSurface({
         }
       }}
       onSelectControl={(controlId, value) => {
+        /*
+         * 选择先记成偏好，再落到会话上。
+         *
+         * 记下来的那一份是下一条新对话的默认值 —— 人换了模型，不该在下一次
+         * 新建会话时被打回原样。没有会话的时候，它就是这次选择的全部效果，
+         * 而 ThreadsStore.create 会在会话开出来时把它补上。
+         */
+        chooseAgentControl(controlId, value)
+
         if (threadId !== null) {
           threads.selectControl(threadId, controlId, value)
         }
