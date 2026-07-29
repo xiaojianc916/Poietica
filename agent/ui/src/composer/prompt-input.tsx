@@ -331,7 +331,8 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
    *
    * 所以量的是一个替身：同宽、同字体、同行高、同内边距，装同样的文本。输入框
    * 自己的 block-size 因此只经历"旧像素值 → 新像素值"，两端都是长度，过渡成立。
-   * 上下限仍由样式表的 min/max 钳住；这段路怎么走，见下面的 settle。
+   * 上下限仍然只在样式表里写一次，由 settle 读计算样式取回来；这段路怎么走，
+   * 也见下面的 settle。
    */
   /*
    * 高度怎么走，交给 Web Animations，不交给 CSS transition。
@@ -348,33 +349,68 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
    */
   const running = useRef<Animation | null>(null)
 
-  const settle = useCallback((node: HTMLTextAreaElement, target: number) => {
-    const from = node.getBoundingClientRect().height
+  /*
+   * 走多远由样式表说了算，所以先问它，再算时长。
+   *
+   * 上一版把替身量出的完整文本高度直接当终点：粘进两百行时终点是三千像素，
+   * 而 max-block-size 把元素封在八行上。于是位移按三千像素算出满档时长，元素
+   * 却在八行处就到底了 —— 眼睛看到的是动一小段、然后剩下大半段时间什么都不
+   * 动。那不是曲线不好，是时长在为一段不存在的路计费。
+   *
+   * 钳制读的是计算样式，不是这里再抄一遍 --cp-editor-max：那两个数一旦分居，
+   * 改样式表的人不会知道还有一份副本，而且不会报错。
+   */
+  const clampToStyle = useCallback((node: HTMLTextAreaElement, wanted: number) => {
+    const style = getComputedStyle(node)
+    const ceiling = Number.parseFloat(style.maxBlockSize)
+    const floor = Number.parseFloat(style.minBlockSize)
 
-    running.current?.cancel()
-    running.current = null
+    let target = wanted
 
-    /* 布局值先落定，动画只负责这段路怎么走。 */
-    node.style.setProperty('block-size', `${String(target)}px`)
-
-    const delta = Math.abs(target - from)
-
-    /* 第一次量的时候元素还没进过布局，那一下不该有入场动画。 */
-    if (from === 0 || delta < 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return
+    if (Number.isFinite(ceiling)) {
+      target = Math.min(target, ceiling)
     }
 
-    /*
-     * 时长跟位移走，两头钳住：短了看不见，长了碍事。
-     * 曲线不过冲——过冲会撞上 max-block-size，把工具栏顶一下再弹回来。
-     */
-    const duration = Math.min(400, Math.max(130, delta * 1.7))
+    if (Number.isFinite(floor)) {
+      target = Math.max(target, floor)
+    }
 
-    running.current = node.animate(
-      { blockSize: [`${String(from)}px`, `${String(target)}px`] },
-      { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' },
-    )
+    return target
   }, [])
+
+  const settle = useCallback(
+    (node: HTMLTextAreaElement, wanted: number) => {
+      const target = clampToStyle(node, wanted)
+      const from = node.getBoundingClientRect().height
+
+      running.current?.cancel()
+      running.current = null
+
+      /* 布局值先落定，动画只负责这段路怎么走。 */
+      node.style.setProperty('block-size', `${String(target)}px`)
+
+      /* 位移是钳制之后的位移，也就是眼睛真的会看到的那一段。 */
+      const delta = Math.abs(target - from)
+
+      /* 第一次量的时候元素还没进过布局，那一下不该有入场动画。 */
+      if (from === 0 || delta < 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return
+      }
+
+      /*
+       * 时长跟真实位移走，两头钳住：短了看不见，长了碍事。到顶之后继续粘字
+       * 是零位移，于是零动画 —— 这正是该有的表现。
+       * 曲线不过冲：过冲会撞上钳位，把工具栏顶一下再弹回来。
+       */
+      const duration = Math.min(400, Math.max(130, delta * 1.7))
+
+      running.current = node.animate(
+        { blockSize: [`${String(from)}px`, `${String(target)}px`] },
+        { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' },
+      )
+    },
+    [clampToStyle],
+  )
 
   const measure = useCallback(() => {
     const node = editor.current
