@@ -1,35 +1,60 @@
-/**
- * 可用的 ACP agent，以及启动它们的方式。
+import type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contract'
+import { kimiCode } from './agents/kimi'
+
+export type {
+  AcpAgentDescriptor,
+  AcpQuestionDialect,
+  AcpToolCallContentEntry,
+  AcpToolCallContentRule,
+} from './acp-agent-contract'
+
+/*
+ * 软件支持哪几家 ACP agent。
  *
- * 这是"支持哪个 agent"的唯一答案。原生侧不再内置任何默认命令，所以
- * 增加一个 agent 是往这张表里加一行，而不是改 Rust 里的一个常量。
- * 表里的每一项都只描述 ACP 之内的事：协议之外的特性不属于这里。
+ * 名单是封闭的：用户在这几家里选，不能自带一条命令。所以这里没有解析、没有
+ * 校验、没有反注入 —— 那些是给「用户可以填任意命令」准备的，而这个入口不存在。
+ *
+ * 接第 N 家 = 新增一个 agents/<name>.ts，然后在这张表里加一行。通用层一个字
+ * 都不用改；如果改了，就说明还没解耦干净。
  */
+const AGENTS = [kimiCode] as const satisfies readonly AcpAgentDescriptor[]
 
-export interface AcpAgentDescriptor {
-  readonly id: string
-  readonly displayName: string
-  /** 可执行文件名或绝对路径。不经 shell。 */
-  readonly command: string
-  /** 传给它的参数，已经切好：没有任何一方需要再解析一次命令行。 */
-  readonly args: readonly string[]
-}
-
-const AGENTS: readonly AcpAgentDescriptor[] = [
-  { id: 'kimi', displayName: 'Kimi Code', command: 'kimi', args: ['acp'] },
-]
+/** 名单里的 id，由名单本身推出来，不另抄一份常量。 */
+export type AcpAgentId = (typeof AGENTS)[number]['id']
 
 export function acpAgents(): readonly AcpAgentDescriptor[] {
   return AGENTS
 }
 
-/** 未指明时启动哪一个。表为空是配置错误，不是运行时状态。 */
 export function defaultAcpAgent(): AcpAgentDescriptor {
-  const [first] = AGENTS
+  const first = AGENTS[0]
 
   if (first === undefined) {
     throw new Error('no ACP agent is registered')
   }
 
   return first
+}
+
+/** 按 id 取档案。名单封闭，取不到不是常态，所以由调用方决定怎么处置。 */
+export function acpAgentById(id: string): AcpAgentDescriptor | undefined {
+  return AGENTS.find((agent) => agent.id === id)
+}
+
+/**
+ * 名单里所有的提问方言。
+ *
+ * 认一道题的时候还不知道对面是谁 —— 判据只看 optionId 的形状 —— 所以把全部
+ * 方言摘出来一起试。名单封闭，长度是常数。
+ */
+export function acpQuestionDialects(): readonly AcpQuestionDialect[] {
+  const dialects: AcpQuestionDialect[] = []
+
+  for (const agent of AGENTS) {
+    if (agent.questionDialect !== undefined) {
+      dialects.push(agent.questionDialect)
+    }
+  }
+
+  return dialects
 }
