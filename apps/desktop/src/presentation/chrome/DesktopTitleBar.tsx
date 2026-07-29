@@ -2,6 +2,14 @@ import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynau
 import { Button } from '@poietica/foundations-design-system'
 import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
+import './desktop-title-bar.css'
+
+/*
+ * 条上按钮只有一种形态：与侧边栏行同高的方形幽灵按钮。三个按钮此前各自抄了一遍
+ * 同一串类名，改一次要改三处。
+ */
+const CHROME_BUTTON_CLASS =
+  'size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
 
 /**
  * 活动标签在序列里的前后邻居，以及切换过去的动作。
@@ -80,21 +88,16 @@ export function DesktopTitleBar({
        * 点不到，这是上一版的故障。
        *
        * 宽度直接读 motion 正在驱动的 --workspace-sidebar-column-width，收缩过程
-       * 跟着面板同一条时间轴、到兜底宽度自然刹停，不需要另写一套动画。
+       * 跟着面板同一条时间轴、到下限自然刹停，不需要另写一套动画。
+       *
+       * 下限不是填出来的数：它在 desktop-title-bar.css 里由中线与控件高算出，右侧
+       * 留白因此与左侧恒等。此前 workspace-layout.ts 写死 44px，而按同一条中线对称
+       * 应得 48px——那段注释在追述一个不成立的推导。
        */}
-      <div
-        className="relative flex shrink-0 items-center"
-        data-tauri-drag-region
-        style={{
-          paddingLeft:
-            'calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)',
-          width:
-            'max(var(--workspace-sidebar-column-width, 0px), var(--workspace-sidebar-toggle-zone))',
-        }}
-      >
+      <div className="desktop-title-bar__toggle-zone" data-tauri-drag-region>
         <Button
           aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
-          className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+          className={CHROME_BUTTON_CLASS}
           onClick={onSidebarToggle}
           size="icon"
           type="button"
@@ -119,7 +122,7 @@ export function DesktopTitleBar({
           <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-2">
             <Button
               aria-label="切换到上一个标签页"
-              className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              className={CHROME_BUTTON_CLASS}
               disabled={!activeTabSequence.canActivatePrevious}
               onClick={activeTabSequence.activatePrevious}
               size="icon"
@@ -131,7 +134,7 @@ export function DesktopTitleBar({
 
             <Button
               aria-label="切换到下一个标签页"
-              className="size-[var(--ui-control-height-sm)] shrink-0 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              className={CHROME_BUTTON_CLASS}
               disabled={!activeTabSequence.canActivateNext}
               onClick={activeTabSequence.activateNext}
               size="icon"
@@ -143,19 +146,7 @@ export function DesktopTitleBar({
           </div>
         ) : null}
 
-        {/*
-         * 竖线是一个独立元素而不是容器的 border-right：border 宽度在 1px 和 0
-         * 之间只能硬切，而这条线该跟着面板一起淡出。它贴在容器右边界上，所以
-         * 位置仍然由上面那个 max() 唯一决定，没有第二份坐标。
-         */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 border-r border-divider"
-          style={{
-            opacity: isSidebarOpen ? 1 : 0,
-            transition: 'opacity var(--workspace-layout-duration, 0.22s) ease',
-          }}
-        />
+        <span aria-hidden="true" className="desktop-title-bar__edge" data-visible={isSidebarOpen} />
       </div>
 
       <div className="flex min-w-0 flex-1 items-stretch" data-tauri-drag-region>

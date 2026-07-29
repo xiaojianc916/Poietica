@@ -68,7 +68,7 @@
 .workspace-shell__sidebar,
 .workspace-shell__canvas,
 .workspace-shell__status {
-  transition: border-color var(--workspace-layout-duration, 0.18s) ease;
+  transition: border-color var(--workspace-layout-duration) ease;
 }
 
 .workspace-shell[data-sidebar-docked="false"] .workspace-shell__sidebar,
