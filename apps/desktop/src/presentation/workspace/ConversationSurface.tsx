@@ -36,23 +36,25 @@ export function ConversationSurface({
   const threads = useSharedThreads()
 
   /*
-   * 手伸向输入框，才为这条对话准备一个会话。
+   * 手伸向一条已有的对话，才为它开一个 ACP 会话。
    *
-   * 选择器属于一个活着的 ACP 会话，而开一个会话是 spawn 进程加两趟握手。把它
-   * 挂在「这一格出现了」上，等于把「看一段历史」的代价定成一次进程启动；更糟
-   * 的是这些握手在同一条连接上排队（agent_threads 的 doc：a turn in flight
-   * 时 agent 连 sessions 都不肯列），于是在列表里连点几条，最后点的那条要等前
-   * 面几条握完手 —— 那不是加载慢，那是几个没人要的会话替你排着队。
+   * 入口那一格没有身份可以"预先准备"。它此前会在指针移入或聚焦时调用 onIdentify,
+   * 也就是拿一次鼠标经过去认领一条真的对话：于是用户什么都还没说，这一格就已经有
+   * 了 endpoint，useAssistantSession 在渲染期立刻 opening(endpoint) 并把 isRestoring
+   * 置真，输入框跟着落到底部，随后又弹回原位。预取只许影响缓存，不许影响 UI 状态,
+   * 而这里它影响的是这一格的身份。
    *
-   * 历史不需要会话：它整段来自本地日志，由 useAssistantSession 自己读。
+   * 而且它本来就是多余的：身份在发言的那一刻就会取到（useAssistantSession.send 里
+   * appendUserMessage → identify() → prompt），提前认领一次，除了多出一条没人要的
+   * 对话之外什么也没换来。
    *
-   * 两个入口都是幂等的（adopt 问过一次就记下不再问，identify 复用同一个
-   * promise），所以指针移入和聚焦重复触发是安全的，不需要节流也不需要标志位。
+   * 已有对话这一路留着：adopt 只是为一条已经存在的对话开会话、拿它的选择器，不改
+   * 这一格的身份，因此动不了排版；它是幂等的，重复触发安全。开会话确实贵（spawn
+   * 加两趟握手，且在同一条连接上排队），所以它仍然等到手伸过来才做，而不是挂在
+   * "这一格出现了"上。
    */
   const engage = () => {
     if (threadId === null) {
-      void onIdentify?.()
-
       return
     }
 

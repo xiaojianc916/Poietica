@@ -75,3 +75,28 @@ VS Code 的 chat welcome 与 chat session）,切换是导航;退一步至少是�
 跨 `agent/protocol`、`platforms/desktop-ipc`（含 Rust 广播载荷）、`agent/runtime`、
 `agent/ui`：帧带地址 → 端口按对话订阅 → 转录搬进外部归一化存储 → 入口态与会话态
 分成两个视图。
+
+## 缺陷 5：身份由交互副作用产生
+
+- `apps/desktop/src/presentation/workspace/ConversationSurface.tsx`：
+  `engage()` 在 `threadId === null` 时 `void onIdentify?.()` —— 认领一条真的对话。
+- `agent/ui/src/AssistantSurface.tsx`：该回调接在
+  `onFocusCapture={onEngage}` 与 `onPointerEnter={onEngage}` 上。
+- `agent/runtime/src/useAssistantSession.ts`：endpoint 一变，渲染期即
+  `setTimeline(opening(endpoint))` 并 `setIsRestoring(true)`。
+
+链条：鼠标碰一下输入框 → 认领对话 → endpoint 变化 → 转录被覆盖、isRestoring 置真
+→ data-started 翻真 → 输入框落底 → 认领落定或失败、转录清空 → 弹回。
+"一点击就落底"、"粘贴就落底"、"放十几秒抖一下"、"疯狂新建对话"是同一条链。
+
+行业对照：预取只许影响缓存，不许影响 UI 状态（Next.js link prefetch、GitHub
+hovercard）。而且预热多余：身份在发言时本来就会取到（send 里 identify() → prompt）。
+
+现状：入口那一格的预热已删除；已有对话的 adopt 保留（不改身份，动不了排版）。
+
+## 缺陷 3（续）：排版判据已换成显式单向相位机
+
+`settled = started || isRestoring` 已删除。现在是 `phase: 'entry' | 'live'`，两个
+不可逆来源：挂载时就带 endpoint，或用户在这一格发出过一句话。转录与加载状态一概
+退出排版判据 —— 这也把缺陷 1（帧上没有地址）对排版的影响隔离掉了：帧再怎么串，
+也搬不动构成。

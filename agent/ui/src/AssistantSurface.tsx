@@ -9,7 +9,7 @@ import {
   selectTurnFooter,
   selectTurns,
 } from '@poietica/agent-timeline'
-import { type ReactNode, useMemo, useRef } from 'react'
+import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -103,9 +103,9 @@ const STARTERS: Readonly<Record<string, string>> = {
  * band that still holds its own space at rest. The surface therefore composes
  * three slots and owns no geometry of its own.
  *
- * Which resting state applies is derived from the transcript alone, so it
- * cannot disagree with it; the travel between the two is a flex-grow
- * interpolation in the stylesheet, with nothing measured in script.
+ * 哪一种静止态生效，由一个显式的相位说了算，不由转录反推：转录是内容，落到
+ * 底部是导航，把后者派生自前者，就等于让任何一帧内容变动都能搬动整块构成。
+ * 两态之间的位移仍然是样式表里的 flex-grow 补间，脚本不量任何几何。
  */
 export function AssistantSurface({
   controls,
@@ -220,42 +220,28 @@ export function AssistantSurface({
   )
 
   /*
-   * 正在读一条已有对话时也按“已开始”排版。
+   * 入口态与会话态之间只有一次单向转场，判据是一个显式的相位，不是任何派生量。
    *
-   * 列表里的对话必然说过话，所以最终形态是已知的：先按它排，回放到达时
-   * 没有任何状态翻转，也就没有“内容从上面掉下来”和输入框那一抖。真的读出
-   * 空记录时才回落到起始态，而那几帧的过渡由 data-restoring 关掉。
+   * 这里曾经是 settled = started || isRestoring —— 排版由"转录里有几行"加"有没有
+   * 请求在飞"反推出来。两个都不是排版该看的东西：
+   *
+   *   · 转录会被外面塞进来：run 帧上没有 threadId（run-contract.ts 的六个变体全是
+   *     { kind, seq, at, ... }），而端口的 subscribe 也不按对话订阅，于是每个挂载
+   *     着的界面都会收下别人的帧；它还会被 opening() 清空、被 loadThread 覆盖。
+   *     一个会来回变的量，拿来当一次不可逆转场的判据，就一定会来回跑。
+   *   · isRestoring 是"有请求在飞"，不是"有东西可看"。加载中的反馈是 RestoreSpinner
+   *     的职责，不是把整块构成换掉的理由。
+   *
+   * 现在只有两个来源，都不可逆：
+   *
+   *   · 这一格挂载时就带着 endpoint —— 从列表里打开的既存对话，一开始就是会话态。
+   *   · 用户在这一格发出过一句话 —— 那一刻才叫"开始了"。
+   *
+   * 于是幽灵帧、预热、加载、粘贴、聚焦，一概动不了排版。
    */
-  /*
-   * "已经开始了"说的是有东西可看，所以它数的是画出来的那一组。
-   *
-   * 此前它数 rows，而流里画的是 visibleRows —— 待答的提问被摘去输入框回答，
-   * 于是存在一种状态：rows 非空、visibleRows 为空，输入框按"已开始"落到底部、
-   * 开场白按 320ms 收拢，而流里一个像素都没有。排版与内容有两个判据，就一定
-   * 有它们对不上的那一帧，那一帧就是那次抖动。
-   */
-  const started = visibleRows.length > 0
+  const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
 
-  /*
-   * 落到底部是一次不可逆的转场，不是一个可以来回翻的布尔量。
-   *
-   * 这里曾经是 started || isRestoring，即由"转录里有没有行"反推排版——把一个导航
-   * 状态派生自内容状态。于是任何让转录短暂非空或短暂变空的事情：别的 run 送来的
-   * 帧（帧上没有 threadId，见 run-contract.ts）、一条 run_failed、opening() 的清空、
-   * loadThread 的覆盖，都会让输入框落下去再弹回来，来回一趟 320ms。那就是"新建
-   * 会话"那一屏的抖动。
-   *
-   * 闩住之后方向只有一个。这是最小的忠实修正，不是终局：真正该做的是把入口态和
-   * 会话态分成两个视图，让这段位移是一次导航，而不是同一棵树上的 flex-grow 插值。
-   * 见 docs/agent-surface-foundation-review.md 的缺陷 3。
-   */
-  const latch = useMemo(() => ({ engaged: false }), [])
-
-  if (started || assistant.isRestoring) {
-    latch.engaged = true
-  }
-
-  const settled = latch.engaged
+  const live = phase === 'live'
 
   /*
    * 权限行分两路。
@@ -276,7 +262,7 @@ export function AssistantSurface({
       className="assistant-surface"
       data-assistant-skin
       data-restoring={assistant.isRestoring ? 'true' : undefined}
-      data-started={settled ? 'true' : undefined}
+      data-started={live ? 'true' : undefined}
     >
       {/*
        * 回放那段空白里的反馈。
@@ -312,13 +298,22 @@ export function AssistantSurface({
                 onCancel={assistant.cancel}
                 onRetryControls={onRetryControls}
                 onSelectControl={onSelectControl}
-                onSubmit={assistant.send}
+                onSubmit={(message) => {
+                  /*
+                   * 发言就是那次转场。
+                   *
+                   * 它先于 send：这一刻起这一格是一段对话，不再是入口，而这件事
+                   * 不该等任何一帧回来才成立。
+                   */
+                  setPhase('live')
+                  assistant.send(message)
+                }}
                 questionDeck={questionDeck}
                 status={assistant.status}
               />
             </div>
 
-            <div className="assistant-surface__starters" inert={settled}>
+            <div className="assistant-surface__starters" inert={live}>
               <AssistantQuickActions
                 onSelect={(actionId) => {
                   const starter = STARTERS[actionId]
@@ -341,7 +336,7 @@ export function AssistantSurface({
            * 跟的是 started，于是回放一条已有对话的那几帧里，开场白已经看不见
            * 了，却仍然可聚焦。同一件事只能有一个判据。
            */
-          <div className="assistant-surface__intro" inert={settled}>
+          <div className="assistant-surface__intro" inert={live}>
             <header className="assistant-masthead">
               <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
 
