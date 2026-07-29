@@ -19,9 +19,10 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 新增模型不会把菜单撑到屏幕外；当前值在一级行右侧直接可读，不必逐段扫描勾选。
  *
  * 子菜单用设计系统导出的 Base UI Menu.SubmenuRoot：悬停延迟、安全三角、方向键
- * 进出、Escape 逐级关闭、焦点归还都是标准的职责。DropdownMenuSubContent 不自带
- * Portal，因此显式包 DropdownMenuPortal；portal 之后皮肤属性必须挂在弹层自身，
- * 后代选择器够不到 body 下的节点——这正是此前菜单是裸默认皮肤的原因。
+ * 进出、Escape 逐级关闭、焦点归还都是标准的职责。Portal 由 DropdownMenuSubContent
+ * 自己带，与 DropdownMenuContent 对称，调用处不需要知道它存在；portal 之后皮肤属性
+ * 必须挂在弹层自身，后代选择器够不到 body 下的节点——这正是此前菜单是裸默认皮肤的
+ * 原因。
  */
 
 /*

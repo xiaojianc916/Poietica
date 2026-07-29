@@ -6,11 +6,9 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
-  useEffect,
-  useRef,
-  useState,
 } from 'react'
 import { cn } from '../../lib/utils'
+import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
 export interface ComboboxOption {
   readonly value: string
@@ -21,8 +19,6 @@ interface ComboboxContextValue {
   readonly data: readonly ComboboxOption[]
   readonly type: string
   readonly value: string
-  readonly width: number
-  readonly setWidth: (width: number) => void
 }
 
 const ComboboxContext = createContext<ComboboxContextValue | null>(null)
@@ -58,18 +54,8 @@ export function Combobox({
   onValueChange,
   onOpenChange,
 }: ComboboxProps) {
-  const [width, setWidth] = useState(200)
-
   return (
-    <ComboboxContext.Provider
-      value={{
-        data,
-        type,
-        value,
-        width,
-        setWidth,
-      }}
-    >
+    <ComboboxContext.Provider value={{ data, type, value }}>
       <BaseCombobox.Root<string>
         disabled={disabled}
         onOpenChange={(nextOpen) => {
@@ -93,31 +79,7 @@ export type ComboboxTriggerProps = ComponentPropsWithoutRef<typeof BaseCombobox.
 
 export const ComboboxTrigger = forwardRef<HTMLButtonElement, ComboboxTriggerProps>(
   function ComboboxTrigger({ children, className, ...props }, forwardedRef) {
-    const { data, type, value, setWidth } = useComboboxContext()
-    const localRef = useRef<HTMLButtonElement | null>(null)
-
-    useEffect(() => {
-      const element = localRef.current
-
-      if (!element) {
-        return
-      }
-
-      const updateWidth = () => {
-        if (element.offsetWidth > 0) {
-          setWidth(element.offsetWidth)
-        }
-      }
-
-      updateWidth()
-
-      const resizeObserver = new ResizeObserver(updateWidth)
-      resizeObserver.observe(element)
-
-      return () => {
-        resizeObserver.disconnect()
-      }
-    }, [setWidth])
+    const { data, type, value } = useComboboxContext()
 
     const selectedItem = data.find((item) => item.value === value)
 
@@ -135,15 +97,7 @@ export const ComboboxTrigger = forwardRef<HTMLButtonElement, ComboboxTriggerProp
           'disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
-        ref={(element) => {
-          localRef.current = element
-
-          if (typeof forwardedRef === 'function') {
-            forwardedRef(element)
-          } else if (forwardedRef) {
-            forwardedRef.current = element
-          }
-        }}
+        ref={forwardedRef}
         type="button"
         {...props}
       >
@@ -163,37 +117,13 @@ export type ComboboxContentProps = ComponentPropsWithoutRef<typeof BaseCombobox.
 
 export const ComboboxContent = forwardRef<HTMLDivElement, ComboboxContentProps>(
   function ComboboxContent({ className, style, ...props }, ref) {
-    const { width } = useComboboxContext()
-
     return (
       <BaseCombobox.Portal>
-        <BaseCombobox.Positioner
-          align="start"
-          className="outline-none"
-          sideOffset={4}
-          style={{
-            zIndex: 'calc(var(--ui-z-dialog) + 1)',
-          }}
-        >
+        <BaseCombobox.Positioner align="start" className={popupPositionerClassName} sideOffset={4}>
           <BaseCombobox.Popup
-            className={cn(
-              'overflow-hidden rounded-md',
-              'border border-divider',
-              'bg-popover text-popover-foreground',
-              'shadow-xl outline-none',
-              'origin-[var(--transform-origin)]',
-              'transition-[transform,scale,opacity]',
-              'data-[ending-style]:scale-95',
-              'data-[ending-style]:opacity-0',
-              'data-[starting-style]:scale-95',
-              'data-[starting-style]:opacity-0',
-              className,
-            )}
+            className={cn(popupSurfaceClassName, 'shadow-[var(--ui-shadow-lg)]', className)}
             ref={ref}
-            style={{
-              width,
-              ...style,
-            }}
+            style={{ inlineSize: 'var(--anchor-width)', ...style }}
             {...props}
           />
         </BaseCombobox.Positioner>

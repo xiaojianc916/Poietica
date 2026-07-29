@@ -7,7 +7,7 @@ import { groupTurns } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
 
-/* poietica:conversation-minimap-density@v17 */
+/* poietica:conversation-minimap-density@v19 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -81,18 +81,14 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
          *
          * 并格之后更要报区间:一格代表八轮却只报一个序数,是在谎报位置。
          */
+        const total = String(turns.length)
+
         const position =
           item.kind === 'cluster'
-            ? '第 ' +
-              String(item.from) +
-              '–' +
-              String(item.to) +
-              ' 轮，共 ' +
-              String(turns.length) +
-              ' 轮'
-            : '第 ' + String(item.ordinal) + ' 轮，共 ' + String(turns.length) + ' 轮'
+            ? `第 ${String(item.from)}–${String(item.to)} 轮，共 ${total} 轮`
+            : `第 ${String(item.ordinal)} 轮，共 ${total} 轮`
 
-        const label = position + '：' + item.label
+        const label = `${position}：${item.label}`
 
         return (
           <button
@@ -126,7 +122,7 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
             <div aria-hidden="true" className="conversation-minimap__card">
               {item.kind === 'cluster' && (
                 <p className="conversation-minimap__card-kicker">
-                  {String(item.to - item.from + 1) + ' 项'}
+                  {`${String(item.to - item.from + 1)} 项`}
                 </p>
               )}
               <p className="conversation-minimap__card-question">{item.label}</p>

@@ -21,6 +21,18 @@
   --cp-rail-ink-aimed: #1a1c1f;
   --cp-rail-card-delay: 90ms;
 
+  /*
+   * 轨道离面板上下边缘留多少。
+   *
+   * 这里原本借的是 --cp-pad-mid —— 那是排版留白,给的是内容与边框之间"读起来
+   * 舒服"的距离,而这里问的是另一件事:轨道不贴边就够了。借来的数当时看着合理,
+   * 代价是白削掉二十来个像素、少放将近两格。
+   *
+   * 这个数与 rail-budget.ts 的 RAIL_INSET_PX 是同一个数:护栏裁掉多少,容量就
+   * 得少算多少,否则轨道会在护栏处被切掉一格,而分桶还以为它放得下。
+   */
+  --cp-rail-inset: 2px;
+
   position: absolute;
   z-index: 2;
   inset-block-start: 50%;
@@ -37,7 +49,7 @@
    * 不滚动 —— 首尾几轮被窗口边缘悄悄吃掉,没有任何提示。这条护栏之外,真正
    * 的答案是并格(rail-groups.ts);护栏只保证在测量到位之前的那一帧不出丑。
    */
-  max-block-size: calc(100% - var(--cp-pad-mid) * 2);
+  max-block-size: calc(100% - var(--cp-rail-inset) * 2);
 }
 
 /*
