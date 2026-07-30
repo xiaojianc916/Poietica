@@ -163,6 +163,7 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::asset::asset_session_close,
             commands::diagnostics::diagnostics_take_previous_crash,
             commands::window::window_open_devtools,
+            commands::window::window_open_external_url,
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_reset,

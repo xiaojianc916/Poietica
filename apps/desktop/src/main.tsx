@@ -7,12 +7,14 @@ import {
 } from '@poietica/platforms-desktop-runtime'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
+import { installExternalLinks } from './presentation/chrome/external-links'
 import { installScrollbarActivity } from './presentation/chrome/scrollbar-activity'
 
 void bootstrapApplication()
 
 async function bootstrapApplication(): Promise<void> {
   installScrollbarActivity()
+  installExternalLinks()
 
   const previousCrash = await readPreviousNativeCrashReport()
 

@@ -144,7 +144,6 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
-        mode={isStreaming ? 'streaming' : 'static'}
         plugins={PLUGINS}
         translations={TRANSLATIONS}
       >
