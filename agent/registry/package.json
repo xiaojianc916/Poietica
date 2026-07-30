@@ -13,7 +13,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@poietica/agent-protocol": "workspace:*"
+    "@poietica/agent-protocol": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

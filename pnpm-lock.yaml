@@ -111,6 +111,9 @@ importers:
       '@poietica/agent-protocol':
         specifier: workspace:*
         version: link:../protocol
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
     devDependencies:
       typescript:
         specifier: 'catalog:'

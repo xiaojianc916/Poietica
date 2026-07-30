@@ -1,3 +1,4 @@
+import * as v from 'valibot'
 import { acpAgents, defaultAcpAgent } from './acp-agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
@@ -62,10 +63,6 @@ export interface AcpAgentProfileSetParse {
   readonly issues: readonly string[]
 }
 
-type Parsed<TValue> =
-  | { readonly ok: true; readonly value: TValue }
-  | { readonly ok: false; readonly issue: string }
-
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
 const SHELL_METACHARACTERS = /[;&|<>$`\n\r"']/
@@ -75,259 +72,121 @@ const MAX_TEXT = 512
 const MAX_ENTRIES = 32
 const MAX_PROFILES = 32
 
-function fail(issue: string): { readonly ok: false; readonly issue: string } {
-  return { ok: false, issue }
-}
-
-function asRecord(input: unknown): Record<string, unknown> | undefined {
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    return undefined
-  }
-
-  return input as Record<string, unknown>
-}
-
-function asText(input: unknown, max = MAX_TEXT): string | undefined {
-  if (typeof input !== 'string' || input.length === 0 || input.length > max) {
-    return undefined
-  }
-
-  return input
-}
-
-function parseIdentity(
-  raw: Record<string, unknown>,
-): Parsed<{ readonly id: string; readonly displayName: string }> {
-  const id = asText(raw['id'], 32)
-
-  if (id === undefined || !ID_PATTERN.test(id)) {
-    return fail('agent 标识只允许小写字母、数字与连字符，且以字母开头')
-  }
-
-  const displayName = asText(raw['displayName'], 64)
-
-  if (displayName === undefined) {
-    return fail('agent 需要一个 1–64 字的名称')
-  }
-
-  return { ok: true, value: { id, displayName } }
-}
-
-function parseCommand(input: unknown): Parsed<string> {
-  const command = asText(input, 256)
-
-  if (command === undefined) {
-    return fail('启动命令不能为空')
-  }
-
-  if (SHELL_METACHARACTERS.test(command)) {
-    return fail('启动命令不经 shell 执行，不能包含 ; & | < > $ 等字符')
-  }
-
-  return { ok: true, value: command }
-}
-
-function parseArgs(input: unknown): Parsed<string[]> {
-  if (input === undefined) {
-    return { ok: true, value: [] }
-  }
-
-  if (!Array.isArray(input) || input.length > MAX_ARGS) {
-    return fail(`参数必须是数组，且不超过 ${MAX_ARGS} 项`)
-  }
-
-  const args: string[] = []
-
-  for (const candidate of input) {
-    const arg = asText(candidate)
-
-    if (arg === undefined) {
-      return fail('参数必须是非空字符串')
-    }
-
-    args.push(arg)
-  }
-
-  return { ok: true, value: args }
-}
-
-function parseCwd(input: unknown): Parsed<string | undefined> {
-  if (input === undefined || input === null) {
-    return { ok: true, value: undefined }
-  }
-
-  const cwd = asText(input, 1024)
-
-  if (cwd === undefined) {
-    return fail('工作目录必须是非空字符串')
-  }
-
-  return { ok: true, value: cwd }
-}
-
-function parseEnv(input: unknown): Parsed<Record<string, string>> {
-  if (input === undefined) {
-    return { ok: true, value: {} }
-  }
-
-  const raw = asRecord(input)
-
-  if (!raw) {
-    return fail('环境变量必须是对象')
-  }
-
-  const entries = Object.entries(raw)
-
-  if (entries.length > MAX_ENTRIES) {
-    return fail(`环境变量不超过 ${MAX_ENTRIES} 项`)
-  }
-
-  const env: Record<string, string> = {}
-
-  for (const [name, value] of entries) {
-    if (!ENV_NAME_PATTERN.test(name)) {
-      return fail(`环境变量名 ${name} 不合法，应为大写字母、数字与下划线`)
-    }
-
-    if (typeof value !== 'string' || value.length > MAX_TEXT) {
-      return fail(`环境变量 ${name} 的值必须是字符串`)
-    }
-
-    env[name] = value
-  }
-
-  return { ok: true, value: env }
-}
-
-/**
- * 校验一个可选的环境变量名。
+/*
+ * 档案的形状就是下面这张表。
  *
- * 受控 home 与注册表密钥变量都只记名字不记值，规则逐字相同 —— 写两遍就会有一天只改了
- * 一遍，于是两个字段一严一松。
+ * 此前这里是一个手写的校验框架：一个 Parsed<T> 结果类型、一个 fail、两个
+ * asRecord/asText 探针、七个 parseXxx 函数，最后由九段 if (!x.ok) return x 串
+ * 起来 —— 240 行把"每个字段长什么样"这件声明式的事，写成了命令式的流程控制。
+ *
+ * 代价不是观感：接口手写一遍、校验再手写一遍，两份靠人对齐，给档案加一个字段
+ * 而忘了补校验时编译器一声不吭，它只是静默地不再校验那一格。parseEnvVarName
+ * 上面那句注释已经承认了这件事 ——"写两遍就会有一天只改了一遍"。
+ *
+ * valibot 1.4.2 本来就在 pnpm-workspace.yaml 的 catalog 里，只是这个包没用它。
+ * 校验来源不可信的输入正是标准能力该上场的地方：模式即文档，类型由模式推出，
+ * 漏一格不再是"忘了写一段 if"，而是编译不过。
+ *
+ * 每条规则都自带中文说法，因为这些话会出现在设置界面上。
  */
-function parseEnvVarName(input: unknown, issue: string): Parsed<string | undefined> {
-  if (input === undefined || input === null) {
-    return { ok: true, value: undefined }
+const text = (max: number, message: string) =>
+  v.pipe(v.string(message), v.minLength(1, message), v.maxLength(max, message))
+
+const envName = (message: string) => v.pipe(text(64, message), v.regex(ENV_NAME_PATTERN, message))
+
+const ID_ISSUE = 'agent 标识只允许小写字母、数字与连字符，且以字母开头'
+const PROFILE_ISSUE = 'agent 档案无法解析'
+
+const ProfileSchema = v.object({
+  id: v.pipe(text(32, ID_ISSUE), v.regex(ID_PATTERN, ID_ISSUE)),
+  displayName: text(64, 'agent 需要一个 1–64 字的名称'),
+  command: v.pipe(
+    text(256, '启动命令不能为空'),
+    v.check(
+      (command) => !SHELL_METACHARACTERS.test(command),
+      '启动命令不经 shell 执行，不能包含 ; & | < > $ 等字符',
+    ),
+  ),
+  args: v.optional(
+    v.pipe(
+      v.array(text(MAX_TEXT, '参数必须是非空字符串'), '参数必须是数组'),
+      v.maxLength(MAX_ARGS, `参数不超过 ${MAX_ARGS} 项`),
+    ),
+    [],
+  ),
+  cwd: v.nullish(text(1024, '工作目录必须是非空字符串')),
+  env: v.optional(
+    v.pipe(
+      v.record(
+        envName('环境变量名不合法，应为大写字母、数字与下划线'),
+        text(MAX_TEXT, '环境变量的值必须是字符串'),
+        '环境变量必须是对象',
+      ),
+      v.check((env) => Object.keys(env).length <= MAX_ENTRIES, `环境变量不超过 ${MAX_ENTRIES} 项`),
+    ),
+    {},
+  ),
+  /* 受控 home 与代填密钥只记名字不记值，规则逐字相同，所以是同一个 envName。 */
+  homeVar: v.nullish(envName('受控 home 的变量名不合法，应为大写字母、数字与下划线')),
+  registryKeyVar: v.nullish(envName('注册表密钥的变量名不合法，应为大写字母、数字与下划线')),
+  defaultConfigOptions: v.optional(
+    v.record(
+      text(64, '会话配置项 id 必须是非空字符串'),
+      v.union([v.string(), v.boolean()], '会话配置值只能是字符串或布尔值'),
+      '默认会话配置必须是对象',
+    ),
+    {},
+  ),
+})
+
+/*
+ * 整份配置的信封。
+ *
+ * defaultProfileId 用 fallback 而不是让它报错：那一格填坏了只算没填，回落到
+ * 第一个档案 —— 与此前 asText 返回 undefined 时的行为一致。一个错字不该让整份
+ * agents.json 作废。
+ */
+const EnvelopeSchema = v.object({
+  profiles: v.array(v.unknown()),
+  defaultProfileId: v.fallback(
+    v.nullish(v.pipe(v.string(), v.minLength(1), v.maxLength(32))),
+    undefined,
+  ),
+})
+
+/*
+ * 缺席与 null 在磁盘上都表示"没有这一项"，在类型里只留 undefined 一种：
+ * 让两种空值一路往下走，就是让每个下游都判两次。
+ */
+function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
+  return {
+    id: parsed.id,
+    displayName: parsed.displayName,
+    command: parsed.command,
+    args: parsed.args,
+    cwd: parsed.cwd ?? undefined,
+    env: parsed.env,
+    homeVar: parsed.homeVar ?? undefined,
+    registryKeyVar: parsed.registryKeyVar ?? undefined,
+    defaultConfigOptions: parsed.defaultConfigOptions,
   }
-
-  const name = asText(input, 64)
-
-  if (name === undefined || !ENV_NAME_PATTERN.test(name)) {
-    return fail(issue)
-  }
-
-  return { ok: true, value: name }
-}
-
-function parseDefaultConfigOptions(input: unknown): Parsed<Record<string, AgentConfigOptionValue>> {
-  if (input === undefined) {
-    return { ok: true, value: {} }
-  }
-
-  const raw = asRecord(input)
-
-  if (!raw) {
-    return fail('默认会话配置必须是对象')
-  }
-
-  const options: Record<string, AgentConfigOptionValue> = {}
-
-  for (const [configId, value] of Object.entries(raw)) {
-    if (asText(configId, 64) === undefined) {
-      return fail('会话配置项 id 必须是非空字符串')
-    }
-
-    if (typeof value !== 'string' && typeof value !== 'boolean') {
-      return fail('会话配置值只能是字符串或布尔值')
-    }
-
-    options[configId] = value
-  }
-
-  return { ok: true, value: options }
 }
 
 /**
+ * 校验一个来源不可信的 agent 档案。/**
  * 校验一个来源不可信的 agent 档案。
  *
  * agents.json 可以被手改，界面也能填任意文本，两者都不可信：一个被改坏的档案
  * 不应该变成一次任意命令执行。所以校验集中在这里，而不是散落到调用点。
  */
 export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
-  const raw = asRecord(input)
+  const parsed = v.safeParse(ProfileSchema, input, { abortPipeEarly: true })
 
-  if (!raw) {
-    return fail('agent 档案必须是对象')
+  if (!parsed.success) {
+    return { ok: false, issue: parsed.issues[0]?.message ?? PROFILE_ISSUE }
   }
 
-  const identity = parseIdentity(raw)
-
-  if (!identity.ok) {
-    return identity
-  }
-
-  const command = parseCommand(raw['command'])
-
-  if (!command.ok) {
-    return command
-  }
-
-  const args = parseArgs(raw['args'])
-
-  if (!args.ok) {
-    return args
-  }
-
-  const cwd = parseCwd(raw['cwd'])
-
-  if (!cwd.ok) {
-    return cwd
-  }
-
-  const env = parseEnv(raw['env'])
-
-  if (!env.ok) {
-    return env
-  }
-
-  const homeVar = parseEnvVarName(
-    raw['homeVar'],
-    '受控 home 的变量名不合法，应为大写字母、数字与下划线',
-  )
-
-  if (!homeVar.ok) {
-    return homeVar
-  }
-
-  const registryKeyVar = parseEnvVarName(
-    raw['registryKeyVar'],
-    '注册表密钥的变量名不合法，应为大写字母、数字与下划线',
-  )
-
-  if (!registryKeyVar.ok) {
-    return registryKeyVar
-  }
-
-  const defaults = parseDefaultConfigOptions(raw['defaultConfigOptions'])
-
-  if (!defaults.ok) {
-    return defaults
-  }
-
-  return {
-    ok: true,
-    profile: {
-      id: identity.value.id,
-      displayName: identity.value.displayName,
-      command: command.value,
-      args: args.value,
-      cwd: cwd.value,
-      env: env.value,
-      homeVar: homeVar.value,
-      registryKeyVar: registryKeyVar.value,
-      defaultConfigOptions: defaults.value,
-    },
-  }
+  return { ok: true, profile: shape(parsed.output) }
 }
 
 /**
@@ -337,9 +196,9 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
  * 否则用户手滑一个字符就会丢掉全部 agent。这是 Zed 设置层的处理方式。
  */
 export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse {
-  const raw = asRecord(input)
+  const envelope = v.safeParse(EnvelopeSchema, input)
 
-  if (!raw || !Array.isArray(raw['profiles'])) {
+  if (!envelope.success) {
     return {
       value: builtinAcpAgentProfileSet(),
       issues: ['agent 配置无法解析，已回退到内置档案'],
@@ -349,7 +208,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   const issues: string[] = []
   const profiles: AcpAgentProfile[] = []
 
-  for (const candidate of raw['profiles'].slice(0, MAX_PROFILES)) {
+  for (const candidate of envelope.output.profiles.slice(0, MAX_PROFILES)) {
     const parsed = parseAcpAgentProfile(candidate)
 
     if (!parsed.ok) {
@@ -374,7 +233,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     }
   }
 
-  const requested = asText(raw['defaultProfileId'], 32)
+  const requested = envelope.output.defaultProfileId ?? undefined
   const matched = requested !== undefined && profiles.some((one) => one.id === requested)
   const defaultProfileId = matched && requested !== undefined ? requested : first.id
 
