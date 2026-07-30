@@ -57,6 +57,14 @@ export interface AgentConfigSnapshot {
   readonly issues: readonly string[]
 }
 
+/** 导入全局配置的结果。 */
+export interface AgentImportOutcome {
+  /** 是否真的执行了复制。全局配置不存在时为 false —— 那不是错误。 */
+  readonly imported: boolean
+  /** 原受控配置的备份路径。受控 home 原本没有 config.toml 时为 null。 */
+  readonly backupPath: string | null
+}
+
 /**
  * ACP agent 接入配置的持久化端口。
  *
@@ -92,4 +100,10 @@ export interface AgentConfigStore {
    * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
    */
   readonly loadKeyTails: (agentId: string) => Promise<Readonly<Record<string, string>>>
+  /*
+   * 把用户全局 home 的 config.toml 整份复制进受控 home（替换 + 备份）。
+   * 整份搬是唯一保真的形状：default_model、default_effort、loop_control 这些
+   * 目录形状里不存在的格，只有字节级复制保得住。
+   */
+  readonly importGlobal: (agentId: string) => Promise<AgentImportOutcome>
 }

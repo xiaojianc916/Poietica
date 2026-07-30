@@ -337,6 +337,78 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
         .unwrap_or_default()
 }
 
+/// 导入全局配置的结果。
+#[derive(Debug, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentImportOutcome {
+    /// 是否真的执行了复制。全局配置不存在时为 false —— 那不是错误。
+    pub imported: bool,
+    /// 原受控配置的备份路径。受控 home 原本没有 config.toml 时为 None。
+    pub backup_path: Option<String>,
+}
+
+/// 把用户全局 home 的 config.toml 整份复制进受控 home（替换 + 备份）。
+///
+/// 语义是「把我在 CLI 里配好的那一份搬过来用」—— 整份搬是唯一保真的形状：
+/// default_model、default_effort、loop_control 这些目录形状里不存在的格，
+/// 只有字节级复制保得住。复制不解析：这不是拼对方的格式，是搬运。
+///
+/// 受控 home 原有的 config.toml 先备份成 config.toml.<unix 秒>.bak，再用
+/// fs::copy 覆盖（Windows 上 rename 不能越过已存在的目标；有备份在，恢复
+/// 只需要一次手动改名）。
+///
+/// # Errors
+///
+/// 读取或写入失败时返回错误。全局配置不存在不算错误：返回 imported = false。
+#[command]
+#[specta::specta]
+pub async fn agent_import_global(
+    app: AppHandle,
+    agent_id: String,
+) -> AgentConfigCommandResult<AgentImportOutcome> {
+    (|| -> Result<AgentImportOutcome> {
+        let global = app
+            .path()
+            .home_dir()
+            .map_err(|error| Error::Internal(error.to_string()))?
+            .join(".kimi-code")
+            .join("config.toml");
+
+        if !global.exists() {
+            return Ok(AgentImportOutcome {
+                imported: false,
+                backup_path: None,
+            });
+        }
+
+        let home = agent_home(&app, &agent_id)?;
+        let destination = home.join("config.toml");
+        let mut backup_path = None;
+
+        if destination.exists() {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_secs())
+                .unwrap_or(0);
+            let backup = home.join(format!("config.toml.{stamp}.bak"));
+
+            std::fs::copy(&destination, &backup)
+                .map_err(|error| Error::Internal(format!("备份受控配置失败：{error}")))?;
+
+            backup_path = Some(backup.to_string_lossy().into_owned());
+        }
+
+        std::fs::copy(&global, &destination)
+            .map_err(|error| Error::Internal(format!("导入全局配置失败：{error}")))?;
+
+        Ok(AgentImportOutcome {
+            imported: true,
+            backup_path,
+        })
+    })()
+    .map_err(IpcError::from)
+}
+
 /// 替换 agent 列表与默认 agent。
 ///
 /// # Errors

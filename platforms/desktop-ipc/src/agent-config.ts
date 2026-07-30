@@ -39,6 +39,14 @@ export interface AgentConfigSnapshot {
   readonly issues: readonly string[]
 }
 
+/** 导入全局配置的结果。 */
+export interface AgentImportOutcome {
+  /** 是否真的执行了复制。全局配置不存在时为 false —— 那不是错误。 */
+  readonly imported: boolean
+  /** 原受控配置的备份路径。受控 home 原本没有 config.toml 时为 null。 */
+  readonly backupPath: string | null
+}
+
 export interface AgentConfigBridge {
   readonly load: () => Promise<AgentConfigSnapshot>
   readonly saveAgents: (
@@ -49,6 +57,8 @@ export interface AgentConfigBridge {
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
   /** 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。 */
   readonly loadKeyTails: (agentId: string) => Promise<Record<string, string>>
+  /** 把用户全局 home 的 config.toml 整份复制进受控 home（替换 + 备份）。 */
+  readonly importGlobal: (agentId: string) => Promise<AgentImportOutcome>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
@@ -66,5 +76,7 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     execCli: (request) => invoke<AgentCliResult>('agent_cli_exec', { request }),
 
     loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
+
+    importGlobal: (agentId) => invoke<AgentImportOutcome>('agent_import_global', { agentId }),
   }
 }

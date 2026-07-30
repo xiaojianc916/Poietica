@@ -93,6 +93,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [keyTails, setKeyTails] = useState<Readonly<Record<string, string>>>({})
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importNote, setImportNote] = useState<string | null>(null)
 
   const providers = useAgentProviders(store, agentId)
 
@@ -118,11 +120,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   }, [providers.snapshot])
 
   /*
-   * 一次性导入的探测半：对用户全局 home 跑一次只读的 provider list。
-   *
-   * 只读，所以只识别，不复制：已存密钥的字节只在全局配置里，而官方管线没有任何一个
-   * 出口会把它交出来（--json 脱敏、catalog add 只认 --api-key / 环境变量）。真「一键
-   * 复制」就得读对方的私有配置文件，那是另一条铁律禁止的事 —— 指出来，密钥再贴一次。
+   * 一次性导入的第一步：对用户全局 home 跑一次只读的 provider list，把将导入的
+   * 内容摆出来。确认后的整份复制在 runImport，由原生侧备份后完成。
    */
   const probeGlobalHome = useCallback(() => {
     if (probing) {
@@ -179,6 +178,41 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         },
       )
   }, [agentId, probing, store])
+
+  /*
+   * 确认导入：原生侧把全局 config.toml 整份复制进受控 home（先备份）。
+   * 导入完成后预览就没用了，清掉；模型列表与尾号随快照刷新自然更新。
+   */
+  const runImport = useCallback(() => {
+    if (importing) {
+      return
+    }
+
+    setImporting(true)
+    setImportNote(null)
+
+    void store.importGlobal(agentId).then(
+      (outcome) => {
+        setImporting(false)
+
+        if (!outcome.imported) {
+          setImportNote('没有找到全局配置可导入。')
+          return
+        }
+
+        setImportNote(
+          outcome.backupPath === null ? '已导入全局配置。' : '已导入全局配置，原受控配置已备份。',
+        )
+        setGlobalSnapshot(undefined)
+        setGlobalNote(null)
+        providers.reload()
+      },
+      (cause: unknown) => {
+        setImporting(false)
+        setImportNote(describeAgentCliFailure(cause, '导入失败，请重试。'))
+      },
+    )
+  }, [agentId, importing, providers, store])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -416,17 +450,25 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       {globalNote !== null ? <p className="models-empty">{globalNote}</p> : null}
 
       {globalSnapshot !== undefined ? (
-        <p className="models-notice">
-          在你电脑的全局配置里发现：
-          {globalSnapshot.providers
-            .map((provider) => {
-              const state = provider.configured ? '已配置密钥' : '未配置密钥'
-              return `${provider.id}（${provider.models.length} 个模型，${state}）`
-            })
-            .join('；')}
-          。在下方对应的厂商卡里重新填入密钥即可接入，密钥只经环境变量交给 agent，不会被读取或复制。
+        <p className="models-notice models-notice--bar">
+          <span>
+            在你电脑的全局配置里发现：
+            {globalSnapshot.providers
+              .map((provider) => {
+                const state = provider.configured ? '已配置密钥' : '未配置密钥'
+                return `${provider.id}（${provider.models.length} 个模型，${state}）`
+              })
+              .join('；')}
+            。导入将整体替换受控配置（自动先备份），OAuth 账号不在其中。
+          </span>
+
+          <Button disabled={importing} onClick={runImport} size="xs" type="button" variant="soft">
+            {importing ? '正在导入…' : '确认导入'}
+          </Button>
         </p>
       ) : null}
+
+      {importNote !== null ? <p className="models-empty">{importNote}</p> : null}
 
       <div className="models-block">
         <span className="models-block__label">智能体</span>
