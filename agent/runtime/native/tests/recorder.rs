@@ -269,7 +269,13 @@ fn a_permission_request_is_refused_and_recorded() {
         "an unattended client refuses, using the agent's own option"
     );
 
-    let request_id = fixture.recorder.record_permission(&request, &decision);
+    /* 按生产路径的顺序来。driver.rs 先记下问题，再记下答复，中间隔着一次
+    等待；此前这里调的是把两步并成一步的便利方法，而那个方法在生产代码里
+    一处都没有被调用过 —— 它注释里点名的两种场景（请求落在一轮之外、桌子
+    不可用），driver.rs 走的都是这两步。一个只有自己的测试在调用的生产方法
+    证明不了生产行为，所以方法没了，顺序留下。 */
+    let request_id = fixture.recorder.record_permission_requested(&request);
+    fixture.recorder.record_permission_resolved(&request_id, &decision);
 
     assert!(fixture.recorder.take_failure().is_none());
 

@@ -138,19 +138,6 @@ impl Recorder {
         self.remember(outcome);
     }
 
-    /// Records a request and its answer in one step, for the paths that need
-    /// no human: a request arriving outside a turn, or an unusable desk.
-    pub fn record_permission(
-        &mut self,
-        request: &RequestPermissionRequest,
-        decision: &Decision,
-    ) -> String {
-        let request_id = self.record_permission_requested(request);
-        self.record_permission_resolved(&request_id, decision);
-
-        request_id
-    }
-
     /// The requests this run is still waiting on.
     ///
     /// 一轮结束时要从权限桌上放掉的就是这些。读不出来就当作没有：那件事

@@ -65,15 +65,46 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
 }
 
 /*
- * 上一次算出来的那一份，按这条转录的首条弱引用。
+ * 内容没变时，把上一次那个数组原样还回去。
  *
- * reducer 每帧只换掉末尾一条，于是这里 map 出来的元素几乎全是旧对象、数组本身
- * 却是新的。任何以「行数组」为键的下游记忆（selectTurns）因此必然落空。
+ * 行和轮次都要这一手，而且要的是逐字相同的一段：取锚、比长度、逐项比、命中就
+ * 还旧的、否则记下新的。此前它被抄了两遍 —— 同一个不变式由两处各自维护，改一
+ * 处漏一处，性能会静默塌回去而功能测试照样全绿。收成一处之后，turn-identity
+ * 那条守卫测的就是这一个实现。
  *
- * 逐项相同就把上一次那个数组原样还回去。这一层管的是「可见条目一个都没换」那
- * 一种帧；末尾那一行的角色变了时它照样交出新数组，那是对的 —— 行确实变了。也
- * 正因为如此，这份记忆盖不住上面那层：轮次在同一帧里没有变化，所以 selectTurns
- * 需要它自己的一份，键取首行。
+ * 键取首项而不是数组本身：reducer 每帧只换掉末尾一条，数组每帧都是新的、首项
+ * 却始终是同一个对象。以数组为键的记忆因此每帧必然落空 —— 那正是这里要修的。
+ */
+function stable<TAnchor extends object, TItem>(
+  memo: WeakMap<TAnchor, readonly TItem[]>,
+  anchor: TAnchor | undefined,
+  built: readonly TItem[],
+): readonly TItem[] {
+  if (anchor === undefined) {
+    return built
+  }
+
+  const held = memo.get(anchor)
+
+  if (
+    held !== undefined &&
+    held.length === built.length &&
+    held.every((item, index) => item === built[index])
+  ) {
+    return held
+  }
+
+  memo.set(anchor, built)
+
+  return built
+}
+
+/*
+ * 可见条目一个都没换的那一种帧：行数组原样复用。
+ *
+ * 末尾那一行的角色变了时它照样交出新数组，那是对的 —— 行确实变了。也正因为
+ * 如此，这份记忆盖不住下面那层：轮次在同一帧里没有变化，所以 selectTurns 要
+ * 有它自己的一份。
  */
 const LAST_ROWS = new WeakMap<TimelineItem, readonly FeedRow[]>()
 
@@ -85,25 +116,7 @@ function buildFeedRows(state: TimelineState): readonly FeedRow[] {
     toRow(item, live && index === lastIndex && isGrowable(item)),
   )
 
-  const anchor = visible[0]
-
-  if (anchor === undefined) {
-    return built
-  }
-
-  const held = LAST_ROWS.get(anchor)
-
-  if (
-    held !== undefined &&
-    held.length === built.length &&
-    held.every((row, index) => row === built[index])
-  ) {
-    return held
-  }
-
-  LAST_ROWS.set(anchor, built)
-
-  return built
+  return stable(LAST_ROWS, visible[0], built)
 }
 
 /**
@@ -175,15 +188,10 @@ function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn 
 const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
 
 /*
- * 上一次算出来的那一份轮次，按这条转录的首行弱引用。
- *
- * 行与轮次的变化频率本来就不同：末尾那一行的角色一翻，buildFeedRows 就必须交出
- * 新数组 —— 行确实变了；而同一帧里提问行和它的预览一个都没动，轮次不该跟着换。
- * TURNS 以行数组为键，于是整段流式期间每帧必落空、必重建全部 N 个轮次对象，
- * 下游那个 memo 过的缩略导航因此形同虚设。下一层的引用稳定盖不住这一层。
- *
- * 键取首行而不是行数组：首行在整段流式里是同一个对象，所以这份记忆命中，而不是
- * 像以数组为键那样每帧从零开始。逐项相同就把上一次那个数组原样还回去。
+ * 行与轮次的变化频率不同：末尾那一行的角色一翻，buildFeedRows 就必须交出新数组
+ * —— 行确实变了；而同一帧里提问行和它的预览一个都没动，轮次不该跟着换。TURNS
+ * 以行数组为键，于是整段流式期间每帧必落空、必重建全部 N 个轮次对象，下游那个
+ * memo 过的缩略导航形同虚设。下一层的引用稳定盖不住这一层。
  */
 const LAST_TURNS = new WeakMap<FeedRow, readonly ConversationTurn[]>()
 
@@ -238,25 +246,7 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
     return toTurn(entry, reply)
   })
 
-  const anchor = rows[0]
-
-  if (anchor === undefined) {
-    return built
-  }
-
-  const held = LAST_TURNS.get(anchor)
-
-  if (
-    held !== undefined &&
-    held.length === built.length &&
-    held.every((turn, index) => turn === built[index])
-  ) {
-    return held
-  }
-
-  LAST_TURNS.set(anchor, built)
-
-  return built
+  return stable(LAST_TURNS, rows[0], built)
 }
 
 function firstLine(text: string): string {
