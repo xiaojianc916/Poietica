@@ -334,8 +334,18 @@ pub async fn agent_cli_exec(
         })
         .map_err(IpcError::from)?;
 
-    if output.status.success() {
-        sync_key_hint(&app, &request);
+    // 备忘只是便利数据：同步失败不该把一次已经成功的写入报成失败，所以 let _ =。
+    if output.status.success()
+        && let Some(sync) = key_hint_sync
+    {
+        match sync {
+            KeyHintSync::Set { provider_id, tail } => {
+                let _ = set_key_hint(&app, &provider_id, &tail);
+            }
+            KeyHintSync::Clear { provider_id } => {
+                let _ = clear_key_hint(&app, &provider_id);
+            }
+        }
     }
 
     Ok(AgentCliResult {
