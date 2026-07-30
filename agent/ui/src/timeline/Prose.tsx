@@ -3,7 +3,12 @@ import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
-import { type AnimateOptions, type ControlsConfig, Streamdown } from 'streamdown'
+import {
+  type AnimateOptions,
+  type ControlsConfig,
+  Streamdown,
+  type StreamdownTranslations,
+} from 'streamdown'
 
 import { cx } from '../primitives/class-names'
 
@@ -62,6 +67,34 @@ const CONTROLS: ControlsConfig = {
   table: { copy: true, download: false, fullscreen: true },
 }
 
+/*
+ * 控件与弹窗的中文标签。
+ *
+ * 上游的 37 个键默认全是英文（defaultTranslations），落在一个整体中文的界面上
+ * 就是半句英文半句中文。translations 收的是 Partial，没写的键继续用英文默认值,
+ * 所以这里只译真正会出现的那些 —— download 那一组全部关掉了，不译。
+ *
+ * 外链弹窗的六个键必须在场：linkSafety 默认就是开的（官方 Link Safety 文档逐字
+ * 「enabled by default」），点任何链接都会弹它出来。在这个 webview 里它暂时还不
+ * 能关 —— 关掉之后链接会在应用内导航，把整个界面替换成网页。接管外链是下一刀，
+ * 在那之前它至少该说中文。
+ */
+const TRANSLATIONS: Partial<StreamdownTranslations> = {
+  copied: '已复制',
+  copyCode: '复制代码',
+  copyLink: '复制链接',
+  copyTable: '复制表格',
+  copyTableAsCsv: '复制为 CSV',
+  copyTableAsMarkdown: '复制为 Markdown',
+  copyTableAsTsv: '复制为 TSV',
+  exitFullscreen: '退出全屏',
+  externalLinkWarning: '即将打开外部网站。',
+  imageNotAvailable: '图片无法显示',
+  openExternalLink: '打开外部链接？',
+  openLink: '打开链接',
+  viewFullscreen: '全屏查看',
+}
+
 export interface ProseProps {
   readonly text: string
   readonly isStreaming: boolean
@@ -78,10 +111,11 @@ export interface ProseProps {
  * stylesheet dresses, which is why a fenced block inside the thinking already
  * looks like a fenced block inside the answer.
  *
- * While text is still arriving Streamdown is told so twice, because it asks
- * twice: parseIncompleteMarkdown closes the open constructs so a lone fence
- * cannot swallow the rest, and isAnimating is what actually admits the animate
- * plugin — `animated` alone does nothing without it.
+ * 流式期间只需要说一次。parseIncompleteMarkdown 的默认值就是 true，而静态模式
+ * 整个跳过未完成标记的修补（官方 Usage 的 How Static Mode Works 逐字）—— 显式
+ * 写成 {isStreaming}，两种状态得到的都是它本来的行为，只是多一个真值来源。
+ *
+ * isAnimating 才是真正放行 animate 插件的那一个：animated 单独在场什么也不做。
  *
  * Line numbers and the download control are turned off through the props that
  * govern them. Overriding rendered output from a stylesheet works until the
@@ -111,8 +145,8 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
         isAnimating={isStreaming}
         lineNumbers={false}
         mode={isStreaming ? 'streaming' : 'static'}
-        parseIncompleteMarkdown={isStreaming}
         plugins={PLUGINS}
+        translations={TRANSLATIONS}
       >
         {text}
       </Streamdown>
