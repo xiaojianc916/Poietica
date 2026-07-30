@@ -26,8 +26,16 @@ const stylesDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles'
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
+/*
+ * 一条真正的 background 声明:属性名顶在 '{' 或 ';' 之后。
+ *
+ * 此前这里是 not.toContain('background'),既过松也过紧 —— 注释里出现这个词就红,
+ * 而 --ui-card-background 这类 token 名同样被算成"卡片自己造了背景"。
+ */
+const BACKGROUND_DECL = /(?:^|[{;])\s*background(?:-[a-z]+)?\s*:/m
+
 const declaredTokens = (css: string) =>
-  new Set([...stripComments(css).matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
+  new Set([...css.matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
 
 /* 取第一个捕获组，取不到就当场失败并说清是什么取不到。 */
 const captureOf = (source: string, pattern: RegExp, what: string) => {
@@ -41,16 +49,25 @@ const captureOf = (source: string, pattern: RegExp, what: string) => {
 }
 
 const declOf = (css: string, name: string) =>
-  captureOf(stripComments(css), new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm'), name).trim()
+  captureOf(css, new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm'), name).trim()
 
 /* 只接受 #rrggbb：能被取色器一比一核对的那种值。 */
 const grayOf = (value: string) =>
   Number.parseInt(captureOf(value, /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i, value), 16)
 
-const light = readFileSync(join(tokensDir, 'light.css'), 'utf8')
-const dark = readFileSync(join(tokensDir, 'dark.css'), 'utf8')
-const surface = readFileSync(join(stylesDir, 'surface.css'), 'utf8')
-const metrics = readFileSync(join(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css'), 'utf8')
+/*
+ * 读进来就把注释剥掉。
+ *
+ * 断言的对象是声明,不是文件文本。此前 stripComments 只在 declaredTokens /
+ * declOf 里用,另外几条断言直接读原文:同一个文件两套读法。
+ */
+const declarationsIn = (...segments: string[]) =>
+  stripComments(readFileSync(join(...segments), 'utf8'))
+
+const light = declarationsIn(tokensDir, 'light.css')
+const dark = declarationsIn(tokensDir, 'dark.css')
+const surface = declarationsIn(stylesDir, 'surface.css')
+const metrics = declarationsIn(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css')
 
 /* 画布取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
 const CANVAS = { light: 0xf8, dark: 0x14 }
@@ -122,14 +139,18 @@ describe('two-tier border scale', () => {
   })
 
   it('卡片不造背景，存在感由投影给', () => {
-    expect(surface).not.toContain('background')
-    expect(light).not.toContain('--ui-surface-fill')
-    expect(dark).not.toContain('--ui-surface-fill')
-    expect(surface).toContain('box-shadow: var(--ui-surface-shadow)')
+    /* 只认声明:--ui-card-background 一类的名字不算卡片自己造了背景。 */
+    expect(BACKGROUND_DECL.test(surface), 'surface.css 不该声明 background').toBe(false)
+    expect(declaredTokens(light).has('--ui-surface-fill'), 'light 不该有卡片填充').toBe(false)
+    expect(declaredTokens(dark).has('--ui-surface-fill'), 'dark 不该有卡片填充').toBe(false)
+    expect(declOf(surface, 'box-shadow')).toBe('var(--ui-surface-shadow)')
   })
 
   it('宽度只有全局那一档 1px', () => {
-    expect(surface).toContain('border: var(--ui-region-divider-width) solid var(--surface-line)')
+    /* 整值相等,不是"包含这段文字":加个 !important 也该判红,且不受折行影响。 */
+    expect(declOf(surface, 'border')).toBe(
+      'var(--ui-region-divider-width) solid var(--surface-line)',
+    )
     expect(surface).not.toContain('--ui-surface-frame-width')
   })
 
