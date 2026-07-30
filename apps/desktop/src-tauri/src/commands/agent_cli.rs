@@ -276,6 +276,10 @@ pub async fn agent_cli_exec(
         .map_err(|_searched| missing_program(&program))
         .map_err(IpcError::from)?;
 
+    // 闭包与目录服务的 match 会把 request 拆开拿走，尾号变更在这里先算好 ——
+    // 它只拿走 5 个字符与 provider id，request 本体不再需要。
+    let key_hint_sync = plan_key_hint(&request);
+
     // 目录服务只活到这次调用结束：它随闭包进入阻塞线程，子进程退出、闭包返回时
     // 被 Drop，端口随即释放 —— 不论这次调用成败。--url 在这里追加而不是经调用方
     // —— 地址从绑定结果现算，不是用户输入，所以放在白名单校验之后。
@@ -287,10 +291,6 @@ pub async fn agent_cli_exec(
         ),
         None => None,
     };
-
-    // 闭包会把 request 的字段逐个搬走，尾号变更在这里先算好 —— 它只拿走
-    // 5 个字符与 provider id，request 本体不再需要。
-    let key_hint_sync = plan_key_hint(&request);
 
     let spawned = async_runtime::spawn_blocking(move || {
         let mut final_args = request.args.clone();
