@@ -433,20 +433,40 @@ export class ThreadsStore {
   #commit(patch: Partial<Held>): void {
     const next: Held = { ...this.#held, ...patch }
 
-    if (
-      next.threads === this.#held.threads &&
-      next.pending === this.#held.pending &&
-      next.provisional === this.#held.provisional &&
-      next.selectors === this.#held.selectors &&
-      next.selectorFailure === this.#held.selectorFailure &&
-      next.isLoading === this.#held.isLoading &&
-      next.failure === this.#held.failure
-    ) {
+    /*
+     * 变化检查按 patch 的键走。
+     *
+     * 此前这里手抄了 Held 的七个字段。手抄的那份在加第八个字段时会静默漏掉,
+     * 而漏掉的表现是"改了却不通知" —— 一个只在特定字段上发作的 bug。没被 patch
+     * 的字段不可能变,所以按键比较既短,也不可能忘。
+     */
+    if ((Object.keys(patch) as (keyof Held)[]).every((key) => next[key] === this.#held[key])) {
       return
     }
 
+    /*
+     * 列表的输入只有这三样。
+     *
+     * 一行的样子只由 threads / pending / provisional 决定(见 #itemFor):
+     * selectors 与 selectorFailure 对它零影响,而它们是提交最频繁的两个 ——
+     * adopt 一条对话就是一次提交。此前每一次提交都重跑 #project:重建 #byId、
+     * 重算每一行的标题、重建 #items。打开 40 条对话就是 40 趟 O(N) 的无用功。
+     *
+     * 派生视图只在它的输入变化时重算,这是 store 派生状态的基本形态。
+     */
+    const listing =
+      next.threads !== this.#held.threads ||
+      next.pending !== this.#held.pending ||
+      next.provisional !== this.#held.provisional
+
     this.#held = next
-    this.#project()
+
+    if (listing) {
+      this.#project()
+    } else if (next.isLoading !== this.#list.isLoading || next.failure !== this.#list.failure) {
+      /* 只有这两格变了:行一个都没变,连数组引用都不该换。 */
+      this.#list = { items: this.#list.items, isLoading: next.isLoading, failure: next.failure }
+    }
 
     for (const listener of this.#listeners) {
       listener()

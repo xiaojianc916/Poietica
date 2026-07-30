@@ -157,6 +157,18 @@ function parseChoice(raw: string | null): Readonly<Record<string, string>> {
 }
 
 let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_KEY) ?? null)
+
+/*
+ * 现有那张表的形状签名。
+ *
+ * "同一张表被十条对话各报一次"是常态(见 learnAgentControls 的注释),也就是说那
+ * 条路径注定被重复调用、且注定在"没变"处返回。此前每一次都把现有的表重新 map
+ * 一遍再 stringify 一遍才得出这个结论 —— 一个不变量被反复重算。表变了才更新它。
+ *
+ * 这里用 JSON.stringify 做相等判据是可靠的,只因为 shapeOf 显式构造对象、键序
+ * 固定;它不是通用的深比较。
+ */
+let signature = JSON.stringify(table.map(shapeOf))
 let choice: Readonly<Record<string, string>> = parseChoice(store()?.getItem(CHOICE_KEY) ?? null)
 
 /*
@@ -219,14 +231,14 @@ export function learnAgentControls(offered: readonly SessionConfigControl[]): vo
     return
   }
 
-  const before = JSON.stringify(table.map(shapeOf))
-  const after = JSON.stringify(offered.map(shapeOf))
+  const offeredSignature = JSON.stringify(offered.map(shapeOf))
 
-  if (before === after) {
+  if (offeredSignature === signature) {
     return
   }
 
   table = offered.map((control) => ({ ...control }))
+  signature = offeredSignature
   persist(TABLE_KEY, table)
   publish()
 }
