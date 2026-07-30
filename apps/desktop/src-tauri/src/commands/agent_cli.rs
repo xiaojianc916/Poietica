@@ -16,9 +16,7 @@
 //! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
 //! 现算，不是用户输入；文档里没有密钥。
 
-use crate::commands::agent_config::{
-    agent_program, clear_key_hint, global_launch_env, launch_env, set_key_hint,
-};
+use crate::commands::agent_config::{agent_program, global_launch_env, launch_env};
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
@@ -197,43 +195,6 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
     Ok(())
 }
 
-/// 写入/删除成功后要同步的尾号变更。
-///
-/// 在闭包拿走 request 之前算好：尾号从 secret_value 取 —— 密钥本就途经这里，
-/// 不需要第二条管线；取走的也只有 5 个字符与 provider id，而不是整把密钥的副本。
-enum KeyHintSync {
-    Set { provider_id: String, tail: String },
-    Clear { provider_id: String },
-}
-
-/// 从请求里算出尾号变更。None 表示这次调用与尾号无关。
-fn plan_key_hint(request: &AgentCliRequest) -> Option<KeyHintSync> {
-    let second = request.args.get(1).map(String::as_str);
-    let third = request.args.get(2).map(String::as_str);
-    let fourth = request.args.get(3).map(String::as_str);
-
-    if second == Some("catalog") && third == Some("add") && !request.secret_value.is_empty() {
-        let provider_id = fourth?.to_owned();
-        let tail: String = request
-            .secret_value
-            .chars()
-            .rev()
-            .take(5)
-            .collect::<Vec<char>>()
-            .into_iter()
-            .rev()
-            .collect();
-
-        Some(KeyHintSync::Set { provider_id, tail })
-    } else if second == Some("remove") {
-        third.map(|provider_id| KeyHintSync::Clear {
-            provider_id: provider_id.to_owned(),
-        })
-    } else {
-        None
-    }
-}
-
 /// 在白名单内调用 agent 的 CLI。
 ///
 /// 凭据由调用方随这一次请求带上，经环境变量注入子进程。
@@ -275,10 +236,6 @@ pub async fn agent_cli_exec(
     let resolved = poietica_agent_runtime_native::resolve_program(&program)
         .map_err(|_searched| missing_program(&program))
         .map_err(IpcError::from)?;
-
-    // 闭包与目录服务的 match 会把 request 拆开拿走，尾号变更在这里先算好 ——
-    // 它只拿走 5 个字符与 provider id，request 本体不再需要。
-    let key_hint_sync = plan_key_hint(&request);
 
     // 目录服务只活到这次调用结束：它随闭包进入阻塞线程，子进程退出、闭包返回时
     // 被 Drop，端口随即释放 —— 不论这次调用成败。--url 在这里追加而不是经调用方
@@ -333,20 +290,6 @@ pub async fn agent_cli_exec(
             }
         })
         .map_err(IpcError::from)?;
-
-    // 备忘只是便利数据：同步失败不该把一次已经成功的写入报成失败，所以 let _ =。
-    if output.status.success()
-        && let Some(sync) = key_hint_sync
-    {
-        match sync {
-            KeyHintSync::Set { provider_id, tail } => {
-                let _ = set_key_hint(&app, &provider_id, &tail);
-            }
-            KeyHintSync::Clear { provider_id } => {
-                let _ = clear_key_hint(&app, &provider_id);
-            }
-        }
-    }
 
     Ok(AgentCliResult {
         status: output.status.code().unwrap_or(-1),

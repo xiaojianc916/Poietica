@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use std::collections::BTreeMap;
-use tauri::{AppHandle, command};
+use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
@@ -42,9 +42,6 @@ pub struct AgentConfigSnapshot {
     pub default_agent_id: String,
     /// 旧版顶层 provider 列表，仅用于一次性迁移。迁移完由界面清空。
     pub legacy_providers: Vec<Value>,
-    /// 密钥尾号备忘：provider id → 密钥最后 5 个字符。只是给人辨认用的尾号，
-    /// 不是密钥本体。由 agent_cli_exec 在写入/删除成功的那一刻维护。
-    pub key_hints: BTreeMap<String, String>,
     /// agents.json 中存在但无法反序列化的内容。界面应显示出来。
     pub issues: Vec<String>,
 }
@@ -59,8 +56,6 @@ struct PersistedAgentConfig {
     /// 配置会在第一次保存时无声蒸发。
     #[serde(rename = "providers")]
     legacy_providers: Vec<Value>,
-    /// provider id → 密钥最后 5 个字符。旧文件没有这个字段，serde 默认给空表。
-    key_hints: BTreeMap<String, String>,
 }
 
 /*
@@ -226,31 +221,8 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
         agents: config.agents,
         default_agent_id: config.default_agent_id,
         legacy_providers: config.legacy_providers,
-        key_hints: config.key_hints,
         issues,
     }
-}
-
-/// 记住一把密钥的最后 5 个字符。在 catalog add 成功的那一刻由 agent_cli_exec 调用。
-///
-/// # Errors
-///
-/// store 无法读写时返回错误。
-pub fn set_key_hint(app: &AppHandle, provider_id: &str, tail: &str) -> Result<()> {
-    let (mut config, _issues) = read_config(app)?;
-    let _previous = config.key_hints.insert(provider_id.to_owned(), tail.to_owned());
-    save_config(app, &config)
-}
-
-/// 忘掉一家 provider 的密钥尾号。在 provider remove 成功的那一刻调用。
-///
-/// # Errors
-///
-/// store 无法读写时返回错误。
-pub fn clear_key_hint(app: &AppHandle, provider_id: &str) -> Result<()> {
-    let (mut config, _issues) = read_config(app)?;
-    let _removed = config.key_hints.remove(provider_id);
-    save_config(app, &config)
 }
 
 fn save_config(app: &AppHandle, config: &PersistedAgentConfig) -> Result<()> {
@@ -275,6 +247,91 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
         Ok(to_snapshot(config, issues))
     })()
     .map_err(IpcError::from)
+}
+
+/// 从一份 config.toml 的文本里提取每个 provider 的密钥尾号。
+///
+/// 刻意逐行扫描而不是解析 TOML：为五个字符引入一个 TOML 解析器不值当。扫描规则
+/// 刻意严格 —— [providers.<id>] 段内的 api_key = "..."，双引号必需、只认 ASCII 空白，
+/// 不认就跳过而不是猜。界面的行不来自这份表（产地是 provider list），读不到时
+/// 那一行只显示 id，不编。
+fn tails_from_config(text: &str) -> BTreeMap<String, String> {
+    let mut tails: BTreeMap<String, String> = BTreeMap::new();
+    let mut current: Option<String> = None;
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+
+        if line.starts_with('[') {
+            current = line
+                .strip_prefix("[providers.")
+                .and_then(|rest| rest.strip_suffix(']'))
+                .map(str::to_owned);
+
+            continue;
+        }
+
+        let Some(provider_id) = current.as_deref() else {
+            continue;
+        };
+
+        let Some(value) = line.strip_prefix("api_key") else {
+            continue;
+        };
+
+        let quoted = value.trim_start_matches([' ', '=']);
+
+        let Some(inner) = quoted.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) else {
+            continue;
+        };
+
+        if inner.is_empty() {
+            continue;
+        }
+
+        let tail: String = inner
+            .chars()
+            .rev()
+            .take(5)
+            .collect::<Vec<char>>()
+            .into_iter()
+            .rev()
+            .collect();
+
+        let _previous = tails.insert(provider_id.to_owned(), tail);
+    }
+
+    tails
+}
+
+/// 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
+///
+/// 尾号的事实就在 agent 自己的 config.toml 里，与「写经谁手」无关 —— 所以是读时
+/// 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。只读、
+/// 尽力而为：受控 home 的文件不在就退回用户全局 home（官方 CLI 写的那一份），
+/// 都不在就是空表。密钥本体不离开这个函数。
+///
+/// # Errors
+///
+/// 此命令不返回错误；任何一步失败都退成空表或更少的条目。
+#[command]
+#[specta::specta]
+pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<String, String> {
+    let home = agent_home(&app, &agent_id).ok();
+
+    if let Some(home) = home
+        && let Ok(text) = std::fs::read_to_string(home.join("config.toml"))
+    {
+        return tails_from_config(&text);
+    }
+
+    let Some(config_dir) = app.path().home_dir().ok().map(|dir| dir.join(".kimi-code")) else {
+        return BTreeMap::new();
+    };
+
+    std::fs::read_to_string(config_dir.join("config.toml"))
+        .map(|text| tails_from_config(&text))
+        .unwrap_or_default()
 }
 
 /// 替换 agent 列表与默认 agent。

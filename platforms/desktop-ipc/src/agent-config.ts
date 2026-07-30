@@ -49,6 +49,8 @@ export interface AgentConfigBridge {
   ) => Promise<AgentConfigSnapshot>
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
+  /** 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。 */
+  readonly loadKeyTails: (agentId: string) => Promise<Record<string, string>>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
@@ -64,5 +66,7 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     clearLegacyProviders: () => invoke<AgentConfigSnapshot>('agent_config_clear_legacy_providers'),
 
     execCli: (request) => invoke<AgentCliResult>('agent_cli_exec', { request }),
+
+    loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
   }
 }

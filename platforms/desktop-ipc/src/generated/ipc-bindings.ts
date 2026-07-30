@@ -518,11 +518,6 @@ export type AgentConfigSnapshot = { agents: JsonValue[]; defaultAgentId: string;
  */
 legacyProviders: JsonValue[]; 
 /**
- * 密钥尾号备忘：provider id → 密钥最后 5 个字符。只是给人辨认用的尾号，
- * 不是密钥本体。由 agent_cli_exec 在写入/删除成功的那一刻维护。
- */
-keyHints: Partial<{ [key in string]: string }>; 
-/**
  * agents.json 中存在但无法反序列化的内容。界面应显示出来。
  */
 issues: string[] }

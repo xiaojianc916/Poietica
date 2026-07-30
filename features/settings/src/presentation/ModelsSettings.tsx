@@ -89,7 +89,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [probing, setProbing] = useState(false)
   const [globalSnapshot, setGlobalSnapshot] = useState<AgentProviderSnapshot | undefined>(undefined)
   const [globalNote, setGlobalNote] = useState<string | null>(null)
-  const [keyHints, setKeyHints] = useState<Readonly<Record<string, string>>>({})
+  const [keyTails, setKeyTails] = useState<Readonly<Record<string, string>>>({})
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -181,6 +181,32 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
   /* patchKeys 曾在这里。它服务的那份 13 格草稿已经不存在了。 */
 
+  /*
+   * 密钥尾号只读现算：与「写经谁手」无关，官方 CLI 配置的也有。
+   *
+   * 快照变化时重取一次：保存与删除都会引起快照变化，所以不需要额外的失效逻辑。
+   */
+  useEffect(() => {
+    let active = true
+
+    void store.loadKeyTails().then(
+      (tails) => {
+        if (active) {
+          setKeyTails(tails)
+        }
+      },
+      () => {
+        if (active) {
+          setKeyTails({})
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [store, providers.snapshot])
+
   /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
   const providerIssues = useMemo(() => {
     const issues = providers.snapshot?.issues ?? []
@@ -220,7 +246,6 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     setProfiles(snapshot.agents)
     setAgentOptions(options.length > 0 ? options : AGENT_OPTIONS)
     setAgentId(snapshot.defaultAgentId)
-    setKeyHints(snapshot.keyHints)
     setAgentError(snapshot.issues.length > 0 ? snapshot.issues.join('；') : null)
   }, [])
 
@@ -299,19 +324,19 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         continue
       }
 
-      const tail = keyHints[provider.id]
+      const tail = keyTails[provider.id]
       const label =
         BUILTIN_PROVIDERS.find((preset) => preset.id === provider.id)?.displayName ?? provider.id
 
       rows.push({
         id: provider.id,
         label,
-        hint: tail === undefined ? '在官方 CLI 中配置' : `•••••${tail}`,
+        hint: tail === undefined ? '取不到尾号' : `•••••${tail}`,
       })
     }
 
     return rows
-  }, [keyHints, providers.snapshot])
+  }, [keyTails, providers.snapshot])
 
   /*
    * 删除就是官方 CLI 的 provider remove：provider 与它的全部模型别名一起消失，

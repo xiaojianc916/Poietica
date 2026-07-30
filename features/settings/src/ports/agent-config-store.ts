@@ -89,4 +89,9 @@ export interface AgentConfigStore {
    */
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (invocation: AgentCliInvocation) => Promise<AgentCliOutcome>
+  /*
+   * 每个已配置 provider 的密钥尾号。只读现算：原生侧扫 agent 自己的 config.toml，
+   * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
+   */
+  readonly loadKeyTails: (agentId: string) => Promise<Readonly<Record<string, string>>>
 }

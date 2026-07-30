@@ -49,7 +49,6 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
         agents: reconciled.profiles,
         defaultAgentId: parsed.value.defaultProfileId,
         legacyProviders: dto.legacyProviders,
-        keyHints: dto.keyHints,
         issues: [...dto.issues, ...parsed.issues],
       }
     },
@@ -66,6 +65,8 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
     execCli(invocation) {
       return bridge.execCli(invocation)
     },
+
+    loadKeyTails: (agentId) => bridge.loadKeyTails(agentId),
   }
 }
 
@@ -79,7 +80,6 @@ function fromDto(dto: AgentConfigSnapshotDto): AgentConfigSnapshot {
     agents: parsed.value.profiles,
     defaultAgentId: parsed.value.defaultProfileId,
     legacyProviders: dto.legacyProviders,
-    keyHints: dto.keyHints,
     issues: [...dto.issues, ...parsed.issues],
   }
 }
