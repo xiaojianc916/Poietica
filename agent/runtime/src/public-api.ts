@@ -1,5 +1,6 @@
 export {
   chooseAgentControl,
+  installAgentCapabilityPort,
   learnAgentControls,
   preferredAgentControl,
   useAgentControls,

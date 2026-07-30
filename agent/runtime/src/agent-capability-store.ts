@@ -1,4 +1,8 @@
-import type { SessionConfigControl, SessionConfigPurpose } from '@poietica/agent-protocol'
+import type {
+  AgentCapabilityPort,
+  SessionConfigControl,
+  SessionConfigPurpose,
+} from '@poietica/agent-protocol'
 import { useSyncExternalStore } from 'react'
 
 /*
@@ -20,12 +24,13 @@ import { useSyncExternalStore } from 'react'
  *   · 当前生效值：属于那一条会话，仍由 ThreadsStore 按 threadId 保管。
  *
  * 行业对照：ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面模型
- * 选择器一直在，画的是偏好，新会话继承它。ACP 自己也把能力放在 initialize
- * 阶段，只有当前选中值是 per-session。
+ * 到达口现在是一个端口：AgentCapabilityPort。谁都可以问它，不需要会话、也不需要
+ * 对话；原生侧 agent_capabilities 问的是连接自己的锚会话，不新开会话、不写库。
+ * 进程仍然按需才起 —— 第一个订阅者出现时才问一次（见 loadOnce），一个从没打开
+ * 过助手的启动不为此付钱。
  *
- * 仍欠：线路上没有 initialize 阶段的能力上报，所以全新安装、一条对话都没开过
- * 时这张表是空的。缓存在这里是权宜；正确的家是一个 preferences 端口加一次
- * initialize 上报。
+ * 仍欠：localStorage 那一份只是离线兜底。偏好的正确的家是一个 preferences 端口，
+ * 它和能力表生命周期不同，所以不在这一刀里。
  */
 
 const TABLE_KEY = 'poietica.agent.controls'
@@ -259,8 +264,54 @@ export function preferredAgentControl(controlId: string): string | undefined {
   return choice[controlId]
 }
 
+/*
+ * 能力表从哪里来，以及什么时候去问。
+ *
+ * 端口在启动接线时装上，装上本身不起进程：它只是一个会打命令的对象。真正那次
+ * 读取要等第一个订阅者出现 —— 也就是屏幕上真的有一个选择器要画的时候。原生侧
+ * 那条命令的文档写着「一个从没打开过助手的启动不该为此付钱」，这里就是那句话
+ * 在渲染侧的落点。
+ *
+ * 失败之后把 asked 放回去：下一次有人要看选择器时会再问一次，而不是让一次开机
+ * 时的失败永久变成一张空表。
+ */
+let source: AgentCapabilityPort | undefined
+
+let asked = false
+
+let report: ((cause: unknown) => void) | undefined
+
+/** 接线时装上能力端口。装上不问，问在第一个订阅者出现时。 */
+export function installAgentCapabilityPort(
+  port: AgentCapabilityPort,
+  onFailure?: (cause: unknown) => void,
+): void {
+  source = port
+  report = onFailure
+}
+
+function loadOnce(): void {
+  const port = source
+
+  if (asked || port === undefined) {
+    return
+  }
+
+  asked = true
+  port
+    .read()
+    .then((offered) => {
+      learnAgentControls(offered)
+    })
+    .catch((cause: unknown) => {
+      asked = false
+      report?.(cause)
+    })
+}
+
 function subscribeAgentControls(listener: () => void): () => void {
   listeners.add(listener)
+  loadOnce()
 
   return () => {
     listeners.delete(listener)

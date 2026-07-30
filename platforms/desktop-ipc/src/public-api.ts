@@ -7,6 +7,7 @@ export type {
 export {
   AGENT_EVENT,
   type AgentBridgeOptions,
+  type AgentCapabilityBridge,
   type AgentCommandBridge,
   type AgentConfigChoiceDescription,
   type AgentConfigControlDescription,
@@ -22,6 +23,7 @@ export {
    * select。名字分开，问题就不存在了。
    */
   type AgentSessionConfigBridge,
+  createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
   createAgentSessionConfigBridge,

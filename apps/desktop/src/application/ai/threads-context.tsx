@@ -3,7 +3,11 @@ import { ThreadsStore } from '@poietica/agent-runtime'
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
 
-import { desktopSessionConfig, desktopThreads } from './agent-session'
+import {
+  desktopSessionConfig,
+  desktopThreads,
+  installDesktopAgentCapabilities,
+} from './agent-session'
 
 /*
  * One conversation state, shared by the sidebar and the tab strip.
@@ -33,6 +37,12 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
 
   useEffect(() => {
     void store.refresh()
+
+    /*
+     * 能力表属于 agent 进程，不属于任何一条对话：入口那一格靠它才有东西可画。
+     * 这里只是把端口交出去，不起进程。
+     */
+    installDesktopAgentCapabilities()
   }, [store])
 
   return <ThreadsContext.Provider value={store}>{children}</ThreadsContext.Provider>

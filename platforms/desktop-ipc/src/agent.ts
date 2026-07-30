@@ -318,6 +318,34 @@ export function createAgentSessionConfigBridge(): AgentSessionConfigBridge {
 }
 
 /*
+ * 问这个 agent 提供什么，不点名任何一条对话。
+ *
+ * 命令早就生成好了（commands.agentCapabilities），此前这一层一个调用点都没有：
+ * 原生侧砌好了门，TS 侧一次都没走过。它问的是连接自己的锚会话，不新开会话、
+ * 不写库、不碰任何 thread。
+ *
+ * 形状不在这里重新定义：请求体来自生成绑定，答复复用 controlOf。
+ */
+export interface AgentCapabilityBridge {
+  readonly read: () => Promise<readonly AgentConfigControlDescription[]>
+}
+
+export function createAgentCapabilityBridge({
+  cwd,
+  launch,
+}: AgentBridgeOptions): AgentCapabilityBridge {
+  return {
+    read: async () => {
+      const offered = await call(() =>
+        commands.agentCapabilities({ launch: nativeLaunch(launch), cwd: cwd ?? null }),
+      )
+
+      return offered.map(controlOf)
+    },
+  }
+}
+
+/*
  * Conversations, reached through two ordinary commands.
  *
  * A conversation and an agent session are opened together, so no

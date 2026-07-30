@@ -1,13 +1,16 @@
 import type {
+  AgentCapabilityPort,
   AgentSessionPort,
   SessionConfigPort,
   ThreadPort,
   ThreadTitleSource,
 } from '@poietica/agent-protocol'
 import { acpAgentLaunch, defaultAcpAgent } from '@poietica/agent-registry'
+import { installAgentCapabilityPort } from '@poietica/agent-runtime'
 import { createIpcSession } from '@poietica/agent-transport'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
+  createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
   createAgentSessionConfigBridge,
@@ -41,6 +44,36 @@ export function desktopSessionConfig(): SessionConfigPort {
   sessionConfig ??= createAgentSessionConfigBridge()
 
   return sessionConfig
+}
+
+/*
+ * 能力表那一路，整个进程一份。
+ *
+ * 桥是无状态的问答口，可它握着一条 IPC 通道；而能力表本身是全进程共用的一张表，
+ * 每次渲染新建一座桥只会让同一张表被问上好几遍。
+ */
+let capabilities: AgentCapabilityPort | undefined
+
+export function desktopAgentCapabilities(): AgentCapabilityPort {
+  capabilities ??= createAgentCapabilityBridge({ launch: acpAgentLaunch(defaultAcpAgent()) })
+
+  return capabilities
+}
+
+/**
+ * 把能力端口交给 store。
+ *
+ * 只是交出去，不在这里问：进程要等到屏幕上真有一个选择器要画时才起。读失败会被
+ * 说出来，然后停在缓存那一份上 —— 缓存是离线兜底，不是取数路径。
+ */
+export function installDesktopAgentCapabilities(): void {
+  installAgentCapabilityPort(desktopAgentCapabilities(), (cause) => {
+    reportError('agent capabilities could not be read', {
+      scope: 'agent-session',
+      operation: 'capabilities',
+      cause,
+    })
+  })
 }
 
 export interface DesktopAgentSession {
