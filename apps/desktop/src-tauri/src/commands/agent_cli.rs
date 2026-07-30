@@ -16,7 +16,9 @@
 //! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
 //! 现算，不是用户输入；文档里没有密钥。
 
-use crate::commands::agent_config::{agent_program, global_launch_env, launch_env};
+use crate::commands::agent_config::{
+    agent_program, clear_key_hint, global_launch_env, launch_env, set_key_hint,
+};
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
@@ -195,6 +197,36 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
     Ok(())
 }
 
+/// 写入/删除成功后维护密钥尾号备忘。
+///
+/// 备忘只是给人辨认用的便利数据：同步失败不该把一次已经成功的写入报成失败，
+/// 所以调用方用 let _ = 丢掉结果。尾号从 secret_value 取 —— 密钥本就途经这里，
+/// 不需要第二条管线。
+fn sync_key_hint(app: &AppHandle, request: &AgentCliRequest) {
+    let second = request.args.get(1).map(String::as_str);
+    let third = request.args.get(2).map(String::as_str);
+    let fourth = request.args.get(3).map(String::as_str);
+
+    if second == Some("catalog") && third == Some("add") && !request.secret_value.is_empty() {
+        if let Some(provider_id) = fourth {
+            let tail: String = request
+                .secret_value
+                .chars()
+                .rev()
+                .take(5)
+                .collect::<Vec<char>>()
+                .into_iter()
+                .rev()
+                .collect();
+            let _ = set_key_hint(app, provider_id, &tail);
+        }
+    } else if second == Some("remove")
+        && let Some(provider_id) = third
+    {
+        let _ = clear_key_hint(app, provider_id);
+    }
+}
+
 /// 在白名单内调用 agent 的 CLI。
 ///
 /// 凭据由调用方随这一次请求带上，经环境变量注入子进程。
@@ -290,6 +322,11 @@ pub async fn agent_cli_exec(
             }
         })
         .map_err(IpcError::from)?;
+
+    if output.status.success() {
+        sync_key_hint(&app, &request);
+    }
+
     Ok(AgentCliResult {
         status: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),

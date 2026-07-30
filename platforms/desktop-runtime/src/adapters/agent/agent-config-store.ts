@@ -49,6 +49,7 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
         agents: reconciled.profiles,
         defaultAgentId: parsed.value.defaultProfileId,
         legacyProviders: dto.legacyProviders,
+        keyHints: dto.keyHints,
         issues: [...dto.issues, ...parsed.issues],
       }
     },

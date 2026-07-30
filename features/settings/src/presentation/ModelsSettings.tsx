@@ -89,6 +89,9 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [probing, setProbing] = useState(false)
   const [globalSnapshot, setGlobalSnapshot] = useState<AgentProviderSnapshot | undefined>(undefined)
   const [globalNote, setGlobalNote] = useState<string | null>(null)
+  const [keyHints, setKeyHints] = useState<Readonly<Record<string, string>>>({})
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const providers = useAgentProviders(store, agentId)
 
@@ -217,6 +220,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     setProfiles(snapshot.agents)
     setAgentOptions(options.length > 0 ? options : AGENT_OPTIONS)
     setAgentId(snapshot.defaultAgentId)
+    setKeyHints(snapshot.keyHints)
     setAgentError(snapshot.issues.length > 0 ? snapshot.issues.join('；') : null)
   }, [])
 
@@ -278,6 +282,77 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         })
     },
     [agentId, applySnapshot, profiles, store],
+  )
+
+  /*
+   * 「API 密钥」列表的行：agent 报回来的已配置 provider，各配一行。
+   *
+   * 行不来自 keyHints：那份表只是尾号备忘，「配没配过」的答案只有一个产地 ——
+   * provider list 的快照。环境变量合成的保留条目（synthetic）不出现在这里：
+   * 它不是用户配的，也不归用户删。
+   */
+  const configuredKeyRows = useMemo(() => {
+    const rows: Array<{ id: string; label: string; hint: string }> = []
+
+    for (const provider of providers.snapshot?.providers ?? []) {
+      if (!provider.configured || provider.synthetic) {
+        continue
+      }
+
+      const tail = keyHints[provider.id]
+      const label =
+        BUILTIN_PROVIDERS.find((preset) => preset.id === provider.id)?.displayName ?? provider.id
+
+      rows.push({
+        id: provider.id,
+        label,
+        hint: tail === undefined ? '在官方 CLI 中配置' : `•••••${tail}`,
+      })
+    }
+
+    return rows
+  }, [keyHints, providers.snapshot])
+
+  /*
+   * 删除就是官方 CLI 的 provider remove：provider 与它的全部模型别名一起消失，
+   * 默认模型若指着它也会被对方清空（kimi-command.md 逐字）。没有回收站 ——
+   * 所以删除是两步：先点「删除」，再点「确认删除」。
+   */
+  const removeKey = useCallback(
+    (providerId: string) => {
+      if (deletingId !== null) {
+        return
+      }
+
+      setDeletingId(providerId)
+
+      void store
+        .execCli({
+          agentId,
+          args: ['provider', 'remove', providerId],
+          secretVar: '',
+          secretValue: '',
+        })
+        .then(
+          (outcome) => {
+            setDeletingId(null)
+            setConfirmId(null)
+
+            if (outcome.status !== 0) {
+              setAgentError('删除失败，请重试。')
+              return
+            }
+
+            void store.load().then(applySnapshot)
+            providers.reload()
+          },
+          (cause: unknown) => {
+            setDeletingId(null)
+            setAgentError(describeAgentCliFailure(cause, '删除失败，请重试。'))
+          },
+        )
+    },
+    [agentId, applySnapshot, deletingId, providers, store],
   )
 
   return (
@@ -391,6 +466,65 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
               store={store}
             />
           ))}
+
+          <div className="models-block">
+            <span className="models-block__label">API 密钥</span>
+
+            {configuredKeyRows.length > 0 ? (
+              <div className="models-card">
+                {configuredKeyRows.map((row) => (
+                  <div className="models-row models-row--compact" key={row.id}>
+                    <span className="models-row__name">{row.label}</span>
+
+                    <div className="models-row__control">
+                      <span className="models-row__meta">{row.hint}</span>
+
+                      {confirmId === row.id ? (
+                        <>
+                          <Button
+                            disabled={deletingId !== null}
+                            onClick={() => {
+                              setConfirmId(null)
+                            }}
+                            size="xs"
+                            type="button"
+                            variant="soft"
+                          >
+                            取消
+                          </Button>
+
+                          <Button
+                            disabled={deletingId !== null}
+                            onClick={() => {
+                              removeKey(row.id)
+                            }}
+                            size="xs"
+                            type="button"
+                            variant="soft"
+                          >
+                            {deletingId === row.id ? '正在删除…' : '确认删除'}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          onClick={() => {
+                            setConfirmId(row.id)
+                          }}
+                          size="xs"
+                          type="button"
+                          variant="soft"
+                        >
+                          删除
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="models-empty">还没有已配置的密钥。</p>
+            )}
+          </div>
         </div>
       </details>
     </section>

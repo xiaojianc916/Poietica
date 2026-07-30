@@ -35,6 +35,8 @@ export interface AgentConfigSnapshot {
   readonly defaultAgentId: string
   /** 旧版顶层 provider 列表，仅供一次性迁移使用。 */
   readonly legacyProviders: readonly unknown[]
+  /** 密钥尾号备忘：provider id → 密钥最后 5 个字符。由原生侧在写入/删除成功时维护。 */
+  readonly keyHints: Record<string, string>
   /** agents.json 中解析失败、已被丢弃的条目。 */
   readonly issues: readonly string[]
 }
