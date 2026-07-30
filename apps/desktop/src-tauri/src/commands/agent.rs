@@ -1382,7 +1382,6 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
     if let Some(session_id) = stored
         && recognised(state, &session_id)?
     {
-
         return Ok(Held {
             thread_id,
             session_id,

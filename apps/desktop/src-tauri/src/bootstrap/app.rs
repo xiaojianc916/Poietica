@@ -213,7 +213,6 @@ fn constrain_to_visible_area(window: &tauri::WebviewWindow) {
     if (width, height) != (size.width, size.height)
         && let Err(error) = window.set_size(tauri::PhysicalSize::new(width, height))
     {
-
         log::warn!("could not clamp the window to its monitor: {error}");
         return;
     }
