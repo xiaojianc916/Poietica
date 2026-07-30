@@ -3,6 +3,7 @@ import {
   type Editor,
   kickoutOccludedShapes,
   type TLShape,
+  type TLShapeId,
   type TLShapePartial,
   Vec,
 } from 'tldraw'
@@ -71,38 +72,49 @@ const EPSILON = 0.000001
 export const MINIMUM_SELECTION_SIZE = 0.01
 
 /*
- * Field-wise equality for a selection snapshot.
+ * 字段清单在编译期定死。
  *
- * A snapshot is a value: thirteen numbers, booleans and nulls, all readonly.
- * But deriveSelectionGeometry hands it out as a fresh object on every
- * recomputation, so any consumer that compares by reference - which is what a
- * signal does - observes a change on every editor tick that invalidates a
- * derivation this module reads, even when nothing in the value moved. This
- * function is the value-equality half that the type always implied.
+ * satisfies Record<keyof SelectionTransformSnapshot, true> 让"加了字段却忘记补"
+ * 在编译期就过不去:少一个键报缺失,多一个键报多余。
  *
- * Both operands are produced by the single object literal in
- * deriveSelectionGeometry, so they always carry the same key set and
- * iterating one of them is exhaustive. That is deliberate. A hand-written
- * chain of field comparisons goes stale the day someone adds a field to the
- * interface, and a stale equality here does not merely lose an optimisation -
- * it reports "unchanged" for a value that changed, and the status bar shows a
- * number that is no longer true. react-redux takes exactly this position in
- * shallowEqual, for exactly this reason.
+ * 此前这里的注释把选择写成"运行时反射 vs 手写字段链会变味"这两个,然后选了
+ * Object.keys —— 每次调用分配一个 13 元素数组,而这条比较在拖拽期间每帧都跑。
+ * 那不是真的两难:键集是一个封闭接口,类型系统本来就能强制它。防线没有变弱,
+ * 只是从运行时挪到了编译期;Object.keys 现在只在模块加载时跑一次。
  *
- * Object.keys allocates one small array per call. That is paid once per
- * recomputation and buys the removal of a full React render of the status
- * bar, so the trade is not close.
+ * (react-redux 的 shallowEqual 用 Object.keys,是因为它是一个不知道键集的通用
+ * 工具。这里知道,所以那个类比不成立。)
+ */
+const SNAPSHOT_SHAPE = {
+  isReadonly: true,
+  hasLockedShape: true,
+  hasMixedRotation: true,
+  canMove: true,
+  canResize: true,
+  canRotate: true,
+  hasForcedAspectRatio: true,
+  count: true,
+  x: true,
+  y: true,
+  width: true,
+  height: true,
+  rotation: true,
+} satisfies Record<keyof SelectionTransformSnapshot, true>
+
+const SNAPSHOT_FIELDS = Object.keys(SNAPSHOT_SHAPE) as (keyof SelectionTransformSnapshot)[]
+
+/*
+ * 快照是一个值:十三个数字、布尔与 null,全部 readonly。而 deriveSelectionGeometry
+ * 每次重算都交出一个新对象,于是任何按引用比较的消费者(信号就是这么比的)会在每
+ * 一次编辑器 tick 上都观察到"变了"。这个函数是类型一直暗示着的那一半:值相等。
  *
- * Object.is rather than ===, so that a NaN rotation does not compare unequal
- * to itself and force a render on every single frame.
+ * 用 Object.is 而不是 ===,这样一个 NaN 的 rotation 不会与自己不等、每帧强制重画。
  */
 export function selectionTransformSnapshotsEqual(
   left: SelectionTransformSnapshot,
   right: SelectionTransformSnapshot,
 ): boolean {
-  const keys = Object.keys(left) as (keyof SelectionTransformSnapshot)[]
-
-  for (const key of keys) {
+  for (const key of SNAPSHOT_FIELDS) {
     if (!Object.is(left[key], right[key])) {
       return false
     }
@@ -181,6 +193,20 @@ interface SelectionSurveyAccumulator {
   hasForcedAspectRatio: boolean
 }
 
+/*
+ * canBeLaidOut 要的那个 info。
+ *
+ * 它在整次遍历里是同一个值:type 是常量,shapes 是同一个数组引用。此前它在
+ * observeShapeUtilCapability 里逐个 shape 新建 —— 选中 200 个对象拖一秒就是
+ * 一万两千次分配,换回来的是同一个东西。
+ *
+ * 同一个文件里 SelectionSurveyAccumulator 的注释已经把这条原则写清楚了
+ * ("按 shape 分配会把省下的开销原样还回去"),只是没落到这里。
+ */
+const layoutOf = (shapes: TLShape[]) => ({ type: 'resize_to_bounds' as const, shapes })
+
+type SelectionLayout = ReturnType<typeof layoutOf>
+
 function surveySelection(editor: Editor, shapes: TLShape[]): SelectionSurvey {
   const survey: SelectionSurveyAccumulator = {
     firstRotation: null,
@@ -191,13 +217,15 @@ function surveySelection(editor: Editor, shapes: TLShape[]): SelectionSurvey {
     hasForcedAspectRatio: false,
   }
 
+  const layout = layoutOf(shapes)
+
   for (const shape of shapes) {
     if (shape.isLocked) {
       survey.hasLockedShape = true
     }
 
     observeRotation(survey, editor, shape)
-    observeShapeUtilCapability(survey, editor, shape, shapes)
+    observeShapeUtilCapability(survey, editor, shape, layout)
   }
 
   return {
@@ -239,7 +267,7 @@ function observeShapeUtilCapability(
   survey: SelectionSurveyAccumulator,
   editor: Editor,
   shape: TLShape,
-  shapes: TLShape[],
+  layout: SelectionLayout,
 ): void {
   if (!survey.allResizable && !survey.allRotatable && survey.hasForcedAspectRatio) {
     return
@@ -247,16 +275,7 @@ function observeShapeUtilCapability(
 
   const util = editor.getShapeUtil(shape)
 
-  if (
-    survey.allResizable &&
-    !(
-      util.canResize(shape) &&
-      util.canBeLaidOut(shape, {
-        type: 'resize_to_bounds',
-        shapes,
-      })
-    )
-  ) {
+  if (survey.allResizable && !(util.canResize(shape) && util.canBeLaidOut(shape, layout))) {
     survey.allResizable = false
   }
 
@@ -367,6 +386,31 @@ function deriveSelectionGeometry(editor: Editor): DerivedSelectionGeometry | nul
   }
 }
 
+/*
+ * 三个提交动作的公共管线。
+ *
+ * 打一个历史停点,在一次 run 里变更,再把被遮挡的 shape 踢出来 —— 这三步此前在
+ * 三个函数里各写一遍,连 shapes.map(id) 都各算一遍(rotation 那一支算了两遍)。
+ * "提交一次选择变换"因此没有单一形状,加第四个字段就得再抄一遍。
+ */
+function runSelectionTransform(
+  editor: Editor,
+  label: string,
+  shapes: readonly TLShape[],
+  mutate: (ids: TLShapeId[]) => void,
+): true {
+  const ids = shapes.map((shape) => shape.id)
+
+  editor.markHistoryStoppingPoint(label)
+
+  editor.run(() => {
+    mutate(ids)
+    kickoutOccludedShapes(editor, ids)
+  })
+
+  return true
+}
+
 function commitSelectionPosition(
   editor: Editor,
   geometry: DerivedSelectionGeometry,
@@ -414,18 +458,14 @@ function commitSelectionPosition(
     }
   })
 
-  editor.markHistoryStoppingPoint('edit selection position from status bar')
-
-  editor.run(() => {
-    editor.updateShapes(updates)
-
-    kickoutOccludedShapes(
-      editor,
-      geometry.shapes.map((shape) => shape.id),
-    )
-  })
-
-  return true
+  return runSelectionTransform(
+    editor,
+    'edit selection position from status bar',
+    geometry.shapes,
+    () => {
+      editor.updateShapes(updates)
+    },
+  )
 }
 
 function commitSelectionSize(
@@ -470,35 +510,31 @@ function commitSelectionSize(
     return false
   }
 
-  editor.markHistoryStoppingPoint('edit selection size from status bar')
-
-  editor.run(() => {
-    for (const shape of geometry.shapes) {
-      /*
-       * resizeShape 是官方 ShapeUtil resize 入口：
-       * - 调用 ShapeUtil resize 生命周期；
-       * - 尊重父级坐标系；
-       * - 尊重自定义 ShapeUtil；
-       * - 避免直接猜测 props.w / props.h。
-       *
-       * scaleAxisRotation 使用选择共同页面旋转，
-       * scaleOrigin 使用旋转包围盒左上角。
-       */
-      editor.resizeShape(shape.id, new Vec(scaleX, scaleY), {
-        scaleOrigin: geometry.bounds.point,
-        scaleAxisRotation: geometry.sharedRotation ?? 0,
-        isAspectRatioLocked: keepRatio,
-        mode: 'scale_shape',
-      })
-    }
-
-    kickoutOccludedShapes(
-      editor,
-      geometry.shapes.map((shape) => shape.id),
-    )
-  })
-
-  return true
+  return runSelectionTransform(
+    editor,
+    'edit selection size from status bar',
+    geometry.shapes,
+    () => {
+      for (const shape of geometry.shapes) {
+        /*
+         * resizeShape 是官方 ShapeUtil resize 入口：
+         * - 调用 ShapeUtil resize 生命周期；
+         * - 尊重父级坐标系；
+         * - 尊重自定义 ShapeUtil；
+         * - 避免直接猜测 props.w / props.h。
+         *
+         * scaleAxisRotation 使用选择共同页面旋转，
+         * scaleOrigin 使用旋转包围盒左上角。
+         */
+        editor.resizeShape(shape.id, new Vec(scaleX, scaleY), {
+          scaleOrigin: geometry.bounds.point,
+          scaleAxisRotation: geometry.sharedRotation ?? 0,
+          isAspectRatioLocked: keepRatio,
+          mode: 'scale_shape',
+        })
+      }
+    },
+  )
 }
 
 function commitSelectionRotation(
@@ -520,21 +556,14 @@ function commitSelectionRotation(
     return false
   }
 
-  editor.markHistoryStoppingPoint('edit selection rotation from status bar')
-
-  editor.run(() => {
-    editor.rotateShapesBy(
-      geometry.shapes.map((shape) => shape.id),
-      delta,
-    )
-
-    kickoutOccludedShapes(
-      editor,
-      geometry.shapes.map((shape) => shape.id),
-    )
-  })
-
-  return true
+  return runSelectionTransform(
+    editor,
+    'edit selection rotation from status bar',
+    geometry.shapes,
+    (ids) => {
+      editor.rotateShapesBy(ids, delta)
+    },
+  )
 }
 
 function radiansToDegrees(radians: number): number {
