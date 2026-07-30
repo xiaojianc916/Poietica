@@ -383,7 +383,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   return (
     <section className="models-page">
       <p className="models-notice models-notice--bar">
-        <span>模型清单来自所选 agent 自己的配置，支持从配置文件中反向导入。</span>
+        <span>模型清单来自内置名单，也支持从配置文件中反向导入</span>
 
         <Button disabled={probing} onClick={probeGlobalHome} size="xs" type="button" variant="soft">
           {probing ? '正在读取…' : '导入配置'}
@@ -527,7 +527,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                             type="button"
                             variant="soft"
                           >
-                            {deletingId === row.id ? '正在删除…' : '确认删除'}
+                            {deletingId === row.id ? '正在删' : '确认删除'}
                           </Button>
                         </>
                       ) : (

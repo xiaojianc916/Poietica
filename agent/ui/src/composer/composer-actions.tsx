@@ -1,18 +1,7 @@
 import type { SessionConfigControl } from '@poietica/agent-protocol'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@poietica/foundations-design-system'
-import type { ComponentType, SVGProps } from 'react'
-import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuRadioItemIndicator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, } from '@poietica/foundations-design-system'
+import type { ComponentType } from 'react'import {
   AttachIcon,
   CloseIcon,
   GlobeIcon,
@@ -40,8 +29,9 @@ import { usePromptInput } from './prompt-input'
  * 选中、Esc 逐级关闭、焦点归还。这里只给皮肤与几何。
  */
 
-/** 图标槽位只需要这两个属性；用 SVGProps<SVGSVGElement> 会在
- *  exactOptionalPropertyTypes 下与图标库的 props 逆变冲突。 */
+/** 图标槽位的最小 props 契约：只声明调用点真正会传的属性。
+ *  放宽到 React 的完整 SVG props 会在 exactOptionalPropertyTypes 下
+ *  与图标库的 props 发生逆变冲突。 */
 type GlyphProps = {
   'aria-hidden'?: 'true'
   className?: string
