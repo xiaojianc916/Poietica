@@ -94,7 +94,7 @@ enum Command {
     /// 停掉这条会话上正在飞的那一轮，只停它。
     ///
     /// 一条连接同时开着多条会话（见 sessions.rs 的 SessionBook，以及
-    /// 每条对话各自持有一个会话的 session_for）。不点名的取消只能停
+    /// 每条对话各自持有一个会话的 `session_for`）。不点名的取消只能停
     /// 「此刻恰好在飞的那一轮」，而那一轮可能属于另一条对话。
     Cancel {
         session_id: String,

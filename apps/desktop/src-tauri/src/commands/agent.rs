@@ -1257,11 +1257,7 @@ struct Held {
 }
 
 /// 记下这一轮飞在哪条会话上。
-fn open_turn(
-    turns: &Mutex<HashMap<String, String>>,
-    run_id: &str,
-    session_id: &str,
-) -> Result<()> {
+fn open_turn(turns: &Mutex<HashMap<String, String>>, run_id: &str, session_id: &str) -> Result<()> {
     turns
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
