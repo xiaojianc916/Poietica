@@ -235,7 +235,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     }
 
     if (providers.loading) {
-      return '正在向 agent 询问已配置的模型…'
+      return '正在读取模型清单…'
     }
 
     if (allModels.length === 0) {
@@ -515,17 +515,18 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
                       {confirmId === row.id ? (
                         <>
-                          <Button
-                            disabled={deletingId !== null}
-                            onClick={() => {
-                              setConfirmId(null)
-                            }}
-                            size="xs"
-                            type="button"
-                            variant="soft"
-                          >
-                            取消
-                          </Button>
+                          {deletingId !== row.id ? (
+                            <Button
+                              onClick={() => {
+                                setConfirmId(null)
+                              }}
+                              size="xs"
+                              type="button"
+                              variant="soft"
+                            >
+                              取消
+                            </Button>
+                          ) : null}
 
                           <Button
                             disabled={deletingId !== null}
