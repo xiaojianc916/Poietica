@@ -68,12 +68,16 @@ pub enum Error {
     #[error("File error: {0}")]
     File(String),
 
-    /// 受控 agent CLI 调用被拒或失败。
+    /// 受控 agent CLI 调用被拒或失败，或 agent 自己说明了失败的原因。
     ///
-    /// 这是唯一一个消息原样透给界面的变体。判据不是「这条链上大概没有敏感
-    /// 信息」这种自我保证，而是一件可核查的事：它的构造点全在
-    /// `commands::agent_cli` 一个模块里，每一处都是本仓库的字面量常量，没有
-    /// 一处把外部输入或系统错误拼进去。
+    /// 这是唯一一个消息原样透给界面的变体。
+    ///
+    /// 这段判据改过一次，旧的那条已经不成立了：它曾写着「构造点全在
+    /// `commands::agent_cli` 一个模块里，每一处都是本仓库的字面量常量」，而
+    /// `commands::agent` 的 translate 现在也会把 agent 的原话装进来。
+    ///
+    /// 现在的判据是：这是一个桌面单机应用。屏幕前的人就是跑这个 agent 进程
+    /// 的本机用户，agent 对他说的话不是秘密，而是他唯一拿得去排查的东西。
     ///
     /// 而「为什么被拒」恰恰是用户唯一能据以修正的信息。换成一句「应用操作
     /// 失败」，等于让人去猜。
@@ -126,7 +130,6 @@ impl Error {
 
     fn code(&self) -> IpcErrorCode {
         match self {
-            Self::Validation(_) => IpcErrorCode::Validation,
             Self::NotFound(_) => IpcErrorCode::NotFound,
             Self::FileConflict(_) => IpcErrorCode::FileConflict,
             Self::PermissionDenied(_) => IpcErrorCode::PermissionDenied,
@@ -134,7 +137,8 @@ impl Error {
             Self::Plugin(_) => IpcErrorCode::Plugin,
             Self::Asset(_) => IpcErrorCode::Asset,
             Self::Import(_) | Self::Export(_) => IpcErrorCode::ImportExport,
-            Self::AgentCli(_) => IpcErrorCode::Validation,
+            /* 参数无效与 agent 拒绝在 IPC 上是同一码：都是这次请求本身不成立。 */
+            Self::Validation(_) | Self::AgentCli(_) => IpcErrorCode::Validation,
             _ => IpcErrorCode::Platform,
         }
     }

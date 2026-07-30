@@ -1,6 +1,6 @@
 import {
-  AGENT_PROVIDER_LIST_ARGS,
   type AgentProviderSnapshot,
+  acpAgentById,
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -48,6 +48,20 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     const stale = () => mine !== generation.current
 
     /*
+     * 问什么、以及哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。
+     * 这一层不认识任何一家 —— 与 agent-provider-state 里那句是同一个理由。
+     */
+    const descriptor = acpAgentById(agentId)
+
+    if (descriptor === undefined) {
+      setLoading(false)
+      setSnapshot(undefined)
+      setError(`没有登记 ${agentId} 这个 agent 的接入档案。`)
+
+      return
+    }
+
+    /*
      * 有缓存先摆缓存，后台再真问 —— 重新进入不再每次空等一次进程启动。
      * 没有缓存才进 loading：那是唯一一次「什么都还拿不出来」的等待。
      */
@@ -65,7 +79,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     void store
       .execCli({
         agentId,
-        args: AGENT_PROVIDER_LIST_ARGS,
+        args: [...descriptor.providerListArgs],
         secretVar: '',
         secretValue: '',
       })
@@ -93,7 +107,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
             return
           }
 
-          const next = parseAgentProviderListOutput(outcome.stdout)
+          const next = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
 
           lastGood.set(agentId, next)
           setSnapshot(next)

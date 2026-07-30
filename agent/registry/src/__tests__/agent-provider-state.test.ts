@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import {
-  AGENT_PROVIDER_LIST_ARGS,
-  parseAgentProviderList,
-  parseAgentProviderListOutput,
-} from '../agent-provider-state'
+import { parseAgentProviderList, parseAgentProviderListOutput } from '../agent-provider-state'
+import { kimiCode } from '../agents/kimi'
+
+/*
+ * 合成 provider 的 id 由调用方从 agent 档案给，解析层不认识任何一家，所以
+ * 这里也当调用方传。取 kimi 的那一个 —— 下面这份样本本来就照它的输出写的。
+ */
+const SYNTHETIC = kimiCode.syntheticProviderId
 
 /*
  * 形状照 apps/kimi-code/test/cli/provider.test.ts 里断言过的那一份：providers 与
@@ -35,7 +38,7 @@ const listed = {
 
 describe('parseAgentProviderList', () => {
   it('按 provider 归拢模型', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
 
     expect(snapshot.providers.map((one) => one.id)).toEqual([
       '__kimi_env__',
@@ -54,7 +57,7 @@ describe('parseAgentProviderList', () => {
    * key，而 models 的 schema 还是 passthrough。任何一处漏出来都会进渲染层。
    */
   it('凭据的值一个字都不越过边界', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
     const serialized = JSON.stringify(snapshot)
 
     expect(serialized).not.toContain('sk-test-token')
@@ -63,14 +66,14 @@ describe('parseAgentProviderList', () => {
   })
 
   it('注册表地址留下，同一个 source 里的 key 不留', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
     const kohub = snapshot.providers.find((one) => one.id === 'kohub')
 
     expect(kohub?.registryUrl).toBe('https://registry.example.com/v1/models/api.json')
   })
 
   it('认得三种凭据来源，也认得没配过', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
     const kinds = new Map(snapshot.providers.map((one) => [one.id, one.credentialKind]))
 
     expect(kinds.get('kohub')).toBe('apiKey')
@@ -83,80 +86,91 @@ describe('parseAgentProviderList', () => {
   })
 
   it('oauth 压过 apiKey', () => {
-    const snapshot = parseAgentProviderList({
-      providers: { one: { oauth: { storage: 'file', key: 'k' }, apiKey: 'sk-x' } },
-      models: {},
-    })
+    const snapshot = parseAgentProviderList(
+      {
+        providers: { one: { oauth: { storage: 'file', key: 'k' }, apiKey: 'sk-x' } },
+        models: {},
+      },
+      SYNTHETIC,
+    )
 
     expect(snapshot.providers[0]?.credentialKind).toBe('oauth')
   })
 
   it('标出环境变量合成的保留条目', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
     const synthetic = snapshot.providers.filter((one) => one.synthetic)
 
     expect(synthetic.map((one) => one.id)).toEqual(['__kimi_env__'])
   })
 
   it('缺 provider 字段时退回别名前缀', () => {
-    const snapshot = parseAgentProviderList({
-      providers: { acme: { type: 'openai' } },
-      models: { 'acme/fast': { name: 'Fast' } },
-    })
+    const snapshot = parseAgentProviderList(
+      {
+        providers: { acme: { type: 'openai' } },
+        models: { 'acme/fast': { name: 'Fast' } },
+      },
+      SYNTHETIC,
+    )
 
     expect(snapshot.providers[0]?.models.map((model) => model.alias)).toEqual(['acme/fast'])
     expect(snapshot.orphanModels).toHaveLength(0)
   })
 
   it('指向不存在 provider 的模型进 orphan 并记一条', () => {
-    const snapshot = parseAgentProviderList({
-      providers: {},
-      models: { 'ghost/x': { provider: 'ghost' } },
-    })
+    const snapshot = parseAgentProviderList(
+      {
+        providers: {},
+        models: { 'ghost/x': { provider: 'ghost' } },
+      },
+      SYNTHETIC,
+    )
 
     expect(snapshot.orphanModels.map((model) => model.alias)).toEqual(['ghost/x'])
     expect(snapshot.issues).toHaveLength(1)
   })
 
   it('显示名依次退回 displayName、name、别名', () => {
-    const snapshot = parseAgentProviderList(listed)
+    const snapshot = parseAgentProviderList(listed, SYNTHETIC)
     const kohub = snapshot.providers.find((one) => one.id === 'kohub')
 
     expect(kohub?.models[0]?.displayName).toBe('Model A')
     expect(kohub?.models[1]?.displayName).toBe('Model B')
 
-    const bare = parseAgentProviderList({ providers: { a: {} }, models: { 'a/b': {} } })
+    const bare = parseAgentProviderList({ providers: { a: {} }, models: { 'a/b': {} } }, SYNTHETIC)
 
     expect(bare.providers[0]?.models[0]?.displayName).toBe('a/b')
   })
 
   it('不是对象时给空投影而不是抛错', () => {
-    expect(parseAgentProviderList(null).providers).toEqual([])
-    expect(parseAgentProviderList(null).issues).toHaveLength(1)
+    expect(parseAgentProviderList(null, SYNTHETIC).providers).toEqual([])
+    expect(parseAgentProviderList(null, SYNTHETIC).issues).toHaveLength(1)
   })
 })
 
 describe('parseAgentProviderListOutput', () => {
   it('解析 CLI 的 stdout', () => {
-    const snapshot = parseAgentProviderListOutput(JSON.stringify(listed))
+    const snapshot = parseAgentProviderListOutput(JSON.stringify(listed), SYNTHETIC)
 
     expect(snapshot.providers).toHaveLength(4)
   })
 
   it('空输出与坏 JSON 各记一条 issue', () => {
-    expect(parseAgentProviderListOutput('   ').issues).toHaveLength(1)
-    expect(parseAgentProviderListOutput('{ not json').issues).toHaveLength(1)
+    expect(parseAgentProviderListOutput('   ', SYNTHETIC).issues).toHaveLength(1)
+    expect(parseAgentProviderListOutput('{ not json', SYNTHETIC).issues).toHaveLength(1)
   })
 })
 
-describe('AGENT_PROVIDER_LIST_ARGS', () => {
+describe('档案里的 provider list 子命令', () => {
   /*
    * 两条断言各拦一件事：形状必须是分好的数组（不是一行待切的命令行），第一
    * 项必须是子命令名（原生侧的白名单只看 args[0]）。第二条是回归护栏 —— 它
    * 拦的正是「把可执行文件与子命令搞混」那次。
+   *
+   * 常量搬去了 agents/kimi.ts：问什么是每一家自己的事，护栏跟着搬。
    */
   it('是完整的子命令序列', () => {
-    expect(AGENT_PROVIDER_LIST_ARGS).toEqual(['provider', 'list', '--json'])
-    expect(AGENT_PROVIDER_LIST_ARGS[0]).toBe('provider')
+    expect(kimiCode.providerListArgs).toEqual(['provider', 'list', '--json'])
+    expect(kimiCode.providerListArgs[0]).toBe('provider')
   })
 })

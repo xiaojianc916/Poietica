@@ -11,7 +11,10 @@ import type { RunEvent } from '@poietica/agent-protocol'
  * must be believed live in __fixtures__ and come from a real agent.
  */
 export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
-  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo' },
+  /* prompt 留空是有意的：这份样本让紧随其后的 user_message_chunk 承载问题，
+     而 withPrompt 对空 prompt 不落条目 —— 两个来源里只有一个说话，转录才不会
+     把同一句问两遍。 */
+  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo', prompt: '' },
   {
     kind: 'acp_update',
     seq: 1,

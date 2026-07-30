@@ -2,6 +2,7 @@ import {
   type AcpAgentProfile,
   type AgentModelState,
   type AgentProviderSnapshot,
+  acpAgentById,
   acpAgents,
   builtinAgentProviders,
   defaultAcpAgent,
@@ -128,12 +129,22 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       return
     }
 
+    /* 问什么写在档案里。在这里再抄一遍，就是第二个迟早走样的说法。 */
+    const descriptor = acpAgentById(agentId)
+
+    if (descriptor === undefined) {
+      setGlobalSnapshot(undefined)
+      setGlobalNote(`没有登记 ${agentId} 这个 agent 的接入档案。`)
+
+      return
+    }
+
     setProbing(true)
 
     void store
       .execCli({
         agentId,
-        args: ['provider', 'list', '--json'],
+        args: [...descriptor.providerListArgs],
         secretVar: '',
         secretValue: '',
         useGlobalHome: true,
@@ -148,7 +159,10 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
             return
           }
 
-          const snapshot = parseAgentProviderListOutput(outcome.stdout)
+          const snapshot = parseAgentProviderListOutput(
+            outcome.stdout,
+            descriptor.syntheticProviderId,
+          )
           const usable = snapshot.providers.filter((provider) => !provider.synthetic)
 
           setGlobalSnapshot(usable.length > 0 ? { ...snapshot, providers: usable } : undefined)

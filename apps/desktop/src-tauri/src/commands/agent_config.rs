@@ -69,7 +69,7 @@ struct PersistedAgentConfig {
 
 /// 「这个 agent 没有接入档案」只有一句话。
 ///
-/// launch_env 与 agent_program 找的是同一条档案。各写一句，迟早写出两种说法，
+/// `launch_env` 与 `agent_program` 找的是同一条档案。各写一句，迟早写出两种说法，
 /// 而用户看到的是哪一句取决于他先点了什么 —— 那种差异没有任何信息量。
 fn profile_missing(agent_id: &str) -> String {
     format!("agents.json 里没有 {agent_id} 的接入档案")
@@ -252,7 +252,7 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
 /// 从一份 config.toml 的文本里提取每个 provider 的密钥尾号。
 ///
 /// 刻意逐行扫描而不是解析 TOML：为五个字符引入一个 TOML 解析器不值当。扫描规则
-/// 刻意严格 —— [providers.<id>] 段内的 api_key = "..."，双引号必需、只认 ASCII 空白，
+/// 刻意严格 —— [providers.<id>] 段内的 `api_key` = "..."，双引号必需、只认 ASCII 空白，
 /// 不认就跳过而不是猜。界面的行不来自这份表（产地是 provider list），读不到时
 /// 那一行只显示 id，不编。
 fn tails_from_config(text: &str) -> BTreeMap<String, String> {

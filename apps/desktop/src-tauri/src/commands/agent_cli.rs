@@ -51,7 +51,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 pub struct AgentCliRequest {
     /// 用于算出受控 home，也用于从档案里查出该执行哪个程序。
     pub agent_id: String,
-    /// 完整的子命令序列，例如 ["provider", "list", "--json"]。
+    /// 完整的子命令序列，例如 `["provider", "list", "--json"]`。
     ///
     /// 第一项是子命令名，`is_allowed` 看的就是它。
     ///

@@ -53,7 +53,7 @@ const NO_READ: &str = "the log read did not finish";
 ///
 /// 绑定里这个字段是可选的，语义上不是：不点名以前会落到「连接自带的那条对话」
 /// 上，于是这一轮被记进了一条屏幕上不存在的对话。在唯一能验证它的地方拒绝它，
-/// 与下面 conversation() 拒绝一个非 UUID 的名字是同一件事。
+/// 与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
 const NO_CONVERSATION: &str = "no conversation was named";
 
 /// 要停的那一轮已经不在飞了。
@@ -88,7 +88,7 @@ struct Session {
     client: AgentClient,
     /// 这条连接自带的那个会话号。
     ///
-    /// connect() 建立连接时就开了它，而没有任何对话持有它 —— 模块头那段注释里
+    /// `connect()` 建立连接时就开了它，而没有任何对话持有它 —— 模块头那段注释里
     /// 被吐槽过的"凭空建一条对话"说的就是它当年的下场。它现在有了用途：问这个
     /// agent 提供什么的时候，总得有一个会话可以问，而那个问题与任何一条对话都
     /// 无关。所以它是锚，不是对话的会话。
@@ -674,7 +674,7 @@ pub struct AgentCapabilitiesRequest {
 /// 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
 /// 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
 ///
-/// 这里问的是锚会话：connect() 建立连接时本来就交回一个会话号，没有任何对话
+/// 这里问的是锚会话：`connect()` 建立连接时本来就交回一个会话号，没有任何对话
 /// 持有它。所以这条命令不新开会话、不写库、不碰任何 thread。
 ///
 /// 它仍然会按需起进程：一个从没打开过助手的启动不该为此付钱，而一旦有人要看
@@ -962,7 +962,7 @@ const fn refusal(reason: Refusal) -> &'static str {
 /// 此前两路合一：七种互不相同的失败共用一句「应用操作失败」，且那个 message 在
 /// 这一行之后再没有任何地方留下过。原来的注释说「不给 agent 加变体，多一条 arm
 /// 就是新的泄漏口」，那句话把两件事混了 —— 泄漏来自把 native detail 当成
-/// public_message 原样返回，不来自多一个变体。
+/// `public_message` 原样返回，不来自多一个变体。
 fn translate(error: AcpError) -> Error {
     match error {
         AcpError::Log(inner) => Error::Persistence(inner.to_string()),
@@ -1202,32 +1202,30 @@ pub async fn agent_open_thread(
 ) -> AgentCommandResult<AgentOpenedThread> {
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    let named = match request.thread_id {
-        Some(given) => given,
-        None => {
-            let shared = shared_store(&state)?;
-            let store = borrow_store(&shared)?;
+    let named = if let Some(given) = request.thread_id {
+        given
+    } else {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
 
-            store
-                .create_thread(FALLBACK_THREAD_TITLE)
-                .map_err(persistence)?
-                .to_string()
-        }
+        store
+            .create_thread(FALLBACK_THREAD_TITLE)
+            .map_err(persistence)?
+            .to_string()
     };
 
     let held = session_for(&state, &live, &named).await?;
 
-    let offered = match held.offered {
-        Some(offered) => offered,
+    let offered = if let Some(offered) = held.offered {
+        offered
+    } else {
         /* 本次运行已经为它开过会话：只有这一种情况需要把表再问一次。 */
-        None => {
-            let answer = live.client.selectors(held.session_id).map_err(translate)?;
+        let answer = live.client.selectors(held.session_id).map_err(translate)?;
 
-            answer
-                .await
-                .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
-                .map_err(translate)?
-        }
+        answer
+            .await
+            .map_err(|_dropped| Error::Internal(NO_ANSWER.to_owned()))?
+            .map_err(translate)?
     };
 
     // list_threads leaves out conversations that have had no turns, on
@@ -1381,14 +1379,15 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         store.session_for_thread(thread_id).map_err(persistence)?
     };
 
-    if let Some(session_id) = stored {
-        if recognised(state, &session_id)? {
-            return Ok(Held {
-                thread_id,
-                session_id,
-                offered: None,
-            });
-        }
+    if let Some(session_id) = stored
+        && recognised(state, &session_id)?
+    {
+
+        return Ok(Held {
+            thread_id,
+            session_id,
+            offered: None,
+        });
     }
 
     let opened = live

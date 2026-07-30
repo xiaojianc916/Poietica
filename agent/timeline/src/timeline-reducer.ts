@@ -163,7 +163,7 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
  * next_seq，每轮从一起编），客户端自己发一个就是替对面占了一个号：真的那一帧
  * 带着同一个号到达时，会被上面那道去重判成重复而永久丢弃。
  *
- * 所以本地的事故以本地的形式进来：一条 error 条目，不占序号、不进 appliedSeqs、
+ * 所以本地的事故以本地的形式进来：一条 error 条目，不占序号、不动 lastSeq 窗口、
  * 不冒充任何一帧。它因此也不参与重放 —— 一段日志放两遍仍然得到同一个状态，那是
  * 回放能被信任的前提，而一件只发生在这台机器上的事故本来就不在日志里。
  *

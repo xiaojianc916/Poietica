@@ -24,8 +24,9 @@ describe('a local failure is not a frame', () => {
     const opened = applyRunEvent(createTimelineState(runId), chunk(1, '在'))
     const noted = appendLocalError(opened, { message: '答复没送出去。', at: 5, endsTurn: false })
 
+    /* 状态里没有第二本序号账，lastSeq 就是那道窗口。此前这里还比对过一个早已
+       不存在的 appliedSeqs —— 两边都是 undefined，这条断言从来没测到东西。 */
     expect(noted.lastSeq).toBe(opened.lastSeq)
-    expect(noted.appliedSeqs).toEqual(opened.appliedSeqs)
 
     /* 伪造一帧、序号取当前的下一个时，被永久丢掉的正是紧接着到达的这一帧 ——
        它可能是一段文字，也可能是 run_finished。 */

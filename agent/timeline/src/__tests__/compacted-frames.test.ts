@@ -14,7 +14,7 @@ const runId = 'run_test'
  * difference — which is the only thing worth asserting here.
  */
 const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
-  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo' },
+  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo', prompt: '' },
   {
     kind: 'acp_update',
     seq: 1,

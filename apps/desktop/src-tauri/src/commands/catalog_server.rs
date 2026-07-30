@@ -8,7 +8,7 @@
 //! agentProviderCatalogDocument 序列化）绑在 127.0.0.1 的随机端口上，只活到那一次
 //! 调用结束。文档里没有密钥 —— 密钥走环境变量，从不经过这里。
 //!
-//! 用 std::net 手写而不是引入 HTTP 框架：一份静态文档、一个内容类型、一次调用的
+//! 用 `std::net` 手写而不是引入 HTTP 框架：一份静态文档、一个内容类型、一次调用的
 //! 生命周期，框架能提供的我们一样都用不上。
 
 use std::io::{ErrorKind, Read, Write};
@@ -110,7 +110,7 @@ fn serve_connection(mut stream: TcpStream, document: &str) -> std::io::Result<()
             break;
         }
 
-        head.extend_from_slice(&chunk[..read]);
+        head.extend_from_slice(chunk.get(..read).unwrap_or_default());
     }
 
     let response_head = format!(
