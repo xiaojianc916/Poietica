@@ -43,14 +43,6 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
     },
   },
   {
-    id: 'workspace.toggle-inspector',
-    label: '切换属性面板',
-    category: '视图',
-    execute: () => {
-      workspaceLayoutStore.toggleInspector()
-    },
-  },
-  {
     id: 'ai.open-assistant',
     label: '打开 AI 助手',
     category: '应用',

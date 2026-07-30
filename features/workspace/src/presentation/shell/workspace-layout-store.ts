@@ -14,7 +14,6 @@ import { WORKSPACE_LAYOUT } from './workspace-layout'
 export interface WorkspaceLayoutState {
   readonly sidebarOpen: boolean
   readonly sidebarWidth: number
-  readonly inspectorOpen: boolean
   readonly isResizing: boolean
 }
 
@@ -23,7 +22,6 @@ const STORAGE_KEY = 'poietica.workspace.layout.v1'
 const DEFAULT_STATE: WorkspaceLayoutState = {
   sidebarOpen: true,
   sidebarWidth: WORKSPACE_LAYOUT.sidebar.defaultWidth,
-  inspectorOpen: true,
   isResizing: false,
 }
 
@@ -44,7 +42,6 @@ const PersistedLayoutSchema = v.object({
     v.pipe(v.number(), v.finite(), v.transform(clampSidebarWidth)),
     DEFAULT_STATE.sidebarWidth,
   ),
-  inspectorOpen: v.fallback(v.boolean(), DEFAULT_STATE.inspectorOpen),
 })
 
 function readPersistedState(): WorkspaceLayoutState {
@@ -91,14 +88,6 @@ class WorkspaceLayoutStore {
     this.#commit({ sidebarWidth: clampSidebarWidth(width) })
   }
 
-  setInspectorOpen = (open: boolean): void => {
-    this.#commit({ inspectorOpen: open })
-  }
-
-  toggleInspector = (): void => {
-    this.#commit({ inspectorOpen: !this.#state.inspectorOpen })
-  }
-
   setResizing = (resizing: boolean): void => {
     this.#commit({ isResizing: resizing })
   }
@@ -109,7 +98,6 @@ class WorkspaceLayoutStore {
     if (
       next.sidebarOpen === this.#state.sidebarOpen &&
       next.sidebarWidth === this.#state.sidebarWidth &&
-      next.inspectorOpen === this.#state.inspectorOpen &&
       next.isResizing === this.#state.isResizing
     ) {
       return

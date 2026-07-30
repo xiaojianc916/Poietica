@@ -21,10 +21,6 @@ export const WORKSPACE_LAYOUT = {
     defaultWidth: 280,
   },
 
-  inspector: {
-    width: 276,
-  },
-
   /*
    * 布局断点以 CSS 媒体查询字符串表达，由 matchMedia 订阅：浏览器只在
    * 跨越断点时通知一次，不需要在每一帧 resize 上重新计算布局模式。

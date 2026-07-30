@@ -1,3 +1,4 @@
+import { Box } from '@mynaui/icons-react'
 import {
   Button,
   ErrorState,
@@ -39,8 +40,7 @@ type SettingsSection =
   | 'models'
   | 'keymap'
   | 'hooks'
-  | 'plugins'
-  | 'export'
+  | 'tools'
   | 'privacy'
   | 'about'
 
@@ -50,11 +50,15 @@ interface SectionDefinition {
 }
 
 /*
- * 导航顺序照图二排，但没有删掉图二没画的两组。
+ * 导航只列产品当前真的有的东西。
  *
- * export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉它们等于
- * 删功能。models / keymap / hooks / plugins 在 AppSettings 里还没有任何字段，
- * 所以它们渲染明确的空状态，而不是拨得动却存不下的假开关。
+ * 导出那一组的三个控件（SVG / PNG DPI / PDF 质量）导出的是画布，随画布一起
+ * 退场；「插件」这个词从来没有对应实现，换成 Tool——内置工具、Skill 与 MCP
+ * 服务器是这个产品真正的扩展面。
+ *
+ * privacy 里的每一项都写进 AppSettings 并落盘。models / keymap / hooks /
+ * tools 在 AppSettings 里还没有任何字段，所以它们渲染明确的空状态，而不是
+ * 拨得动却存不下的假开关。
  */
 const SECTIONS: readonly SectionDefinition[] = [
   {
@@ -78,12 +82,8 @@ const SECTIONS: readonly SectionDefinition[] = [
     label: '钩子',
   },
   {
-    id: 'plugins',
-    label: '插件',
-  },
-  {
-    id: 'export',
-    label: '导出',
+    id: 'tools',
+    label: 'Tool',
   },
   {
     id: 'privacy',
@@ -101,8 +101,8 @@ const SECTIONS: readonly SectionDefinition[] = [
  */
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
-  ['models', 'keymap', 'hooks', 'plugins'],
-  ['export', 'privacy'],
+  ['models', 'keymap', 'hooks', 'tools'],
+  ['privacy'],
   ['about'],
 ]
 
@@ -330,7 +330,7 @@ function SettingsSectionContent({
 }: SettingsSectionContentProps) {
   switch (section) {
     case 'general':
-      return <GeneralSettings controller={controller} settings={settings} />
+      return <GeneralSettings controller={controller} />
 
     case 'appearance':
       return <AppearanceSettings controller={controller} settings={settings} />
@@ -346,11 +346,8 @@ function SettingsSectionContent({
     case 'hooks':
       return <SettingsPlaceholder description="Hook 尚未实现。" />
 
-    case 'plugins':
-      return <SettingsPlaceholder description="插件系统尚未实现。" />
-
-    case 'export':
-      return <ExportSettings controller={controller} settings={settings} />
+    case 'tools':
+      return <SettingsPlaceholder description="内置工具、Skill 与 MCP 服务器的管理尚未实现。" />
 
     case 'privacy':
       return <PrivacySettings controller={controller} settings={settings} />
@@ -366,45 +363,11 @@ interface SettingsPanelProps {
 }
 
 const GeneralSettings = memo(function GeneralSettings({
-  settings,
   controller,
-}: SettingsPanelProps) {
+}: Pick<SettingsPanelProps, 'controller'>) {
   return (
     <SettingsPage>
-      <SettingsGroup title="保存">
-        <ToggleRow
-          checked={settings.autoSave}
-          description="画布变更后自动写入本地文件"
-          label="自动保存"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              autoSave: checked,
-            }))
-          }}
-        />
-
-        {settings.autoSave ? (
-          <SettingRow description="距上次变更多久触发一次写入" label="保存间隔">
-            <SettingsSelect
-              ariaLabel="自动保存间隔"
-              onChange={(value) => {
-                controller.update((current) => ({
-                  ...current,
-                  autoSaveIntervalMs: Number(value),
-                }))
-              }}
-              options={[
-                ['10000', '10 秒'],
-                ['30000', '30 秒'],
-                ['60000', '1 分钟'],
-                ['300000', '5 分钟'],
-              ]}
-              value={String(settings.autoSaveIntervalMs)}
-            />
-          </SettingRow>
-        ) : null}
-
+      <SettingsGroup title="重置">
         <SettingRow description="把全部设置项还原为初始值" label="恢复默认设置">
           <Button
             disabled={controller.saving}
@@ -416,95 +379,6 @@ const GeneralSettings = memo(function GeneralSettings({
             {controller.saving && controller.operation === 'reset' ? '正在恢复…' : '恢复默认'}
           </Button>
         </SettingRow>
-      </SettingsGroup>
-    </SettingsPage>
-  )
-})
-
-const ExportSettings = memo(function ExportSettings({ settings, controller }: SettingsPanelProps) {
-  return (
-    <SettingsPage>
-      <SettingsGroup title="默认输出">
-        <SettingRow description="导出时默认选中的格式" label="文件格式">
-          <SettingsSelect
-            ariaLabel="默认导出格式"
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                export: {
-                  ...current.export,
-                  defaultFormat: value,
-                },
-              }))
-            }}
-            options={[
-              ['svg', 'SVG · 矢量'],
-              ['png', 'PNG · 图片'],
-              ['pdf', 'PDF · 文档'],
-            ]}
-            value={settings.export.defaultFormat}
-          />
-        </SettingRow>
-
-        <SettingRow description="位图导出的分辨率" label="PNG 清晰度">
-          <SettingsSelect
-            ariaLabel="PNG 导出清晰度"
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                export: {
-                  ...current.export,
-                  pngDpi: Number(value),
-                },
-              }))
-            }}
-            options={[
-              ['72', '72 DPI'],
-              ['144', '144 DPI'],
-              ['300', '300 DPI'],
-              ['600', '600 DPI'],
-            ]}
-            value={String(settings.export.pngDpi)}
-          />
-        </SettingRow>
-
-        <SettingRow description="矢量转位图时的压缩质量" label="PDF 质量">
-          <SettingsSelect
-            ariaLabel="PDF 导出质量"
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                export: {
-                  ...current.export,
-                  pdfQuality: Number(value),
-                },
-              }))
-            }}
-            options={[
-              ['50', '50% · 较小文件'],
-              ['70', '70% · 标准'],
-              ['80', '80% · 清晰'],
-              ['90', '90% · 高质量'],
-              ['100', '100% · 最高质量'],
-            ]}
-            value={String(settings.export.pdfQuality)}
-          />
-        </SettingRow>
-
-        <ToggleRow
-          checked={settings.export.includeMetadata}
-          description="在导出文件中写入创建信息"
-          label="包含元数据"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              export: {
-                ...current.export,
-                includeMetadata: checked,
-              },
-            }))
-          }}
-        />
       </SettingsGroup>
     </SettingsPage>
   )
@@ -791,16 +665,17 @@ type GlyphComponent = ComponentType<{
  * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
  * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
  */
-type GlyphSection = 'hooks'
+type GlyphSection = 'hooks' | 'tools'
 
 type PathSection = Exclude<SettingsSection, GlyphSection>
 
 const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
   hooks: WebhookIcon,
+  tools: Box,
 }
 
 function isGlyphSection(section: SettingsSection): section is GlyphSection {
-  return section === 'hooks'
+  return section === 'hooks' || section === 'tools'
 }
 
 function SectionIcon({ section }: { readonly section: SettingsSection }) {
@@ -833,18 +708,6 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
       <>
         <rect height="12" rx="2" width="18" x="3" y="6" />
         <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
-      </>
-    ),
-    plugins: (
-      <>
-        <path d="M9 3v4H7a2 2 0 0 0-2 2v3h2.5a2 2 0 1 1 0 4H5v3a2 2 0 0 0 2 2h3v-2.5a2 2 0 1 1 4 0V21h3a2 2 0 0 0 2-2v-3h-2.5a2 2 0 1 1 0-4H19V9a2 2 0 0 0-2-2h-2V3Z" />
-      </>
-    ),
-    export: (
-      <>
-        <path d="M12 3v12" />
-        <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
-        <path d="M5 19h14" />
       </>
     ),
     privacy: (
