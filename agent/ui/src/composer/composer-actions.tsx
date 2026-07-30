@@ -1,7 +1,18 @@
 import type { SessionConfigControl } from '@poietica/agent-protocol'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuRadioItemIndicator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, } from '@poietica/foundations-design-system'
-import type { ComponentType } from 'react'import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@poietica/foundations-design-system'
+import type { ComponentType } from 'react'
+import {
   AttachIcon,
   CloseIcon,
   GlobeIcon,

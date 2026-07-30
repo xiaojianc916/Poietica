@@ -181,12 +181,21 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
   /* patchKeys 曾在这里。它服务的那份 13 格草稿已经不存在了。 */
 
+  const providerSnapshot = providers.snapshot
+
   /*
    * 密钥尾号只读现算：与「写经谁手」无关，官方 CLI 配置的也有。
    *
    * 快照变化时重取一次：保存与删除都会引起快照变化，所以不需要额外的失效逻辑。
+   * 快照本身参与判断而不只是当失效令牌 —— 它还没到达时列表必然是空的，
+   * 那一次往返的结果没有任何去处。
    */
   useEffect(() => {
+    if (providerSnapshot === undefined) {
+      setKeyTails({})
+      return
+    }
+
     let active = true
 
     void store.loadKeyTails(agentId).then(
@@ -205,7 +214,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     return () => {
       active = false
     }
-  }, [agentId, store, providers.snapshot])
+  }, [agentId, providerSnapshot, store])
 
   /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
   const providerIssues = useMemo(() => {

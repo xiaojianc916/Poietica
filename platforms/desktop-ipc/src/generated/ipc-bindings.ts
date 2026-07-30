@@ -758,9 +758,9 @@ sessionId: string | null;
  */
 title: string; 
 /**
- * Where that name came from: manual, message or fallback.
+ * Where that name came from.
  */
-titleSource: string; 
+titleSource: AgentTitleSource; 
 /**
  * When it was last touched, in RFC 3339.
  */
@@ -798,6 +798,29 @@ events: JsonValue[];
  * is nothing behind it.
  */
 totalRuns: number }
+/**
+ * Where a conversation's name came from.
+ * 
+ * A closed set of three, and the interface ranks on it: a name the user
+ * typed is never replaced by one derived from the text. Carried across as a
+ * free string, that ranking had to be re-asserted at every call site, and
+ * the list written down in the generated bindings had already drifted — it
+ * still named an `official` source, which [`TitleSource`] removed when this
+ * program stopped taking conversation names from the agent.
+ */
+export type AgentTitleSource = 
+/**
+ * Taken from the first thing the user said.
+ */
+"message" | 
+/**
+ * Shown before there was anything to take a name from.
+ */
+"fallback" | 
+/**
+ * The user typed it. Nothing derived replaces it.
+ */
+"manual"
 export type AppSettings = { theme: ThemePreference; language: string; shortcuts: Partial<{ [key in string]: string }>; privacy: PrivacySettings }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
