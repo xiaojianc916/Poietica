@@ -11,14 +11,11 @@ export {
 } from './commands/CommandProvider'
 export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
 
-export { InspectorHost } from './inspector/InspectorHost'
-
 export {
   SidebarFooter,
   type SidebarFooterProps,
 } from './shell/SidebarFooter'
 
-export { nextUntitledCanvasTitle } from './shell/untitled-canvas-title'
 export {
   WorkbenchTabs,
   type WorkbenchTabsProps,
@@ -31,4 +28,3 @@ export {
 } from './shell/WorkspaceSurface'
 export { WORKSPACE_LAYOUT } from './shell/workspace-layout'
 export { useWorkspaceLayoutState, workspaceLayoutStore } from './shell/workspace-layout-store'
-export { StatusBarHost } from './status/StatusBarHost'

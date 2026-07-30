@@ -4,9 +4,6 @@ members = [
   "agent/persistence/native",
   "agent/runtime/native",
   "apps/desktop/src-tauri",
-  "editor/assets/native",
-  "editor/extensions/native",
-  "editor/persistence/native",
   "platforms/desktop-runtime/native",
 ]
 default-members = [

@@ -1,4 +1,4 @@
-import { FileText, X } from '@mynaui/icons-react'
+import { X } from '@mynaui/icons-react'
 import type { WorkbenchTabId } from '@poietica/features-workspace'
 import type { WorkbenchTabViewModel } from '@poietica/features-workspace/contracts'
 import type { ComponentType, KeyboardEvent } from 'react'
@@ -11,16 +11,6 @@ type TabIcon = ComponentType<{
 
   readonly 'aria-hidden'?: boolean | 'true' | 'false'
 }>
-
-/*
- * 保存状态的可读文案。用查表而不是嵌套三元：新增一个状态时缺少条目是类型
- * 错误，不会静默落进"保存失败"。
- */
-const TAB_STATUS_LABELS = {
-  dirty: '未保存',
-  saving: '正在保存',
-  failed: '保存失败',
-} as const
 
 interface WorkbenchTabProps {
   readonly model: WorkbenchTabViewModel
@@ -148,18 +138,8 @@ function TabEndAction({
     return null
   }
 
-  const status = model.kind === 'canvas' ? model.status : 'clean'
-
   return (
     <div className="chrome-workbench-tab__end">
-      {status === 'clean' ? null : (
-        <span
-          aria-label={TAB_STATUS_LABELS[status]}
-          className={`chrome-workbench-tab__status chrome-workbench-tab__status--${status}`}
-          role="status"
-        />
-      )}
-
       <button
         aria-label={`关闭 ${model.title}`}
         className="chrome-workbench-tab__close"
@@ -203,11 +183,6 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
-  /* 画布文档的字形。画布本体随编辑器包一起移除时，这个分支整体消失。 */
-  if (model.kind === 'canvas') {
-    return FileText
-  }
-
   /* 对话标签沿用 AI 表面的图标：同一个目标只允许有一个样子。 */
   if (model.kind === 'conversation') {
     return describeWorkspaceSurface('ai').icon

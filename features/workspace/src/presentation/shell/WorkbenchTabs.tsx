@@ -90,7 +90,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
       </div>
 
       <button
-        aria-label="新建画布"
+        aria-label="新建对话"
         className="chrome-workbench-tabs__new-tab"
         onClick={onCreate}
         ref={newTabRef}

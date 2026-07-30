@@ -19,8 +19,6 @@
     "@poietica/agent-runtime": "workspace:*",
     "@poietica/agent-transport": "workspace:*",
     "@poietica/agent-ui": "workspace:*",
-    "@poietica/editor-core": "workspace:*",
-    "@poietica/editor-document": "workspace:*",
     "@poietica/features-settings": "workspace:*",
     "@poietica/features-workspace": "workspace:*",
     "@poietica/foundations-design-system": "workspace:*",
@@ -29,8 +27,7 @@
     "@poietica/platforms-desktop-ipc": "workspace:*",
     "@poietica/platforms-desktop-runtime": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "tldraw": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

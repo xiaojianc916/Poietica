@@ -1,8 +1,4 @@
 import type {
-  ActiveCanvasViewModel,
-  CanvasTabStatus,
-  CanvasTabViewModel,
-  CreateCanvasRequest,
   OpenWorkspaceSurfaceRequest,
   WorkbenchSessionStore,
   WorkbenchSurfaceViewModel,
@@ -16,25 +12,17 @@ import type {
 import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace/contracts'
 import type {
   ActiveConversationViewModel,
-  CanvasSessionId,
   ConversationId,
   ConversationTabViewModel,
   OpenConversationRequest,
 } from '../../contracts/workbench-contract'
 
-type WorkbenchEntry = CanvasEntry | ConversationEntry | WorkspaceEntry
+type WorkbenchEntry = ConversationEntry | WorkspaceEntry
 
 interface EntryBase {
   readonly id: WorkbenchTabId
   readonly title: string
   readonly canClose: boolean
-}
-
-interface CanvasEntry extends EntryBase {
-  readonly kind: 'canvas'
-  readonly sessionId: CanvasSessionId
-  readonly canvasId: string
-  readonly status: CanvasTabStatus
 }
 
 interface ConversationEntry extends EntryBase {
@@ -91,31 +79,6 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     emit()
   }
 
-  function createCanvas(request: CreateCanvasRequest): void {
-    const canvasId = request.canvasId ?? crypto.randomUUID()
-
-    const sessionId = request.sessionId ?? crypto.randomUUID()
-
-    const existing = entries.find(
-      (entry) => entry.kind === 'canvas' && entry.sessionId === sessionId,
-    )
-
-    if (existing) {
-      activateTab(existing.id)
-      return
-    }
-
-    insertToActiveRight({
-      id: `canvas:${sessionId}`,
-      kind: 'canvas',
-      title: request.title,
-      canClose: true,
-      sessionId,
-      canvasId,
-      status: 'clean',
-    })
-  }
-
   function openWorkspaceSurface(request: OpenWorkspaceSurfaceRequest): void {
     const tabId = `workspace:${request.surfaceId}`
 
@@ -133,29 +96,6 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       canClose: true,
       surfaceId: request.surfaceId,
     })
-  }
-
-  /*
-   * 同值直接返回。文档层在每次保存与脏状态跃迁时上报，等价快照不应该被
-   * 替换成新对象：useSyncExternalStore 用 Object.is 比较，换引用就等于
-   * 白渲染一次。判等放在这里，读侧因此不需要任何缓存层。
-   */
-  function setCanvasStatus(sessionId: CanvasSessionId, status: CanvasTabStatus): void {
-    const index = entries.findIndex(
-      (candidate) => candidate.kind === 'canvas' && candidate.sessionId === sessionId,
-    )
-
-    const entry = entries[index]
-
-    if (entry?.kind !== 'canvas' || entry.status === status) {
-      return
-    }
-
-    entries = entries.map((candidate, candidateIndex) =>
-      candidateIndex === index ? { ...entry, status } : candidate,
-    )
-
-    emit()
   }
 
   /*
@@ -295,22 +235,6 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     emit()
   }
 
-  function activateCanvas(sessionId: CanvasSessionId): void {
-    const entry = findCanvasEntry(entries, sessionId)
-
-    if (entry) {
-      activateTab(entry.id)
-    }
-  }
-
-  function closeCanvas(sessionId: CanvasSessionId): void {
-    const entry = findCanvasEntry(entries, sessionId)
-
-    if (entry) {
-      closeTab(entry.id)
-    }
-  }
-
   return {
     getSnapshot: () => snapshot,
 
@@ -319,7 +243,6 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
       return () => listeners.delete(listener)
     },
 
-    createCanvas,
     openWorkspaceSurface,
     openConversation,
     openConversationInNewTab,
@@ -327,9 +250,6 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     activateTab,
     closeTab,
     moveTab,
-    setCanvasStatus,
-    activateCanvas,
-    closeCanvas,
   }
 }
 
@@ -343,16 +263,10 @@ function projectSnapshot(
     throw new Error('WORKBENCH_ACTIVE_ENTRY_NOT_FOUND')
   }
 
-  const activeSurface = projectSurface(activeEntry)
-
-  const activeCanvas = activeSurface.kind === 'canvas' ? activeSurface : null
-
   return {
     activeTabId,
-    activeSessionId: activeCanvas?.sessionId ?? null,
     tabs: entries.map((entry) => projectTab(entry, activeTabId)),
-    activeSurface,
-    activeCanvas,
+    activeSurface: projectSurface(activeEntry),
   }
 }
 
@@ -365,18 +279,6 @@ function projectTab(entry: WorkbenchEntry, activeTabId: WorkbenchTabId): Workben
   }
 
   switch (entry.kind) {
-    case 'canvas': {
-      const tab: CanvasTabViewModel = {
-        ...common,
-        kind: 'canvas',
-        sessionId: entry.sessionId,
-        canvasId: entry.canvasId,
-        status: entry.status,
-      }
-
-      return tab
-    }
-
     case 'conversation': {
       const tab: ConversationTabViewModel = {
         ...common,
@@ -401,18 +303,6 @@ function projectTab(entry: WorkbenchEntry, activeTabId: WorkbenchTabId): Workben
 
 function projectSurface(entry: WorkbenchEntry): WorkbenchSurfaceViewModel {
   switch (entry.kind) {
-    case 'canvas': {
-      const surface: ActiveCanvasViewModel = {
-        kind: 'canvas',
-        tabId: entry.id,
-        sessionId: entry.sessionId,
-        canvasId: entry.canvasId,
-        title: entry.title,
-      }
-
-      return surface
-    }
-
     case 'conversation': {
       const surface: ActiveConversationViewModel = {
         kind: 'conversation',
@@ -457,15 +347,6 @@ function findConversationEntry(
   )
 }
 
-function findCanvasEntry(
-  entries: readonly WorkbenchEntry[],
-  sessionId: CanvasSessionId,
-): CanvasEntry | undefined {
-  return entries.find(
-    (entry): entry is CanvasEntry => entry.kind === 'canvas' && entry.sessionId === sessionId,
-  )
-}
-
 function assertInvariants(snapshot: WorkbenchViewModel): void {
   /* 判的是"至少有一个标签"。 */
   if (snapshot.tabs.length === 0) {
@@ -488,18 +369,4 @@ function assertInvariants(snapshot: WorkbenchViewModel): void {
     throw new Error('WORKBENCH_ACTIVE_SURFACE_INCONSISTENT')
   }
 
-  if (snapshot.activeSurface.kind === 'canvas') {
-    if (
-      snapshot.activeCanvas?.tabId !== snapshot.activeTabId ||
-      snapshot.activeSessionId !== snapshot.activeSurface.sessionId
-    ) {
-      throw new Error('WORKBENCH_ACTIVE_CANVAS_INCONSISTENT')
-    }
-
-    return
-  }
-
-  if (snapshot.activeCanvas !== null || snapshot.activeSessionId !== null) {
-    throw new Error('WORKBENCH_NON_CANVAS_STATE_INCONSISTENT')
-  }
 }

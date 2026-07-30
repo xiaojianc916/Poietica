@@ -38,9 +38,8 @@ describe('workbench session controller', () => {
   it('opens new tabs immediately right of active tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.createCanvas({
-      canvasId: 'canvas-1',
-      sessionId: 'session-1',
+    store.openConversationInNewTab({
+      threadId: 'thread-1',
       title: 'One',
     })
 
@@ -54,7 +53,7 @@ describe('workbench session controller', () => {
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'workspace:ai',
       'workspace:assets',
-      'canvas:session-1',
+      'conversation:thread-1',
     ])
   })
 
@@ -134,26 +133,4 @@ describe('workbench session controller', () => {
     expect(store.getSnapshot().tabs[2]?.id).toBe('workspace:ai')
   })
 
-  it('keeps canvas document commands at the boundary', () => {
-    const store = createWorkbenchSessionController()
-
-    store.createCanvas({
-      canvasId: 'canvas-1',
-      sessionId: 'session-1',
-      title: 'One',
-    })
-
-    store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
-    })
-
-    store.activateCanvas('session-1')
-
-    expect(store.getSnapshot().activeSessionId).toBe('session-1')
-
-    store.closeCanvas('session-1')
-
-    expect(store.getSnapshot().tabs.some((tab) => tab.id === 'canvas:session-1')).toBe(false)
-  })
 })

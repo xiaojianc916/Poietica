@@ -1,7 +1,6 @@
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
-import { nextUntitledCanvasTitle, workspaceLayoutStore } from '@poietica/features-workspace/react'
-import type { WorkspaceCanvasUIPort } from './workspace/WorkspaceContainer'
+import { workspaceLayoutStore } from '@poietica/features-workspace/react'
 
 /**
  * 应用命令的唯一声明表。
@@ -16,8 +15,6 @@ type CommandRegistration = Parameters<CommandRegistry['register']>[0]
 
 export interface ApplicationCommandContext {
   readonly workspace: WorkbenchSessionStore
-  readonly canvases: Pick<WorkspaceCanvasUIPort, 'open'>
-  readonly createCanvas: (title: string) => Promise<void>
   readonly toggleCommandPalette: () => void
   readonly openAssistantSurface: () => void
 }
@@ -34,24 +31,6 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
     shortcut: 'Mod+K',
     execute: (context) => {
       context.toggleCommandPalette()
-    },
-  },
-  {
-    id: 'workspace.create-canvas',
-    label: '新建画布',
-    category: '文件',
-    shortcut: 'Mod+N',
-    execute: (context) => {
-      void context.createCanvas(nextUntitledCanvasTitle(context.workspace.getSnapshot().tabs))
-    },
-  },
-  {
-    id: 'workspace.open-canvas',
-    label: '打开画布',
-    category: '文件',
-    shortcut: 'Mod+O',
-    execute: (context) => {
-      void context.canvases.open()
     },
   },
   {

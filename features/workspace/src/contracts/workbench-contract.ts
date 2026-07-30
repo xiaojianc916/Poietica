@@ -1,11 +1,7 @@
-export type CanvasId = string
-export type CanvasSessionId = string
 export type WorkbenchTabId = string
 
 /** 一条对话的身份就是它的 thread id：一条对话最多一格。 */
 export type ConversationId = string
-
-export type CanvasTabStatus = 'clean' | 'dirty' | 'saving' | 'failed'
 
 export type WorkspaceSurfaceId =
   | 'documents'
@@ -26,13 +22,6 @@ interface WorkbenchTabBase {
   readonly canClose: boolean
 }
 
-export interface CanvasTabViewModel extends WorkbenchTabBase {
-  readonly kind: 'canvas'
-  readonly sessionId: CanvasSessionId
-  readonly canvasId: CanvasId
-  readonly status: CanvasTabStatus
-}
-
 export interface ConversationTabViewModel extends WorkbenchTabBase {
   readonly kind: 'conversation'
   readonly threadId: ConversationId
@@ -43,18 +32,7 @@ export interface WorkspaceTabViewModel extends WorkbenchTabBase {
   readonly surfaceId: WorkspaceSurfaceId
 }
 
-export type WorkbenchTabViewModel =
-  | CanvasTabViewModel
-  | ConversationTabViewModel
-  | WorkspaceTabViewModel
-
-export interface ActiveCanvasViewModel {
-  readonly kind: 'canvas'
-  readonly tabId: WorkbenchTabId
-  readonly sessionId: CanvasSessionId
-  readonly canvasId: CanvasId
-  readonly title: string
-}
+export type WorkbenchTabViewModel = ConversationTabViewModel | WorkspaceTabViewModel
 
 export interface ActiveConversationViewModel {
   readonly kind: 'conversation'
@@ -70,23 +48,20 @@ export interface WorkspaceSurfaceViewModel {
   readonly title: string
 }
 
-export type WorkbenchSurfaceViewModel =
-  | ActiveCanvasViewModel
-  | ActiveConversationViewModel
-  | WorkspaceSurfaceViewModel
+export type WorkbenchSurfaceViewModel = ActiveConversationViewModel | WorkspaceSurfaceViewModel
 
+/**
+ * 工作台快照。
+ *
+ * 标签与活动表面是同一份投影的两个面，没有第三个字段：此前还有
+ * activeSessionId 与 activeCanvas 两个只服务文档域的镜像字段，它们与
+ * activeSurface 说的是同一件事，靠三条不变量互相看住——那三条不变量的存在
+ * 本身就是"同一真相存了三份"的证据。
+ */
 export interface WorkbenchViewModel {
   readonly activeTabId: WorkbenchTabId
-  readonly activeSessionId: CanvasSessionId | null
   readonly tabs: readonly WorkbenchTabViewModel[]
   readonly activeSurface: WorkbenchSurfaceViewModel
-  readonly activeCanvas: ActiveCanvasViewModel | null
-}
-
-export interface CreateCanvasRequest {
-  readonly title: string
-  readonly canvasId?: CanvasId
-  readonly sessionId?: CanvasSessionId
 }
 
 export interface OpenWorkspaceSurfaceRequest {
@@ -100,7 +75,6 @@ export interface OpenConversationRequest {
 }
 
 export interface WorkbenchSessionCommands {
-  readonly createCanvas: (request: CreateCanvasRequest) => void
   readonly openWorkspaceSurface: (request: OpenWorkspaceSurfaceRequest) => void
 
   /**
@@ -121,24 +95,6 @@ export interface WorkbenchSessionCommands {
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
-
-  /**
-   * 画布保存状态的唯一写入口。
-   *
-   * 状态是标签视图模型的一部分，所以由拥有视图模型的这个 store 保管：
-   * 文档域经 canvas-workflow 上报，视图只读快照。此前它由组合根在读侧
-   * 装饰，契约声明了字段而投影函数从不赋值，等于两个所有者。
-   */
-  readonly setCanvasStatus: (sessionId: CanvasSessionId, status: CanvasTabStatus) => void
-
-  /**
-   * Document-boundary adapters.
-   *
-   * CanvasDocumentService continues to identify documents by session ID.
-   * Workbench chrome must otherwise operate on WorkbenchTabId.
-   */
-  readonly activateCanvas: (sessionId: CanvasSessionId) => void
-  readonly closeCanvas: (sessionId: CanvasSessionId) => void
 }
 
 export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
@@ -149,10 +105,8 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
 /**
  * 会话入口（AI 表面）的名字。
  *
- * 与侧栏「新建对话」导航项、会话列表的加号同名：一个入口只允许有一个名字，
- * 标签、导航与按钮因此不可能对不上。此前这里写死 'AI'，导航写「新建对话」，
- * 加号写「新建会话」，兜底标题写 'New Agent'——同一格从不同入口进去，标题
- * 就不一样，看上去像是缓存在作怪。
+ * 与侧栏「新建对话」导航项、会话列表的加号、标签条的加号同名：一个入口只
+ * 允许有一个名字，标签、导航与按钮因此不可能对不上。
  */
 export const CONVERSATION_ENTRY_TITLE = '新建对话'
 
@@ -175,14 +129,11 @@ const DEFAULT_SURFACE: WorkspaceSurfaceViewModel = Object.freeze({
 })
 
 /**
- * Fallback snapshot used before the session controller publishes its first
- * projection. It mirrors the controller's startup state (the AI surface) so the
- * first paint never flashes a placeholder tab.
+ * 会话控制器发布第一份投影之前的兜底快照。它与控制器的启动态一致（AI 表面），
+ * 所以首帧不会闪出一个占位标签。
  */
 export const EMPTY_WORKBENCH_VIEW_MODEL: WorkbenchViewModel = Object.freeze({
   activeTabId: DEFAULT_SURFACE_TAB_ID,
-  activeSessionId: null,
   tabs: Object.freeze([DEFAULT_TAB]),
   activeSurface: DEFAULT_SURFACE,
-  activeCanvas: null,
 })

@@ -2,26 +2,20 @@ import type { AgentSessionPort } from '@poietica/agent-protocol'
 import { defaultAcpAgent } from '@poietica/agent-registry'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectProvider } from '@poietica/agent-ui'
-import { EditorProvider } from '@poietica/editor-core/react'
 import type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
 import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { CommandPalette, useCommandKeybindings } from '@poietica/features-workspace/react'
-import { applyThemePreference, ConfirmationDialog } from '@poietica/foundations-design-system'
+import { applyThemePreference } from '@poietica/foundations-design-system'
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThreadsProvider } from '../application/ai/threads-context'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
-import type { ApplicationTerminationCoordinator } from '../application/termination/application-termination-coordinator'
 import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
 import { useWindowChrome } from './chrome/use-window-chrome'
 import { UiFeedbackRegion } from './ui/ui-feedback'
-import {
-  type AppCapabilities,
-  type WorkspaceCanvasUIPort,
-  WorkspaceContainer,
-} from './workspace/WorkspaceContainer'
+import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 /**
  * 对面那家 agent 的方言。
@@ -43,13 +37,10 @@ const DIALECT = dialectOf(defaultAcpAgent())
 export interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
-  readonly canvases: WorkspaceCanvasUIPort
-  readonly termination: ApplicationTerminationCoordinator
   readonly mainWindow: MainWindowController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
-  readonly tldrawLicenseKey: string
 }
 
 export interface AppShellProps {
@@ -88,12 +79,6 @@ export function AppShell({ runtime }: AppShellProps) {
     }
   }, [failureSnapshot.degradedFeatures])
 
-  const termination = useSyncExternalStore(
-    runtime.termination.subscribe,
-    runtime.termination.getSnapshot,
-    runtime.termination.getSnapshot,
-  )
-
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((open) => !open)
   }, [])
@@ -114,28 +99,16 @@ export function AppShell({ runtime }: AppShellProps) {
     setSettingsOpen(false)
   }, [])
 
-  const createCanvasWithFeedback = useCallback(
-    async (title: string): Promise<void> => {
-      try {
-        await runtime.canvases.create(title)
-      } catch (cause) {
-        reportFailure('CANVAS_CREATE_FAILED', {
-          scope: 'app-shell',
-          operation: 'create-canvas',
-          cause,
-        })
-      }
-    },
-    [runtime.canvases],
-  )
-
-  const requestApplicationClose = useCallback(() => {
-    runtime.termination.request('window-close')
-  }, [runtime.termination])
-
-  const requestApplicationExit = useCallback(() => {
-    runtime.termination.request('application-exit')
-  }, [runtime.termination])
+  /*
+   * 关闭窗口就是关闭窗口。
+   *
+   * 此前这里要经过一个三态终止协调器，它唯一的存在理由是「退出前确认未保存的
+   * 画布」——文档域移除之后没有任何东西需要被确认，于是那台状态机连同它的
+   * 确认弹窗一起消失，不留一个恒返回 close-now 的空壳。
+   */
+  const closeWindow = useCallback(() => {
+    void runtime.mainWindow.forceClose()
+  }, [runtime.mainWindow])
 
   const openDeveloperTools = useCallback(() => {
     if (!capabilities.developerTools) {
@@ -154,18 +127,10 @@ export function AppShell({ runtime }: AppShellProps) {
   const commandContext = useMemo<ApplicationCommandContext>(
     () => ({
       workspace: runtime.workspace,
-      canvases: runtime.canvases,
-      createCanvas: createCanvasWithFeedback,
       toggleCommandPalette,
       openAssistantSurface,
     }),
-    [
-      createCanvasWithFeedback,
-      openAssistantSurface,
-      runtime.canvases,
-      runtime.workspace,
-      toggleCommandPalette,
-    ],
+    [openAssistantSurface, runtime.workspace, toggleCommandPalette],
   )
 
   /* 依赖是具体引用，不是整个 runtime：否则任一无关字段变化都会全量重注册。 */
@@ -205,96 +170,71 @@ export function AppShell({ runtime }: AppShellProps) {
 
   useCommandKeybindings(runtime.commands)
 
-  useTerminationRequests(runtime.mainWindow, requestApplicationClose, requestApplicationExit)
-
-  const workspacePort = useMemo(
-    () => ({
-      canvases: {
-        ...runtime.canvases,
-        create: createCanvasWithFeedback,
-      },
-      workspace: runtime.workspace,
-    }),
-    [createCanvasWithFeedback, runtime.canvases, runtime.workspace],
-  )
+  useTerminationRequests(runtime.mainWindow, closeWindow)
 
   return (
     /*
      * 会话状态在这里落地，一个进程一份。
      *
-     * 它比编辑器更早、比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的
-     * 选择器读的是同一份，否则列表亮着一条而标签停在另一条。
+     * 它比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的选择器读的是
+     * 同一份，否则列表亮着一条而标签停在另一条。
      */
     <AgentDialectProvider dialect={DIALECT}>
       <ThreadsProvider>
-        <EditorProvider licenseKey={runtime.tldrawLicenseKey}>
-          <WorkspaceContainer
-            agentConfigStore={runtime.agentConfig}
-            agentSession={runtime.agentSession}
-            capabilities={capabilities}
-            isSettingsOpen={isSettingsOpen && capabilities.settings}
-            isWindowMaximized={isWindowMaximized}
-            onCommandPaletteOpen={openCommandPalette}
-            onDeveloperToolsOpen={openDeveloperTools}
-            onSettingsClose={closeSettings}
-            onSettingsOpen={openSettings}
-            onWindowClose={requestApplicationClose}
-            onWindowMaximize={maximizeWindow}
-            onWindowMinimize={minimizeWindow}
-            port={workspacePort}
-            settingsStore={runtime.settings}
-          />
+        <WorkspaceContainer
+          agentConfigStore={runtime.agentConfig}
+          agentSession={runtime.agentSession}
+          capabilities={capabilities}
+          isSettingsOpen={isSettingsOpen && capabilities.settings}
+          isWindowMaximized={isWindowMaximized}
+          onCommandPaletteOpen={openCommandPalette}
+          onDeveloperToolsOpen={openDeveloperTools}
+          onSettingsClose={closeSettings}
+          onSettingsOpen={openSettings}
+          onWindowClose={closeWindow}
+          onWindowMaximize={maximizeWindow}
+          onWindowMinimize={minimizeWindow}
+          settingsStore={runtime.settings}
+          workspace={runtime.workspace}
+        />
 
-          <CommandPalette
-            onOpenChange={setCommandPaletteOpen}
-            open={isCommandPaletteOpen}
-            registry={runtime.commands}
-          />
+        <CommandPalette
+          onOpenChange={setCommandPaletteOpen}
+          open={isCommandPaletteOpen}
+          registry={runtime.commands}
+        />
 
-          <UiFeedbackRegion />
-
-          <ConfirmationDialog
-            confirmLabel="放弃全部并退出"
-            description={
-              termination.state === 'confirmation-required'
-                ? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`
-                : ''
-            }
-            destructive
-            onCancel={runtime.termination.cancel}
-            onConfirm={runtime.termination.confirmDiscard}
-            open={termination.state === 'confirmation-required'}
-            title="退出并放弃未保存的更改？"
-          />
-        </EditorProvider>
+        <UiFeedbackRegion />
       </ThreadsProvider>
     </AgentDialectProvider>
   )
 }
 
 /*
- * 关闭按钮与托盘"退出程序"是同一件事的两个入口，因此汇入同一个协调器。
- * 托盘此前直接 app.exit(0)，绕开了未保存内容的确认。
+ * 关闭按钮与托盘"退出程序"是同一件事的两个入口，因此汇入同一个回调。
+ * 托盘此前直接 app.exit(0)，绕开了窗口自己的关闭路径。
  */
-function useTerminationRequests(
-  mainWindow: MainWindowController,
-  onCloseRequested: () => void,
-  onApplicationExit: () => void,
-): void {
+function useTerminationRequests(mainWindow: MainWindowController, onCloseRequested: () => void): void {
   useEffect(() => {
     let disposed = false
     let unsubscribe: (() => void) | undefined
     let unsubscribeTrayQuit: (() => void) | undefined
 
-    void mainWindow.onTerminationRequested(onApplicationExit).then(
-      (unsubscribe) => {
+    const track = (assign: (dispose: () => void) => void, operation: string) =>
+      (dispose: () => void) => {
         if (disposed) {
-          unsubscribe()
+          dispose()
           return
         }
 
-        unsubscribeTrayQuit = unsubscribe
-      },
+        assign(dispose)
+        void operation
+      }
+
+    void mainWindow.onTerminationRequested(onCloseRequested).then(
+      track((dispose) => {
+        unsubscribeTrayQuit = dispose
+      }, 'register-tray-quit-listener'),
       (cause: unknown) => {
         if (!disposed) {
           reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
@@ -307,14 +247,9 @@ function useTerminationRequests(
     )
 
     void mainWindow.onCloseRequested(onCloseRequested).then(
-      (nextUnsubscribe) => {
-        if (disposed) {
-          nextUnsubscribe()
-          return
-        }
-
-        unsubscribe = nextUnsubscribe
-      },
+      track((dispose) => {
+        unsubscribe = dispose
+      }, 'register-close-listener'),
       (cause: unknown) => {
         if (!disposed) {
           reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
@@ -331,5 +266,5 @@ function useTerminationRequests(
       unsubscribe?.()
       unsubscribeTrayQuit?.()
     }
-  }, [mainWindow, onCloseRequested, onApplicationExit])
+  }, [mainWindow, onCloseRequested])
 }

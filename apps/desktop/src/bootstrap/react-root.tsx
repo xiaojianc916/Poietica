@@ -14,9 +14,7 @@ export function mountReactApplication(container: HTMLElement): MountedReactAppli
   let runtime: ReturnType<typeof createApplicationRuntime>
 
   try {
-    runtime = createApplicationRuntime({
-      tldrawLicenseKey: readTldrawLicenseKey(),
-    })
+    runtime = createApplicationRuntime()
   } catch (error: unknown) {
     reportFatalIncident({
       impact: 'application-fatal',
@@ -50,14 +48,4 @@ export function mountReactApplication(container: HTMLElement): MountedReactAppli
       await runtime.dispose()
     },
   }
-}
-
-function readTldrawLicenseKey(): string {
-  const licenseKey = import.meta.env.VITE_TLDRAW_LICENSE_KEY?.trim()
-
-  if (!licenseKey) {
-    throw new Error('Required tldraw license configuration is missing.')
-  }
-
-  return licenseKey
 }

@@ -4,21 +4,18 @@ export type {
   UICommandHandler,
 } from './command-contract'
 export type {
-  CanvasPageViewModel,
   WorkspaceChromeRenderProps,
   WorkspaceShellActions,
   WorkspaceShellProps,
 } from './shell-contract'
 export type { WorkspaceSurfaceRenderers } from './surface-contract'
 export {
-  type ActiveCanvasViewModel,
-  type CanvasId,
-  type CanvasSessionId,
-  type CanvasTabStatus,
-  type CanvasTabViewModel,
+  type ActiveConversationViewModel,
   CONVERSATION_ENTRY_TITLE,
-  type CreateCanvasRequest,
+  type ConversationId,
+  type ConversationTabViewModel,
   EMPTY_WORKBENCH_VIEW_MODEL,
+  type OpenConversationRequest,
   type OpenWorkspaceSurfaceRequest,
   type WorkbenchSessionCommands,
   type WorkbenchSessionStore,

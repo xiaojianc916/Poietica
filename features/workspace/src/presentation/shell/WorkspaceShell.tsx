@@ -4,9 +4,6 @@ import type {
 } from '@poietica/features-workspace/contracts'
 import { TooltipProvider } from '@poietica/foundations-design-system'
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
-import { InspectorHost } from '../inspector/InspectorHost'
-import { StatusBarHost } from '../status/StatusBarHost'
-import { InspectorRegion } from './InspectorRegion'
 import { SidebarRegion } from './SidebarRegion'
 import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
@@ -31,9 +28,6 @@ export function WorkspaceShell({
   actions,
   renderChrome,
   mainContent,
-  inspector,
-  inspectorAvailable,
-  statusContent,
   assistantOverlay,
   overlays,
 }: WorkspaceShellProps) {
@@ -41,13 +35,20 @@ export function WorkspaceShell({
 
   const { sidebarOpen, sidebarWidth, inspectorOpen, isResizing } = useWorkspaceLayoutState()
 
-  const { setSidebarOpen, setSidebarWidth, setInspectorOpen } = workspaceLayoutStore
+  const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
+
+  /*
+   * 「新建对话」是同一个入口的三个按钮共用的那一次派生：标签条的加号、
+   * 侧栏导航的那一行、会话列表的加号。侧栏那两处额外把侧栏展开，因为它们
+   * 本来就在侧栏里，标签条上的加号不该动侧栏。
+   */
+  const openConversationEntry = () => {
+    actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
+  }
 
   const activeNavigationId = resolveNavigationId(model.activeSurface)
 
-  const hasCanvas = model.activeSurface.kind === 'canvas'
   const dockSidebar = mode !== 'narrow' && sidebarOpen
-  const dockInspector = inspectorAvailable && inspectorOpen && hasCanvas
 
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
@@ -86,21 +87,15 @@ export function WorkspaceShell({
               onActivateTab: actions.activateTab,
               onCloseTab: actions.closeTab,
               onMoveTab: actions.moveTab,
-              onCreateCanvas: actions.createCanvas,
+              onCreateConversation: openConversationEntry,
             })}
           </header>
         }
         disableLayoutAnimation={isResizing}
-        hasStatusBar={hasCanvas}
-        inspector={
-          hasCanvas && inspectorAvailable ? (
-            <InspectorRegion isDocked={dockInspector} onOpenChange={setInspectorOpen}>
-              <InspectorHost>{inspector}</InspectorHost>
-            </InspectorRegion>
-          ) : null
-        }
-        inspectorColumnWidth={dockInspector ? WORKSPACE_LAYOUT.inspector.width : 0}
-        isInspectorDocked={dockInspector}
+        hasStatusBar={false}
+        inspector={null}
+        inspectorColumnWidth={0}
+        isInspectorDocked={false}
         isSidebarDocked={dockSidebar}
         overlays={
           <>
@@ -122,7 +117,7 @@ export function WorkspaceShell({
               <WorkspaceSidebar
                 activeNavigationId={activeNavigationId}
                 onCreateConversation={() => {
-                  actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
+                  openConversationEntry()
                   setSidebarOpen(true)
                 }}
                 onDeveloperToolsOpen={actions.openDeveloperTools}
@@ -137,13 +132,7 @@ export function WorkspaceShell({
           </SidebarRegion>
         }
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
-        statusBar={
-          hasCanvas ? (
-            <div className="workspace-shell__status relative z-10 min-w-0 border-r border-divider bg-background">
-              <StatusBarHost>{statusContent}</StatusBarHost>
-            </div>
-          ) : null
-        }
+        statusBar={null}
       />
     </TooltipProvider>
   )
@@ -152,27 +141,10 @@ export function WorkspaceShell({
 /**
  * 当前高亮的导航项。
  *
- * switch 穷尽三种表面形态，没有兜底值：画布态返回 null，因为画布是文档而不是
- * 导航目的地，此时任何导航项都不该亮。此前这里在非工作区表面时兜底成 'pages'，
- * 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。
+ * 对话不是导航目的地：「新建对话」是入口——按下去开一条新会话，它自己不
+ * 驻留；一条已有会话是目的地，高亮属于左侧会话列表里的那一行。此前这里返回
+ * 'ai'，于是停在某条会话上时「新建对话」也亮着，两处同时高亮就是这么来的。
  */
 function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceSurfaceId | null {
-  /*
-   * 对话不是导航目的地。
-   *
-   * 「新建对话」是入口——按下去开一条新会话，它自己不驻留；一条已有会话
-   * 是目的地，高亮属于左侧会话列表里的那一行。此前这里返回 'ai'，于是停在
-   * 某条会话上时「新建对话」也亮着，两处同时高亮就是这么来的。
-   */
-  if (surface.kind === 'conversation') {
-    return null
-  }
-
-  switch (surface.kind) {
-    case 'workspace':
-      return surface.surfaceId
-
-    case 'canvas':
-      return null
-  }
+  return surface.kind === 'workspace' ? surface.surfaceId : null
 }
