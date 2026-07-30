@@ -134,7 +134,7 @@
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-mode-pill__clear svg {
+[data-assistant-skin] .assistant-mode-pill__clear svg {
   block-size: 70%;
   inline-size: 70%;
   stroke-width: 2.5;

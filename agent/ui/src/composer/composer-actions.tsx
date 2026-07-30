@@ -40,7 +40,14 @@ import { usePromptInput } from './prompt-input'
  * 选中、Esc 逐级关闭、焦点归还。这里只给皮肤与几何。
  */
 
-type Glyph = ComponentType<SVGProps<SVGSVGElement>>
+/** 图标槽位只需要这两个属性；用 SVGProps<SVGSVGElement> 会在
+ *  exactOptionalPropertyTypes 下与图标库的 props 逆变冲突。 */
+type GlyphProps = {
+  'aria-hidden'?: 'true'
+  className?: string
+}
+
+type Glyph = ComponentType<GlyphProps>
 
 /*
  * 模式的字形。
@@ -99,7 +106,10 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
             <DropdownMenuRadioGroup
               className="assistant-plus-menu__group"
               onValueChange={(value) => {
-                if (value !== mode.current) onSelectControl(mode.id, value)
+                if (value === mode.current) {
+                  return
+                }
+                onSelectControl(mode.id, value)
               }}
               value={mode.current}
             >
@@ -123,7 +133,7 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
             </DropdownMenuRadioGroup>
           )}
 
-          <div className="assistant-plus-menu__group" role="group">
+          <div className="assistant-plus-menu__group">
             <DropdownMenuItem className="assistant-plus-menu__item" onClick={openFilePicker}>
               <AttachIcon aria-hidden="true" />
 
@@ -149,7 +159,10 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
                   <DropdownMenuRadioGroup
                     className="assistant-plus-menu__group"
                     onValueChange={(value) => {
-                      if (value !== control.current) onSelectControl(control.id, value)
+                      if (value === control.current) {
+                        return
+                      }
+                      onSelectControl(control.id, value)
                     }}
                     value={control.current}
                   >
