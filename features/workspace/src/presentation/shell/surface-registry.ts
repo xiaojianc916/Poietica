@@ -59,11 +59,6 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
     description: '管理内置工具、Skill 与 MCP 服务器。',
     icon: Box,
   },
-  tools: {
-    title: 'Tool',
-    description: '管理内置工具、Skill 与 MCP 服务器。',
-    icon: Box,
-  },
   assets: {
     title: '素材',
     description: '统一管理图片、附件和可复用素材。',

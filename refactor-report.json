@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-07-30T04:44:41.258Z",
-  "scannedFiles": 645,
+  "generatedAt": "2026-07-30T04:52:44.424Z",
+  "scannedFiles": 646,
   "matchedFiles": 103,
-  "totalMatches": 823,
+  "totalMatches": 824,
   "byArea": {
     "apps": 244,
     "editor": 216,
-    "features": 225,
+    "features": 226,
     "tests": 34,
     "agent": 33,
     "AGENTS.md": 15,
@@ -3126,33 +3126,6 @@
       ]
     },
     {
-      "file": "features/workspace/src/presentation/shell/workbench-tabs/WorkbenchTab.tsx",
-      "area": "features",
-      "count": 5,
-      "lines": [
-        {
-          "line": 5,
-          "text": "import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'"
-        },
-        {
-          "line": 151,
-          "text": "const status = model.kind === 'canvas' ? model.status : 'clean'"
-        },
-        {
-          "line": 206,
-          "text": "/* 与侧栏「画布」同一个图标：用户点进来的入口和留下的标签必须看起来是一回事。 */"
-        },
-        {
-          "line": 208,
-          "text": "return CANVAS_START_DESCRIPTOR.icon"
-        },
-        {
-          "line": 211,
-          "text": "if (model.kind === 'canvas') {"
-        }
-      ]
-    },
-    {
       "file": "tests/desktop-e2e/release-checklist.md",
       "area": "tests",
       "count": 5,
@@ -3295,6 +3268,29 @@
       ]
     },
     {
+      "file": "features/workspace/src/presentation/shell/workbench-tabs/WorkbenchTab.tsx",
+      "area": "features",
+      "count": 4,
+      "lines": [
+        {
+          "line": 151,
+          "text": "const status = model.kind === 'canvas' ? model.status : 'clean'"
+        },
+        {
+          "line": 207,
+          "text": "* 画布槽已无导航入口：start 空态与 canvas 文档是同一个槽的两种状态，图标"
+        },
+        {
+          "line": 208,
+          "text": "* 因此只有一个文档字形。这两种标签形态在画布移除的下一步整体删除，届时"
+        },
+        {
+          "line": 211,
+          "text": "if (model.kind === 'start' || model.kind === 'canvas') {"
+        }
+      ]
+    },
+    {
       "file": "apps/desktop/src-tauri/src/commands/document.rs",
       "area": "apps",
       "count": 3,
@@ -3386,6 +3382,25 @@
         {
           "line": 230,
           "text": "let destination = parent_file.join(\"canvas.draw\");"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/surface-registry.test.ts",
+      "area": "features",
+      "count": 3,
+      "lines": [
+        {
+          "line": 33,
+          "text": "it('不包含已废弃的 data / pages / canvas-start 表面', () => {"
+        },
+        {
+          "line": 39,
+          "text": "/* 画布已移出产品：导航项与表面是同一个概念，不存在第二种导航 ID。 */"
+        },
+        {
+          "line": 40,
+          "text": "expect(keys).not.toContain('canvas-start')"
         }
       ]
     },
@@ -3906,17 +3921,6 @@
         {
           "line": 31,
           "text": "className=\"relative grid h-full place-items-center overflow-hidden bg-canvas px-8\""
-        }
-      ]
-    },
-    {
-      "file": "features/workspace/src/presentation/shell/surface-registry.test.ts",
-      "area": "features",
-      "count": 1,
-      "lines": [
-        {
-          "line": 52,
-          "text": "/* 画布不是 surface：它是被文档占据的那一格，空态是一等的 start 标签。 */"
         }
       ]
     },
