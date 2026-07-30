@@ -35,6 +35,11 @@ export interface AgentCliInvocation {
    * loopback 服务上，并把官方的 --url 指过去 —— 整条写入因此不碰外网。不含密钥。
    */
   readonly catalogDocument?: string
+  /**
+   * 读这个 agent 的用户全局 home 而不是受控 home。只为一次性导入的只读探测
+   * （provider list）使用；原生侧会拒掉任何带着它的写操作。
+   */
+  readonly useGlobalHome?: boolean
 }
 
 export interface AgentCliOutcome {

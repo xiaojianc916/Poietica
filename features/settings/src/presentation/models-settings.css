@@ -23,6 +23,17 @@
   gap: 20px;
 }
 
+.models-noticebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.models-noticebar .models-link {
+  margin: 0;
+}
+
 .models-notice {
   margin: 0;
   padding: 10px 12px;
@@ -287,24 +298,7 @@
   padding-block-start: 8px;
 }
 
-.models-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.models-field strong {
-  color: var(--ui-foreground);
-  font-size: 13px;
-  font-weight: 550;
-}
-
-.models-field p {
-  margin: 0 0 4px;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.45;
-}
+/* .models-field 随 Google KeyField 一起删了：它的唯一使用者已经不在。 */
 
 /* 行内动作按钮。高度与圆角对齐 .models-input，同一行里两者不该差一个像素。 */
 

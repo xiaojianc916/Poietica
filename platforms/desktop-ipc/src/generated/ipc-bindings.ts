@@ -416,7 +416,12 @@ secretValue: string;
  * api.json 形状的目录文档：只在 catalog add 时携带。它会被绑在一次性
  * loopback 服务上，经官方 --url 喂给对方的目录命令。
  */
-catalogDocument?: string | null }
+catalogDocument?: string | null; 
+/**
+ * 读用户全局 home 而不是受控 home。只为一次性导入的只读探测（provider
+ * list）使用；validate 会拒掉任何带着它的写操作。
+ */
+useGlobalHome?: boolean }
 export type AgentCliResult = { 
 /**
  * 进程退出码。被信号终止时为 -1。

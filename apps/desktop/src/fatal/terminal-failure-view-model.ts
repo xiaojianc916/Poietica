@@ -97,7 +97,6 @@ function createPrimaryAction(
     case 'retry':
     case 'dismiss':
     case 'disable-feature':
-    case 'close-document':
       return null
   }
 }

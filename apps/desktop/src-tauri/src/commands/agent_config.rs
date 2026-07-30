@@ -122,6 +122,26 @@ fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
 ///
 /// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
+    launch_env_inner(app, agent_id, true)
+}
+
+/// 用户全局 home 的启动环境：不设受控 home 变量，其余与 `launch_env` 相同。
+///
+/// 只为一次性导入的只读探测服务：让 provider list 读到用户全局的配置，而不是
+/// 受控 home 里的那一份。写入不走这里 —— 没有什么该写进全局 home 的东西。
+///
+/// # Errors
+///
+/// store 无法打开或档案不存在时返回错误。
+pub fn global_launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
+    launch_env_inner(app, agent_id, false)
+}
+
+fn launch_env_inner(
+    app: &AppHandle,
+    agent_id: &str,
+    controlled_home: bool,
+) -> Result<Vec<(String, String)>> {
     let (config, _issues) = read_config(app)?;
 
     let found = config
@@ -135,7 +155,7 @@ pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String
     // create_dir_all 出来的。
     let mut env = declared_env_of(found);
 
-    if let Some(home_var) = home_var_of(found) {
+    if controlled_home && let Some(home_var) = home_var_of(found) {
         let home = agent_home(app, agent_id)?;
         let _replaced = env.insert(home_var, home.to_string_lossy().into_owned());
     }

@@ -1,9 +1,11 @@
 import {
   type AcpAgentProfile,
   type AgentModelState,
+  type AgentProviderSnapshot,
   acpAgents,
   builtinAgentProviders,
   defaultAcpAgent,
+  parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
@@ -83,7 +85,9 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [agentError, setAgentError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
-  const [googleKey, setGoogleKey] = useState('')
+  const [probing, setProbing] = useState(false)
+  const [globalSnapshot, setGlobalSnapshot] = useState<AgentProviderSnapshot | undefined>(undefined)
+  const [globalNote, setGlobalNote] = useState<string | null>(null)
 
   const providers = useAgentProviders(store, agentId)
 
@@ -96,6 +100,67 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const registryKeyVar = useMemo(() => {
     return profiles.find((profile) => profile.id === agentId)?.registryKeyVar
   }, [agentId, profiles])
+
+  /* 厂商卡的候选需要知道「这家在 agent 里配过没有」。按 id 索引一次，三张卡各取一条。 */
+  const configuredByProvider = useMemo(() => {
+    const index = new Map<string, AgentProviderSnapshot['providers'][number]>()
+
+    for (const provider of providers.snapshot?.providers ?? []) {
+      index.set(provider.id, provider)
+    }
+
+    return index
+  }, [providers.snapshot])
+
+  /*
+   * 一次性导入的探测半：对用户全局 home 跑一次只读的 provider list。
+   *
+   * 只读，所以只识别，不复制：已存密钥的字节只在全局配置里，而官方管线没有任何一个
+   * 出口会把它交出来（--json 脱敏、catalog add 只认 --api-key / 环境变量）。真「一键
+   * 复制」就得读对方的私有配置文件，那是另一条铁律禁止的事 —— 指出来，密钥再贴一次。
+   */
+  const probeGlobalHome = useCallback(() => {
+    if (probing) {
+      return
+    }
+
+    setProbing(true)
+
+    void store
+      .execCli({
+        agentId,
+        args: ['provider', 'list', '--json'],
+        secretVar: '',
+        secretValue: '',
+        useGlobalHome: true,
+      })
+      .then(
+        (outcome) => {
+          setProbing(false)
+
+          if (outcome.status !== 0) {
+            setGlobalSnapshot(undefined)
+            setGlobalNote('读取全局配置失败。')
+            return
+          }
+
+          const snapshot = parseAgentProviderListOutput(outcome.stdout)
+          const usable = snapshot.providers.filter((provider) => !provider.synthetic)
+
+          setGlobalSnapshot(usable.length > 0 ? { ...snapshot, providers: usable } : undefined)
+          setGlobalNote(
+            usable.length > 0
+              ? null
+              : '全局配置里没有可识别的 provider（OAuth 登录的账号不在其中）。',
+          )
+        },
+        () => {
+          setProbing(false)
+          setGlobalSnapshot(undefined)
+          setGlobalNote('读取全局配置失败。')
+        },
+      )
+  }, [agentId, probing, store])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -216,10 +281,31 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
   return (
     <section className="models-page">
-      <p className="models-notice">
-        模型清单来自所选 agent 自己的配置，Poietica
-        不保存第二份。填密钥时，模型名从内置清单里选，不用手打。
-      </p>
+      <div className="models-noticebar">
+        <p className="models-notice">
+          模型清单来自所选 agent 自己的配置，Poietica
+          不保存第二份。填密钥时，模型名从内置清单里选，不用手打。
+        </p>
+
+        <button className="models-link" disabled={probing} onClick={probeGlobalHome} type="button">
+          {probing ? '正在读取…' : '导入我在官方 CLI 里已配置的内容'}
+        </button>
+      </div>
+
+      {globalNote !== null ? <p className="models-empty">{globalNote}</p> : null}
+
+      {globalSnapshot !== undefined ? (
+        <p className="models-notice">
+          在你电脑的全局配置里发现：
+          {globalSnapshot.providers
+            .map((provider) => {
+              const state = provider.configured ? '已配置密钥' : '未配置密钥'
+              return `${provider.id}（${provider.models.length} 个模型，${state}）`
+            })
+            .join('；')}
+          。在下方对应的厂商卡里重新填入密钥即可接入，密钥只经环境变量交给 agent，不会被读取或复制。
+        </p>
+      ) : null}
 
       <div className="models-block">
         <span className="models-block__label">智能体</span>
@@ -259,7 +345,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
           />
 
           <button
-            aria-label="重新向 agent 询问模型清单"
+            aria-label="重新读取模型清单"
             className="models-icon-button"
             onClick={providers.reload}
             type="button"
@@ -299,6 +385,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
           {BUILTIN_PROVIDERS.map((preset) => (
             <ProviderKeyCard
               agentId={agentId}
+              configured={configuredByProvider.get(preset.id)}
               key={preset.id}
               onSaved={providers.reload}
               provider={preset}
@@ -306,14 +393,6 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
               store={store}
             />
           ))}
-
-          <KeyField
-            description="填入你的 Google AI Studio 密钥，按用量直接计费。"
-            label="Google API 密钥"
-            onChange={setGoogleKey}
-            placeholder="输入 Google AI Studio API 密钥"
-            value={googleKey}
-          />
         </div>
       </details>
     </section>
@@ -358,36 +437,10 @@ function describeModel(model: AgentModelState): string {
   return parts.join(' · ')
 }
 
-interface KeyFieldProps {
-  readonly label: string
-  readonly description: string
-  readonly placeholder: string
-  readonly value: string
-  readonly onChange: (value: string) => void
-}
-
-function KeyField({ label, description, placeholder, value, onChange }: KeyFieldProps) {
-  return (
-    <div className="models-field">
-      <strong>{label}</strong>
-      <p>{description}</p>
-
-      <input
-        aria-label={label}
-        autoComplete="off"
-        className="models-input"
-        onChange={(event) => {
-          onChange(event.target.value)
-        }}
-        placeholder={placeholder}
-        type="password"
-        value={value}
-      />
-    </div>
-  )
-}
-
-/* SubField 曾在这里。厂商卡也要用它，所以搬到 models-fields.tsx，两处共用一份。 */
+/* KeyField 曾在这里。Google 那一格自始至终没有出口 —— 填了之后没有任何一处代码会
+ * 把它交给任何人。死界面不留。
+ *
+ * SubField 曾在这里。厂商卡也要用它，所以搬到 models-fields.tsx，两处共用一份。 */
 
 /* describeAgentError 曾在这里。它与 useAgentProviders 里那一份是同一件事，两份都进了
  * agentCliText.ts —— 兜底文案由调用方给，因为「读不到档案」与「问不到模型」该说的不是

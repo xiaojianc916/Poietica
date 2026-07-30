@@ -40,6 +40,7 @@ export type {
 } from './builtin-provider-catalog'
 export {
   agentProviderCatalogDocument,
+  agentProviderModelOptions,
   builtinAgentProviderById,
   builtinAgentProviders,
 } from './builtin-provider-catalog'

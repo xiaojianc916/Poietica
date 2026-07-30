@@ -14,6 +14,8 @@ export interface AgentCliRequest {
    * 原生侧把它绑在一次性 loopback 服务上，经官方 --url 喂给对方的目录命令。
    */
   readonly catalogDocument?: string
+  /** 读用户全局 home 而不是受控 home。只为一次性导入的只读探测使用。 */
+  readonly useGlobalHome?: boolean
 }
 
 export interface AgentCliResult {

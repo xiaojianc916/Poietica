@@ -1,3 +1,5 @@
+import type { AgentProviderState } from './agent-provider-state'
+
 /*
  * 内置厂商清单。
  *
@@ -165,4 +167,46 @@ export function agentProviderCatalogDocument(presets: readonly AgentProviderPres
   }
 
   return JSON.stringify(catalog)
+}
+
+/*
+ * 剥掉别名的 provider/ 前缀。--default-model 只认裸模型 id：对方的校验名单是
+ * catalogProviderModels，里面的 id 没有前缀。别名取不到前缀时原样用。
+ */
+function bareModelId(alias: string, providerId: string): string {
+  const prefix = `${providerId}/`
+
+  return alias.startsWith(prefix) ? alias.slice(prefix.length) : alias
+}
+
+/*
+ * 一张厂商卡的模型下拉选项。
+ *
+ * 候选的产地按优先级只有一个答案：这家已经在 agent 里配过，就以 provider list 的
+ * 快照为准 —— 那是 agent 此刻的真实配置；否则用内置表兜底。两边都只给 [id, 显示名]：
+ * id 原样交给 --default-model 校验，显示名给人看。
+ */
+export function agentProviderModelOptions(
+  preset: AgentProviderPreset,
+  configured: AgentProviderState | undefined,
+): readonly (readonly [string, string])[] {
+  const source =
+    configured !== undefined && configured.models.length > 0
+      ? configured.models.map(
+          (model) => [bareModelId(model.alias, configured.id), model.displayName] as const,
+        )
+      : preset.models.map((model) => [model.id, model.displayName] as const)
+
+  /* 同一家配两次（先内置目录、后自定义注册表）会留下重复别名，去重而不是让下拉出现两行一样的。 */
+  const seen = new Set<string>()
+  const options: Array<readonly [string, string]> = []
+
+  for (const option of source) {
+    if (!seen.has(option[0])) {
+      seen.add(option[0])
+      options.push(option)
+    }
+  }
+
+  return options
 }

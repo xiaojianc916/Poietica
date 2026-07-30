@@ -16,7 +16,7 @@
 //! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
 //! 现算，不是用户输入；文档里没有密钥。
 
-use crate::commands::agent_config::{agent_program, launch_env};
+use crate::commands::agent_config::{agent_program, global_launch_env, launch_env};
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,10 @@ pub struct AgentCliRequest {
     /// loopback 服务上，经官方 --url 喂给对方的目录命令。
     #[serde(default)]
     pub catalog_document: Option<String>,
+    /// 读用户全局 home 而不是受控 home。只为一次性导入的只读探测（provider
+    /// list）使用；validate 会拒掉任何带着它的写操作。
+    #[serde(default)]
+    pub use_global_home: bool,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
     // 路径过来，就等于给了两条管线各算出不同目录的自由。
@@ -165,6 +169,14 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
         ));
     }
 
+    // 全局 home 只给一次性导入的只读探测用。带着它做任何别的操作一律拒绝 ——
+    // 往全局 home 写入不在任何一条已批准的管线上。
+    if request.use_global_home && request.args.get(1).map(String::as_str) != Some("list") {
+        return Err(Error::AgentCli(
+            "用户全局 home 只允许只读的 provider list".to_owned(),
+        ));
+    }
+
     if let Some(document) = &request.catalog_document {
         let is_catalog_add = request.args.get(1).map(String::as_str) == Some("catalog")
             && request.args.get(2).map(String::as_str) == Some("add");
@@ -207,7 +219,12 @@ pub async fn agent_cli_exec(
     let program = agent_program(&app, &request.agent_id).map_err(IpcError::from)?;
     validate_program(&program).map_err(IpcError::from)?;
 
-    let env = launch_env(&app, &request.agent_id).map_err(IpcError::from)?;
+    let env = if request.use_global_home {
+        global_launch_env(&app, &request.agent_id)
+    } else {
+        launch_env(&app, &request.agent_id)
+    }
+    .map_err(IpcError::from)?;
 
     // 裸名字不是一条可启动的路径：Windows 上包管理器装出来的是 kimi.CMD，
     // CreateProcess 只补 .exe、不读 PATHEXT，于是 Command::new("kimi") 直接

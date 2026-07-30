@@ -1,7 +1,9 @@
 import {
   type AgentProviderPreset,
+  type AgentProviderState,
   agentProviderCatalogAddArgs,
   agentProviderCatalogDocument,
+  agentProviderModelOptions,
 } from '@poietica/agent-registry'
 import { InlineSpinner, Switch } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -34,7 +36,7 @@ import { OptionSelect, SubField } from './models-fields'
  * 多久算「慢」。到点不停动画 —— 停下来才是撒谎的那一半：写入其实还在跑，界面却说完了 ——
  * 而是多说一句实话。
  *
- * 这一次往返要起一个 Node 进程跑 agent 的 provider catalog add，进程启动加一次联网核对，
+ * 这一次往返要起一个 Node 进程跑 agent 的 provider catalog add，进程启动是它的大头，
  * 正常几秒；到 8 秒还没回来，用户有权知道它卡在哪一步。
  */
 const SLOW_WRITE_MS = 8000
@@ -45,6 +47,8 @@ export interface ProviderKeyCardProps {
   readonly provider: AgentProviderPreset
   /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
   readonly registryKeyVar: string | undefined
+  /** 这家在 agent 里已配置的条目。在场时模型候选以它为准，内置表退为兜底。 */
+  readonly configured: AgentProviderState | undefined
   readonly onSaved: () => void
 }
 
@@ -53,6 +57,7 @@ export function ProviderKeyCard({
   agentId,
   provider,
   registryKeyVar,
+  configured,
   onSaved,
 }: ProviderKeyCardProps) {
   const [enabled, setEnabled] = useState(false)
@@ -97,8 +102,8 @@ export function ProviderKeyCard({
   }, [busy])
 
   const options = useMemo<readonly (readonly [string, string])[]>(() => {
-    return provider.models.map((model) => [model.id, model.displayName] as const)
-  }, [provider.models])
+    return agentProviderModelOptions(provider, configured)
+  }, [provider, configured])
 
   /*
    * 下拉的值必须是选项之一，否则触发器会显示空白。换厂商之后上一家的 modelId 不再在
@@ -205,7 +210,7 @@ export function ProviderKeyCard({
           {message !== null ? <p className="models-empty">{message}</p> : null}
 
           {busy && waited ? (
-            <p className="models-empty">还在等 agent 回应，它可能正在联网核对清单。</p>
+            <p className="models-empty">还在等 agent 回应，正在等它写完配置。</p>
           ) : null}
 
           {options.length > 0 ? (

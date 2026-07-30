@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { agentProviderCatalogDocument, builtinAgentProviders } from '../builtin-provider-catalog'
+import type { AgentProviderState } from '../agent-provider-state'
+import {
+  agentProviderCatalogDocument,
+  agentProviderModelOptions,
+  builtinAgentProviderById,
+  builtinAgentProviders,
+} from '../builtin-provider-catalog'
 
 /*
  * 内置表喂给对方目录命令时必须具备的形状。
@@ -71,5 +77,60 @@ describe('agentProviderCatalogDocument', () => {
         ).toBe(true)
       }
     }
+  })
+})
+
+describe('agentProviderModelOptions', () => {
+  const deepseek = builtinAgentProviderById('deepseek')
+
+  if (deepseek === undefined) {
+    throw new Error('内置表缺 deepseek')
+  }
+
+  const configured: AgentProviderState = {
+    id: 'deepseek',
+    type: 'openai',
+    baseUrl: 'https://api.deepseek.com',
+    configured: true,
+    credentialKind: 'apiKey',
+    registryUrl: undefined,
+    synthetic: false,
+    models: [
+      {
+        alias: 'deepseek/deepseek-v4-flash',
+        displayName: 'DeepSeek V4 Flash',
+        providerId: 'deepseek',
+        maxContextSize: 1000000,
+        capabilities: [],
+        supportEfforts: [],
+      },
+      {
+        alias: 'deepseek/deepseek-v4-flash',
+        displayName: 'DeepSeek V4 Flash（重复）',
+        providerId: 'deepseek',
+        maxContextSize: 1000000,
+        capabilities: [],
+        supportEfforts: [],
+      },
+    ],
+  }
+
+  it('没配过时用内置表，值是裸模型 id', () => {
+    const options = agentProviderModelOptions(deepseek, undefined)
+
+    expect(options.map(([id]) => id)).toEqual(deepseek.models.map((model) => model.id))
+  })
+
+  it('配过之后以快照为准，值剥掉 provider 前缀', () => {
+    const options = agentProviderModelOptions(deepseek, configured)
+
+    expect(options[0]?.[0]).toBe('deepseek-v4-flash')
+    expect(options[0]?.[1]).toBe('DeepSeek V4 Flash')
+  })
+
+  it('同一家配两次留下的重复别名只出现一次', () => {
+    const options = agentProviderModelOptions(deepseek, configured)
+
+    expect(options.filter(([id]) => id === 'deepseek-v4-flash')).toHaveLength(1)
   })
 })
