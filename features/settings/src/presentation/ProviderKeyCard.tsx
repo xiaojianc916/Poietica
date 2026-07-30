@@ -190,9 +190,7 @@ export function ProviderKeyCard({
           </div>
 
           <div className="models-row models-row--field">
-            <span className="models-row__name">
-              接口地址 {provider.baseUrl} · 密钥经环境变量交给 agent，不经命令行、不落盘
-            </span>
+            <span className="models-row__name">接口地址 {provider.baseUrl}</span>
 
             <div className="models-row__control">
               <button
