@@ -165,10 +165,13 @@ function nativeLaunch(launch: AgentLaunchDescription): {
 /**
  * The command half of the port.
  *
- * Cancellation ignores the run identifier because a session runs one turn at a
- * time, so there is exactly one turn to stop. Answering a permission request
- * is checked natively: an answer naming an option the agent never offered is
- * refused rather than acted on.
+ * Cancellation names the run it stops. 「一条会话同时只飞一轮」曾经被当成
+ * 不必点名的理由，可地址要区分的从来不是同一条会话上的两轮，而是同一条连接
+ * 上的两条会话：在 A 里按停止，停掉的是此刻在飞的 B。原生侧按 runId 查出它
+ * 属于哪条会话，再把取消发给那一条。
+ *
+ * Answering a permission request is checked natively: an answer naming an
+ * option the agent never offered is refused rather than acted on.
  */
 export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): AgentCommandBridge {
   return {
@@ -185,8 +188,8 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
       return { runId: result.runId, sessionId: result.sessionId }
     },
 
-    cancel: async (_runId) => {
-      await call(() => commands.agentCancel())
+    cancel: async (runId) => {
+      await call(() => commands.agentCancel({ runId }))
     },
 
     resolvePermission: async (requestId, optionId) => {

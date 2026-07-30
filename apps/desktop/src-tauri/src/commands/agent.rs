@@ -15,7 +15,7 @@
 //! against the options the agent actually offered before anything is recorded
 //! or sent.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
@@ -55,6 +55,11 @@ const NO_READ: &str = "the log read did not finish";
 /// 上，于是这一轮被记进了一条屏幕上不存在的对话。在唯一能验证它的地方拒绝它，
 /// 与下面 conversation() 拒绝一个非 UUID 的名字是同一件事。
 const NO_CONVERSATION: &str = "no conversation was named";
+
+/// 要停的那一轮已经不在飞了。
+///
+/// 这不是兜底：一轮结束就把地址删掉，所以查不到恰好是「没有什么可停的」。
+const NO_TURN: &str = "that turn is not running";
 
 /// How many turns a conversation opens with.
 ///
@@ -103,6 +108,12 @@ pub struct AgentRuntime {
     /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
     /// 的会话号。库里存着的那一个因此不是主键而是缓存，寻址之前必须先问这里。
     live: Mutex<HashSet<String>>,
+    /// 每一轮飞在哪条会话上。
+    ///
+    /// 取消要点名一条会话，而界面手里只有 runId —— 它拿到的就是这个。这张
+    /// 表是两者之间唯一的对应关系：一轮开始时写入，结束时删除。Arc 是因为
+    /// 删除发生在那一轮自己的任务里，而托管状态借不进 'static。
+    turns: Arc<Mutex<HashMap<String, String>>>,
     /// The one connection to the encrypted log, opened on first use.
     ///
     /// Every command used to open one of its own: a credential store
@@ -137,6 +148,7 @@ impl AgentRuntime {
             desk: PermissionDesk::new(),
             session: Mutex::new(None),
             live: Mutex::new(HashSet::new()),
+            turns: Arc::new(Mutex::new(HashMap::new())),
             store: OnceLock::new(),
         })
     }
@@ -294,6 +306,14 @@ pub async fn agent_prompt(
         .prompt(addressed.clone(), text, recorder)
         .map_err(translate)?;
 
+    /* 这一轮的地址。取消点名一条会话，而界面手里只有 runId。 */
+    let run = run_id.to_string();
+    let turns = Arc::clone(&state.turns);
+
+    open_turn(&turns, &run, &addressed)?;
+
+    let ended = run.clone();
+
     async_runtime::spawn(async move {
         match answer.await {
             // A turn that ends without a word looks, from the outside, exactly
@@ -306,10 +326,13 @@ pub async fn agent_prompt(
             Ok(Err(error)) => log::error!("the agent turn failed: {error}"),
             Err(_dropped) => log::warn!("the agent turn ended without an answer"),
         }
+
+        /* 停一个已经停了的东西，应该找不到。 */
+        close_turn(&turns, &ended);
     });
 
     Ok(AgentPromptResult {
-        run_id: run_id.to_string(),
+        run_id: run,
         session_id: addressed,
     })
 }
@@ -336,23 +359,41 @@ pub fn agent_resolve_permission(
     Ok(())
 }
 
-/// Asks the agent to stop the turn that is in flight.
+/// 要停的那一轮。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCancelRequest {
+    /// The run to stop.
+    pub run_id: String,
+}
+
+/// Asks the agent to stop one turn.
+///
+/// 取消点名一轮。ACP 的取消是发给一条会话的，而一条连接上同时有多条会话：
+/// 不点名就只能停「此刻恰好在飞的那一轮」，那可能是另一条对话的。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
 ///
 /// # Errors
 ///
-/// Fails when no session is running or the driver has stopped.
+/// Fails when that turn is not running, when no session is running, or when
+/// the driver has stopped.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_cancel(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
+pub fn agent_cancel(
+    state: State<'_, AgentRuntime>,
+    request: AgentCancelRequest,
+) -> AgentCommandResult<()> {
+    let addressed = turn_session(&state.turns, &request.run_id)?
+        .ok_or_else(|| Error::NotFound(NO_TURN.to_owned()))?;
+
     let guard = lock(&state.session)?;
     let live = guard
         .as_ref()
         .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
-    live.client.cancel().map_err(translate)?;
+    live.client.cancel(addressed).map_err(translate)?;
 
     Ok(())
 }
@@ -378,6 +419,11 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     /* 连接走了，它开出来的会话号也就不再指向任何东西。 */
     if let Ok(mut known) = state.live.lock() {
         known.clear();
+    }
+
+    /* 那些会话上的轮次也一样：没有连接可发，地址就不该继续存在。 */
+    if let Ok(mut open) = state.turns.lock() {
+        open.clear();
     }
 
     Ok(())
@@ -1208,6 +1254,39 @@ struct Held {
     session_id: String,
     /// 只有刚开出来的会话有：agent 在同一个答复里报了它。
     offered: Option<Vec<ConfigControl>>,
+}
+
+/// 记下这一轮飞在哪条会话上。
+fn open_turn(
+    turns: &Mutex<HashMap<String, String>>,
+    run_id: &str,
+    session_id: &str,
+) -> Result<()> {
+    turns
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
+        .insert(run_id.to_owned(), session_id.to_owned());
+
+    Ok(())
+}
+
+/// 这一轮结束了，它的地址不再指向任何东西。
+///
+/// 结束是一定会发生的事，为它失败一次没有意义：锁坏了说明别处已经 panic，
+/// 那件事由持锁的那一路去报。
+fn close_turn(turns: &Mutex<HashMap<String, String>>, run_id: &str) {
+    if let Ok(mut open) = turns.lock() {
+        let _ended = open.remove(run_id);
+    }
+}
+
+/// 这一轮飞在哪条会话上，如果它还在飞。
+fn turn_session(turns: &Mutex<HashMap<String, String>>, run_id: &str) -> Result<Option<String>> {
+    Ok(turns
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
+        .get(run_id)
+        .cloned())
 }
 
 /// 记下一个本次连接开出来的会话号。

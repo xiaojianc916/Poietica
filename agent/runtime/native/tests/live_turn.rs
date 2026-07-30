@@ -197,9 +197,10 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     // would otherwise wait forever. Cancelling is both the escape and a free
     // exercise of the cancellation path.
     let watchdog = client.clone();
+    let watched = session_id.clone();
     let _timer = thread::spawn(move || {
         thread::sleep(timeout);
-        let _ignored = watchdog.cancel();
+        let _ignored = watchdog.cancel(watched);
     });
 
     let (frames, observed) = mpsc::channel::<RecordedEvent>();

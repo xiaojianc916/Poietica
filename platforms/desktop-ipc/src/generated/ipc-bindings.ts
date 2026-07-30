@@ -21,17 +21,21 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
 },
 /**
- * Asks the agent to stop the turn that is in flight.
+ * Asks the agent to stop one turn.
+ * 
+ * 取消点名一轮。ACP 的取消是发给一条会话的，而一条连接上同时有多条会话：
+ * 不点名就只能停「此刻恰好在飞的那一轮」，那可能是另一条对话的。
  * 
  * Cancellation is cooperative: the agent may still finish normally, and the
  * recorded stop reason reports which of the two happened.
  * 
  * # Errors
  * 
- * Fails when no session is running or the driver has stopped.
+ * Fails when that turn is not running, when no session is running, or when
+ * the driver has stopped.
  */
-async agentCancel() : Promise<null> {
-    return await TAURI_INVOKE("agent_cancel");
+async agentCancel(request: AgentCancelRequest) : Promise<null> {
+    return await TAURI_INVOKE("agent_cancel", { request });
 },
 /**
  * Answers a permission request the agent is blocked on.
@@ -376,6 +380,14 @@ async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
 
 /** user-defined types **/
 
+/**
+ * 要停的那一轮。
+ */
+export type AgentCancelRequest = { 
+/**
+ * The run to stop.
+ */
+runId: string }
 /**
  * 问这个 agent 提供什么，不点名任何一条对话。
  */

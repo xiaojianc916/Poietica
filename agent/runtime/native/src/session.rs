@@ -91,7 +91,14 @@ enum Command {
         recorder: Box<Recorder>,
         reply: oneshot::Sender<Result<String>>,
     },
-    Cancel,
+    /// 停掉这条会话上正在飞的那一轮，只停它。
+    ///
+    /// 一条连接同时开着多条会话（见 sessions.rs 的 SessionBook，以及
+    /// 每条对话各自持有一个会话的 session_for）。不点名的取消只能停
+    /// 「此刻恰好在飞的那一轮」，而那一轮可能属于另一条对话。
+    Cancel {
+        session_id: String,
+    },
     Shutdown,
     /// Answers with the selectors that session is currently offering.
     Selectors {
@@ -183,16 +190,19 @@ impl AgentClient {
         Ok(answer)
     }
 
-    /// Asks the agent to stop the turn that is in flight.
+    /// Asks the agent to stop the turn in flight on one session.
     ///
     /// Cancellation is cooperative: the agent may still finish normally, and
     /// the turn's own answer reports which of the two happened.
     ///
+    /// 停哪一条必须说出来。一条连接上同时有多条会话，「在飞的那一轮」
+    /// 不是一个地址。
+    ///
     /// # Errors
     ///
     /// Fails when the driver is no longer running.
-    pub fn cancel(&self) -> Result<()> {
-        self.send(Command::Cancel)
+    pub fn cancel(&self, session_id: String) -> Result<()> {
+        self.send(Command::Cancel { session_id })
     }
 
     /// Ends the session and lets the agent process exit.
@@ -577,7 +587,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }
                         Command::Shutdown => break 'commands,
                         // Nothing is in flight, so there is nothing to stop.
-                        Command::Cancel => continue 'commands,
+                        Command::Cancel { .. } => continue 'commands,
                         Command::Selectors { session_id, reply } => {
                             let answer = match sessions.get(&session_id) {
                                 Some((_named, offered)) => Ok(offered.clone()),
@@ -725,10 +735,17 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                                     break None;
                                 }
-                                Some(Command::Cancel) => {
-                                    drop(in_flight);
+                                // 只停被点名的那一条。此前这里不看名字，
+                                // 于是在 A 里按下的停止，停掉的是此刻在飞
+                                // 的 B —— 而 B 那一轮什么都没做错。
+                                Some(Command::Cancel { session_id }) => {
+                                    if session_id == asked {
+                                        drop(in_flight);
 
-                                    break None;
+                                        break None;
+                                    }
+
+                                    pending = in_flight;
                                 }
                                 Some(Command::Prompt { reply: refused, .. }) => {
                                     let _ignored = refused.send(Err(AcpError::Protocol {
