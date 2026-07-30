@@ -1151,3 +1151,50 @@
 .assistant-thread__glyph[data-pinned="true"] {
   color: var(--cp-ink);
 }
+
+/*
+ * 连不上 agent 时，输入框顶上的那一条。
+ *
+ * 它此前在模型选择器的下拉里，是一个要点开才看得见的地方 —— 而这个失败会让
+ * 提问也发不出去。尺寸全部走 composer-metrics 里既有的令牌，所以它跟同一张卡
+ * 上的其他东西自动对齐，不需要在这里写第二套数。
+ */
+.assistant-composer__alert {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-pad-mid);
+  padding: var(--cp-pad-mid) var(--cp-pad-x);
+  border-block-end: var(--cp-px) solid var(--cp-menu-line);
+  color: var(--cp-ink);
+  font-size: var(--cp-font-micro);
+  line-height: 1.5;
+}
+
+.assistant-composer__alert-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  /* agent 的原话可能很长，也可能没有一个空格。让它换行，而不是把卡撑破。 */
+  overflow-wrap: anywhere;
+}
+
+.assistant-composer__alert-retry {
+  flex: none;
+  border: var(--cp-px) solid var(--cp-menu-edge);
+  border-radius: var(--cp-radius-item);
+  padding: 2px 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.assistant-composer__alert-retry:hover {
+  background: var(--cp-menu-hover);
+}
+
+.assistant-composer__alert svg {
+  flex: none;
+  inline-size: var(--cp-icon-xs);
+  block-size: var(--cp-icon-xs);
+  color: #b0455c;
+}

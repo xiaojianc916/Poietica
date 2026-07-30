@@ -107,11 +107,16 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="会话设置"
-        className="assistant-model-select__button"
-        title={failure}
-      >
+      {/*
+        连不上 agent 这件事不在这里说了。
+      
+        它归输入框顶上那条横幅：写它的是整条连接的失败路径，不是某一个选择器；
+        而它此前待的地方要点开才看得见，偏偏这个失败会让提问也发不出去。留在
+        这里还有第三重坏处 —— 紧挨着 Model 和 Thinking 两行，读起来就是这两项
+        坏了。下面那个空态分支仍然用 failure：那是一格什么都没有的时候，唯一的
+        出口。
+      */}
+      <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
         <ProviderIcon {...(provider === undefined || provider === '' ? {} : { provider })} />
 
         <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
