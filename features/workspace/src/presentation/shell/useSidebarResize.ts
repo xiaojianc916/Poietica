@@ -31,7 +31,7 @@ export interface SidebarResizeBindings {
  * 侧边栏分隔条的拖拽会话。
  *
  * 指针捕获交给平台：一次 setPointerCapture 之后，move / up / cancel 都会派发到
- * 分隔条本身，即使指针越过画布或离开窗口，所以不需要 document 上的全局监听。
+ * 分隔条本身，即使指针越过主区或离开窗口，所以不需要 document 上的全局监听。
  *
  * 拖拽态写进 workspaceLayoutStore，不再由本 hook 自持一份 useState 再通过
  * onResizeStart / onResizeEnd 回调向上同步——那让同一个布尔量有了两个所有者。

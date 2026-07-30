@@ -11,7 +11,7 @@
   --ui-palette-black: oklch(0 0 0);
 
   --ui-palette-neutral-25: oklch(0.994 0.001 90);
-  /* #f8f8f8 —— 主内容区与画布底色；中性灰，不带暖色偏移。 */
+  /* #f8f8f8 —— 主内容区基底色；中性灰，不带暖色偏移。 */
   --ui-palette-neutral-50: oklch(0.9792 0 0);
   /* #f3f3f3 —— 顶部栏与左侧侧边栏底色。 */
   --ui-palette-neutral-75: oklch(0.9642 0 0);

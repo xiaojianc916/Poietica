@@ -22,7 +22,7 @@
 /*
  * 唯一会溢出的盒子。
  *
- * position: relative 不是为了层叠,是为了让它成为画布的 offsetParent ——
+ * position: relative 不是为了层叠,是为了让它成为转录的 offsetParent ——
  * 虚拟器需要的那段偏移因此是一次 offsetTop,不必用两次 getBoundingClientRect
  * 再减去 scrollTop 去凑。
  *
@@ -59,12 +59,12 @@
 }
 
 /*
- * 虚拟画布。
+ * 虚拟转录。
  *
  * 高度由虚拟器给出,是行内样式;这里只声明它不参与 flex 的伸缩,否则高度会有
  * 第二个来源,而两个来源必然对不上。
  */
-.agent-activity-feed__canvas {
+.agent-activity-feed__transcript {
   position: relative;
   inline-size: 100%;
   flex: none;
@@ -92,7 +92,7 @@
 }
 
 /*
- * 属于这一轮而不属于其中某一条的东西:在画布之后、滚动区之内,跟着一起滚。
+ * 属于这一轮而不属于其中某一条的东西:在转录之后、滚动区之内,跟着一起滚。
  */
 .agent-activity-feed__footer {
   position: relative;

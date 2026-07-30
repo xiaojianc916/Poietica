@@ -3,7 +3,7 @@
  *
  * Not a timeline entry: nothing happened yet, so there is nothing to record.
  * It is derived from the run being open with no answer in it, it lives outside
- * the virtualised canvas, and it disappears the moment a real frame arrives.
+ * the virtualised transcript, and it disappears the moment a real frame arrives.
  */
 export function ThinkingIndicator() {
   return (

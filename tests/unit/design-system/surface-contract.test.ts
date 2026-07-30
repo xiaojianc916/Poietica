@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
  *     --ui-chrome / --ui-sidebar 等七个 token 连带删掉，设置页分组卡与侧栏
  *     底色变成一片白，而当时的测试只看几个颜色字面值，全绿。
  *
- * 二、两档线的比例不变量：同一张卡内，外框相对画布的对比度是卡内线的
+ * 二、两档线的比例不变量：同一张卡内，外框相对基底的对比度是卡内线的
  *     3～6 倍。低于 3 卡片会"化开"成一叠平行线（曾经是 1 倍，后来 2.2 倍，
  *     都不够）。这条是核心，值可以整体升降，比例不许塌。
  *
@@ -69,8 +69,8 @@ const dark = declarationsIn(tokensDir, 'dark.css')
 const surface = declarationsIn(stylesDir, 'surface.css')
 const metrics = declarationsIn(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css')
 
-/* 画布取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
-const CANVAS = { light: 0xf8, dark: 0x14 }
+/* 基底取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
+const GROUND = { light: 0xf8, dark: 0x14 }
 const THEMES = [
   ['light', light],
   ['dark', dark],
@@ -83,7 +83,7 @@ const REQUIRED = [
   '--ui-card',
   '--ui-card-divider',
   '--ui-chrome',
-  '--ui-canvas',
+  '--ui-ground',
   '--ui-sidebar',
   '--ui-sidebar-accent',
   '--ui-sidebar-accent-foreground',
@@ -98,7 +98,7 @@ const REQUIRED = [
 ]
 
 const inkOf = (name: 'light' | 'dark', css: string, token: string) =>
-  Math.abs(grayOf(declOf(css, token)) - CANVAS[name])
+  Math.abs(grayOf(declOf(css, token)) - GROUND[name])
 
 describe('theme token contract', () => {
   it('两个主题都覆盖必需的 token', () => {
@@ -118,11 +118,11 @@ describe('theme token contract', () => {
 })
 
 describe('two-tier border scale', () => {
-  it('外框相对画布的对比度是卡内线的 3～6 倍', () => {
+  it('外框相对基底的对比度是卡内线的 3～6 倍', () => {
     for (const [name, css] of THEMES) {
       const frame = inkOf(name, css, '--ui-surface-frame')
       const rule = inkOf(name, css, '--ui-divider-subtle')
-      expect(rule, `${name}: 卡内线不能与画布同色`).toBeGreaterThan(0)
+      expect(rule, `${name}: 卡内线不能与基底同色`).toBeGreaterThan(0)
       const ratio = frame / rule
       expect(ratio, `${name}: 外框/卡内线 对比度比例`).toBeGreaterThanOrEqual(3)
       expect(ratio, `${name}: 外框/卡内线 对比度比例`).toBeLessThanOrEqual(6)

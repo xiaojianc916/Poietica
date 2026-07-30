@@ -74,7 +74,7 @@ const READING_ANCHOR_RATIO = 1 / 3
  * 不该在产品代码里复刻。浏览器原生的滚动锚定因此在样式里显式关闭:两个纠正者对
  * 同一次尺寸变化各补偿一次,位移就会翻倍。
  *
- * 本组件不做任何几何计算 —— 除了四个派生量,而它们共用一次读取:画布相对滚动区
+ * 本组件不做任何几何计算 —— 除了四个派生量,而它们共用一次读取:转录相对滚动区
  * 的偏移、人是不是贴在末端、视线落在哪一行、视口顶端是哪一行。四者是同一次布局
  * 的四个侧面,合在一处意味着一次布局只读一次几何,也意味着它们在时间上不会错开。
  *
@@ -103,7 +103,7 @@ export interface AgentActivityFeedProps {
   readonly renderRow: (row: FeedRow) => ReactNode
   readonly isBusy: boolean
   /**
-   * 画布之后、滚动区之内。
+   * 转录之后、滚动区之内。
    *
    * 用于属于这一轮而不属于其中某一条的东西,例如等待。缺席就是缺席:undefined,
    * 不是 null。
@@ -129,7 +129,7 @@ export function AgentActivityFeed({
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const transcriptRef = useRef<HTMLDivElement | null>(null)
 
   /*
    * 行的落点要踩在设备像素上。
@@ -143,7 +143,7 @@ export function AgentActivityFeed({
   const snapToDevicePixels = useDevicePixels()
 
   /*
-   * 画布相对滚动区的偏移:画布上面还有滚动区自己的上内边距,这段距离必须告诉
+   * 转录相对滚动区的偏移:转录上面还有滚动区自己的上内边距,这段距离必须告诉
    * 虚拟器,否则它算出来的位置会整体上移那么多。
    *
    * 它是 state 而不是 ref。曾经是 ref,理由写的是"进 state 会让开场那段 flex-grow
@@ -152,9 +152,9 @@ export function AgentActivityFeed({
    *
    * 而 ref 的代价是实打实的:改 ref 不触发重渲染,虚拟器在渲染期读到的 scrollMargin
    * 会一直停在首帧的 0,挂载时的 scrollToEnd 正好落在那之前 —— 初次打开必定差一个
-   * 画布偏移。
+   * 转录偏移。
    *
-   * 滚动区是画布的 offsetParent(样式里的 position: relative),所以这是一次
+   * 滚动区是转录的 offsetParent(样式里的 position: relative),所以这是一次
    * offsetTop,不需要两次 getBoundingClientRect 再减去 scrollTop。
    */
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -232,7 +232,7 @@ export function AgentActivityFeed({
        *
        * 通行的写法是在流的顶部挂一个哨兵元素配一个 IntersectionObserver。那
        * 要多一个 DOM 节点、多一条生命周期,而哨兵在虚拟化列表里本来就难摆 ——
-       * 它必须落在画布之外,否则会被虚拟器算进总高。而 scrollTop 已经在手上,
+       * 它必须落在转录之外,否则会被虚拟器算进总高。而 scrollTop 已经在手上,
        * 判据就是一个减法,和上面那个贴底判据是同一句话的两头。
        */
       if (viewport.scrollTop <= PREFETCH_START_PX) {
@@ -396,7 +396,7 @@ export function AgentActivityFeed({
   })
 
   /*
-   * 画布偏移只在它真的会变的时候量。
+   * 转录偏移只在它真的会变的时候量。
    *
    * 此前这次 offsetTop 挂在一个无依赖的布局效应里:每一次渲染强制一次同步
    * 布局,紧接着 syncScrollState 又读三个几何量再写三个 state —— 流式输出每
@@ -410,13 +410,13 @@ export function AgentActivityFeed({
    */
   useLayoutEffect(() => {
     const viewport = viewportRef.current
-    const canvas = canvasRef.current
+    const transcript = transcriptRef.current
 
     if (viewport === null || canvas === null) {
       return
     }
 
-    const offset = canvas.offsetTop
+    const offset = transcript.offsetTop
 
     if (offset !== scrollMargin) {
       setScrollMargin(offset)
@@ -442,7 +442,7 @@ export function AgentActivityFeed({
    */
   useLayoutEffect(() => {
     const viewport = viewportRef.current
-    const canvas = canvasRef.current
+    const transcript = transcriptRef.current
 
     if (viewport === null || canvas === null) {
       return
@@ -451,7 +451,7 @@ export function AgentActivityFeed({
     const observer = new ResizeObserver(scheduleSync)
 
     observer.observe(viewport)
-    observer.observe(canvas)
+    observer.observe(transcript)
 
     return () => {
       observer.disconnect()
@@ -504,8 +504,8 @@ export function AgentActivityFeed({
       <div className="agent-activity-feed__viewport" ref={bindViewport}>
         <div
           aria-busy={isBusy}
-          className="agent-activity-feed__canvas"
-          ref={canvasRef}
+          className="agent-activity-feed__transcript"
+          ref={transcriptRef}
           role="log"
           style={{ height: virtualizer.getTotalSize() }}
         >

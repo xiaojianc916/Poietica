@@ -63,7 +63,6 @@ export function ProviderKeyCard({
   configured,
   onSaved,
 }: ProviderKeyCardProps) {
-  const [enabled, setEnabled] = useState(false)
   const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)

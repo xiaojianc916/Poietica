@@ -30,18 +30,17 @@ describe('WORKSPACE_SURFACE_REGISTRY', () => {
     }
   })
 
-  it('不包含已废弃的画布域表面', () => {
+  it('不包含已废弃的旧域表面', () => {
     const keys = Object.keys(WORKSPACE_SURFACE_REGISTRY)
 
     /*
-     * data / pages / canvas-start 是历代旧名；documents / layers / relations /
-     * assets / extensions 随画布整包移出产品。导航项与表面是同一个概念，不
-     * 存在第二种导航 ID。
+     * data / pages 是历代旧名；documents / layers / relations / assets /
+     * extensions 随旧产品形态整包移出。导航项与表面是同一个概念，不存在
+     * 第二种导航 ID。
      */
     for (const deprecated of [
       'data',
       'pages',
-      'canvas-start',
       'documents',
       'layers',
       'relations',

@@ -52,8 +52,8 @@ interface SectionDefinition {
 /*
  * 导航只列产品当前真的有的东西。
  *
- * 导出那一组的三个控件（SVG / PNG DPI / PDF 质量）导出的是画布，随画布一起
- * 退场；「插件」这个词从来没有对应实现，换成 Tool——内置工具、Skill 与 MCP
+ * 导出那一组的三个控件（SVG / PNG DPI / PDF 质量）随旧产品形态一起退场；
+ * 「插件」这个词从来没有对应实现，换成 Tool——内置工具、Skill 与 MCP
  * 服务器是这个产品真正的扩展面。
  *
  * privacy 里的每一项都写进 AppSettings 并落盘。models / keymap / hooks /

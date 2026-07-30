@@ -22,7 +22,7 @@ export interface SidebarRegionProps {
  * 抽屉的模态语义（焦点陷阱、初始与归还焦点、Escape、外部点击、滚动锁、
  * aria-modal）由设计系统 Drawer 交给 Base UI。此前这里自己监听 window
  * keydown 兜 Escape，并用一个铺满的 <button> 冒充遮罩：那样只挡住鼠标路径，
- * 键盘焦点仍会 Tab 到抽屉背后的画布上，aside 也没有任何对话框角色。
+ * 键盘焦点仍会 Tab 到抽屉背后的内容上，aside 也没有任何对话框角色。
  *
  * 栅格格位与空列的指针穿透由 workspace-shell.css 拥有，这里不再内联坐标。
  */

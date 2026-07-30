@@ -74,7 +74,7 @@ export interface AssistantSurfaceProps {
  *
  * Two states have no entries to render and are not nothing: the wait before
  * the first frame, and a turn that ended without producing anything. Both are
- * derived, and both live outside the virtualised canvas.
+ * derived, and both live outside the virtualised transcript.
  */
 function renderFooter(footer: TurnFooter | null): ReactNode {
   if (footer === null) {

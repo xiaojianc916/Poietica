@@ -18,7 +18,7 @@
 /*
  * The surface is the frame of one scroller.
  *
- * It gives the scroller the height of the panel and the paint of the canvas,
+ * It gives the scroller the height of the panel and the paint of the ground,
  * and holds nothing else: the reading measure, the free space and the resting
  * states all belong to the scroller, because they are all inside the scroll
  * box. A frame that also scrolled would give the wheel two owners.
@@ -31,7 +31,7 @@
   flex-direction: column;
   block-size: 100%;
   overflow: hidden;
-  background: var(--cp-canvas);
+  background: var(--cp-ground);
   color: var(--cp-ink);
   font-size: var(--cp-font);
 }

@@ -10,7 +10,7 @@
   --color-foreground: var(--ui-foreground);
   --color-surface: var(--ui-surface);
   --color-chrome: var(--ui-chrome);
-  --color-canvas: var(--ui-canvas);
+  --color-ground: var(--ui-ground);
 
   --color-sidebar: var(--ui-sidebar);
   --color-sidebar-accent: var(--ui-sidebar-accent);

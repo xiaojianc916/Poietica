@@ -20,7 +20,7 @@ export interface DrawerProps {
  * Escape、外部点击与 aria-modal 语义；这里只拥有贴边定位与视觉令牌。
  *
  * 存在的理由是替换调用方各自手搓的"遮罩 + window keydown"假模态：
- * 那种写法没有焦点陷阱，Tab 会走到抽屉背后的画布上。
+ * 那种写法没有焦点陷阱，Tab 会走到抽屉背后的内容上。
  */
 export function Drawer({
   open,

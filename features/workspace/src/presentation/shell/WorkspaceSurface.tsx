@@ -28,7 +28,7 @@ export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps
   return (
     <section
       aria-labelledby={`workspace-surface-title-${surfaceId}`}
-      className="relative grid h-full place-items-center overflow-hidden bg-canvas px-8"
+      className="relative grid h-full place-items-center overflow-hidden bg-ground px-8"
     >
       <div
         aria-hidden="true"

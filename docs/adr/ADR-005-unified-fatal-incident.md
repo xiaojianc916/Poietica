@@ -120,7 +120,7 @@ Normal startup renders no loading card.
 - diagnostics are useful for debugging and bounded for safety;
 - global failure behavior is deterministic and testable;
 - local operational errors remain local;
-- no second canvas or document state model is introduced.
+- no second conversation or run state model is introduced.
 
 ### Costs
 

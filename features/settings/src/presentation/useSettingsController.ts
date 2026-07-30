@@ -156,8 +156,7 @@ export function useSettingsController({
   /*
    * Automatically persist a stable draft.
    *
-   * Only the small settings object is written. Canvas document state remains
-   * owned by TLStore and is not involved in this process.
+   * Only the small settings object is written.
    */
   useEffect(() => {
     const baseline = baselineRef.current

@@ -13,7 +13,7 @@
   --ui-card: #efefef;
   --ui-card-divider: #e7e7e7;
   --ui-chrome: var(--ui-palette-neutral-75);
-  --ui-canvas: var(--ui-palette-neutral-50);
+  --ui-ground: var(--ui-palette-neutral-50);
 
   --ui-sidebar: var(--ui-palette-neutral-75);
   /*
@@ -25,13 +25,13 @@
   --ui-sidebar-accent-foreground: var(--ui-palette-neutral-900);
 
   /*
-   * 三个角色，两套语境。值相对画布（--ui-palette-neutral-50）定。
+   * 三个角色，两套语境。值相对基底（--ui-palette-neutral-50）定。
    *
    *   --ui-region-divider-color  窗格与区域分隔、按钮与输入框边框
    *   --ui-surface-frame         容器外框
    *   --ui-divider-subtle        容器内部分隔线、表格行线
    *
-   * 唯一必须成立的不变量：同一张卡内，外框相对画布的对比度是卡内线的
+   * 唯一必须成立的不变量：同一张卡内，外框相对基底的对比度是卡内线的
    * 3～6 倍（守卫测试盯着这条比例）。差得不够，一张展开的卡片就读成一叠
    * 等距平行线而不是一个盒子 —— 曾经它们是同一个取值，比例 1 倍。
    *

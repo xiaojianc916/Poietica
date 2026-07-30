@@ -317,7 +317,7 @@ mod tests {
     fn serialized_io_error_does_not_leak_path_or_native_error() {
         let error = Error::Io(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
-            "permission denied for /Users/example/private/canvas.draw",
+            "permission denied for /Users/example/private/secret.txt",
         ));
 
         let value = serde_json::to_value(error).expect("error should serialize");
@@ -327,7 +327,7 @@ mod tests {
 
         assert_eq!(message, "文件操作失败");
         assert!(!message.contains("/Users/"));
-        assert!(!message.contains("canvas.draw"));
+        assert!(!message.contains("secret.txt"));
         assert!(!message.contains("permission denied"));
     }
 

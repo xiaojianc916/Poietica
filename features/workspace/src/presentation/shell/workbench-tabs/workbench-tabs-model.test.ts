@@ -108,7 +108,7 @@ describe('Workbench Tabs model', () => {
   })
 
   it('encodes stable DOM identifiers', () => {
-    expect(encodeWorkbenchTabDomId('canvas:hello/world')).toBe('canvas-hello-world')
+    expect(encodeWorkbenchTabDomId('surface:hello/world')).toBe('surface-hello-world')
   })
 })
 

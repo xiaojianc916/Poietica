@@ -9,10 +9,9 @@ export interface PrivacySettings {
 /*
  * 应用设置的形状。
  *
- * 这里的每一个字段都有界面读写，也都落盘。此前还有 canvas / editor / export
- * 三组：画布随产品形态一起删掉，editor 那七个字段从来就没有任何界面消费者。
- * 它们的真相来源是 src-tauri 的 AppSettings，所以那一侧先删，这里跟着收缩，
- * 而不是在这一层留一个"界面看不见但仍在写回"的状态面。
+ * 这里的每一个字段都有界面读写，也都落盘。此前还有三组已随旧产品形态收缩
+ * 掉的字段。它们的真相来源是 src-tauri 的 AppSettings，所以那一侧先删，这里
+ * 跟着收缩，而不是在这一层留一个"界面看不见但仍在写回"的状态面。
  */
 export interface AppSettings {
   readonly theme: ThemeMode

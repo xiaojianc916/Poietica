@@ -20,7 +20,7 @@ import { useRailCard } from './use-rail-card'
  *
  * 为什么要并格,而不是让轨道自己滚动:一个需要自己滚动的导航条已经不是导航条
  * 了,它把"看见全局"这唯一的用途还给了被导航的东西。像素预算有限而轮次无界,
- * 只能压缩表示,不能延长画布。
+ * 只能压缩表示,不能延长轨道。
  *
  * Native buttons in a nav, so keyboard order, focus and activation come from
  * the platform; the bars are spans because a bar is paint, not a target.

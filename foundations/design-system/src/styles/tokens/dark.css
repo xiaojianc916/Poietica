@@ -13,14 +13,14 @@
   --ui-card: var(--ui-palette-dark-900);
   --ui-card-divider: var(--ui-region-divider-color);
   --ui-chrome: var(--ui-palette-dark-950);
-  --ui-canvas: var(--ui-palette-dark-900);
+  --ui-ground: var(--ui-palette-dark-900);
 
   --ui-sidebar: var(--ui-palette-dark-950);
   --ui-sidebar-accent: var(--ui-palette-dark-700);
   --ui-sidebar-accent-foreground: var(--ui-palette-white);
 
   /*
-   * 与 light.css 同构，相对画布（--ui-palette-dark-975）定档，同样保持
+   * 与 light.css 同构，相对基底（--ui-palette-dark-975）定档，同样保持
    * 3～6 倍的对比度差。深色下绝对差比浅色略大、投影比浅色重：底色越暗，
    * 同样的差越难读出来。
    */

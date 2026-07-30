@@ -550,7 +550,7 @@ there is nothing in the timeline to draw. Drawing nothing there makes a busy
 session and a swallowed message identical on screen.
 
 The wait is derived — the run is open and the transcript ends on the question —
-and it is rendered after the virtualised canvas rather than inside it. It is
+and it is rendered after the virtualised transcript rather than inside it. It is
 not an event, so it is not an entry: it has nothing to be replayed from, it
 cannot be persisted, and it disappears the moment a real frame arrives.
 
