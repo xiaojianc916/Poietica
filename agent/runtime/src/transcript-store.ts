@@ -1,6 +1,7 @@
 import type { AgentSessionPort, RunEvent } from '@poietica/agent-protocol'
 import type { TimelineState } from '@poietica/agent-timeline'
 import {
+  appendLocalError,
   appendUserMessage,
   applyRunEvent,
   createTimelineState,
@@ -220,11 +221,14 @@ export function subscribeTranscript(key: string, listener: () => void): () => vo
 }
 
 /*
- * 本地失败也是一次失败的轮次。
+ * 本地的事故记在本地。
  *
- * 起不来的 agent、答给一个已经不等的提问，都在任何持久化之前就失败了，日志里
- * 没有对应的帧。reducer 已经会画失败的轮次，所以把事实交给它，而不是伸手去改
- * 状态的形状。
+ * 起不来的 agent、送不出去的权限答复、读不回来的历史，都发生在任何持久化之前
+ * 或之外，日志里没有对应的帧。此前这里伪造一帧 run_failed 交给 applyRunEvent，
+ * 序号取 lastSeq 加一 —— 那个号是原生那侧发的，真的那一帧带着同一个号到达时会
+ * 被去重判成重复而永久丢掉，而丢掉的可能正是 run_finished。
+ *
+ * 现在交给 appendLocalError：一条 error 条目，不占号。
  */
 const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
 
@@ -240,18 +244,33 @@ function describeFailure(cause: unknown): string {
   return FAILURE_FALLBACK
 }
 
-export function failTranscript(key: string, cause: unknown): void {
+function noteOn(timeline: TimelineState, cause: unknown, endsTurn: boolean): TimelineState {
+  return appendLocalError(timeline, {
+    message: describeFailure(cause),
+    at: Date.now(),
+    endsTurn,
+  })
+}
+
+/** 这一句问不出去，或者半路断了：这一轮到此为止。 */
+function failTranscript(key: string, cause: unknown): void {
   const current = readTranscript(key)
 
-  put(key, {
-    ...current,
-    timeline: applyRunEvent(current.timeline, {
-      kind: 'run_failed',
-      seq: current.timeline.lastSeq + 1,
-      at: Date.now(),
-      message: describeFailure(cause),
-    }),
-  })
+  put(key, { ...current, timeline: noteOn(current.timeline, cause, true) })
+}
+
+/*
+ * 事故发生在那一轮之外。
+ *
+ * 权限答复送不出去、历史读不回来 —— 那一轮（如果有）还在跑。此前这两处也走
+ * failTranscript，于是一次送不出去的答复会把正在流式输出的一轮标成失败：
+ * toChatStatus 把它变成 error，输入框收摊、停止按钮消失，紧接着下一帧到达又
+ * 把它翻回 running。
+ */
+function noteTranscript(key: string, cause: unknown): void {
+  const current = readTranscript(key)
+
+  put(key, { ...current, timeline: noteOn(current.timeline, cause, false) })
 }
 
 /* ================= 帧的归属 ================= */
@@ -423,8 +442,15 @@ export function ensureTranscript(port: AgentSessionPort, key: string, width: num
       }
 
       reading.delete(key)
-      put(key, { ...readTranscript(key), restoring: false })
-      failTranscript(key, cause)
+
+      const current = readTranscript(key)
+
+      /* 读完了和读失败了是同一次改变，所以只发一次通知。 */
+      put(key, {
+        ...current,
+        restoring: false,
+        timeline: noteOn(current.timeline, cause, false),
+      })
     })
 }
 
@@ -540,6 +566,6 @@ export function resolveTranscriptPermission(
   }
 
   port.resolvePermission(requestId, optionId).catch((cause: unknown) => {
-    failTranscript(key, cause)
+    noteTranscript(key, cause)
   })
 }

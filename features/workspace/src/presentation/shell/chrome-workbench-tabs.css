@@ -333,14 +333,18 @@
  * 新建按钮是滚动容器的兄弟节点，没有任何东西会从它下面滚过去，所以既不需要
  * position: sticky，也不需要用不透明条底色去遮挡——混色回到 transparent，
  * 与关闭按钮等其它条上按钮一致。
+ *
+ * 中线对齐的目标是标签内关闭按钮的中心，不是 chrome 行的几何中心：× 的中心
+ * 在 __content 上内缩 2px 之后的中央（标签底向上 15px），+ 用 align-self: end
+ * 加 (标签高 − 内缩 2px − 自身高) / 2 的下边距落到同一条线上。
  */
 .chrome-workbench-tabs__new-tab {
-  align-self: center;
+  align-self: end;
   display: grid;
   width: 26px;
   height: 26px;
   flex: 0 0 26px;
-  margin: 0 3px 1px 2px;
+  margin: 0 3px calc((var(--chrome-tab-height) - 2px - 26px) / 2) 2px;
   padding: 0;
   place-items: center;
   border: 0;

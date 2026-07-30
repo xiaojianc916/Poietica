@@ -156,6 +156,43 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
   return freeze(draft)
 }
 
+/**
+ * 记一件本地发生的事故。
+ *
+ * 起不来的 agent、送不出去的权限答复、读不回来的历史 —— 它们发生在任何一帧
+ * 之前或之外，日志里没有对应的帧。此前调用方伪造一帧 run_failed 交给
+ * applyRunEvent，序号取 lastSeq 加一；而序号是原生那侧发的（recorder.rs 的
+ * next_seq，每轮从一起编），客户端自己发一个就是替对面占了一个号：真的那一帧
+ * 带着同一个号到达时，会被上面那道去重判成重复而永久丢弃。
+ *
+ * 所以本地的事故以本地的形式进来：一条 error 条目，不占序号、不进 appliedSeqs、
+ * 不冒充任何一帧。它因此也不参与重放 —— 一段日志放两遍仍然得到同一个状态，那是
+ * 回放能被信任的前提，而一件只发生在这台机器上的事故本来就不在日志里。
+ *
+ * endsTurn 是一个事实，不是一个开关：问送不出去，这一轮就到此为止；答复送不出去
+ * 或历史读不回来时，那一轮还在跑，谁也没资格替它宣告失败。
+ */
+export function appendLocalError(
+  state: TimelineState,
+  error: { readonly message: string; readonly at: number; readonly endsTurn: boolean },
+): TimelineState {
+  const draft = draftOf(state)
+
+  if (error.endsTurn) {
+    draft.status = 'failed'
+  }
+
+  /* 位置补进 id：同一段里出两次事故也不会撞，与 said- 同一套办法。 */
+  push(draft, {
+    type: 'error',
+    id: `${namespace(draft)}local-${String(draft.items.length)}`,
+    at: error.at,
+    message: error.message,
+  })
+
+  return freeze(draft)
+}
+
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
   /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。
      run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，

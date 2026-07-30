@@ -11,6 +11,7 @@ export type {
   UserMessageItem,
 } from './timeline-contract'
 export {
+  appendLocalError,
   appendUserMessage,
   applyRunEvent,
   createTimelineState,
