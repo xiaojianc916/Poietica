@@ -1,16 +1,7 @@
 import type { AgentSessionPort, ChatStatus } from '@poietica/agent-protocol'
 import type { TimelineState } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import {
-  cancelTranscript,
-  ensureTranscript,
-  newDraftKey,
-  reachTranscriptStart,
-  readTranscript,
-  resolveTranscriptPermission,
-  sendToTranscript,
-  subscribeTranscript,
-} from './transcript-store'
+import { transcripts } from './transcript-store'
 
 /*
  * 这个 Hook 只做一件事：把 store 里属于这一格的那一条读出来。
@@ -84,13 +75,13 @@ export function useAssistantSession({
    * 真 id 到达时由 store 改名，两个键读到同一份东西。此前这件事是一个 ref
    * （claimed）加一处渲染期的 setState 在做。
    */
-  const [draft] = useState(newDraftKey)
+  const [draft] = useState(transcripts.newDraft)
 
   const key = endpoint ?? draft
 
   const transcript = useSyncExternalStore(
-    useCallback((onChange: () => void) => subscribeTranscript(key, onChange), [key]),
-    useCallback(() => readTranscript(key), [key]),
+    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [key]),
+    useCallback(() => transcripts.read(key), [key]),
   )
 
   /*
@@ -104,12 +95,12 @@ export function useAssistantSession({
       return
     }
 
-    ensureTranscript(session, endpoint, transcript.width)
+    transcripts.ensure(session, endpoint, transcript.width)
   }, [endpoint, session, transcript.width])
 
   const send = useCallback(
     (submission: AssistantSubmission) => {
-      sendToTranscript({
+      transcripts.send({
         endpoint,
         identify,
         key,
@@ -122,12 +113,12 @@ export function useAssistantSession({
   )
 
   const cancel = useCallback(() => {
-    cancelTranscript(key)
+    transcripts.cancel(key)
   }, [key])
 
   const resolvePermission = useCallback(
     (requestId: string, optionId: string) => {
-      resolveTranscriptPermission(session, key, requestId, optionId)
+      transcripts.resolvePermission(session, key, requestId, optionId)
     },
     [key, session],
   )
@@ -137,7 +128,7 @@ export function useAssistantSession({
       return
     }
 
-    reachTranscriptStart(session, endpoint)
+    transcripts.reachStart(session, endpoint)
   }, [endpoint, session])
 
   /* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
