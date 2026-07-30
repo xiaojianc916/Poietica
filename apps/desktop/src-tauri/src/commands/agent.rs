@@ -938,6 +938,13 @@ fn persistence(error: StoreError) -> Error {
     Error::Persistence(error.to_string())
 }
 
+/// 握手没走完时说的话。
+///
+/// 一句固定的字面量，不是 agent 的回话 —— 它的原文可能带受控 home 的路径。而
+/// 「先去登录」覆盖了这条路上绝大多数的失败，也是唯一一件用户自己做得了的事。
+const HANDSHAKE: &str =
+    "agent 没能完成握手，多半是还没登录：请在终端里运行一次它的命令完成登录，再回来重试";
+
 /// 这一侧自己判定的拒绝，说的话。
 ///
 /// 全是本仓库的字面量常量，没有一处把 agent 的回话、外部输入或系统错误拼进去
@@ -966,6 +973,11 @@ fn translate(error: AcpError) -> Error {
         AcpError::Log(inner) => Error::Persistence(inner.to_string()),
         AcpError::Encoding(inner) => Error::SerdeJson(inner),
         AcpError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
+        AcpError::Handshake { message } => {
+            log::error!("the agent handshake failed: {message}");
+
+            Error::AgentCli(HANDSHAKE.to_owned())
+        }
         // The enum is non-exhaustive, so the wildcard arm is required. 界面拿到
         // 的仍是脱敏文案，真话只到这里为止。
         other => {

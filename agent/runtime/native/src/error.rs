@@ -38,6 +38,15 @@ pub enum AcpError {
         /// What the protocol layer reported.
         message: String,
     },
+    /// 握手没能走完，一条会话都没开出来。
+    ///
+    /// 与 `Protocol` 分开，因为它发生在还没有任何东西可以承接失败的时刻：调用者
+    /// 此刻手上只有一个等着会话名的通道，而那个通道此前只能传成功。
+    #[error("the agent handshake failed: {message}")]
+    Handshake {
+        /// What the protocol layer reported.
+        message: String,
+    },
     /// A progress update named a tool call that was never announced.
     #[error("the agent updated an unannounced tool call: {tool_call_id}")]
     UnknownToolCall {

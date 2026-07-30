@@ -281,7 +281,10 @@ fn tails_from_config(text: &str) -> BTreeMap<String, String> {
 
         let quoted = value.trim_start_matches([' ', '=']);
 
-        let Some(inner) = quoted.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) else {
+        let Some(inner) = quoted
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+        else {
             continue;
         };
 

@@ -144,7 +144,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     });
 
     let (commands, receiver) = mpsc::unbounded::<Command>();
-    let (ready, session_id) = oneshot::channel::<String>();
+    let (ready, session_id) = oneshot::channel::<Result<String>>();
 
     // One book per connection. The handlers live as long as the connection
     // and read it by name; the driver writes to it as sessions are created.
@@ -220,15 +220,36 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
                 let mut receiver = receiver;
 
-                connection
+                /* 握手为什么没成，只有这里知道。此前这两处都是 `?`：发送端
+                随闭包一起被丢掉，调用者只看到通道断了 —— 一个没有内容的信号。
+                agent 要求先登录，是这条路上最常见的一种失败，而它恰恰是用户
+                自己就能解决的那一种。 */
+                if let Err(error) = connection
                     .send_request(InitializeRequest::new(ProtocolVersion::V1))
                     .block_task()
-                    .await?;
+                    .await
+                {
+                    let _ignored = ready.send(Err(AcpError::Handshake {
+                        message: error.to_string(),
+                    }));
 
-                let session = connection
+                    return Err(error);
+                }
+
+                let session = match connection
                     .send_request(NewSessionRequest::new(cwd))
                     .block_task()
-                    .await?;
+                    .await
+                {
+                    Ok(session) => session,
+                    Err(error) => {
+                        let _ignored = ready.send(Err(AcpError::Handshake {
+                            message: error.to_string(),
+                        }));
+
+                        return Err(error);
+                    }
+                };
                 // The agent reports its selectors here and nowhere else,
                 // so a list that is dropped now cannot be recovered.
                 let offered = match session.config_options.as_deref() {
@@ -252,12 +273,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 // told by the dropped sender instead of being handed a
                 // session that quietly records nothing.
                 if first.adopt(&primary.to_string(), slot).is_err() {
+                    let _ignored = ready.send(Err(AcpError::Poisoned));
+
                     return Ok(());
                 }
 
                 // Nobody may still be waiting for the identifier, and that is
                 // not a failure of the session.
-                let _ignored = ready.send(primary.to_string());
+                let _ignored = ready.send(Ok(primary.to_string()));
 
                 /*
                  * 在飞的每一件事各是一个未来，一起被推进。

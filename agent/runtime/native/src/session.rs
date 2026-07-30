@@ -52,8 +52,13 @@ pub struct AgentConnection {
     /// Held by the caller so a session opened later is entered in the same
     /// book the protocol handlers already read from.
     pub book: SessionBook,
-    /// Resolves with the first session identifier once the agent created it.
-    pub session_id: oneshot::Receiver<String>,
+    /// 第一条会话的名字，或者握手为什么没成。
+    ///
+    /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到
+    /// 的是一个没有内容的 `Canceled` —— 「agent 要求先登录」「进程崩了」「协议
+    /// 版本谈不拢」在它眼里是同一件事，屏幕上都是那句「应用操作失败」。原因在
+    /// 类型上没有地方放，就不是漏写了一行日志，是这条路少了一半。
+    pub session_id: oneshot::Receiver<Result<String>>,
     /// Must be spawned; the connection only lives while this future is polled.
     pub driver: BoxFuture<'static, Result<()>>,
 }

@@ -89,7 +89,9 @@ impl AgentClient {
 
         self.send(Command::NewSession { cwd, reply })?;
 
-        answer.await.map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+        answer
+            .await
+            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
     }
 
     /// Asks the agent which sessions it keeps, and what it calls them.
@@ -105,7 +107,9 @@ impl AgentClient {
 
         self.send(Command::Sessions { reply })?;
 
-        answer.await.map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+        answer
+            .await
+            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
     }
 
     /// Starts a turn, recording it with the recorder handed in.
