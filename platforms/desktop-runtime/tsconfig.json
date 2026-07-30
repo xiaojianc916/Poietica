@@ -4,9 +4,6 @@
     "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop-runtime.tsbuildinfo",
     "paths": {
       "@poietica/platforms-desktop-ipc": ["../desktop-ipc/src/public-api.ts"],
-      "@poietica/editor-assets": ["../../editor/assets/src/public-api.ts"],
-      "@poietica/editor-persistence": ["../../editor/persistence/src/public-api.ts"],
-      "@poietica/editor-extensions": ["../../editor/extensions/src/public-api.ts"],
       "@poietica/features-settings": ["../../features/settings/src/public-api.ts"]
     }
   },

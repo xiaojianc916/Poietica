@@ -10,7 +10,6 @@ import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 
 /**
@@ -33,7 +32,7 @@ export function WorkspaceShell({
 }: WorkspaceShellProps) {
   const mode = useWorkspaceLayoutMode()
 
-  const { sidebarOpen, sidebarWidth, inspectorOpen, isResizing } = useWorkspaceLayoutState()
+  const { sidebarOpen, sidebarWidth, isResizing } = useWorkspaceLayoutState()
 
   const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
 

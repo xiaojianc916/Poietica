@@ -1,271 +1,21 @@
 {
-  "generatedAt": "2026-07-30T05:35:47.165Z",
-  "scannedFiles": 545,
-  "matchedFiles": 63,
-  "totalMatches": 247,
+  "generatedAt": "2026-07-30T05:42:37.137Z",
+  "scannedFiles": 539,
+  "matchedFiles": 60,
+  "totalMatches": 185,
   "byArea": {
-    "features": 72,
-    "tests": 33,
     "apps": 38,
     "agent": 33,
     "AGENTS.md": 15,
     "docs": 32,
     "README.md": 9,
+    "features": 31,
+    "tests": 12,
     "foundations": 12,
     "platforms": 2,
     "package.json": 1
   },
   "files": [
-    {
-      "file": "features/settings/src/presentation/SettingsSurface.tsx",
-      "area": "features",
-      "count": 41,
-      "lines": [
-        {
-          "line": 44,
-          "text": "| 'canvas'"
-        },
-        {
-          "line": 57,
-          "text": "* canvas / export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉"
-        },
-        {
-          "line": 87,
-          "text": "id: 'canvas',"
-        },
-        {
-          "line": 88,
-          "text": "label: '画布',"
-        },
-        {
-          "line": 111,
-          "text": "['canvas', 'export', 'privacy'],"
-        },
-        {
-          "line": 358,
-          "text": "case 'canvas':"
-        },
-        {
-          "line": 359,
-          "text": "return <CanvasSettings controller={controller} settings={settings} />"
-        },
-        {
-          "line": 386,
-          "text": "description=\"画布变更后自动写入本地文件\""
-        },
-        {
-          "line": 433,
-          "text": "const CanvasSettings = memo(function CanvasSettings({ settings, controller }: SettingsPanelProps) {"
-        },
-        {
-          "line": 438,
-          "text": "checked={settings.canvas.infiniteCanvas}"
-        },
-        {
-          "line": 439,
-          "text": "description=\"关闭后画布限制在固定边界内\""
-        },
-        {
-          "line": 440,
-          "text": "label=\"无限画布\""
-        },
-        {
-          "line": 444,
-          "text": "canvas: {"
-        },
-        {
-          "line": 445,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 446,
-          "text": "infiniteCanvas: checked,"
-        },
-        {
-          "line": 453,
-          "text": "checked={settings.canvas.showRulers}"
-        },
-        {
-          "line": 454,
-          "text": "description=\"在画布边缘显示刻度\""
-        },
-        {
-          "line": 459,
-          "text": "canvas: {"
-        },
-        {
-          "line": 460,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 467,
-          "text": "<SettingRow description=\"新建画布时的初始缩放比例\" label=\"默认缩放\">"
-        },
-        {
-          "line": 469,
-          "text": "ariaLabel=\"默认画布缩放\""
-        },
-        {
-          "line": 473,
-          "text": "canvas: {"
-        },
-        {
-          "line": 474,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 485,
-          "text": "value={String(settings.canvas.defaultZoom)}"
-        },
-        {
-          "line": 492,
-          "text": "checked={settings.canvas.showGrid}"
-        },
-        {
-          "line": 493,
-          "text": "description=\"在画布背景绘制网格\""
-        },
-        {
-          "line": 498,
-          "text": "canvas: {"
-        },
-        {
-          "line": 499,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 507,
-          "text": "checked={settings.canvas.snapToGrid}"
-        },
-        {
-          "line": 513,
-          "text": "canvas: {"
-        },
-        {
-          "line": 514,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 523,
-          "text": "ariaLabel=\"画布网格尺寸\""
-        },
-        {
-          "line": 524,
-          "text": "disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}"
-        },
-        {
-          "line": 528,
-          "text": "canvas: {"
-        },
-        {
-          "line": 529,
-          "text": "...current.canvas,"
-        },
-        {
-          "line": 542,
-          "text": "value={String(settings.canvas.gridSize)}"
-        },
-        {
-          "line": 730,
-          "text": "<dt>画布内核</dt>"
-        },
-        {
-          "line": 920,
-          "text": "* GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 与画布在主导航里已经有"
-        },
-        {
-          "line": 930,
-          "text": "type GlyphSection = 'canvas' | 'hooks'"
-        },
-        {
-          "line": 935,
-          "text": "canvas: PencilRulerIcon,"
-        },
-        {
-          "line": 940,
-          "text": "return section === 'canvas' || section === 'hooks'"
-        }
-      ]
-    },
-    {
-      "file": "tests/integration/document-lifecycle/canvas-document-service.test.ts",
-      "area": "tests",
-      "count": 18,
-      "lines": [
-        {
-          "line": 2,
-          "text": "import { createCanvasDocumentService } from '@poietica/editor-document'"
-        },
-        {
-          "line": 67,
-          "text": "const service = createCanvasDocumentService({"
-        },
-        {
-          "line": 98,
-          "text": "describe('Canvas document native-release contract', () => {"
-        },
-        {
-          "line": 99,
-          "text": "it('releases a clean unsaved canvas without invoking native document_close', async () => {"
-        },
-        {
-          "line": 101,
-          "text": "const opened = await harness.service.create('未命名画布')"
-        },
-        {
-          "line": 105,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        },
-        {
-          "line": 114,
-          "text": "it('requires an explicit discard intent for dirty canvases', async () => {"
-        },
-        {
-          "line": 116,
-          "text": "const opened = await harness.service.create('未命名画布')"
-        },
-        {
-          "line": 122,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        },
-        {
-          "line": 128,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'discard')).resolves.toEqual({"
-        },
-        {
-          "line": 166,
-          "text": "canvasId: expect.any(String),"
-        },
-        {
-          "line": 174,
-          "text": "const opened = await harness.service.create('未命名画布')"
-        },
-        {
-          "line": 188,
-          "text": "suggestedName: '未命名画布.draw',"
-        },
-        {
-          "line": 316,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        },
-        {
-          "line": 355,
-          "text": "const releasing = harness.service.releaseCanvas(opened.sessionId, 'discard')"
-        },
-        {
-          "line": 395,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        },
-        {
-          "line": 431,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        },
-        {
-          "line": 448,
-          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
-        }
-      ]
-    },
     {
       "file": "apps/desktop/src/application/failures/failure-policy.ts",
       "area": "apps",
@@ -932,25 +682,6 @@
       ]
     },
     {
-      "file": "tests/integration/document-lifecycle/canvas-document-open-rollback.test.ts",
-      "area": "tests",
-      "count": 3,
-      "lines": [
-        {
-          "line": 1,
-          "text": "import { createCanvasDocumentService } from '@poietica/editor-document'"
-        },
-        {
-          "line": 45,
-          "text": "const service = createCanvasDocumentService({"
-        },
-        {
-          "line": 58,
-          "text": "describe('CanvasDocumentService open transaction', () => {"
-        }
-      ]
-    },
-    {
       "file": "agent/timeline/src/__fixtures__/tool-turn.generated.ts",
       "area": "agent",
       "count": 2,
@@ -1061,11 +792,11 @@
       "count": 2,
       "lines": [
         {
-          "line": 58,
+          "line": 57,
           "text": "canvas={"
         },
         {
-          "line": 61,
+          "line": 60,
           "text": "className=\"workspace-shell__canvas relative z-10 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background\""
         }
       ]
@@ -1303,6 +1034,17 @@
       ]
     },
     {
+      "file": "features/settings/src/presentation/SettingsSurface.tsx",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 377,
+          "text": "description=\"画布变更后自动写入本地文件\""
+        }
+      ]
+    },
+    {
       "file": "features/settings/src/presentation/useSettingsController.ts",
       "area": "features",
       "count": 1,
@@ -1321,17 +1063,6 @@
         {
           "line": 3,
           "text": "type CanvasSettings,"
-        }
-      ]
-    },
-    {
-      "file": "features/workspace/src/contracts/workbench-contract.ts",
-      "area": "features",
-      "count": 1,
-      "lines": [
-        {
-          "line": 57,
-          "text": "* activeSessionId 与 activeCanvas 两个只服务文档域的镜像字段，它们与"
         }
       ]
     },
