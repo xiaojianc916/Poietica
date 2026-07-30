@@ -350,8 +350,17 @@ export class ThreadsStore {
       .then((offered) => {
         this.#remember(threadId, offered)
       })
-      .catch((reason: unknown) => {
-        this.#noteSelectorFailure(threadId, reason)
+      .catch(() => {
+        /*
+         * 改动没落地。
+         *
+         * 不把技术原因常驻到会话设置那一格上：那一格说的是「这条对话连没连上
+         * agent」，一次改动失败不是那件事，而且失败按对话记一格，谁失败都会写在
+         * 模型选择器上。这里向 agent 重问一次权威表 —— UI 因此回到真正生效的值，
+         * 是权威回滚，不是本地猜一个旧值填回去。连重问都失败时，下面那个 catch
+         * 才会说「没连上」，那时这句话才是准确的。
+         */
+        this.#read(threadId)
       })
   }
 

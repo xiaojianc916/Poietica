@@ -101,54 +101,54 @@
   color: var(--cp-ink);
 }
 
+/* 这颗按钮恒定可交互：只有它显示哪个图标随指针变，可点与否从不变。 */
 .assistant-mode-pill__mark {
   display: grid;
   block-size: var(--cp-icon-sm);
   inline-size: var(--cp-icon-sm);
   flex: none;
   place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .assistant-mode-pill__mark > * {
   grid-area: 1 / 1;
   block-size: 100%;
   inline-size: 100%;
-}
-
-.assistant-mode-pill__glyph {
-  opacity: 1;
   transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.assistant-mode-pill__clear {
-  display: grid;
-  place-items: center;
-  border: 0;
+/*
+ * 藏起来的那一个用 visibility，不用 opacity。
+ *
+ * opacity: 0 的图层仍然在命中测试里：它会截走 mousedown，而 mouseup 落在另一个
+ * 元素上，click 于是派发给公共祖先，按钮永远收不到。
+ */
+.assistant-mode-pill__cross {
+  visibility: hidden;
+  opacity: 0;
   border-radius: 9999px;
-  padding: 0;
+  padding: 15%;
   background: var(--cp-ink);
   color: var(--cp-surface);
-  opacity: 0;
-  pointer-events: none;
-  cursor: pointer;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-[data-assistant-skin] .assistant-mode-pill__clear svg {
-  block-size: 70%;
-  inline-size: 70%;
   stroke-width: 2.5;
 }
 
 .assistant-mode-pill:hover .assistant-mode-pill__glyph,
-.assistant-mode-pill:focus-within .assistant-mode-pill__glyph {
+.assistant-mode-pill__mark:focus-visible .assistant-mode-pill__glyph {
+  visibility: hidden;
   opacity: 0;
 }
 
-.assistant-mode-pill:hover .assistant-mode-pill__clear,
-.assistant-mode-pill:focus-within .assistant-mode-pill__clear {
+.assistant-mode-pill:hover .assistant-mode-pill__cross,
+.assistant-mode-pill__mark:focus-visible .assistant-mode-pill__cross {
+  visibility: visible;
   opacity: 1;
-  pointer-events: auto;
 }
 
 .assistant-mode-pill__label {
@@ -157,8 +157,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .assistant-mode-pill,
-  .assistant-mode-pill__glyph,
-  .assistant-mode-pill__clear {
+  .assistant-mode-pill__mark > * {
     transition: none;
   }
 }

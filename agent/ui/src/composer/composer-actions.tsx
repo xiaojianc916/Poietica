@@ -18,6 +18,7 @@ import {
   GlobeIcon,
   ModelIcon,
   PencilIcon,
+  PlusIcon,
   SearchIcon,
   ThinkingIcon,
   ThreadIcon,
@@ -93,7 +94,7 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
     <>
       <DropdownMenu>
         <DropdownMenuTrigger aria-label="添加内容" className="assistant-control--ghost">
-          <AttachIcon aria-hidden="true" />
+          <PlusIcon aria-hidden="true" />
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
@@ -202,8 +203,9 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
  * 有一个在生效，所以"摘掉"只能是回到默认，不能是回到没有模式 —— 画一颗能被
  * 删成"无模式"的胶囊，是在对用户撒谎。
  *
- * 图标与叉号叠在同一个网格单元里，由 CSS 换手：两个元素、一条条件，不需要
- * 一个 hover 状态量，也就不会有"指针已经离开而状态还留着"这种事。
+ * 标记位本身就是那颗按钮：它恒定可交互，:hover 只换它显示哪一个图标。可点
+ * 与否绝不随指针状态漂移 —— 那样会让按下与抬起落在不同元素上，click 因此
+ * 派发给公共祖先而不是按钮，键盘那一路也一并断掉。
  */
 function ModePill({
   control,
@@ -223,20 +225,18 @@ function ModePill({
 
   return (
     <span className="assistant-mode-pill">
-      <span className="assistant-mode-pill__mark">
+      <button
+        aria-label={`退出${label}`}
+        className="assistant-mode-pill__mark"
+        onClick={() => {
+          onSelect(control.id, fallback.value)
+        }}
+        type="button"
+      >
         <Mark aria-hidden="true" className="assistant-mode-pill__glyph" />
 
-        <button
-          aria-label={`退出${label}`}
-          className="assistant-mode-pill__clear"
-          onClick={() => {
-            onSelect(control.id, fallback.value)
-          }}
-          type="button"
-        >
-          <CloseIcon aria-hidden="true" />
-        </button>
-      </span>
+        <CloseIcon aria-hidden="true" className="assistant-mode-pill__cross" />
+      </button>
 
       <span className="assistant-mode-pill__label">{label}</span>
     </span>
