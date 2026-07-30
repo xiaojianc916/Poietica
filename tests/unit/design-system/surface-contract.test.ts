@@ -4,20 +4,19 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /*
- * 这份测试守的是主题契约的完整性，不是某个颜色好不好看。
+ * 一、主题契约完整性。起因：一次用正则替换注释的改动把 --ui-card /
+ *     --ui-chrome / --ui-sidebar 等七个 token 连带删掉，设置页分组卡与侧栏
+ *     底色变成一片白，而当时的测试只看几个颜色字面值，全绿。
  *
- * 起因：一次用正则替换注释的改动，把 --ui-card / --ui-card-divider /
- * --ui-chrome / --ui-canvas / --ui-sidebar / --ui-sidebar-accent /
- * --ui-sidebar-accent-foreground 七个 token 连带删掉，设置页分组卡与侧边栏
- * 底色因此变成一片白，而当时的测试只断言了几个颜色字面值，全绿。
+ * 二、两档线的比例不变量：同一张卡内，外框相对画布的对比度是卡内线的
+ *     3～6 倍。低于 3 卡片会"化开"成一叠平行线（曾经是 1 倍，后来 2.2 倍，
+ *     都不够）。这条是核心，值可以整体升降，比例不许塌。
  *
- * 所以这里断言的是集合关系：两个主题必须声明同一批名字，且覆盖必需清单。
- * 任何单侧新增或删除都会红。
+ *     这里曾经还有一条"外框必须比窗格分隔线重"，已删除：窗格线是整屏宽的
+ *     区域边界，卡框是几百像素宽的容器边界，同墨量下视觉重量差一个量级，
+ *     卡框比窗格线淡是常态而非缺陷。换成绝对墨量的上下限。
  *
- * 它原先住在 @poietica/agent-ui 里。那是个浏览器 UI 包，为了在测试里读
- * foundations/design-system 的 CSS，它得给自己装一份 @types/node —— 让一个
- * 不许碰文件系统的包拿到 fs 的类型，只为断言别的包的资产。跨包资产契约归
- * @poietica/tests：这里本来就有 node 类型，也本来就是仓库级断言的去处。
+ * 三、卡片不许自己造背景，也不许自己开宽度档。
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -30,26 +29,36 @@ const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 const declaredTokens = (css: string) =>
   new Set([...stripComments(css).matchAll(/^\s*(--ui-[a-z0-9-]+):/gm)].map((m) => m[1]))
 
-const declOf = (css: string, name: string) => {
-  const hit = new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm').exec(stripComments(css))
-  const value = hit?.[1]
+/* 取第一个捕获组，取不到就当场失败并说清是什么取不到。 */
+const captureOf = (source: string, pattern: RegExp, what: string) => {
+  const captured = pattern.exec(source)?.[1]
 
-  /*
-   * 非空断言只挡得住 hit 为 null，挡不住捕获组本身缺失 —— 那正是搬家前
-   * 那句 hit![1] 报 TS2532 的地方。缺了就当场说清是哪个 token。
-   */
-  if (value === undefined) {
-    throw new Error(`${name} 应当被声明且可解析`)
+  if (captured === undefined) {
+    throw new Error(`${what} 应当可解析`)
   }
 
-  return value.trim()
+  return captured
 }
+
+const declOf = (css: string, name: string) =>
+  captureOf(stripComments(css), new RegExp(`^\\s*${name}:\\s*([^;]+);$`, 'm'), name).trim()
+
+/* 只接受 #rrggbb：能被取色器一比一核对的那种值。 */
+const grayOf = (value: string) =>
+  Number.parseInt(captureOf(value, /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i, value), 16)
 
 const light = readFileSync(join(tokensDir, 'light.css'), 'utf8')
 const dark = readFileSync(join(tokensDir, 'dark.css'), 'utf8')
 const surface = readFileSync(join(stylesDir, 'surface.css'), 'utf8')
+const metrics = readFileSync(join(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css'), 'utf8')
 
-/* 少一个就会有一整片界面失去取值。 */
+/* 画布取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
+const CANVAS = { light: 0xf8, dark: 0x14 }
+const THEMES = [
+  ['light', light],
+  ['dark', dark],
+] as const
+
 const REQUIRED = [
   '--ui-background',
   '--ui-foreground',
@@ -66,17 +75,17 @@ const REQUIRED = [
   '--ui-divider-subtle',
   '--ui-border',
   '--ui-surface-frame',
-  '--ui-surface-fill',
+  '--ui-surface-shadow',
   '--ui-input',
   '--ui-ring',
 ]
 
+const inkOf = (name: 'light' | 'dark', css: string, token: string) =>
+  Math.abs(grayOf(declOf(css, token)) - CANVAS[name])
+
 describe('theme token contract', () => {
   it('两个主题都覆盖必需的 token', () => {
-    for (const [name, css] of [
-      ['light', light],
-      ['dark', dark],
-    ] as const) {
+    for (const [name, css] of THEMES) {
       const declared = declaredTokens(css)
       const missing = REQUIRED.filter((token) => !declared.has(token))
       expect(missing, `${name}.css 缺少 token`).toEqual([])
@@ -91,19 +100,47 @@ describe('theme token contract', () => {
   })
 })
 
-describe('surface contract', () => {
-  it('外框宽度读全局那一个 1px，卡片不另开宽度档', () => {
+describe('two-tier border scale', () => {
+  it('外框相对画布的对比度是卡内线的 3～6 倍', () => {
+    for (const [name, css] of THEMES) {
+      const frame = inkOf(name, css, '--ui-surface-frame')
+      const rule = inkOf(name, css, '--ui-divider-subtle')
+      expect(rule, `${name}: 卡内线不能与画布同色`).toBeGreaterThan(0)
+      const ratio = frame / rule
+      expect(ratio, `${name}: 外框/卡内线 对比度比例`).toBeGreaterThanOrEqual(3)
+      expect(ratio, `${name}: 外框/卡内线 对比度比例`).toBeLessThanOrEqual(6)
+    }
+  })
+
+  it('外框墨量不过重，卡内线不彻底消失', () => {
+    for (const [name, css] of THEMES) {
+      expect(inkOf(name, css, '--ui-surface-frame'), `${name}: 外框墨量`).toBeLessThanOrEqual(42)
+      expect(inkOf(name, css, '--ui-divider-subtle'), `${name}: 卡内线墨量`).toBeGreaterThanOrEqual(
+        3,
+      )
+    }
+  })
+
+  it('卡片不造背景，存在感由投影给', () => {
+    expect(surface).not.toContain('background')
+    expect(light).not.toContain('--ui-surface-fill')
+    expect(dark).not.toContain('--ui-surface-fill')
+    expect(surface).toContain('box-shadow: var(--ui-surface-shadow)')
+  })
+
+  it('宽度只有全局那一档 1px', () => {
     expect(surface).toContain('border: var(--ui-region-divider-width) solid var(--surface-line)')
     expect(surface).not.toContain('--ui-surface-frame-width')
   })
 
-  it('外框与卡内分隔线走两个不同的 token', () => {
+  it('外框、卡内线、表格行线各读对档位', () => {
     expect(declOf(surface, '--surface-line')).toBe('var(--ui-surface-frame)')
     expect(declOf(surface, '--surface-rule')).toBe('var(--ui-divider-subtle)')
+    expect(declOf(metrics, '--cp-hairline')).toBe('var(--ui-divider-subtle)')
   })
 
   it('--ui-border 归控件，跟随区域线', () => {
-    for (const css of [light, dark]) {
+    for (const [, css] of THEMES) {
       expect(declOf(css, '--ui-border')).toBe('var(--ui-region-divider-color)')
     }
   })

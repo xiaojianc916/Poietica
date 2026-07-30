@@ -7,6 +7,57 @@ const DURATION_MS = 180
 const EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 const ID_ATTR = 'data-rail-id'
 
+/** 一格在这一帧的读数:身份与位置一次读齐。 */
+type Shot = { bar: HTMLElement; id: string; top: number }
+
+/**
+ * 读的一趟。
+ *
+ * 每格一次 offsetTop,顺手记下身份 —— 读 offsetTop 会 flush 布局,读写交替就是
+ * 每格一次回流;而对 live collection 走第二趟、把 data-rail-id 再读一次,是白
+ * 付的一趟。
+ */
+const measure = (bars: HTMLCollectionOf<HTMLElement>, into: Map<string, number>): Shot[] => {
+  const shots: Shot[] = []
+
+  for (const bar of bars) {
+    const id = bar.getAttribute(ID_ATTR)
+
+    if (id !== null) {
+      const top = bar.offsetTop
+
+      into.set(id, top)
+      shots.push({ bar, id, top })
+    }
+  }
+
+  return shots
+}
+
+/**
+ * 一格的位移补偿。
+ *
+ * 没有来处的那一格是从某个簇里裂出来的,淡进来;没挪动的直接跳过,不平白起一个
+ * 动画。用 Web Animations API 而不是内联 transition:不需要强制回流来断开过渡,
+ * 也不需要事后清理内联样式,而且 transform 走合成层,不碰布局。
+ */
+const play = (shot: Shot, from: number | undefined) => {
+  if (from === undefined) {
+    shot.bar.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DURATION_MS, easing: EASING })
+
+    return
+  }
+
+  if (from === shot.top) {
+    return
+  }
+
+  shot.bar.animate(
+    [{ transform: `translateY(${String(from - shot.top)}px)` }, { transform: 'none' }],
+    { duration: DURATION_MS, easing: EASING },
+  )
+}
+
 /**
  * 折叠与展开之间的位移,补成连续的。
  *
@@ -17,9 +68,6 @@ const ID_ATTR = 'data-rail-id'
  * 顺序是关键。真实布局在第 0 帧就已经是最终布局,动画只是视觉上的回溯 —— 所以
  * 动画期间按下去,命中的是那一格将要去的地方,而不是眼睛看到的地方。反过来做
  * (拿真实布局做动画)目标会从光标底下走开,点击落空。
- *
- * 用 Web Animations API 而不是内联 transition:不需要强制回流来断开过渡,也
- * 不需要事后清理内联样式,而且 transform 走合成层,不碰布局。
  *
  * 消失的那几格没有动画 —— 它们已经从 DOM 里出去了,要画出被吸进去的轨迹得把
  * 卸载的节点留成幽灵层。整列同时滑动才是这一下的主导运动,先不为那 3px 建一
@@ -38,73 +86,28 @@ export function useFoldFlip(): (node: HTMLElement | null) => void {
 
   useLayoutEffect(() => {
     const node = nodeRef.current
+    const view = node?.ownerDocument.defaultView ?? null
 
-    if (node === null) {
+    if (node === null || view === null) {
       return
     }
 
-    const view = node.ownerDocument.defaultView
-
-    if (view === null) {
-      return
-    }
-
-    const before = beforeRef.current
-    const after = new Map<string, number>()
     const bars = node.getElementsByClassName(
       'conversation-minimap__turn',
     ) as HTMLCollectionOf<HTMLElement>
-
-    /* 先读完再写。读 offsetTop 会 flush 布局,读写交替就是每格一次回流。 */
-    for (const bar of bars) {
-      const id = bar.getAttribute(ID_ATTR)
-
-      if (id !== null) {
-        after.set(id, bar.offsetTop)
-      }
-    }
+    const before = beforeRef.current
+    const after = new Map<string, number>()
+    const shots = measure(bars, after)
 
     beforeRef.current = after
 
     /* 头一回挂载没有"之前",整条轨道不该从别处飞进来。 */
-    if (before.size === 0) {
+    if (before.size === 0 || view.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return
     }
 
-    if (view.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return
-    }
-
-    for (const bar of bars) {
-      const id = bar.getAttribute(ID_ATTR)
-
-      if (id === null) {
-        continue
-      }
-
-      const to = after.get(id)
-
-      if (to === undefined) {
-        continue
-      }
-
-      const from = before.get(id)
-
-      /* 新长出来的一格:它是从某个簇里裂出来的,没有来处可言,淡进来。 */
-      if (from === undefined) {
-        bar.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DURATION_MS, easing: EASING })
-
-        continue
-      }
-
-      if (from === to) {
-        continue
-      }
-
-      bar.animate([{ transform: `translateY(${String(from - to)}px)` }, { transform: 'none' }], {
-        duration: DURATION_MS,
-        easing: EASING,
-      })
+    for (const shot of shots) {
+      play(shot, before.get(shot.id))
     }
   })
 

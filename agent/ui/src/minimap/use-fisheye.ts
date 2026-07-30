@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap-perf@v15 */
+/* poietica:conversation-minimap-perf@v16 */
 
 /**
  * Half-width of the pull. Beyond roughly twice this a bar is at rest.
@@ -55,6 +55,109 @@ const AIMED_MIN_WEIGHT = 0.35
 
 /** Below this a weight is indistinguishable from rest; write the flat 0. */
 const EPSILON = 0.002
+
+/** 参与计算的邻域半径:高斯在三个半宽之外已经低于 EPSILON。 */
+const REACH_PX = FALLOFF_PX * 3
+
+/** 一帧要处理的柱子区间,闭区间;to < from 表示空。 */
+type Span = { from: number; to: number }
+
+/** 指针是否在进入边界之内。左边是真正的边界,其余三边只是容差。 */
+const inReach = (rect: DOMRect, x: number, y: number): boolean =>
+  !Number.isNaN(x) &&
+  x >= rect.left - REACH_LEFT_PX &&
+  x <= rect.right + REACH_RIGHT_PX &&
+  y >= rect.top - REACH_TOP_PX &&
+  y <= rect.bottom + REACH_BOTTOM_PX
+
+/**
+ * 落点与邻域,一趟读完。
+ *
+ * 柱子在同一个 flex 列里首尾相接,offsetTop 单调递增 —— 前提成立,所以"最后一个
+ * 中心不低于指针"是二分,读 O(log N) 次布局而不是 N 次。展开条件用真实中心距,
+ * 不用"每根多高"的估算:柱子被放大之后本来就不等距,估算会在放大最厉害的地方把
+ * 波峰截断 —— 那是一个看得见的退化。
+ */
+const solveWindow = (
+  anchor: number,
+  count: number,
+  centreOf: (index: number) => number,
+  centres: number[],
+): Span => {
+  let low = 0
+  let high = count - 1
+  let nearest = 0
+
+  while (low <= high) {
+    const middle = (low + high) >> 1
+
+    if (centreOf(middle) <= anchor) {
+      nearest = middle
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+
+  let from = nearest
+
+  while (from > 0 && Math.abs(centreOf(from - 1) - anchor) <= REACH_PX) {
+    from -= 1
+  }
+
+  let to = nearest
+
+  while (to < count - 1 && Math.abs(centreOf(to + 1) - anchor) <= REACH_PX) {
+    to += 1
+  }
+
+  centres.length = 0
+
+  for (let index = from; index <= to; index += 1) {
+    centres[index - from] = centreOf(index)
+  }
+
+  return { from, to }
+}
+
+/**
+ * 权重写出,并选出手底下那一根。这里一个字都不读布局。
+ *
+ * 只写变了的那个值:读回内联声明是 CSSOM,不是布局,不会触发 flush。
+ */
+const applyWeights = (
+  bars: HTMLCollectionOf<HTMLElement>,
+  span: Span,
+  centres: readonly number[],
+  anchor: number,
+): HTMLElement | null => {
+  let winner: HTMLElement | null = null
+  let best = AIMED_MIN_WEIGHT
+
+  for (let index = span.from; index <= span.to; index += 1) {
+    const bar = bars[index]
+    const centre = centres[index - span.from]
+
+    if (bar === undefined || centre === undefined) {
+      continue
+    }
+
+    const ratio = (centre - anchor) / FALLOFF_PX
+    const weight = Math.exp(-(ratio * ratio))
+    const next = weight < EPSILON ? '0' : weight.toFixed(3)
+
+    if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
+      bar.style.setProperty(WEIGHT_VAR, next)
+    }
+
+    if (weight > best) {
+      best = weight
+      winner = bar
+    }
+  }
+
+  return winner
+}
 
 /**
  * Dock magnification for a vertical rail.
@@ -116,22 +219,19 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
     let aimed: HTMLElement | null = null
 
     /*
-     * 落点邻域的中心值,一帧一填。
+     * 落点邻域的中心值,一帧一填。读的一趟填,写的一趟读,中间不碰布局。
      *
-     * 只装参与计算的那几根:高斯衰减在三个半宽之外已经低于 EPSILON,再远的
-     * 柱子算出来的权重与静止态没有区别。它存在的唯一理由仍然是让读的一趟先
-     * 结束,写的一趟才开始。
+     * 只装参与计算的那几根:三个半宽之外的柱子算出来的权重与静止态没有区别。
      */
     const centres: number[] = []
 
     /*
      * 上一帧真正写过的区间。
      *
-     * 交还样式表只需要交还写出去的那些。此前 clear 遍历整条轨,而一条长会话
-     * 的轨上绝大多数柱子从头到尾没被写过 —— 对它们调 removeProperty 仍然要
+     * 交还样式表只需要交还写出去的那些:对没写过的柱子调 removeProperty 仍然要
      * 作废一次内联声明,那是白付的代价。
      */
-    let painted = { from: 0, to: -1 }
+    let painted: Span = { from: 0, to: -1 }
 
     /** 一根柱子的中心,在轨道自身的坐标里。 */
     const centreOf = (index: number): number => {
@@ -159,14 +259,8 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
       frame = 0
 
       const rect = node.getBoundingClientRect()
-      const inside =
-        !Number.isNaN(pointerX) &&
-        pointerX >= rect.left - REACH_LEFT_PX &&
-        pointerX <= rect.right + REACH_RIGHT_PX &&
-        pointerY >= rect.top - REACH_TOP_PX &&
-        pointerY <= rect.bottom + REACH_BOTTOM_PX
 
-      if (!inside) {
+      if (!inReach(rect, pointerX, pointerY)) {
         if (engaged) {
           engaged = false
           clear()
@@ -177,107 +271,25 @@ export function useFisheye(): (node: HTMLElement | null) => (() => void) | undef
 
       engaged = true
 
-      const count = bars.length
-
-      if (count === 0) {
+      if (bars.length === 0) {
         return
       }
 
-      /*
-       * 指针落在哪一根上,用二分回答。
-       *
-       * 柱子在同一个 flex 列里首尾相接,offsetTop 因此单调递增 —— 前提成立,
-       * 所以"最后一个中心不低于指针"是二分,读 O(log N) 次布局而不是 N 次。
-       * 此前这里是一趟全量遍历:五百轮的会话,手在轨道附近的每一帧都要读五百
-       * 次 offsetTop,而其中四百八十几次算出来的权重是同一个 '0'。
-       */
+      /* 读的一趟:落点、邻域、中心值。 */
       const anchor = pointerY - rect.top
-
-      let low = 0
-      let high = count - 1
-      let nearest = 0
-
-      while (low <= high) {
-        const middle = (low + high) >> 1
-
-        if (centreOf(middle) <= anchor) {
-          nearest = middle
-          low = middle + 1
-        } else {
-          high = middle - 1
-        }
-      }
-
-      /*
-       * 从落点向两侧展开到衰减耗尽为止。
-       *
-       * 展开条件用真实中心距,不用"每根多高"的估算:柱子被放大之后间距本来就
-       * 不等距,估算会在放大最厉害的地方把波峰截断 —— 那是一个看得见的退化,
-       * 而这里一次都不会发生。
-       */
-      const REACH_PX = FALLOFF_PX * 3
-
-      let from = nearest
-
-      while (from > 0 && Math.abs(centreOf(from - 1) - anchor) <= REACH_PX) {
-        from -= 1
-      }
-
-      let to = nearest
-
-      while (to < count - 1 && Math.abs(centreOf(to + 1) - anchor) <= REACH_PX) {
-        to += 1
-      }
-
-      /* 读的一趟到此为止。下面一个字都不再读布局。 */
-      centres.length = 0
-
-      for (let index = from; index <= to; index += 1) {
-        centres[index - from] = centreOf(index)
-      }
+      const next = solveWindow(anchor, bars.length, centreOf, centres)
 
       /* 出了窗口的交还样式表,而且只交还上一帧写过的。 */
       if (painted.to >= painted.from) {
-        unpaint(painted.from, Math.min(painted.to, from - 1))
-        unpaint(Math.max(painted.from, to + 1), painted.to)
+        unpaint(painted.from, Math.min(painted.to, next.from - 1))
+        unpaint(Math.max(painted.from, next.to + 1), painted.to)
       }
 
-      painted = { from, to }
+      painted = next
 
-      /* 写的一趟。Nothing below reads layout. */
-      let winner: HTMLElement | null = null
-      let best = AIMED_MIN_WEIGHT
+      /* 写的一趟。至多两根柱子每帧换手,所以只碰两根,不是 N 根。 */
+      const winner = applyWeights(bars, next, centres, anchor)
 
-      for (let index = from; index <= to; index += 1) {
-        const bar = bars[index]
-        const centre = centres[index - from]
-
-        if (bar === undefined || centre === undefined) {
-          continue
-        }
-
-        const ratio = (centre - anchor) / FALLOFF_PX
-        const weight = Math.exp(-(ratio * ratio))
-        const next = weight < EPSILON ? '0' : weight.toFixed(3)
-
-        /*
-         * Only write a weight that changed. Reading the inline declaration
-         * back is CSSOM, not layout — it cannot force a flush.
-         */
-        if (bar.style.getPropertyValue(WEIGHT_VAR) !== next) {
-          bar.style.setProperty(WEIGHT_VAR, next)
-        }
-
-        if (weight > best) {
-          best = weight
-          winner = bar
-        }
-      }
-
-      /*
-       * One winner, decided from the same weights the pull was drawn from.
-       * At most two bars change hands per frame, so touch two — not N.
-       */
       if (winner !== aimed) {
         aimed?.removeAttribute(AIMED_ATTR)
         winner?.setAttribute(AIMED_ATTR, '')
