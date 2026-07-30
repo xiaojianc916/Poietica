@@ -98,10 +98,6 @@ importers:
         version: 7.0.2
 
   agent/protocol:
-    dependencies:
-      valibot:
-        specifier: 'catalog:'
-        version: 1.4.2(typescript@7.0.2)
     devDependencies:
       typescript:
         specifier: 'catalog:'

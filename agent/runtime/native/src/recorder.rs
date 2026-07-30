@@ -3,31 +3,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
-    ToolCallStatus as ProtocolToolCallStatus, ToolKind,
+    ToolCallStatus as ProtocolToolCallStatus,
 };
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
+use crate::frame::{FrameNotification, RunFrame, normalize, prune, wire_name};
 use crate::permission::Decision;
 use crate::run_log::{PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 
-/// Log kind for the first event of a run.
-pub const RUN_STARTED: &str = "run_started";
-/// Log kind for a session update received from the agent.
-pub const ACP_UPDATE: &str = "acp_update";
-/// Log kind for a permission request the agent is blocked on.
-pub const PERMISSION_REQUESTED: &str = "permission_requested";
-/// Log kind for the answer given to a permission request.
-pub const PERMISSION_RESOLVED: &str = "permission_resolved";
-/// Log kind for a run that ended on the agent's terms.
-pub const RUN_FINISHED: &str = "run_finished";
-/// Log kind for a run that ended in a failure.
-pub const RUN_FAILED: &str = "run_failed";
-
 /// The stop reason for a turn the user stopped, as the interface spells it.
 const CANCELLED: &str = "cancelled";
+
+/// 一个 ToolKind 连序列化器都说不出名字时的归类。协议自己留了这一档。
+const OTHER: &str = "other";
 
 /// A frame that is already durable and is now safe to forward.
 ///
@@ -42,7 +33,7 @@ pub struct RecordedEvent {
     pub run_id: String,
     /// Position within the run, starting at one.
     pub seq: i64,
-    /// Discriminator, one of the constants in this module.
+    /// Discriminator, as `RunFrame::kind` spells it.
     pub kind: String,
     /// The frame as the interface receives it.
     pub frame: Value,
@@ -53,12 +44,11 @@ pub struct RecordedEvent {
 /// The order inside every method is deliberate: append to the log, update the
 /// projections, then forward. A consumer can therefore never observe an event
 /// that would disappear on restart.
+///
+/// 帧的形状不在这里定义。这里只决定「此刻发生了哪一种事」，形状由 frame.rs
+/// 的 `RunFrame` 说了算，于是一个拼错的字段名过不了编译。
 pub struct Recorder {
     /// Where frames are made durable.
-    ///
-    /// A log, not a database: whether it is shared, and what has to be
-    /// locked to write it, is settled where it is built and is no concern
-    /// of a run in progress.
     log: Box<dyn RunLog>,
     run_id: Uuid,
     next_seq: i64,
@@ -67,9 +57,6 @@ pub struct Recorder {
     /// What the agent said on its own error stream during this run.
     diagnostics: String,
     /// How many session updates this run carried.
-    ///
-    /// A run that carried none said nothing through the protocol, which is
-    /// the only case where its error stream is the account of the turn.
     updates: u32,
 }
 
@@ -110,32 +97,21 @@ impl Recorder {
     }
 
     /// Hands over what the agent said on its own error stream.
-    ///
-    /// Recorded with the end of the turn rather than as it arrives: the
-    /// stream is not part of the protocol, it has no sequence of its own,
-    /// and interleaving it with real frames would invent an order.
     pub fn set_diagnostics(&mut self, text: String) {
         self.diagnostics = text;
     }
 
     /// Takes the first failure observed while recording, if there was one.
-    ///
-    /// Handlers cannot return our failures to the agent, so the driver asks for
-    /// them here once the run is over.
     pub fn take_failure(&mut self) -> Option<AcpError> {
         self.failure.take()
     }
 
     /// Records that the run began, and what was asked.
-    ///
-    /// The prompt belongs in the log because the interface has to show it, and
-    /// an agent is under no obligation to echo it back. Recording it here is
-    /// what makes a replayed run show the same conversation as a live one.
     pub fn record_run_started(&mut self, session_id: &str, prompt: &str) {
-        let outcome = self.append(
-            RUN_STARTED,
-            json!({ "sessionId": session_id, "prompt": prompt }),
-        );
+        let outcome = self.append(RunFrame::RunStarted {
+            session_id: session_id.to_owned(),
+            prompt: prompt.to_owned(),
+        });
         self.remember(outcome);
     }
 
@@ -146,10 +122,6 @@ impl Recorder {
     }
 
     /// Records a permission request the agent is now blocked on.
-    ///
-    /// The protocol does not expose the underlying request identifier to the
-    /// handler, so the client mints one. It exists to correlate the request
-    /// with its answer, nothing more.
     pub fn record_permission_requested(&mut self, request: &RequestPermissionRequest) -> String {
         let request_id = Uuid::now_v7().to_string();
         let tool_call_id = request.tool_call.tool_call_id.to_string();
@@ -180,10 +152,6 @@ impl Recorder {
     }
 
     /// Settles every request still outstanding when the turn ended.
-    ///
-    /// Their handlers are being abandoned, and an abandoned handler can no
-    /// longer record anything, so the log would otherwise keep a request that
-    /// is permanently unanswered.
     pub fn record_pending_cancelled(&mut self) {
         let pending = match self.log.outstanding_permissions(self.run_id) {
             Ok(pending) => pending,
@@ -203,8 +171,10 @@ impl Recorder {
     pub fn record_run_finished(&mut self, stop_reason: &str) {
         let outcome = self.finish(
             RunOutcome::Finished,
-            RUN_FINISHED,
-            json!({ "stopReason": stop_reason }),
+            RunFrame::RunFinished {
+                stop_reason: stop_reason.to_owned(),
+                diagnostics: None,
+            },
             stop_reason,
         );
         self.remember(outcome);
@@ -213,13 +183,15 @@ impl Recorder {
     /// Records that the user stopped the run.
     ///
     /// The frame is a normal end of turn carrying the protocol's own cancelled
-    /// stop reason, because that is what the interface validates. The run row
-    /// is marked cancelled rather than finished, because that is what happened.
+    /// stop reason. The run row is marked cancelled rather than finished,
+    /// because that is what happened.
     pub fn record_run_cancelled(&mut self) {
         let outcome = self.finish(
             RunOutcome::Cancelled,
-            RUN_FINISHED,
-            json!({ "stopReason": CANCELLED }),
+            RunFrame::RunFinished {
+                stop_reason: CANCELLED.to_owned(),
+                diagnostics: None,
+            },
             CANCELLED,
         );
         self.remember(outcome);
@@ -229,8 +201,10 @@ impl Recorder {
     pub fn record_run_failed(&mut self, message: &str) {
         let outcome = self.finish(
             RunOutcome::Failed,
-            RUN_FAILED,
-            json!({ "message": message }),
+            RunFrame::RunFailed {
+                message: message.to_owned(),
+                diagnostics: None,
+            },
             message,
         );
         self.remember(outcome);
@@ -241,30 +215,14 @@ impl Recorder {
 
         let mut update = serde_json::to_value(&notification.update)?;
 
-        // The boundary validator treats an absent field and a null field
-        // differently, and an optional protocol field may be encoded either
-        // way. Removing nulls satisfies it without depending on which.
-        prune_nulls(&mut update);
+        normalize(&mut update, &notification.update)?;
 
-        // A tool call announcement must arrive complete. The serialiser omits
-        // fields holding the protocol's default value, and a pending call is
-        // the default, so the very first frame of every tool call would
-        // otherwise be rejected at the boundary.
-        if let SessionUpdate::ToolCall(call) = &notification.update {
-            restore(&mut update, "title", Value::String(call.title.clone()));
-            restore(&mut update, "kind", serde_json::to_value(call.kind)?);
-            restore(&mut update, "status", serde_json::to_value(call.status)?);
-        }
-
-        self.append(
-            ACP_UPDATE,
-            json!({
-                "notification": {
-                    "sessionId": notification.session_id.to_string(),
-                    "update": update,
-                }
-            }),
-        )?;
+        self.append(RunFrame::AcpUpdate {
+            notification: FrameNotification {
+                session_id: notification.session_id.to_string(),
+                update,
+            },
+        })?;
 
         self.project(&notification.update)
     }
@@ -275,11 +233,13 @@ impl Recorder {
                 // An unrecognised state is left out of the projection rather
                 // than guessed at; the log still carries it verbatim.
                 if let Some(status) = translate(call.status) {
+                    let kind = wire_name(call.kind).unwrap_or_else(|| OTHER.to_owned());
+
                     self.log.apply_tool_call(
                         self.run_id,
                         &call.tool_call_id.to_string(),
                         &call.title,
-                        kind_name(call.kind),
+                        &kind,
                         status,
                     )?;
                 }
@@ -323,26 +283,20 @@ impl Recorder {
             .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
 
         let mut options = serde_json::to_value(&request.options)?;
-        prune_nulls(&mut options);
-
-        // The operation itself, which the interface has to show before anyone
-        // can consent to it. The protocol sends it as an ordinary tool call
-        // update, so it is forwarded in exactly that shape and validated at the
-        // boundary by the schema that already reads those frames. Dropping it
-        // is what left the user approving a verb.
         let mut tool_call = serde_json::to_value(&request.tool_call)?;
-        prune_nulls(&mut tool_call);
 
-        self.append(
-            PERMISSION_REQUESTED,
-            json!({
-                "requestId": request_id,
-                "toolCallId": tool_call_id,
-                "title": self.permission_title(request, tool_call_id),
-                "toolCall": tool_call,
-                "options": options,
-            }),
-        )
+        prune(&mut options);
+        prune(&mut tool_call);
+
+        let title = self.permission_title(request, tool_call_id);
+
+        self.append(RunFrame::PermissionRequested {
+            request_id: request_id.to_owned(),
+            tool_call_id: tool_call_id.to_owned(),
+            title,
+            tool_call,
+            options,
+        })
     }
 
     fn persist_resolution(&mut self, request_id: &str, decision: &Decision) -> Result<()> {
@@ -361,20 +315,14 @@ impl Recorder {
 
         let _settled = self.log.resolve_permission(request_id, outcome)?;
 
-        self.append(
-            PERMISSION_RESOLVED,
-            json!({
-                "requestId": request_id,
-                "optionId": option_id,
-                "outcome": wire_outcome,
-            }),
-        )
+        self.append(RunFrame::PermissionResolved {
+            request_id: request_id.to_owned(),
+            option_id,
+            outcome: wire_outcome.to_owned(),
+        })
     }
 
     /// The interface requires a title; the protocol makes it optional.
-    ///
-    /// The request's own title wins, then the title already projected for that
-    /// tool call, and only then the identifier as a last resort.
     fn permission_title(&self, request: &RequestPermissionRequest, tool_call_id: &str) -> String {
         if let Some(title) = request.tool_call.fields.title.clone() {
             return title;
@@ -392,46 +340,52 @@ impl Recorder {
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn finish(&mut self, status: RunOutcome, kind: &str, body: Value, detail: &str) -> Result<()> {
+    fn finish(&mut self, status: RunOutcome, frame: RunFrame, detail: &str) -> Result<()> {
         self.log.finish_run(self.run_id, status, Some(detail))?;
 
-        // A failure always carries the agent account of it. A turn that ended
-        // on the agent terms carries it only when the protocol carried
-        // nothing, so a healthy turn is not narrated by its own logging.
-        let mut body = body;
-        let telling = kind == RUN_FAILED || self.updates == 0;
+        let frame = self.narrate(frame);
 
-        if telling
-            && !self.diagnostics.is_empty()
-            && let Value::Object(fields) = &mut body
-        {
-            let _absent = fields.insert(
-                "diagnostics".to_owned(),
-                Value::String(self.diagnostics.clone()),
-            );
-        }
-
-        self.append(kind, body)
+        self.append(frame)
     }
 
-    fn append(&mut self, kind: &str, body: Value) -> Result<()> {
-        let seq = self.next_seq;
-        let mut frame = body;
-
-        if let Value::Object(fields) = &mut frame {
-            fields.insert("kind".to_owned(), Value::String(kind.to_owned()));
-            fields.insert("seq".to_owned(), Value::from(seq));
-            fields.insert("at".to_owned(), Value::from(now_millis()));
+    /// A failure always carries the agent account of it. A turn that ended on
+    /// the agent terms carries it only when the protocol carried nothing, so a
+    /// healthy turn is not narrated by its own logging.
+    fn narrate(&self, frame: RunFrame) -> RunFrame {
+        if self.diagnostics.is_empty() {
+            return frame;
         }
 
-        self.log.append_event(self.run_id, seq, kind, &frame)?;
+        let said = Some(self.diagnostics.clone());
+
+        match frame {
+            RunFrame::RunFailed { message, .. } => RunFrame::RunFailed {
+                message,
+                diagnostics: said,
+            },
+            RunFrame::RunFinished { stop_reason, .. } if self.updates == 0 => {
+                RunFrame::RunFinished {
+                    stop_reason,
+                    diagnostics: said,
+                }
+            }
+            other => other,
+        }
+    }
+
+    fn append(&mut self, frame: RunFrame) -> Result<()> {
+        let seq = self.next_seq;
+        let kind = frame.kind();
+        let body = frame.envelope(seq, now_millis())?;
+
+        self.log.append_event(self.run_id, seq, kind, &body)?;
         self.next_seq = seq.saturating_add(1);
 
         let event = RecordedEvent {
             run_id: self.run_id.to_string(),
             seq,
             kind: kind.to_owned(),
-            frame,
+            frame: body,
         };
 
         (self.sink)(&event);
@@ -445,40 +399,6 @@ impl Recorder {
         {
             self.failure = Some(error);
         }
-    }
-}
-
-/// Puts back a required field the serialiser left out.
-///
-/// `title`, `kind` and `status` are mandatory on a tool call announcement at
-/// the interface boundary, while the protocol gives two of them defaults and
-/// omits them on the wire when they hold that default. The value written here
-/// is the SDK's own, through the same serialiser, so this restores a field
-/// rather than inventing one, and a field the serialiser did emit is left
-/// exactly as it was.
-fn restore(update: &mut Value, field: &str, value: Value) {
-    if let Value::Object(fields) = update
-        && !fields.contains_key(field)
-    {
-        let _absent = fields.insert(field.to_owned(), value);
-    }
-}
-
-/// Removes null members so that an optional field reads as absent.
-fn prune_nulls(value: &mut Value) {
-    match value {
-        Value::Object(fields) => {
-            fields.retain(|_name, member| !member.is_null());
-            for member in fields.values_mut() {
-                prune_nulls(member);
-            }
-        }
-        Value::Array(members) => {
-            for member in members.iter_mut() {
-                prune_nulls(member);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -497,20 +417,5 @@ fn translate(status: ProtocolToolCallStatus) -> Option<ToolCallState> {
         ProtocolToolCallStatus::Completed => Some(ToolCallState::Completed),
         ProtocolToolCallStatus::Failed => Some(ToolCallState::Failed),
         _ => None,
-    }
-}
-
-fn kind_name(kind: ToolKind) -> &'static str {
-    match kind {
-        ToolKind::Read => "read",
-        ToolKind::Edit => "edit",
-        ToolKind::Delete => "delete",
-        ToolKind::Move => "move",
-        ToolKind::Search => "search",
-        ToolKind::Execute => "execute",
-        ToolKind::Think => "think",
-        ToolKind::Fetch => "fetch",
-        ToolKind::SwitchMode => "switch_mode",
-        _ => "other",
     }
 }

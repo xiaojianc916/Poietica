@@ -95,19 +95,6 @@ export function createDesktopAgentSession(): DesktopAgentSession {
         })
       },
     }),
-
-    /*
-     * An agent is untrusted input even when it speaks a standard protocol. A
-     * frame that fails validation is reported and dropped, never merged into
-     * the timeline, and never silent.
-     */
-    onInvalidFrame: (issue, payload) => {
-      reportError('agent sent a frame the renderer refused', {
-        scope: 'agent-session',
-        operation: 'validate-frame',
-        cause: { issue, payload },
-      })
-    },
   })
 
   return {

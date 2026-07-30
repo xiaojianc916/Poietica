@@ -6,10 +6,10 @@
 //! Recording, frame shape and projection behaviour, without an agent process.
 //!
 //! The updates here are built with the SDK's own constructors, so the shapes
-//! under test are the shapes the protocol actually delivers. The assertions on
-//! the frames mirror `agent/timeline/src/acp-event-schema.ts`: if a field
-//! named here is renamed there, one side fails loudly instead of silently
-//! dropping frames at the boundary.
+//! under test are the shapes the protocol actually delivers. The frames are
+//! defined once, by `RunFrame` in `src/frame.rs`; these assertions are what
+//! pins that definition to the shape the interface reads, so a renamed field
+//! fails here rather than emptying a conversation on screen.
 //!
 //! 投影读回的是 `common::MemoryLog`，不是 SQLite。这些断言问的是 recorder 把
 //! 什么交给了日志，而"日志怎么落盘"是 agent/persistence 自己的测试。
@@ -169,7 +169,7 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
     assert_eq!(text_of(inner, "title"), "Editing main.rs");
     assert!(
         inner.get("status").is_none(),
-        "a null status would be rejected by the boundary validator"
+        "an optional field the agent did not set is absent, not null"
     );
 
     let calls = fixture.written.calls();
@@ -323,9 +323,9 @@ fn an_announcement_carries_every_field_the_boundary_requires() {
     let mut fixture = fixture();
 
     // Both defaults at once: pending is the default status, and this call is
-    // announced without a kind. The protocol omits them on the wire, and the
-    // interface rejects a tool call frame that is missing either one, so the
-    // recorder has to put them back.
+    // announced without a kind. Serialisation omits them, and the interface
+    // draws a card with no title and no icon if they stay omitted, so the
+    // recorder puts them back from the SDK's own values.
     fixture.notify(SessionUpdate::ToolCall(ToolCall::new(
         "call_006",
         "Read config.toml",

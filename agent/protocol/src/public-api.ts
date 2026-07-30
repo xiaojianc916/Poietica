@@ -1,5 +1,3 @@
-export type { ParsedRunEvent } from './acp-event-schema'
-export { parseRunEvent, runEventSchema, sessionUpdateSchema } from './acp-event-schema'
 export type {
   AcpAvailableCommand,
   AcpContentBlock,

@@ -1,0 +1,202 @@
+//! 一次运行的事件契约。
+//!
+//! 这里是帧形状在整个仓库里的唯一定义处。它是一个强类型 enum 而不是一串
+//! `json!` 字面量，所以字段名拼错是编译错误，而不是一个要靠界面侧第二份
+//! schema 在运行期抓出来的问题。
+//!
+//! 判别式与字段名由 serde 派生：`kind` 用协议的 snake_case，字段用界面读的
+//! camelCase。同一条原则 session.rs 取 stop reason 时已经在用 ——
+//! 「wire 形态就是契约，所以取自序列化而不是手写映射」。
+//!
+//! `prune` 与 `normalize` 规范化的是 SDK 的序列化行为，不是兼容层：`Option`
+//! 会序列化成 null，而带默认值的字段会被整个省略。前者对界面而言与「没有」
+//! 同义，后者会让一个 tool call 的首帧缺标题。两者都是第三方序列化的产物，
+//! 所以在帧离开这一层之前就抹平。
+
+use agent_client_protocol::schema::v1::{SessionUpdate, ToolCall};
+use serde::Serialize;
+use serde_json::Value;
+
+/// Log kind for the first event of a run.
+pub const RUN_STARTED: &str = "run_started";
+/// Log kind for a session update received from the agent.
+pub const ACP_UPDATE: &str = "acp_update";
+/// Log kind for a permission request the agent is blocked on.
+pub const PERMISSION_REQUESTED: &str = "permission_requested";
+/// Log kind for the answer given to a permission request.
+pub const PERMISSION_RESOLVED: &str = "permission_resolved";
+/// Log kind for a run that ended on the agent's terms.
+pub const RUN_FINISHED: &str = "run_finished";
+/// Log kind for a run that ended in a failure.
+pub const RUN_FAILED: &str = "run_failed";
+
+/// 一条会话通知，按界面读到的形状。
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameNotification {
+    /// 这一帧属于哪条 ACP 会话。
+    pub session_id: String,
+    /// 协议原样交回来的更新，已规范化。
+    pub update: Value,
+}
+
+/// 一次运行里可能发生的六种事。
+///
+/// `acp_update` 承载协议通知原文；其余五种是协议不建模、而客户端必须记住的
+/// 事实。每一种都带 `seq`（见 `Envelope`），所以重放是确定的。
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+pub enum RunFrame {
+    /// 这一轮开始了，以及问的是什么。
+    RunStarted {
+        /// 这一轮发往哪条会话。
+        session_id: String,
+        /// 人说的那句话，按记录时的原文。
+        prompt: String,
+    },
+    /// agent 发来的一帧会话通知。
+    AcpUpdate {
+        /// 通知本体。
+        notification: FrameNotification,
+    },
+    /// agent 正卡在一次授权请求上。
+    PermissionRequested {
+        /// 用来把请求与答复对起来的标识，由客户端铸造。
+        request_id: String,
+        /// 被问到的那次工具调用。
+        tool_call_id: String,
+        /// 界面必须显示的标题；协议里它是可选的。
+        title: String,
+        /// 被征求同意的那次操作，按协议送来的形状。
+        tool_call: Value,
+        /// agent 给出的选项。
+        options: Value,
+    },
+    /// 那次授权请求是怎么结束的。
+    PermissionResolved {
+        /// 被结清的那个请求。
+        request_id: String,
+        /// 选中的选项；取消时为空。
+        option_id: String,
+        /// selected 或 cancelled。
+        outcome: String,
+    },
+    /// 这一轮按 agent 自己的说法结束了。
+    RunFinished {
+        /// agent 报的停止原因。
+        stop_reason: String,
+        /// 协议什么都没说时，agent 在自己错误流上的说法。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        diagnostics: Option<String>,
+    },
+    /// 这一轮以失败结束。
+    RunFailed {
+        /// 我们的说法。
+        message: String,
+        /// agent 自己的说法，优先于上面那条。
+        #[serde(skip_serializing_if = "Option::is_none")]
+        diagnostics: Option<String>,
+    },
+}
+
+/// 帧加上它在这一轮里的位置与时刻。
+///
+/// `seq` 与 `at` 对六种帧都一样，所以它们在信封上而不是在每个变体里各写一遍。
+#[derive(Serialize)]
+struct Envelope<'frame> {
+    seq: i64,
+    at: i64,
+    #[serde(flatten)]
+    frame: &'frame RunFrame,
+}
+
+impl RunFrame {
+    /// 这一帧在日志里记作哪一类。返回的就是 wire 上的判别式。
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::RunStarted { .. } => RUN_STARTED,
+            Self::AcpUpdate { .. } => ACP_UPDATE,
+            Self::PermissionRequested { .. } => PERMISSION_REQUESTED,
+            Self::PermissionResolved { .. } => PERMISSION_RESOLVED,
+            Self::RunFinished { .. } => RUN_FINISHED,
+            Self::RunFailed { .. } => RUN_FAILED,
+        }
+    }
+
+    /// 落盘与上屏的那一份 JSON。
+    ///
+    /// # Errors
+    ///
+    /// 序列化失败时报错；此时这一帧既不落盘也不转发。
+    pub fn envelope(&self, seq: i64, at: i64) -> serde_json::Result<Value> {
+        serde_json::to_value(Envelope {
+            seq,
+            at,
+            frame: self,
+        })
+    }
+}
+
+/// 删掉 null 成员。它们是 `Option::None` 的产物，对界面而言与缺席同义。
+pub fn prune(value: &mut Value) {
+    match value {
+        Value::Object(fields) => {
+            fields.retain(|_name, member| !member.is_null());
+            for member in fields.values_mut() {
+                prune(member);
+            }
+        }
+        Value::Array(members) => {
+            for member in members.iter_mut() {
+                prune(member);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// 把一个序列化后的会话更新抹平成界面读的形状。
+///
+/// 除了剪除 null，还把序列化时因取默认值而被省略的展示字段按 SDK 自己的值
+/// 补回来。补回来的值走的是同一个序列化器，所以这是还原而不是发明。
+///
+/// # Errors
+///
+/// 补回字段需要再序列化一次协议枚举，失败时报错。
+pub fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json::Result<()> {
+    prune(value);
+
+    if let SessionUpdate::ToolCall(call) = update {
+        restore_tool_call(value, call)?;
+    }
+
+    Ok(())
+}
+
+fn restore_tool_call(value: &mut Value, call: &ToolCall) -> serde_json::Result<()> {
+    restore(value, "title", Value::String(call.title.clone()));
+    restore(value, "kind", serde_json::to_value(call.kind)?);
+    restore(value, "status", serde_json::to_value(call.status)?);
+
+    Ok(())
+}
+
+fn restore(update: &mut Value, field: &str, value: Value) {
+    if let Value::Object(fields) = update
+        && !fields.contains_key(field)
+    {
+        let _absent = fields.insert(field.to_owned(), value);
+    }
+}
+
+/// 一个协议枚举在 wire 上的名字。
+///
+/// 手抄一份 match 会在协议新增成员时静默把它归到别处；序列化器不会。
+#[must_use]
+pub fn wire_name<T: Serialize>(value: T) -> Option<String> {
+    match serde_json::to_value(value) {
+        Ok(Value::String(name)) => Some(name),
+        _ => None,
+    }
+}

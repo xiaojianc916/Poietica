@@ -512,10 +512,10 @@ export function sendToTranscript({
          */
         claimRun(handle.runId, threadId)
 
-        const held2 = readTranscript(threadId)
+        const latest = readTranscript(threadId)
 
-        if (held2.timeline.runId !== handle.runId) {
-          put(threadId, { ...held2, timeline: { ...held2.timeline, runId: handle.runId } })
+        if (latest.timeline.runId !== handle.runId) {
+          put(threadId, { ...latest, timeline: { ...latest.timeline, runId: handle.runId } })
         }
       })
     })

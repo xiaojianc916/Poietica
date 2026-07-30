@@ -23,6 +23,7 @@
 mod config;
 mod desk;
 mod error;
+mod frame;
 mod permission;
 mod program;
 mod recorder;
@@ -35,12 +36,13 @@ mod stderr;
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use error::{AcpError, Result};
+pub use frame::{
+    ACP_UPDATE, FrameNotification, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
+    RUN_FINISHED, RUN_STARTED, RunFrame,
+};
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
-pub use recorder::{
-    ACP_UPDATE, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED, RUN_FINISHED, RUN_STARTED,
-    RecordedEvent, Recorder,
-};
+pub use recorder::{RecordedEvent, Recorder};
 pub use run_log::{
     LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
     RunOutcome, ToolCallState,

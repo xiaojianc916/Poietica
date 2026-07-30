@@ -1,5 +1,4 @@
 import type { RunEvent } from '@poietica/agent-protocol'
-import { parseRunEvent } from '@poietica/agent-protocol'
 import { describe, expect, it } from 'vitest'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
 import { applyRunEvent, createTimelineState, replayRunEvents } from '../timeline-reducer'
@@ -87,10 +86,5 @@ describe('timeline reducer', () => {
     expect(plans.at(0)?.type === 'plan' && plans.at(0)).toMatchObject({
       entries: [{ content: 'second' }],
     })
-  })
-
-  it('rejects malformed frames at the boundary', () => {
-    expect(parseRunEvent({ kind: 'acp_update', seq: 'nope' }).ok).toBe(false)
-    expect(parseRunEvent(SAMPLE_RUN_EVENTS.at(0)).ok).toBe(true)
   })
 })

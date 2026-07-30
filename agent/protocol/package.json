@@ -12,9 +12,6 @@
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": {
-    "valibot": "catalog:"
-  },
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"

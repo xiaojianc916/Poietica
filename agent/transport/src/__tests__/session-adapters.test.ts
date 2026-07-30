@@ -29,9 +29,8 @@ describe('replay session', () => {
 })
 
 describe('ipc session', () => {
-  it('把畸形帧变成一条可见的拒绝，而不是原样转发', () => {
+  it('原样转发帧与它的地址，不在客户端重新描述协议', () => {
     let emit: (payload: unknown, runId: string) => void = () => {}
-    const issues: string[] = []
 
     const session = createIpcSession({
       bridge: {
@@ -47,26 +46,22 @@ describe('ipc session', () => {
           return () => {}
         },
       },
-      onInvalidFrame: (issue) => issues.push(issue),
     })
 
-    const received: RunEvent[] = []
-    session.subscribe((event) => received.push(event))
+    const received: Array<[RunEvent, string]> = []
+    session.subscribe((event, runId) => received.push([event, runId]))
 
-    emit({ kind: 'nonsense' }, 'r')
-    emit(SAMPLE_RUN_EVENTS.at(0), 'r')
+    const first = SAMPLE_RUN_EVENTS.at(0)
+
+    emit(first, 'r')
 
     /*
-     * 适配器先把畸形帧报告出去，再在它的位置上发出一条 run_failed 拒绝，
-     * 这样时间线呈现的是「这一轮被中断了」，而不是「助手根本没说话」。
-     * seq 为 0 是刻意的：真实帧从 1 开始编号，永不碰撞，reducer 只保留每轮
-     * 第一条拒绝。详见 ipc-session.ts 里 refusedFrame 上方的论证。
-     *
-     * 旧断言要求畸形帧不留痕迹地消失，那正是这个适配器明确放弃的策略。
+     * 帧的形状由原生侧的 RunFrame enum 保证，地址由信封给出。这一层不再持有
+     * 第二份协议描述，因此也不会把一个它这版还不认识的字段判成「无法解析」，
+     * 更不会在时间线上插一条客户端自造的 run_failed。
      */
-    expect(issues).toHaveLength(1)
-    expect(received).toHaveLength(2)
-    expect(received.at(0)).toMatchObject({ kind: 'run_failed', seq: 0 })
-    expect(received.at(1)).toEqual(SAMPLE_RUN_EVENTS.at(0))
+    expect(received).toHaveLength(1)
+    expect(received.at(0)?.[0]).toEqual(first)
+    expect(received.at(0)?.[1]).toBe('r')
   })
 })

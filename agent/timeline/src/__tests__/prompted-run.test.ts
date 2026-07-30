@@ -1,44 +1,27 @@
-import { parseRunEvent } from '@poietica/agent-protocol'
+import type { RunEvent } from '@poietica/agent-protocol'
 import { describe, expect, it } from 'vitest'
 import { applyRunEvent, createTimelineState } from '../timeline-reducer'
 
 /*
  * The question is shown because it was recorded.
  *
- * These frames are the shape the recorder writes, checked through the same
- * boundary the transport uses, so a renamed field fails here rather than
- * silently emptying the conversation.
+ * 这些帧就是 recorder 写下的形状 —— 它由原生侧的 RunFrame 在编译期定下，所以
+ * 一个改名的字段会让这里的投影落空，而不是让屏幕上的对话悄悄变空。
  */
 
 const runId = 'run_test'
 
 describe('a run that carries its prompt', () => {
-  it('accepts the recorded frame at the boundary', () => {
-    const parsed = parseRunEvent({
-      kind: 'run_started',
-      seq: 1,
-      at: 1_000,
-      sessionId: 'sess_alpha',
-      prompt: '读取 README',
-    })
-
-    expect(parsed.ok).toBe(true)
-  })
-
   it('opens the timeline with what the user said', () => {
-    const parsed = parseRunEvent({
+    const started: RunEvent = {
       kind: 'run_started',
       seq: 1,
       at: 1_000,
       sessionId: 'sess_alpha',
       prompt: '读取 README',
-    })
-
-    if (!parsed.ok) {
-      throw new Error('the boundary rejected a frame the recorder writes')
     }
 
-    const state = applyRunEvent(createTimelineState(runId), parsed.event)
+    const state = applyRunEvent(createTimelineState(runId), started)
     const first = state.items.at(0)
 
     expect(state.status).toBe('running')
@@ -46,17 +29,13 @@ describe('a run that carries its prompt', () => {
   })
 
   it('adds nothing when an older recording carries no prompt', () => {
-    const parsed = parseRunEvent({
+    const started = {
       kind: 'run_started',
       seq: 1,
       at: 1_000,
       sessionId: 'sess_alpha',
-    })
+    } as RunEvent
 
-    if (!parsed.ok) {
-      throw new Error('the boundary rejected a frame every recording contains')
-    }
-
-    expect(applyRunEvent(createTimelineState(runId), parsed.event).items).toEqual([])
+    expect(applyRunEvent(createTimelineState(runId), started).items).toEqual([])
   })
 })
