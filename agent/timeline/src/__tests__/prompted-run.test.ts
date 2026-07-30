@@ -29,12 +29,12 @@ describe('a run that carries its prompt', () => {
   })
 
   it('adds nothing when an older recording carries no prompt', () => {
-    const started = {
+    const started: RunEvent = {
       kind: 'run_started',
       seq: 1,
       at: 1_000,
       sessionId: 'sess_alpha',
-    } as RunEvent
+    }
 
     expect(applyRunEvent(createTimelineState(runId), started).items).toEqual([])
   })

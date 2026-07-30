@@ -11,13 +11,17 @@ import type { RunEvent } from '@poietica/agent-protocol'
  * must be believed live in __fixtures__ and come from a real agent.
  */
 export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
-  /* prompt 留空是有意的：这份样本让紧随其后的 user_message_chunk 承载问题，
-     而 withPrompt 对空 prompt 不落条目 —— 两个来源里只有一个说话，转录才不会
-     把同一句问两遍。 */
-  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo', prompt: '' },
+  /* 不带 prompt：问题由紧随其后的 user_message_chunk 承载，两个来源里只有一个
+     说话，转录才不会把同一句问两遍。
+
+     seq 从 1 起编，不是从 0 —— 见本文件上游 timeline-reducer 顶部那句
+     "Sequence numbers restart at one for every run"。此前这里写 0，而 apply()
+     的去重是 seq <= lastSeq、草稿初值为 0，于是整帧 run_started 每次都被丢掉，
+     status 停在 idle，流式末行在这份样本上从来没有为真过。 */
+  { kind: 'run_started', seq: 1, at: 1_000, sessionId: 'sess_demo' },
   {
     kind: 'acp_update',
-    seq: 1,
+    seq: 2,
     at: 1_010,
     notification: {
       sessionId: 'sess_demo',
@@ -29,7 +33,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 2,
+    seq: 3,
     at: 1_020,
     notification: {
       sessionId: 'sess_demo',
@@ -41,7 +45,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 3,
+    seq: 4,
     at: 1_030,
     notification: {
       sessionId: 'sess_demo',
@@ -53,7 +57,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 4,
+    seq: 5,
     at: 1_040,
     notification: {
       sessionId: 'sess_demo',
@@ -68,7 +72,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 5,
+    seq: 6,
     at: 1_050,
     notification: {
       sessionId: 'sess_demo',
@@ -84,7 +88,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 6,
+    seq: 7,
     at: 1_060,
     notification: {
       sessionId: 'sess_demo',
@@ -93,7 +97,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 7,
+    seq: 8,
     at: 1_090,
     notification: {
       sessionId: 'sess_demo',
@@ -107,7 +111,7 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 8,
+    seq: 9,
     at: 1_100,
     notification: {
       sessionId: 'sess_demo',
@@ -117,5 +121,5 @@ export const SAMPLE_RUN_EVENTS: readonly RunEvent[] = [
       },
     },
   },
-  { kind: 'run_finished', seq: 9, at: 1_110, stopReason: 'end_turn' },
+  { kind: 'run_finished', seq: 10, at: 1_110, stopReason: 'end_turn' },
 ]

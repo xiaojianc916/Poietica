@@ -62,6 +62,20 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     }
 
     /*
+     * 这一家有没有这种查询，档案说了算 —— 契约里 providerListArgs 是可选的，
+     * 缺席就是「问不了」，不是「随便发一条命令试试」。
+     */
+    const listArgs = descriptor.providerListArgs
+
+    if (listArgs === undefined) {
+      setLoading(false)
+      setSnapshot(undefined)
+      setError(`${descriptor.displayName} 没有声明查询模型清单的子命令。`)
+
+      return
+    }
+
+    /*
      * 有缓存先摆缓存，后台再真问 —— 重新进入不再每次空等一次进程启动。
      * 没有缓存才进 loading：那是唯一一次「什么都还拿不出来」的等待。
      */
@@ -79,7 +93,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     void store
       .execCli({
         agentId,
-        args: [...descriptor.providerListArgs],
+        args: [...listArgs],
         secretVar: '',
         secretValue: '',
       })

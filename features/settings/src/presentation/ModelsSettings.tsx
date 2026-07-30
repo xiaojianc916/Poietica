@@ -138,12 +138,22 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       return
     }
 
+    /* 与 useAgentProviders 同一条判据：可选就是可选，缺席不发这次调用。 */
+    const listArgs = descriptor.providerListArgs
+
+    if (listArgs === undefined) {
+      setGlobalSnapshot(undefined)
+      setGlobalNote(`${descriptor.displayName} 没有声明查询模型清单的子命令。`)
+
+      return
+    }
+
     setProbing(true)
 
     void store
       .execCli({
         agentId,
-        args: [...descriptor.providerListArgs],
+        args: [...listArgs],
         secretVar: '',
         secretValue: '',
         useGlobalHome: true,

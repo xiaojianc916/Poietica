@@ -120,7 +120,7 @@ async agentSetConfigOption(request: AgentSelectConfigRequest) : Promise<AgentCon
  * 于是入口界面（还没有对话、也没有会话）在结构上不可能画出模型选择器，而渲染
  * 层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
  * 
- * 这里问的是锚会话：connect() 建立连接时本来就交回一个会话号，没有任何对话
+ * 这里问的是锚会话：`connect()` 建立连接时本来就交回一个会话号，没有任何对话
  * 持有它。所以这条命令不新开会话、不写库、不碰任何 thread。
  * 
  * 它仍然会按需起进程：一个从没打开过助手的启动不该为此付钱，而一旦有人要看
@@ -406,7 +406,7 @@ export type AgentCliRequest = {
  */
 agentId: string; 
 /**
- * 完整的子命令序列，例如 ["provider", "list", "--json"]。
+ * 完整的子命令序列，例如 `["provider", "list", "--json"]`。
  * 
  * 第一项是子命令名，`is_allowed` 看的就是它。
  * 

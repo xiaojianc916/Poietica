@@ -511,9 +511,10 @@ function namespace(draft: Draft): string {
  */
 function withPrompt(
   draft: Draft,
-  event: { readonly seq: number; readonly at: number; readonly prompt: string },
+  event: { readonly seq: number; readonly at: number; readonly prompt?: string | undefined },
 ): void {
-  const prompt = event.prompt
+  /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。 */
+  const prompt = event.prompt ?? ''
 
   if (prompt.length === 0) {
     return

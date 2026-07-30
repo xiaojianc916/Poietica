@@ -14,10 +14,10 @@ const runId = 'run_test'
  * difference — which is the only thing worth asserting here.
  */
 const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
-  { kind: 'run_started', seq: 0, at: 1_000, sessionId: 'sess_demo', prompt: '' },
+  { kind: 'run_started', seq: 1, at: 1_000, sessionId: 'sess_demo' },
   {
     kind: 'acp_update',
-    seq: 1,
+    seq: 2,
     at: 1_010,
     notification: {
       sessionId: 'sess_demo',
@@ -29,7 +29,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 2,
+    seq: 3,
     at: 1_020,
     notification: {
       sessionId: 'sess_demo',
@@ -41,7 +41,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 4,
+    seq: 5,
     at: 1_040,
     notification: {
       sessionId: 'sess_demo',
@@ -56,7 +56,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 5,
+    seq: 6,
     at: 1_050,
     notification: {
       sessionId: 'sess_demo',
@@ -72,7 +72,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 6,
+    seq: 7,
     at: 1_060,
     notification: {
       sessionId: 'sess_demo',
@@ -81,7 +81,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 7,
+    seq: 8,
     at: 1_090,
     notification: {
       sessionId: 'sess_demo',
@@ -95,7 +95,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
   },
   {
     kind: 'acp_update',
-    seq: 8,
+    seq: 9,
     at: 1_100,
     notification: {
       sessionId: 'sess_demo',
@@ -105,7 +105,7 @@ const COMPACTED_RUN_EVENTS: readonly RunEvent[] = [
       },
     },
   },
-  { kind: 'run_finished', seq: 9, at: 1_110, stopReason: 'end_turn' },
+  { kind: 'run_finished', seq: 10, at: 1_110, stopReason: 'end_turn' },
 ]
 
 describe('compacted frames', () => {
