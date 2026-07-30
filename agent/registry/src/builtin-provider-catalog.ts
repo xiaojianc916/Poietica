@@ -1,4 +1,4 @@
-import type { AgentProviderState } from './agent-provider-state'
+import type { AgentModelState, AgentProviderState } from './agent-provider-state'
 
 /*
  * 内置厂商清单。
@@ -130,10 +130,18 @@ const ZHIPU: AgentProviderPreset = {
 }
 
 /*
- * Kimi（Moonshot 平台密钥）
- * 协议与 base URL：providers.md 的 kimi 段逐字 —— 默认 base_url
- *   https://api.moonshot.ai/v1，OpenAI 兼容。
- * 模型：Kimi 开放平台模型列表页逐字。上下文取该页写明的数字。
+ * Kimi（Moonshot 平台密钥 · 国内站）
+ *
+ * id 与 base URL 不是挑的，是生态里已经存在的真实身份：用户的全局 config.toml
+ * 逐字写着 [providers.moonshot-cn]（type = "kimi"、base_url = https://api.moonshot.cn/v1），
+ * models.dev 的国内条目是 moonshotai-cn。此前这张卡自起 id moonshot、指向国际站
+ * api.moonshot.ai —— 后果有两层：同一家厂商在两个 id 下各存一份（kimi 的去重只在
+ * 同 id 上生效），模型列表整套显示两遍；国内平台的密钥打国际站端点直接 401。
+ *
+ * 密钥申请地址：国内控制台逐字 https://platform.moonshot.cn/console/api-keys。
+ *
+ * 模型：Kimi 开放平台模型列表页逐字。上下文改官方二进制：用户的 config.toml 逐字
+ * max_context_size = 262144（K2.x）/ 1048576（K3）。
  *
  * id 不叫 kimi：agent 自己的配置里 kimi 这个 provider 是它的托管服务（/login 走
  * OAuth）。同名导入会把那一条替换掉 —— catalog add 对已存在的 id 是先删再建。
@@ -144,41 +152,41 @@ const ZHIPU: AgentProviderPreset = {
  * 误判成不可关：kosong 对 anthropic / kimi 两种协议剥掉 alwaysThinking。
  */
 const MOONSHOT: AgentProviderPreset = {
-  id: 'moonshot',
+  id: 'moonshot-cn',
   displayName: 'Kimi（China）',
   description: '填入 Kimi 开放平台密钥。托管账号请用 agent 自己的登录，不走这里。',
   wire: 'kimi',
-  baseUrl: 'https://api.moonshot.ai/v1',
-  apiKeysUrl: 'https://platform.kimi.com/',
+  baseUrl: 'https://api.moonshot.cn/v1',
+  apiKeysUrl: 'https://platform.moonshot.cn/console/api-keys',
   models: [
     {
       id: 'kimi-k3',
       displayName: 'Kimi K3',
-      maxContextSize: 1000000,
+      maxContextSize: 1048576,
       thinking: { efforts: ['low', 'high', 'max'] },
     },
     {
       id: 'kimi-k2.7-code',
       displayName: 'Kimi K2.7 Code',
-      maxContextSize: 256000,
+      maxContextSize: 262144,
       thinking: { toggle: true },
     },
     {
       id: 'kimi-k2.7-code-highspeed',
       displayName: 'Kimi K2.7 Code Highspeed',
-      maxContextSize: 256000,
+      maxContextSize: 262144,
       thinking: { toggle: true },
     },
     {
       id: 'kimi-k2.6',
       displayName: 'Kimi K2.6',
-      maxContextSize: 256000,
+      maxContextSize: 262144,
       thinking: { toggle: true },
     },
     {
       id: 'kimi-k2.5',
       displayName: 'Kimi K2.5',
-      maxContextSize: 256000,
+      maxContextSize: 262144,
       thinking: { toggle: true },
     },
   ],
@@ -292,4 +300,88 @@ export function agentProviderModelOptions(
   }
 
   return options
+}
+
+/*
+ * 一条模型给人看的名字。显示层的事：别名一个字符都不动 —— 它是数据键。
+ *
+ * 规则只有一条：agent 报的名字与别名不同，以 agent 为准；相同（等于没起名）就查
+ * 内置表补全；都不沾边才原样显示别名。写入（importDocument 的 name）与展示
+ * （模型行）共用这一条，两处不会长出两种叫法。
+ */
+export function agentModelDisplayName(model: AgentModelState): string {
+  if (model.displayName !== model.alias) {
+    return model.displayName
+  }
+
+  if (model.providerId === undefined) {
+    return model.alias
+  }
+
+  const bare = bareModelId(model.alias, model.providerId)
+
+  return (
+    builtinAgentProviderById(model.providerId)?.models.find((one) => one.id === bare)
+      ?.displayName ?? model.alias
+  )
+}
+
+/*
+ * 把一家已配置的 provider 序列化成 agent 目录命令认的 api.json 形状。
+ *
+ * 从 agent-provider-state 搬到这里：它需要查内置表补显示名，而内置表查快照类型
+ * 是单向的 —— 倒过来就环了。与 agentProviderModelOptions 同模块：两个都是
+ * 「内置表 × 快照」的消费者。
+ *
+ * 用途只有一个：一次性导入。原料是 provider list 的快照（模型 id、上下文、
+ * capabilities、effort 全在里面），写入仍走官方的 catalog add。没有正整数上下文的
+ * 模型跳过：对方的 catalogModelToCapability 会把它们整条丢掉，不如在这里就跳。
+ * 密钥永不进这份文档。
+ */
+export function agentProviderImportDocument(provider: AgentProviderState): string {
+  const models: Record<string, unknown> = {}
+
+  for (const model of provider.models) {
+    if (model.maxContextSize === undefined) {
+      continue
+    }
+
+    const reasoningOptions: Record<string, unknown>[] = []
+
+    if (model.supportEfforts.length > 0) {
+      reasoningOptions.push({ type: 'effort', values: [...model.supportEfforts] })
+    }
+
+    if (
+      model.capabilities.includes('thinking') &&
+      !model.capabilities.includes('always_thinking')
+    ) {
+      reasoningOptions.push({ type: 'toggle' })
+    }
+
+    const reasoning = reasoningOptions.length > 0 || model.capabilities.includes('always_thinking')
+    const inputs = ['image_in', 'video_in', 'audio_in'].flatMap((capability) =>
+      model.capabilities.includes(capability) ? [capability.slice(0, -3)] : [],
+    )
+    const bare = bareModelId(model.alias, provider.id)
+
+    models[bare] = {
+      id: bare,
+      name: agentModelDisplayName(model),
+      limit: { context: model.maxContextSize },
+      ...(reasoning ? { reasoning: true } : {}),
+      ...(reasoningOptions.length > 0 ? { reasoning_options: reasoningOptions } : {}),
+      ...(inputs.length > 0 ? { modalities: { input: inputs } } : {}),
+    }
+  }
+
+  return JSON.stringify({
+    [provider.id]: {
+      id: provider.id,
+      name: provider.id,
+      ...(provider.baseUrl === undefined ? {} : { api: provider.baseUrl }),
+      ...(provider.type === undefined ? {} : { type: provider.type }),
+      models,
+    },
+  })
 }

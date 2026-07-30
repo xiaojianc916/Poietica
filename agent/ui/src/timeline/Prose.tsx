@@ -56,6 +56,9 @@ const ANIMATION: AnimateOptions = {
  */
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
+  // controls 的默认值是 true，未具名的组按全开处理 —— mermaid 此前白得一个
+  // 与 code/table 口径相反的下载按钮，同时漏掉了本该要的 panZoom。
+  mermaid: { copy: true, download: false, fullscreen: true, panZoom: true },
   table: { copy: true, download: false, fullscreen: true },
 }
 
@@ -96,6 +99,10 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
     >
       <Streamdown
         animated={ANIMATION}
+        // 官方内置光标：仅在 isAnimating 且 streaming 模式下出现，实现是
+        // --streamdown-caret 自定义属性 + ::after 伪元素，不新增 DOM 节点。
+        // 条件与 isAnimating 同源，避免出现"两个真值来源"。
+        caret={isStreaming ? 'block' : undefined}
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
