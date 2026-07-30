@@ -18,11 +18,10 @@ describe('diagnostic buffer', () => {
   it('records structured log entries', () => {
     recordDiagnosticLog(
       'error',
-      'canvas save failed',
+      'settings save failed',
       {
         scope: 'workspace',
         operation: 'save',
-        documentId: 'document-1',
       },
       '2026-07-24T00:00:00.000Z',
     )
@@ -30,12 +29,11 @@ describe('diagnostic buffer', () => {
     expect(getRecentLogEntries()).toEqual([
       expect.objectContaining({
         level: 'error',
-        message: 'canvas save failed',
+        message: 'settings save failed',
         scope: 'workspace',
         timestamp: '2026-07-24T00:00:00.000Z',
         context: {
           operation: 'save',
-          documentId: 'document-1',
         },
       }),
     ])

@@ -40,24 +40,6 @@ describe('FailureCoordinator', () => {
     expect(coordinator.getSnapshot().degradedFeatures.has('settings')).toBe(true)
   })
 
-  it('owns document quarantine', () => {
-    const coordinator = new FailureCoordinator()
-
-    coordinator.report({
-      impact: 'document-fatal',
-      code: 'DOCUMENT_UNSAFE',
-      userMessage: '画布已停止运行。',
-      cause: new Error('render'),
-      scope: {
-        kind: 'document',
-        documentId: 'document-1',
-      },
-      recovery: 'close-document',
-    })
-
-    expect(coordinator.getSnapshot().quarantinedDocuments.has('document-1')).toBe(true)
-  })
-
   it('locks the first terminal failure', () => {
     const coordinator = new FailureCoordinator()
 

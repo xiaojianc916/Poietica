@@ -2,10 +2,6 @@ import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/fou
 import { type FailureIncident, type FailureSignal, failureCoordinator } from './failure-coordinator'
 
 export const APPLICATION_FAILURE_CODES = [
-  'CANVAS_CREATE_FAILED',
-  'CANVAS_OPEN_FAILED',
-  'CANVAS_SAVE_FAILED',
-  'CANVAS_CLOSE_FAILED',
   'WINDOW_MINIMIZE_UNAVAILABLE',
   'WINDOW_MAXIMIZE_UNAVAILABLE',
   'WINDOW_DRAG_UNAVAILABLE',
@@ -14,7 +10,6 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_RESIZE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
-  'DOCUMENT_EDITOR_SESSION_FATAL',
 ] as const
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
@@ -52,46 +47,6 @@ interface ApplicationFailurePolicy {
 }
 
 export const APPLICATION_FAILURE_POLICIES = {
-  CANVAS_CREATE_FAILED: {
-    impact: 'recoverable',
-    userMessage: '无法新建画布，请重试。',
-
-    recovery: 'retry',
-
-    scope: () => ({
-      kind: 'operation',
-      operation: 'create-canvas',
-    }),
-  },
-
-  CANVAS_OPEN_FAILED: {
-    impact: 'recoverable',
-    userMessage: '无法打开画布，请检查文件后重试。',
-
-    recovery: 'retry',
-
-    scope: () => ({
-      kind: 'operation',
-      operation: 'open-canvas',
-    }),
-  },
-
-  CANVAS_SAVE_FAILED: {
-    impact: 'recoverable',
-    userMessage: '画布保存失败，请重试。',
-
-    recovery: 'retry',
-    scope: documentOrOperationScope('save-canvas'),
-  },
-
-  CANVAS_CLOSE_FAILED: {
-    impact: 'recoverable',
-    userMessage: '无法关闭画布，请重试。',
-
-    recovery: 'retry',
-    scope: documentOrOperationScope('close-canvas'),
-  },
-
   WINDOW_MINIMIZE_UNAVAILABLE: {
     impact: 'feature-degraded',
     userMessage: '窗口最小化暂时不可用。',
@@ -163,15 +118,6 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: featureScope('window-close-coordination'),
   },
-
-  DOCUMENT_EDITOR_SESSION_FATAL: {
-    impact: 'document-fatal',
-    userMessage: '当前画布遇到严重错误，已被隔离。其他画布仍可继续使用。',
-
-    recovery: 'close-document',
-
-    scope: requireDocumentScope,
-  },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 
 export function reportFailure(
@@ -225,45 +171,6 @@ function featureScope(
     kind: 'feature',
     featureId,
   })
-}
-
-function documentOrOperationScope(
-  operation: string,
-): (context: FailureReportContext) => FailureScope {
-  return (context) => {
-    const documentId = readDocumentId(context)
-
-    if (documentId) {
-      return {
-        kind: 'document',
-        documentId,
-      }
-    }
-
-    return {
-      kind: 'operation',
-      operation,
-    }
-  }
-}
-
-function requireDocumentScope(context: FailureReportContext): FailureScope {
-  const documentId = readDocumentId(context)
-
-  if (!documentId) {
-    throw new Error('DOCUMENT_EDITOR_SESSION_FATAL requires sessionId.')
-  }
-
-  return {
-    kind: 'document',
-    documentId,
-  }
-}
-
-function readDocumentId(context: FailureReportContext): string | undefined {
-  const sessionId = context['sessionId']
-
-  return typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : undefined
 }
 
 function removeCause(context: FailureReportContext): Readonly<Record<string, unknown>> {

@@ -48,8 +48,6 @@ export interface FailureSnapshot {
   readonly operations: readonly PresentedFailure[]
 
   readonly degradedFeatures: ReadonlyMap<string, PresentedFailure>
-
-  readonly quarantinedDocuments: ReadonlyMap<string, PresentedFailure>
 }
 
 export interface FailureSignal extends Omit<ClassifiedFailureInput, 'technicalMessage'> {
@@ -66,8 +64,6 @@ const EMPTY_SNAPSHOT: FailureSnapshot = Object.freeze({
   operations: Object.freeze([]),
 
   degradedFeatures: new Map(),
-
-  quarantinedDocuments: new Map(),
 })
 
 const MAX_OPERATION_FAILURES = 20
@@ -80,8 +76,6 @@ export class FailureCoordinator {
   private readonly operations: PresentedFailure[] = []
 
   private readonly degradedFeatures = new Map<string, PresentedFailure>()
-
-  private readonly quarantinedDocuments = new Map<string, PresentedFailure>()
 
   private readonly terminalFingerprints = new Set<string>()
 
@@ -129,10 +123,6 @@ export class FailureCoordinator {
 
     if (scope.kind === 'feature') {
       this.degradedFeatures.delete(scope.featureId)
-    }
-
-    if (scope.kind === 'document') {
-      this.quarantinedDocuments.delete(scope.documentId)
     }
 
     for (let index = this.operations.length - 1; index >= 0; index -= 1) {
@@ -227,15 +217,6 @@ export class FailureCoordinator {
         this.recordScoped(this.degradedFeatures, incident.scope.featureId, incident, true)
 
         break
-
-      case 'document-fatal':
-        if (incident.scope.kind !== 'document') {
-          throw new Error('Document failure requires document scope.')
-        }
-
-        this.recordScoped(this.quarantinedDocuments, incident.scope.documentId, incident, false)
-
-        break
     }
 
     this.publish()
@@ -296,8 +277,6 @@ export class FailureCoordinator {
       operations: Object.freeze([...this.operations]),
 
       degradedFeatures: new Map(this.degradedFeatures),
-
-      quarantinedDocuments: new Map(this.quarantinedDocuments),
     })
 
     this.emit()

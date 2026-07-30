@@ -13,8 +13,6 @@ describe('application failure policy', () => {
     expect(isTerminalFailureImpact('native-fatal')).toBe(true)
 
     expect(isNonTerminalFailureImpact('recoverable')).toBe(true)
-
-    expect(isNonTerminalFailureImpact('document-fatal')).toBe(true)
   })
 
   it('creates stable scope keys', () => {
@@ -24,24 +22,17 @@ describe('application failure policy', () => {
         featureId: 'settings',
       }),
     ).toBe('feature:settings')
-
-    expect(
-      createFailureScopeKey({
-        kind: 'document',
-        documentId: 'document-1',
-      }),
-    ).toBe('document:document-1')
   })
 
   it('creates unique IDs and stable fingerprints', () => {
     const input = {
       impact: 'recoverable' as const,
-      code: 'DOCUMENT_SAVE_FAILED',
+      code: 'SAVE_FAILED',
       userMessage: '保存失败，请重试。',
-      technicalMessage: 'document save failed',
+      technicalMessage: 'save failed',
       scope: {
-        kind: 'document' as const,
-        documentId: 'document-1',
+        kind: 'operation' as const,
+        operation: 'save',
       },
       recovery: 'retry' as const,
     }
@@ -69,21 +60,6 @@ describe('application failure policy', () => {
         recovery: 'disable-feature',
       })
     }).toThrow('Feature-degraded failure requires a feature scope.')
-  })
-
-  it('rejects document fatal without document ownership', () => {
-    expect(() => {
-      createClassifiedFailure({
-        impact: 'document-fatal',
-        code: 'DOCUMENT_CORRUPTED',
-        userMessage: '文档无法继续使用。',
-        technicalMessage: 'document invariant failed',
-        scope: {
-          kind: 'application',
-        },
-        recovery: 'close-document',
-      })
-    }).toThrow('Document-fatal failure requires a document scope.')
   })
 
   it('rejects terminal recovery on recoverable failure', () => {

@@ -3,7 +3,6 @@ export interface DiagnosticContext {
   readonly correlationId?: string
   readonly spanId?: string
   readonly userId?: string
-  readonly documentId?: string
 }
 
 let globalContext: DiagnosticContext = {}

@@ -1,17 +1,13 @@
 export const FAILURE_IMPACTS = [
   'recoverable',
   'feature-degraded',
-  'document-fatal',
   'application-fatal',
   'native-fatal',
 ] as const
 
 export type FailureImpact = (typeof FAILURE_IMPACTS)[number]
 
-export type NonTerminalFailureImpact = Extract<
-  FailureImpact,
-  'recoverable' | 'feature-degraded' | 'document-fatal'
->
+export type NonTerminalFailureImpact = Extract<FailureImpact, 'recoverable' | 'feature-degraded'>
 
 export type TerminalFailureImpact = Extract<FailureImpact, 'application-fatal' | 'native-fatal'>
 
@@ -19,7 +15,6 @@ export type FailureRecovery =
   | 'retry'
   | 'dismiss'
   | 'disable-feature'
-  | 'close-document'
   | 'reload'
   | 'restart'
   | 'exit'
@@ -33,10 +28,6 @@ export type FailureScope =
   | {
       readonly kind: 'feature'
       readonly featureId: string
-    }
-  | {
-      readonly kind: 'document'
-      readonly documentId: string
     }
   | {
       readonly kind: 'application'
@@ -74,8 +65,6 @@ const RECOVERY_BY_IMPACT = {
   recoverable: new Set<FailureRecovery>(['retry', 'dismiss', 'none']),
 
   'feature-degraded': new Set<FailureRecovery>(['retry', 'dismiss', 'disable-feature', 'none']),
-
-  'document-fatal': new Set<FailureRecovery>(['retry', 'close-document', 'none']),
 
   'application-fatal': new Set<FailureRecovery>(['reload', 'restart', 'exit', 'none']),
 
@@ -128,9 +117,6 @@ export function createFailureScopeKey(scope: FailureScope): string {
     case 'feature':
       return `feature:${scope.featureId}`
 
-    case 'document':
-      return `document:${scope.documentId}`
-
     case 'application':
       return 'application'
 
@@ -172,14 +158,6 @@ export function validateFailurePolicy(input: ClassifiedFailureInput): void {
     case 'feature-degraded': {
       if (input.scope.kind !== 'feature') {
         throw new Error('Feature-degraded failure requires a feature scope.')
-      }
-
-      return
-    }
-
-    case 'document-fatal': {
-      if (input.scope.kind !== 'document') {
-        throw new Error('Document-fatal failure requires a document scope.')
       }
 
       return
