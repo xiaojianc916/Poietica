@@ -308,7 +308,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             flying.clear();
                         }
                         Step::Asked(Some(Command::Cancel { session_id })) => {
-                            let _stopped = flying.remove(&session_id);
+                            let _halted = flying.remove(&session_id);
                         }
                         Step::Asked(Some(Command::NewSession { cwd, reply })) => {
                             jobs.push(Box::pin(open_session(
@@ -402,9 +402,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 recorder.record_run_started(&session_id, &text);
                             });
 
-                            let (stop, stopped) = oneshot::channel::<()>();
+                            let (halt, halted) = oneshot::channel::<()>();
 
-                            flying.insert(session_id.clone(), stop);
+                            flying.insert(session_id.clone(), halt);
 
                             jobs.push(Box::pin(run_turn(
                                 &connection,
@@ -412,7 +412,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 named,
                                 text,
                                 turn,
-                                stopped,
+                                halted,
                                 reply,
                             )));
                         }
@@ -455,7 +455,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             slot: turn,
                             reply,
                         }) => {
-                            let _stopped = flying.remove(&asked);
+                            let _halted = flying.remove(&asked);
 
                             let Ok(Some(mut recorder)) = turn.take() else {
                                 let _ignored = reply.send(Err(AcpError::Poisoned));
@@ -638,7 +638,7 @@ async fn run_turn(
     named: SessionId,
     text: String,
     slot: RunSlot,
-    stopped: oneshot::Receiver<()>,
+    halted: oneshot::Receiver<()>,
     reply: oneshot::Sender<Result<String>>,
 ) -> Settled {
     let pending = Box::pin(
@@ -650,7 +650,7 @@ async fn run_turn(
             .block_task(),
     );
 
-    let ended = match select(pending, stopped).await {
+    let ended = match select(pending, halted).await {
         Either::Left((answered, _stop)) => match answered {
             Err(error) => Ended::Failed(error.to_string()),
             // The wire form is the contract, so the stop reason is taken from

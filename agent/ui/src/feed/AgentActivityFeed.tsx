@@ -412,7 +412,7 @@ export function AgentActivityFeed({
     const viewport = viewportRef.current
     const transcript = transcriptRef.current
 
-    if (viewport === null || canvas === null) {
+    if (viewport === null || transcript === null) {
       return
     }
 
@@ -444,7 +444,7 @@ export function AgentActivityFeed({
     const viewport = viewportRef.current
     const transcript = transcriptRef.current
 
-    if (viewport === null || canvas === null) {
+    if (viewport === null || transcript === null) {
       return
     }
 
