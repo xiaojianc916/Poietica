@@ -2,11 +2,23 @@ import { DangerCircle, Inbox, Spinner } from '@mynaui/icons-react'
 import type { ReactNode } from 'react'
 import { Button } from './button'
 
+/*
+ * 行内忙碌指示：一次真实往返还没回来时显示在动作按钮旁边。
+ *
+ * 与 LoadingState 共用同一个字形，因为「转圈」只该有一处定义。LoadingState 自己是块级的
+ * （min-h-32 的居中栅格），塞不进按钮那一行 —— 缺了这一格，调用方就会各自手画一个 SVG。
+ *
+ * 它没有「停下来」的语义：动画在不在，等于那次调用回没回来。调用方不得为了好看提前拿掉它。
+ */
+export function InlineSpinner() {
+  return <Spinner aria-hidden="true" className="size-4 animate-spin text-muted-foreground" />
+}
+
 export function LoadingState({ label = '正在加载…' }: { readonly label?: string }) {
   return (
     <div className="grid min-h-32 place-items-center text-sm text-muted-foreground" role="status">
       <span className="flex items-center gap-2">
-        <Spinner aria-hidden="true" className="size-4 animate-spin" />
+        <InlineSpinner />
         {label}
       </span>
     </div>

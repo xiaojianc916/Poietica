@@ -4,6 +4,7 @@ export type {
   AcpAgentLaunchSource,
   AcpAgentProfile,
   AcpAgentProfileParse,
+  AcpAgentProfileReconcile,
   AcpAgentProfileSet,
   AcpAgentProfileSetParse,
   AgentConfigOptionValue,
@@ -14,6 +15,7 @@ export {
   builtinAcpAgentProfiles,
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
+  reconcileAcpAgentProfiles,
 } from './acp-agent-profile'
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'

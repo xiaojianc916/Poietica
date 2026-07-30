@@ -442,3 +442,69 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
 export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
   return { profiles: builtinAcpAgentProfiles(), defaultProfileId: defaultAcpAgent().id }
 }
+
+/** 一次物化的结果。changed 为真表示磁盘上那份与二进制不一致。 */
+export interface AcpAgentProfileReconcile {
+  readonly profiles: readonly AcpAgentProfile[]
+  readonly changed: boolean
+}
+
+/*
+ * 内置 agent 的身份由二进制拥有：起哪个程序、带哪些参数、把受控 home 与代填密钥注入
+ * 到哪个变量名。用户改不了这些，也没有理由改 —— 改了只会让界面与真正被 spawn 的进程
+ * 说两套话。
+ *
+ * 用户拥有的是另外三格：cwd、env、defaultConfigOptions。物化不碰它们。
+ */
+function sameLaunchIdentity(profile: AcpAgentProfile, builtin: AcpAgentProfile): boolean {
+  return (
+    profile.displayName === builtin.displayName &&
+    profile.command === builtin.command &&
+    profile.args.length === builtin.args.length &&
+    profile.args.every((arg, index) => arg === builtin.args[index]) &&
+    profile.homeVar === builtin.homeVar &&
+    profile.registryKeyVar === builtin.registryKeyVar
+  )
+}
+
+/**
+ * 把落盘的档案与二进制里的内置档案对齐。
+ *
+ * agents.json 是内置档案的一份物化，不是它的第二个来源。每次读都重新物化，于是
+ * 「二进制升级了、磁盘没升级」这一整类问题不存在：给档案新增一个字段不需要迁移代码，
+ * 也不需要用户删文件。上一版只在文件为空时写一次，那份拷贝因此永远停在用户第一次
+ * 启动的那个版本 —— 后来加的 registryKeyVar 到不了磁盘，界面就说这个 agent 没有声明
+ * 该往哪个环境变量注入密钥。
+ *
+ * 陌生 id 原样保留 —— 那是用户自带的 agent，不在二进制的管辖范围内。名单里有、磁盘上
+ * 没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
+ */
+export function reconcileAcpAgentProfiles(
+  profiles: readonly AcpAgentProfile[],
+): AcpAgentProfileReconcile {
+  const builtins = builtinAcpAgentProfiles()
+  let changed = false
+
+  const merged = profiles.map((profile) => {
+    const builtin = builtins.find((one) => one.id === profile.id)
+
+    if (!builtin || sameLaunchIdentity(profile, builtin)) {
+      return profile
+    }
+
+    changed = true
+
+    return {
+      ...profile,
+      displayName: builtin.displayName,
+      command: builtin.command,
+      args: [...builtin.args],
+      homeVar: builtin.homeVar,
+      registryKeyVar: builtin.registryKeyVar,
+    }
+  })
+
+  const missing = builtins.filter((builtin) => !merged.some((one) => one.id === builtin.id))
+
+  return { profiles: [...merged, ...missing], changed: changed || missing.length > 0 }
+}

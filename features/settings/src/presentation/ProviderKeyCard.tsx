@@ -1,5 +1,5 @@
 import { type AgentProviderPreset, agentProviderCatalogAddArgs } from '@poietica/agent-registry'
-import { Switch } from '@poietica/foundations-design-system'
+import { InlineSpinner, Switch } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
@@ -25,6 +25,15 @@ import { OptionSelect, SubField } from './models-fields'
  * agent 的原话显示出来。不粉饰：那句失败正是下一刀要修的东西（把内置表按目录形状喂给
  * catalog add 的 --url）。
  */
+/*
+ * 多久算「慢」。到点不停动画 —— 停下来才是撒谎的那一半：写入其实还在跑，界面却说完了 ——
+ * 而是多说一句实话。
+ *
+ * 这一次往返要起一个 Node 进程跑 agent 的 provider catalog add，进程启动加一次联网核对，
+ * 正常几秒；到 8 秒还没回来，用户有权知道它卡在哪一步。
+ */
+const SLOW_WRITE_MS = 8000
+
 export interface ProviderKeyCardProps {
   readonly store: AgentConfigStore
   readonly agentId: string
@@ -46,6 +55,7 @@ export function ProviderKeyCard({
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [waited, setWaited] = useState(false)
 
   /* 写入是一次往返，期间用户可以切走。卸载之后再 setState 是一次无处可去的更新。 */
   const mounted = useRef(true)
@@ -57,6 +67,29 @@ export function ProviderKeyCard({
       mounted.current = false
     }
   }, [])
+
+  /*
+   * 忙碌指示的唯一驱动是 busy，而 busy 只在 execCli 这一次真实往返期间为真：没有假进度、
+   * 没有最小展示时长、请求没发出去就一次都不转（变量名缺席、密钥为空都在 setBusy 之前
+   * return 了）。
+   *
+   * 计时器只负责补一句话，不负责停动画。busy 落下时把它一并复位，否则下一次写入会带着
+   * 上一次的「还在等」开场。
+   */
+  useEffect(() => {
+    if (!busy) {
+      setWaited(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setWaited(true)
+    }, SLOW_WRITE_MS)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [busy])
 
   const options = useMemo<readonly (readonly [string, string])[]>(() => {
     return provider.models.map((model) => [model.id, model.displayName] as const)
@@ -158,6 +191,10 @@ export function ProviderKeyCard({
         <>
           {message !== null ? <p className="models-empty">{message}</p> : null}
 
+          {busy && waited ? (
+            <p className="models-empty">还在等 agent 回应，它可能正在联网核对清单。</p>
+          ) : null}
+
           {options.length > 0 ? (
             <div className="models-row models-row--field">
               <span className="models-row__name">默认模型</span>
@@ -193,6 +230,8 @@ export function ProviderKeyCard({
             <span className="models-row__name">接口地址 {provider.baseUrl}</span>
 
             <div className="models-row__control">
+              {busy ? <InlineSpinner /> : null}
+
               <button
                 className="models-button"
                 disabled={busy || apiKey.trim().length === 0}

@@ -54,7 +54,7 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './components/ui/dropdown-menu'
-export { EmptyState, ErrorState, LoadingState } from './components/ui/feedback'
+export { EmptyState, ErrorState, InlineSpinner, LoadingState } from './components/ui/feedback'
 export { Field, type FieldControlIds, type FieldProps } from './components/ui/field'
 export { Input, type InputProps } from './components/ui/input'
 export { Label, type LabelProps } from './components/ui/label'

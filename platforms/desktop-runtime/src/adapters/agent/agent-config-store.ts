@@ -1,8 +1,4 @@
-import {
-  builtinAcpAgentProfiles,
-  defaultAcpAgent,
-  parseAcpAgentProfileSet,
-} from '@poietica/agent-registry'
+import { parseAcpAgentProfileSet, reconcileAcpAgentProfiles } from '@poietica/agent-registry'
 import type { AgentConfigSnapshot, AgentConfigStore } from '@poietica/features-settings'
 import {
   type AgentConfigSnapshot as AgentConfigSnapshotDto,
@@ -26,22 +22,35 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
   return {
     async load() {
       const dto = await bridge.load()
+      const parsed = parseAcpAgentProfileSet({
+        profiles: dto.agents,
+        defaultProfileId: dto.defaultAgentId,
+      })
+      const reconciled = reconcileAcpAgentProfiles(parsed.value.profiles)
 
       /*
-       * 磁盘上一条档案都没有 —— 那就把内置档案真的写下去，而不是在内存里假装有。
+       * 内置档案的身份由二进制拥有，agents.json 只是它的一份物化 —— 所以每次读都重新
+       * 物化。上一版只在文件为空时写一次，那份拷贝因此停在用户第一次启动的那个版本：
+       * 后来加进档案的 registryKeyVar 到不了磁盘，设置页就说这个 agent 没有声明该往
+       * 哪个环境变量注入密钥。首次落盘不再是一条特例分支，它就是「空名单的物化结果与
+       * 磁盘不一致」这同一件事。
        *
-       * parseAcpAgentProfileSet 的回退只活在这一次渲染里：渲染层于是看得见 kimi，
-       * 而 agents.json 仍然是空的，原生侧的 agent_program 与 launch_env 读的是那个
-       * 空文件。两个真相里只有一个能起进程，另一个只能让界面报错。
-       *
-       * 判据是 dto.agents.length === 0，而不是「解析后为空」：一份被手改坏的档案也
-       * 会解析成空，覆盖过去等于替用户删文件。
+       * 只有在没有任何条目被丢弃时才写回：一份被手改坏的档案解析后会少条目，写回去等于
+       * 替用户删文件。这时物化只活在内存里（界面照样能用），并把 issue 照实说出去。
+       * 文件本来就空则不存在这个风险。
        */
-      if (dto.agents.length === 0) {
-        return fromDto(await bridge.saveAgents(builtinAcpAgentProfiles(), defaultAcpAgent().id))
+      const writable = dto.agents.length === 0 || parsed.issues.length === 0
+
+      if (reconciled.changed && writable) {
+        return fromDto(await bridge.saveAgents(reconciled.profiles, parsed.value.defaultProfileId))
       }
 
-      return fromDto(dto)
+      return {
+        agents: reconciled.profiles,
+        defaultAgentId: parsed.value.defaultProfileId,
+        legacyProviders: dto.legacyProviders,
+        issues: [...dto.issues, ...parsed.issues],
+      }
     },
 
     async saveAgents({ agents, defaultAgentId }) {

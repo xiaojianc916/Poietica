@@ -109,6 +109,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  /* 忙碌指示与按钮之间。单子元素的行不受影响。 */
+  gap: 8px;
 }
 
 .models-row__meta {
