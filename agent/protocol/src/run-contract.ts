@@ -61,12 +61,13 @@ export type RunEvent =
       readonly at: number
       readonly sessionId: AcpSessionId
       /**
-       * What the user asked, as it was recorded.
+       * 人说的那句话，按记录时的原文。
        *
-       * Optional because a run recorded before this field existed carries no
-       * prompt, and a run replayed from that log must still be readable.
+       * 必选：原生侧的 RunFrame::RunStarted 把它声明为 String 而不是 Option
+       * （frame.rs），从来没有写出过缺这一格的帧。此前的 optional 是对着一个
+       * 不存在的历史格式写的，代价是下游多一个永远走不到的分支。
        */
-      readonly prompt?: string
+      readonly prompt: string
     }
   | {
       readonly kind: 'acp_update'

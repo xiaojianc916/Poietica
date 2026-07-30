@@ -67,21 +67,6 @@ export interface AgentProviderSnapshot {
   readonly issues: readonly string[]
 }
 
-/**
- * 问 agent 要这份投影的那串参数。
- *
- * 完整的子命令序列，第一项就是子命令名 —— 原生侧的白名单看的正是 args[0]。
- * 可执行文件不在这里：它由原生侧按 agentId 从 agents.json 的档案里取，与 ACP
- * 会话起的那个进程同源。
- *
- * 上一版把它拆成过 { command, args } 两段，那是把 AgentCliRequest.command 当
- * 成了「子命令」。那个字段其实是可执行文件，于是参数第一项成了 list，白名单
- * 一看不是 provider 就整次拒掉。
- */
-export const AGENT_PROVIDER_LIST_ARGS: readonly string[] = ['provider', 'list', '--json']
-
-const SYNTHETIC_PROVIDER_ID = '__kimi_env__'
-
 const MAX_PROVIDERS = 64
 const MAX_MODELS = 512
 
@@ -219,6 +204,7 @@ function parseProvider(
   id: string,
   input: unknown,
   models: readonly AgentModelState[],
+  syntheticProviderId: string | undefined,
 ): AgentProviderState | undefined {
   const raw = asRecord(input)
 
@@ -235,7 +221,7 @@ function parseProvider(
     configured: credentialKind !== 'none',
     credentialKind,
     registryUrl: registryUrlOf(raw),
-    synthetic: id === SYNTHETIC_PROVIDER_ID,
+    synthetic: syntheticProviderId !== undefined && id === syntheticProviderId,
     models: models.filter((model) => model.providerId === id),
   }
 }
@@ -246,7 +232,11 @@ function parseProvider(
  * 无法解析时返回空投影加一条 issue，不抛错：拿不到列表和列表是空的，对界面是
  * 同一种处置（提示 + 让用户去配），而抛错只会多一个要在调用点接住的分支。
  */
-export function parseAgentProviderList(input: unknown): AgentProviderSnapshot {
+/* syntheticProviderId 由调用方从 agent 档案取；这一层不认识任何一家。 */
+export function parseAgentProviderList(
+  input: unknown,
+  syntheticProviderId: string | undefined,
+): AgentProviderSnapshot {
   const raw = asRecord(input)
 
   if (!raw) {
@@ -266,7 +256,7 @@ export function parseAgentProviderList(input: unknown): AgentProviderSnapshot {
   const providers: AgentProviderState[] = []
 
   for (const [id, candidate] of Object.entries(providerTable).slice(0, MAX_PROVIDERS)) {
-    const provider = parseProvider(id, candidate, parsedModels.models)
+    const provider = parseProvider(id, candidate, parsedModels.models, syntheticProviderId)
 
     if (provider === undefined) {
       issues.push(`provider 条目无法解析，已跳过：${id}`)
@@ -296,7 +286,10 @@ export function parseAgentProviderList(input: unknown): AgentProviderSnapshot {
  * CLI 的正常输出就是一段 JSON，但它也可能什么都没写（配置文件坏了会走 stderr
  * 并以非零退出）。所以这里连 JSON.parse 一起接住。
  */
-export function parseAgentProviderListOutput(stdout: string): AgentProviderSnapshot {
+export function parseAgentProviderListOutput(
+  stdout: string,
+  syntheticProviderId: string | undefined,
+): AgentProviderSnapshot {
   const trimmed = stdout.trim()
 
   if (trimmed.length === 0) {
@@ -304,7 +297,7 @@ export function parseAgentProviderListOutput(stdout: string): AgentProviderSnaps
   }
 
   try {
-    return parseAgentProviderList(JSON.parse(trimmed))
+    return parseAgentProviderList(JSON.parse(trimmed), syntheticProviderId)
   } catch {
     return { providers: [], orphanModels: [], issues: ['provider 列表不是合法的 JSON'] }
   }

@@ -16,7 +16,8 @@
     "@poietica/agent-protocol": "workspace:*",
     "@poietica/agent-registry": "workspace:*",
     "@poietica/agent-timeline": "workspace:*",
-    "@poietica/agent-transport": "workspace:*"
+    "@poietica/agent-transport": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

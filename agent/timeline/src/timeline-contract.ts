@@ -108,7 +108,15 @@ export interface TimelineState {
   readonly runId: RunId
   readonly status: RunStatus
   readonly items: readonly TimelineItem[]
+  /**
+   * 这一段里已经收到的最大序号；零表示还没有收到任何一帧。
+   *
+   * 去重只需要它。序号由原生侧的 recorder 从一开始逐帧递增（recorder.rs 的
+   * next_seq / saturating_add），帧走单条有序 IPC，并且在 RunSlot 的锁下顺序
+   * 转发 —— 所以「到过」等价于「不大于它」。此前这里另挂一个 appliedSeqs 集合，
+   * 每处理一帧整份复制一次，一轮 N 帧就是 O(N²)，而它能表达的东西并不比一个
+   * 数字多。
+   */
   readonly lastSeq: number
-  readonly appliedSeqs: ReadonlySet<number>
   readonly runIndex: number
 }

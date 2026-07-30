@@ -74,6 +74,23 @@ export interface AcpAgentDescriptor {
    *
    * 各家不同的只是这张表，通用层查表那一行对谁都一样 —— 变的是值，所以是声明。
    */
+  /**
+   * 问这一家要「已配置的 provider 与模型」时的完整子命令序列。
+   *
+   * 各家 CLI 的子命令名不同（kimi 是 provider list --json），而通用层拿它去
+   * 执行的那一行对谁都一样 —— 变的是值，所以是声明。
+   *
+   * 此前它是 agent-provider-state.ts 里的一个模块常量，也就是说通用层写死了
+   * 一家的子命令名。缺席表示这一家没有这种查询，界面就不给这个入口。
+   */
+  readonly providerListArgs?: readonly string[] | undefined
+  /**
+   * 由环境变量合成、不可编辑的那个保留 provider id。
+   *
+   * 它是各家自己的实现细节（kimi 是 __kimi_env__，落盘时会被剥掉），通用层只
+   * 需要知道「这一条不该给编辑与删除入口」。同样是值，所以是声明。
+   */
+  readonly syntheticProviderId?: string | undefined
   readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: AcpQuestionDialect | undefined

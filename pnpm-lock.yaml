@@ -136,6 +136,9 @@ importers:
       '@poietica/agent-transport':
         specifier: workspace:*
         version: link:../transport
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
     devDependencies:
       '@types/react':
         specifier: 'catalog:'

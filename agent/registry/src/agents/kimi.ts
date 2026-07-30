@@ -67,6 +67,10 @@ export const kimiCode = {
   // "Falls back to KIMI_REGISTRY_API_KEY if not provided"。我们从不给 --api-key，
   // 所以走的一直是这条回落。
   registryKeyVar: 'KIMI_REGISTRY_API_KEY',
+  // docs/en/reference/kimi-command.md：provider list --json 输出 providers / models 两张表。
+  providerListArgs: ['provider', 'list', '--json'],
+  // 上游用一个固定 id 把 KIMI_MODEL_API_KEY 之类的变量合成成一个 provider，落盘时剥掉。
+  syntheticProviderId: '__kimi_env__',
   optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
 } as const satisfies AcpAgentDescriptor

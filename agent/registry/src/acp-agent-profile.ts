@@ -173,7 +173,6 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
 }
 
 /**
- * 校验一个来源不可信的 agent 档案。/**
  * 校验一个来源不可信的 agent 档案。
  *
  * agents.json 可以被手改，界面也能填任意文本，两者都不可信：一个被改坏的档案

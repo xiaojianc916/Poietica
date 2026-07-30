@@ -1,9 +1,6 @@
-import type {
-  AgentCapabilityPort,
-  SessionConfigControl,
-  SessionConfigPurpose,
-} from '@poietica/agent-protocol'
+import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-protocol'
 import { useSyncExternalStore } from 'react'
+import * as v from 'valibot'
 
 /*
  * 「有哪些模型可选」属于这个 agent，不属于某一条会话。
@@ -36,8 +33,6 @@ import { useSyncExternalStore } from 'react'
 const TABLE_KEY = 'poietica.agent.controls'
 const CHOICE_KEY = 'poietica.agent.control-choice'
 
-const PURPOSES: readonly string[] = ['model', 'thought', 'mode', 'other']
-
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
 function store(): Storage | null {
@@ -49,116 +44,58 @@ function store(): Storage | null {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 /*
- * 缓存是不可信输入，和 agent 报回来的东西一样。
+ * 缓存是不可信输入，和 agent 报回来的东西一样，所以它有一份模式。
  *
- * isRecord 收窄出来的是索引签名，所以每一层都解构再 typeof —— 不用 . 访问、
- * 不用 as。有一处不合规就整张表作废：半张表比没有表更难查。
+ * 此前这里是一百行手写探针：isRecord 收窄出索引签名，再逐层解构加 typeof。
+ * 接口写一遍、校验写一遍，两份靠人对齐 —— 加一格而忘了补校验时编译器一声不吭，
+ * 它只是静默地不再校验那一格。
+ *
+ * valibot 已经在 catalog 里，隔壁的 acp-agent-profile.ts 早就是这么写的；
+ * 这个包只是没跟上。模式即文档，类型由模式推出，漏一格是编译错误。
+ *
+ * 有一处不合规就整份作废：半张表比没有表更难查，这与此前的取舍一致。
  */
-function parseChoices(value: unknown): readonly { value: string; label: string }[] | null {
-  if (!Array.isArray(value)) {
-    return null
+const ControlSchema = v.object({
+  id: v.string(),
+  label: v.string(),
+  purpose: v.picklist(['model', 'thought', 'mode', 'other']),
+  current: v.string(),
+  choices: v.array(v.object({ value: v.string(), label: v.string() })),
+})
+
+const TableSchema = v.array(ControlSchema)
+
+const ChoiceSchema = v.record(v.string(), v.string())
+
+/** 解析一段落盘的 JSON；坏了就当没有。 */
+function revive<TSchema extends v.GenericSchema>(
+  schema: TSchema,
+  raw: string | null,
+): v.InferOutput<TSchema> | undefined {
+  if (raw === null) {
+    return undefined
   }
 
-  const offered: { value: string; label: string }[] = []
+  let parsed: unknown
 
-  for (const raw of value) {
-    if (!isRecord(raw)) {
-      return null
-    }
-
-    const { label, value: option } = raw
-
-    if (typeof option !== 'string' || typeof label !== 'string') {
-      return null
-    }
-
-    offered.push({ value: option, label })
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return undefined
   }
 
-  return offered
+  const checked = v.safeParse(schema, parsed)
+
+  return checked.success ? checked.output : undefined
 }
 
 function parseTable(raw: string | null): readonly SessionConfigControl[] {
-  if (raw === null) {
-    return NO_CONTROLS
-  }
-
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return NO_CONTROLS
-  }
-
-  if (!Array.isArray(parsed)) {
-    return NO_CONTROLS
-  }
-
-  const controls: SessionConfigControl[] = []
-
-  for (const entry of parsed) {
-    if (!isRecord(entry)) {
-      return NO_CONTROLS
-    }
-
-    const { choices, current, id, label, purpose } = entry
-    const offered = parseChoices(choices)
-
-    if (
-      typeof id !== 'string' ||
-      typeof label !== 'string' ||
-      typeof current !== 'string' ||
-      typeof purpose !== 'string' ||
-      !PURPOSES.includes(purpose) ||
-      offered === null
-    ) {
-      return NO_CONTROLS
-    }
-
-    controls.push({
-      id,
-      label,
-      purpose: purpose as SessionConfigPurpose,
-      current,
-      choices: offered,
-    })
-  }
-
-  return controls
+  return revive(TableSchema, raw) ?? NO_CONTROLS
 }
 
 function parseChoice(raw: string | null): Readonly<Record<string, string>> {
-  if (raw === null) {
-    return {}
-  }
-
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return {}
-  }
-
-  if (!isRecord(parsed)) {
-    return {}
-  }
-
-  const chosen: Record<string, string> = {}
-
-  for (const [key, value] of Object.entries(parsed)) {
-    if (typeof value === 'string') {
-      chosen[key] = value
-    }
-  }
-
-  return chosen
+  return revive(ChoiceSchema, raw) ?? {}
 }
 
 let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_KEY) ?? null)

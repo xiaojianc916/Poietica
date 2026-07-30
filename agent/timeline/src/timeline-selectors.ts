@@ -64,12 +64,45 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   return built
 }
 
+/*
+ * 上一次算出来的那一份，按这条转录的首条弱引用。
+ *
+ * reducer 每帧只换掉末尾一条，于是这里 map 出来的元素几乎全是旧对象、数组本身
+ * 却是新的。任何以「行数组」为键的下游记忆（selectTurns）因此必然落空。
+ *
+ * 逐项相同就把上一次那个数组原样还回去。引用稳定性下沉到这一层之后，上面那层
+ * 不再需要各自补一份 last-result 记忆 —— 此前 selectTurns 旁边那个 LAST_TURNS
+ * 加 sameTurns，补的就是这里漏掉的东西。
+ */
+const LAST_ROWS = new WeakMap<TimelineItem, readonly FeedRow[]>()
+
 function buildFeedRows(state: TimelineState): readonly FeedRow[] {
   const visible = state.items.filter(isRenderable)
   const lastIndex = visible.length - 1
   const live = state.status === 'running' || state.status === 'awaiting_permission'
+  const built = visible.map((item, index) =>
+    toRow(item, live && index === lastIndex && isGrowable(item)),
+  )
 
-  return visible.map((item, index) => toRow(item, live && index === lastIndex && isGrowable(item)))
+  const anchor = visible[0]
+
+  if (anchor === undefined) {
+    return built
+  }
+
+  const held = LAST_ROWS.get(anchor)
+
+  if (
+    held !== undefined &&
+    held.length === built.length &&
+    held.every((row, index) => row === built[index])
+  ) {
+    return held
+  }
+
+  LAST_ROWS.set(anchor, built)
+
+  return built
 }
 
 /**
@@ -95,8 +128,6 @@ export interface ConversationTurn {
    */
   readonly reply?: string
 }
-
-/* poietica:turn-identity@v18 */
 
 /** 一次收集的产物:提出这一轮的那一行,加上它的位置与标题。 */
 interface StagedTurn {
@@ -138,27 +169,6 @@ function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn 
   TURN_OF.set(entry.row, turn)
 
   return turn
-}
-
-/*
- * 上一次的结果,用来保住数组本身的引用。
- *
- * 逐个复用还不够:哪怕 N 个元素全是旧对象,map 出来的仍是一个新数组,下游的
- * 浅比较照样落空。内容一致就把上一次那个数组原样还回去 —— reselect 一类库
- * 管这叫 last-result 记忆,这里没必要为它引一个库。
- *
- * 但记忆不能是一份模块单例。这个文件开头写着 Pure derivations only,而一个
- * 跨调用可变的模块变量恰好是它的反面:两段会话同屏时互相冲掉对方的缓存,
- * 上一版注释里那句"真出现多会话同屏,再按会话分桶"就是承认了这件事。
- *
- * 所以按对话身份分桶,键取首行的条目 —— 一条对话的开头在它整个生命里都是
- * 同一个对象,而向上回填历史会换掉它,那时正该重建一次。弱引用,所以一段会话
- * 被丢掉,它的记忆跟着一起走。
- */
-const LAST_TURNS = new WeakMap<TimelineItem, readonly ConversationTurn[]>()
-
-function sameTurns(left: readonly ConversationTurn[], right: readonly ConversationTurn[]): boolean {
-  return left.length === right.length && left.every((turn, index) => turn === right[index])
 }
 
 const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
@@ -213,20 +223,6 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
 
     return toTurn(entry, reply)
   })
-
-  const anchor = rows[0]?.item
-
-  if (anchor === undefined) {
-    return built
-  }
-
-  const held = LAST_TURNS.get(anchor)
-
-  if (held !== undefined && sameTurns(held, built)) {
-    return held
-  }
-
-  LAST_TURNS.set(anchor, built)
 
   return built
 }

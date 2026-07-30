@@ -53,7 +53,6 @@ interface Draft {
   /** id → 下标；没人按 id 找过就还没有。 */
   index: Map<string, number> | null
   lastSeq: number
-  applied: Set<number>
   runIndex: number
 }
 
@@ -62,8 +61,7 @@ export function createTimelineState(runId: RunId): TimelineState {
     runId,
     status: 'idle',
     items: [],
-    lastSeq: -1,
-    appliedSeqs: new Set<number>(),
+    lastSeq: 0,
     runIndex: 0,
   }
 }
@@ -197,7 +195,7 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
   /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。
      run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，
      拿上一段的窗口去判它，判出来的"重复"是假的。 */
-  if (event.kind !== 'run_started' && state.appliedSeqs.has(event.seq)) {
+  if (event.kind !== 'run_started' && event.seq <= state.lastSeq) {
     return state
   }
 
@@ -224,7 +222,6 @@ function draftOf(state: TimelineState): Draft {
     items: state.items.slice(),
     index: null,
     lastSeq: state.lastSeq,
-    applied: new Set(state.appliedSeqs),
     runIndex: state.runIndex,
   }
 }
@@ -235,15 +232,13 @@ function freeze(draft: Draft): TimelineState {
     status: draft.status,
     items: draft.items,
     lastSeq: draft.lastSeq,
-    appliedSeqs: draft.applied,
     runIndex: draft.runIndex,
   }
 }
 
 /** 新的一轮：它自己的帧从一开始编号，所以窗口跟着换。 */
 function openSegment(draft: Draft): void {
-  draft.lastSeq = -1
-  draft.applied = new Set<number>()
+  draft.lastSeq = 0
   draft.runIndex += 1
 }
 
@@ -258,12 +253,11 @@ function apply(draft: Draft, event: RunEvent): void {
    * replayRunEvents 一轮到底，一段都不开：同一份日志放两遍必须得到同一个
    * 状态，这是回放能被信任的前提。
    */
-  if (draft.applied.has(event.seq)) {
+  if (event.seq <= draft.lastSeq) {
     return
   }
 
-  draft.applied.add(event.seq)
-  draft.lastSeq = Math.max(draft.lastSeq, event.seq)
+  draft.lastSeq = event.seq
 
   switch (event.kind) {
     case 'run_started': {
@@ -299,12 +293,15 @@ function apply(draft: Draft, event: RunEvent): void {
     case 'permission_resolved': {
       draft.status = 'running'
 
-      for (const [position, item] of draft.items.entries()) {
-        if (item.type === 'permission' && item.requestId === event.requestId) {
-          draft.items[position] = {
-            ...item,
-            resolution: { optionId: event.optionId, outcome: event.outcome },
-          }
+      /* 身份是算得出来的（见 permission_requested 那一支），所以按 id 定位。
+         此前每来一次答复就把整条转录扫一遍 —— 索引就在同一个文件里。 */
+      const position = positionOf(draft, `${namespace(draft)}permission-${event.requestId}`)
+      const asked = position < 0 ? undefined : draft.items[position]
+
+      if (asked?.type === 'permission') {
+        draft.items[position] = {
+          ...asked,
+          resolution: { optionId: event.optionId, outcome: event.outcome },
         }
       }
 
@@ -385,14 +382,9 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
       return
     }
 
-    case 'tool_call': {
-      applyToolCall(draft, update, scope, at)
-
-      return
-    }
-
+    case 'tool_call':
     case 'tool_call_update': {
-      applyToolCallUpdate(draft, update, scope, at)
+      upsertToolCall(draft, update, scope, at)
 
       return
     }
@@ -425,92 +417,61 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
   }
 }
 
-/*
- * 需要和既有条目对账的两个分支各自独立。派发表因此只剩"哪种更新交给谁"，
- * 而每个投影都可以在不看见另外六个分支的情况下读懂。
+/**
+ * 一次工具调用的投影，只有这一条路径。
+ *
+ * tool_call 与 tool_call_update 是同一件事的两次到达：协议按 toolCallId 寻址，
+ * 两种帧携带同一组字段，区别只在后者全部可选。所以没见过就建，见过就按这一帧
+ * 真的带了的字段合并 —— 一个 upsert，不是两份实现。
+ *
+ * 此前是两个函数，而且不等价：tool_call 分支整份覆盖，于是 agent 依协议重发一次
+ * tool_call 会把已经收到的 endedAt 与 rawOutput 一并抹掉。
+ *
+ * 也不再把旧的 diff 往新 content 前面拼。协议规定 content 是整体替换，拼接是
+ * 客户端自己发明的语义：对只在中途带一次 diff 的 agent，它会让同一次调用显示
+ * 两份 diff。要显示什么由帧说了算，这一层不猜。
  */
-function applyToolCall(
+function upsertToolCall(
   draft: Draft,
-  update: AcpUpdateOf<'tool_call'>,
+  update: AcpUpdateOf<'tool_call'> | AcpUpdateOf<'tool_call_update'>,
   scope: string,
   at: number,
 ): void {
   const id = `${scope}tool-${update.toolCallId}`
-  const created: ToolCallTimelineItem = {
+  const position = positionOf(draft, id)
+  const found = position < 0 ? undefined : draft.items[position]
+  const held = found?.type === 'tool_call' ? found : undefined
+
+  const status = update.status ?? held?.status ?? 'pending'
+  /* running 的调用没有结束时间，这与「有一个 undefined 的结束时间」不是一回事；
+     结束一旦记下就不再移动。 */
+  const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
+  const rawInput = 'rawInput' in update ? update.rawInput : held?.rawInput
+  const rawOutput = 'rawOutput' in update ? update.rawOutput : held?.rawOutput
+
+  const next: ToolCallTimelineItem = {
     type: 'tool_call',
     id,
-    at,
+    at: held?.at ?? at,
     toolCallId: update.toolCallId,
-    title: update.title,
-    kind: update.kind,
-    status: update.status,
-    content: update.content ?? [],
-    locations: update.locations ?? [],
-    rawInput: update.rawInput,
-    startedAt: at,
-  }
-
-  const position = positionOf(draft, id)
-
-  if (position < 0) {
-    push(draft, created)
-
-    return
-  }
-
-  draft.items[position] = created
-}
-
-function applyToolCallUpdate(
-  draft: Draft,
-  update: AcpUpdateOf<'tool_call_update'>,
-  scope: string,
-  at: number,
-): void {
-  const id = `${scope}tool-${update.toolCallId}`
-  const position = positionOf(draft, id)
-
-  if (position < 0) {
-    push(draft, {
-      type: 'tool_call',
-      id,
-      at,
-      toolCallId: update.toolCallId,
-      title: update.title ?? update.toolCallId,
-      kind: update.kind ?? 'other',
-      status: update.status ?? 'in_progress',
-      content: update.content ?? [],
-      locations: update.locations ?? [],
-      rawOutput: update.rawOutput,
-      startedAt: at,
-    })
-
-    return
-  }
-
-  const current = draft.items[position]
-
-  if (current?.type !== 'tool_call') {
-    return
-  }
-
-  const status = update.status ?? current.status
-  /* A call that is still running has no end time, which is not the same as
-     having one that is undefined. The distinction is the whole point of
-     exactOptionalPropertyTypes, so the property is omitted rather than set
-     to nothing. An end, once recorded, is never moved. */
-  const endedAt = isTerminal(status) ? (current.endedAt ?? at) : current.endedAt
-
-  draft.items[position] = {
-    ...current,
-    title: update.title ?? current.title,
-    kind: update.kind ?? current.kind,
+    title: update.title ?? held?.title ?? update.toolCallId,
+    kind: update.kind ?? held?.kind ?? 'other',
     status,
-    content: carryForwardDiff(current.content, update.content),
-    locations: update.locations ?? current.locations,
-    rawOutput: update.rawOutput ?? current.rawOutput,
+    content: update.content ?? held?.content ?? [],
+    locations: update.locations ?? held?.locations ?? [],
+    startedAt: held?.startedAt ?? at,
+    ...(rawInput === undefined ? {} : { rawInput }),
+    ...(rawOutput === undefined ? {} : { rawOutput }),
     ...(endedAt === undefined ? {} : { endedAt }),
   }
+
+  if (held === undefined) {
+    push(draft, next)
+
+    return
+  }
+
+  draft.items[position] = next
 }
 
 /**
@@ -550,11 +511,11 @@ function namespace(draft: Draft): string {
  */
 function withPrompt(
   draft: Draft,
-  event: { readonly seq: number; readonly at: number; readonly prompt?: string },
+  event: { readonly seq: number; readonly at: number; readonly prompt: string },
 ): void {
   const prompt = event.prompt
 
-  if (prompt === undefined || prompt.length === 0) {
+  if (prompt.length === 0) {
     return
   }
 
@@ -645,38 +606,6 @@ function positionOf(draft: Draft, id: string): number {
   }
 
   return index.get(id) ?? -1
-}
-
-/**
- * 把已经看见过的 diff 带到后续帧里。
- *
- * 协议规定 tool_call_update.content 是整体替换而不是追加，但它并不要求每一帧都
- * 重新带上 diff —— agent 通常只在调用开始时给出一次，终局帧的 content 由工具结果
- * 重建，不含 diff。照字面替换，diff 会在调用完成的那一瞬间消失，而完成恰好是最
- * 需要看到它的时刻。这是对协议的容差，不针对任何一家 agent。
- *
- * 于是：新帧自带 diff 就整份采用（它更新），否则把旧的 diff 留在前面。
- *
- * 这一条对每一家都成立，所以它留在通用层，不做成每家档案自带的钩子：把 diff
- * 一直挂在 content 里的 agent 每帧都命中第一个分支（整份采用，不会显示两遍），
- * 只在开头挂一次的命中第二个。两种发法同一段代码就够了 —— 各家不同的是数据，
- * 不是做法。
- */
-function carryForwardDiff(
-  current: ToolCallTimelineItem['content'],
-  incoming: ToolCallTimelineItem['content'] | undefined,
-): ToolCallTimelineItem['content'] {
-  if (incoming === undefined) {
-    return current
-  }
-
-  if (incoming.some((entry) => entry.type === 'diff')) {
-    return incoming
-  }
-
-  const held = current.filter((entry) => entry.type === 'diff')
-
-  return held.length === 0 ? incoming : [...held, ...incoming]
 }
 
 function isTerminal(status: ToolCallTimelineItem['status']): boolean {
