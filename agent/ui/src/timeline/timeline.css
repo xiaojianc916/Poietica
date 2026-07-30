@@ -1103,3 +1103,40 @@
  * overscroll-behavior: contain —— 滚到尽头不把滚动链交给外面那条会话流。外观归浮
  * 层，而浮层认盒子自己的边缘作轨道。
  */
+
+/* ── 公式与图表 ───────────────────────────────────────────────
+ *
+ * 只有两条，且都落在此前根本不存在的元素上 —— 既有的排版、代码块、表格、发丝线
+ * 一个像素都没动。
+ *
+ * sd-blurIn：上游的三种动画写在 streamdown/styles.css 里，这个应用不引那张表，
+ * 所以 sd-fadeIn 当初是在这里自备的。改用 blurIn 就必须同样自备，否则 animation
+ * 指向一个不存在的 keyframes，等于把动画关掉。模糊 3px：再大字会先糊成色块，
+ * 在 13px 正文上反而比 opacity 更吵。
+ *
+ * .katex-display：行间公式是一个不换行的盒子，一条长推导必然超出正文宽度。这条
+ * 流里已经为同一类缺陷付过一次代价 —— 代码块此前没有 overflow，长行被父级裁掉
+ * 且取不到。公式在这里交出的同样是滚动权，不是一个宽度上限。
+ *
+ * mermaid 一条规则都不写：补了 @source 之后它的外观归上游的工具类，再在这里写
+ * 一套就是第二个样式来源。
+ */
+
+@keyframes sd-blurIn {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+.timeline-prose .katex-display {
+  margin-block: var(--cp-prose-flow) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+}
+
+.timeline-prose > .katex-display:first-child,
+.timeline-prose > * > .katex-display:first-child {
+  margin-block-start: 0;
+}

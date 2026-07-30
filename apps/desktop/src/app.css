@@ -10,6 +10,8 @@
 @source "../../../agent/ui/node_modules/streamdown/dist/*.js";
 @source "../../../agent/ui/node_modules/@streamdown/cjk/dist/*.js";
 @source "../../../agent/ui/node_modules/@streamdown/code/dist/*.js";
+@source "../../../agent/ui/node_modules/@streamdown/math/dist/*.js";
+@source "../../../agent/ui/node_modules/@streamdown/mermaid/dist/*.js";
 
 /*
  * Desktop platform tokens.

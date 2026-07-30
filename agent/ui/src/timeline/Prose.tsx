@@ -1,10 +1,20 @@
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
+import { math } from '@streamdown/math'
+import { mermaid } from '@streamdown/mermaid'
+import 'katex/dist/katex.min.css'
 import { type AnimateOptions, type ControlsConfig, Streamdown } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
 
-const PLUGINS = { cjk, code }
+/*
+ * 四个官方插件，一条管线。
+ *
+ * math 与 mermaid 的版本早已钉在 catalog 里，却从未被任何 package 引用：公式
+ * 因此以原始字符出现，```mermaid 被 code 插件当作未知语言退化为纯文本。缺的
+ * 不是能力，是这一行。
+ */
+const PLUGINS = { cjk, code, math, mermaid }
 
 /*
  * How arriving text is revealed.
@@ -19,11 +29,19 @@ const PLUGINS = { cjk, code }
  * is a filter per word, and slideUp shifts each word into place, which makes a
  * paragraph twitch as it fills.
  *
+ * 取 blurIn 而非 fadeIn：一次提交里涌入十几个词时，纯 opacity 会让它们同时
+ * 亮起，读者看到的是"一整块跳出来"而不是"一句话写出来"。官方 Animation 文档
+ * 对快模型给的正是这一条 —— 模糊到清晰能盖住批量到达，opacity 盖不住。时长随
+ * 之取 240ms，落在官方建议的 200–300ms 区间内。
+ *
+ * keyframes 由 timeline.css 自备：这个应用不引 streamdown 的样式表，动画名指向
+ * 一个不存在的 keyframes 等于没有动画 —— 那一条与这一条必须同时成立。
+ *
  * The plugin skips code, pre, svg and math itself, so a fence never flickers.
  */
 const ANIMATION: AnimateOptions = {
-  animation: 'fadeIn',
-  duration: 220,
+  animation: 'blurIn',
+  duration: 240,
   easing: 'cubic-bezier(0.2, 0, 0, 1)',
   sep: 'word',
   stagger: 18,

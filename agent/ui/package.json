@@ -21,8 +21,11 @@
     "@poietica/foundations-design-system": "workspace:*",
     "@streamdown/cjk": "catalog:",
     "@streamdown/code": "catalog:",
+    "@streamdown/math": "catalog:",
+    "@streamdown/mermaid": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "diff": "catalog:",
+    "katex": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:"
