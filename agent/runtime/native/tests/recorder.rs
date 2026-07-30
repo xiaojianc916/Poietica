@@ -275,7 +275,9 @@ fn a_permission_request_is_refused_and_recorded() {
     不可用），driver.rs 走的都是这两步。一个只有自己的测试在调用的生产方法
     证明不了生产行为，所以方法没了，顺序留下。 */
     let request_id = fixture.recorder.record_permission_requested(&request);
-    fixture.recorder.record_permission_resolved(&request_id, &decision);
+    fixture
+        .recorder
+        .record_permission_resolved(&request_id, &decision);
 
     assert!(fixture.recorder.take_failure().is_none());
 

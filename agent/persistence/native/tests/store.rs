@@ -73,7 +73,6 @@ fn the_database_is_unreadable_with_another_key() {
     assert!(matches!(intruder, Err(StoreError::WrongKey)));
 }
 
-
 #[test]
 fn a_session_is_stored_with_the_agent_that_opened_it() {
     let directory = TempDir::new().expect("temporary directory");

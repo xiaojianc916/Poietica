@@ -35,9 +35,8 @@ pub async fn window_open_devtools(app: AppHandle, label: String) -> Result<()> {
 /// 打不开一个链接不是故障，不中断调用方。真实原因留在原生日志里。
 #[command]
 pub async fn window_open_external_url(url: String) -> Result<()> {
-    let allowed = url.starts_with("http://")
-        || url.starts_with("https://")
-        || url.starts_with("mailto:");
+    let allowed =
+        url.starts_with("http://") || url.starts_with("https://") || url.starts_with("mailto:");
 
     if !allowed {
         log::warn!("refused to hand a non-web URL to the system browser");
