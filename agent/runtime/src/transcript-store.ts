@@ -100,29 +100,72 @@ function resolveKey(key: string): string {
   return alias.get(key) ?? key
 }
 
-function notify(key: string): void {
+/** 真 id → 草稿键。alias 的反向索引:通知与淘汰都要按"谁在看"来问。 */
+const aliased = new Map<string, string>()
+
+/** 有界面正看着这条对话吗。草稿键上的订阅也算。 */
+function watched(real: string): boolean {
+  const draft = aliased.get(real)
+
+  return listeners.has(real) || (draft !== undefined && listeners.has(draft))
+}
+
+function fire(key: string): void {
   for (const listener of listeners.get(key) ?? []) {
     listener()
   }
+}
 
-  for (const [from, to] of alias) {
-    if (to === key) {
-      for (const listener of listeners.get(from) ?? []) {
-        listener()
-      }
-    }
+/*
+ * 通知走反向索引。
+ *
+ * 此前这里是 for (const [from, to] of alias) 找 to === key —— 把正向表当反向表
+ * 用,于是流式输出的每一帧都线性扫一遍。
+ */
+function notify(real: string): void {
+  fire(real)
+
+  const draft = aliased.get(real)
+
+  if (draft !== undefined) {
+    fire(draft)
   }
 }
 
+/*
+ * 淘汰只挑没人看着的。
+ *
+ * 此前是"插入序最早的那条",不问有没有界面正订阅着它。8 条的上限、每帧调一次,
+ * 于是一个正在看的转录会被挤掉,而代价是它下一帧重新去读日志(loaded 回到 false,
+ * ensureTranscript 重放 40 轮),界面上是一次 restoring 闪回。引用优先于时序,
+ * 是浏览器与编辑器缓存的通行判据。
+ *
+ * 没人看的都淘汰完了还超,就让它超:内存上限不该以让屏幕上的东西重读为代价。
+ * 订阅随组件卸载即解除,所以界面一关它立刻变成可淘汰,不会长期滞留。
+ */
 function evict(): void {
-  while (held.size > HELD_KEYS) {
-    const oldest = held.keys().next().value
+  if (held.size <= HELD_KEYS) {
+    return
+  }
 
-    if (oldest === undefined) {
+  for (const key of [...held.keys()]) {
+    if (held.size <= HELD_KEYS) {
       return
     }
 
-    held.delete(oldest)
+    if (watched(key)) {
+      continue
+    }
+
+    held.delete(key)
+
+    /* 别名跟着走。此前 alias 只增不减,进程活多久它就长多久。 */
+    const draft = aliased.get(key)
+
+    if (draft !== undefined) {
+      aliased.delete(key)
+      alias.delete(draft)
+    }
   }
 }
 
@@ -134,6 +177,27 @@ function put(key: string, next: Transcript): void {
   held.set(real, next)
   evict()
   notify(real)
+}
+
+/*
+ * 草稿成为一条真对话:同一份转录,换一个名字。
+ *
+ * 此前这几行长在 sendToTranscript 里,直接 held.delete + held.set —— 全文件唯一
+ * 绕过 put 的写入,于是 LRU 顺序、evict 和 notify 全部跳过了。快照换了身份而订阅
+ * 者不知道,这违反 useSyncExternalStore 的契约;它此前只是被下游那次 put 盖住了。
+ */
+function rename(from: string, to: string): void {
+  alias.set(from, to)
+  aliased.set(to, from)
+
+  const drafted = held.get(from)
+
+  if (drafted === undefined) {
+    return
+  }
+
+  held.delete(from)
+  put(to, { ...drafted, owned: true })
 }
 
 export function readTranscript(key: string): Transcript {
@@ -431,15 +495,7 @@ export function sendToTranscript({
 
       /* 草稿在这一刻成为一条真对话：同一份转录，换一个名字。 */
       if (threadId !== key) {
-        alias.set(key, threadId)
-        const drafted = held.get(key)
-
-        if (drafted !== undefined) {
-          held.delete(key)
-          held.set(threadId, { ...drafted, owned: true })
-        }
-      } else {
-        put(threadId, { ...readTranscript(threadId), owned: readTranscript(threadId).owned })
+        rename(key, threadId)
       }
 
       onUserMessage?.(threadId, text)

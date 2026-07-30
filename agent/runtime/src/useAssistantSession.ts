@@ -1,6 +1,6 @@
 import type { AgentSessionPort, ChatStatus } from '@poietica/agent-protocol'
 import type { TimelineState } from '@poietica/agent-timeline'
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import {
   cancelTranscript,
   ensureTranscript,
@@ -140,10 +140,8 @@ export function useAssistantSession({
     reachTranscriptStart(session, endpoint)
   }, [endpoint, session])
 
-  const status = useMemo<ChatStatus>(
-    () => toChatStatus(transcript.timeline.status),
-    [transcript.timeline.status],
-  )
+  /* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
+  const status = toChatStatus(transcript.timeline.status)
 
   return {
     status,
