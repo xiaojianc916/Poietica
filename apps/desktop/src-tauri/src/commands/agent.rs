@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use poietica_agent_persistence_native::{AgentStore, StoreError};
+use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
     PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
@@ -1069,6 +1069,25 @@ const FALLBACK_THREAD_TITLE: &str = "新建对话";
 /// Reported when a thread was written but could not be read back.
 const NO_THREAD: &str = "the conversation was created but could not be read back";
 
+/// Where a conversation's name came from.
+///
+/// A closed set of three, and the interface ranks on it: a name the user
+/// typed is never replaced by one derived from the text. Carried across as a
+/// free string, that ranking had to be re-asserted at every call site, and
+/// the list written down in the generated bindings had already drifted — it
+/// still named an `official` source, which [`TitleSource`] removed when this
+/// program stopped taking conversation names from the agent.
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentTitleSource {
+    /// Taken from the first thing the user said.
+    Message,
+    /// Shown before there was anything to take a name from.
+    Fallback,
+    /// The user typed it. Nothing derived replaces it.
+    Manual,
+}
+
 /// One conversation, as a list of conversations and a tab strip need it.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -1079,8 +1098,8 @@ pub struct AgentThread {
     pub session_id: Option<String>,
     /// The name to show for it.
     pub title: String,
-    /// Where that name came from: manual, message or fallback.
-    pub title_source: String,
+    /// Where that name came from.
+    pub title_source: AgentTitleSource,
     /// When it was last touched, in RFC 3339.
     pub updated_at: String,
     /// Whether it is held at the top of the list.
@@ -1207,7 +1226,11 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
         thread_id: thread.id,
         session_id: thread.session_id,
         title: thread.title,
-        title_source: thread.title_source,
+        title_source: match thread.title_source {
+            TitleSource::Message => AgentTitleSource::Message,
+            TitleSource::Fallback => AgentTitleSource::Fallback,
+            TitleSource::Manual => AgentTitleSource::Manual,
+        },
         updated_at: thread.updated_at,
         pinned: thread.pinned,
     }

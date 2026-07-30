@@ -25,7 +25,7 @@
     "build:web": "turbo run build",
     "check": "pnpm check:web && pnpm check:rust",
     "check:web": "biome ci . && node tests/architecture/run.mjs && turbo run typecheck test --continue",
-    "check:rust": "cargo fmt --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features",
+    "check:rust": "cargo fmt --check && pnpm clippy && pnpm test:rust",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -43,9 +43,7 @@
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build",
     "tauri": "pnpm --filter @poietica/desktop exec tauri",
     "clean": "node scripts/clean.mjs",
-    "prepare": "node scripts/git-hooks/install.mjs",
-    "test:e2e": "turbo run test:e2e",
-    "test:integration": "turbo run test:integration"
+    "prepare": "node scripts/git-hooks/install.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.5",

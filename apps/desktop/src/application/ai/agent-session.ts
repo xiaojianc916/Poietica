@@ -3,7 +3,6 @@ import type {
   AgentSessionPort,
   SessionConfigPort,
   ThreadPort,
-  ThreadTitleSource,
 } from '@poietica/agent-protocol'
 import { acpAgentLaunch, defaultAcpAgent } from '@poietica/agent-registry'
 import { installAgentCapabilityPort } from '@poietica/agent-runtime'
@@ -116,21 +115,6 @@ export function createDesktopAgentSession(): DesktopAgentSession {
   }
 }
 
-/**
- * Narrows the recorded origin of a name.
- *
- * A value this build does not recognise is treated as a fallback rather
- * than trusted: showing AI is honest, whereas calling an unknown string
- * official would claim the agent named a conversation it never named.
- */
-function sourceOf(value: string): ThreadTitleSource {
-  if (value === 'official' || value === 'manual' || value === 'message') {
-    return value
-  }
-
-  return 'fallback'
-}
-
 /** The desktop implementation of the conversation port. */
 let threads: ThreadPort | undefined
 
@@ -149,30 +133,12 @@ export function desktopThreads(): ThreadPort {
 function buildThreadPort(): ThreadPort {
   const bridge = createAgentThreadBridge({ launch: acpAgentLaunch(defaultAcpAgent()) })
 
-  return {
-    list: async () => {
-      const found = await bridge.list()
-
-      return found.map((thread) => ({
-        ...thread,
-        titleSource: sourceOf(thread.titleSource),
-      }))
-    },
-
-    open: async (threadId) => {
-      const opened = await bridge.open(threadId)
-
-      return {
-        thread: {
-          ...opened.thread,
-          titleSource: sourceOf(opened.thread.titleSource),
-        },
-        selectors: opened.selectors,
-      }
-    },
-
-    rename: bridge.rename,
-    remove: bridge.remove,
-    setPinned: bridge.setPinned,
-  }
+  /*
+   * 原样交出去，这也是这个文件开头就声明过的事（Nothing is adapted here）。
+   *
+   * titleSource 在两边现在是同一个三值闭集，没有一个字段需要改名或改档。此前
+   * 这里对每一行跑一次收窄、再把整张表 spread 重建一遍 —— 那次收窄之所以存在,
+   * 只是因为绑定把一个闭集写成了 string，而它认的第四档平台早就不发了。
+   */
+  return bridge
 }

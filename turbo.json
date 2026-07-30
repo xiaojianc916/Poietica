@@ -53,21 +53,8 @@
     },
     "test": {
       "dependsOn": ["typecheck"],
-      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*", "playwright.config.*"],
-      "outputs": ["coverage/**", "test-results/**", "playwright-report/**"]
-    },
-    "test:unit": {
-      "dependsOn": ["typecheck"],
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"]
-    },
-    "test:integration": {
-      "dependsOn": ["typecheck"],
-      "cache": false
-    },
-    "test:e2e": {
-      "dependsOn": ["build"],
-      "cache": false
     }
   }
 }

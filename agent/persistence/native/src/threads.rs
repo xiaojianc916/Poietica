@@ -1,5 +1,6 @@
 //! Conversations: their names, their sessions, and their place in the list.
 
+use rusqlite::types::{FromSql, FromSqlResult, ToSql, ToSqlOutput, ValueRef};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -164,9 +165,9 @@ impl AgentStore {
             rusqlite::params![
                 id.to_string(),
                 title,
-                TitleSource::Message.as_str(),
+                TitleSource::Message,
                 timestamp,
-                TitleSource::Fallback.as_str(),
+                TitleSource::Fallback,
             ],
         )?;
 
@@ -187,7 +188,7 @@ impl AgentStore {
             "UPDATE threads
                 SET title = ?2, title_source = ?3
               WHERE id = ?1",
-            rusqlite::params![id.to_string(), title, TitleSource::Manual.as_str()],
+            rusqlite::params![id.to_string(), title, TitleSource::Manual],
         )?;
 
         Ok(())
@@ -245,7 +246,7 @@ pub struct ThreadSummary {
     /// The name currently shown for it.
     pub title: String,
     /// Where that name came from.
-    pub title_source: String,
+    pub title_source: TitleSource,
     /// When it was last touched, in RFC 3339.
     pub updated_at: String,
     /// Whether it is held at the top of the list.
@@ -275,11 +276,37 @@ pub enum TitleSource {
 }
 
 impl TitleSource {
-    pub(crate) const fn as_str(self) -> &'static str {
+    /// The text this source is stored as.
+    ///
+    /// One table, not two. serde's `rename_all` encodes the same three
+    /// spellings for the wire and the two happened to agree; two encodings of
+    /// one closed set is how they stop agreeing.
+    const fn as_str(self) -> &'static str {
         match self {
             Self::Message => "message",
             Self::Fallback => "fallback",
             Self::Manual => "manual",
+        }
+    }
+}
+
+impl ToSql for TitleSource {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        Ok(ToSqlOutput::from(self.as_str()))
+    }
+}
+
+impl FromSql for TitleSource {
+    fn column_result(value: ValueRef<'_>) -> FromSqlResult<Self> {
+        match value.as_str()? {
+            "message" => Ok(Self::Message),
+            "manual" => Ok(Self::Manual),
+            // Anything else is a row an older build wrote, and the only value
+            // that ever was is the deleted fourth source. It outranked the
+            // name the user typed; read back at the lowest rank the stored
+            // title still shows and no longer outranks anything. Refusing the
+            // row instead would take the whole sidebar down over one value.
+            _ => Ok(Self::Fallback),
         }
     }
 }

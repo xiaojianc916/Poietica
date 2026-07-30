@@ -1,7 +1,19 @@
 import type { SessionConfigControl } from './session-config-contract'
 
-/** Where a conversation name came from. */
-export type ThreadTitleSource = 'official' | 'manual' | 'message' | 'fallback'
+/**
+ * Where a conversation name came from.
+ *
+ * Three, and the platform can report no other: the name the user typed, one
+ * taken from the opening message, and the placeholder shown before there was
+ * anything to take a name from.
+ *
+ * A fourth used to sit above all of them — the title the agent wrote in its
+ * own store when it created the session. It is written once and never
+ * revised, so ranking it above what the user actually said is what turned
+ * this list into a column of the words New Session. It is gone from the
+ * platform, and the ranking below no longer mentions it.
+ */
+export type ThreadTitleSource = 'manual' | 'message' | 'fallback'
 
 /** One conversation, as the platform reports it. */
 export interface ThreadRecord {

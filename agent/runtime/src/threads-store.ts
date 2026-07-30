@@ -35,8 +35,9 @@ export const shorten = (text: string): string => {
 /**
  * 一行会话在列表里的样子。
  *
- * 名字在这里就已经定下来了：三个来源（官方、用户手改、第一句话的替身）在
- * store 里分出胜负，渲染层拿到的是结论。此前每画一行都回头问一次 titleOf，
+ * 名字在这里就已经定下来了：三个来源（用户手改、第一句话、以及还没有名字时
+ * 的入口占位）在 store 里分出胜负，渲染层拿到的是结论。此前每画一行都回头问
+ * 一次 titleOf，
  * 于是名字的规则散在渲染期，而列表每帧都是一批新对象。
  */
 export interface ThreadListItem {
@@ -86,8 +87,12 @@ const EMPTY: Held = {
  * 动作是箭头字段，引用终生不变；因此它们可以直接当 prop 传下去，行组件的
  * 浅比较才第一次真的有东西可比。
  *
- * 名字有三个来源且不竞争：官方名是 agent 自己的，永远胜出；从第一句话取的
- * 替身只活在内存里，不会被误当成真名；两者都没有时用入口的名字。
+ * 名字排名只有一条：用户手打的胜过一切派生的。从第一句话取的替身只活在内存
+ * 里，不会被误当成真名；两者都没有时用入口的名字。
+ *
+ * 曾经排在最上面的是 agent 自己给会话起的标题。平台已经不再上报它，因为那个
+ * 标题写一次就再不修改 —— 把它排在用户实际说过的话之上，正是这张列表一度变成
+ * 一列「New Session」的原因。
  */
 export class ThreadsStore {
   readonly #port: ThreadPort | undefined
@@ -131,8 +136,8 @@ export class ThreadsStore {
   titleOf = (threadId: string): string => {
     const found = this.#byId.get(threadId)
 
-    /* 用户自己起的名字压过一切，包括随后到来的官方标题。 */
-    if (found?.titleSource === 'manual' || found?.titleSource === 'official') {
+    /* 用户自己起的名字压过一切派生的名字。 */
+    if (found?.titleSource === 'manual') {
       return found.title
     }
 
@@ -230,11 +235,6 @@ export class ThreadsStore {
    */
   nameFromMessage = (threadId: string, message: string): void => {
     const found = this.#byId.get(threadId)
-
-    if (found?.titleSource === 'official') {
-      return
-    }
-
     const standIn = shorten(message)
     const provisional = this.#with(this.#held.provisional, threadId, standIn)
 

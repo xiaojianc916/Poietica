@@ -189,7 +189,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   useEffect(() => {
     let active = true
 
-    void store.loadKeyTails().then(
+    void store.loadKeyTails(agentId).then(
       (tails) => {
         if (active) {
           setKeyTails(tails)
@@ -205,7 +205,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     return () => {
       active = false
     }
-  }, [store, providers.snapshot])
+  }, [agentId, store, providers.snapshot])
 
   /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
   const providerIssues = useMemo(() => {
