@@ -151,6 +151,22 @@ impl Recorder {
         request_id
     }
 
+    /// The requests this run is still waiting on.
+    ///
+    /// 一轮结束时要从权限桌上放掉的就是这些。读不出来就当作没有：那件事
+    /// 会由紧接着的 record_pending_cancelled 记成失败。
+    pub fn outstanding_permissions(&mut self) -> Vec<String> {
+        self.log
+            .outstanding_permissions(self.run_id)
+            .map(|pending| {
+                pending
+                    .into_iter()
+                    .map(|record| record.request_id)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Settles every request still outstanding when the turn ended.
     pub fn record_pending_cancelled(&mut self) {
         let pending = match self.log.outstanding_permissions(self.run_id) {

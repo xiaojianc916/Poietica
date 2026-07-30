@@ -93,7 +93,22 @@ impl PermissionDesk {
             .map_err(|_gone| protocol(HANDLER_GONE))
     }
 
+    /// Abandons the requests these identifiers name.
+    ///
+    /// 一轮结束时要放掉的正是它自己开着的那些，而且只有那些。整张桌子清空
+    /// 是"一条连接只可能有一轮"时代的写法：几轮同时在飞时，它会替别的会话
+    /// 把它正等着人回答的问题也一并取消掉。
+    pub fn abandon(&self, request_ids: &[String]) {
+        if let Ok(mut outstanding) = self.outstanding.lock() {
+            for request_id in request_ids {
+                let _abandoned = outstanding.remove(request_id);
+            }
+        }
+    }
+
     /// Abandons every outstanding request.
+    ///
+    /// 整条连接要走了才用得上：那时确实没有人会再来回答任何一个问题。
     ///
     /// Each waiting handler observes the dropped sender and answers with the
     /// protocol's cancellation, which is exactly what an unanswered request at
