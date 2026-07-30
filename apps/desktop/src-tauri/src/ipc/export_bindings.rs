@@ -25,7 +25,7 @@ use crate::{
             DocumentCloseRequest, DocumentDescriptor, DocumentId, DocumentOpenResponse,
             DocumentOpenResult, DocumentSaveAsRequest, DocumentSaveAsResult, DocumentSaveRequest,
         },
-        settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},
+        settings::{AppSettings, PrivacySettings},
     },
     diagnostics::NativeCrashReport,
 };
@@ -113,9 +113,6 @@ pub fn export_document_bindings() {
         .typ::<DocumentSaveAsResult>()
         .typ::<DocumentCloseRequest>()
         .typ::<AppSettings>()
-        .typ::<CanvasSettings>()
-        .typ::<EditorSettings>()
-        .typ::<ExportSettings>()
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()
         .typ::<AgentCliRequest>()

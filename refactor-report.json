@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-07-30T06:27:04.088Z",
+  "generatedAt": "2026-07-30T06:32:46.506Z",
   "scannedFiles": 539,
-  "matchedFiles": 60,
-  "totalMatches": 185,
+  "matchedFiles": 57,
+  "totalMatches": 173,
   "byArea": {
-    "apps": 38,
+    "apps": 30,
     "agent": 33,
     "AGENTS.md": 15,
     "docs": 32,
     "README.md": 9,
-    "features": 31,
+    "features": 27,
     "tests": 12,
     "foundations": 12,
     "platforms": 2,
@@ -406,37 +406,6 @@
       ]
     },
     {
-      "file": "apps/desktop/src-tauri/src/commands/settings.rs",
-      "area": "apps",
-      "count": 6,
-      "lines": [
-        {
-          "line": 46,
-          "text": "pub canvas: CanvasSettings,"
-        },
-        {
-          "line": 54,
-          "text": "pub struct CanvasSettings {"
-        },
-        {
-          "line": 60,
-          "text": "pub infinite_canvas: bool,"
-        },
-        {
-          "line": 100,
-          "text": "canvas: CanvasSettings::default(),"
-        },
-        {
-          "line": 108,
-          "text": "impl Default for CanvasSettings {"
-        },
-        {
-          "line": 116,
-          "text": "infinite_canvas: true,"
-        }
-      ]
-    },
-    {
       "file": "docs/architecture/refactor-progress.md",
       "area": "docs",
       "count": 5,
@@ -460,33 +429,6 @@
         {
           "line": 39,
           "text": "- Record startup and multi-canvas memory baselines."
-        }
-      ]
-    },
-    {
-      "file": "features/settings/src/domain/settings.ts",
-      "area": "features",
-      "count": 5,
-      "lines": [
-        {
-          "line": 3,
-          "text": "export interface CanvasSettings {"
-        },
-        {
-          "line": 9,
-          "text": "readonly infiniteCanvas: boolean"
-        },
-        {
-          "line": 41,
-          "text": "readonly canvas: CanvasSettings"
-        },
-        {
-          "line": 53,
-          "text": "canvas: {"
-        },
-        {
-          "line": 59,
-          "text": "infiniteCanvas: true,"
         }
       ]
     },
@@ -569,19 +511,19 @@
       "count": 4,
       "lines": [
         {
-          "line": 26,
+          "line": 25,
           "text": "readonly canvas: ReactNode"
         },
         {
-          "line": 50,
+          "line": 49,
           "text": "canvas,"
         },
         {
-          "line": 83,
+          "line": 82,
           "text": "data-canvas-host=\"workspace\""
         },
         {
-          "line": 97,
+          "line": 96,
           "text": "{canvas}"
         }
       ]
@@ -727,21 +669,6 @@
       ]
     },
     {
-      "file": "apps/desktop/src-tauri/src/ipc/export_bindings.rs",
-      "area": "apps",
-      "count": 2,
-      "lines": [
-        {
-          "line": 28,
-          "text": "settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},"
-        },
-        {
-          "line": 116,
-          "text": ".typ::<CanvasSettings>()"
-        }
-      ]
-    },
-    {
       "file": "apps/desktop/src-tauri/tauri.conf.json",
       "area": "apps",
       "count": 2,
@@ -783,6 +710,21 @@
         {
           "line": 97,
           "text": "- Extract the existing canvas inspector from WorkspaceContainer."
+        }
+      ]
+    },
+    {
+      "file": "features/settings/src/domain/settings.ts",
+      "area": "features",
+      "count": 2,
+      "lines": [
+        {
+          "line": 12,
+          "text": "* 这里的每一个字段都有界面读写，也都落盘。此前还有 canvas / editor / export"
+        },
+        {
+          "line": 13,
+          "text": "* 三组：画布随产品形态一起删掉，editor 那七个字段从来就没有任何界面消费者。"
         }
       ]
     },
@@ -1039,8 +981,8 @@
       "count": 1,
       "lines": [
         {
-          "line": 377,
-          "text": "description=\"画布变更后自动写入本地文件\""
+          "line": 55,
+          "text": "* 导出那一组的三个控件（SVG / PNG DPI / PDF 质量）导出的是画布，随画布一起"
         }
       ]
     },
@@ -1052,17 +994,6 @@
         {
           "line": 159,
           "text": "* Only the small settings object is written. Canvas document state remains"
-        }
-      ]
-    },
-    {
-      "file": "features/settings/src/public-api.ts",
-      "area": "features",
-      "count": 1,
-      "lines": [
-        {
-          "line": 3,
-          "text": "type CanvasSettings,"
         }
       ]
     },

@@ -14,7 +14,6 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
    * 一条时间轴：否则标题栏的竖线渐隐会和面板滑动各跑各的节奏。
    */
   '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
-  '--inspector-width': `${WORKSPACE_LAYOUT.inspector.width}px`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
   '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,
 }

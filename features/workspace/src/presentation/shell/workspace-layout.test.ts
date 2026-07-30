@@ -24,7 +24,6 @@ const PIXEL_DIMENSION_TOKENS: readonly number[] = [
   WORKSPACE_LAYOUT.sidebar.minWidth,
   WORKSPACE_LAYOUT.sidebar.defaultWidth,
   WORKSPACE_LAYOUT.sidebar.maxWidth,
-  WORKSPACE_LAYOUT.inspector.width,
   WORKSPACE_LAYOUT.chrome.height,
   WORKSPACE_LAYOUT.statusBar.height,
 ]
@@ -89,9 +88,5 @@ describe('WORKSPACE_LAYOUT', () => {
     expect(secondX).toBeGreaterThanOrEqual(0)
 
     expect(secondX).toBeLessThanOrEqual(1)
-  })
-
-  it('keeps the inspector narrower than the maximum sidebar', () => {
-    expect(WORKSPACE_LAYOUT.inspector.width).toBeLessThan(WORKSPACE_LAYOUT.sidebar.maxWidth)
   })
 })
