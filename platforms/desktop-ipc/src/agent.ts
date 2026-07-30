@@ -1,5 +1,11 @@
 import { IpcInvocationError, isIpcError } from './error'
-import { commands } from './generated/ipc-bindings'
+import {
+  type AgentConfigChoice,
+  type AgentConfigControl,
+  type AgentConfigPurpose,
+  type AgentThread,
+  commands,
+} from './generated/ipc-bindings'
 
 /**
  * The desktop implementation of the agent session port's two dependencies.
@@ -223,8 +229,14 @@ export async function shutdownAgent(): Promise<void> {
  * 没有"读"的那一路：选择器随会话一起回来（见下面的 open），改完之后 agent 又把
  * 整张表报回来。协议定义的东西不在这里重新定义，类别由 agent 说了算。 */
 
-/** What a selector is for, as far as the interface is concerned. */
-export type AgentConfigPurposeName = 'mode' | 'model' | 'other' | 'thought'
+/**
+ * What a selector is for, as far as the interface is concerned.
+ *
+ * 端口保留自己的名字，但集合只有一个定义：Rust 的 AgentConfigPurpose。agent
+ * 自己发明的类别在原生侧就已经归入 other（见生成绑定里该类型的说明），这一层
+ * 不再把同一个决定重做一遍。
+ */
+export type AgentConfigPurposeName = AgentConfigPurpose
 
 export interface AgentConfigChoiceDescription {
   readonly value: string
@@ -249,64 +261,40 @@ export interface AgentSessionConfigBridge {
   ) => Promise<readonly AgentConfigControlDescription[]>
 }
 
-interface NativeChoice {
-  readonly value: string
-  readonly label: string
-  readonly detail: string | null
-}
-
-interface NativeControl {
-  readonly id: string
-  readonly label: string
-  readonly detail: string | null
-  readonly purpose: string
-  readonly current: string
-  readonly choices: readonly NativeChoice[]
-}
-
-/**
- * Names the purpose without trusting this build to know every category.
+/*
+ * 线上说 null 表示缺席，端口说缺席就是没有这一格 —— 在 exactOptionalPropertyTypes
+ * 下这是两个类型，所以这个键要么带值、要么不出现。
  *
- * A category nobody here has heard of is carried as other rather than
- * dropped: the protocol allows one, and the user should still be able to
- * change it.
+ * 这句判断此前在 choiceOf 与 controlOf 里各写一遍。同一条规则写两遍，就会有一天
+ * 只改了一遍。
  */
-function purposeOf(value: string): AgentConfigPurposeName {
-  /*
-   * Case is a serialisation detail, not a decision the interface should
-   * be at the mercy of. A category the native side spells with a capital
-   * would otherwise land in other, and every row would be filed under a
-   * heading none of them belongs to.
-   */
-  const named = value.toLowerCase()
-
-  if (named === 'model' || named === 'thought' || named === 'mode') {
-    return named
-  }
-
-  return 'other'
+function detailOf(detail: string | null): { detail?: string } {
+  return detail === null ? {} : { detail }
 }
 
 /*
- * The wire says null for absent and the port says absent, which under
- * exactOptionalPropertyTypes are different types, so the key is left out.
+ * 入参就是线上的类型本身。
+ *
+ * 这里曾经手抄着 NativeChoice 与 NativeControl，而这个文件开头写着 "Frame shapes
+ * are never redefined here"。抄本还抄漏了一格：purpose 被写成 string，于是需要一个
+ * purposeOf 把它再窄回四选一 —— 那段小写化防的是协议产生不了的值，那段 other 兜底
+ * 则是把原生侧已经做过的决定又做了一遍。
+ *
+ * 出参仍然是端口自己的类型：防腐层不把生成类型泄给 feature 包。进来的用正本，
+ * 出去的用端口，两边各只有一个定义。
  */
-function choiceOf(native: NativeChoice): AgentConfigChoiceDescription {
-  return {
-    value: native.value,
-    label: native.label,
-    ...(native.detail === null ? {} : { detail: native.detail }),
-  }
+function choiceOf(native: AgentConfigChoice): AgentConfigChoiceDescription {
+  return { value: native.value, label: native.label, ...detailOf(native.detail) }
 }
 
-function controlOf(native: NativeControl): AgentConfigControlDescription {
+function controlOf(native: AgentConfigControl): AgentConfigControlDescription {
   return {
     id: native.id,
     label: native.label,
-    purpose: purposeOf(native.purpose),
+    purpose: native.purpose,
     current: native.current,
     choices: native.choices.map(choiceOf),
-    ...(native.detail === null ? {} : { detail: native.detail }),
+    ...detailOf(native.detail),
   }
 }
 
@@ -356,17 +344,15 @@ export function createAgentCapabilityBridge({
  * tab therefore always stands for something the agent knows about.
  */
 
-/** One conversation as the native side reports it. */
-export interface AgentThreadDescription {
-  readonly threadId: string
-  readonly sessionId: string | null
-  readonly title: string
-  /** official, manual, message or fallback, as recorded. */
-  readonly titleSource: string
-  readonly updatedAt: string
-  /** Whether it is held at the top of the list. */
-  readonly pinned: boolean
-}
+/**
+ * One conversation as the native side reports it.
+ *
+ * 这一格不做转换：list() 把生成绑定的 AgentThread 原样交出去，所以再手抄一份
+ * "端口自己的类型"只是给同一个形状起了第二个名字。两份注释已经开始分叉了 ——
+ * 这边写 titleSource 有 official 一档，生成绑定那边只列了 manual、message、
+ * fallback。哪一份对要看 Rust 的 TitleSource；根源是同一件事被写了两遍。
+ */
+export type AgentThreadDescription = AgentThread
 
 export interface AgentOpenedThreadDescription {
   readonly thread: AgentThreadDescription
