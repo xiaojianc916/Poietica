@@ -162,7 +162,7 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
 fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
-    std::fs::write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
+    fs::write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
 }
 
 fn crash_report_path(app: &AppHandle) -> Result<PathBuf> {
