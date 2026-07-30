@@ -376,7 +376,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       <details className="models-keys">
         <summary className="models-keys__summary">
           <ChevronIcon />
-          <span>API 密钥</span>
+          <span>API 配置</span>
         </summary>
 
         <div className="models-keys__body">
