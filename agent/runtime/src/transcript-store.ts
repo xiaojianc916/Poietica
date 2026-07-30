@@ -220,8 +220,7 @@ export class TranscriptStore {
       return
     }
 
-    this.#orphans.delete(runId)
-    this.#orphaned -= waiting.length
+    this.#dropOrphans(runId)
 
     for (const event of waiting) {
       this.#route(event, runId)
@@ -529,17 +528,38 @@ export class TranscriptStore {
     this.#orphaned += 1
 
     while (this.#orphaned > ORPHAN_FRAMES) {
-      const first = this.#orphans.keys().next().value
+      const oldest = this.#orphans.keys().next().value
 
-      if (first === undefined) {
+      if (oldest === undefined) {
+        /* 表空了而计数没归零：走到这里本身就说明不变式已经破了。 */
         this.#orphaned = 0
 
         return
       }
 
-      this.#orphaned -= this.#orphans.get(first)?.length ?? 0
-      this.#orphans.delete(first)
+      this.#dropOrphans(oldest)
     }
+  }
+
+  /*
+   * 丢掉一段无主的帧，连同它在计数里的那一份。
+   *
+   * #orphaned 是各队列长度之和，此前由三处分别手工维护，其中 #route 那一处
+   * 只删表不减数。它今天不发作，而且能证明为什么：#hold 只在查不到主人时
+   * 入队，而 claimRun 是设路由与排空队列一起做的，所以 #route 走到终结分支
+   * 时那个 runId 必然已经不在表里 —— 那是一个永远删不到东西的删除，紧挨着
+   * 一个它一旦生效就会写坏的计数。收成一处之后，这个不变式不再依赖三个地方
+   * 都记得。
+   */
+  #dropOrphans(runId: string): void {
+    const queue = this.#orphans.get(runId)
+
+    if (queue === undefined) {
+      return
+    }
+
+    this.#orphans.delete(runId)
+    this.#orphaned -= queue.length
   }
 
   #route(event: RunEvent, runId: string): void {
@@ -553,10 +573,25 @@ export class TranscriptStore {
 
     this.#handOver(owner, event)
 
-    if (event.kind === 'run_finished' || event.kind === 'run_failed') {
-      this.#routes.delete(runId)
-      this.#orphans.delete(runId)
+    if (event.kind !== 'run_finished' && event.kind !== 'run_failed') {
+      return
     }
+
+    this.#routes.delete(runId)
+    this.#dropOrphans(runId)
+
+    /*
+     * 这一轮的取消口跟着这一轮走。
+     *
+     * 此前 #cancels 只增不减，是这个类里唯一没有上界的表：held 有 #evict，
+     * routes 有 ROUTED_RUNS，orphans 有 ORPHAN_FRAMES，alias 跟着 held 走，
+     * 只有它谁都不跟。
+     *
+     * 而它留下的不只是内存。一轮跑完之后那个闭包还在，停止键按在一条早已
+     * 结束的对话上，仍然会照着旧 handle 发一次取消 —— 指向一个已经翻篇的
+     * 会话。能取消的只有在飞的那一轮，所以表里也只该有在飞的那一轮。
+     */
+    this.#cancels.delete(owner)
   }
 
   /* 一个 store 订着一条线路。此前这道守卫是进程级的。 */

@@ -13,6 +13,7 @@ import {
 } from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
 import {
+  AgentIcon,
   AttachIcon,
   CloseIcon,
   GlobeIcon,
@@ -60,6 +61,7 @@ type Glyph = ComponentType<GlyphProps>
 const MODE_GLYPH: Readonly<Record<string, Glyph>> = {
   architect: ThinkingIcon,
   ask: ThreadIcon,
+  auto: AgentIcon,
   browse: GlobeIcon,
   code: PencilIcon,
   debug: ToolIcon,
@@ -67,6 +69,7 @@ const MODE_GLYPH: Readonly<Record<string, Glyph>> = {
   plan: ThinkingIcon,
   research: SearchIcon,
   search: SearchIcon,
+  yolo: ToolIcon,
 }
 
 function glyphOf(value: string): Glyph {
@@ -224,7 +227,7 @@ function ModePill({
   const label = labelOf(control)
 
   return (
-    <span className="assistant-mode-pill">
+    <span className="assistant-mode-pill" data-mode={control.current.toLowerCase()}>
       <button
         aria-label={`退出${label}`}
         className="assistant-mode-pill__mark"

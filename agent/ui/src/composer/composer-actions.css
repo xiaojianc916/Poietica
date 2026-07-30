@@ -79,33 +79,75 @@
  *
  * 静息是图标加文字，指向它（或用键盘走到叉号上）时图标换成叉号。两者在同一
  * 个网格单元里各占一格，所以换手时文字一个像素都不动。
+ *
+ * 一颗胶囊只有一个自由变量：这个模式的墨色。底色由墨色和画布按固定比例混出
+ * 来，所以"浓到什么程度"是一处数字，而不是每个模式各手调一对十六进制 —— 手
+ * 调必然对不齐强度，换肤时还会在深色画布上留一片发光的浅底。
+ *
+ * 混色走 oklab：sRGB 里同一个百分比在不同色相上的主观亮度并不相等（黄发脏、
+ * 蓝发重），oklab 是感知均匀的，一个 12% 在各色相上看着才是同一档。
+ *
+ * 它的高度不再借 --cp-control：那是按钮的高度令牌，而这是一枚标记。
  */
 .assistant-mode-pill {
+  --am-pill-ink: var(--cp-ink-muted);
+
   display: inline-flex;
-  block-size: var(--cp-control);
+  block-size: 20px;
   align-items: center;
-  gap: var(--cp-control-gap);
+  gap: 4px;
   border-radius: 9999px;
-  padding-inline: var(--cp-optical);
-  font-size: var(--cp-font-caption);
+  padding-inline: 8px;
+  background: color-mix(in oklab, var(--am-pill-ink) 12%, var(--cp-surface));
+  font-size: var(--cp-font-micro);
   font-weight: 500;
-  color: var(--cp-ink-muted);
-  transition:
-    background-color var(--cp-motion-swift) var(--cp-motion-ease),
-    color var(--cp-motion-swift) var(--cp-motion-ease);
+  color: var(--am-pill-ink);
+  /* 它是一枚控件，不是一段文稿：不给 I 型光标，也不参与选区。 */
+  cursor: default;
+  user-select: none;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-mode-pill:hover,
 .assistant-mode-pill:focus-within {
-  background: var(--cp-menu-hover);
-  color: var(--cp-ink);
+  background: color-mix(in oklab, var(--am-pill-ink) 20%, var(--cp-surface));
+}
+
+/* 键与 MODE_GLYPH 同一套：认得出的模式各有一色，认不出的走上面那个缺省。 */
+.assistant-mode-pill[data-mode="architect"],
+.assistant-mode-pill[data-mode="plan"] {
+  --am-pill-ink: #2f6fd0;
+}
+
+.assistant-mode-pill[data-mode="auto"] {
+  --am-pill-ink: #6a49c0;
+}
+
+.assistant-mode-pill[data-mode="yolo"] {
+  --am-pill-ink: #b06a12;
+}
+
+.assistant-mode-pill[data-mode="browse"],
+.assistant-mode-pill[data-mode="research"],
+.assistant-mode-pill[data-mode="search"] {
+  --am-pill-ink: #157a6a;
+}
+
+.assistant-mode-pill[data-mode="code"],
+.assistant-mode-pill[data-mode="edit"] {
+  --am-pill-ink: #2f7a4f;
+}
+
+.assistant-mode-pill[data-mode="ask"],
+.assistant-mode-pill[data-mode="debug"] {
+  --am-pill-ink: #b0455c;
 }
 
 /* 这颗按钮恒定可交互：只有它显示哪个图标随指针变，可点与否从不变。 */
 .assistant-mode-pill__mark {
   display: grid;
-  block-size: var(--cp-icon-sm);
-  inline-size: var(--cp-icon-sm);
+  block-size: var(--cp-icon-2xs);
+  inline-size: var(--cp-icon-2xs);
   flex: none;
   place-items: center;
   border: 0;
@@ -134,7 +176,7 @@
   opacity: 0;
   border-radius: 9999px;
   padding: 15%;
-  background: var(--cp-ink);
+  background: var(--am-pill-ink);
   color: var(--cp-surface);
   stroke-width: 2.5;
 }
