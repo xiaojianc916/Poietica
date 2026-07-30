@@ -7,7 +7,7 @@ import {
   defaultAcpAgent,
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
-import { Button } from '@poietica/foundations-design-system'
+import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliFailure } from './agentCliText'
@@ -528,7 +528,10 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                             </Button>
                           ) : null}
 
+                          {deletingId === row.id ? <InlineSpinner /> : null}
+
                           <Button
+                            className="models-button-danger"
                             disabled={deletingId !== null}
                             onClick={() => {
                               removeKey(row.id)
@@ -537,11 +540,12 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                             type="button"
                             variant="soft"
                           >
-                            {deletingId === row.id ? '正在删' : '确认删除'}
+                            {deletingId === row.id ? '正在删除…' : '确认删除'}
                           </Button>
                         </>
                       ) : (
                         <Button
+                          className="models-button-danger"
                           onClick={() => {
                             setConfirmId(row.id)
                           }}

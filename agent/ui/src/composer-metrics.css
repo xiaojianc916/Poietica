@@ -33,7 +33,7 @@
   --cp-font-caption: calc(var(--cp-font) - 3px);
   --cp-font-micro: calc(var(--cp-font) - 4px);
 
-  --cp-rows-idle: 3;
+  --cp-rows-idle: 2.5;
   --cp-rows-max: 8;
   --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle));
   --cp-editor-max: calc(var(--cp-line) * var(--cp-rows-max));

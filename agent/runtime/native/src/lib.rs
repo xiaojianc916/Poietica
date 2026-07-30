@@ -41,7 +41,7 @@ pub use commands::AgentClient;
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use driver::connect;
-pub use error::{AcpError, Result};
+pub use error::{AcpError, Refusal, Result};
 pub use frame::{
     ACP_UPDATE, FrameNotification, PERMISSION_REQUESTED, PERMISSION_RESOLVED, RUN_FAILED,
     RUN_FINISHED, RUN_STARTED, RunFrame,

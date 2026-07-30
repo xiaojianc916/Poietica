@@ -1,5 +1,21 @@
 use crate::run_log::LogError;
 
+/// 这一侧自己判定的拒绝。
+///
+/// 这三件事都不是 agent 说的，是请求发出去之前本侧就知道的。此前它们与 agent
+/// 报回来的原因一样，被塞进 `Protocol` 的那个字符串字段里 —— 于是桌面层只能把
+/// 它们和别的一起折成一句「应用操作失败」，而它们恰恰是三件用户自己能解决的事。
+/// 给它们一个类型，桌面层才有可能分别说话。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// 这个会话号不是本次连接开出来的。
+    UnknownSession,
+    /// 驱动器已经停了，没有谁能收下这条命令。
+    Gone,
+    /// 这条会话上已经有一轮在飞。
+    Busy,
+}
+
 /// Everything that can go wrong while driving an agent.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -28,6 +44,9 @@ pub enum AcpError {
         /// The identifier the agent used.
         tool_call_id: String,
     },
+    /// 这一侧拒绝了请求，它还没有被发出去。
+    #[error("the request was refused before it was sent: {0:?}")]
+    Refused(Refusal),
     /// A task panicked while holding the run slot.
     ///
     /// The slot is what routes an arriving update to the run it belongs to.

@@ -300,6 +300,16 @@
 /* .models-button 曾在这里。行内动作按钮统一用设计系统的 Button（variant="soft"、
  * size="xs"，与通用页同一颗），这一页不再自造一份。 */
 
+/*
+ * 删除是这张设置页唯一的破坏性动作：悬停时整颗按钮换成设计系统的 destructive 色，
+ * 与 soft 同一形状、不同语义。色值只有一个来源（--ui-destructive 语义 token），
+ * 主题切换时跟着走。
+ */
+.models-button-danger:hover:not(:disabled) {
+  background: var(--ui-destructive);
+  color: var(--ui-destructive-foreground);
+}
+
 @media (max-width: 900px) {
   .models-row {
     flex-direction: column;

@@ -4,12 +4,9 @@ use std::path::PathBuf;
 use futures::channel::{mpsc, oneshot};
 
 use crate::config::ConfigControl;
-use crate::error::{AcpError, Result};
+use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::Recorder;
 use crate::session::{OpenedSession, SessionEntry};
-
-/// 驱动器不在了，没有谁能收下这条命令。
-pub(crate) const GONE: &str = "the agent connection is no longer running";
 
 /// What the driver is asked to do next.
 ///
@@ -92,9 +89,7 @@ impl AgentClient {
 
         self.send(Command::NewSession { cwd, reply })?;
 
-        answer.await.map_err(|_dropped| AcpError::Protocol {
-            message: GONE.to_owned(),
-        })?
+        answer.await.map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
     }
 
     /// Asks the agent which sessions it keeps, and what it calls them.
@@ -110,9 +105,7 @@ impl AgentClient {
 
         self.send(Command::Sessions { reply })?;
 
-        answer.await.map_err(|_dropped| AcpError::Protocol {
-            message: GONE.to_owned(),
-        })?
+        answer.await.map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
     }
 
     /// Starts a turn, recording it with the recorder handed in.
@@ -216,8 +209,6 @@ impl AgentClient {
     fn send(&self, command: Command) -> Result<()> {
         self.commands
             .unbounded_send(command)
-            .map_err(|_disconnected| AcpError::Protocol {
-                message: GONE.to_owned(),
-            })
+            .map_err(|_disconnected| AcpError::Refused(Refusal::Gone))
     }
 }

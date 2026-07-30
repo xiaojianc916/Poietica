@@ -20,7 +20,7 @@ use serde_json::Value;
 use crate::commands::{AgentClient, Command};
 use crate::config::{ConfigControl, controls};
 use crate::desk::PermissionDesk;
-use crate::error::{AcpError, Result};
+use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::run_slot::RunSlot;
@@ -31,7 +31,6 @@ use crate::trace::{open_trace, trace};
 
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
 const CANCELLED: &str = "cancelled";
-const UNKNOWN: &str = "the session named by this request is not one this client opened";
 
 /// 主循环这一步在处理什么。
 enum Step {
@@ -325,9 +324,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
                             let answer = match sessions.get(&session_id) {
                                 Some((_named, offered)) => Ok(offered.clone()),
-                                None => Err(AcpError::Protocol {
-                                    message: UNKNOWN.to_owned(),
-                                }),
+                                None => Err(AcpError::Refused(Refusal::UnknownSession)),
                             };
 
                             let _ignored = reply.send(answer);
@@ -339,9 +336,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             reply,
                         })) => {
                             let Some((named, _offered)) = sessions.get(&session_id) else {
-                                let _ignored = reply.send(Err(AcpError::Protocol {
-                                    message: UNKNOWN.to_owned(),
-                                }));
+                                let _ignored =
+                                    reply.send(Err(AcpError::Refused(Refusal::UnknownSession)));
 
                                 continue;
                             };
@@ -364,18 +360,16 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             // 这一轮属于哪条会话，就问哪条会话要它的协议 id 和
                             // 它的槽。接收路径按名字分发的功夫，不能在这里被抵消。
                             let Some((named, _offered)) = sessions.get(&session_id) else {
-                                let _ignored = reply.send(Err(AcpError::Protocol {
-                                    message: UNKNOWN.to_owned(),
-                                }));
+                                let _ignored =
+                                    reply.send(Err(AcpError::Refused(Refusal::UnknownSession)));
 
                                 continue;
                             };
                             let named = named.clone();
 
                             let Ok(Some(turn)) = ledger.slot(&session_id) else {
-                                let _ignored = reply.send(Err(AcpError::Protocol {
-                                    message: UNKNOWN.to_owned(),
-                                }));
+                                let _ignored =
+                                    reply.send(Err(AcpError::Refused(Refusal::UnknownSession)));
 
                                 continue;
                             };

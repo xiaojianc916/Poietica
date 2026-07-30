@@ -1,9 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use crate::error::{AcpError, Result};
+use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::Recorder;
-
-const OCCUPIED: &str = "a run is already being recorded on this session";
 
 /// The run that arriving session updates belong to.
 ///
@@ -38,9 +36,7 @@ impl RunSlot {
             .map_err(|_poisoned| AcpError::Poisoned)?;
 
         if current.is_some() {
-            return Err(AcpError::Protocol {
-                message: OCCUPIED.to_owned(),
-            });
+            return Err(AcpError::Refused(Refusal::Busy));
         }
 
         *current = Some(recorder);

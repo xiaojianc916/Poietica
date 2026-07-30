@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
-    PermissionDesk, RecordedEvent, Recorder, RunSlot, connect,
+    PermissionDesk, RecordedEvent, Recorder, Refusal, RunSlot, connect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -938,18 +938,41 @@ fn persistence(error: StoreError) -> Error {
     Error::Persistence(error.to_string())
 }
 
+/// 这一侧自己判定的拒绝，说的话。
+///
+/// 全是本仓库的字面量常量，没有一处把 agent 的回话、外部输入或系统错误拼进去
+/// —— 这正是 `Error::AgentCli` 那个变体写下来的透传判据，所以它们可以原样上屏。
+/// 而这三件恰恰是用户唯一能自己解决的事。
+const fn refusal(reason: Refusal) -> &'static str {
+    match reason {
+        Refusal::UnknownSession => "这条对话的会话已经失效，请重新打开它",
+        Refusal::Gone => "agent 已经退出，请重新发起对话",
+        Refusal::Busy => "这条对话正在回答，请等它结束再改设置",
+    }
+}
+
 /// Folds an agent failure into the application's existing error surface.
 ///
-/// No variant is added for the agent: the public message table is an
-/// exhaustive match whose whole purpose is to stop native detail reaching the
-/// webview, and a new arm there would be a new way to leak.
+/// 分两路，因为两边的来源不同。这一侧判定的拒绝是本仓的字面量，原样上屏；agent
+/// 报回来的原因可能带路径或系统细节，仍然落到 `Internal` 的固定文案 —— 但先写进
+/// 日志。
+///
+/// 此前两路合一：七种互不相同的失败共用一句「应用操作失败」，且那个 message 在
+/// 这一行之后再没有任何地方留下过。原来的注释说「不给 agent 加变体，多一条 arm
+/// 就是新的泄漏口」，那句话把两件事混了 —— 泄漏来自把 native detail 当成
+/// public_message 原样返回，不来自多一个变体。
 fn translate(error: AcpError) -> Error {
     match error {
         AcpError::Log(inner) => Error::Persistence(inner.to_string()),
         AcpError::Encoding(inner) => Error::SerdeJson(inner),
-        AcpError::Spawn { message } | AcpError::Protocol { message } => Error::Internal(message),
-        // The enum is non-exhaustive, so the wildcard arm is required.
-        other => Error::Internal(other.to_string()),
+        AcpError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
+        // The enum is non-exhaustive, so the wildcard arm is required. 界面拿到
+        // 的仍是脱敏文案，真话只到这里为止。
+        other => {
+            log::error!("the agent request failed: {other}");
+
+            Error::Internal(other.to_string())
+        }
     }
 }
 
