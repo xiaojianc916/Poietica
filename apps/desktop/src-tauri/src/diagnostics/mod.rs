@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use poietica_editor_persistence_native::atomic_write;
+use poietica_agent_persistence_native::atomic_write;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};

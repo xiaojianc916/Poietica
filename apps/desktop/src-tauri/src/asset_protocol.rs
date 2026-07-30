@@ -609,15 +609,27 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 
 /// Whether the delivery protocol may serve this content type.
 ///
-/// The vocabulary itself is owned by the persistence crate, because the
-/// container format is what ultimately has to be able to carry the bytes. A
-/// type this protocol accepted but the codec did not would produce an asset
-/// the user can place on the canvas and then cannot save, which is the worst
-/// possible moment to find out.
-///
-/// SVG's exclusion, and the reason for it, now live with the list.
+/// Allowlist of inert binary formats. Active content (SVG, HTML, JavaScript)
+/// is excluded: serving it from the custom URI scheme would allow injected
+/// markup to run with the same-origin privileges as the application shell.
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
-    if poietica_editor_persistence_native::is_supported_asset_content_type(content_type) {
+    const ALLOWED: &[&str] = &[
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/webp",
+        "image/avif",
+        "image/bmp",
+        "video/mp4",
+        "video/webm",
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        "audio/webm",
+        "application/pdf",
+    ];
+
+    if ALLOWED.contains(&content_type) {
         return Ok(());
     }
 

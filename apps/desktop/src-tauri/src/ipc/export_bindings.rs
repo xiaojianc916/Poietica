@@ -71,10 +71,6 @@ pub fn export_document_bindings() {
             crate::commands::asset::asset_remove,
             crate::commands::asset::asset_session_close,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
-            crate::commands::document::document_open,
-            crate::commands::document::document_save_as,
-            crate::commands::document::document_save,
-            crate::commands::document::document_close,
             crate::commands::settings::settings_get,
             crate::commands::settings::settings_set,
             crate::commands::settings::settings_reset,
@@ -104,14 +100,6 @@ pub fn export_document_bindings() {
         .typ::<AssetRemoveRequest>()
         .typ::<AssetSessionCloseRequest>()
         .typ::<NativeCrashReport>()
-        .typ::<DocumentId>()
-        .typ::<DocumentDescriptor>()
-        .typ::<DocumentOpenResult>()
-        .typ::<DocumentOpenResponse>()
-        .typ::<DocumentSaveRequest>()
-        .typ::<DocumentSaveAsRequest>()
-        .typ::<DocumentSaveAsResult>()
-        .typ::<DocumentCloseRequest>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()

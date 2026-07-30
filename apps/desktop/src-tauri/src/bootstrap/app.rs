@@ -5,7 +5,6 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
-use crate::commands::document::DocumentRegistry;
 use crate::paths::{AGENTS_STORE, SETTINGS_STORE};
 
 /// Label of the only window this application declares. Matches tauri.conf.json.
@@ -44,7 +43,6 @@ pub fn build() -> tauri::Builder<Wry> {
                 tray::show_main(app);
             },
         ))
-        .manage(DocumentRegistry::default())
         .manage(asset_protocol)
         /*
          * A synchronous protocol handler is invoked by the platform webview on
@@ -165,10 +163,6 @@ pub fn build() -> tauri::Builder<Wry> {
             commands::asset::asset_session_close,
             commands::diagnostics::diagnostics_take_previous_crash,
             commands::window::window_open_devtools,
-            commands::document::document_open,
-            commands::document::document_save_as,
-            commands::document::document_save,
-            commands::document::document_close,
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_reset,
