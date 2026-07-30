@@ -11,8 +11,6 @@ export {
 } from './commands/CommandProvider'
 export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
 
-export { NoCanvasSurface } from './empty/NoCanvasSurface'
-
 export { InspectorHost } from './inspector/InspectorHost'
 
 export {

@@ -24,7 +24,6 @@ import {
   type WorkspaceSurfaceRenderers,
 } from '@poietica/features-workspace/contracts'
 import {
-  NoCanvasSurface,
   nextUntitledCanvasTitle,
   SidebarFooter,
   WorkbenchTabs,
@@ -259,10 +258,6 @@ export function WorkspaceContainer({
         })
       },
 
-      openCanvasStart() {
-        port.workspace.openCanvasStart()
-      },
-
       activatePage(pageId) {
         activeEditorSession?.activatePage(pageId)
       },
@@ -361,8 +356,6 @@ export function WorkspaceContainer({
     activeSessionId,
     hostedSessions,
     quarantinedSessionIds: [...failureSnapshot.quarantinedDocuments.keys()],
-    onCreateCanvas: actions.createCanvas,
-    onOpenCanvas: actions.openCanvas,
     onSave: handleSave,
     onSessionFailure: handleSessionFailure,
     renderSessionFailure: (sessionId) => (
@@ -540,8 +533,6 @@ interface ActiveSurfaceRendererProps {
     readonly session: EditorSession
   }[]
   readonly quarantinedSessionIds: readonly string[]
-  readonly onCreateCanvas: () => void
-  readonly onOpenCanvas: () => void
   readonly onSave: (sessionId: CanvasSessionId) => void
   readonly onSessionFailure: (failure: EditorSessionFailure) => void
   readonly renderSessionFailure: (sessionId: string) => ReactNode
@@ -554,8 +545,6 @@ function renderActiveSurface({
   activeSessionId,
   hostedSessions,
   quarantinedSessionIds,
-  onCreateCanvas,
-  onOpenCanvas,
   onSave,
   onSessionFailure,
   renderSessionFailure,
@@ -563,9 +552,6 @@ function renderActiveSurface({
   surfaceRenderers,
 }: ActiveSurfaceRendererProps) {
   switch (activeSurface.kind) {
-    case 'start':
-      return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />
-
     case 'workspace':
       return <WorkspaceSurface renderers={surfaceRenderers} surfaceId={activeSurface.surfaceId} />
 

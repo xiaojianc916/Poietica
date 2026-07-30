@@ -203,12 +203,8 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
-  /*
-   * 画布槽已无导航入口：start 空态与 canvas 文档是同一个槽的两种状态，图标
-   * 因此只有一个文档字形。这两种标签形态在画布移除的下一步整体删除，届时
-   * 这个分支随之消失，不留兼容分支。
-   */
-  if (model.kind === 'start' || model.kind === 'canvas') {
+  /* 画布文档的字形。画布本体随编辑器包一起移除时，这个分支整体消失。 */
+  if (model.kind === 'canvas') {
     return FileText
   }
 

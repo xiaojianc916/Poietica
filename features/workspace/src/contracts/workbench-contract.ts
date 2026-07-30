@@ -26,10 +26,6 @@ interface WorkbenchTabBase {
   readonly canClose: boolean
 }
 
-export interface StartTabViewModel extends WorkbenchTabBase {
-  readonly kind: 'start'
-}
-
 export interface CanvasTabViewModel extends WorkbenchTabBase {
   readonly kind: 'canvas'
   readonly sessionId: CanvasSessionId
@@ -48,15 +44,9 @@ export interface WorkspaceTabViewModel extends WorkbenchTabBase {
 }
 
 export type WorkbenchTabViewModel =
-  | StartTabViewModel
   | CanvasTabViewModel
   | ConversationTabViewModel
   | WorkspaceTabViewModel
-
-export interface StartSurfaceViewModel {
-  readonly kind: 'start'
-  readonly tabId: WorkbenchTabId
-}
 
 export interface ActiveCanvasViewModel {
   readonly kind: 'canvas'
@@ -81,7 +71,6 @@ export interface WorkspaceSurfaceViewModel {
 }
 
 export type WorkbenchSurfaceViewModel =
-  | StartSurfaceViewModel
   | ActiveCanvasViewModel
   | ActiveConversationViewModel
   | WorkspaceSurfaceViewModel
@@ -129,15 +118,6 @@ export interface WorkbenchSessionCommands {
   /** 官方标题到达后改写标签标题；同值直接返回。 */
   readonly setConversationTitle: (threadId: ConversationId, title: string) => void
 
-  /**
-   * 打开画布槽的空态。
-   *
-   * 画布不是一个 surface：它是被文档占据的那一格。空态因此是一等的标签形态
-   * （kind: 'start'），而不是某个 surfaceId 在视图层的 if 特例。id 固定为
-   * START_TAB_ID，所以起始页天然最多只有一个。
-   */
-  readonly openCanvasStart: () => void
-
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
@@ -165,16 +145,6 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
   readonly getSnapshot: () => WorkbenchViewModel
   readonly subscribe: (listener: () => void) => () => void
 }
-
-export const START_TAB_ID: WorkbenchTabId = 'workbench:start'
-
-/**
- * 起始页（画布槽空态）的标签标题。
- *
- * 与侧栏「画布」导航项同名同图标：同一个目标只允许有一个名字，标签与导航
- * 因此不可能对不上。
- */
-export const START_TAB_TITLE = '画布'
 
 /**
  * 会话入口（AI 表面）的名字。

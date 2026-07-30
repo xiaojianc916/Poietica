@@ -20,8 +20,6 @@ export interface WorkspaceShellActions {
   readonly closeTab: (tabId: WorkbenchTabId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
   readonly openWorkspaceSurface: (surfaceId: WorkspaceSurfaceId, title: string) => void
-  /** 打开画布槽的空态（起始页）。画布不是 surface，所以它有独立入口。 */
-  readonly openCanvasStart: () => void
   readonly activatePage: (pageId: string) => void
   readonly createPage: () => void
   readonly openCommandPalette: () => void

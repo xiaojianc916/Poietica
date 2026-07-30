@@ -20,14 +20,14 @@ describe('workbench session controller', () => {
         kind: 'workspace',
         tabId: 'workspace:ai',
         surfaceId: 'ai',
-        title: '新建会话',
+        title: '新建对话',
       },
       tabs: [
         {
           id: 'workspace:ai',
           kind: 'workspace',
           surfaceId: 'ai',
-          title: '新建会话',
+          title: '新建对话',
           canClose: true,
           isActive: true,
         },
@@ -155,65 +155,5 @@ describe('workbench session controller', () => {
     store.closeCanvas('session-1')
 
     expect(store.getSnapshot().tabs.some((tab) => tab.id === 'canvas:session-1')).toBe(false)
-  })
-
-  it('画布就地顶掉起始页，标签总数不变', () => {
-    const store = createWorkbenchSessionController()
-
-    store.openCanvasStart()
-
-    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workspace:ai',
-      'workbench:start',
-    ])
-
-    store.createCanvas({
-      canvasId: 'canvas-1',
-      sessionId: 'session-1',
-      title: 'One',
-    })
-
-    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workspace:ai',
-      'canvas:session-1',
-    ])
-
-    expect(store.getSnapshot().activeSurface).toMatchObject({
-      kind: 'canvas',
-      tabId: 'canvas:session-1',
-    })
-  })
-
-  it('起始页唯一，且不被其它表面吞掉', () => {
-    const store = createWorkbenchSessionController()
-
-    store.openCanvasStart()
-    store.openCanvasStart()
-
-    expect(store.getSnapshot().tabs.filter((tab) => tab.kind === 'start')).toHaveLength(1)
-
-    store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
-    })
-
-    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workspace:ai',
-      'workbench:start',
-      'workspace:assets',
-    ])
-  })
-
-  it('起始页可关闭也可拖动', () => {
-    const store = createWorkbenchSessionController()
-
-    store.openCanvasStart()
-    store.moveTab('workbench:start', 0)
-
-    expect(store.getSnapshot().tabs[0]?.id).toBe('workbench:start')
-
-    store.closeTab('workbench:start')
-
-    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['workspace:ai'])
   })
 })

@@ -172,7 +172,6 @@ function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceSurfa
     case 'workspace':
       return surface.surfaceId
 
-    case 'start':
     case 'canvas':
       return null
   }
