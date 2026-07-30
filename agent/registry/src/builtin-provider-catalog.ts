@@ -21,12 +21,21 @@ import type { AgentProviderState } from './agent-provider-state'
 /** 协议。取值必须是 agent 认的那几种，不是我们自己起的名字。 */
 export type AgentProviderWire = 'openai' | 'anthropic' | 'kimi'
 
+/** 思考能力。有逐字证据才填；缺席表示不声明，而不是不支持。 */
+export interface AgentProviderPresetModelThinking {
+  /** 推理档位，原样进 reasoning_options 的 values（对方请求体 reasoning_effort 的取值）。 */
+  readonly efforts?: readonly string[]
+  /** 思考可以整个关掉（对方的 thinking.type enabled/disabled）。 */
+  readonly toggle?: boolean
+}
+
 export interface AgentProviderPresetModel {
   /** 原样交给对方 API 的 model id。大小写与连字符都不能改。 */
   readonly id: string
   readonly displayName: string
   /** 上下文窗口，只在有明确出处时才填。取不到就缺席，不估。 */
   readonly maxContextSize?: number
+  readonly thinking?: AgentProviderPresetModelThinking
 }
 
 export interface AgentProviderPreset {
@@ -51,6 +60,8 @@ export interface AgentProviderPreset {
  * 上下文：Zed 的 crates/deepseek/src/deepseek.rs 逐字 —— V4Flash | V4Pro => 1_000_000。
  * 这一格不能缺席：对方的目录解析器把没有 limit.context 的模型整条丢掉
  * （kosong/src/catalog.ts 的 catalogModelToCapability）。
+ * 思考：同一份 Zed 源码逐字 —— Thinking {Enabled|Disabled}（可整个关掉），
+ * ReasoningEffort {High, Max} 带 #[serde(rename_all = "lowercase")]（档位 high / max）。
  */
 const DEEPSEEK: AgentProviderPreset = {
   id: 'deepseek',
@@ -60,8 +71,18 @@ const DEEPSEEK: AgentProviderPreset = {
   baseUrl: 'https://api.deepseek.com',
   apiKeysUrl: 'https://platform.deepseek.com/api_keys',
   models: [
-    { id: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', maxContextSize: 1000000 },
-    { id: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', maxContextSize: 1000000 },
+    {
+      id: 'deepseek-v4-pro',
+      displayName: 'DeepSeek V4 Pro',
+      maxContextSize: 1000000,
+      thinking: { efforts: ['high', 'max'], toggle: true },
+    },
+    {
+      id: 'deepseek-v4-flash',
+      displayName: 'DeepSeek V4 Flash',
+      maxContextSize: 1000000,
+      thinking: { efforts: ['high', 'max'], toggle: true },
+    },
   ],
 }
 
@@ -74,6 +95,11 @@ const DEEPSEEK: AgentProviderPreset = {
  * GLM-5.1 / GLM-5 / GLM-4.7 只在「模型概览」里拿到展示名，没有拿到调用示例里的
  * 模型编码，所以不写 —— 少一项好过错一项。
  *
+ * 思考：官方「深度思考」文档逐字 —— thinking.type enabled（默认）/ disabled，GLM-5.2
+ * 与 GLM-4.6 都支持；reasoning_effort 仅 GLM-5.2 及以上，取值 max（默认且推荐）/
+ * xhigh / high / medium / low / minimal / none，none 或 minimal 表示放弃思考。
+ * glm-4.6 没有 reasoning_effort 的证据，只声明开关。
+ *
  * 注：Coding Plan 套餐另有 /api/coding/paas/v4 与 /api/anthropic 两个入口。等确认你
  * 用的是哪种账号再加，现在不猜。
  */
@@ -85,8 +111,21 @@ const ZHIPU: AgentProviderPreset = {
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
   apiKeysUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
   models: [
-    { id: 'glm-5.2', displayName: 'GLM-5.2', maxContextSize: 1000000 },
-    { id: 'glm-4.6', displayName: 'GLM-4.6', maxContextSize: 200000 },
+    {
+      id: 'glm-5.2',
+      displayName: 'GLM-5.2',
+      maxContextSize: 1000000,
+      thinking: {
+        efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'],
+        toggle: true,
+      },
+    },
+    {
+      id: 'glm-4.6',
+      displayName: 'GLM-4.6',
+      maxContextSize: 200000,
+      thinking: { toggle: true },
+    },
   ],
 }
 
@@ -98,6 +137,11 @@ const ZHIPU: AgentProviderPreset = {
  *
  * id 不叫 kimi：agent 自己的配置里 kimi 这个 provider 是它的托管服务（/login 走
  * OAuth）。同名导入会把那一条替换掉 —— catalog add 对已存在的 id 是先删再建。
+ *
+ * 思考：官方 Model Parameter Reference 逐字 —— K3 永远思考（Preserved Thinking），
+ * reasoning_effort 支持 low / high / max（默认 max），没有 off；「从 K2.x 迁移到 K3
+ * 时移除 K2.x 的 thinking 配置」一句证明 K2.x 是 thinking 开关。K3 在 kimi 线上不会被
+ * 误判成不可关：kosong 对 anthropic / kimi 两种协议剥掉 alwaysThinking。
  */
 const MOONSHOT: AgentProviderPreset = {
   id: 'moonshot',
@@ -107,15 +151,36 @@ const MOONSHOT: AgentProviderPreset = {
   baseUrl: 'https://api.moonshot.ai/v1',
   apiKeysUrl: 'https://platform.kimi.com/',
   models: [
-    { id: 'kimi-k3', displayName: 'Kimi K3', maxContextSize: 1000000 },
-    { id: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code', maxContextSize: 256000 },
+    {
+      id: 'kimi-k3',
+      displayName: 'Kimi K3',
+      maxContextSize: 1000000,
+      thinking: { efforts: ['low', 'high', 'max'] },
+    },
+    {
+      id: 'kimi-k2.7-code',
+      displayName: 'Kimi K2.7 Code',
+      maxContextSize: 256000,
+      thinking: { toggle: true },
+    },
     {
       id: 'kimi-k2.7-code-highspeed',
       displayName: 'Kimi K2.7 Code 高速版',
       maxContextSize: 256000,
+      thinking: { toggle: true },
     },
-    { id: 'kimi-k2.6', displayName: 'Kimi K2.6', maxContextSize: 256000 },
-    { id: 'kimi-k2.5', displayName: 'Kimi K2.5', maxContextSize: 256000 },
+    {
+      id: 'kimi-k2.6',
+      displayName: 'Kimi K2.6',
+      maxContextSize: 256000,
+      thinking: { toggle: true },
+    },
+    {
+      id: 'kimi-k2.5',
+      displayName: 'Kimi K2.5',
+      maxContextSize: 256000,
+      thinking: { toggle: true },
+    },
   ],
 }
 
@@ -138,7 +203,7 @@ export function builtinAgentProviderById(id: string): AgentProviderPreset | unde
  * id → 厂商的表；厂商条目里 type 是显式协议（在场就以它为准）、api 是接口地址、models
  * 是 id → 模型的表；模型条目里 id 与 limit.context 是硬门槛 —— 缺一个正整数 context，
  * 那条模型就被对方整条丢掉（catalogModelToCapability）。name 只是显示名。除此之外的
- * 字段（env、npm、cost…）没有证据的一律不写。
+ * 字段没有证据的一律不写；reasoning 与 reasoning_options 有逐字证据，在写之列。
  *
  * 产物经 IPC 交给原生侧，绑在一次性 loopback 服务上，经官方 --url 喂给 catalog add。
  * 不含密钥：密钥走环境变量，从来不进这份文档。
@@ -150,10 +215,28 @@ export function agentProviderCatalogDocument(presets: readonly AgentProviderPres
     const models: Record<string, unknown> = {}
 
     for (const model of preset.models) {
+      /*
+       * reasoning_options 的形状照对方逐字的读法：{type:'effort', values} 进档位表
+       * （'none' 那一档被它当成「关」），{type:'toggle'} 表示可整个关掉。有任一声明
+       * 就补 reasoning: true —— 它的 thinking 判定是三选一，写齐不留死角。
+       */
+      const reasoningOptions: Record<string, unknown>[] = []
+
+      if (model.thinking?.efforts !== undefined) {
+        reasoningOptions.push({ type: 'effort', values: [...model.thinking.efforts] })
+      }
+
+      if (model.thinking?.toggle === true) {
+        reasoningOptions.push({ type: 'toggle' })
+      }
+
       models[model.id] = {
         id: model.id,
         name: model.displayName,
         ...(model.maxContextSize === undefined ? {} : { limit: { context: model.maxContextSize } }),
+        ...(reasoningOptions.length === 0
+          ? {}
+          : { reasoning: true, reasoning_options: reasoningOptions }),
       }
     }
 

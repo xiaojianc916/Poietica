@@ -78,6 +78,55 @@ describe('agentProviderCatalogDocument', () => {
       }
     }
   })
+
+  it('声明了思考的模型带 reasoning 与 reasoning_options，档位原样进 values', () => {
+    const deepseek = builtinAgentProviderById('deepseek')
+
+    if (deepseek === undefined) {
+      throw new Error('内置表缺 deepseek')
+    }
+
+    const entry = entryOf(agentProviderCatalogDocument([deepseek]), 'deepseek')
+    const models = entry['models'] as Record<
+      string,
+      { reasoning?: unknown; reasoning_options?: readonly Record<string, unknown>[] }
+    >
+
+    expect(models['deepseek-v4-pro']?.reasoning).toBe(true)
+    expect(models['deepseek-v4-pro']?.reasoning_options).toEqual([
+      { type: 'effort', values: ['high', 'max'] },
+      { type: 'toggle' },
+    ])
+  })
+
+  it('内置表声明的推理档位全是小写', () => {
+    for (const preset of builtinAgentProviders()) {
+      for (const model of preset.models) {
+        for (const effort of model.thinking?.efforts ?? []) {
+          expect(
+            effort === effort.toLowerCase(),
+            `${preset.id}/${model.id} 的档位 ${effort} 不是小写 —— 档位原样进请求体，大小写是契约`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('没声明思考的模型一个 reasoning 字段都不带', () => {
+    const document = agentProviderCatalogDocument([
+      {
+        id: 'bare',
+        displayName: '裸模型',
+        description: '',
+        wire: 'openai',
+        baseUrl: 'https://example.com',
+        apiKeysUrl: 'https://example.com',
+        models: [{ id: 'bare-1', displayName: '裸 1', maxContextSize: 1024 }],
+      },
+    ])
+
+    expect(document).not.toContain('reasoning')
+  })
 })
 
 describe('agentProviderModelOptions', () => {
