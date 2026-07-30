@@ -11,7 +11,7 @@ import {
 import { memo, useCallback, useMemo, useState } from 'react'
 
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
-import { formatAbsolute, formatElapsed, nextChangeIn, sectionsOf, useNow } from './time'
+import { nextChangeIn, sectionsOf, useNow } from './time'
 
 /*
  * 会话列表。
@@ -391,10 +391,10 @@ export function AssistantThreadList({
           <span className="assistant-threads__caption">{section.label}</span>
 
           <ul className="assistant-threads__list">
-            {section.members.map(({ instant, thread }) => (
+            {section.members.map(({ absolute, elapsed, thread }) => (
               <ThreadRow
-                absolute={Number.isNaN(instant) ? null : formatAbsolute(instant)}
-                elapsed={Number.isNaN(instant) ? null : formatElapsed(instant, now)}
+                absolute={absolute}
+                elapsed={elapsed}
                 isActive={thread.id === activeThreadId}
                 isRenaming={thread.id === renamingId}
                 key={thread.id}

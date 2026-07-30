@@ -49,6 +49,7 @@ const horizons = new Map<object, (at: number) => number>()
 let now = Date.now()
 let timer: ReturnType<typeof setTimeout> | undefined
 let scheduledFor = Number.POSITIVE_INFINITY
+let pending = false
 
 function awake(): boolean {
   return view === undefined || view.visibilityState === 'visible'
@@ -73,7 +74,28 @@ function soonest(): number {
   return found
 }
 
+/*
+ * 排表分两半：plan() 只标记「待排」，真正的结算在微任务里做一次。
+ *
+ * 期限只有在全体消费者都报完之后才算得准，所以「每报一次就结算一次」这个
+ * 形状本身是错的：一次跳动会让每个消费者重画，每次重画都要重报期限，于是
+ * C 个消费者要走 C+1 遍 soonest()，每遍再按行 Date.parse，前 C 个结果算完
+ * 即被覆盖（早退判断在全部算完之后，省不下任何东西）。标记脏、批内合并、
+ * 边界结算一次，是调度器的通行结构。微任务一定早于任何 setTimeout，所以
+ * 合批不推迟唤醒。
+ */
 function plan() {
+  if (pending) {
+    return
+  }
+
+  pending = true
+  queueMicrotask(settle)
+}
+
+function settle() {
+  pending = false
+
   const at = soonest()
 
   if (at === scheduledFor) {
@@ -318,6 +340,9 @@ const DATED = [
   { id: 'earlier', label: '更早', within: Number.POSITIVE_INFINITY },
 ]
 
+/* 输出次序：固定在最前，其余按这条时间轴。此前每次调用都现拼一次这张表。 */
+const SECTIONS = [PINNED, ...DATED]
+
 export interface DatedThread {
   readonly updatedAt: string
   readonly isPinned?: boolean
@@ -325,8 +350,12 @@ export interface DatedThread {
 
 export interface ThreadSectionMember<T> {
   readonly thread: T
-  /** 解析过的时刻；无法解析时为 NaN，此时该行不画时间。 */
+  /** 解析过的时刻；无法解析时为 NaN。段内排序用它，画面不用。 */
   readonly instant: number
+  /** 相对文案；时刻无法解析时为 null，此时该行不画时间。 */
+  readonly elapsed: string | null
+  /** 同一时刻的准确说法，给悬停与读屏。 */
+  readonly absolute: string | null
 }
 
 export interface ThreadSection<T> {
@@ -341,16 +370,28 @@ function sectionIdOf(instant: number, reference: number): string {
   }
 
   const days = calendarDays(instant, reference)
-  const found = DATED.find((section) => days < section.within)
 
-  return found === undefined ? 'earlier' : found.id
+  for (const section of DATED) {
+    if (days < section.within) {
+      return section.id
+    }
+  }
+
+  return 'earlier'
 }
 
 function orderOf<T>(member: ThreadSectionMember<T>): number {
   return Number.isNaN(member.instant) ? 0 : member.instant
 }
 
-/** 固定在最前，其余按本地日历日分段；段内按最近活动倒序。 */
+/*
+ * 固定在最前，其余按本地日历日分段；段内按最近活动倒序。
+ *
+ * 文案也在这一趟里算完。这个模块自称是「会话时间的唯一管线」，可文案此前
+ * 是在调用点的 JSX 里逐行现算的，于是任何与时间无关的重画（改名态、父组件
+ * 状态）都要把整屏的 Intl.DateTimeFormat（dateStyle: 'full'）重跑一遍，而它
+ * 只用来做悬停提示。算在这里，它就只随 (threads, now) 变，被 useMemo 挡住。
+ */
 export function sectionsOf<T extends DatedThread>(
   threads: readonly T[],
   reference: number,
@@ -359,19 +400,26 @@ export function sectionsOf<T extends DatedThread>(
 
   for (const thread of threads) {
     const instant = Date.parse(thread.updatedAt)
+    const unreadable = Number.isNaN(instant)
+    const member: ThreadSectionMember<T> = {
+      absolute: unreadable ? null : formatAbsolute(instant),
+      elapsed: unreadable ? null : formatElapsed(instant, reference),
+      instant,
+      thread,
+    }
     const id = thread.isPinned === true ? PINNED.id : sectionIdOf(instant, reference)
     const members = held.get(id)
 
     if (members === undefined) {
-      held.set(id, [{ instant, thread }])
+      held.set(id, [member])
     } else {
-      members.push({ instant, thread })
+      members.push(member)
     }
   }
 
   const ordered: ThreadSection<T>[] = []
 
-  for (const section of [PINNED, ...DATED]) {
+  for (const section of SECTIONS) {
     const members = held.get(section.id)
 
     if (members !== undefined) {
