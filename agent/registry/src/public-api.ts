@@ -39,6 +39,15 @@ export {
   parseAgentProviderListOutput,
 } from './agent-provider-state'
 export { kimiCode } from './agents/kimi'
+export type {
+  AgentProviderPreset,
+  AgentProviderPresetModel,
+  AgentProviderWire,
+} from './builtin-provider-catalog'
+export {
+  builtinAgentProviderById,
+  builtinAgentProviders,
+} from './builtin-provider-catalog'
 /*
  * 这里曾导出 model-catalog 与 model-provider-profile 两组符号。两个模块都删了。
  *

@@ -2,6 +2,7 @@ import {
   type AcpAgentProfile,
   type AgentModelState,
   acpAgents,
+  builtinAgentProviders,
   defaultAcpAgent,
 } from '@poietica/agent-registry'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
@@ -21,8 +22,12 @@ import './models-settings.css'
  * 模型清单来自所选 agent 自己的 provider list —— 我们不存目录、不存模型、不存
  * 密钥。所以这一页没有「保存」这个动作，它显示的就是 agent 此刻的真实配置。
  *
- * OpenAI 与 Anthropic 两张卡已经接通 agent 的官方 CLI：模型从它的目录里选，密钥经环境
- * 变量交给它，写入由它自己完成。Google 那一格还只有界面。
+ * 三家厂商卡的模型清单内置在二进制里（@poietica/agent-registry 的 builtin-provider-catalog）。
+ * 为什么不问 agent：它的目录命令每次都现拉 models.dev，拉不到就 exit 1，没有内置兜底 ——
+ * 在拿不到那个域名的网络里整条路都不通。Zed 的做法也是内置：provided_models() 里直接
+ * models.insert("deepseek-v4-pro")，再叠加用户追加的 available_models。
+ *
+ * 密钥经环境变量交给 agent，写入由它自己完成。Google 那一格还只有界面，所以摆在最下面。
  *
  * 原来这里有 Azure OpenAI 与 AWS Bedrock 两张卡，各三个手填输入框。删掉不是因为不好看：
  * providers.md 写明 Bedrock 这类私有协议目录拒绝导入，Azure 在 models.dev 目录里有没有
@@ -47,6 +52,12 @@ const COLLAPSED_MODEL_LIMIT = 8
  * 一条命令。今天只注册了 Kimi Code 一家，所以下拉里只会有一项；接第二家时这里一个
  * 字都不用改，加的是 agents/<name>.ts。
  */
+/*
+ * 要显示哪几家。清单内置在 @poietica/agent-registry 里，与这一页无关 —— 这一页只负责
+ * 摆卡片。加第四家不用改这里。
+ */
+const BUILTIN_PROVIDERS = builtinAgentProviders()
+
 const AGENT_OPTIONS: readonly (readonly [string, string])[] = acpAgents().map(
   (agent) => [agent.id, agent.displayName] as const,
 )
@@ -285,32 +296,23 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         </summary>
 
         <div className="models-keys__body">
+          {BUILTIN_PROVIDERS.map((preset) => (
+            <ProviderKeyCard
+              agentId={agentId}
+              key={preset.id}
+              onSaved={providers.reload}
+              provider={preset}
+              registryKeyVar={registryKeyVar}
+              store={store}
+            />
+          ))}
+
           <KeyField
             description="填入你的 Google AI Studio 密钥，按用量直接计费。"
             label="Google API 密钥"
             onChange={setGoogleKey}
             placeholder="输入 Google AI Studio API 密钥"
             value={googleKey}
-          />
-
-          <ProviderKeyCard
-            agentId={agentId}
-            description="填入你自己的 OpenAI 密钥，按用量直接计费到该账号。模型从 agent 的目录里选。"
-            onSaved={providers.reload}
-            providerId="openai"
-            registryKeyVar={registryKeyVar}
-            store={store}
-            title="OpenAI"
-          />
-
-          <ProviderKeyCard
-            agentId={agentId}
-            description="填入你自己的 Anthropic 密钥，按用量直接计费。模型从 agent 的目录里选。"
-            onSaved={providers.reload}
-            providerId="anthropic"
-            registryKeyVar={registryKeyVar}
-            store={store}
-            title="Anthropic"
           />
         </div>
       </details>

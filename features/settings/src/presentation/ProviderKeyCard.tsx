@@ -1,34 +1,35 @@
-import { agentProviderCatalogAddArgs } from '@poietica/agent-registry'
+import { type AgentProviderPreset, agentProviderCatalogAddArgs } from '@poietica/agent-registry'
 import { Switch } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
 import { OptionSelect, SubField } from './models-fields'
-import { useAgentCatalogModels } from './useAgentCatalogModels'
 
 /*
- * 一家厂商的凭据卡。
+ * 一家厂商的凭据卡。传进来的是 builtinAgentProviders 的一条。
  *
- * 这里原来是 Azure OpenAI 与 AWS Bedrock 两张卡，各三个手填输入框，一格都写不进去 ——
- * 而且注定写不进去：kimi-code 的 providers.md 写明 Bedrock 这类私有协议目录拒绝导入。
+ * 上一版这张卡开开关就起一个子进程，问 agent「这家有哪些模型」。那条路作废了：agent 的
+ * 目录命令每次都要现拉 models.dev，拉不到就直接失败，没有内置兜底。候选模型改成内置表，
+ * 于是开关一拨就有清单 —— 不起进程、离线也有、也没有那句「正在询问…」。
  *
- * 模型名不给键盘：候选来自 agent 自己的目录，选中的 id 原样传 --default-model。用户
- * 记不住 gpt 后面是点还是横线，这不是用户的问题，是让他打字这件事本身的问题。
+ * 手填「基础地址」那一格删了。接口地址属于厂商身份，内置就够；Zed 也不把它放进密钥
+ * 界面（api_url() 从设置里读，空则用常量）。真要改地址的场景是自建网关，那是另一类
+ * provider，不该让每个填密钥的人都先看见一个空框。
+ *
+ * 模型名不给键盘：用户记不住 gpt 后面是点还是横线，这不是用户的问题。
  *
  * 密钥不上命令行、不落我们的盘：随一次 execCli 经环境变量进子进程，写进 agent 自己的
- * 配置文件之后就与我们无关 —— 包括「配没配过」这个问题，答案也在那边（上面那张模型
- * 列表就是答案）。
+ * 配置之后就与我们无关 —— 包括「配没配过」，答案在上面那张模型列表里。
  *
- * 两张卡结构相同，所以是同一个组件传两次。抄两份的话，改一处文案就会有一处忘了改。
+ * 写入仍然走 agent 的 catalog add，所以在拿不到 models.dev 的网络里它会失败，界面会把
+ * agent 的原话显示出来。不粉饰：那句失败正是下一刀要修的东西（把内置表按目录形状喂给
+ * catalog add 的 --url）。
  */
 export interface ProviderKeyCardProps {
   readonly store: AgentConfigStore
   readonly agentId: string
-  /** 目录里的厂商标识，例如 openai、anthropic。 */
-  readonly providerId: string
-  readonly title: string
-  readonly description: string
-  /** 档案声明的注入变量名。缺席时不给写入入口，而不是自己挑一个名字。 */
+  readonly provider: AgentProviderPreset
+  /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
   readonly registryKeyVar: string | undefined
   readonly onSaved: () => void
 }
@@ -36,20 +37,15 @@ export interface ProviderKeyCardProps {
 export function ProviderKeyCard({
   store,
   agentId,
-  providerId,
-  title,
-  description,
+  provider,
   registryKeyVar,
   onSaved,
 }: ProviderKeyCardProps) {
   const [enabled, setEnabled] = useState(false)
   const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-
-  const catalog = useAgentCatalogModels(store, agentId, providerId, enabled)
 
   /* 写入是一次往返，期间用户可以切走。卸载之后再 setState 是一次无处可去的更新。 */
   const mounted = useRef(true)
@@ -63,8 +59,8 @@ export function ProviderKeyCard({
   }, [])
 
   const options = useMemo<readonly (readonly [string, string])[]>(() => {
-    return catalog.models.map((model) => [model.id, model.displayName] as const)
-  }, [catalog.models])
+    return provider.models.map((model) => [model.id, model.displayName] as const)
+  }, [provider.models])
 
   /*
    * 下拉的值必须是选项之一，否则触发器会显示空白。换厂商之后上一家的 modelId 不再在
@@ -78,22 +74,6 @@ export function ProviderKeyCard({
     return options[0]?.[0] ?? ''
   }, [modelId, options])
 
-  const notice = useMemo(() => {
-    if (catalog.error !== null) {
-      return catalog.error
-    }
-
-    if (catalog.loading) {
-      return '正在向 agent 询问这家厂商有哪些模型…'
-    }
-
-    if (options.length === 0) {
-      return '目录里没有报出这家厂商的模型；仍然可以只填密钥。'
-    }
-
-    return message
-  }, [catalog.error, catalog.loading, message, options.length])
-
   const submit = useCallback(() => {
     if (registryKeyVar === undefined) {
       setMessage('这个 agent 没有声明该往哪个环境变量注入密钥，无法从这里写入。')
@@ -106,14 +86,17 @@ export function ProviderKeyCard({
       return
     }
 
-    const endpoint = baseUrl.trim()
     let args: readonly string[]
 
+    /*
+     * 条件展开而不是传 undefined：exactOptionalPropertyTypes 下，可选属性收不了一个
+     * 显式的 undefined。
+     */
     try {
       args = agentProviderCatalogAddArgs({
-        providerId,
-        defaultModelId: modelValue === '' ? undefined : modelValue,
-        baseUrl: endpoint === '' ? undefined : endpoint,
+        providerId: provider.id,
+        ...(modelValue === '' ? {} : { defaultModelId: modelValue }),
+        ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
       })
     } catch (cause: unknown) {
       setMessage(describeAgentCliFailure(cause, '这组参数没法安全地交给命令行。'))
@@ -149,19 +132,19 @@ export function ProviderKeyCard({
         setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
       },
     )
-  }, [agentId, apiKey, baseUrl, modelValue, onSaved, providerId, registryKeyVar, store])
+  }, [agentId, apiKey, modelValue, onSaved, provider, registryKeyVar, store])
 
   return (
     <div className="models-card">
       <div className="models-row">
         <div className="models-row__copy">
-          <strong>{title}</strong>
-          <p>{description}</p>
+          <strong>{provider.displayName}</strong>
+          <p>{provider.description}</p>
         </div>
 
         <div className="models-row__control">
           <Switch
-            aria-label={title}
+            aria-label={provider.displayName}
             checked={enabled}
             onCheckedChange={(checked) => {
               setEnabled(checked)
@@ -173,7 +156,7 @@ export function ProviderKeyCard({
 
       {enabled ? (
         <>
-          {notice !== null ? <p className="models-empty">{notice}</p> : null}
+          {message !== null ? <p className="models-empty">{message}</p> : null}
 
           {options.length > 0 ? (
             <div className="models-row models-row--field">
@@ -181,7 +164,7 @@ export function ProviderKeyCard({
 
               <div className="models-row__control">
                 <OptionSelect
-                  ariaLabel={`${title} 默认模型`}
+                  ariaLabel={`${provider.displayName} 默认模型`}
                   onChange={setModelId}
                   options={options}
                   value={modelValue}
@@ -193,20 +176,23 @@ export function ProviderKeyCard({
           <SubField
             label="API 密钥"
             onChange={setApiKey}
-            placeholder={`输入 ${title} API 密钥`}
+            placeholder={`输入 ${provider.displayName} API 密钥`}
             secret
             value={apiKey}
           />
 
-          <SubField
-            label="基础地址（留空用目录里的）"
-            onChange={setBaseUrl}
-            placeholder="仅在需要改接口地址时填"
-            value={baseUrl}
-          />
+          <div className="models-row models-row--field">
+            <span className="models-row__name">密钥申请地址</span>
+
+            <div className="models-row__control">
+              <span className="models-row__meta">{provider.apiKeysUrl}</span>
+            </div>
+          </div>
 
           <div className="models-row models-row--field">
-            <span className="models-row__name">密钥经环境变量交给 agent，不经命令行、不落盘</span>
+            <span className="models-row__name">
+              接口地址 {provider.baseUrl} · 密钥经环境变量交给 agent，不经命令行、不落盘
+            </span>
 
             <div className="models-row__control">
               <button
