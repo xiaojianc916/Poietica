@@ -17,7 +17,7 @@ use crate::run_log::{PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 /// The stop reason for a turn the user stopped, as the interface spells it.
 const CANCELLED: &str = "cancelled";
 
-/// 一个 ToolKind 连序列化器都说不出名字时的归类。协议自己留了这一档。
+/// 一个 `ToolKind` 连序列化器都说不出名字时的归类。协议自己留了这一档。
 const OTHER: &str = "other";
 
 /// A frame that is already durable and is now safe to forward.
@@ -108,7 +108,7 @@ impl Recorder {
 
     /// Records that the run began, and what was asked.
     pub fn record_run_started(&mut self, session_id: &str, prompt: &str) {
-        let outcome = self.append(RunFrame::RunStarted {
+        let outcome = self.append(&RunFrame::RunStarted {
             session_id: session_id.to_owned(),
             prompt: prompt.to_owned(),
         });
@@ -217,7 +217,7 @@ impl Recorder {
 
         normalize(&mut update, &notification.update)?;
 
-        self.append(RunFrame::AcpUpdate {
+        self.append(&RunFrame::AcpUpdate {
             notification: FrameNotification {
                 session_id: notification.session_id.to_string(),
                 update,
@@ -290,7 +290,7 @@ impl Recorder {
 
         let title = self.permission_title(request, tool_call_id);
 
-        self.append(RunFrame::PermissionRequested {
+        self.append(&RunFrame::PermissionRequested {
             request_id: request_id.to_owned(),
             tool_call_id: tool_call_id.to_owned(),
             title,
@@ -315,7 +315,7 @@ impl Recorder {
 
         let _settled = self.log.resolve_permission(request_id, outcome)?;
 
-        self.append(RunFrame::PermissionResolved {
+        self.append(&RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),
             option_id,
             outcome: wire_outcome.to_owned(),
@@ -345,7 +345,7 @@ impl Recorder {
 
         let frame = self.narrate(frame);
 
-        self.append(frame)
+        self.append(&frame)
     }
 
     /// A failure always carries the agent account of it. A turn that ended on
@@ -373,7 +373,7 @@ impl Recorder {
         }
     }
 
-    fn append(&mut self, frame: RunFrame) -> Result<()> {
+    fn append(&mut self, frame: &RunFrame) -> Result<()> {
         let seq = self.next_seq;
         let kind = frame.kind();
         let body = frame.envelope(seq, now_millis())?;

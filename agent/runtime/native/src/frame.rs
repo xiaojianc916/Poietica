@@ -4,8 +4,8 @@
 //! `json!` 字面量，所以字段名拼错是编译错误，而不是一个要靠界面侧第二份
 //! schema 在运行期抓出来的问题。
 //!
-//! 判别式与字段名由 serde 派生：`kind` 用协议的 snake_case，字段用界面读的
-//! camelCase。同一条原则 session.rs 取 stop reason 时已经在用 ——
+//! 判别式与字段名由 serde 派生：`kind` 用协议的 `snake_case`，字段用界面读的
+//! `camelCase`。同一条原则 `session.rs` 取 stop reason 时已经在用 ——
 //! 「wire 形态就是契约，所以取自序列化而不是手写映射」。
 //!
 //! `prune` 与 `normalize` 规范化的是 SDK 的序列化行为，不是兼容层：`Option`

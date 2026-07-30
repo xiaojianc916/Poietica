@@ -7,8 +7,8 @@ use crate::error::{AcpError, Result};
 /// 在这台机器上找出该启动哪个文件。
 ///
 /// 一个裸名字不是一条可启动的路径。Windows 上 agent 通常是包管理器装出来的
-/// `kimi.CMD`：CreateProcess 只会替你补 `.exe`，**不读 PATHEXT**，于是
-/// `Command::new("kimi")` 直接 NotFound —— 明明装了，却报找不到。
+/// `kimi.CMD`：`CreateProcess` 只会替你补 `.exe`，**不读 PATHEXT**，于是
+/// `Command::new("kimi")` 直接 `NotFound` —— 明明装了，却报找不到。
 ///
 /// 所以这里不写死任何路径，也不自己遍历 PATH × PATHEXT。那是 which 这个
 /// crate 的既有职责，Zed 解析外部 agent 的可执行文件用的也是它。解析发生在
