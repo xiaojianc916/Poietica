@@ -45,8 +45,8 @@
     "publisher": "Poietica Contributors",
     "copyright": "Copyright (c) 2026 Poietica Contributors",
     "homepage": "https://github.com/xiaojianc916/poietica",
-    "shortDescription": "Local-first, AI-assisted canvas for thinking and creating.",
-    "longDescription": "Poietica is a local-first, AI-assisted canvas for thinking, describing, and creating. Documents stay on your machine; AI assistance is opt-in per session.",
+    "shortDescription": "Local-first AI agent desktop environment for thinking and creating.",
+    "longDescription": "Poietica is a local-first AI agent desktop environment. Runs and conversations stay on your machine; AI assistance is opt-in per session.",
     "licenseFile": "../../../LICENSE",
     "windows": {
       "webviewInstallMode": {

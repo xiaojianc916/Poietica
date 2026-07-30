@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn content_hash_is_canonical_sha256() {
-        let hash = hex::encode(Sha256::digest(b"canvas"));
+        let hash = hex::encode(Sha256::digest(b"asset"));
 
         assert_eq!(hash.len(), 64);
         assert!(

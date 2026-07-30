@@ -281,10 +281,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
   return (
     <section className="models-page">
-      <div className="models-noticebar">
-        <p className="models-notice">
-          模型清单来自所选 agent 自己的配置，正常从配置文件中反向导入。
-        </p>
+      <p className="models-notice models-notice--bar">
+        <span>模型清单来自所选 agent 自己的配置，正常从配置文件中反向导入。</span>
 
         <button
           className="models-button"
@@ -294,7 +292,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         >
           {probing ? '正在读取…' : '导入配置'}
         </button>
-      </div>
+      </p>
 
       {globalNote !== null ? <p className="models-empty">{globalNote}</p> : null}
 

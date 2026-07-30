@@ -157,8 +157,8 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
 
 /// 崩溃报告直接落盘。
 ///
-/// 画布文档保存所依赖的原子写实现已随画布一并移除。崩溃报告是尽力而为的诊断
-/// 产物，写失败只损失一份报告，不为它保留文档编解码器的写路径。
+/// 旧文档保存所依赖的原子写实现已随旧产品形态一并移除。崩溃报告是尽力而为的
+/// 诊断产物，写失败只损失一份报告，不为它保留文档编解码器的写路径。
 fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn unicode_truncation_preserves_utf8_boundaries() {
-        let result = truncate("画布崩溃测试".to_owned(), 5);
+        let result = truncate("会话崩溃测试".to_owned(), 5);
 
         assert!(result.is_char_boundary(result.len()));
         assert!(result.contains("truncated"));

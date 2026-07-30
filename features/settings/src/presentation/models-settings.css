@@ -23,13 +23,6 @@
   gap: 20px;
 }
 
-.models-noticebar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .models-notice {
   margin: 0;
   padding: 10px 12px;
@@ -38,6 +31,14 @@
   color: var(--ui-muted-foreground);
   font-size: 12px;
   line-height: 1.55;
+}
+
+/* 带动作按钮的那一条：文字在左、按钮在右，按钮不出这个容器。 */
+.models-notice--bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .models-block {
