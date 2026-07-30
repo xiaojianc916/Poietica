@@ -39,6 +39,7 @@ export type {
   AgentProviderWire,
 } from './builtin-provider-catalog'
 export {
+  agentProviderCatalogDocument,
   builtinAgentProviderById,
   builtinAgentProviders,
 } from './builtin-provider-catalog'

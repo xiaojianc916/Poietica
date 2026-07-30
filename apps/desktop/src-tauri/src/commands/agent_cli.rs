@@ -220,9 +220,9 @@ pub async fn agent_cli_exec(
         .map_err(|_searched| missing_program(&program))
         .map_err(IpcError::from)?;
 
-    // 目录服务只活到这次调用结束：调用一返回（不论成败），_catalog_server 被
-    // Drop，端口随即释放。--url 在这里追加而不是经调用方 —— 地址从绑定结果现算，
-    // 不是用户输入，所以放在白名单校验之后。
+    // 目录服务只活到这次调用结束：它随闭包进入阻塞线程，子进程退出、闭包返回时
+    // 被 Drop，端口随即释放 —— 不论这次调用成败。--url 在这里追加而不是经调用方
+    // —— 地址从绑定结果现算，不是用户输入，所以放在白名单校验之后。
     let catalog_server = match request.catalog_document {
         Some(document) => Some(
             CatalogServer::start(document)
@@ -273,10 +273,6 @@ pub async fn agent_cli_exec(
             }
         })
         .map_err(IpcError::from)?;
-
-    // spawn_blocking 的返回值带着 catalog_server：到这里服务一定已经 Drop。
-    drop(output);
-
     Ok(AgentCliResult {
         status: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
