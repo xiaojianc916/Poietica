@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
@@ -622,11 +623,14 @@ async fn load_session(
     cwd: PathBuf,
     reply: oneshot::Sender<Result<OpenedSession>>,
 ) -> Settled {
-    /* SessionId 自己拥有它的字符串（`pub struct SessionId(pub Arc<str>)`），
-    所以这里给它一份，而不是借一段。这个 crate 上能接 `&str` 的那个 `From` 要求
-    `'static`，借来的一段永远满足不了它 —— 拷一次字符串内容，换来的是 `named`
+    /* SessionId 自己拥有它的字符串，但那一格是私有的，所以经它的构造函数给它
+    一份，而不是自己去初始化那个元组。目标类型写死成 `Arc<str>` 而不是留一个裸
+    `.into()`：构造函数收的若是 `impl Into<Arc<str>>`，裸 `.into()` 推不出类型。
+
+    仍然是「给一份」而不是「借一段」—— 这个 crate 上能接 `&str` 的那个 `From`
+    要求 `'static`，借来的一段永远满足不了它；拷一次字符串内容，换来的是 `named`
     此后不牵着任何人，下面那句把 `session_id` 交出去才是合法的。 */
-    let named = SessionId(session_id.as_str().into());
+    let named = SessionId::new(Arc::<str>::from(session_id.as_str()));
 
     // 帧要落在这条会话名下，所以它先进册子，再开始装载。
     let loaded = match ledger.open(&session_id) {

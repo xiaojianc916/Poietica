@@ -62,13 +62,11 @@ export interface AgentConfigSnapshot {
   readonly issues: readonly string[]
 }
 
-/** 导入全局配置的结果。 */
-export interface AgentImportOutcome {
-  /** 是否真的执行了复制。全局配置不存在时为 false —— 那不是错误。 */
-  readonly imported: boolean
-  /** 原受控配置的备份路径。受控 home 原本没有 config.toml 时为 null。 */
-  readonly backupPath: string | null
-}
+/*
+ * AgentImportOutcome 曾在这里。它描述的是「整份复制 config.toml 并备份」的结果，
+ * 而原生侧那条命令已经删了（agent_config.rs 里留着它的墓碑）—— 导入现在按 provider
+ * 走官方的 catalog add，结果就是每一次 execCli 自己的退出码，没有第二种形状。
+ */
 
 /**
  * ACP agent 接入配置的持久化端口。

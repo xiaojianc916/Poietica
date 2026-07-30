@@ -4,6 +4,8 @@ import {
   type AgentProviderSnapshot,
   acpAgentById,
   acpAgents,
+  agentProviderCatalogAddArgs,
+  agentProviderImportDocument,
   builtinAgentProviders,
   defaultAcpAgent,
   parseAgentProviderListOutput,
@@ -190,28 +192,76 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   }, [agentId, probing, store])
 
   /*
-   * 确认导入：原生侧把全局 config.toml 整份复制进受控 home（先备份）。
-   * 导入完成后预览就没用了，清掉；模型列表与尾号随快照刷新自然更新。
+   * 确认导入：一家一家走官方的 provider catalog add。
+   *
+   * 不是整份复制 config.toml —— 那件事的前提（受控 home 里现有的都不重要）在任何
+   * 一台已配置过的机器上都是假的，原生侧那条命令因此已经删了。官方语义里写入的
+   * 原子单位本来就是 provider（catalog add 自己先删再建），所以导入也按 provider 走。
+   *
+   * 目录由这一家在全局配置里的模型清单现场序列化，密钥由原生侧从全局 config.toml
+   * 取出直达子进程 —— 两样都不进渲染层，与厂商卡那条写入是同一条管线。
+   *
+   * 串行而不是并发：每一次都在改 agent 同一个 config.toml，而那个文件没有跨进程锁。
+   *
+   * 只导已配置密钥的那几家。没有密钥的那几家取不到 api_key，catalog add 必然失败；
+   * 与其让用户看一串错误，不如一开始就不发那几次调用。
    */
   const runImport = useCallback(() => {
-    if (importing) {
+    if (importing || globalSnapshot === undefined) {
+      return
+    }
+
+    if (registryKeyVar === undefined) {
+      setImportNote('这个 agent 没有声明该往哪个环境变量注入密钥，无法导入。')
+      return
+    }
+
+    const usable = globalSnapshot.providers.filter((provider) => provider.configured)
+
+    if (usable.length === 0) {
+      setImportNote('全局配置里没有带密钥的 provider 可导入。')
       return
     }
 
     setImporting(true)
     setImportNote(null)
 
-    void store.importGlobal(agentId).then(
-      (outcome) => {
-        setImporting(false)
+    const importAll = async (): Promise<readonly string[]> => {
+      const failed: string[] = []
 
-        if (!outcome.imported) {
-          setImportNote('没有找到全局配置可导入。')
-          return
+      for (const provider of usable) {
+        try {
+          const outcome = await store.execCli({
+            agentId,
+            args: agentProviderCatalogAddArgs({
+              providerId: provider.id,
+              ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
+            }),
+            secretVar: registryKeyVar,
+            secretValue: '',
+            catalogDocument: agentProviderImportDocument(provider),
+            secretFromGlobalProvider: provider.id,
+          })
+
+          if (outcome.status !== 0) {
+            failed.push(provider.id)
+          }
+        } catch {
+          /* 一家失败不该让后面几家不再尝试。逐家记名，最后一次说清楚。 */
+          failed.push(provider.id)
         }
+      }
 
+      return failed
+    }
+
+    void importAll().then(
+      (failed) => {
+        setImporting(false)
         setImportNote(
-          outcome.backupPath === null ? '已导入全局配置。' : '已导入全局配置，原受控配置已备份。',
+          failed.length === 0
+            ? `已导入 ${usable.length} 家 provider。`
+            : `已导入 ${usable.length - failed.length} 家，${failed.join('、')} 没有导入成功。`,
         )
         setGlobalSnapshot(undefined)
         setGlobalNote(null)
@@ -222,7 +272,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         setImportNote(describeAgentCliFailure(cause, '导入失败，请重试。'))
       },
     )
-  }, [agentId, importing, providers, store])
+  }, [agentId, globalSnapshot, importing, providers, registryKeyVar, store])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -469,7 +519,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                 return `${provider.id}（${provider.models.length} 个模型，${state}）`
               })
               .join('；')}
-            。导入将整体替换受控配置（自动先备份），OAuth 账号不在其中。
+            。导入按 provider 逐家写入 agent 自己的配置（走官方 catalog
+            add），只导带密钥的那几家，OAuth 账号不在其中。
           </span>
 
           <Button disabled={importing} onClick={runImport} size="xs" type="button" variant="soft">
