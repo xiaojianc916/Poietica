@@ -60,7 +60,7 @@ struct PersistedAgentConfig {
     #[serde(rename = "providers")]
     legacy_providers: Vec<Value>,
     /// provider id → 密钥最后 5 个字符。旧文件没有这个字段，serde 默认给空表。
-    key_hints: std::collections::BTreeMap<String, String>,
+    key_hints: BTreeMap<String, String>,
 }
 
 /*

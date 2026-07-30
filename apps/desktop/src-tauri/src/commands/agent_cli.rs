@@ -197,33 +197,40 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
     Ok(())
 }
 
-/// 写入/删除成功后维护密钥尾号备忘。
+/// 写入/删除成功后要同步的尾号变更。
 ///
-/// 备忘只是给人辨认用的便利数据：同步失败不该把一次已经成功的写入报成失败，
-/// 所以调用方用 let _ = 丢掉结果。尾号从 secret_value 取 —— 密钥本就途经这里，
-/// 不需要第二条管线。
-fn sync_key_hint(app: &AppHandle, request: &AgentCliRequest) {
+/// 在闭包拿走 request 之前算好：尾号从 secret_value 取 —— 密钥本就途经这里，
+/// 不需要第二条管线；取走的也只有 5 个字符与 provider id，而不是整把密钥的副本。
+enum KeyHintSync {
+    Set { provider_id: String, tail: String },
+    Clear { provider_id: String },
+}
+
+/// 从请求里算出尾号变更。None 表示这次调用与尾号无关。
+fn plan_key_hint(request: &AgentCliRequest) -> Option<KeyHintSync> {
     let second = request.args.get(1).map(String::as_str);
     let third = request.args.get(2).map(String::as_str);
     let fourth = request.args.get(3).map(String::as_str);
 
     if second == Some("catalog") && third == Some("add") && !request.secret_value.is_empty() {
-        if let Some(provider_id) = fourth {
-            let tail: String = request
-                .secret_value
-                .chars()
-                .rev()
-                .take(5)
-                .collect::<Vec<char>>()
-                .into_iter()
-                .rev()
-                .collect();
-            let _ = set_key_hint(app, provider_id, &tail);
-        }
-    } else if second == Some("remove")
-        && let Some(provider_id) = third
-    {
-        let _ = clear_key_hint(app, provider_id);
+        let provider_id = fourth?.to_owned();
+        let tail: String = request
+            .secret_value
+            .chars()
+            .rev()
+            .take(5)
+            .collect::<Vec<char>>()
+            .into_iter()
+            .rev()
+            .collect();
+
+        Some(KeyHintSync::Set { provider_id, tail })
+    } else if second == Some("remove") {
+        third.map(|provider_id| KeyHintSync::Clear {
+            provider_id: provider_id.to_owned(),
+        })
+    } else {
+        None
     }
 }
 
@@ -280,6 +287,10 @@ pub async fn agent_cli_exec(
         ),
         None => None,
     };
+
+    // 闭包会把 request 的字段逐个搬走，尾号变更在这里先算好 —— 它只拿走
+    // 5 个字符与 provider id，request 本体不再需要。
+    let key_hint_sync = plan_key_hint(&request);
 
     let spawned = async_runtime::spawn_blocking(move || {
         let mut final_args = request.args.clone();

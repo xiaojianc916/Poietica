@@ -79,6 +79,7 @@ function fromDto(dto: AgentConfigSnapshotDto): AgentConfigSnapshot {
     agents: parsed.value.profiles,
     defaultAgentId: parsed.value.defaultProfileId,
     legacyProviders: dto.legacyProviders,
+    keyHints: dto.keyHints,
     issues: [...dto.issues, ...parsed.issues],
   }
 }
