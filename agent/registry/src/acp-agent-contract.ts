@@ -55,6 +55,17 @@ export interface AcpAgentDescriptor {
    */
   readonly homeVar?: string | undefined
   /**
+   * 从目录添加 provider 时，密钥该注入哪个环境变量。
+   *
+   * 密钥不能上命令行（Windows 上任何用户都读得到别的进程的完整命令行），所以只剩
+   * 环境变量一条路；而变量叫什么名字是各家自己的事：kimi-code 的 resolveApiKey
+   * 在 --api-key 缺席时回落 KIMI_REGISTRY_API_KEY。
+   *
+   * 各家不同的只是这个名字，通用层注入那一行对谁都一样，所以是声明。
+   * 缺席表示这一家不接受由我们代填密钥，界面就不给写入入口。
+   */
+  readonly registryKeyVar?: string | undefined
+  /**
    * 权限选项按钮上写什么。
    *
    * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是

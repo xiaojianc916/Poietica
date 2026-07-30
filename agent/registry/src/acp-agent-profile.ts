@@ -38,6 +38,12 @@ export interface AcpAgentProfile {
    * 缺席表示这个 agent 不接受受控 home。
    */
   readonly homeVar?: string | undefined
+  /**
+   * 代填密钥时注入哪个环境变量名。只记名字，值一次都不落盘。
+   *
+   * 缺席表示这一家不接受由我们代填密钥。
+   */
+  readonly registryKeyVar?: string | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -193,18 +199,24 @@ function parseEnv(input: unknown): Parsed<Record<string, string>> {
   return { ok: true, value: env }
 }
 
-function parseHomeVar(input: unknown): Parsed<string | undefined> {
+/**
+ * 校验一个可选的环境变量名。
+ *
+ * 受控 home 与注册表密钥变量都只记名字不记值，规则逐字相同 —— 写两遍就会有一天只改了
+ * 一遍，于是两个字段一严一松。
+ */
+function parseEnvVarName(input: unknown, issue: string): Parsed<string | undefined> {
   if (input === undefined || input === null) {
     return { ok: true, value: undefined }
   }
 
-  const homeVar = asText(input, 64)
+  const name = asText(input, 64)
 
-  if (homeVar === undefined || !ENV_NAME_PATTERN.test(homeVar)) {
-    return fail('受控 home 的变量名不合法，应为大写字母、数字与下划线')
+  if (name === undefined || !ENV_NAME_PATTERN.test(name)) {
+    return fail(issue)
   }
 
-  return { ok: true, value: homeVar }
+  return { ok: true, value: name }
 }
 
 function parseDefaultConfigOptions(input: unknown): Parsed<Record<string, AgentConfigOptionValue>> {
@@ -278,10 +290,22 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
     return env
   }
 
-  const homeVar = parseHomeVar(raw['homeVar'])
+  const homeVar = parseEnvVarName(
+    raw['homeVar'],
+    '受控 home 的变量名不合法，应为大写字母、数字与下划线',
+  )
 
   if (!homeVar.ok) {
     return homeVar
+  }
+
+  const registryKeyVar = parseEnvVarName(
+    raw['registryKeyVar'],
+    '注册表密钥的变量名不合法，应为大写字母、数字与下划线',
+  )
+
+  if (!registryKeyVar.ok) {
+    return registryKeyVar
   }
 
   const defaults = parseDefaultConfigOptions(raw['defaultConfigOptions'])
@@ -300,6 +324,7 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
       cwd: cwd.value,
       env: env.value,
       homeVar: homeVar.value,
+      registryKeyVar: registryKeyVar.value,
       defaultConfigOptions: defaults.value,
     },
   }
@@ -408,6 +433,7 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       cwd: undefined,
       env: {},
       homeVar: agent.homeVar,
+      registryKeyVar: agent.registryKeyVar,
       defaultConfigOptions: {},
     }
   })

@@ -5,6 +5,7 @@ import {
 } from '@poietica/agent-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
+import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
 
 /**
  * 向 agent 问一次「你配了哪些 provider、哪些模型」。
@@ -69,7 +70,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
            */
           if (outcome.status !== 0) {
             setSnapshot(undefined)
-            setError(describeExit(outcome.status, outcome.stderr))
+            setError(describeAgentCliExit(outcome.status, outcome.stderr))
             return
           }
 
@@ -82,7 +83,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
 
           setLoading(false)
           setSnapshot(undefined)
-          setError(cause instanceof Error ? cause.message : '无法向 agent 询问模型清单。')
+          setError(describeAgentCliFailure(cause, '无法向 agent 询问模型清单。'))
         },
       )
   }, [agentId, store])
@@ -98,8 +99,4 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
   return { loading, snapshot, error, reload: ask }
 }
 
-function describeExit(status: number, stderr: string): string {
-  const detail = stderr.trim()
-
-  return detail.length > 0 ? detail : `agent 以退出码 ${status} 结束，且没有说明原因。`
-}
+/* describeExit 曾在这里。另一处有一份逐字相同的副本，两份都搬进了 agentCliText.ts。 */

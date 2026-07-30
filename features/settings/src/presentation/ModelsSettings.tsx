@@ -4,18 +4,11 @@ import {
   acpAgents,
   defaultAcpAgent,
 } from '@poietica/agent-registry'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
-  type SelectOption,
-  SelectTrigger,
-  Switch,
-} from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
+import { describeAgentCliFailure } from './agentCliText'
+import { OptionSelect } from './models-fields'
+import { ProviderKeyCard } from './ProviderKeyCard'
 import { useAgentProviders } from './useAgentProviders'
 import './models-settings.css'
 
@@ -28,10 +21,14 @@ import './models-settings.css'
  * 模型清单来自所选 agent 自己的 provider list —— 我们不存目录、不存模型、不存
  * 密钥。所以这一页没有「保存」这个动作，它显示的就是 agent 此刻的真实配置。
  *
- * 密钥输入框还只有界面。写入要走 agent 官方 CLI，那是下一刀。
+ * OpenAI 与 Anthropic 两张卡已经接通 agent 的官方 CLI：模型从它的目录里选，密钥经环境
+ * 变量交给它，写入由它自己完成。Google 那一格还只有界面。
  *
- * 文案统一简体中文。模型名与 Azure OpenAI / AWS Bedrock / Access Key ID 保留原文：
- * 它们是产品名与服务商固定字段名，翻译会与对方文档对不上。
+ * 原来这里有 Azure OpenAI 与 AWS Bedrock 两张卡，各三个手填输入框。删掉不是因为不好看：
+ * providers.md 写明 Bedrock 这类私有协议目录拒绝导入，Azure 在 models.dev 目录里有没有
+ * 也没有证据；那些「部署名」「区域」填了之后没有任何一处代码会把它们写进任何文件。
+ *
+ * 文案统一简体中文。厂商名与模型名保留原文：翻译会与对方文档对不上。
  */
 
 /*
@@ -54,37 +51,14 @@ const AGENT_OPTIONS: readonly (readonly [string, string])[] = acpAgents().map(
   (agent) => [agent.id, agent.displayName] as const,
 )
 
-interface KeyDraft {
-  readonly openaiKey: string
-  readonly openaiBaseUrlOverride: boolean
-  readonly openaiBaseUrl: string
-  readonly anthropicKey: string
-  readonly googleKey: string
-  readonly azureEnabled: boolean
-  readonly azureBaseUrl: string
-  readonly azureDeployment: string
-  readonly azureKey: string
-  readonly bedrockEnabled: boolean
-  readonly bedrockAccessKeyId: string
-  readonly bedrockSecretKey: string
-  readonly bedrockRegion: string
-}
+/*
+ * KeyDraft 曾在这里，13 格。其中 12 格没有任何出口：OpenAI 与 Anthropic 的凭据现在由
+ * ProviderKeyCard 直接交给 agent 的 CLI，各自持有自己那几格草稿；Azure 与 Bedrock 那
+ * 两张卡整个删了。剩下唯一一格 googleKey 不值得一个结构体。
+ */
 
-const EMPTY_KEY_DRAFT: KeyDraft = {
-  openaiKey: '',
-  openaiBaseUrlOverride: false,
-  openaiBaseUrl: '',
-  anthropicKey: '',
-  googleKey: '',
-  azureEnabled: false,
-  azureBaseUrl: '',
-  azureDeployment: '',
-  azureKey: '',
-  bedrockEnabled: false,
-  bedrockAccessKeyId: '',
-  bedrockSecretKey: '',
-  bedrockRegion: '',
-}
+/** agents.json 那条写入失败时说什么。三个调用点共用一句。 */
+const AGENT_ACTION_FAILED = 'agent 配置操作失败，请重试。'
 
 export interface ModelsSettingsProps {
   readonly store: AgentConfigStore
@@ -98,9 +72,19 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [agentError, setAgentError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
-  const [keys, setKeys] = useState<KeyDraft>(EMPTY_KEY_DRAFT)
+  const [googleKey, setGoogleKey] = useState('')
 
   const providers = useAgentProviders(store, agentId)
+
+  /*
+   * 密钥该注入哪个环境变量名，写在档案里（kimi 是 KIMI_REGISTRY_API_KEY）。
+   *
+   * 不写死在这里：换第二家 agent 时变量名不一样，而这一页对两家应该是同一段代码。缺席
+   * 就是缺席 —— 卡片会说「这个 agent 没有声明」，而不是替它挑一个名字试试看。
+   */
+  const registryKeyVar = useMemo(() => {
+    return profiles.find((profile) => profile.id === agentId)?.registryKeyVar
+  }, [agentId, profiles])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -115,9 +99,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     return showAll || keyword ? matched : matched.slice(0, COLLAPSED_MODEL_LIMIT)
   }, [allModels, query, showAll])
 
-  const patchKeys = useCallback((patch: Partial<KeyDraft>) => {
-    setKeys((current) => ({ ...current, ...patch }))
-  }, [])
+  /* patchKeys 曾在这里。它服务的那份 13 格草稿已经不存在了。 */
 
   /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
   const providerIssues = useMemo(() => {
@@ -178,7 +160,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       },
       (cause: unknown) => {
         if (active) {
-          setAgentError(describeAgentError(cause))
+          setAgentError(describeAgentCliFailure(cause, AGENT_ACTION_FAILED))
         }
       },
     )
@@ -215,7 +197,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         .saveAgents({ agents: profiles, defaultAgentId: nextId })
         .then(applySnapshot, (cause: unknown) => {
           setAgentId(previousId)
-          setAgentError(describeAgentError(cause))
+          setAgentError(describeAgentCliFailure(cause, AGENT_ACTION_FAILED))
         })
     },
     [agentId, applySnapshot, profiles, store],
@@ -224,7 +206,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   return (
     <section className="models-page">
       <p className="models-notice">
-        模型清单来自所选 agent 自己的配置，Poietica 不保存第二份。下面的密钥输入框还只有界面。
+        模型清单来自所选 agent 自己的配置，Poietica
+        不保存第二份。填密钥时，模型名从它的目录里选，不用手打。
       </p>
 
       <div className="models-block">
@@ -303,169 +286,32 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
         <div className="models-keys__body">
           <KeyField
-            description="填入你自己的 OpenAI 密钥，按用量直接计费到该账号。"
-            label="OpenAI API 密钥"
-            onChange={(value) => {
-              patchKeys({ openaiKey: value })
-            }}
-            placeholder="输入 OpenAI API 密钥"
-            value={keys.openaiKey}
-          />
-
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>覆盖 OpenAI Base URL</strong>
-                <p>更改 OpenAI 接口请求使用的基础地址。</p>
-              </div>
-
-              <div className="models-row__control">
-                <Switch
-                  aria-label="覆盖 OpenAI Base URL"
-                  checked={keys.openaiBaseUrlOverride}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ openaiBaseUrlOverride: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            {keys.openaiBaseUrlOverride ? (
-              <SubField
-                label="基础地址"
-                onChange={(value) => {
-                  patchKeys({ openaiBaseUrl: value })
-                }}
-                placeholder="例如 https://api.openai.com/v1"
-                value={keys.openaiBaseUrl}
-              />
-            ) : null}
-          </div>
-
-          <KeyField
-            description={
-              '填入你自己的 Anthropic 密钥，按用量直接计费。启用后，所有claude模型都会使用该密钥。'
-            }
-            label="Anthropic API 密钥"
-            onChange={(value) => {
-              patchKeys({ anthropicKey: value })
-            }}
-            placeholder="输入 Anthropic API 密钥"
-            value={keys.anthropicKey}
-          />
-
-          <KeyField
             description="填入你的 Google AI Studio 密钥，按用量直接计费。"
             label="Google API 密钥"
-            onChange={(value) => {
-              patchKeys({ googleKey: value })
-            }}
+            onChange={setGoogleKey}
             placeholder="输入 Google AI Studio API 密钥"
-            value={keys.googleKey}
+            value={googleKey}
           />
 
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>Azure OpenAI</strong>
-                <p>通过你的 Azure 账号调用 OpenAI 模型。</p>
-              </div>
+          <ProviderKeyCard
+            agentId={agentId}
+            description="填入你自己的 OpenAI 密钥，按用量直接计费到该账号。模型从 agent 的目录里选。"
+            onSaved={providers.reload}
+            providerId="openai"
+            registryKeyVar={registryKeyVar}
+            store={store}
+            title="OpenAI"
+          />
 
-              <div className="models-row__control">
-                <Switch
-                  aria-label="Azure OpenAI"
-                  checked={keys.azureEnabled}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ azureEnabled: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="基础地址"
-              onChange={(value) => {
-                patchKeys({ azureBaseUrl: value })
-              }}
-              placeholder="例如 my-resource.openai.azure.com"
-              value={keys.azureBaseUrl}
-            />
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="部署名称"
-              onChange={(value) => {
-                patchKeys({ azureDeployment: value })
-              }}
-              placeholder="例如 gpt-35-turbo"
-              value={keys.azureDeployment}
-            />
-
-            <SubField
-              disabled={!keys.azureEnabled}
-              label="API 密钥"
-              onChange={(value) => {
-                patchKeys({ azureKey: value })
-              }}
-              placeholder="输入 Azure OpenAI API 密钥"
-              secret
-              value={keys.azureKey}
-            />
-          </div>
-
-          <div className="models-card">
-            <div className="models-row">
-              <div className="models-row__copy">
-                <strong>AWS Bedrock</strong>
-                <p>通过你的 AWS 账号调用 Anthropic Claude 模型。</p>
-              </div>
-
-              <div className="models-row__control">
-                <Switch
-                  aria-label="AWS Bedrock"
-                  checked={keys.bedrockEnabled}
-                  onCheckedChange={(checked) => {
-                    patchKeys({ bedrockEnabled: checked })
-                  }}
-                  size="sm"
-                />
-              </div>
-            </div>
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="Access Key ID"
-              onChange={(value) => {
-                patchKeys({ bedrockAccessKeyId: value })
-              }}
-              placeholder="AWS Access Key ID"
-              value={keys.bedrockAccessKeyId}
-            />
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="Secret Access Key"
-              onChange={(value) => {
-                patchKeys({ bedrockSecretKey: value })
-              }}
-              placeholder="AWS Secret Access Key"
-              secret
-              value={keys.bedrockSecretKey}
-            />
-
-            <SubField
-              disabled={!keys.bedrockEnabled}
-              label="区域"
-              onChange={(value) => {
-                patchKeys({ bedrockRegion: value })
-              }}
-              placeholder="例如 us-east-1"
-              value={keys.bedrockRegion}
-            />
-          </div>
+          <ProviderKeyCard
+            agentId={agentId}
+            description="填入你自己的 Anthropic 密钥，按用量直接计费。模型从 agent 的目录里选。"
+            onSaved={providers.reload}
+            providerId="anthropic"
+            registryKeyVar={registryKeyVar}
+            store={store}
+            title="Anthropic"
+          />
         </div>
       </details>
     </section>
@@ -539,81 +385,13 @@ function KeyField({ label, description, placeholder, value, onChange }: KeyField
   )
 }
 
-interface SubFieldProps {
-  readonly label: string
-  readonly placeholder: string
-  readonly value: string
-  readonly disabled?: boolean
-  readonly secret?: boolean
-  readonly onChange: (value: string) => void
-}
+/* SubField 曾在这里。厂商卡也要用它，所以搬到 models-fields.tsx，两处共用一份。 */
 
-function SubField({
-  label,
-  placeholder,
-  value,
-  disabled = false,
-  secret = false,
-  onChange,
-}: SubFieldProps) {
-  return (
-    <div className="models-row models-row--field">
-      <span className="models-row__name">{label}</span>
+/* describeAgentError 曾在这里。它与 useAgentProviders 里那一份是同一件事，两份都进了
+ * agentCliText.ts —— 兜底文案由调用方给，因为「读不到档案」与「问不到模型」该说的不是
+ * 同一句话。 */
 
-      <div className="models-row__control">
-        <input
-          aria-label={label}
-          autoComplete="off"
-          className="models-input models-input--inline"
-          disabled={disabled}
-          onChange={(event) => {
-            onChange(event.target.value)
-          }}
-          placeholder={placeholder}
-          type={secret ? 'password' : 'text'}
-          value={value}
-        />
-      </div>
-    </div>
-  )
-}
-
-function describeAgentError(cause: unknown): string {
-  return cause instanceof Error ? cause.message : 'agent 配置操作失败，请重试。'
-}
-
-/* 通用的枚举下拉。它只认 [value, label]，喂模型还是喂 agent 对它没区别。 */
-interface OptionSelectProps {
-  readonly ariaLabel: string
-  readonly value: string
-  readonly options: readonly (readonly [string, string])[]
-  readonly onChange: (value: string) => void
-}
-
-function OptionSelect({ ariaLabel, value, options, onChange }: OptionSelectProps) {
-  const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
-    value: optionValue,
-    label,
-  }))
-
-  return (
-    <Select data={data} onValueChange={onChange} size="sm" type={ariaLabel} value={value}>
-      <SelectTrigger aria-label={ariaLabel} className="models-select-trigger" tone="plain" />
-
-      <SelectContent>
-        <SelectList>
-          <SelectGroup>
-            {options.map(([optionValue, label]) => (
-              <SelectItem key={optionValue} value={optionValue}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectList>
-      </SelectContent>
-    </Select>
-  )
-}
+/* OptionSelect 曾在这里。同样搬到 models-fields.tsx：agent 下拉与模型下拉共用一份。 */
 
 /*
  * 图标属性直接写在标签上，不走 spread。

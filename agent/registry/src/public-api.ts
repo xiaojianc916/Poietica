@@ -18,6 +18,16 @@ export {
 export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
 export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
 export type {
+  AgentCatalogModel,
+  AgentCatalogModels,
+  AgentProviderCatalogAdd,
+} from './agent-provider-catalog'
+export {
+  agentProviderCatalogAddArgs,
+  agentProviderCatalogModelsArgs,
+  parseAgentProviderCatalogModelsOutput,
+} from './agent-provider-catalog'
+export type {
   AgentCredentialKind,
   AgentModelState,
   AgentProviderSnapshot,

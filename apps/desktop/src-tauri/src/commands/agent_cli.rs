@@ -30,6 +30,14 @@ const SHELL_METACHARACTERS: [char; 11] = [
 /// 命令行上被禁止出现的参数。密钥只能走环境变量。
 const FORBIDDEN_FLAGS: [&str; 2] = ["--api-key", "--apikey"];
 
+/// 不要给子进程开控制台窗口。
+///
+/// GUI 进程 spawn 一个控制台程序时，Windows 会给它开一个窗口：刷新一次模型清单就闪一
+/// 次黑框，添加一次 provider 再闪一次。Zed 的 crates/util/src/command.rs 对每一条命令
+/// 都设这个标志，理由相同。
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCliRequest {
@@ -189,6 +197,13 @@ pub async fn agent_cli_exec(
         let mut command = std::process::Command::new(&resolved);
         command.args(&request.args);
         command.envs(env);
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
 
         if !request.secret_var.is_empty() && !request.secret_value.is_empty() {
             command.env(&request.secret_var, &request.secret_value);

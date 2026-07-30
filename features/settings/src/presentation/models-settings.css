@@ -304,6 +304,36 @@
   line-height: 1.45;
 }
 
+/* 行内动作按钮。高度与圆角对齐 .models-input，同一行里两者不该差一个像素。 */
+
+.models-button {
+  flex: none;
+  min-block-size: 26px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--models-field);
+  color: var(--ui-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.models-button:hover:not(:disabled) {
+  background: var(--models-divider);
+}
+
+.models-button:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+
+.models-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .models-row {
     flex-direction: column;
