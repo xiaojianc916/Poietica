@@ -1,0 +1,230 @@
+import type { SessionConfigControl } from '@poietica/agent-protocol'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRadioItemIndicator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@poietica/foundations-design-system'
+import type { ComponentType, SVGProps } from 'react'
+import {
+  AttachIcon,
+  CloseIcon,
+  GlobeIcon,
+  ModelIcon,
+  PencilIcon,
+  SearchIcon,
+  ThinkingIcon,
+  ThreadIcon,
+  ToolIcon,
+} from '../primitives/icons'
+import { usePromptInput } from './prompt-input'
+
+/*
+ * 加号那一侧：往这一句里加什么，以及这一句怎么被处理。
+ *
+ * 上组是模式，下组是能力。两组都不是这里编出来的：模式是 agent 在
+ * session/new 里报的 purpose === 'mode' 的那个 selector，其余能力（skills、
+ * MCP 之类）是它报的 purpose === 'other'。agent 没报就没有那一行 —— 画一行
+ * 点不动的灰字，等于告诉用户"这里坏了"。
+ *
+ * 「添加文件」是唯一一条不来自 agent 的行，因为它不属于 agent：文件由输入框
+ * 自己持有（PromptInput 的 openFilePicker）。
+ *
+ * 弹层行为全部归 Base UI（设计系统的 DropdownMenu）：Portal、方向键、打字
+ * 选中、Esc 逐级关闭、焦点归还。这里只给皮肤与几何。
+ */
+
+type Glyph = ComponentType<SVGProps<SVGSVGElement>>
+
+/*
+ * 模式的字形。
+ *
+ * id 由 agent 自己取名，所以识别是可选的、缺省必须成立 —— 与
+ * primitives/provider-icon-source.ts 同一种做法，不是第二套。
+ */
+const MODE_GLYPH: Readonly<Record<string, Glyph>> = {
+  architect: ThinkingIcon,
+  ask: ThreadIcon,
+  browse: GlobeIcon,
+  code: PencilIcon,
+  debug: ToolIcon,
+  edit: PencilIcon,
+  plan: ThinkingIcon,
+  research: SearchIcon,
+  search: SearchIcon,
+}
+
+function glyphOf(value: string): Glyph {
+  return MODE_GLYPH[value.toLowerCase()] ?? ModelIcon
+}
+
+function labelOf(control: SessionConfigControl): string {
+  return (
+    control.choices.find((choice) => choice.value === control.current)?.label ?? control.current
+  )
+}
+
+export interface ComposerActionsProps {
+  readonly controls: readonly SessionConfigControl[]
+  readonly onSelectControl: (controlId: string, value: string) => void
+}
+
+export function ComposerActions({ controls, onSelectControl }: ComposerActionsProps) {
+  const { openFilePicker } = usePromptInput()
+
+  const mode = controls.find((control) => control.purpose === 'mode')
+  const extras = controls.filter((control) => control.purpose === 'other')
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger aria-label="添加内容" className="assistant-control--ghost">
+          <AttachIcon aria-hidden="true" />
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent
+          align="start"
+          className="assistant-plus-menu assistant-menu-surface"
+          data-assistant-skin
+          side="top"
+          sideOffset={6}
+        >
+          {mode === undefined ? null : (
+            <DropdownMenuRadioGroup
+              className="assistant-plus-menu__group"
+              onValueChange={(value) => {
+                if (value !== mode.current) onSelectControl(mode.id, value)
+              }}
+              value={mode.current}
+            >
+              {mode.choices.map((choice) => {
+                const Mark = glyphOf(choice.value)
+
+                return (
+                  <DropdownMenuRadioItem
+                    className="assistant-plus-menu__item"
+                    key={choice.value}
+                    value={choice.value}
+                  >
+                    <Mark aria-hidden="true" />
+
+                    <span className="assistant-plus-menu__label">{choice.label}</span>
+
+                    <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick" />
+                  </DropdownMenuRadioItem>
+                )
+              })}
+            </DropdownMenuRadioGroup>
+          )}
+
+          <div className="assistant-plus-menu__group" role="group">
+            <DropdownMenuItem className="assistant-plus-menu__item" onClick={openFilePicker}>
+              <AttachIcon aria-hidden="true" />
+
+              <span className="assistant-plus-menu__label">添加文件</span>
+
+              <kbd className="assistant-plus-menu__hint">Ctrl+U</kbd>
+            </DropdownMenuItem>
+
+            {extras.map((control) => (
+              <DropdownMenuSub key={control.id}>
+                <DropdownMenuSubTrigger className="assistant-plus-menu__item">
+                  <ToolIcon aria-hidden="true" />
+
+                  <span className="assistant-plus-menu__label">{control.label}</span>
+                </DropdownMenuSubTrigger>
+
+                <DropdownMenuSubContent
+                  align="start"
+                  className="assistant-plus-menu assistant-menu-surface"
+                  data-assistant-skin
+                  side="right"
+                >
+                  <DropdownMenuRadioGroup
+                    className="assistant-plus-menu__group"
+                    onValueChange={(value) => {
+                      if (value !== control.current) onSelectControl(control.id, value)
+                    }}
+                    value={control.current}
+                  >
+                    {control.choices.map((choice) => (
+                      <DropdownMenuRadioItem
+                        className="assistant-plus-menu__item"
+                        key={choice.value}
+                        value={choice.value}
+                      >
+                        <span className="assistant-plus-menu__label">{choice.label}</span>
+
+                        {choice.detail === undefined ? null : (
+                          <span className="assistant-plus-menu__detail">{choice.detail}</span>
+                        )}
+
+                        <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick" />
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {mode === undefined ? null : <ModePill control={mode} onSelect={onSelectControl} />}
+    </>
+  )
+}
+
+/*
+ * 选中之后留下的那一颗。
+ *
+ * 只有偏离默认值时才有胶囊：胶囊说的是"这一句和平常不一样"，而 ACP 里模式恒
+ * 有一个在生效，所以"摘掉"只能是回到默认，不能是回到没有模式 —— 画一颗能被
+ * 删成"无模式"的胶囊，是在对用户撒谎。
+ *
+ * 图标与叉号叠在同一个网格单元里，由 CSS 换手：两个元素、一条条件，不需要
+ * 一个 hover 状态量，也就不会有"指针已经离开而状态还留着"这种事。
+ */
+function ModePill({
+  control,
+  onSelect,
+}: {
+  readonly control: SessionConfigControl
+  readonly onSelect: (controlId: string, value: string) => void
+}) {
+  const [fallback] = control.choices
+
+  if (fallback === undefined || control.current === fallback.value) {
+    return null
+  }
+
+  const Mark = glyphOf(control.current)
+  const label = labelOf(control)
+
+  return (
+    <span className="assistant-mode-pill">
+      <span className="assistant-mode-pill__mark">
+        <Mark aria-hidden="true" className="assistant-mode-pill__glyph" />
+
+        <button
+          aria-label={`退出${label}`}
+          className="assistant-mode-pill__clear"
+          onClick={() => {
+            onSelect(control.id, fallback.value)
+          }}
+          type="button"
+        >
+          <CloseIcon aria-hidden="true" />
+        </button>
+      </span>
+
+      <span className="assistant-mode-pill__label">{label}</span>
+    </span>
+  )
+}

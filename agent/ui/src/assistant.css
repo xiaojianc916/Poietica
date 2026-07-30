@@ -239,77 +239,9 @@
   }
 }
 
-[data-slot="prompt-input-action-menu-content"] {
-  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
-  transform-origin: bottom center;
-}
-
-.assistant-model-select {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cp-control-gap);
-}
-
 .assistant-model-select__label {
   flex: 1;
   white-space: nowrap;
-}
-
-.assistant-action-menu {
-  position: relative;
-  display: inline-flex;
-}
-
-.assistant-action-menu__content {
-  position: absolute;
-  inset-block-end: calc(100% + var(--cp-pad-mid));
-  inset-inline-start: 0;
-  z-index: 20;
-  display: flex;
-  min-inline-size: var(--cp-menu-min-wide);
-  flex-direction: column;
-  gap: 2px;
-  border: var(--cp-px) solid var(--cp-hairline);
-  border-radius: var(--cp-radius-menu);
-  padding: var(--cp-optical);
-  background: var(--cp-surface);
-  box-shadow: var(--cp-lift-far);
-}
-
-.assistant-action-menu__item {
-  display: flex;
-  block-size: var(--cp-row);
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--cp-stack);
-  border: 0;
-  border-radius: var(--cp-radius-item);
-  padding-inline: var(--cp-inset);
-  background: transparent;
-  font-size: var(--cp-font-label);
-  color: var(--cp-ink);
-  text-align: start;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
-}
-
-.assistant-action-menu__item:hover {
-  background: var(--cp-hover);
-}
-
-.assistant-action-menu__hint {
-  font-family: inherit;
-  font-size: var(--cp-font-caption);
-  color: var(--cp-ink-subtle);
-}
-
-.assistant-action-menu__separator {
-  block-size: var(--cp-px);
-  margin-block: var(--cp-optical);
-  margin-inline: var(--cp-optical);
-  background: var(--cp-hairline);
 }
 
 [data-slot="prompt-input-attachments"] {
@@ -871,12 +803,6 @@
 .assistant-model-select__button[data-empty="true"] {
   color: var(--cp-ink-subtle);
   cursor: default;
-}
-
-/* Anchored to the trailing edge, the menu opens along it. */
-.assistant-model-select > .assistant-action-menu__content {
-  inset-inline-start: auto;
-  inset-inline-end: 0;
 }
 
 /* ---------------------------------------------------------------------- */

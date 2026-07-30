@@ -1,14 +1,12 @@
+import './composer/composer-actions.css'
 import './composer/question-panel.css'
 
 import type { ChatStatus, SessionConfigControl } from '@poietica/agent-protocol'
 import type { RefObject } from 'react'
+import { ComposerActions } from './composer/composer-actions'
 import type { PromptInputHandle } from './composer/prompt-input'
 import {
   PromptInput,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuItem,
-  PromptInputActionMenuTrigger,
   PromptInputAttachments,
   PromptInputBody,
   PromptInputButton,
@@ -21,7 +19,7 @@ import {
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
 import type { QuestionAnswer, QuestionDeck } from './domain/ask-user-question'
-import { MicIcon, PlusIcon } from './primitives/icons'
+import { MicIcon } from './primitives/icons'
 
 /*
  * The composer, declared rather than driven.
@@ -64,32 +62,20 @@ function ComposerToolbar({
   onSelectControl,
   status,
 }: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
-  const { attachments, insertText, text } = usePromptInput()
+  const { attachments, text } = usePromptInput()
 
   return (
     <PromptInputToolbar>
       <PromptInputTools>
-        <PromptInputActionMenu>
-          <PromptInputActionMenuTrigger aria-label="添加内容" className="assistant-control--ghost">
-            <PlusIcon aria-hidden="true" />
-          </PromptInputActionMenuTrigger>
+        {/*
+          左下这一簇回答两个问题:往这一句里加什么,以及这一句怎么被处理。
+          模式因此在这里,不在发送键那一侧 —— 那一侧回答的是"谁来答"。
 
-          <PromptInputActionMenuContent>
-            <AttachmentsItem />
-
-            <PromptInputActionMenuItem hint="/" onClick={() => insertText('/')}>
-              命令
-            </PromptInputActionMenuItem>
-
-            <PromptInputActionMenuItem hint="@" onClick={() => insertText('@')}>
-              上下文
-            </PromptInputActionMenuItem>
-
-            <PromptInputActionMenuItem hint="!" onClick={() => insertText('!')}>
-              终端命令
-            </PromptInputActionMenuItem>
-          </PromptInputActionMenuContent>
-        </PromptInputActionMenu>
+          此前这里还有「命令」「上下文」「终端命令」三行,它们的实现是往草稿
+          末尾拼一个字符(insertText)。那不是命令面板,那是替用户按了一下键,
+          而菜单里一条读起来像功能的行必须真的是功能。
+        */}
+        <ComposerActions controls={controls} onSelectControl={onSelectControl} />
       </PromptInputTools>
 
       <span className="assistant-toolbar__spacer" />
@@ -122,16 +108,6 @@ function ComposerToolbar({
         status={status}
       />
     </PromptInputToolbar>
-  )
-}
-
-function AttachmentsItem() {
-  const { openFilePicker } = usePromptInput()
-
-  return (
-    <PromptInputActionMenuItem hint="Ctrl+U" onClick={openFilePicker}>
-      图片与文件
-    </PromptInputActionMenuItem>
   )
 }
 

@@ -1,0 +1,164 @@
+/*
+ * 加号那一侧的皮肤：菜单的两级边界，和它留下的胶囊。
+ *
+ * 定位、焦点与键盘归 Base UI；这里只有几何与颜色，颜色一律是
+ * composer-metrics.css 里命名过的令牌。
+ */
+
+.assistant-plus-menu[data-assistant-skin] {
+  min-inline-size: var(--cp-menu-min-wide);
+  padding: 0;
+  border-color: var(--cp-menu-edge);
+  background: var(--cp-menu-face);
+}
+
+/* 内边距归组，组与组之间只有一条线 —— 比外框低一档对比度。 */
+[data-assistant-skin] .assistant-plus-menu__group {
+  padding: var(--am-pad);
+}
+
+[data-assistant-skin] .assistant-plus-menu__group + .assistant-plus-menu__group {
+  border-block-start: var(--cp-px) solid var(--cp-menu-line);
+}
+
+[data-assistant-skin] .assistant-plus-menu__item {
+  display: flex;
+  min-block-size: 28px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink);
+  text-align: start;
+  cursor: default;
+}
+
+[data-assistant-skin] .assistant-plus-menu__item svg {
+  block-size: var(--cp-icon-2xs);
+  inline-size: var(--cp-icon-2xs);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+[data-assistant-skin] .assistant-plus-menu__item:hover,
+[data-assistant-skin] .assistant-plus-menu__item[data-highlighted],
+[data-assistant-skin] .assistant-plus-menu__item[data-popup-open] {
+  outline: none;
+  background: var(--cp-menu-hover);
+}
+
+[data-assistant-skin] .assistant-plus-menu__label {
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-plus-menu__hint,
+[data-assistant-skin] .assistant-plus-menu__detail {
+  margin-inline-start: auto;
+  font-family: inherit;
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+/* 勾与会话设置里那一枚同形：生效的那一行才挂载它。 */
+[data-assistant-skin] .assistant-plus-menu__tick {
+  block-size: 8px;
+  inline-size: 4px;
+  flex: none;
+  margin-inline-start: auto;
+  border-inline-end: 1.5px solid var(--cp-ink);
+  border-block-end: 1.5px solid var(--cp-ink);
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+/*
+ * 模式胶囊。
+ *
+ * 静息是图标加文字，指向它（或用键盘走到叉号上）时图标换成叉号。两者在同一
+ * 个网格单元里各占一格，所以换手时文字一个像素都不动。
+ */
+.assistant-mode-pill {
+  display: inline-flex;
+  block-size: var(--cp-control);
+  align-items: center;
+  gap: var(--cp-control-gap);
+  border-radius: 9999px;
+  padding-inline: var(--cp-optical);
+  font-size: var(--cp-font-caption);
+  font-weight: 500;
+  color: var(--cp-ink-muted);
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-mode-pill:hover,
+.assistant-mode-pill:focus-within {
+  background: var(--cp-menu-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-mode-pill__mark {
+  display: grid;
+  block-size: var(--cp-icon-sm);
+  inline-size: var(--cp-icon-sm);
+  flex: none;
+  place-items: center;
+}
+
+.assistant-mode-pill__mark > * {
+  grid-area: 1 / 1;
+  block-size: 100%;
+  inline-size: 100%;
+}
+
+.assistant-mode-pill__glyph {
+  opacity: 1;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-mode-pill__clear {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--cp-ink);
+  color: var(--cp-surface);
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-mode-pill__clear svg {
+  block-size: 70%;
+  inline-size: 70%;
+  stroke-width: 2.5;
+}
+
+.assistant-mode-pill:hover .assistant-mode-pill__glyph,
+.assistant-mode-pill:focus-within .assistant-mode-pill__glyph {
+  opacity: 0;
+}
+
+.assistant-mode-pill:hover .assistant-mode-pill__clear,
+.assistant-mode-pill:focus-within .assistant-mode-pill__clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.assistant-mode-pill__label {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-mode-pill,
+  .assistant-mode-pill__glyph,
+  .assistant-mode-pill__clear {
+    transition: none;
+  }
+}

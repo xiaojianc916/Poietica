@@ -39,7 +39,7 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 侧给出的那一句，而不是一句无从下手的"读取失败"。 */
 const UNAVAILABLE = '没连上 agent，点击重试'
 
-const ORDER = ['model', 'thought', 'mode', 'other'] as const
+const ORDER = ['model', 'thought', 'other'] as const
 
 /** Where a purpose sits; anything unrecognised sorts last rather than away. */
 function rank(purpose: SessionConfigControl['purpose']): number {
@@ -64,8 +64,17 @@ export interface SessionControlsProps {
 }
 
 export function SessionControls({ controls, failure, onRetry, onSelect }: SessionControlsProps) {
-  /* Sorting is stable, so the agent order survives inside each purpose. */
-  const rows = [...controls].sort((left, right) => rank(left.purpose) - rank(right.purpose))
+  /*
+   * 模式不在这一格。
+   *
+   * 它归加号那一侧,并且在那里留下一颗可摘的胶囊。同一件事只许有一个所有者:
+   * 两处各画一次当前值,改一处另一处不跟,而且用户会以为那是两个东西。
+   *
+   * Sorting is stable, so the agent order survives inside each purpose.
+   */
+  const rows = [...controls]
+    .filter((control) => control.purpose !== 'mode')
+    .sort((left, right) => rank(left.purpose) - rank(right.purpose))
   const model = controls.find((control) => control.purpose === 'model')
   const provider = model?.current.split('/')[0]
 

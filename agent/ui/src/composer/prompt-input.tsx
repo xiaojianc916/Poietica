@@ -1,11 +1,5 @@
 import type { ChatStatus } from '@poietica/agent-protocol'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@poietica/foundations-design-system'
-import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent, RefObject } from 'react'
 import {
   createContext,
   useCallback,
@@ -30,9 +24,10 @@ import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primi
  * the context rather than through the document. Nothing in this file, and
  * nothing built on it, looks an element up by id.
  *
- * Popups are the design system's DropdownMenu, which is the same one the thread
- * list already uses. Rolling a second menu here bought nothing and cost the
- * keyboard: no arrow keys, no typeahead, no focus return, no portal.
+ * 弹层不在这里:加号那一侧的菜单是 composer-actions.tsx 的事,它直接用设计系统
+ * 的 DropdownMenu。这个文件曾经为它包了四层只转发 props 的壳 —— 转发不是抽象,
+ * 它只是让调用点多绕一层,并且逼出一段解释"为什么 onSelect 必须在类型上被拒"
+ * 的长注释。壳没了,那段债也就没了。
  */
 
 export type { ChatStatus }
@@ -52,7 +47,6 @@ export interface PromptInputMessage {
 interface PromptInputContextValue {
   readonly text: string
   readonly setText: (text: string) => void
-  readonly insertText: (token: string) => void
   readonly focusTextarea: () => void
   readonly attachments: readonly PromptInputAttachmentData[]
   readonly addFiles: (files: FileList | readonly File[]) => void
@@ -162,12 +156,6 @@ export function PromptInput({
     () => ({
       text,
       setText,
-      insertText: (token) => {
-        setText((current) =>
-          current.length === 0 || current.endsWith(' ') ? current + token : `${current} ${token}`,
-        )
-        focusTextarea()
-      },
       focusTextarea,
       attachments,
       addFiles,
@@ -546,71 +534,6 @@ export function PromptInputButton({ className, type, ...props }: ComponentProps<
       type={type ?? 'button'}
       {...props}
     />
-  )
-}
-
-/* ── action menu ──────────────────────────────────────────
- * The design system's menu, not a second one. Portal, arrow keys, typeahead,
- * Escape and focus return all come with it.
- */
-
-export function PromptInputActionMenu({ children }: { readonly children: ReactNode }) {
-  return <DropdownMenu>{children}</DropdownMenu>
-}
-
-export function PromptInputActionMenuTrigger({ className, ...props }: ComponentProps<'button'>) {
-  return <DropdownMenuTrigger className={className} {...props} />
-}
-
-export function PromptInputActionMenuContent({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <DropdownMenuContent
-      align="start"
-      className={cx('assistant-action-menu__content assistant-menu-surface', className)}
-      data-assistant-skin
-      side="top"
-      sideOffset={6}
-      {...props}
-    />
-  )
-}
-
-/*
- * className 在这里只接受字符串。
- *
- * 设计系统的菜单项允许把 className 写成 (state) => string，而这个包装组件的
- * 职责是往类名里拼一个固定的 BEM 类，只能兑现字符串形式：函数原样进 cx 会被
- * filter(Boolean) 留下、再被 join 成一整段源码当类名，是静默的错误行为。收窄
- * 之后，真需要函数形式时报错会出现在调用点，由那里决定怎么合成。
- *
- * cx 不换成设计系统的 cn：cn 是 clsx + tailwind-merge，而这里拼的全是
- * assistant-* 这类 BEM 类名，没有 Tailwind 的属性冲突可解，换过去只是白跑一遍
- * 冲突表解析。
- */
-/*
- * onSelect is refused at the type level.
- *
- * The row underneath is Base UI's Menu.Item, whose callback is onClick, while
- * onSelect is a React DOM event about text selection inside a field. Written
- * here it satisfies the checker, survives the build, and is never called on a
- * click. A silent failure has to become a compile error, and the place to make
- * it one is the wrapper every caller goes through.
- */
-export function PromptInputActionMenuItem({
-  children,
-  className,
-  hint,
-  ...props
-}: Omit<ComponentProps<typeof DropdownMenuItem>, 'className' | 'onSelect'> & {
-  readonly className?: string
-  readonly hint?: string
-}) {
-  return (
-    <DropdownMenuItem className={cx('assistant-action-menu__item', className)} {...props}>
-      <span>{children}</span>
-
-      {hint === undefined ? null : <kbd className="assistant-action-menu__hint">{hint}</kbd>}
-    </DropdownMenuItem>
   )
 }
 
