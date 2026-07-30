@@ -297,35 +297,8 @@
 
 /* .models-field 随 Google KeyField 一起删了：它的唯一使用者已经不在。 */
 
-/* 行内动作按钮。高度与圆角对齐 .models-input，同一行里两者不该差一个像素。 */
-
-.models-button {
-  flex: none;
-  min-block-size: 26px;
-  padding-inline: 10px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--models-field);
-  color: var(--ui-foreground);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  transition: background-color 120ms ease;
-}
-
-.models-button:hover:not(:disabled) {
-  background: var(--models-divider);
-}
-
-.models-button:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: -2px;
-}
-
-.models-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* .models-button 曾在这里。行内动作按钮统一用设计系统的 Button（variant="soft"、
+ * size="xs"，与通用页同一颗），这一页不再自造一份。 */
 
 @media (max-width: 900px) {
   .models-row {

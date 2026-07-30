@@ -101,7 +101,7 @@ const ZHIPU: AgentProviderPreset = {
  */
 const MOONSHOT: AgentProviderPreset = {
   id: 'moonshot',
-  displayName: 'Kimi（Moonshot 平台）',
+  displayName: 'Kimi（China）',
   description: '填入 Kimi 开放平台密钥。托管账号请用 agent 自己的登录，不走这里。',
   wire: 'kimi',
   baseUrl: 'https://api.moonshot.ai/v1',

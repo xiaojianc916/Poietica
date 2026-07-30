@@ -7,6 +7,7 @@ import {
   defaultAcpAgent,
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
+import { Button } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliFailure } from './agentCliText'
@@ -282,16 +283,11 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   return (
     <section className="models-page">
       <p className="models-notice models-notice--bar">
-        <span>模型清单来自所选 agent 自己的配置，正常从配置文件中反向导入。</span>
+        <span>模型清单来自所选 agent 自己的配置，支持从配置文件中反向导入。</span>
 
-        <button
-          className="models-button"
-          disabled={probing}
-          onClick={probeGlobalHome}
-          type="button"
-        >
+        <Button disabled={probing} onClick={probeGlobalHome} size="xs" type="button" variant="soft">
           {probing ? '正在读取…' : '导入配置'}
-        </button>
+        </Button>
       </p>
 
       {globalNote !== null ? <p className="models-empty">{globalNote}</p> : null}

@@ -5,7 +5,7 @@ import {
   agentProviderCatalogDocument,
   agentProviderModelOptions,
 } from '@poietica/agent-registry'
-import { InlineSpinner, Switch } from '@poietica/foundations-design-system'
+import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
@@ -16,7 +16,10 @@ import { OptionSelect, SubField } from './models-fields'
  *
  * 上一版这张卡开开关就起一个子进程，问 agent「这家有哪些模型」。那条路作废了：agent 的
  * 目录命令每次都要现拉 models.dev，拉不到就直接失败，没有内置兜底。候选模型改成内置表，
- * 于是开关一拨就有清单 —— 不起进程、离线也有、也没有那句「正在询问…」。
+ * 于是一打开这张卡就有清单 —— 不起进程、离线也有、也没有那句「正在询问…」。
+ *
+ * 开关本身也删了：它只决定表单显不显示，没有任何真语义（配没配过写在 agent 那边，
+ * 拨它不改变任何事实）。一个拨了什么都不改变的控件是仪式，不是功能。
  *
  * 手填「基础地址」那一格删了。接口地址属于厂商身份，内置就够；Zed 也不把它放进密钥
  * 界面（api_url() 从设置里读，空则用常量）。真要改地址的场景是自建网关，那是另一类
@@ -192,76 +195,62 @@ export function ProviderKeyCard({
           <strong>{provider.displayName}</strong>
           <p>{provider.description}</p>
         </div>
+      </div>
+
+      {message !== null ? <p className="models-empty">{message}</p> : null}
+
+      {busy && waited ? (
+        <p className="models-empty">还在等 agent 回应，正在等它写完配置。</p>
+      ) : null}
+
+      {options.length > 0 ? (
+        <div className="models-row models-row--field">
+          <span className="models-row__name">默认模型</span>
+
+          <div className="models-row__control">
+            <OptionSelect
+              ariaLabel={`${provider.displayName} 默认模型`}
+              onChange={setModelId}
+              options={options}
+              value={modelValue}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <SubField
+        label="API 密钥"
+        onChange={setApiKey}
+        placeholder={`输入 ${provider.displayName} API 密钥`}
+        secret
+        value={apiKey}
+      />
+
+      <div className="models-row models-row--field">
+        <span className="models-row__name">密钥申请地址</span>
 
         <div className="models-row__control">
-          <Switch
-            aria-label={provider.displayName}
-            checked={enabled}
-            onCheckedChange={(checked) => {
-              setEnabled(checked)
-            }}
-            size="sm"
-          />
+          <span className="models-row__meta">{provider.apiKeysUrl}</span>
         </div>
       </div>
 
-      {enabled ? (
-        <>
-          {message !== null ? <p className="models-empty">{message}</p> : null}
+      <div className="models-row models-row--field">
+        <span className="models-row__name">接口地址 {provider.baseUrl}</span>
 
-          {busy && waited ? (
-            <p className="models-empty">还在等 agent 回应，正在等它写完配置。</p>
-          ) : null}
+        <div className="models-row__control">
+          {busy ? <InlineSpinner /> : null}
 
-          {options.length > 0 ? (
-            <div className="models-row models-row--field">
-              <span className="models-row__name">默认模型</span>
-
-              <div className="models-row__control">
-                <OptionSelect
-                  ariaLabel={`${provider.displayName} 默认模型`}
-                  onChange={setModelId}
-                  options={options}
-                  value={modelValue}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <SubField
-            label="API 密钥"
-            onChange={setApiKey}
-            placeholder={`输入 ${provider.displayName} API 密钥`}
-            secret
-            value={apiKey}
-          />
-
-          <div className="models-row models-row--field">
-            <span className="models-row__name">密钥申请地址</span>
-
-            <div className="models-row__control">
-              <span className="models-row__meta">{provider.apiKeysUrl}</span>
-            </div>
-          </div>
-
-          <div className="models-row models-row--field">
-            <span className="models-row__name">接口地址 {provider.baseUrl}</span>
-
-            <div className="models-row__control">
-              {busy ? <InlineSpinner /> : null}
-
-              <button
-                className="models-button"
-                disabled={busy || apiKey.trim().length === 0}
-                onClick={submit}
-                type="button"
-              >
-                {busy ? '正在写入…' : '保存到 agent'}
-              </button>
-            </div>
-          </div>
-        </>
-      ) : null}
+          <Button
+            disabled={busy || apiKey.trim().length === 0}
+            onClick={submit}
+            size="xs"
+            type="button"
+            variant="soft"
+          >
+            {busy ? '正在写入…' : '保存到 agent'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }
