@@ -2,13 +2,13 @@ import './permission-request.css'
 
 import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
 import type { PermissionItem } from '@poietica/agent-timeline'
-import { useCallback, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useAgentDialect } from './domain/agent-dialect'
 import { isQuestionRequest } from './domain/ask-user-question'
 import { Surface } from './primitives/surface'
 import { OutcomeCard } from './timeline/OutcomeCard'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
-import { toDiffStat, toToolContentParts } from './timeline/tool-call-content'
+import { type ToolContentPart, toDiffStat, toToolContentParts } from './timeline/tool-call-content'
 
 /**
  * A permission request, answered in place.
@@ -58,8 +58,10 @@ function labelFor(option: PermissionOption, labels: Readonly<Record<string, stri
  * 段、以及答复之后的那张结果卡问的是同一个问题，所以它不该被抄三遍 —— 抄三遍的
  * 代价不是长，是三份会各自漂移。
  */
-function placesOf(toolCall: PermissionToolCall | undefined): readonly string[] {
-  const parts = toToolContentParts(toolCall?.content)
+function placesOf(
+  parts: readonly ToolContentPart[],
+  toolCall: PermissionToolCall | undefined,
+): readonly string[] {
   const changed = parts.flatMap((part) => (part.type === 'diff' ? [part.path] : []))
 
   return changed.length > 0 ? changed : (toolCall?.locations ?? []).map((location) => location.path)
@@ -70,10 +72,8 @@ function placesOf(toolCall: PermissionToolCall | undefined): readonly string[] {
  *
  * 主体那一段和答复之后的结果卡取的是同一段东西，和 placesOf 同理，只该有一份。
  */
-function saidOf(toolCall: PermissionToolCall | undefined): string {
-  return toToolContentParts(toolCall?.content)
-    .flatMap((part) => (part.type === 'text' ? [part.text] : []))
-    .join('\n')
+function saidOf(parts: readonly ToolContentPart[]): string {
+  return parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
 /*
@@ -87,14 +87,14 @@ function saidOf(toolCall: PermissionToolCall | undefined): string {
  * 所以优先取这次调用自己声明的文本。没有文本才退回工具名，并把落点接在后面 ——
  * 一句光秃秃的「修改文件」至少要指得出改的是哪一个。
  */
-function askedOf(item: PermissionItem): string {
-  const said = saidOf(item.toolCall).trim()
+function askedOf(item: PermissionItem, parts: readonly ToolContentPart[]): string {
+  const said = saidOf(parts).trim()
 
   if (said.length > 0) {
     return said
   }
 
-  const places = placesOf(item.toolCall)
+  const places = placesOf(parts, item.toolCall)
 
   return places.length === 0 ? item.title : `${item.title} ${places.join(' ')}`
 }
@@ -107,12 +107,17 @@ function askedOf(item: PermissionItem): string {
  * 猜出来的复述。路径跟在问题后面，做成一枚等宽胶囊：它是被指认的那个对象，不
  * 是另起一段的附注；长路径在胶囊内换行，不截断。
  */
-function PermissionSubject({ toolCall }: { readonly toolCall: PermissionToolCall }) {
-  const parts = toToolContentParts(toolCall.content)
+function PermissionSubject({
+  parts,
+  toolCall,
+}: {
+  readonly parts: readonly ToolContentPart[]
+  readonly toolCall: PermissionToolCall
+}) {
   const stat = toDiffStat(parts)
-  const places = placesOf(toolCall)
+  const places = placesOf(parts, toolCall)
 
-  const said = saidOf(toolCall)
+  const said = saidOf(parts)
 
   return (
     <div className="assistant-permission__subject">
@@ -136,13 +141,15 @@ function PermissionSubject({ toolCall }: { readonly toolCall: PermissionToolCall
 
 /** 落点跟在问题同一行：被指认的对象不该掉到下一段去。 */
 function PermissionAsk({
+  parts,
   title,
   toolCall,
 }: {
+  readonly parts: readonly ToolContentPart[]
   readonly title: string
   readonly toolCall: PermissionToolCall | undefined
 }) {
-  const places = placesOf(toolCall)
+  const places = placesOf(parts, toolCall)
 
   return (
     <p className="assistant-permission__ask">
@@ -162,7 +169,15 @@ export interface PermissionRequestProps {
   readonly onResolve: (requestId: string, optionId: string) => void
 }
 
-export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
+/*
+ * memo 与 TimelineRow 同一策略：行的身份由 selector 保持，滚动与流式输出都
+ * 不该让一张内容没变的卡重渲——尤其这张卡每次渲染都要跑 jsdiff 的 Myers 差分。
+ * onResolve 来自 useAssistantSession 里 useCallback 过的稳定引用，前提成立。
+ */
+export const PermissionRequest = memo(function PermissionRequest({
+  item,
+  onResolve,
+}: PermissionRequestProps) {
   const dialect = useAgentDialect()
 
   const [submittedOptionId, setSubmittedOptionId] = useState<string | undefined>(undefined)
@@ -176,6 +191,12 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
     },
     [item.requestId, onResolve],
   )
+
+  /*
+   * toolCall.content 一次渲染只解析一遍。此前 PermissionAsk、PermissionSubject
+   * 与 askedOf 各自再调 toToolContentParts，同一份内容一趟渲染过了四遍。
+   */
+  const parts = toToolContentParts(item.toolCall?.content)
 
   /*
    * 提问不是权限请求，尽管它借的是同一条通道。
@@ -210,7 +231,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
         }
         answered={!cancelled}
         note={cancelled ? '请求已取消' : undefined}
-        prompt={askedOf(item)}
+        prompt={askedOf(item, parts)}
       />
     )
   }
@@ -219,9 +240,11 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
 
   return (
     <Surface aria-busy={isSubmitting} className="assistant-permission">
-      <PermissionAsk title={item.title} toolCall={item.toolCall} />
+      <PermissionAsk parts={parts} title={item.title} toolCall={item.toolCall} />
 
-      {item.toolCall === undefined ? null : <PermissionSubject toolCall={item.toolCall} />}
+      {item.toolCall === undefined ? null : (
+        <PermissionSubject parts={parts} toolCall={item.toolCall} />
+      )}
 
       <div className="assistant-permission__options">
         {item.options.map((option) => (
@@ -242,7 +265,7 @@ export function PermissionRequest({ item, onResolve }: PermissionRequestProps) {
       </div>
     </Surface>
   )
-}
+})
 
 function labelOf(
   options: readonly PermissionOption[],

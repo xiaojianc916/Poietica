@@ -1,4 +1,5 @@
 import type { PermissionItem } from '@poietica/agent-timeline'
+import { memo } from 'react'
 import { useAgentDialect } from '../domain/agent-dialect'
 import { parseQuestionOptionId, readQuestionPrompt } from '../domain/ask-user-question'
 import { OutcomeCard } from './OutcomeCard'
@@ -42,7 +43,11 @@ function noteFor(
   return skipped ? '已跳过，未回答' : null
 }
 
-export function QuestionOutcome({ item }: QuestionOutcomeProps) {
+/*
+ * memo 与 TimelineRow 同一策略：行的身份由 selector 保持，滚动与流式输出
+ * 不该让一张内容没变的记录卡每帧重渲。
+ */
+export const QuestionOutcome = memo(function QuestionOutcome({ item }: QuestionOutcomeProps) {
   const dialect = useAgentDialect()
 
   const resolution = item.resolution
@@ -70,4 +75,4 @@ export function QuestionOutcome({ item }: QuestionOutcomeProps) {
       prompt={readQuestionPrompt(item)}
     />
   )
-}
+})

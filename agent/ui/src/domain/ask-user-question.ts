@@ -152,33 +152,25 @@ export function buildQuestionDeck(
   const ordered: { index: number; card: QuestionCard }[] = []
 
   for (const request of requests) {
-    if (!isQuestionRequest(request, dialects)) {
-      continue
-    }
-
-    const head = request.options[0]
-
-    if (head === undefined) {
-      continue
-    }
-
-    const first = parseQuestionOptionId(head.optionId, dialects)
-
-    if (first === null || seen.has(first.questionIndex)) {
-      continue
-    }
-
-    seen.add(first.questionIndex)
-
+    /*
+     * 单趟解析。此前同一批 optionId 最多过三遍正则：isQuestionRequest 全量
+     * 一遍、首枚再一遍、choices 循环又一遍。语义逐条保持：题号取自首枚
+     * （不问 kind），任一选项不可解析整单作废，seen.add 在 choices 检查
+     * 之前（全 skip 的畸形请求照样消费题号）。
+     */
     const choices: QuestionChoice[] = []
     let skipOptionId: string | undefined
+    let index: number | undefined
 
     for (const option of request.options) {
       const parsed = parseQuestionOptionId(option.optionId, dialects)
 
       if (parsed === null) {
-        continue
+        index = undefined
+        break
       }
+
+      index ??= parsed.questionIndex
 
       if (parsed.kind === 'skip') {
         skipOptionId = option.optionId
@@ -188,12 +180,18 @@ export function buildQuestionDeck(
       choices.push({ optionId: option.optionId, label: option.label })
     }
 
+    if (index === undefined || seen.has(index)) {
+      continue
+    }
+
+    seen.add(index)
+
     if (choices.length === 0) {
       continue
     }
 
     ordered.push({
-      index: first.questionIndex,
+      index,
       card: {
         requestId: request.requestId,
         prompt: request.prompt,
