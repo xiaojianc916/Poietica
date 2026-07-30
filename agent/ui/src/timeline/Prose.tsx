@@ -102,7 +102,11 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
         // 官方内置光标：仅在 isAnimating 且 streaming 模式下出现，实现是
         // --streamdown-caret 自定义属性 + ::after 伪元素，不新增 DOM 节点。
         // 条件与 isAnimating 同源，避免出现"两个真值来源"。
-        caret={isStreaming ? 'block' : undefined}
+        //
+        // caret 的类型是 'block' | 'circle'，undefined 不在其中。本仓库开着
+        // exactOptionalPropertyTypes，可选属性不等于可以显式传 undefined，所以
+        // 静态时整个属性不出现，而不是出现一个空值。
+        {...(isStreaming ? { caret: 'block' as const } : {})}
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
