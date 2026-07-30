@@ -1,27 +1,20 @@
 /*
- * agent 的 provider 目录（catalog）。
+ * agent 的 provider 目录（catalog）—— 只剩写入参数这一半。
  *
- * 产地只有一个：agent 官方 CLI 的 provider catalog list <providerId> --json，背后是
- * models.dev。这里不存目录、不存模型名表 —— 自己维护一份厂商→模型名的表，等于把上游
- * 的发布节奏抄进我们的版本号：对方上一个新模型，用户要等我们发版才选得到。
+ * 读取那一半（catalog list 的参数与输出解析）删了：第三十一版之后它没有一个调用点，
+ * 而它本来也要现拉 models.dev —— 那个域名在部分网络下不可达。一条死了没人用的管线
+ * 留着，只会让人以为它还活着。候选模型来自 builtin-provider-catalog 的内置表。
  *
- * 「填了 key 就自动认出是哪家」这条路不通，不是没想到：providers.md 里 kimi 与 openai
- * 两处示例的 key 逐字相同都是 sk-xxxxx，DeepSeek / Qwen 也共用 openai 协议。前缀不是
- * 契约。要真「确认」只能拿 key 去打对方的 /v1/models，那就是直连 Provider，与既定决策
- * 相反。业界标杆也是点选：Zed 的 llm-providers 是一张清单，kimi 自己的 /provider 流程
- * 逐字是 select a provider → enter an API key → select a default model。
+ * 写入走 agent 官方 CLI 的 provider catalog add。目录从哪来不归这里管：调用方随
+ * execCli 带上 api.json 形状的内置目录，原生侧起一次性 loopback 服务并把官方的
+ * --url 指过去。对方只读 `type`/`api`/`models.*.id` 与 `limit.context`
+ * （@moonshot-ai/kosong 的 src/catalog.ts），形状由 builtin-provider-catalog 的
+ * agentProviderCatalogDocument 保证。
  *
- * 输出形状是个诚实的未知：上游只承诺 --json，没给 schema，我们也还没实测。所以归一集中
- * 在 entriesOf / providerNode 两处，三种可能形状（数组、id→对象的表、{ providers } 包裹）
- * 走同一段代码，字段一律白名单取，取不到就跳过并记 issue —— 不猜、不外推，失败可见。
- *
- * 密钥永远不出现在这里返回的任何一个 arg 里。原生侧的 FORBIDDEN_FLAGS 会拒掉 --api-key，
- * 因为 Windows 上任何用户都读得到别的进程的完整命令行。密钥走 KIMI_REGISTRY_API_KEY 这
- * 类环境变量注入，变量名记在 agent 档案的 registryKeyVar 里。
+ * 密钥永远不出现在这里返回的任何一个 arg 里。原生侧的 FORBIDDEN_FLAGS 会拒掉
+ * --api-key，因为 Windows 上任何用户都读得到别的进程的完整命令行。密钥走
+ * KIMI_REGISTRY_API_KEY 这类环境变量注入，变量名记在 agent 档案的 registryKeyVar 里。
  */
-
-const MAX_TEXT = 512
-const MAX_MODELS = 512
 
 /*
  * 能安全出现在命令行上的参数。
@@ -31,22 +24,10 @@ const MAX_MODELS = 512
  */
 const ARG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,255}$/
 
-export interface AgentCatalogModel {
-  readonly id: string
-  readonly displayName: string
-  /** 目录没给就是 undefined。不编一个默认值 —— 那会显示成一个假的上下文窗口。 */
-  readonly maxContextSize: number | undefined
-}
-
-export interface AgentCatalogModels {
-  readonly models: readonly AgentCatalogModel[]
-  readonly issues: readonly string[]
-}
-
 export interface AgentProviderCatalogAdd {
   readonly providerId: string
   readonly defaultModelId?: string | undefined
-  /** 留空表示用目录里自带的 endpoint。目录没有 endpoint 时对方会要求必填。 */
+  /** 在场时覆盖目录自带的接口地址（对方的 resolveCatalogImport：用户给的赢）。 */
   readonly baseUrl?: string | undefined
 }
 
@@ -56,11 +37,6 @@ function requireArg(value: string, what: string): string {
   }
 
   return value
-}
-
-/** 问某一家有哪些模型。带 providerId 时对方会连模型一起列出来。 */
-export function agentProviderCatalogModelsArgs(providerId: string): readonly string[] {
-  return ['provider', 'catalog', 'list', requireArg(providerId, '厂商标识'), '--json']
 }
 
 /**
@@ -81,179 +57,4 @@ export function agentProviderCatalogAddArgs(input: AgentProviderCatalogAdd): rea
   }
 
   return args
-}
-
-function asRecord(input: unknown): Record<string, unknown> | undefined {
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    return undefined
-  }
-
-  return input as Record<string, unknown>
-}
-
-function asText(input: unknown, max = MAX_TEXT): string | undefined {
-  if (typeof input !== 'string' || input.length === 0 || input.length > max) {
-    return undefined
-  }
-
-  return input
-}
-
-function asCount(input: unknown): number | undefined {
-  if (typeof input !== 'number' || !Number.isFinite(input) || input <= 0) {
-    return undefined
-  }
-
-  return Math.floor(input)
-}
-
-/*
- * 把「一串条目」归一成 [id, 对象] 列表。
- *
- * 数组形状里 id 是条目自己的字段，表形状里 id 是键。两种都出现在 models.dev 与 CLI 输出
- * 的不同层级上，所以归一只写一次。
- */
-function entriesOf(input: unknown): Array<readonly [string, Record<string, unknown>]> {
-  const entries: Array<readonly [string, Record<string, unknown>]> = []
-
-  if (Array.isArray(input)) {
-    for (const item of input) {
-      const raw = asRecord(item)
-
-      if (raw === undefined) {
-        continue
-      }
-
-      const id = asText(raw['id'], 128)
-
-      if (id === undefined) {
-        continue
-      }
-
-      entries.push([id, raw] as const)
-    }
-
-    return entries
-  }
-
-  const table = asRecord(input)
-
-  if (table === undefined) {
-    return entries
-  }
-
-  for (const [key, value] of Object.entries(table)) {
-    const id = asText(key, 128)
-
-    if (id === undefined) {
-      continue
-    }
-
-    entries.push([id, asRecord(value) ?? {}] as const)
-  }
-
-  return entries
-}
-
-function contextOf(raw: Record<string, unknown>): number | undefined {
-  const limit = asRecord(raw['limit'])
-
-  return (
-    asCount(raw['maxContextSize']) ?? asCount(limit?.['context']) ?? asCount(raw['contextWindow'])
-  )
-}
-
-function modelsFrom(input: unknown): AgentCatalogModel[] {
-  const models: AgentCatalogModel[] = []
-
-  for (const [id, raw] of entriesOf(input).slice(0, MAX_MODELS)) {
-    models.push({
-      id,
-      displayName: asText(raw['name'], 128) ?? asText(raw['displayName'], 128) ?? id,
-      maxContextSize: contextOf(raw),
-    })
-  }
-
-  models.sort((left, right) => left.displayName.localeCompare(right.displayName))
-
-  return models
-}
-
-function pick(input: unknown, providerId: string): Record<string, unknown> | undefined {
-  if (Array.isArray(input)) {
-    for (const item of input) {
-      const raw = asRecord(item)
-
-      if (raw !== undefined && asText(raw['id'], 128) === providerId) {
-        return raw
-      }
-    }
-
-    return undefined
-  }
-
-  const table = asRecord(input)
-
-  if (table === undefined) {
-    return undefined
-  }
-
-  return asRecord(table[providerId])
-}
-
-function providerNode(input: unknown, providerId: string): Record<string, unknown> | undefined {
-  const raw = asRecord(input)
-
-  if (raw === undefined) {
-    return undefined
-  }
-
-  return pick(raw['providers'], providerId) ?? pick(raw, providerId)
-}
-
-function decode(stdout: string): { readonly value: unknown } | { readonly issue: string } {
-  const text = stdout.trim()
-
-  if (text.length === 0) {
-    return { issue: 'agent 没有输出目录内容' }
-  }
-
-  try {
-    return { value: JSON.parse(text) as unknown }
-  } catch {
-    return { issue: '目录输出不是合法的 JSON' }
-  }
-}
-
-/**
- * 解析「某一家有哪些模型」。
- *
- * 三处依次找：这家 provider 节点下的 models、顶层 providers 表里这一家、顶层 models。
- * 找不到不抛错也不编空清单成功 —— 记一条 issue，界面会把它显示出来。
- */
-export function parseAgentProviderCatalogModelsOutput(
-  stdout: string,
-  providerId: string,
-): AgentCatalogModels {
-  const decoded = decode(stdout)
-
-  if ('issue' in decoded) {
-    return { models: [], issues: [decoded.issue] }
-  }
-
-  const node = providerNode(decoded.value, providerId)
-  const scoped = node === undefined ? [] : modelsFrom(node['models'])
-
-  if (scoped.length > 0) {
-    return { models: scoped, issues: [] }
-  }
-
-  const top = asRecord(decoded.value)
-  const direct = top === undefined ? [] : modelsFrom(top['models'])
-
-  if (direct.length > 0) {
-    return { models: direct, issues: [] }
-  }
-
-  return { models: [], issues: ['agent 没有报出这家厂商的模型'] }
 }

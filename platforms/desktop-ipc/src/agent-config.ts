@@ -9,6 +9,11 @@ export interface AgentCliRequest {
   readonly secretVar: string
   /** 凭据本身。只在这一次调用里用一趟，两端都不保存。 */
   readonly secretValue: string
+  /**
+   * api.json 形状的目录文档，只在 catalog add 时携带。
+   * 原生侧把它绑在一次性 loopback 服务上，经官方 --url 喂给对方的目录命令。
+   */
+  readonly catalogDocument?: string
 }
 
 export interface AgentCliResult {

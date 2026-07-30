@@ -46,6 +46,9 @@ export interface AgentProviderPreset {
  *   「OpenAI and compatible services, DeepSeek, Qwen, etc.」
  * base URL：官方文档 base_url (OpenAI) = https://api.deepseek.com
  * 模型：Zed 的 provided_models() 逐字两条，与官方变更日志一致。
+ * 上下文：Zed 的 crates/deepseek/src/deepseek.rs 逐字 —— V4Flash | V4Pro => 1_000_000。
+ * 这一格不能缺席：对方的目录解析器把没有 limit.context 的模型整条丢掉
+ * （kosong/src/catalog.ts 的 catalogModelToCapability）。
  */
 const DEEPSEEK: AgentProviderPreset = {
   id: 'deepseek',
@@ -55,8 +58,8 @@ const DEEPSEEK: AgentProviderPreset = {
   baseUrl: 'https://api.deepseek.com',
   apiKeysUrl: 'https://platform.deepseek.com/api_keys',
   models: [
-    { id: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro' },
-    { id: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash' },
+    { id: 'deepseek-v4-pro', displayName: 'DeepSeek V4 Pro', maxContextSize: 1000000 },
+    { id: 'deepseek-v4-flash', displayName: 'DeepSeek V4 Flash', maxContextSize: 1000000 },
   ],
 }
 
@@ -124,4 +127,42 @@ export function builtinAgentProviders(): readonly AgentProviderPreset[] {
 /** 按 id 取一家。取不到返回 undefined，不兜底成第一家。 */
 export function builtinAgentProviderById(id: string): AgentProviderPreset | undefined {
   return PRESETS.find((preset) => preset.id === id)
+}
+
+/*
+ * 把内置表序列化成 agent 目录命令认的 api.json 形状。
+ *
+ * 形状的判据是对方解析器逐字读什么（@moonshot-ai/kosong 的 src/catalog.ts）：顶层是
+ * id → 厂商的表；厂商条目里 type 是显式协议（在场就以它为准）、api 是接口地址、models
+ * 是 id → 模型的表；模型条目里 id 与 limit.context 是硬门槛 —— 缺一个正整数 context，
+ * 那条模型就被对方整条丢掉（catalogModelToCapability）。name 只是显示名。除此之外的
+ * 字段（env、npm、cost…）没有证据的一律不写。
+ *
+ * 产物经 IPC 交给原生侧，绑在一次性 loopback 服务上，经官方 --url 喂给 catalog add。
+ * 不含密钥：密钥走环境变量，从来不进这份文档。
+ */
+export function agentProviderCatalogDocument(presets: readonly AgentProviderPreset[]): string {
+  const catalog: Record<string, unknown> = {}
+
+  for (const preset of presets) {
+    const models: Record<string, unknown> = {}
+
+    for (const model of preset.models) {
+      models[model.id] = {
+        id: model.id,
+        name: model.displayName,
+        ...(model.maxContextSize === undefined ? {} : { limit: { context: model.maxContextSize } }),
+      }
+    }
+
+    catalog[preset.id] = {
+      id: preset.id,
+      name: preset.displayName,
+      api: preset.baseUrl,
+      type: preset.wire,
+      models,
+    }
+  }
+
+  return JSON.stringify(catalog)
 }

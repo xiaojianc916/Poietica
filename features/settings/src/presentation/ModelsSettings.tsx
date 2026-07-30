@@ -218,7 +218,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     <section className="models-page">
       <p className="models-notice">
         模型清单来自所选 agent 自己的配置，Poietica
-        不保存第二份。填密钥时，模型名从它的目录里选，不用手打。
+        不保存第二份。填密钥时，模型名从内置清单里选，不用手打。
       </p>
 
       <div className="models-block">

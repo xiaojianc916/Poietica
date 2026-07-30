@@ -10,8 +10,14 @@
 //!     可以放心传任意文本的通道）；
 //!   - 显式禁止 --api-key：Windows 上任何用户都能读到别的进程的完整命令行，
 //!     密钥一律走环境变量注入。
+//!
+//! 目录文档只在「从目录添加 provider」时携带：对方的 catalog add 只吃一个
+//! http(s) 的目录地址（默认 models.dev，部分网络下不可达），于是把渲染层带来
+//! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
+//! 现算，不是用户输入；文档里没有密钥。
 
 use crate::commands::agent_config::{agent_program, launch_env};
+use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -21,6 +27,8 @@ type AgentCliCommandResult<T> = std::result::Result<T, IpcError>;
 
 const MAX_ARGS: usize = 16;
 const MAX_ARG_LEN: usize = 512;
+/// 目录文档的体积上限。三家厂商的 api.json 只有几 KB，64 KB 已经宽到离谱。
+const MAX_CATALOG_BYTES: usize = 64 * 1024;
 
 /// 反引号写成转义形式，避免源码里出现难以辨认的字面量。
 const SHELL_METACHARACTERS: [char; 11] = [
@@ -56,6 +64,10 @@ pub struct AgentCliRequest {
     /// 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
     /// 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。留空表示不注入。
     pub secret_value: String,
+    /// api.json 形状的目录文档：只在 catalog add 时携带。它会被绑在一次性
+    /// loopback 服务上，经官方 --url 喂给对方的目录命令。
+    #[serde(default)]
+    pub catalog_document: Option<String>,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
     // 路径过来，就等于给了两条管线各算出不同目录的自由。
@@ -153,6 +165,21 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
         ));
     }
 
+    if let Some(document) = &request.catalog_document {
+        let is_catalog_add = request.args.get(1).map(String::as_str) == Some("catalog")
+            && request.args.get(2).map(String::as_str) == Some("add");
+
+        if !is_catalog_add {
+            return Err(Error::AgentCli(
+                "目录文档只在从目录添加 provider 时使用".to_owned(),
+            ));
+        }
+
+        if document.is_empty() || document.len() > MAX_CATALOG_BYTES {
+            return Err(Error::AgentCli("目录文档为空或超出大小上限".to_owned()));
+        }
+    }
+
     Ok(())
 }
 
@@ -193,9 +220,28 @@ pub async fn agent_cli_exec(
         .map_err(|_searched| missing_program(&program))
         .map_err(IpcError::from)?;
 
+    // 目录服务只活到这次调用结束：调用一返回（不论成败），_catalog_server 被
+    // Drop，端口随即释放。--url 在这里追加而不是经调用方 —— 地址从绑定结果现算，
+    // 不是用户输入，所以放在白名单校验之后。
+    let catalog_server = match request.catalog_document {
+        Some(document) => Some(
+            CatalogServer::start(document)
+                .map_err(|error| Error::Internal(format!("无法启动目录服务：{error}")))
+                .map_err(IpcError::from)?,
+        ),
+        None => None,
+    };
+
     let spawned = async_runtime::spawn_blocking(move || {
+        let mut final_args = request.args.clone();
+
+        if let Some(server) = &catalog_server {
+            final_args.push("--url".to_owned());
+            final_args.push(server.url());
+        }
+
         let mut command = std::process::Command::new(&resolved);
-        command.args(&request.args);
+        command.args(&final_args);
         command.envs(env);
 
         #[cfg(windows)]
@@ -227,6 +273,9 @@ pub async fn agent_cli_exec(
             }
         })
         .map_err(IpcError::from)?;
+
+    // spawn_blocking 的返回值带着 catalog_server：到这里服务一定已经 Drop。
+    drop(output);
 
     Ok(AgentCliResult {
         status: output.status.code().unwrap_or(-1),

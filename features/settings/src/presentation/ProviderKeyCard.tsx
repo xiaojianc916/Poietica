@@ -1,4 +1,8 @@
-import { type AgentProviderPreset, agentProviderCatalogAddArgs } from '@poietica/agent-registry'
+import {
+  type AgentProviderPreset,
+  agentProviderCatalogAddArgs,
+  agentProviderCatalogDocument,
+} from '@poietica/agent-registry'
 import { InlineSpinner, Switch } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
@@ -21,9 +25,10 @@ import { OptionSelect, SubField } from './models-fields'
  * 密钥不上命令行、不落我们的盘：随一次 execCli 经环境变量进子进程，写进 agent 自己的
  * 配置之后就与我们无关 —— 包括「配没配过」，答案在上面那张模型列表里。
  *
- * 写入仍然走 agent 的 catalog add，所以在拿不到 models.dev 的网络里它会失败，界面会把
- * agent 的原话显示出来。不粉饰：那句失败正是下一刀要修的东西（把内置表按目录形状喂给
- * catalog add 的 --url）。
+ * 写入走 agent 的 catalog add。它的目录只吃一个 http(s) 地址，默认目录 models.dev 在
+ * 部分网络下不可达 —— 所以目录由我们自己供：把这家厂商的内置表按 api.json 形状序列化，
+ * 随 execCli 交给原生侧，绑在一次性 loopback 服务上，用官方的 --url 喂给它。全程不碰
+ * 外网、不解析对方的配置文件。
  */
 /*
  * 多久算「慢」。到点不停动画 —— 停下来才是撒谎的那一半：写入其实还在跑，界面却说完了 ——
@@ -139,32 +144,40 @@ export function ProviderKeyCard({
     setBusy(true)
     setMessage(null)
 
-    void store.execCli({ agentId, args, secretVar: registryKeyVar, secretValue: secret }).then(
-      (outcome) => {
-        if (!mounted.current) {
-          return
-        }
+    void store
+      .execCli({
+        agentId,
+        args,
+        secretVar: registryKeyVar,
+        secretValue: secret,
+        catalogDocument: agentProviderCatalogDocument([provider]),
+      })
+      .then(
+        (outcome) => {
+          if (!mounted.current) {
+            return
+          }
 
-        setBusy(false)
+          setBusy(false)
 
-        if (outcome.status !== 0) {
-          setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
-          return
-        }
+          if (outcome.status !== 0) {
+            setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
+            return
+          }
 
-        setApiKey('')
-        setMessage('已写入 agent 自己的配置。')
-        onSaved()
-      },
-      (cause: unknown) => {
-        if (!mounted.current) {
-          return
-        }
+          setApiKey('')
+          setMessage('已写入 agent 自己的配置。')
+          onSaved()
+        },
+        (cause: unknown) => {
+          if (!mounted.current) {
+            return
+          }
 
-        setBusy(false)
-        setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
-      },
-    )
+          setBusy(false)
+          setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
+        },
+      )
   }, [agentId, apiKey, modelValue, onSaved, provider, registryKeyVar, store])
 
   return (

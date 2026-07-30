@@ -28,6 +28,13 @@ export interface AgentCliInvocation {
    * provider list。
    */
   readonly secretValue: string
+  /**
+   * api.json 形状的目录文档：只在「从目录添加 provider」时携带。
+   *
+   * 对方的 catalog add 只吃一个 http(s) 的目录地址。文档由原生侧绑在一次性
+   * loopback 服务上，并把官方的 --url 指过去 —— 整条写入因此不碰外网。不含密钥。
+   */
+  readonly catalogDocument?: string
 }
 
 export interface AgentCliOutcome {
