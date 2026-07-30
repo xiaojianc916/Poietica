@@ -253,11 +253,6 @@
   outline-offset: 2px;
 }
 
-/* noticebar 里那一枚不在列表下方，没有那份外边距。 */
-.models-noticebar .models-link {
-  margin: 0;
-}
-
 .models-keys {
   display: flex;
   flex-direction: column;

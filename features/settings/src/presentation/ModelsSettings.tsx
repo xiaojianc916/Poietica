@@ -283,12 +283,16 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     <section className="models-page">
       <div className="models-noticebar">
         <p className="models-notice">
-          模型清单来自所选 agent 自己的配置，Poietica
-          不保存第二份。填密钥时，模型名从内置清单里选，不用手打。
+          模型清单来自所选 agent 自己的配置，正常从配置文件中反向导入。
         </p>
 
-        <button className="models-link" disabled={probing} onClick={probeGlobalHome} type="button">
-          {probing ? '正在读取…' : '导入我在官方 CLI 里已配置的内容'}
+        <button
+          className="models-button"
+          disabled={probing}
+          onClick={probeGlobalHome}
+          type="button"
+        >
+          {probing ? '正在读取…' : '导入配置'}
         </button>
       </div>
 
