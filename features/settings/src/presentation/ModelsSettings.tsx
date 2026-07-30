@@ -29,7 +29,7 @@ import './models-settings.css'
  * 在拿不到那个域名的网络里整条路都不通。Zed 的做法也是内置：provided_models() 里直接
  * models.insert("deepseek-v4-pro")，再叠加用户追加的 available_models。
  *
- * 密钥经环境变量交给 agent，写入由它自己完成。Google 那一格还只有界面，所以摆在最下面。
+ * 密钥经环境变量交给 agent，写入由它自己完成。
  *
  * 原来这里有 Azure OpenAI 与 AWS Bedrock 两张卡，各三个手填输入框。删掉不是因为不好看：
  * providers.md 写明 Bedrock 这类私有协议目录拒绝导入，Azure 在 models.dev 目录里有没有
@@ -200,7 +200,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     }
 
     if (allModels.length === 0) {
-      return '这个 agent 还没有配置任何模型。填入密钥后它会自己拉取模型清单。'
+      return '这个 agent 还没有配置任何模型。填入密钥、保存之后这里会列出它报回来的模型。'
     }
 
     if (visibleModels.length === 0) {

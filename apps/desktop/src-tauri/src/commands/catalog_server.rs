@@ -28,6 +28,7 @@ const READ_TIMEOUT: Duration = Duration::from_secs(5);
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 /// 绑在 loopback 上的一次性目录服务。Drop 即停止并收编线程。
+#[derive(Debug)]
 pub struct CatalogServer {
     port: u16,
     stop: Arc<AtomicBool>,
