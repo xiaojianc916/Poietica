@@ -15,7 +15,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
 /**
  * 工作区外壳。
  *
- * 职责只有一件事：把布局意图翻译成三个状态位，并把各区域装进 WorkspaceFrame。
+ * 职责只有一件事：把布局意图翻译成停靠状态位，并把各区域装进 WorkspaceFrame。
  * 栅格坐标属于 workspace-shell.css，区域内部形态（停靠列 / 模态抽屉 / 开合
  * 控件）属于区域组件自己，拖拽态属于 workspaceLayoutStore。
  */
@@ -54,24 +54,6 @@ export function WorkspaceShell({
   return (
     <TooltipProvider delayDuration={450}>
       <WorkspaceFrame
-        canvas={
-          <section
-            aria-label="内容区"
-            className="workspace-shell__canvas relative z-10 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background"
-          >
-            <main
-              aria-label={mainContentLabel}
-              aria-labelledby={
-                mainContentLabel === undefined ? `workbench-tab-${activeTabDomId}` : undefined
-              }
-              className="relative h-full min-h-0 min-w-0 overflow-hidden"
-              id={mainContentLabel === undefined ? `workbench-panel-${activeTabDomId}` : undefined}
-              role={mainContentLabel === undefined ? 'tabpanel' : 'region'}
-            >
-              {mainContent}
-            </main>
-          </section>
-        }
         chrome={
           /*
            * 这条横线属于 chrome 行本身：它是栅格里 chrome 与内容的边界，与行内
@@ -91,11 +73,25 @@ export function WorkspaceShell({
           </header>
         }
         disableLayoutAnimation={isResizing}
-        hasStatusBar={false}
-        inspector={null}
-        inspectorColumnWidth={0}
-        isInspectorDocked={false}
         isSidebarDocked={dockSidebar}
+        main={
+          <section
+            aria-label="内容区"
+            className="workspace-shell__main relative z-10 min-h-0 min-w-0 overflow-hidden bg-background"
+          >
+            <main
+              aria-label={mainContentLabel}
+              aria-labelledby={
+                mainContentLabel === undefined ? `workbench-tab-${activeTabDomId}` : undefined
+              }
+              className="relative h-full min-h-0 min-w-0 overflow-hidden"
+              id={mainContentLabel === undefined ? `workbench-panel-${activeTabDomId}` : undefined}
+              role={mainContentLabel === undefined ? 'tabpanel' : 'region'}
+            >
+              {mainContent}
+            </main>
+          </section>
+        }
         overlays={
           <>
             {assistantOverlay}
@@ -131,7 +127,6 @@ export function WorkspaceShell({
           </SidebarRegion>
         }
         sidebarColumnWidth={dockSidebar ? sidebarWidth : 0}
-        statusBar={null}
       />
     </TooltipProvider>
   )

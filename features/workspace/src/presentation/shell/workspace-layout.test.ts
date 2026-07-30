@@ -25,7 +25,6 @@ const PIXEL_DIMENSION_TOKENS: readonly number[] = [
   WORKSPACE_LAYOUT.sidebar.defaultWidth,
   WORKSPACE_LAYOUT.sidebar.maxWidth,
   WORKSPACE_LAYOUT.chrome.height,
-  WORKSPACE_LAYOUT.statusBar.height,
 ]
 
 describe('WORKSPACE_LAYOUT', () => {

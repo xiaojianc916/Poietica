@@ -18,7 +18,6 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@poietica/foundations-kernel": "workspace:*",
-    "@poietica/foundations-geometry": "workspace:*"
+    "@poietica/foundations-kernel": "workspace:*"
   }
 }

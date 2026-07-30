@@ -33,10 +33,6 @@ export const WORKSPACE_LAYOUT = {
   chrome: {
     height: 36,
   },
-
-  statusBar: {
-    height: 30,
-  },
   /*
    * Runtime layout animation contract.
    *

@@ -30,14 +30,26 @@ describe('WORKSPACE_SURFACE_REGISTRY', () => {
     }
   })
 
-  it('不包含已废弃的 data / pages / canvas-start 表面', () => {
+  it('不包含已废弃的画布域表面', () => {
     const keys = Object.keys(WORKSPACE_SURFACE_REGISTRY)
 
-    expect(keys).not.toContain('data')
-    expect(keys).not.toContain('pages')
-
-    /* 画布已移出产品：导航项与表面是同一个概念，不存在第二种导航 ID。 */
-    expect(keys).not.toContain('canvas-start')
+    /*
+     * data / pages / canvas-start 是历代旧名；documents / layers / relations /
+     * assets / extensions 随画布整包移出产品。导航项与表面是同一个概念，不
+     * 存在第二种导航 ID。
+     */
+    for (const deprecated of [
+      'data',
+      'pages',
+      'canvas-start',
+      'documents',
+      'layers',
+      'relations',
+      'assets',
+      'extensions',
+    ]) {
+      expect(keys).not.toContain(deprecated)
+    }
   })
 
   it('导航顺序只引用注册表中存在的表面，且不重复', () => {

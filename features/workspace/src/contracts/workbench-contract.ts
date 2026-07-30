@@ -3,17 +3,7 @@ export type WorkbenchTabId = string
 /** 一条对话的身份就是它的 thread id：一条对话最多一格。 */
 export type ConversationId = string
 
-export type WorkspaceSurfaceId =
-  | 'documents'
-  | 'search'
-  | 'layers'
-  | 'relations'
-  | 'ai'
-  | 'tools'
-  | 'assets'
-  | 'extensions'
-  | 'automations'
-  | 'hooks'
+export type WorkspaceSurfaceId = 'search' | 'ai' | 'tools' | 'automations' | 'hooks'
 
 interface WorkbenchTabBase {
   readonly id: WorkbenchTabId

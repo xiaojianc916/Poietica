@@ -46,13 +46,13 @@ describe('workbench session controller', () => {
     store.activateTab('workspace:ai')
 
     store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
+      surfaceId: 'tools',
+      title: 'Tool',
     })
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'workspace:ai',
-      'workspace:assets',
+      'workspace:tools',
       'conversation:thread-1',
     ])
   })
@@ -61,48 +61,46 @@ describe('workbench session controller', () => {
     const store = createWorkbenchSessionController()
 
     store.openWorkspaceSurface({
-      surfaceId: 'relations',
-      title: '关系',
+      surfaceId: 'search',
+      title: '搜索',
     })
 
     store.openWorkspaceSurface({
-      surfaceId: 'relations',
-      title: '关系',
+      surfaceId: 'search',
+      title: '搜索',
     })
 
-    expect(store.getSnapshot().tabs.filter((tab) => tab.id === 'workspace:relations')).toHaveLength(
-      1,
-    )
+    expect(store.getSnapshot().tabs.filter((tab) => tab.id === 'workspace:search')).toHaveLength(1)
   })
 
   it('selects the right adjacent tab after closing active', () => {
     const store = createWorkbenchSessionController()
 
     store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
+      surfaceId: 'tools',
+      title: 'Tool',
     })
 
     store.openWorkspaceSurface({
-      surfaceId: 'relations',
-      title: '关系',
+      surfaceId: 'search',
+      title: '搜索',
     })
 
-    store.activateTab('workspace:assets')
-    store.closeTab('workspace:assets')
+    store.activateTab('workspace:tools')
+    store.closeTab('workspace:tools')
 
-    expect(store.getSnapshot().activeTabId).toBe('workspace:relations')
+    expect(store.getSnapshot().activeTabId).toBe('workspace:search')
   })
 
   it('selects the left adjacent tab when closing the last tab', () => {
     const store = createWorkbenchSessionController()
 
     store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
+      surfaceId: 'tools',
+      title: 'Tool',
     })
 
-    store.closeTab('workspace:assets')
+    store.closeTab('workspace:tools')
 
     expect(store.getSnapshot().activeTabId).toBe('workspace:ai')
   })
@@ -111,21 +109,21 @@ describe('workbench session controller', () => {
     const store = createWorkbenchSessionController()
 
     store.openWorkspaceSurface({
-      surfaceId: 'assets',
-      title: '素材',
+      surfaceId: 'tools',
+      title: 'Tool',
     })
 
     store.openWorkspaceSurface({
-      surfaceId: 'relations',
-      title: '关系',
+      surfaceId: 'search',
+      title: '搜索',
     })
 
-    store.moveTab('workspace:relations', 1)
+    store.moveTab('workspace:search', 1)
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'workspace:ai',
-      'workspace:relations',
-      'workspace:assets',
+      'workspace:search',
+      'workspace:tools',
     ])
 
     store.moveTab('workspace:ai', 2)

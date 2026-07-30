@@ -15,22 +15,16 @@ const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
    */
   '--workspace-layout-duration': `${WORKSPACE_LAYOUT.motion.layoutDurationSeconds}s`,
   '--chrome-height': `${WORKSPACE_LAYOUT.chrome.height}px`,
-  '--status-height': `${WORKSPACE_LAYOUT.statusBar.height}px`,
 }
 
 export interface WorkspaceFrameProps {
   readonly rootRef?: Ref<HTMLDivElement>
   readonly chrome: ReactNode
   readonly sidebar: ReactNode
-  readonly canvas: ReactNode
-  readonly inspector: ReactNode
-  readonly statusBar: ReactNode
+  readonly main: ReactNode
   readonly overlays?: ReactNode
   readonly sidebarColumnWidth: number
-  readonly inspectorColumnWidth: number
-  readonly hasStatusBar: boolean
   readonly isSidebarDocked: boolean
-  readonly isInspectorDocked: boolean
   readonly disableLayoutAnimation?: boolean
 }
 
@@ -38,31 +32,21 @@ export interface WorkspaceFrameProps {
  * 外壳栅格的动画所有者。
  *
  * 行与列的模板、命名区域、竖线与空列的指针穿透都在 workspace-shell.css 里，
- * 这里只把三个状态位挂到根元素上——此前这些几何以 gridTemplateColumns /
- * gridTemplateRows 两个字符串 prop 从外壳传入，同时区域组件又各自内联格位，
- * 同一份坐标散落在四个文件。
+ * 这里只把停靠状态位挂到根元素上。
  */
 export function WorkspaceFrame({
   rootRef,
   chrome,
   sidebar,
-  canvas,
-  inspector,
-  statusBar,
+  main,
   overlays,
   sidebarColumnWidth,
-  inspectorColumnWidth,
-  hasStatusBar,
   isSidebarDocked,
-  isInspectorDocked,
   disableLayoutAnimation = false,
 }: WorkspaceFrameProps) {
   const shouldReduceMotion = useReducedMotion()
 
-  /*
-   * 左侧侧边栏和右侧属性栏共用一个动画所有者、
-   * 一个 transition 和一条动画时间轴。
-   */
+  /* 侧边栏停靠动画与 CSS 侧的竖线过渡共用一条时间轴。 */
   const transition =
     disableLayoutAnimation || shouldReduceMotion
       ? { duration: 0 }
@@ -76,12 +60,8 @@ export function WorkspaceFrame({
     <motion.div
       animate={{
         '--workspace-sidebar-column-width': `${sidebarColumnWidth}px`,
-        '--workspace-inspector-column-width': `${inspectorColumnWidth}px`,
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
-      data-canvas-host="workspace"
-      data-has-status={hasStatusBar ? 'true' : 'false'}
-      data-inspector-docked={isInspectorDocked ? 'true' : 'false'}
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
       initial={false}
       ref={rootRef}
@@ -93,9 +73,7 @@ export function WorkspaceFrame({
     >
       {chrome}
       {sidebar}
-      {canvas}
-      {inspector}
-      {statusBar}
+      {main}
       {overlays}
     </motion.div>
   )

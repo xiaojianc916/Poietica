@@ -1,4 +1,4 @@
-import { Box, ChartNetwork, FolderTwo, Image, LayersThree, Search } from '@mynaui/icons-react'
+import { Box, Search } from '@mynaui/icons-react'
 import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace'
 import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 /*
@@ -29,25 +29,10 @@ export interface WorkspaceSurfaceDescriptor {
  * 需要在视图层写 if 的例外。
  */
 export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSurfaceDescriptor> = {
-  documents: {
-    title: '恢复',
-    description: '恢复最近打开的画布和本地文件。',
-    icon: FolderTwo,
-  },
   search: {
     title: '搜索',
     description: '搜索工作区中的会话、工具与文本内容。',
     icon: Search,
-  },
-  layers: {
-    title: '图层',
-    description: '浏览、选择和组织当前画布中的对象层级。',
-    icon: LayersThree,
-  },
-  relations: {
-    title: '关系',
-    description: '查看并维护画布内容之间的结构化关系。',
-    icon: ChartNetwork,
   },
   ai: {
     title: CONVERSATION_ENTRY_TITLE,
@@ -57,16 +42,6 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
   tools: {
     title: 'Tool',
     description: '管理内置工具、Skill 与 MCP 服务器。',
-    icon: Box,
-  },
-  assets: {
-    title: '素材',
-    description: '统一管理图片、附件和可复用素材。',
-    icon: Image,
-  },
-  extensions: {
-    title: '插件',
-    description: '管理为编辑器提供能力的扩展。',
     icon: Box,
   },
   automations: {

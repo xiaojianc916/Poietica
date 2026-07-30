@@ -2,7 +2,6 @@ export {
   AiSurfaceIcon,
   ClockTenIcon,
   LightbulbIcon,
-  PencilRulerIcon,
   WebhookIcon,
 } from './components/icons/local-glyphs'
 export { Button, type ButtonProps, buttonVariants } from './components/ui/button'

@@ -1,33 +1,12 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig } from 'vite'
 import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics'
-
-/*
- * 许可证键是构建期常量。缺了它 react-root.tsx 会 throw，代价由终端用户以一块
- * 崩溃屏支付 —— 一个打包时就能判定的错误没有理由推迟到运行期。
- *
- * 只在 build 生效：本地没有键的贡献者仍然可以起开发服务器。
- */
-function requireTldrawLicenseKey(): Plugin {
-  return {
-    name: 'poietica:require-tldraw-license-key',
-    apply: 'build',
-    config() {
-      if (!process.env.VITE_TLDRAW_LICENSE_KEY) {
-        throw new Error(
-          'VITE_TLDRAW_LICENSE_KEY is required for a production build; the application throws on startup without it.',
-        )
-      }
-    },
-  }
-}
 
 export default defineConfig({
   plugins: [
     // 必须最先注册，确保捕获后续插件及 import-analysis 错误。
     customErrorDiagnosticsPlugin(),
-    requireTldrawLicenseKey(),
     react(),
     tailwindcss(),
   ],

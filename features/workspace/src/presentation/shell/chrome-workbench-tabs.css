@@ -20,7 +20,6 @@
   --chrome-tab-min-width: 88px;
   --chrome-tab-preferred-width: 168px;
   --chrome-tab-max-width: 220px;
-  --chrome-tab-saving-duration: 900ms;
 
   --chrome-tab-strip: var(--color-chrome);
   --chrome-tab-surface: var(--color-background);
@@ -322,39 +321,6 @@
   outline-offset: 1px;
 }
 
-.chrome-workbench-tab__status {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.chrome-workbench-tab__status--dirty {
-  background: var(--color-warning);
-}
-
-.chrome-workbench-tab__status--saving {
-  background: var(--color-info);
-  animation: chrome-workbench-saving var(--chrome-tab-saving-duration) var(--ui-ease-emphasized)
-    infinite alternate;
-}
-
-.chrome-workbench-tab__status--failed {
-  background: var(--color-destructive);
-}
-
-.chrome-workbench-tab__status + .chrome-workbench-tab__close {
-  opacity: 0;
-}
-
-.chrome-workbench-tab:hover .chrome-workbench-tab__status {
-  opacity: 0;
-}
-
-.chrome-workbench-tab:hover .chrome-workbench-tab__status + .chrome-workbench-tab__close {
-  opacity: 1;
-}
-
 .chrome-workbench-tab[data-active="true"] .chrome-workbench-tab__separator,
 .chrome-workbench-tab:hover .chrome-workbench-tab__separator,
 .chrome-workbench-tab:has(+ .chrome-workbench-tab[data-active="true"])
@@ -435,16 +401,6 @@
   right: 2px;
 }
 
-@keyframes chrome-workbench-saving {
-  from {
-    opacity: 0.4;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   /*
    * __content 换成 __activation：过渡已经搬到真正会变色的元素上。
@@ -461,7 +417,6 @@
    */
   .chrome-workbench-tab__activation,
   .chrome-workbench-tab__separator,
-  .chrome-workbench-tab__status,
   .chrome-workbench-tab:not([data-active="true"])::before {
     transition: none;
     animation: none;
