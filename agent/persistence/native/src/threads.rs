@@ -37,7 +37,7 @@ impl AgentStore {
     // line between a conversation that happened and one that did not.
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT id, session_id, title, title_source, updated_at, pinned
+            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned
                FROM threads
               WHERE EXISTS (SELECT 1 FROM runs WHERE runs.thread_id = threads.id)
               ORDER BY pinned DESC, updated_at DESC",
@@ -48,10 +48,11 @@ impl AgentStore {
                 Ok(ThreadSummary {
                     id: row.get(0)?,
                     session_id: row.get(1)?,
-                    title: row.get(2)?,
-                    title_source: row.get(3)?,
-                    updated_at: row.get(4)?,
-                    pinned: row.get::<_, i64>(5)? != 0,
+                    agent_id: row.get(2)?,
+                    title: row.get(3)?,
+                    title_source: row.get(4)?,
+                    updated_at: row.get(5)?,
+                    pinned: row.get::<_, i64>(6)? != 0,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -59,7 +60,10 @@ impl AgentStore {
         Ok(found)
     }
 
-    /// Records which agent session a thread is holding.
+    /// Records which agent session a thread is holding, and whose it is.
+    ///
+    /// 两件事一起写，因为分开写就有一瞬间是号在而人不在，而那正是这一列要
+    /// 消灭的状态。
     ///
     /// `updated_at` is left alone. Reopening a conversation from a previous
     /// run makes it take a fresh session, and a conversation last spoken in
@@ -70,46 +74,15 @@ impl AgentStore {
     /// # Errors
     ///
     /// Fails when the update is rejected.
-    pub fn attach_session(&self, id: Uuid, session_id: &str) -> Result<()> {
+    pub fn attach_session(&self, id: Uuid, session_id: &str, agent_id: &str) -> Result<()> {
         self.connection.execute(
             "UPDATE threads
-                SET session_id = ?2
+                SET session_id = ?2, agent_id = ?3
               WHERE id = ?1",
-            rusqlite::params![id.to_string(), session_id],
+            rusqlite::params![id.to_string(), session_id, agent_id],
         )?;
 
         Ok(())
-    }
-
-    /// Finds the agent session a conversation is holding.
-    ///
-    /// This is the only direction that gets asked. A conversation is
-    /// picked on screen and has to find the session it is holding, which is
-    /// what addressing a turn needs.
-    ///
-    /// The reverse — which conversation a frame belongs to — reads as though
-    /// it must also be needed, and a method for it lived here for a long
-    /// time saying exactly that. It was never how a frame found its
-    /// conversation: a frame is filed under its run, and a run already names
-    /// its thread. Its one real caller was folding the agent's own titles
-    /// into the list, and the list no longer takes names from the agent.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the query is rejected.
-    pub fn session_for_thread(&self, id: Uuid) -> Result<Option<String>> {
-        let mut statement = self
-            .connection
-            .prepare_cached("SELECT session_id FROM threads WHERE id = ?1")?;
-
-        let mut rows = statement.query(rusqlite::params![id.to_string()])?;
-
-        match rows.next()? {
-            // The column is nullable: a conversation may exist before it
-            // holds a session, which is not the same as not existing.
-            Some(row) => Ok(row.get(0)?),
-            None => Ok(None),
-        }
     }
 
     /// Reads one conversation, whether or not anything has been said in it.
@@ -125,7 +98,7 @@ impl AgentStore {
     /// Fails when the query is rejected.
     pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT id, session_id, title, title_source, updated_at, pinned
+            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned
                FROM threads
               WHERE id = ?1",
         )?;
@@ -136,10 +109,11 @@ impl AgentStore {
             Some(row) => Ok(Some(ThreadSummary {
                 id: row.get(0)?,
                 session_id: row.get(1)?,
-                title: row.get(2)?,
-                title_source: row.get(3)?,
-                updated_at: row.get(4)?,
-                pinned: row.get::<_, i64>(5)? != 0,
+                agent_id: row.get(2)?,
+                title: row.get(3)?,
+                title_source: row.get(4)?,
+                updated_at: row.get(5)?,
+                pinned: row.get::<_, i64>(6)? != 0,
             })),
             None => Ok(None),
         }
@@ -243,6 +217,8 @@ pub struct ThreadSummary {
     pub id: String,
     /// The agent session it is holding, where it holds one.
     pub session_id: Option<String>,
+    /// 开出那个会话的 agent。这一列存在之前写下的行是空的。
+    pub agent_id: Option<String>,
     /// The name currently shown for it.
     pub title: String,
     /// Where that name came from.

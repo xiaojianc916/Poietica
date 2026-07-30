@@ -86,6 +86,8 @@ const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50)
 #[derive(Debug)]
 struct Session {
     client: AgentClient,
+    /// 这条连接起的是哪个 agent。寻址要拿它跟对话记下的那个比。
+    agent_id: String,
     /// 这条连接自带的那个会话号。
     ///
     /// `connect()` 建立连接时就开了它，而没有任何对话持有它 —— 模块头那段注释里
@@ -737,6 +739,8 @@ fn restate(control: ConfigControl) -> AgentConfigControl {
 /// 生效的字段，就是一条只在出错时才走的代码路径。
 struct Handle {
     client: AgentClient,
+    /// 这条连接起的是哪个 agent。
+    agent_id: String,
     /// 这条连接的锚会话。问 agent 能力时发往它。
     anchor: String,
     /// 这个 agent 会不会装载一条旧会话。寻址要按它分路。
@@ -767,11 +771,17 @@ async fn ensure_session(
     // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
     // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
     // 说没有可用的模型。
-    let env = launch_env(app, &launch.agent_id)?;
+    let AgentLaunch {
+        agent_id,
+        program,
+        args,
+    } = launch;
+
+    let env = launch_env(app, &agent_id)?;
 
     let spawn = AgentSpawn {
-        program: launch.program,
-        args: launch.args,
+        program,
+        args,
         cwd: working_directory,
         env,
     };
@@ -813,6 +823,7 @@ async fn ensure_session(
 
         return Ok(Handle {
             client: live.client.clone(),
+            agent_id: live.agent_id.clone(),
             anchor: live.anchor.clone(),
             can_load_session: live.can_load_session,
         });
@@ -820,6 +831,7 @@ async fn ensure_session(
 
     *guard = Some(Session {
         client: client.clone(),
+        agent_id: agent_id.clone(),
         anchor: session_id.clone(),
         can_load_session,
     });
@@ -829,6 +841,7 @@ async fn ensure_session(
 
     Ok(Handle {
         client,
+        agent_id,
         anchor: session_id,
         can_load_session,
     })
@@ -840,6 +853,7 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
+        agent_id: live.agent_id.clone(),
         anchor: live.anchor.clone(),
         can_load_session: live.can_load_session,
     }))
@@ -1387,6 +1401,11 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// 两条会话路径都由 agent 在同一个答复里报回整张选择器表，所以第三个字段只在
 /// 「这次真的开或装载了一条」时有值：这不是缓存，是省掉一次多余的往返。
 ///
+/// 号本身还要认人。sessionId 活在 agent 自己的命名空间里，B 不认识 A 开的
+/// 号：换一个 agent 再点开旧对话，发出去的是一个对面从没见过的名字，回来的
+/// 是 UnknownSession。所以持有者跟着号一起存，对不上就根本不装载，这条对话
+/// 在新 agent 这里从一条新会话开始 —— 本地日志照常显示，只是上下文重开。
+///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
 async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
     let thread_id = conversation(named)?;
@@ -1395,10 +1414,20 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         let shared = shared_store(state)?;
         let store = borrow_store(&shared)?;
 
-        store.session_for_thread(thread_id).map_err(persistence)?
+        store.thread(thread_id).map_err(persistence)?
     };
 
-    if let Some(session_id) = stored {
+    /* 号和持有者一起读出来。空的持有者是这一列存在之前写下的行：那时候
+    只装得下一个 agent，所以按本次这个算，装载成功时在下面记实。 */
+    let held = stored.and_then(|thread| {
+        let owner = thread.agent_id;
+
+        thread
+            .session_id
+            .filter(|_| owner.as_deref().is_none_or(|id| id == live.agent_id))
+    });
+
+    if let Some(session_id) = held {
         /* 本次连接开的，直接用。 */
         if recognised(state, &session_id)? {
             return Ok(Held {
@@ -1417,6 +1446,17 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
             {
                 Ok(loaded) => {
                     remember(state, &session_id)?;
+
+                    /* 装载成功，这条会话确实是这个 agent 的。空的那一格在这里
+                    记实，所以补写只发生一次，不是每次开对话都写一遍。 */
+                    {
+                        let shared = shared_store(state)?;
+                        let store = borrow_store(&shared)?;
+
+                        store
+                            .attach_session(thread_id, &session_id, &live.agent_id)
+                            .map_err(persistence)?;
+                    }
 
                     return Ok(Held {
                         thread_id,
@@ -1442,7 +1482,7 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         let store = borrow_store(&shared)?;
 
         store
-            .attach_session(thread_id, &opened.session_id)
+            .attach_session(thread_id, &opened.session_id, &live.agent_id)
             .map_err(persistence)?;
     }
 

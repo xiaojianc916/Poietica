@@ -72,3 +72,41 @@ fn the_database_is_unreadable_with_another_key() {
 
     assert!(matches!(intruder, Err(StoreError::WrongKey)));
 }
+
+
+#[test]
+fn a_session_is_stored_with_the_agent_that_opened_it() {
+    let directory = TempDir::new().expect("temporary directory");
+    let key = DatabaseKey::generate();
+    let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
+
+    let thread = store.create_thread("thread").expect("thread");
+
+    store
+        .attach_session(thread, "session-a", "kimi")
+        .expect("attach");
+
+    let read = store.thread(thread).expect("read").expect("the thread");
+
+    assert_eq!(read.session_id.as_deref(), Some("session-a"));
+    assert_eq!(
+        read.agent_id.as_deref(),
+        Some("kimi"),
+        "会话号只在开出它的 agent 那里认得，所以持有者必须跟着一起存下来"
+    );
+}
+
+#[test]
+fn a_thread_written_before_the_column_existed_has_no_owner() {
+    let directory = TempDir::new().expect("temporary directory");
+    let key = DatabaseKey::generate();
+    let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
+
+    let thread = store.create_thread("thread").expect("thread");
+    let read = store.thread(thread).expect("read").expect("the thread");
+
+    assert_eq!(
+        read.agent_id, None,
+        "还没有握住会话的对话不属于任何 agent，空值就是这个意思"
+    );
+}
