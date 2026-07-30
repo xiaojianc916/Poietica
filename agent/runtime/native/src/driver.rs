@@ -566,7 +566,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     Ok(AgentConnection {
         book,
         client: AgentClient::new(commands),
-        session_id,
+        handshake,
         driver,
     })
 }
@@ -622,7 +622,11 @@ async fn load_session(
     cwd: PathBuf,
     reply: oneshot::Sender<Result<OpenedSession>>,
 ) -> Settled {
-    let named = SessionId::from(session_id.as_str());
+    /* SessionId 自己拥有它的字符串（`pub struct SessionId(pub Arc<str>)`），
+    所以这里给它一份，而不是借一段。这个 crate 上能接 `&str` 的那个 `From` 要求
+    `'static`，借来的一段永远满足不了它 —— 拷一次字符串内容，换来的是 `named`
+    此后不牵着任何人，下面那句把 `session_id` 交出去才是合法的。 */
+    let named = SessionId(session_id.as_str().into());
 
     // 帧要落在这条会话名下，所以它先进册子，再开始装载。
     let loaded = match ledger.open(&session_id) {

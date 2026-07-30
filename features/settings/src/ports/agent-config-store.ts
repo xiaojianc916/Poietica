@@ -40,6 +40,11 @@ export interface AgentCliInvocation {
    * （provider list）使用；原生侧会拒掉任何带着它的写操作。
    */
   readonly useGlobalHome?: boolean
+  /**
+   * 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
+   * 密钥由原生侧取出直达子进程，不进渲染层。与 secretValue 互斥。
+   */
+  readonly secretFromGlobalProvider?: string
 }
 
 export interface AgentCliOutcome {
@@ -100,10 +105,4 @@ export interface AgentConfigStore {
    * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
    */
   readonly loadKeyTails: (agentId: string) => Promise<Readonly<Record<string, string>>>
-  /*
-   * 把用户全局 home 的 config.toml 整份复制进受控 home（替换 + 备份）。
-   * 整份搬是唯一保真的形状：default_model、default_effort、loop_control 这些
-   * 目录形状里不存在的格，只有字节级复制保得住。
-   */
-  readonly importGlobal: (agentId: string) => Promise<AgentImportOutcome>
 }

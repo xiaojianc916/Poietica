@@ -337,77 +337,70 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
         .unwrap_or_default()
 }
 
-/// 导入全局配置的结果。
-#[derive(Debug, Serialize, Type, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentImportOutcome {
-    /// 是否真的执行了复制。全局配置不存在时为 false —— 那不是错误。
-    pub imported: bool,
-    /// 原受控配置的备份路径。受控 home 原本没有 config.toml 时为 None。
-    pub backup_path: Option<String>,
-}
-
-/// 把用户全局 home 的 config.toml 整份复制进受控 home（替换 + 备份）。
+/// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
 ///
-/// 语义是「把我在 CLI 里配好的那一份搬过来用」—— 整份搬是唯一保真的形状：
-/// default_model、default_effort、loop_control 这些目录形状里不存在的格，
-/// 只有字节级复制保得住。复制不解析：这不是拼对方的格式，是搬运。
-///
-/// 受控 home 原有的 config.toml 先备份成 config.toml.<unix 秒>.bak，再用
-/// fs::copy 覆盖（Windows 上 rename 不能越过已存在的目标；有备份在，恢复
-/// 只需要一次手动改名）。
+/// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
+/// 扫描规则与 tails_from_config 逐字相同 —— 平表里的平字段，不认就报错而不是猜。
 ///
 /// # Errors
 ///
-/// 读取或写入失败时返回错误。全局配置不存在不算错误：返回 imported = false。
-#[command]
-#[specta::specta]
-pub async fn agent_import_global(
-    app: AppHandle,
-    agent_id: String,
-) -> AgentConfigCommandResult<AgentImportOutcome> {
-    (|| -> Result<AgentImportOutcome> {
-        let global = app
-            .path()
-            .home_dir()
-            .map_err(|error| Error::Internal(error.to_string()))?
-            .join(".kimi-code")
-            .join("config.toml");
+/// 文件不存在、读不到、或那一家的 api_key 缺席时返回错误。
+pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<String> {
+    let global = app
+        .path()
+        .home_dir()
+        .map_err(|error| Error::Internal(error.to_string()))?
+        .join(".kimi-code")
+        .join("config.toml");
 
-        if !global.exists() {
-            return Ok(AgentImportOutcome {
-                imported: false,
-                backup_path: None,
-            });
+    let text = std::fs::read_to_string(&global)
+        .map_err(|error| Error::AgentCli(format!("读不到全局配置：{error}")))?;
+
+    let section = format!("[providers.{provider_id}]");
+    let mut inside = false;
+
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+
+        if line.starts_with('[') {
+            inside = line == section;
+
+            continue;
         }
 
-        let home = agent_home(&app, &agent_id)?;
-        let destination = home.join("config.toml");
-        let mut backup_path = None;
-
-        if destination.exists() {
-            let stamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|duration| duration.as_secs())
-                .unwrap_or(0);
-            let backup = home.join(format!("config.toml.{stamp}.bak"));
-
-            std::fs::copy(&destination, &backup)
-                .map_err(|error| Error::Internal(format!("备份受控配置失败：{error}")))?;
-
-            backup_path = Some(backup.to_string_lossy().into_owned());
+        if !inside {
+            continue;
         }
 
-        std::fs::copy(&global, &destination)
-            .map_err(|error| Error::Internal(format!("导入全局配置失败：{error}")))?;
+        let Some(value) = line.strip_prefix("api_key") else {
+            continue;
+        };
 
-        Ok(AgentImportOutcome {
-            imported: true,
-            backup_path,
-        })
-    })()
-    .map_err(IpcError::from)
+        let quoted = value.trim_start_matches([' ', '=']);
+
+        let Some(inner) = quoted
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+        else {
+            continue;
+        };
+
+        if !inner.is_empty() {
+            return Ok(inner.to_owned());
+        }
+    }
+
+    Err(Error::AgentCli(format!(
+        "全局配置里读不到 {provider_id} 的密钥"
+    )))
 }
+
+/* agent_import_global 与整份复制曾在这里。
+ *
+ * 整份替换的前提（受控 home 里现有的都不重要）在任何一台已配置过的机器上都是假的，
+ * 而官方语义里写入/迁移的原子单位本来就是 provider（catalog add 的先删再建）。
+ * 导入改为 provider 粒度：global_provider_secret 取密钥，catalog add 走写入。
+ */
 
 /// 替换 agent 列表与默认 agent。
 ///

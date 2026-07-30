@@ -16,7 +16,9 @@
 //! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
 //! 现算，不是用户输入；文档里没有密钥。
 
-use crate::commands::agent_config::{agent_program, global_launch_env, launch_env};
+use crate::commands::agent_config::{
+    agent_program, global_launch_env, global_provider_secret, launch_env,
+};
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
@@ -72,6 +74,11 @@ pub struct AgentCliRequest {
     /// list）使用；validate 会拒掉任何带着它的写操作。
     #[serde(default)]
     pub use_global_home: bool,
+    /// 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
+    /// 密钥由原生侧从全局 config.toml 取出直达子进程，全程不进渲染层。
+    /// 与 secret_value 互斥（validate 会拒掉同带）。
+    #[serde(default)]
+    pub secret_from_global_provider: Option<String>,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
     // 路径过来，就等于给了两条管线各算出不同目录的自由。
@@ -192,6 +199,23 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
         }
     }
 
+    if let Some(provider_id) = &request.secret_from_global_provider {
+        let is_catalog_add = request.args.get(1).map(String::as_str) == Some("catalog")
+            && request.args.get(2).map(String::as_str) == Some("add");
+
+        if !is_catalog_add {
+            return Err(Error::AgentCli(
+                "从全局配置取密钥只用于从目录添加 provider".to_owned(),
+            ));
+        }
+
+        if provider_id.is_empty() || !request.secret_value.is_empty() {
+            return Err(Error::AgentCli(
+                "密钥二选一：随请求携带，或从全局配置取，不能同带".to_owned(),
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -237,6 +261,13 @@ pub async fn agent_cli_exec(
         .map_err(|_searched| missing_program(&program))
         .map_err(IpcError::from)?;
 
+    // 密钥二选一：随请求带来的，或现在从全局配置取出 —— 不管哪种，都在 request
+    // 被目录服务的 match 与闭包拆走之前落袋。
+    let secret = match request.secret_from_global_provider {
+        Some(provider_id) => global_provider_secret(&app, &provider_id).map_err(IpcError::from)?,
+        None => request.secret_value,
+    };
+
     // 目录服务只活到这次调用结束：它随闭包进入阻塞线程，子进程退出、闭包返回时
     // 被 Drop，端口随即释放 —— 不论这次调用成败。--url 在这里追加而不是经调用方
     // —— 地址从绑定结果现算，不是用户输入，所以放在白名单校验之后。
@@ -268,8 +299,8 @@ pub async fn agent_cli_exec(
             command.creation_flags(CREATE_NO_WINDOW);
         }
 
-        if !request.secret_var.is_empty() && !request.secret_value.is_empty() {
-            command.env(&request.secret_var, &request.secret_value);
+        if !request.secret_var.is_empty() && !secret.is_empty() {
+            command.env(&request.secret_var, &secret);
         }
 
         command.output()
