@@ -37,6 +37,7 @@
     "audit": "pnpm audit --audit-level high",
     "audit:rust": "cargo deny check --all-features",
     "ipc:generate": "cargo run -p poietica --bin export-ipc-bindings",
+    "ipc:check:comment": "同义实现在 .github/workflows/quality.yml 的 Verify generated IPC bindings 一步；改这里就要改那里。CI 的 rust job 不装 Node，所以不能直接调这条。",
     "ipc:check": "pnpm ipc:generate && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
     "check:versions": "node scripts/release/check-versions.mjs",
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build",

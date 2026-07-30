@@ -171,11 +171,21 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
+          # $ErrorActionPreference does not apply to native exit codes, so the
+          # generator needs its own check. Without it a generator that fails to
+          # build leaves the checked-in file untouched, git diff returns clean,
+          # and this step reports the bindings as up to date - green exactly when
+          # it matters most.
           cargo run -p poietica --bin export-ipc-bindings
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not run the IPC bindings exporter."
+          }
+
           git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Generated IPC bindings are out of date."
+            throw "Generated IPC bindings are out of date. Run pnpm ipc:generate and commit the result."
           }
 
       - name: Clippy
