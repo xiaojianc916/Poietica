@@ -2,7 +2,6 @@ import {
   Button,
   ErrorState,
   LoadingState,
-  PencilRulerIcon,
   Select,
   SelectContent,
   SelectGroup,
@@ -41,7 +40,6 @@ type SettingsSection =
   | 'keymap'
   | 'hooks'
   | 'plugins'
-  | 'canvas'
   | 'export'
   | 'privacy'
   | 'about'
@@ -52,11 +50,11 @@ interface SectionDefinition {
 }
 
 /*
- * 导航顺序照图二排，但没有删掉图二没画的三组。
+ * 导航顺序照图二排，但没有删掉图二没画的两组。
  *
- * canvas / export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉
- * 它们等于删功能。models / keymap / hooks / plugins 在 AppSettings 里还没有
- * 任何字段，所以它们渲染明确的空状态，而不是拨得动却存不下的假开关。
+ * export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉它们等于
+ * 删功能。models / keymap / hooks / plugins 在 AppSettings 里还没有任何字段，
+ * 所以它们渲染明确的空状态，而不是拨得动却存不下的假开关。
  */
 const SECTIONS: readonly SectionDefinition[] = [
   {
@@ -84,10 +82,6 @@ const SECTIONS: readonly SectionDefinition[] = [
     label: '插件',
   },
   {
-    id: 'canvas',
-    label: '画布',
-  },
-  {
     id: 'export',
     label: '导出',
   },
@@ -108,7 +102,7 @@ const SECTIONS: readonly SectionDefinition[] = [
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
   ['models', 'keymap', 'hooks', 'plugins'],
-  ['canvas', 'export', 'privacy'],
+  ['export', 'privacy'],
   ['about'],
 ]
 
@@ -355,9 +349,6 @@ function SettingsSectionContent({
     case 'plugins':
       return <SettingsPlaceholder description="插件系统尚未实现。" />
 
-    case 'canvas':
-      return <CanvasSettings controller={controller} settings={settings} />
-
     case 'export':
       return <ExportSettings controller={controller} settings={settings} />
 
@@ -424,123 +415,6 @@ const GeneralSettings = memo(function GeneralSettings({
           >
             {controller.saving && controller.operation === 'reset' ? '正在恢复…' : '恢复默认'}
           </Button>
-        </SettingRow>
-      </SettingsGroup>
-    </SettingsPage>
-  )
-})
-
-const CanvasSettings = memo(function CanvasSettings({ settings, controller }: SettingsPanelProps) {
-  return (
-    <SettingsPage>
-      <SettingsGroup title="视图">
-        <ToggleRow
-          checked={settings.canvas.infiniteCanvas}
-          description="关闭后画布限制在固定边界内"
-          label="无限画布"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              canvas: {
-                ...current.canvas,
-                infiniteCanvas: checked,
-              },
-            }))
-          }}
-        />
-
-        <ToggleRow
-          checked={settings.canvas.showRulers}
-          description="在画布边缘显示刻度"
-          label="显示标尺"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              canvas: {
-                ...current.canvas,
-                showRulers: checked,
-              },
-            }))
-          }}
-        />
-
-        <SettingRow description="新建画布时的初始缩放比例" label="默认缩放">
-          <SettingsSelect
-            ariaLabel="默认画布缩放"
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                canvas: {
-                  ...current.canvas,
-                  defaultZoom: Number(value),
-                },
-              }))
-            }}
-            options={[
-              ['0.5', '50%'],
-              ['0.75', '75%'],
-              ['1', '100%'],
-              ['1.25', '125%'],
-            ]}
-            value={String(settings.canvas.defaultZoom)}
-          />
-        </SettingRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="网格与吸附">
-        <ToggleRow
-          checked={settings.canvas.showGrid}
-          description="在画布背景绘制网格"
-          label="显示网格"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              canvas: {
-                ...current.canvas,
-                showGrid: checked,
-              },
-            }))
-          }}
-        />
-
-        <ToggleRow
-          checked={settings.canvas.snapToGrid}
-          description="移动图形时对齐到网格交点"
-          label="吸附到网格"
-          onChange={(checked) => {
-            controller.update((current) => ({
-              ...current,
-              canvas: {
-                ...current.canvas,
-                snapToGrid: checked,
-              },
-            }))
-          }}
-        />
-
-        <SettingRow description="网格线之间的像素间距" label="网格尺寸">
-          <SettingsSelect
-            ariaLabel="画布网格尺寸"
-            disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}
-            onChange={(value) => {
-              controller.update((current) => ({
-                ...current,
-                canvas: {
-                  ...current.canvas,
-                  gridSize: Number(value),
-                },
-              }))
-            }}
-            options={[
-              ['8', '8 px'],
-              ['12', '12 px'],
-              ['16', '16 px'],
-              ['20', '20 px'],
-              ['24', '24 px'],
-              ['32', '32 px'],
-            ]}
-            value={String(settings.canvas.gridSize)}
-          />
         </SettingRow>
       </SettingsGroup>
     </SettingsPage>
@@ -699,7 +573,7 @@ const AboutSettings = memo(function AboutSettings() {
         <div className="settings-about-card__copy">
           <strong>Poietica</strong>
           <span>Version 0.1.0</span>
-          <p>使用 React、Tauri、Rust 和 tldraw 构建。</p>
+          <p>使用 React、Tauri 与 Rust 构建。</p>
         </div>
       </div>
 
@@ -727,11 +601,6 @@ const AboutSettings = memo(function AboutSettings() {
 
       <dl className="settings-about-details">
         <div>
-          <dt>画布内核</dt>
-          <dd>tldraw Editor / TLStore</dd>
-        </div>
-
-        <div>
           <dt>桌面运行时</dt>
           <dd>Tauri</dd>
         </div>
@@ -739,11 +608,6 @@ const AboutSettings = memo(function AboutSettings() {
         <div>
           <dt>设置存储</dt>
           <dd>Tauri Store</dd>
-        </div>
-
-        <div>
-          <dt>文档格式</dt>
-          <dd>.draw</dd>
         </div>
       </dl>
     </SettingsPage>
@@ -917,8 +781,8 @@ type GlyphComponent = ComponentType<{
 /*
  * 分类图标有两个来源，各自穷尽自己的分类集合。
  *
- * GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 与画布在主导航里已经有
- * 确定的画法，设置里再描一份 path 就是第二个来源，两处迟早对不上。
+ * GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 在主导航里已经有确定的
+ * 画法，设置里再描一份 path 就是第二个来源，两处迟早对不上。
  *
  * 图标不从 features/workspace 的导航注册表取：features-settings 依赖另一个
  * feature 会被架构测试拦下。两边共同的下游是 design-system，所以两处引用的是
@@ -927,17 +791,16 @@ type GlyphComponent = ComponentType<{
  * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
  * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
  */
-type GlyphSection = 'canvas' | 'hooks'
+type GlyphSection = 'hooks'
 
 type PathSection = Exclude<SettingsSection, GlyphSection>
 
 const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
-  canvas: PencilRulerIcon,
   hooks: WebhookIcon,
 }
 
 function isGlyphSection(section: SettingsSection): section is GlyphSection {
-  return section === 'canvas' || section === 'hooks'
+  return section === 'hooks'
 }
 
 function SectionIcon({ section }: { readonly section: SettingsSection }) {

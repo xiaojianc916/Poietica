@@ -368,5 +368,4 @@ function assertInvariants(snapshot: WorkbenchViewModel): void {
   if (snapshot.activeSurface.tabId !== snapshot.activeTabId) {
     throw new Error('WORKBENCH_ACTIVE_SURFACE_INCONSISTENT')
   }
-
 }

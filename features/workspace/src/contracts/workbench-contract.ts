@@ -53,10 +53,9 @@ export type WorkbenchSurfaceViewModel = ActiveConversationViewModel | WorkspaceS
 /**
  * 工作台快照。
  *
- * 标签与活动表面是同一份投影的两个面，没有第三个字段：此前还有
- * activeSessionId 与 activeCanvas 两个只服务文档域的镜像字段，它们与
- * activeSurface 说的是同一件事，靠三条不变量互相看住——那三条不变量的存在
- * 本身就是"同一真相存了三份"的证据。
+ * 标签与活动表面是同一份投影的两个面，没有第三个字段。此前另有两个只服务
+ * 文档域的镜像字段，与活动表面说的是同一件事，靠三条不变量互相看住——那几条
+ * 不变量的存在本身就是"同一真相存了三份"的证据。
  */
 export interface WorkbenchViewModel {
   readonly activeTabId: WorkbenchTabId

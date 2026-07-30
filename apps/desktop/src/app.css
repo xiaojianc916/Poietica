@@ -1,7 +1,5 @@
-@import "tldraw/tldraw.css";
 @import "@poietica/foundations-design-system/styles.css";
 @import "tailwindcss" source("../../../");
-@import "@poietica/editor-core/tldraw-adapter.css";
 
 /*
  * Streamdown ships utility classes inside its bundles.

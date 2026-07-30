@@ -132,5 +132,4 @@ describe('workbench session controller', () => {
 
     expect(store.getSnapshot().tabs[2]?.id).toBe('workspace:ai')
   })
-
 })

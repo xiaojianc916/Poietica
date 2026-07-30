@@ -214,14 +214,17 @@ export function AppShell({ runtime }: AppShellProps) {
  * 关闭按钮与托盘"退出程序"是同一件事的两个入口，因此汇入同一个回调。
  * 托盘此前直接 app.exit(0)，绕开了窗口自己的关闭路径。
  */
-function useTerminationRequests(mainWindow: MainWindowController, onCloseRequested: () => void): void {
+function useTerminationRequests(
+  mainWindow: MainWindowController,
+  onCloseRequested: () => void,
+): void {
   useEffect(() => {
     let disposed = false
     let unsubscribe: (() => void) | undefined
     let unsubscribeTrayQuit: (() => void) | undefined
 
-    const track = (assign: (dispose: () => void) => void, operation: string) =>
-      (dispose: () => void) => {
+    const track =
+      (assign: (dispose: () => void) => void, operation: string) => (dispose: () => void) => {
         if (disposed) {
           dispose()
           return

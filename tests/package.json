@@ -6,19 +6,11 @@
   "scripts": {
     "check": "tsc --project tsconfig.json --noEmit",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run unit integration",
-    "test:unit": "vitest run unit",
-    "test:integration": "vitest run integration"
-  },
-  "dependencies": {
-    "@poietica/editor-core": "workspace:*",
-    "@poietica/editor-document": "workspace:*",
-    "@poietica/editor-persistence": "workspace:*"
+    "test": "vitest run unit",
+    "test:unit": "vitest run unit"
   },
   "devDependencies": {
-    "@tldraw/tlschema": "catalog:",
     "@types/node": "catalog:",
-    "tldraw": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
