@@ -44,8 +44,17 @@ describe.each(recordings)('a recorded turn: $name', ({ frames }) => {
   })
 
   it('carries its discriminator and its position inside the frame itself', () => {
+    /* 信封字段是确定的：kind 与 seq 由原生侧的 RunFrame 与它的 Envelope 一起
+       写进帧体，外层那两个字段只是同一份事实的索引。这里断言的就是两者不会
+       各说各话。 */
+    interface Envelope {
+      readonly kind: string
+      readonly seq: number
+      readonly at: number
+    }
+
     for (const captured of frames) {
-      const frame = captured.frame as Record<string, unknown>
+      const frame = captured.frame as unknown as Envelope
 
       expect(frame.kind).toBe(captured.kind)
       expect(frame.seq).toBe(captured.seq)

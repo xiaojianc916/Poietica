@@ -45,7 +45,11 @@ pub struct FrameNotification {
 /// `acp_update` 承载协议通知原文；其余五种是协议不建模、而客户端必须记住的
 /// 事实。每一种都带 `seq`（见 `Envelope`），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum RunFrame {
     /// 这一轮开始了，以及问的是什么。
     RunStarted {
@@ -139,7 +143,7 @@ impl RunFrame {
 }
 
 /// 删掉 null 成员。它们是 `Option::None` 的产物，对界面而言与缺席同义。
-pub fn prune(value: &mut Value) {
+pub(crate) fn prune(value: &mut Value) {
     match value {
         Value::Object(fields) => {
             fields.retain(|_name, member| !member.is_null());
@@ -164,7 +168,7 @@ pub fn prune(value: &mut Value) {
 /// # Errors
 ///
 /// 补回字段需要再序列化一次协议枚举，失败时报错。
-pub fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json::Result<()> {
+pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json::Result<()> {
     prune(value);
 
     if let SessionUpdate::ToolCall(call) = update {
@@ -194,7 +198,7 @@ fn restore(update: &mut Value, field: &str, value: Value) {
 ///
 /// 手抄一份 match 会在协议新增成员时静默把它归到别处；序列化器不会。
 #[must_use]
-pub fn wire_name<T: Serialize>(value: T) -> Option<String> {
+pub(crate) fn wire_name<T: Serialize>(value: T) -> Option<String> {
     match serde_json::to_value(value) {
         Ok(Value::String(name)) => Some(name),
         _ => None,

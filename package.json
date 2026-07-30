@@ -18,6 +18,7 @@
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
+    "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "dev": "turbo run dev --filter=@poietica/desktop",
     "build": "pnpm --filter @poietica/desktop exec tauri build",
     "build:debug": "pnpm --filter @poietica/desktop exec tauri build --debug --no-bundle",
