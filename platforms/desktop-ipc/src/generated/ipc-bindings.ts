@@ -290,55 +290,6 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
 },
 /**
- * Opens one .draw file selected by the native file dialog.
- * 
- * No caller-controlled path is accepted.
- * 
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
-async documentOpen() : Promise<DocumentOpenResponse> {
-    return await TAURI_INVOKE("document_open");
-},
-/**
- * Creates a new document session or moves an existing session through a native
- * Save As dialog. No filesystem path is accepted from the renderer.
- * 
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
-async documentSaveAs(request: DocumentSaveAsRequest) : Promise<DocumentSaveAsResult> {
-    return await TAURI_INVOKE("document_save_as", { request });
-},
-/**
- * Saves content to the document already selected by a native dialog.
- * 
- * The renderer supplies an opaque document ID, never a local path.
- * 
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
-async documentSave(request: DocumentSaveRequest) : Promise<DocumentSaveResult> {
-    return await TAURI_INVOKE("document_save", { request });
-},
-/**
- * Ends the native document session and releases its private file handle.
- * 
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
-async documentClose(request: DocumentCloseRequest) : Promise<null> {
-    return await TAURI_INVOKE("document_close", { request });
-},
-/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -825,43 +776,12 @@ events: JsonValue[];
  * is nothing behind it.
  */
 totalRuns: number }
-export type AppSettings = { theme: ThemePreference; language: string; autoSave: boolean; 
-/**
- * 毫秒；单位写进字段名，生成物即 `autoSaveIntervalMs`。
- * 
- * u32 是故意的：生成的 `TypeScript` 用 number，u64 会要求 bigint，而
- * tauri-specta 拒绝 bigint。
- */
-autoSaveIntervalMs: number; shortcuts: Partial<{ [key in string]: string }>; canvas: CanvasSettings; editor: EditorSettings; export: ExportSettings; privacy: PrivacySettings }
+export type AppSettings = { theme: ThemePreference; language: string; shortcuts: Partial<{ [key in string]: string }>; privacy: PrivacySettings }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
 export type AssetUploadRequest = { sessionToken: string; contentType: string; bytes: number[] }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
-export type CanvasSettings = { defaultZoom: number; showGrid: boolean; snapToGrid: boolean; gridSize: number; showRulers: boolean; infiniteCanvas: boolean }
-export type DocumentCloseRequest = { documentId: DocumentId }
-export type DocumentDescriptor = { documentId: DocumentId; displayName: string; revision: string }
-/**
- * Opaque document identity exposed to the renderer.
- * 
- * The renderer never receives or submits filesystem paths. The native process
- * owns the mapping between this ID and the selected local file.
- */
-export type DocumentId = string
-export type DocumentOpenResponse = { document: DocumentOpenResult | null }
-export type DocumentOpenResult = { documentId: DocumentId; displayName: string; content: string; revision: string; assetSessionToken: string | null }
-export type DocumentSaveAsRequest = { 
-/**
- * None creates a new native document session.
- * 
- * `Some(document_id)` moves the existing session to the newly selected file.
- */
-documentId: DocumentId | null; content: string; assetSessionToken: string | null; suggestedName: string | null }
-export type DocumentSaveAsResult = { document: DocumentDescriptor | null }
-export type DocumentSaveRequest = { documentId: DocumentId; expectedRevision: string; content: string; assetSessionToken: string | null }
-export type DocumentSaveResult = { revision: string }
-export type EditorSettings = { fontFamily: string; fontSize: number; lineHeight: number; tabSize: number; insertSpaces: boolean; wordWrap: boolean; minimap: boolean }
-export type ExportSettings = { defaultFormat: string; pngDpi: number; pdfQuality: number; includeMetadata: boolean }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

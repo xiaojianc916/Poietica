@@ -5,7 +5,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use poietica_agent_persistence_native::atomic_write;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
@@ -156,19 +155,14 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
     "Rust panic with a non-string payload".to_owned()
 }
 
-/// 崩溃报告与用户文档走同一条物理保存算法。
+/// 崩溃报告直接落盘。
 ///
-/// 此前这里手写了第二条：临时文件 → sync → 若目标存在则 `remove_file` → rename。
-/// 在 Windows 上"先删后改名"根本不是原子替换：删除与改名之间进程消失，两份就都
-/// 没有了 —— 而写这份报告的前提恰恰是进程已经在 panic。
-///
-/// 仓库里已经有唯一一份经过审计的实现（editor/persistence/native 的 `atomic_write`：
-/// `ReplaceFileW` / `MoveFileExW(WRITE_THROUGH)` / POSIX rename + 目录 fsync，且明确
-/// 不含任何非原子回退），本 crate 本来就依赖它。目录创建也由它负责。
+/// 画布文档保存所依赖的原子写实现已随画布一并移除。崩溃报告是尽力而为的诊断
+/// 产物，写失败只损失一份报告，不为它保留文档编解码器的写路径。
 fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
-    atomic_write(directory.join(CRASH_REPORT_FILE_NAME), &serialized).map_err(std::io::Error::other)
+    std::fs::write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
 }
 
 fn crash_report_path(app: &AppHandle) -> Result<PathBuf> {

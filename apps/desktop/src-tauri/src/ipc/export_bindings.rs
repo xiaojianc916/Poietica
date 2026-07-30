@@ -21,10 +21,6 @@ use crate::{
             AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
             AssetUploadResult,
         },
-        document::{
-            DocumentCloseRequest, DocumentDescriptor, DocumentId, DocumentOpenResponse,
-            DocumentOpenResult, DocumentSaveAsRequest, DocumentSaveAsResult, DocumentSaveRequest,
-        },
         settings::{AppSettings, PrivacySettings},
     },
     diagnostics::NativeCrashReport,

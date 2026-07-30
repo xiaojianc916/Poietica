@@ -2,14 +2,14 @@ import './assistant.css'
 
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-protocol'
 import { useAssistantSession } from '@poietica/agent-runtime'
-import type { PermissionItem, TurnFooter } from '@poietica/agent-timeline'
+import type { FeedRow, PermissionItem, TurnFooter } from '@poietica/agent-timeline'
 import {
   selectFeedRows,
   selectIsBusy,
   selectTurnFooter,
   selectTurns,
 } from '@poietica/agent-timeline'
-import { type ReactNode, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -185,6 +185,18 @@ export function AssistantSurface({
     return found
   }, [dialect.questions, rows])
 
+  /*
+   * requestId 集合，供 visibleRows 排除用。
+   *
+   * pendingQuestions 已经用同一判据扫过一遍 rows；visibleRows 此前再扫
+   * 一遍，两趟判据完全等价。Set 查找把第二趟降为 O(1)，判据也收敛到
+   * 一处，两者不再需要同步。
+   */
+  const pendingIds = useMemo(
+    () => new Set(pendingQuestions.map((item) => item.requestId)),
+    [pendingQuestions],
+  )
+
   const questionDeck = useMemo(() => {
     const first = pendingQuestions[0]
 
@@ -216,10 +228,10 @@ export function AssistantSurface({
               !(
                 row.item.type === 'permission' &&
                 row.item.resolution === undefined &&
-                isQuestionRequest(row.item, dialect.questions)
+                pendingIds.has(row.item.requestId)
               ),
           ),
-    [dialect.questions, questionDeck, rows],
+    [pendingIds, questionDeck, rows],
   )
 
   /*
@@ -242,6 +254,8 @@ export function AssistantSurface({
    *
    * 于是幽灵帧、预热、加载、粘贴、聚焦，一概动不了排版。
    */
+  const isBusy = useMemo(() => selectIsBusy(assistant.timeline), [assistant.timeline])
+
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
 
   const live = phase === 'live'
@@ -253,12 +267,26 @@ export function AssistantSurface({
    * 其余的权限请求原样走 PermissionRequest —— 那条路一个像素都没动，批准与
    * 拒绝仍然在流里就地回答。
    */
-  const renderPermission = (item: PermissionItem) =>
-    isQuestionRequest(item, dialect.questions) ? (
-      <QuestionOutcome item={item} />
-    ) : (
-      <PermissionRequest item={item} onResolve={assistant.resolvePermission} />
-    )
+  /*
+   * useCallback：renderPermission 的引用稳定是 renderRow 稳定的前提。
+   * 两者任一不稳定都会让虚拟列表的 renderRow prop 每帧都是新函数，即使
+   * rows 一个字节没变，可见行也会全部重渲——虚拟化的收益被反转。
+   */
+  const renderPermission = useCallback(
+    (item: PermissionItem) =>
+      isQuestionRequest(item, dialect.questions) ? (
+        <QuestionOutcome item={item} />
+      ) : (
+        <PermissionRequest item={item} onResolve={assistant.resolvePermission} />
+      ),
+    [dialect.questions, assistant.resolvePermission],
+  )
+
+  const renderRow = useCallback(
+    (row: FeedRow) =>
+      row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />,
+    [renderPermission],
+  )
 
   /*
    * 输入框只挂一处。
@@ -334,7 +362,7 @@ export function AssistantSurface({
       {live ? (
         <AgentActivityFeed
           footer={renderFooter(footer)}
-          isBusy={selectIsBusy(assistant.timeline)}
+          isBusy={isBusy}
           onReachStart={assistant.reachStart}
           overlay={(port) =>
             turns.length === 0 ? null : (
@@ -345,9 +373,7 @@ export function AssistantSurface({
               />
             )
           }
-          renderRow={(row) =>
-            row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />
-          }
+          renderRow={renderRow}
           rows={visibleRows}
         />
       ) : (

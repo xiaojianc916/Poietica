@@ -227,12 +227,6 @@ impl Serialize for Error {
     }
 }
 
-impl From<poietica_agent_persistence_native::Error> for Error {
-    fn from(error: poietica_agent_persistence_native::Error) -> Self {
-        Self::Persistence(error.to_string())
-    }
-}
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
