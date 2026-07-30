@@ -11,18 +11,17 @@ Errors were previously divided only into local UI errors and global fatal
 incidents. Local UI errors were identified by arbitrary message strings and
 delivered through browser CustomEvent instances.
 
-That model could not represent feature degradation or document isolation and
-allowed presentation code to infer severity.
+That model could not represent feature degradation and allowed presentation
+code to infer severity.
 
 ## Decision
 
-Poietica defines five failure impacts:
+Poietica defines four failure impacts:
 
 1. recoverable — the operation failed but the owning state remains valid;
 2. feature-degraded — one optional feature is unavailable;
-3. document-fatal — one document cannot safely continue and is quarantined;
-4. application-fatal — the renderer cannot safely continue;
-5. native-fatal — the native process terminated unexpectedly.
+3. application-fatal — the renderer cannot safely continue;
+4. native-fatal — the native process terminated unexpectedly.
 
 Failure impact, scope and recovery are separate concepts.
 
@@ -42,7 +41,6 @@ must not decide renderer presentation severity.
 
 - recoverable: retry, dismiss or none;
 - feature-degraded: retry, dismiss, disable-feature or none;
-- document-fatal: retry, close-document or none;
 - application-fatal: reload, restart, exit or none;
 - native-fatal: restart, exit or none.
 
@@ -52,15 +50,11 @@ Invalid impact, scope and recovery combinations are rejected.
 
 Feature degradation requires a feature scope.
 
-Document fatal requires a document scope.
-
 Application fatal requires application scope.
 
 Native fatal requires native-process scope.
 
 A dismissed feature notice does not automatically restore that feature.
-
-A dismissed document notice does not remove document quarantine.
 
 ## Consequences
 
@@ -68,7 +62,7 @@ The UI no longer guesses severity from an error string.
 
 Repeated failures are deduplicated and counted.
 
-Feature degradation and document quarantine survive notice dismissal until the
-owning scope explicitly resolves them.
+Feature degradation survives notice dismissal until the owning scope explicitly
+resolves it.
 
 Global fatal UI remains reserved for application and native terminal failures.

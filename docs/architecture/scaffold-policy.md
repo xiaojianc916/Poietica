@@ -31,7 +31,7 @@
 - 根级 utils、types、services、managers；
 - 没有使用方的通用事件总线；
 - 仅为潜在可替换性建立的 editor abstraction；
-- 与 tldraw 并行的第二文档模型；
+- 与既有状态权威并行的第二套文档或会话模型；
 - 未定义 capability 的插件宿主；
 - 同时依赖 features 与 platforms 的基础包；
 - 没有删除条件的永久占位包。

@@ -6,7 +6,7 @@
 
 ## Context
 
-Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
+Poietica 使用 Tauri 2 承载 React 和 WebView2。
 
 主窗口原先同时配置了：
 
@@ -24,9 +24,9 @@ Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
 1. 操作系统原生窗口；
 2. WebView2 controller surface；
 3. HTML document；
-4. React/tldraw 渲染内容。
+4. React 渲染内容。
 
-当原生窗口本身透明时，WebView 尚未提交新尺寸帧的区域会直接露出桌面或后方窗口。CSS、React 和 tldraw 无法绘制尚未由 WebView 提交的原生区域，因此在前端增加 resize 监听或强制重绘不能解决该边界问题。
+当原生窗口本身透明时，WebView 尚未提交新尺寸帧的区域会直接露出桌面或后方窗口。CSS 与 React 无法绘制尚未由 WebView 提交的原生区域，因此在前端增加 resize 监听或强制重绘不能解决该边界问题。
 
 ## Decision
 
@@ -47,7 +47,7 @@ Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
 
 2. **HTML bootstrap surface**
    - 在应用模块脚本执行前声明。
-   - 负责 CSS bundle、React 和 tldraw 初始化前的首帧。
+   - 负责 CSS bundle 与 React 初始化前的首帧。
 
 3. **Application root surface**
    - `html`、`body`、`#root` 使用
@@ -66,8 +66,6 @@ Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
 - 在拖动期间反复修改 DOM 尺寸；
 - 使用 `requestAnimationFrame` 运行持续重绘循环；
 - 通过读取 `offsetWidth` 强制同步 layout；
-- 重挂载 tldraw Editor 或 TLStore；
-- 为视觉问题建立第二套 canvas 状态；
 - 使用任意 Win32 hook 绕过 Tauri/WebView2；
 - 通过扩大 IPC 权限让前端直接操作原生窗口句柄；
 - 使用透明窗口后再用额外 DOM 层模拟不透明背景。
@@ -81,14 +79,14 @@ Poietica 使用 Tauri 2 承载 React、tldraw 和 WebView2。
 - 窗口拖动和缩放期间，未及时提交的区域显示稳定的
   `#f3f3f3`，而不是桌面内容。
 - 应用启动、CSS 加载和 React 初始化阶段使用同一底色。
-- 不向 tldraw Editor、TLStore 或 React 状态引入窗口生命周期逻辑。
+- 不向 React 状态引入窗口生命周期逻辑。
 - 架构检查可阻止后续提交重新开启主窗口透明。
 
 ### Limitations
 
 该决策消除的是透明合成导致的桌面露出，并提供确定的 backing surface。
 
-它不承诺消除所有 GPU、显卡驱动或 WebView2 内容重绘延迟。即使复杂画布内容暂时没有跟上窗口尺寸，用户看到的也应是规定的 backing surface，而不是后方窗口。
+它不承诺消除所有 GPU、显卡驱动或 WebView2 内容重绘延迟。即使复杂界面内容暂时没有跟上窗口尺寸，用户看到的也应是规定的 backing surface，而不是后方窗口。
 
 ## Extension rule
 

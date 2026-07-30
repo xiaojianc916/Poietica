@@ -2,16 +2,16 @@
 
 ## 项目使命
 
-Poietica 是一个本地优先、由 AI 辅助的思考与创作工具。
+Poietica 是一个本地优先的 AI agent 桌面环境。
 
-它帮助人们描述想法、收集素材、在空间中组织关系、获得 AI 启发，并将不确定的思绪逐步发展为创作成果。画布是重要工具之一，但不是产品唯一或绝对的核心；描述、AI、笔记、素材和整理能力都应服务于创造过程。
+它帮助人们描述想法、与 agent 对话协作、通过工具与自动化推进创作，并将不确定的思绪逐步发展为成果。会话是产品的主界面；工具、Skill 与 MCP 服务于会话。
 
 修改仓库时，必须守住：
 
 - **创作优先**：功能应帮助用户思考、探索、表达与完成作品。
 - **用户主导**：AI 扩展可能性，不能静默替用户决定。
-- **多元入口**：不将画布或任何单一界面视为唯一创作中心。
-- **本地优先**：用户作品应可靠保存，并具有可预测的文件行为。
+- **会话一等公民**：对话是产品主界面，任何能力不得绕过它另立中心。
+- **本地优先**：运行与设置应可靠保存，并具有可预测的行为。
 - **边界清晰**：状态、产品规则和平台能力必须有明确所有者。
 - **可持续演进**：避免无明确需求的抽象、双轨实现和万能模块。
 
@@ -26,56 +26,46 @@ AI 应帮助用户：
 
 AI 不得：
 
-- 静默修改用户的文本、文件或画布内容；
+- 静默修改用户的文本、文件或会话内容；
 - 将生成结果视为比用户判断更权威的结论；
 - 在未说明的情况下携带用户内容发起网络请求；
 - 暴露密钥、Provider 内部信息、敏感 Prompt 或原始堆栈；
-- 创建第二套画布文档模型或第二个画布状态来源。
+- 创建第二套会话或运行状态来源。
 
-AI 对画布的提案必须提供预览或显式应用操作；一旦应用，必须走正常 Editor / Store transaction，使其能够通过 History 撤销。
+AI 对用户作品的提案必须提供预览或显式应用操作；一旦应用，必须走该产品域的正常写入路径，使其可以撤销。
 
 ## 状态与事实来源
 
-### 画布文档
+### Agent 运行
 
-- 对于画布文档，tldraw `Editor` 与 `TLStore` 是规范运行时。
-- TLStore records 是可持久化画布状态的唯一事实来源。
-- Shapes、Bindings、Assets、Pages 和自定义 Records 不得镜像为第二套文档模型。
-- 所有画布写入必须通过 Editor 或 Store transactions。
-- tldraw History 是唯一 Undo / Redo 实现。
-- 大型二进制数据、文件句柄与运行时对象不得进入 TLStore。
-
-这仅是画布文档的技术边界，不代表画布拥有整个产品的唯一中心地位。
+- 事件日志是每一次运行的事实来源：会话更新先持久化、再渲染，中断的运行可以重放。
+- 线程、运行、工具调用与权限记录都是事件日志的投影，不得另存第二份。
+- 长时间运行的工作必须支持取消、超时与过期结果保护。
 
 ### 其他产品状态
 
-- 描述、AI 会话、笔记、素材、工作区与保存状态都必须有明确所有者。
+- AI 会话、工作区与设置状态都必须有明确所有者。
 - 每一类状态只能有一个权威来源。
-- 不得重复维护 selection、tool、zoom、画布内容或保存状态。
 - 后台工作不得产生用户可见的历史记录，除非用户明确应用结果。
 
 ## 包结构与依赖方向
 
 ```text
-apps ───────────────► agent + editor + features + platforms
-features ───────────► agent public API + editor public extension API + foundations
+apps ───────────────► agent + features + platforms
+features ───────────► agent public API + foundations
 agent/ui ───────────► agent/runtime
 agent/runtime ──────► agent/protocol + agent/timeline + agent/registry + agent/transport
 agent/protocol ─────► foundations
 agent/persistence ──► agent/protocol
-editor/core ────────► foundations
-editor/document ────► editor/core + persistence contracts
 platforms ──────────► application-defined ports
 foundations ────────► no product packages
 ```
 
-- `editor/core` 是唯一能够创建 `TLSchema`、`TLStore` 并控制 Editor 生命周期的包。
-- `editor/document` 拥有画布文档会话、文件位置、revision、保存状态与关闭计划。
-- `agent/*` 拥有 AI 会话、协议、时间线、工具注册与传输，但不拥有画布状态或原生能力。
+- `agent/*` 拥有 AI 会话、协议、时间线、工具注册、传输与本地加密持久化。
 - `features/workspace` 拥有工作台、命令、面板、标签页与产品外壳。
-- `platforms/*` 只实现平台能力，不拥有产品规则或编辑器状态。
-- `apps/*` 是 editor、features 与 platforms 的最终组合位置。
-- `foundations/*` 不得依赖 `apps`、`editor`、`features` 或 `platforms`。
+- `platforms/*` 只实现平台能力，不拥有产品规则。
+- `apps/*` 是 agent、features 与 platforms 的最终组合位置。
+- `foundations/*` 不得依赖 `apps`、`features` 或 `platforms`。
 - 跨包访问必须使用公开 exports，禁止 deep import。
 - 禁止创建根级 `components`、`services`、`utils`、`stores`、`types` 或 `managers` 等无边界目录。
 
@@ -104,7 +94,7 @@ foundations ────────► no product packages
 
 1. 确认用户可见行为、状态所有者和目标包。
 2. 搜索现有模型与写入路径，避免重复实现。
-3. 判断改动是否影响画布、文档、AI 上下文、持久化、IPC、权限或公开 API。
+3. 判断改动是否影响 AI 上下文、持久化、IPC、权限或公开 API。
 4. 保持改动聚焦，除非正确性要求扩大范围。
 
 修改时：
@@ -146,7 +136,7 @@ pnpm test:rust
 
 - 功能清晰支持用户的思考与创造过程；
 - 模块所有权与依赖方向正确；
-- 画布状态保持单一事实来源与单一写入路径；
+- 会话与运行状态保持单一事实来源与单一写入路径；
 - AI 行为明确、有边界、可审阅且可撤销；
 - 失败、取消、恢复和兼容路径已被考虑；
 - 相关测试与检查通过；
