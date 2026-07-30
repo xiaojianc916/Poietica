@@ -4,6 +4,7 @@ import {
   type AgentProviderSnapshot,
   acpAgentById,
   acpAgents,
+  agentModelDisplayName,
   agentProviderCatalogAddArgs,
   agentProviderImportDocument,
   builtinAgentProviders,
@@ -701,7 +702,7 @@ interface ModelRowProps {
 function ModelRow({ model }: ModelRowProps) {
   return (
     <div className="models-row models-row--compact">
-      <span className="models-row__name">{model.displayName}</span>
+      <span className="models-row__name">{agentModelDisplayName(model)}</span>
 
       <div className="models-row__control">
         <span className="models-row__meta">{describeModel(model)}</span>

@@ -27,11 +27,7 @@ export type {
   AgentProviderSnapshot,
   AgentProviderState,
 } from './agent-provider-state'
-export {
-  agentProviderImportDocument,
-  parseAgentProviderList,
-  parseAgentProviderListOutput,
-} from './agent-provider-state'
+export { parseAgentProviderList, parseAgentProviderListOutput } from './agent-provider-state'
 export { kimiCode } from './agents/kimi'
 export type {
   AgentProviderPreset,
@@ -39,7 +35,9 @@ export type {
   AgentProviderWire,
 } from './builtin-provider-catalog'
 export {
+  agentModelDisplayName,
   agentProviderCatalogDocument,
+  agentProviderImportDocument,
   agentProviderModelOptions,
   builtinAgentProviderById,
   builtinAgentProviders,
