@@ -1,16 +1,11 @@
 import { Box, ChartNetwork, FolderTwo, Image, LayersThree, Search } from '@mynaui/icons-react'
 import { CONVERSATION_ENTRY_TITLE } from '@poietica/features-workspace'
-import { START_TAB_TITLE, type WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
+import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 /*
- * ai / clock-10 / pencil-ruler / webhook 不在图标库里，是设计系统的本地字形；
+ * ai / clock-10 / webhook 不在图标库里，是设计系统的本地字形；
  * 它们与库图标同框同粗细，原因见 components/icons/local-glyphs.tsx。
  */
-import {
-  AiSurfaceIcon,
-  ClockTenIcon,
-  PencilRulerIcon,
-  WebhookIcon,
-} from '@poietica/foundations-design-system'
+import { AiSurfaceIcon, ClockTenIcon, WebhookIcon } from '@poietica/foundations-design-system'
 import type { ComponentType } from 'react'
 
 export type SurfaceIcon = ComponentType<{
@@ -30,9 +25,8 @@ export interface WorkspaceSurfaceDescriptor {
  * Record<WorkspaceSurfaceId, …> 强制穷尽：新增或重命名 surface 时缺失项会在
  * typecheck 阶段失败，而不是在运行时渲染出 undefined。
  *
- * 「画布」不在这张表里：它不是一个可以并排打开的表面，而是被文档占据的那一格，
- * 其空态是一等的 start 标签。此前它作为 'pages' 混在这里，于是视图层不得不为它
- * 写一个 if 特例，而工作台又无法把它识别成可被画布顶替的槽位。
+ * 这张表是导航的唯一事实来源：导航项就是表面，没有第二种导航 ID，也没有
+ * 需要在视图层写 if 的例外。
  */
 export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSurfaceDescriptor> = {
   documents: {
@@ -42,7 +36,7 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
   },
   search: {
     title: '搜索',
-    description: '搜索工作区中的画布、对象和文本内容。',
+    description: '搜索工作区中的会话、工具与文本内容。',
     icon: Search,
   },
   layers: {
@@ -57,8 +51,18 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
   },
   ai: {
     title: CONVERSATION_ENTRY_TITLE,
-    description: '与 AI 协作生成、整理并驱动画布内容。',
+    description: '与 AI 协作，驱动工具完成任务。',
     icon: AiSurfaceIcon,
+  },
+  tools: {
+    title: 'Tool',
+    description: '管理内置工具、Skill 与 MCP 服务器。',
+    icon: Box,
+  },
+  tools: {
+    title: 'Tool',
+    description: '管理内置工具、Skill 与 MCP 服务器。',
+    icon: Box,
   },
   assets: {
     title: '素材',
@@ -83,32 +87,15 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
 }
 
 /**
- * 「画布」导航项的标识。
- *
- * 它不是 WorkspaceSurfaceId，因为它打开的不是表面而是画布槽；把两者放进同一个
- * 联合类型，导航列表才能保持一张表、一次遍历，而不用在组件里插一个手写特例行。
- */
-export const CANVAS_START_NAV_ID = 'canvas-start'
-
-export type WorkspaceNavigationId = WorkspaceSurfaceId | typeof CANVAS_START_NAV_ID
-
-/** 起始页的展示信息。侧栏导航项与起始页标签共用它，标题与图标只有一份。 */
-export const CANVAS_START_DESCRIPTOR: WorkspaceSurfaceDescriptor = {
-  title: START_TAB_TITLE,
-  description: '创建一张新画布，或打开已有的画布文件。',
-  icon: PencilRulerIcon,
-}
-
-/**
  * 侧边栏顶部导航的展示顺序。
  *
  * 顺序是产品决策，与描述符分离；未列出的表面仍可通过命令面板或标签页打开。
  *
  * 「新建对话」不在此列：它是一个动作而不是一个导航目标，由 SidebarNav 单独渲染。
  */
-export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceNavigationId[] = [
+export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = [
   'search',
-  CANVAS_START_NAV_ID,
+  'tools',
   'automations',
   'hooks',
 ]
@@ -117,12 +104,4 @@ export function describeWorkspaceSurface(
   surfaceId: WorkspaceSurfaceId,
 ): WorkspaceSurfaceDescriptor {
   return WORKSPACE_SURFACE_REGISTRY[surfaceId]
-}
-
-export function describeWorkspaceNavigation(
-  navigationId: WorkspaceNavigationId,
-): WorkspaceSurfaceDescriptor {
-  return navigationId === CANVAS_START_NAV_ID
-    ? CANVAS_START_DESCRIPTOR
-    : WORKSPACE_SURFACE_REGISTRY[navigationId]
 }

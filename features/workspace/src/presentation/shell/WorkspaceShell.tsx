@@ -1,15 +1,14 @@
-import type { WorkbenchSurfaceViewModel } from '@poietica/features-workspace/contracts'
+import type {
+  WorkbenchSurfaceViewModel,
+  WorkspaceSurfaceId,
+} from '@poietica/features-workspace/contracts'
 import { TooltipProvider } from '@poietica/foundations-design-system'
 import type { WorkspaceShellProps } from '../../contracts/shell-contract'
 import { InspectorHost } from '../inspector/InspectorHost'
 import { StatusBarHost } from '../status/StatusBarHost'
 import { InspectorRegion } from './InspectorRegion'
 import { SidebarRegion } from './SidebarRegion'
-import {
-  CANVAS_START_NAV_ID,
-  describeWorkspaceSurface,
-  type WorkspaceNavigationId,
-} from './surface-registry'
+import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
 import { WorkspaceSidebar } from './WorkspaceSidebar'
@@ -122,10 +121,6 @@ export function WorkspaceShell({
             {sidebarOverride ?? (
               <WorkspaceSidebar
                 activeNavigationId={activeNavigationId}
-                onCanvasStartActivate={() => {
-                  actions.openCanvasStart()
-                  setSidebarOpen(true)
-                }}
                 onCreateConversation={() => {
                   actions.openWorkspaceSurface('ai', describeWorkspaceSurface('ai').title)
                   setSidebarOpen(true)
@@ -161,7 +156,7 @@ export function WorkspaceShell({
  * 导航目的地，此时任何导航项都不该亮。此前这里在非工作区表面时兜底成 'pages'，
  * 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。
  */
-function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceNavigationId | null {
+function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceSurfaceId | null {
   /*
    * 对话不是导航目的地。
    *
@@ -178,8 +173,6 @@ function resolveNavigationId(surface: WorkbenchSurfaceViewModel): WorkspaceNavig
       return surface.surfaceId
 
     case 'start':
-      return CANVAS_START_NAV_ID
-
     case 'canvas':
       return null
   }

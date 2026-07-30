@@ -1,0 +1,4034 @@
+{
+  "generatedAt": "2026-07-30T04:44:41.258Z",
+  "scannedFiles": 645,
+  "matchedFiles": 103,
+  "totalMatches": 823,
+  "byArea": {
+    "apps": 244,
+    "editor": 216,
+    "features": 225,
+    "tests": 34,
+    "agent": 33,
+    "AGENTS.md": 15,
+    "docs": 32,
+    "README.md": 9,
+    "foundations": 12,
+    "platforms": 2,
+    "package.json": 1
+  },
+  "files": [
+    {
+      "file": "apps/desktop/src/presentation/workspace/WorkspaceContainer.tsx",
+      "area": "apps",
+      "count": 78,
+      "lines": [
+        {
+          "line": 4,
+          "text": "CanvasInspectorRightSidebar,"
+        },
+        {
+          "line": 5,
+          "text": "CanvasTransformStatus,"
+        },
+        {
+          "line": 8,
+          "text": "useCanvasInspectorAvailability,"
+        },
+        {
+          "line": 10,
+          "text": "import type { CanvasCloseIntent, CanvasCloseSnapshot } from '@poietica/editor-document'"
+        },
+        {
+          "line": 18,
+          "text": "type CanvasSessionId,"
+        },
+        {
+          "line": 27,
+          "text": "NoCanvasSurface,"
+        },
+        {
+          "line": 28,
+          "text": "nextUntitledCanvasTitle,"
+        },
+        {
+          "line": 51,
+          "text": "export interface WorkspaceCanvasUIPort {"
+        },
+        {
+          "line": 54,
+          "text": "readonly save: (sessionId: CanvasSessionId) => Promise<void>"
+        },
+        {
+          "line": 55,
+          "text": "readonly closeCanvas: (sessionId: CanvasSessionId, intent: CanvasCloseIntent) => Promise<void>"
+        },
+        {
+          "line": 56,
+          "text": "readonly cancelCanvasClose: (sessionId: CanvasSessionId) => void"
+        },
+        {
+          "line": 57,
+          "text": "readonly getCloseSnapshot: () => CanvasCloseSnapshot"
+        },
+        {
+          "line": 58,
+          "text": "readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null"
+        },
+        {
+          "line": 76,
+          "text": "readonly canvases: WorkspaceCanvasUIPort"
+        },
+        {
+          "line": 113,
+          "text": "const inspectorAvailable = useCanvasInspectorAvailability()"
+        },
+        {
+          "line": 129,
+          "text": "workbench.tabs.flatMap((tab) => (tab.kind === 'canvas' ? [tab.sessionId] : [])),"
+        },
+        {
+          "line": 145,
+          "text": "port.canvases.subscribe,"
+        },
+        {
+          "line": 146,
+          "text": "port.canvases.getCloseSnapshot,"
+        },
+        {
+          "line": 147,
+          "text": "port.canvases.getCloseSnapshot,"
+        },
+        {
+          "line": 159,
+          "text": "workbench.activeSurface.kind === 'canvas' ? workbench.activeSurface.sessionId : null"
+        },
+        {
+          "line": 162,
+          "text": "? port.canvases.getEditorSession(activeSessionId)"
+        },
+        {
+          "line": 172,
+          "text": "(sessionId: CanvasSessionId) => {"
+        },
+        {
+          "line": 173,
+          "text": "void port.canvases.save(sessionId).catch((cause: unknown) => {"
+        },
+        {
+          "line": 174,
+          "text": "reportFailure('CANVAS_SAVE_FAILED', {"
+        },
+        {
+          "line": 176,
+          "text": "operation: 'save-canvas',"
+        },
+        {
+          "line": 182,
+          "text": "[port.canvases],"
+        },
+        {
+          "line": 185,
+          "text": "const handleCloseCanvas = useCallback("
+        },
+        {
+          "line": 186,
+          "text": "(sessionId: CanvasSessionId, intent: CanvasCloseIntent = 'normal') => {"
+        },
+        {
+          "line": 187,
+          "text": "void port.canvases.closeCanvas(sessionId, intent).catch((cause: unknown) => {"
+        },
+        {
+          "line": 188,
+          "text": "reportFailure('CANVAS_CLOSE_FAILED', {"
+        },
+        {
+          "line": 190,
+          "text": "operation: 'close-canvas',"
+        },
+        {
+          "line": 196,
+          "text": "[port.canvases],"
+        },
+        {
+          "line": 211,
+          "text": "if (tab.kind === 'canvas') {"
+        },
+        {
+          "line": 212,
+          "text": "handleCloseCanvas(tab.sessionId)"
+        },
+        {
+          "line": 218,
+          "text": "[handleCloseCanvas, port.workspace],"
+        },
+        {
+          "line": 223,
+          "text": "createCanvas() {"
+        },
+        {
+          "line": 224,
+          "text": "void port.canvases"
+        },
+        {
+          "line": 225,
+          "text": ".create(nextUntitledCanvasTitle(workbench.tabs))"
+        },
+        {
+          "line": 227,
+          "text": "reportFailure('CANVAS_CREATE_FAILED', {"
+        },
+        {
+          "line": 229,
+          "text": "operation: 'create-canvas',"
+        },
+        {
+          "line": 235,
+          "text": "openCanvas() {"
+        },
+        {
+          "line": 236,
+          "text": "void port.canvases.open().catch((cause: unknown) => {"
+        },
+        {
+          "line": 237,
+          "text": "reportFailure('CANVAS_OPEN_FAILED', {"
+        },
+        {
+          "line": 239,
+          "text": "operation: 'open-canvas',"
+        },
+        {
+          "line": 262,
+          "text": "openCanvasStart() {"
+        },
+        {
+          "line": 263,
+          "text": "port.workspace.openCanvasStart()"
+        },
+        {
+          "line": 271,
+          "text": "activeEditorSession?.createPage(`画布 ${String(pages.length + 1)}`)"
+        },
+        {
+          "line": 287,
+          "text": "port.canvases,"
+        },
+        {
+          "line": 296,
+          "text": "* 标题也直接取 activeCanvas —— projectSurface 早就把 title 放进去了，"
+        },
+        {
+          "line": 299,
+          "text": "const activeCanvasTitle = workbench.activeCanvas?.title ?? null"
+        },
+        {
+          "line": 308,
+          "text": "if (tab.kind !== 'canvas') {"
+        },
+        {
+          "line": 312,
+          "text": "const session = port.canvases.getEditorSession(tab.sessionId)"
+        },
+        {
+          "line": 316,
+          "text": "[port.canvases, workbench.tabs],"
+        },
+        {
+          "line": 336,
+          "text": "* 它们此前是 JSX 里的内联箭头，于是画布保存、标签切换、文档隔离——任何一件"
+        },
+        {
+          "line": 364,
+          "text": "onCreateCanvas: actions.createCanvas,"
+        },
+        {
+          "line": 365,
+          "text": "onOpenCanvas: actions.openCanvas,"
+        },
+        {
+          "line": 371,
+          "text": "handleCloseCanvas(sessionId)"
+        },
+        {
+          "line": 381,
+          "text": "inspector={<CanvasInspectorRightSidebar />}"
+        },
+        {
+          "line": 390,
+          "text": "description=\"关闭画布会丢失自上次保存后的更改，此操作无法撤销。\""
+        },
+        {
+          "line": 394,
+          "text": "port.canvases.cancelCanvasClose(confirmationClose[0])"
+        },
+        {
+          "line": 399,
+          "text": "handleCloseCanvas(confirmationClose[0], 'discard')"
+        },
+        {
+          "line": 407,
+          "text": "cancelLabel=\"保留画布\""
+        },
+        {
+          "line": 409,
+          "text": "description=\"无法释放本地文档会话。画布仍保持打开状态，您可以重试关闭。\""
+        },
+        {
+          "line": 412,
+          "text": "port.canvases.cancelCanvasClose(failedClose[0])"
+        },
+        {
+          "line": 417,
+          "text": "handleCloseCanvas(failedClose[0], failedClose[1].intent)"
+        },
+        {
+          "line": 421,
+          "text": "title=\"关闭画布失败\""
+        },
+        {
+          "line": 432,
+          "text": "onCreateCanvas,"
+        },
+        {
+          "line": 449,
+          "text": "onCreate={onCreateCanvas}"
+        },
+        {
+          "line": 477,
+          "text": "statusContent={<CanvasTransformStatus canvasTitle={activeCanvasTitle} />}"
+        },
+        {
+          "line": 537,
+          "text": "readonly activeSessionId: CanvasSessionId | null"
+        },
+        {
+          "line": 539,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 543,
+          "text": "readonly onCreateCanvas: () => void"
+        },
+        {
+          "line": 544,
+          "text": "readonly onOpenCanvas: () => void"
+        },
+        {
+          "line": 545,
+          "text": "readonly onSave: (sessionId: CanvasSessionId) => void"
+        },
+        {
+          "line": 557,
+          "text": "onCreateCanvas,"
+        },
+        {
+          "line": 558,
+          "text": "onOpenCanvas,"
+        },
+        {
+          "line": 567,
+          "text": "return <NoCanvasSurface onCreateDocument={onCreateCanvas} onOpenDocument={onOpenCanvas} />"
+        },
+        {
+          "line": 575,
+          "text": "case 'canvas':"
+        }
+      ]
+    },
+    {
+      "file": "editor/document/src/application/canvas-document-service.ts",
+      "area": "editor",
+      "count": 66,
+      "lines": [
+        {
+          "line": 11,
+          "text": "export type CanvasId = string"
+        },
+        {
+          "line": 12,
+          "text": "export type CanvasSessionId = string"
+        },
+        {
+          "line": 13,
+          "text": "export type CanvasPersistenceState = DocumentPersistenceState"
+        },
+        {
+          "line": 15,
+          "text": "export interface OpenedCanvasSession {"
+        },
+        {
+          "line": 16,
+          "text": "readonly canvasId: CanvasId"
+        },
+        {
+          "line": 17,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 21,
+          "text": "export interface CanvasSessionSnapshot {"
+        },
+        {
+          "line": 22,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 23,
+          "text": "readonly persistence: CanvasPersistenceState"
+        },
+        {
+          "line": 26,
+          "text": "export type CanvasCloseIntent = 'normal' | 'discard'"
+        },
+        {
+          "line": 28,
+          "text": "export type CanvasReleaseFailureCode ="
+        },
+        {
+          "line": 34,
+          "text": "export interface CanvasReleaseFailure {"
+        },
+        {
+          "line": 35,
+          "text": "readonly code: CanvasReleaseFailureCode"
+        },
+        {
+          "line": 39,
+          "text": "export type CanvasCloseState ="
+        },
+        {
+          "line": 45,
+          "text": "readonly intent: CanvasCloseIntent"
+        },
+        {
+          "line": 49,
+          "text": "readonly intent: CanvasCloseIntent"
+        },
+        {
+          "line": 50,
+          "text": "readonly failure: CanvasReleaseFailure"
+        },
+        {
+          "line": 53,
+          "text": "export interface CanvasCloseSnapshot {"
+        },
+        {
+          "line": 54,
+          "text": "readonly states: Readonly<Record<CanvasSessionId, CanvasCloseState>>"
+        },
+        {
+          "line": 57,
+          "text": "export type CanvasReleaseResult ="
+        },
+        {
+          "line": 62,
+          "text": "readonly failure: CanvasReleaseFailure"
+        },
+        {
+          "line": 66,
+          "text": "export interface CanvasDocumentLifecycleSnapshot {"
+        },
+        {
+          "line": 68,
+          "text": "readonly unsavedSessionIds: readonly CanvasSessionId[]"
+        },
+        {
+          "line": 71,
+          "text": "export interface CanvasDocumentService {"
+        },
+        {
+          "line": 72,
+          "text": "readonly create: (title: string) => Promise<OpenedCanvasSession>"
+        },
+        {
+          "line": 73,
+          "text": "readonly open: () => Promise<OpenedCanvasSession | null>"
+        },
+        {
+          "line": 74,
+          "text": "readonly save: (sessionId: CanvasSessionId) => Promise<void>"
+        },
+        {
+          "line": 75,
+          "text": "readonly releaseCanvas: ("
+        },
+        {
+          "line": 76,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 77,
+          "text": "intent: CanvasCloseIntent,"
+        },
+        {
+          "line": 78,
+          "text": ") => Promise<CanvasReleaseResult>"
+        },
+        {
+          "line": 79,
+          "text": "readonly getLifecycleSnapshot: () => CanvasDocumentLifecycleSnapshot"
+        },
+        {
+          "line": 80,
+          "text": "readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null"
+        },
+        {
+          "line": 81,
+          "text": "readonly getSessionSnapshot: (sessionId: CanvasSessionId) => CanvasSessionSnapshot | null"
+        },
+        {
+          "line": 86,
+          "text": "export interface CanvasEditorSessionRegistryPort {"
+        },
+        {
+          "line": 125,
+          "text": "export interface CreateCanvasDocumentServiceDependencies {"
+        },
+        {
+          "line": 126,
+          "text": "readonly editorSessions: CanvasEditorSessionRegistryPort"
+        },
+        {
+          "line": 131,
+          "text": "interface OwnedCanvasSession {"
+        },
+        {
+          "line": 140,
+          "text": "export function createCanvasDocumentService({"
+        },
+        {
+          "line": 144,
+          "text": "}: CreateCanvasDocumentServiceDependencies): CanvasDocumentService {"
+        },
+        {
+          "line": 145,
+          "text": "const sessions = new Map<CanvasSessionId, OwnedCanvasSession>()"
+        },
+        {
+          "line": 154,
+          "text": "async function create(title: string): Promise<OpenedCanvasSession> {"
+        },
+        {
+          "line": 155,
+          "text": "const canvasId = crypto.randomUUID()"
+        },
+        {
+          "line": 159,
+          "text": "documentId: canvasId,"
+        },
+        {
+          "line": 166,
+          "text": "return { canvasId, sessionId, title }"
+        },
+        {
+          "line": 169,
+          "text": "async function open(): Promise<OpenedCanvasSession | null> {"
+        },
+        {
+          "line": 177,
+          "text": "const canvasId = crypto.randomUUID()"
+        },
+        {
+          "line": 182,
+          "text": "documentId: canvasId,"
+        },
+        {
+          "line": 198,
+          "text": "canvasId,"
+        },
+        {
+          "line": 224,
+          "text": "): OwnedCanvasSession {"
+        },
+        {
+          "line": 228,
+          "text": "const owned: OwnedCanvasSession = {"
+        },
+        {
+          "line": 282,
+          "text": "function save(sessionId: CanvasSessionId): Promise<void> {"
+        },
+        {
+          "line": 296,
+          "text": "async function performSave(owned: OwnedCanvasSession): Promise<void> {"
+        },
+        {
+          "line": 335,
+          "text": "suggestedName: '未命名画布.draw',"
+        },
+        {
+          "line": 354,
+          "text": "function requireRevision(owned: OwnedCanvasSession): string {"
+        },
+        {
+          "line": 382,
+          "text": "async function releaseCanvas("
+        },
+        {
+          "line": 383,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 384,
+          "text": "intent: CanvasCloseIntent,"
+        },
+        {
+          "line": 385,
+          "text": "): Promise<CanvasReleaseResult> {"
+        },
+        {
+          "line": 417,
+          "text": "failure: toCanvasReleaseFailure(error),"
+        },
+        {
+          "line": 430,
+          "text": "function toCanvasReleaseFailure(error: unknown): CanvasReleaseFailure {"
+        },
+        {
+          "line": 462,
+          "text": "function getLifecycleSnapshot(): CanvasDocumentLifecycleSnapshot {"
+        },
+        {
+          "line": 464,
+          "text": "const unsavedSessionIds: CanvasSessionId[] = []"
+        },
+        {
+          "line": 485,
+          "text": "function requireSession(sessionId: CanvasSessionId) {"
+        },
+        {
+          "line": 489,
+          "text": "throw new Error('CANVAS_SESSION_NOT_FOUND')"
+        },
+        {
+          "line": 499,
+          "text": "releaseCanvas,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/application/session/workbench-session-controller.ts",
+      "area": "features",
+      "count": 59,
+      "lines": [
+        {
+          "line": 2,
+          "text": "ActiveCanvasViewModel,"
+        },
+        {
+          "line": 3,
+          "text": "CanvasTabStatus,"
+        },
+        {
+          "line": 4,
+          "text": "CanvasTabViewModel,"
+        },
+        {
+          "line": 5,
+          "text": "CreateCanvasRequest,"
+        },
+        {
+          "line": 21,
+          "text": "CanvasSessionId,"
+        },
+        {
+          "line": 27,
+          "text": "type WorkbenchEntry = StartEntry | CanvasEntry | ConversationEntry | WorkspaceEntry"
+        },
+        {
+          "line": 39,
+          "text": "interface CanvasEntry extends EntryBase {"
+        },
+        {
+          "line": 40,
+          "text": "readonly kind: 'canvas'"
+        },
+        {
+          "line": 41,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 42,
+          "text": "readonly canvasId: string"
+        },
+        {
+          "line": 43,
+          "text": "readonly status: CanvasTabStatus"
+        },
+        {
+          "line": 90,
+          "text": "* 起始页就是画布本身的空态：它占的那一格是「画布槽」。"
+        },
+        {
+          "line": 92,
+          "text": "* 因此只有画布可以就地顶掉它——新建或打开成功后，用户正看着的那一格直接"
+        },
+        {
+          "line": 93,
+          "text": "* 变成画布，标签总数不变。这是专业软件的行为（VS Code 的欢迎页被真实编辑器"
+        },
+        {
+          "line": 97,
+          "text": "* 用户的画布槽。此前这里对任何表面都做替换，而当时没有任何代码构造 start"
+        },
+        {
+          "line": 100,
+          "text": "function openInCanvasSlot(entry: WorkbenchEntry): void {"
+        },
+        {
+          "line": 125,
+          "text": "function createCanvas(request: CreateCanvasRequest): void {"
+        },
+        {
+          "line": 126,
+          "text": "const canvasId = request.canvasId ?? crypto.randomUUID()"
+        },
+        {
+          "line": 131,
+          "text": "(entry) => entry.kind === 'canvas' && entry.sessionId === sessionId,"
+        },
+        {
+          "line": 139,
+          "text": "openInCanvasSlot({"
+        },
+        {
+          "line": 140,
+          "text": "id: `canvas:${sessionId}`,"
+        },
+        {
+          "line": 141,
+          "text": "kind: 'canvas',"
+        },
+        {
+          "line": 145,
+          "text": "canvasId,"
+        },
+        {
+          "line": 170,
+          "text": "* 画布槽的入口：侧栏「画布」打开的就是这一格。"
+        },
+        {
+          "line": 175,
+          "text": "function openCanvasStart(): void {"
+        },
+        {
+          "line": 196,
+          "text": "function setCanvasStatus(sessionId: CanvasSessionId, status: CanvasTabStatus): void {"
+        },
+        {
+          "line": 198,
+          "text": "(candidate) => candidate.kind === 'canvas' && candidate.sessionId === sessionId,"
+        },
+        {
+          "line": 203,
+          "text": "if (entry?.kind !== 'canvas' || entry.status === status) {"
+        },
+        {
+          "line": 327,
+          "text": "* 没有被钉住的标签。起始页与画布是同一格的两种形态，把空态钉在首位之后，"
+        },
+        {
+          "line": 328,
+          "text": "* 用户就永远无法把刚打开的画布拖到最左——那两道守卫是为一个不可达的形态"
+        },
+        {
+          "line": 355,
+          "text": "function activateCanvas(sessionId: CanvasSessionId): void {"
+        },
+        {
+          "line": 356,
+          "text": "const entry = findCanvasEntry(entries, sessionId)"
+        },
+        {
+          "line": 363,
+          "text": "function closeCanvas(sessionId: CanvasSessionId): void {"
+        },
+        {
+          "line": 364,
+          "text": "const entry = findCanvasEntry(entries, sessionId)"
+        },
+        {
+          "line": 379,
+          "text": "createCanvas,"
+        },
+        {
+          "line": 381,
+          "text": "openCanvasStart,"
+        },
+        {
+          "line": 388,
+          "text": "setCanvasStatus,"
+        },
+        {
+          "line": 389,
+          "text": "activateCanvas,"
+        },
+        {
+          "line": 390,
+          "text": "closeCanvas,"
+        },
+        {
+          "line": 406,
+          "text": "const activeCanvas = activeSurface.kind === 'canvas' ? activeSurface : null"
+        },
+        {
+          "line": 410,
+          "text": "activeSessionId: activeCanvas?.sessionId ?? null,"
+        },
+        {
+          "line": 413,
+          "text": "activeCanvas,"
+        },
+        {
+          "line": 435,
+          "text": "case 'canvas': {"
+        },
+        {
+          "line": 436,
+          "text": "const tab: CanvasTabViewModel = {"
+        },
+        {
+          "line": 438,
+          "text": "kind: 'canvas',"
+        },
+        {
+          "line": 440,
+          "text": "canvasId: entry.canvasId,"
+        },
+        {
+          "line": 480,
+          "text": "case 'canvas': {"
+        },
+        {
+          "line": 481,
+          "text": "const surface: ActiveCanvasViewModel = {"
+        },
+        {
+          "line": 482,
+          "text": "kind: 'canvas',"
+        },
+        {
+          "line": 485,
+          "text": "canvasId: entry.canvasId,"
+        },
+        {
+          "line": 536,
+          "text": "function findCanvasEntry("
+        },
+        {
+          "line": 538,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 539,
+          "text": "): CanvasEntry | undefined {"
+        },
+        {
+          "line": 541,
+          "text": "(entry): entry is CanvasEntry => entry.kind === 'canvas' && entry.sessionId === sessionId,"
+        },
+        {
+          "line": 574,
+          "text": "if (snapshot.activeSurface.kind === 'canvas') {"
+        },
+        {
+          "line": 576,
+          "text": "snapshot.activeCanvas?.tabId !== snapshot.activeTabId ||"
+        },
+        {
+          "line": 579,
+          "text": "throw new Error('WORKBENCH_ACTIVE_CANVAS_INCONSISTENT')"
+        },
+        {
+          "line": 585,
+          "text": "if (snapshot.activeCanvas !== null || snapshot.activeSessionId !== null) {"
+        },
+        {
+          "line": 586,
+          "text": "throw new Error('WORKBENCH_NON_CANVAS_STATE_INCONSISTENT')"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/application/canvas/canvas-workflow.ts",
+      "area": "apps",
+      "count": 46,
+      "lines": [
+        {
+          "line": 3,
+          "text": "CanvasCloseIntent,"
+        },
+        {
+          "line": 4,
+          "text": "CanvasCloseSnapshot,"
+        },
+        {
+          "line": 5,
+          "text": "CanvasCloseState,"
+        },
+        {
+          "line": 6,
+          "text": "CanvasDocumentService,"
+        },
+        {
+          "line": 7,
+          "text": "CanvasReleaseResult,"
+        },
+        {
+          "line": 8,
+          "text": "CanvasSessionId,"
+        },
+        {
+          "line": 9,
+          "text": "CanvasSessionSnapshot,"
+        },
+        {
+          "line": 21,
+          "text": "readonly sessionIds: readonly CanvasSessionId[]"
+        },
+        {
+          "line": 28,
+          "text": "const EMPTY_CLOSE_SNAPSHOT: CanvasCloseSnapshot = Object.freeze({"
+        },
+        {
+          "line": 32,
+          "text": "export interface CanvasWorkflow {"
+        },
+        {
+          "line": 35,
+          "text": "readonly save: (sessionId: CanvasSessionId) => Promise<void>"
+        },
+        {
+          "line": 36,
+          "text": "readonly closeCanvas: (sessionId: CanvasSessionId, intent: CanvasCloseIntent) => Promise<void>"
+        },
+        {
+          "line": 37,
+          "text": "readonly cancelCanvasClose: (sessionId: CanvasSessionId) => void"
+        },
+        {
+          "line": 38,
+          "text": "readonly getCloseSnapshot: () => CanvasCloseSnapshot"
+        },
+        {
+          "line": 40,
+          "text": "readonly getEditorSession: (sessionId: CanvasSessionId) => EditorSession | null"
+        },
+        {
+          "line": 41,
+          "text": "readonly getSessionSnapshot: (sessionId: CanvasSessionId) => CanvasSessionSnapshot | null"
+        },
+        {
+          "line": 46,
+          "text": "export function createCanvasWorkflow("
+        },
+        {
+          "line": 47,
+          "text": "documents: CanvasDocumentService,"
+        },
+        {
+          "line": 49,
+          "text": "): CanvasWorkflow {"
+        },
+        {
+          "line": 51,
+          "text": "const closeOperations = new Map<CanvasSessionId, Promise<void>>()"
+        },
+        {
+          "line": 52,
+          "text": "const closeStates = new Map<CanvasSessionId, CanvasCloseState>()"
+        },
+        {
+          "line": 63,
+          "text": "* await 之后才调 workspace.closeCanvas），不是兜底。"
+        },
+        {
+          "line": 65,
+          "text": "function synchronizeCanvasStatuses(): void {"
+        },
+        {
+          "line": 67,
+          "text": "if (tab.kind !== 'canvas') {"
+        },
+        {
+          "line": 74,
+          "text": "workspace.setCanvasStatus(tab.sessionId, snapshot.persistence)"
+        },
+        {
+          "line": 80,
+          "text": "synchronizeCanvasStatuses()"
+        },
+        {
+          "line": 96,
+          "text": "Object.fromEntries(closeStates) as Record<CanvasSessionId, CanvasCloseState>,"
+        },
+        {
+          "line": 103,
+          "text": "function setCloseState(sessionId: CanvasSessionId, state: CanvasCloseState): void {"
+        },
+        {
+          "line": 108,
+          "text": "function clearCloseState(sessionId: CanvasSessionId): void {"
+        },
+        {
+          "line": 118,
+          "text": "workspace.createCanvas(opened)"
+        },
+        {
+          "line": 120,
+          "text": "await rollbackOpenedCanvas(opened.sessionId, 'CANVAS_CREATION_ROLLBACK_FAILED')"
+        },
+        {
+          "line": 133,
+          "text": "workspace.createCanvas(opened)"
+        },
+        {
+          "line": 135,
+          "text": "await rollbackOpenedCanvas(opened.sessionId, 'CANVAS_OPEN_ROLLBACK_FAILED')"
+        },
+        {
+          "line": 140,
+          "text": "async function rollbackOpenedCanvas("
+        },
+        {
+          "line": 141,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 144,
+          "text": "const result = await documents.releaseCanvas(sessionId, 'discard')"
+        },
+        {
+          "line": 151,
+          "text": "function closeCanvas(sessionId: CanvasSessionId, intent: CanvasCloseIntent): Promise<void> {"
+        },
+        {
+          "line": 169,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 170,
+          "text": "intent: CanvasCloseIntent,"
+        },
+        {
+          "line": 177,
+          "text": "const result = await documents.releaseCanvas(sessionId, intent)"
+        },
+        {
+          "line": 183,
+          "text": "sessionId: CanvasSessionId,"
+        },
+        {
+          "line": 184,
+          "text": "intent: CanvasCloseIntent,"
+        },
+        {
+          "line": 185,
+          "text": "result: CanvasReleaseResult,"
+        },
+        {
+          "line": 189,
+          "text": "workspace.closeCanvas(sessionId)"
+        },
+        {
+          "line": 239,
+          "text": "closeCanvas,"
+        },
+        {
+          "line": 241,
+          "text": "cancelCanvasClose(sessionId) {"
+        }
+      ]
+    },
+    {
+      "file": "features/settings/src/presentation/SettingsSurface.tsx",
+      "area": "features",
+      "count": 41,
+      "lines": [
+        {
+          "line": 44,
+          "text": "| 'canvas'"
+        },
+        {
+          "line": 57,
+          "text": "* canvas / export / privacy 里的每一项都写进 AppSettings 并落盘，按截图裁掉"
+        },
+        {
+          "line": 87,
+          "text": "id: 'canvas',"
+        },
+        {
+          "line": 88,
+          "text": "label: '画布',"
+        },
+        {
+          "line": 111,
+          "text": "['canvas', 'export', 'privacy'],"
+        },
+        {
+          "line": 358,
+          "text": "case 'canvas':"
+        },
+        {
+          "line": 359,
+          "text": "return <CanvasSettings controller={controller} settings={settings} />"
+        },
+        {
+          "line": 386,
+          "text": "description=\"画布变更后自动写入本地文件\""
+        },
+        {
+          "line": 433,
+          "text": "const CanvasSettings = memo(function CanvasSettings({ settings, controller }: SettingsPanelProps) {"
+        },
+        {
+          "line": 438,
+          "text": "checked={settings.canvas.infiniteCanvas}"
+        },
+        {
+          "line": 439,
+          "text": "description=\"关闭后画布限制在固定边界内\""
+        },
+        {
+          "line": 440,
+          "text": "label=\"无限画布\""
+        },
+        {
+          "line": 444,
+          "text": "canvas: {"
+        },
+        {
+          "line": 445,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 446,
+          "text": "infiniteCanvas: checked,"
+        },
+        {
+          "line": 453,
+          "text": "checked={settings.canvas.showRulers}"
+        },
+        {
+          "line": 454,
+          "text": "description=\"在画布边缘显示刻度\""
+        },
+        {
+          "line": 459,
+          "text": "canvas: {"
+        },
+        {
+          "line": 460,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 467,
+          "text": "<SettingRow description=\"新建画布时的初始缩放比例\" label=\"默认缩放\">"
+        },
+        {
+          "line": 469,
+          "text": "ariaLabel=\"默认画布缩放\""
+        },
+        {
+          "line": 473,
+          "text": "canvas: {"
+        },
+        {
+          "line": 474,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 485,
+          "text": "value={String(settings.canvas.defaultZoom)}"
+        },
+        {
+          "line": 492,
+          "text": "checked={settings.canvas.showGrid}"
+        },
+        {
+          "line": 493,
+          "text": "description=\"在画布背景绘制网格\""
+        },
+        {
+          "line": 498,
+          "text": "canvas: {"
+        },
+        {
+          "line": 499,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 507,
+          "text": "checked={settings.canvas.snapToGrid}"
+        },
+        {
+          "line": 513,
+          "text": "canvas: {"
+        },
+        {
+          "line": 514,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 523,
+          "text": "ariaLabel=\"画布网格尺寸\""
+        },
+        {
+          "line": 524,
+          "text": "disabled={!settings.canvas.showGrid && !settings.canvas.snapToGrid}"
+        },
+        {
+          "line": 528,
+          "text": "canvas: {"
+        },
+        {
+          "line": 529,
+          "text": "...current.canvas,"
+        },
+        {
+          "line": 542,
+          "text": "value={String(settings.canvas.gridSize)}"
+        },
+        {
+          "line": 730,
+          "text": "<dt>画布内核</dt>"
+        },
+        {
+          "line": 920,
+          "text": "* GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 与画布在主导航里已经有"
+        },
+        {
+          "line": 930,
+          "text": "type GlyphSection = 'canvas' | 'hooks'"
+        },
+        {
+          "line": 935,
+          "text": "canvas: PencilRulerIcon,"
+        },
+        {
+          "line": 940,
+          "text": "return section === 'canvas' || section === 'hooks'"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/application/canvas/canvas-workflow.test.ts",
+      "area": "apps",
+      "count": 40,
+      "lines": [
+        {
+          "line": 2,
+          "text": "CanvasDocumentLifecycleSnapshot,"
+        },
+        {
+          "line": 3,
+          "text": "CanvasDocumentService,"
+        },
+        {
+          "line": 4,
+          "text": "CanvasReleaseResult,"
+        },
+        {
+          "line": 8,
+          "text": "import { createCanvasWorkflow } from './canvas-workflow'"
+        },
+        {
+          "line": 13,
+          "text": ") => Promise<CanvasReleaseResult>"
+        },
+        {
+          "line": 17,
+          "text": "getLifecycleSnapshot: () => CanvasDocumentLifecycleSnapshot = () => ({"
+        },
+        {
+          "line": 24,
+          "text": "canvasId: 'canvas-1',"
+        },
+        {
+          "line": 26,
+          "text": "title: 'Canvas',"
+        },
+        {
+          "line": 30,
+          "text": "releaseCanvas: vi.fn(releaseHandler),"
+        },
+        {
+          "line": 36,
+          "text": "} as unknown as CanvasDocumentService"
+        },
+        {
+          "line": 41,
+          "text": "createCanvas: vi.fn(),"
+        },
+        {
+          "line": 42,
+          "text": "closeCanvas: vi.fn(),"
+        },
+        {
+          "line": 46,
+          "text": "describe('CanvasWorkflow lifecycle coordinator', () => {"
+        },
+        {
+          "line": 53,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 55,
+          "text": "await workflow.closeCanvas('session-a', 'normal')"
+        },
+        {
+          "line": 57,
+          "text": "expect(workspace.closeCanvas).toHaveBeenCalledWith('session-a')"
+        },
+        {
+          "line": 80,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 82,
+          "text": "const closeA = workflow.closeCanvas('session-a', 'normal')"
+        },
+        {
+          "line": 83,
+          "text": "await workflow.closeCanvas('session-b', 'normal')"
+        },
+        {
+          "line": 97,
+          "text": "expect(workspace.closeCanvas).not.toHaveBeenCalled()"
+        },
+        {
+          "line": 102,
+          "text": "expect(workspace.closeCanvas).toHaveBeenCalledWith('session-a')"
+        },
+        {
+          "line": 126,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 128,
+          "text": "const first = workflow.closeCanvas('session-a', 'normal')"
+        },
+        {
+          "line": 129,
+          "text": "const duplicate = workflow.closeCanvas('session-a', 'discard')"
+        },
+        {
+          "line": 132,
+          "text": "expect(documents.releaseCanvas).toHaveBeenCalledTimes(1)"
+        },
+        {
+          "line": 133,
+          "text": "expect(documents.releaseCanvas).toHaveBeenCalledWith('session-a', 'normal')"
+        },
+        {
+          "line": 138,
+          "text": "expect(workspace.closeCanvas).toHaveBeenCalledWith('session-a')"
+        },
+        {
+          "line": 147,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 149,
+          "text": "await workflow.closeCanvas('session-a', 'normal')"
+        },
+        {
+          "line": 150,
+          "text": "await workflow.closeCanvas('session-b', 'normal')"
+        },
+        {
+          "line": 152,
+          "text": "workflow.cancelCanvasClose('session-a')"
+        },
+        {
+          "line": 183,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 185,
+          "text": "await workflow.closeCanvas('session-a', 'discard')"
+        },
+        {
+          "line": 200,
+          "text": "await workflow.closeCanvas('session-a', 'discard')"
+        },
+        {
+          "line": 202,
+          "text": "expect(documents.releaseCanvas).toHaveBeenNthCalledWith(1, 'session-a', 'discard')"
+        },
+        {
+          "line": 204,
+          "text": "expect(documents.releaseCanvas).toHaveBeenNthCalledWith(2, 'session-a', 'discard')"
+        },
+        {
+          "line": 206,
+          "text": "expect(workspace.closeCanvas).toHaveBeenCalledWith('session-a')"
+        },
+        {
+          "line": 233,
+          "text": "const workflow = createCanvasWorkflow(documents, workspace as never)"
+        },
+        {
+          "line": 235,
+          "text": "const closeOperation = workflow.closeCanvas('session-a', 'normal')"
+        },
+        {
+          "line": 247,
+          "text": "expect(workspace.closeCanvas).toHaveBeenCalledWith('session-a')"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/contracts/workbench-contract.ts",
+      "area": "features",
+      "count": 33,
+      "lines": [
+        {
+          "line": 1,
+          "text": "export type CanvasId = string"
+        },
+        {
+          "line": 2,
+          "text": "export type CanvasSessionId = string"
+        },
+        {
+          "line": 8,
+          "text": "export type CanvasTabStatus = 'clean' | 'dirty' | 'saving' | 'failed'"
+        },
+        {
+          "line": 33,
+          "text": "export interface CanvasTabViewModel extends WorkbenchTabBase {"
+        },
+        {
+          "line": 34,
+          "text": "readonly kind: 'canvas'"
+        },
+        {
+          "line": 35,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 36,
+          "text": "readonly canvasId: CanvasId"
+        },
+        {
+          "line": 37,
+          "text": "readonly status: CanvasTabStatus"
+        },
+        {
+          "line": 52,
+          "text": "| CanvasTabViewModel"
+        },
+        {
+          "line": 61,
+          "text": "export interface ActiveCanvasViewModel {"
+        },
+        {
+          "line": 62,
+          "text": "readonly kind: 'canvas'"
+        },
+        {
+          "line": 64,
+          "text": "readonly sessionId: CanvasSessionId"
+        },
+        {
+          "line": 65,
+          "text": "readonly canvasId: CanvasId"
+        },
+        {
+          "line": 85,
+          "text": "| ActiveCanvasViewModel"
+        },
+        {
+          "line": 91,
+          "text": "readonly activeSessionId: CanvasSessionId | null"
+        },
+        {
+          "line": 94,
+          "text": "readonly activeCanvas: ActiveCanvasViewModel | null"
+        },
+        {
+          "line": 97,
+          "text": "export interface CreateCanvasRequest {"
+        },
+        {
+          "line": 99,
+          "text": "readonly canvasId?: CanvasId"
+        },
+        {
+          "line": 100,
+          "text": "readonly sessionId?: CanvasSessionId"
+        },
+        {
+          "line": 114,
+          "text": "readonly createCanvas: (request: CreateCanvasRequest) => void"
+        },
+        {
+          "line": 133,
+          "text": "* 打开画布槽的空态。"
+        },
+        {
+          "line": 135,
+          "text": "* 画布不是一个 surface：它是被文档占据的那一格。空态因此是一等的标签形态"
+        },
+        {
+          "line": 139,
+          "text": "readonly openCanvasStart: () => void"
+        },
+        {
+          "line": 146,
+          "text": "* 画布保存状态的唯一写入口。"
+        },
+        {
+          "line": 149,
+          "text": "* 文档域经 canvas-workflow 上报，视图只读快照。此前它由组合根在读侧"
+        },
+        {
+          "line": 152,
+          "text": "readonly setCanvasStatus: (sessionId: CanvasSessionId, status: CanvasTabStatus) => void"
+        },
+        {
+          "line": 157,
+          "text": "* CanvasDocumentService continues to identify documents by session ID."
+        },
+        {
+          "line": 160,
+          "text": "readonly activateCanvas: (sessionId: CanvasSessionId) => void"
+        },
+        {
+          "line": 161,
+          "text": "readonly closeCanvas: (sessionId: CanvasSessionId) => void"
+        },
+        {
+          "line": 172,
+          "text": "* 起始页（画布槽空态）的标签标题。"
+        },
+        {
+          "line": 174,
+          "text": "* 与侧栏「画布」导航项同名同图标：同一个目标只允许有一个名字，标签与导航"
+        },
+        {
+          "line": 177,
+          "text": "export const START_TAB_TITLE = '画布'"
+        },
+        {
+          "line": 217,
+          "text": "activeCanvas: null,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/application/session/workbench-session-controller.test.ts",
+      "area": "features",
+      "count": 19,
+      "lines": [
+        {
+          "line": 41,
+          "text": "store.createCanvas({"
+        },
+        {
+          "line": 42,
+          "text": "canvasId: 'canvas-1',"
+        },
+        {
+          "line": 57,
+          "text": "'canvas:session-1',"
+        },
+        {
+          "line": 137,
+          "text": "it('keeps canvas document commands at the boundary', () => {"
+        },
+        {
+          "line": 140,
+          "text": "store.createCanvas({"
+        },
+        {
+          "line": 141,
+          "text": "canvasId: 'canvas-1',"
+        },
+        {
+          "line": 151,
+          "text": "store.activateCanvas('session-1')"
+        },
+        {
+          "line": 155,
+          "text": "store.closeCanvas('session-1')"
+        },
+        {
+          "line": 157,
+          "text": "expect(store.getSnapshot().tabs.some((tab) => tab.id === 'canvas:session-1')).toBe(false)"
+        },
+        {
+          "line": 160,
+          "text": "it('画布就地顶掉起始页，标签总数不变', () => {"
+        },
+        {
+          "line": 163,
+          "text": "store.openCanvasStart()"
+        },
+        {
+          "line": 170,
+          "text": "store.createCanvas({"
+        },
+        {
+          "line": 171,
+          "text": "canvasId: 'canvas-1',"
+        },
+        {
+          "line": 178,
+          "text": "'canvas:session-1',"
+        },
+        {
+          "line": 182,
+          "text": "kind: 'canvas',"
+        },
+        {
+          "line": 183,
+          "text": "tabId: 'canvas:session-1',"
+        },
+        {
+          "line": 190,
+          "text": "store.openCanvasStart()"
+        },
+        {
+          "line": 191,
+          "text": "store.openCanvasStart()"
+        },
+        {
+          "line": 210,
+          "text": "store.openCanvasStart()"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/EditorCanvas.tsx",
+      "area": "editor",
+      "count": 18,
+      "lines": [
+        {
+          "line": 13,
+          "text": "import { CanvasInspectorStylePanel } from './canvas-inspector-portal'"
+        },
+        {
+          "line": 32,
+          "text": "function CanvasTopToolbar() {"
+        },
+        {
+          "line": 34,
+          "text": "<div className=\"hc-canvas-top-toolbar\">"
+        },
+        {
+          "line": 40,
+          "text": "const BASE_CANVAS_COMPONENTS: TLComponents = {"
+        },
+        {
+          "line": 43,
+          "text": "TopPanel: CanvasTopToolbar,"
+        },
+        {
+          "line": 59,
+          "text": "const CanvasActiveContext = createContext(true)"
+        },
+        {
+          "line": 62,
+          "text": "const active = useContext(CanvasActiveContext)"
+        },
+        {
+          "line": 64,
+          "text": "return <CanvasInspectorStylePanel active={active} />"
+        },
+        {
+          "line": 67,
+          "text": "const CANVAS_COMPONENTS: TLComponents = {"
+        },
+        {
+          "line": 68,
+          "text": "...BASE_CANVAS_COMPONENTS,"
+        },
+        {
+          "line": 72,
+          "text": "export interface EditorCanvasProps {"
+        },
+        {
+          "line": 78,
+          "text": "export function EditorCanvas({ session, isActive = true, onSave }: EditorCanvasProps) {"
+        },
+        {
+          "line": 89,
+          "text": "const overrides = useMemo<TLUiOverrides>(() => createCanvasUiOverrides(onSave), [onSave])"
+        },
+        {
+          "line": 98,
+          "text": "components: CANVAS_COMPONENTS,"
+        },
+        {
+          "line": 146,
+          "text": "className=\"relative size-full overflow-hidden bg-canvas\""
+        },
+        {
+          "line": 150,
+          "text": "<CanvasActiveContext.Provider value={isActive}>"
+        },
+        {
+          "line": 152,
+          "text": "</CanvasActiveContext.Provider>"
+        },
+        {
+          "line": 157,
+          "text": "function createCanvasUiOverrides(onSave: (() => void) | undefined): TLUiOverrides {"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/canvas-inspector-portal.tsx",
+      "area": "editor",
+      "count": 18,
+      "lines": [
+        {
+          "line": 15,
+          "text": "interface CanvasInspectorPortalContextValue {"
+        },
+        {
+          "line": 23,
+          "text": "const CanvasInspectorPortalContext = createContext<CanvasInspectorPortalContextValue | null>(null)"
+        },
+        {
+          "line": 25,
+          "text": "export interface CanvasInspectorPortalProviderProps {"
+        },
+        {
+          "line": 29,
+          "text": "export function CanvasInspectorPortalProvider({ children }: CanvasInspectorPortalProviderProps) {"
+        },
+        {
+          "line": 77,
+          "text": "const value = useMemo<CanvasInspectorPortalContextValue>("
+        },
+        {
+          "line": 89,
+          "text": "<CanvasInspectorPortalContext.Provider value={value}>"
+        },
+        {
+          "line": 91,
+          "text": "</CanvasInspectorPortalContext.Provider>"
+        },
+        {
+          "line": 95,
+          "text": "export function CanvasInspectorRightSidebar() {"
+        },
+        {
+          "line": 96,
+          "text": "const context = useRequiredCanvasInspectorPortal()"
+        },
+        {
+          "line": 110,
+          "text": "export function useCanvasInspectorAvailability(): boolean {"
+        },
+        {
+          "line": 111,
+          "text": "return useRequiredCanvasInspectorPortal().available"
+        },
+        {
+          "line": 114,
+          "text": "export interface CanvasInspectorStylePanelProps {"
+        },
+        {
+          "line": 118,
+          "text": "export function CanvasInspectorStylePanel({ active }: CanvasInspectorStylePanelProps) {"
+        },
+        {
+          "line": 119,
+          "text": "const context = useRequiredCanvasInspectorPortal()"
+        },
+        {
+          "line": 130,
+          "text": "const owner = useRef(Symbol('canvas-inspector-style-panel'))"
+        },
+        {
+          "line": 166,
+          "text": "function useRequiredCanvasInspectorPortal(): CanvasInspectorPortalContextValue {"
+        },
+        {
+          "line": 167,
+          "text": "const context = useContext(CanvasInspectorPortalContext)"
+        },
+        {
+          "line": 170,
+          "text": "throw new Error('CANVAS_INSPECTOR_PORTAL_PROVIDER_MISSING')"
+        }
+      ]
+    },
+    {
+      "file": "tests/integration/document-lifecycle/canvas-document-service.test.ts",
+      "area": "tests",
+      "count": 18,
+      "lines": [
+        {
+          "line": 2,
+          "text": "import { createCanvasDocumentService } from '@poietica/editor-document'"
+        },
+        {
+          "line": 67,
+          "text": "const service = createCanvasDocumentService({"
+        },
+        {
+          "line": 98,
+          "text": "describe('Canvas document native-release contract', () => {"
+        },
+        {
+          "line": 99,
+          "text": "it('releases a clean unsaved canvas without invoking native document_close', async () => {"
+        },
+        {
+          "line": 101,
+          "text": "const opened = await harness.service.create('未命名画布')"
+        },
+        {
+          "line": 105,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        },
+        {
+          "line": 114,
+          "text": "it('requires an explicit discard intent for dirty canvases', async () => {"
+        },
+        {
+          "line": 116,
+          "text": "const opened = await harness.service.create('未命名画布')"
+        },
+        {
+          "line": 122,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        },
+        {
+          "line": 128,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'discard')).resolves.toEqual({"
+        },
+        {
+          "line": 166,
+          "text": "canvasId: expect.any(String),"
+        },
+        {
+          "line": 174,
+          "text": "const opened = await harness.service.create('未命名画布')"
+        },
+        {
+          "line": 188,
+          "text": "suggestedName: '未命名画布.draw',"
+        },
+        {
+          "line": 316,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        },
+        {
+          "line": 355,
+          "text": "const releasing = harness.service.releaseCanvas(opened.sessionId, 'discard')"
+        },
+        {
+          "line": 395,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        },
+        {
+          "line": 431,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        },
+        {
+          "line": 448,
+          "text": "await expect(harness.service.releaseCanvas(opened.sessionId, 'normal')).resolves.toEqual({"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/application/failures/failure-policy.ts",
+      "area": "apps",
+      "count": 17,
+      "lines": [
+        {
+          "line": 5,
+          "text": "'CANVAS_CREATE_FAILED',"
+        },
+        {
+          "line": 6,
+          "text": "'CANVAS_OPEN_FAILED',"
+        },
+        {
+          "line": 7,
+          "text": "'CANVAS_SAVE_FAILED',"
+        },
+        {
+          "line": 8,
+          "text": "'CANVAS_CLOSE_FAILED',"
+        },
+        {
+          "line": 55,
+          "text": "CANVAS_CREATE_FAILED: {"
+        },
+        {
+          "line": 57,
+          "text": "userMessage: '无法新建画布，请重试。',"
+        },
+        {
+          "line": 63,
+          "text": "operation: 'create-canvas',"
+        },
+        {
+          "line": 67,
+          "text": "CANVAS_OPEN_FAILED: {"
+        },
+        {
+          "line": 69,
+          "text": "userMessage: '无法打开画布，请检查文件后重试。',"
+        },
+        {
+          "line": 75,
+          "text": "operation: 'open-canvas',"
+        },
+        {
+          "line": 79,
+          "text": "CANVAS_SAVE_FAILED: {"
+        },
+        {
+          "line": 81,
+          "text": "userMessage: '画布保存失败，请重试。',"
+        },
+        {
+          "line": 84,
+          "text": "scope: documentOrOperationScope('save-canvas'),"
+        },
+        {
+          "line": 87,
+          "text": "CANVAS_CLOSE_FAILED: {"
+        },
+        {
+          "line": 89,
+          "text": "userMessage: '无法关闭画布，请重试。',"
+        },
+        {
+          "line": 92,
+          "text": "scope: documentOrOperationScope('close-canvas'),"
+        },
+        {
+          "line": 169,
+          "text": "userMessage: '当前画布遇到严重错误，已被隔离。其他画布仍可继续使用。',"
+        }
+      ]
+    },
+    {
+      "file": "editor/document/src/public-api.ts",
+      "area": "editor",
+      "count": 17,
+      "lines": [
+        {
+          "line": 2,
+          "text": "type CanvasCloseIntent,"
+        },
+        {
+          "line": 3,
+          "text": "type CanvasCloseSnapshot,"
+        },
+        {
+          "line": 4,
+          "text": "type CanvasCloseState,"
+        },
+        {
+          "line": 5,
+          "text": "type CanvasDocumentLifecycleSnapshot,"
+        },
+        {
+          "line": 6,
+          "text": "type CanvasDocumentService,"
+        },
+        {
+          "line": 7,
+          "text": "type CanvasEditorSessionRegistryPort,"
+        },
+        {
+          "line": 8,
+          "text": "type CanvasId,"
+        },
+        {
+          "line": 9,
+          "text": "type CanvasPersistenceState,"
+        },
+        {
+          "line": 10,
+          "text": "type CanvasReleaseFailure,"
+        },
+        {
+          "line": 11,
+          "text": "type CanvasReleaseFailureCode,"
+        },
+        {
+          "line": 12,
+          "text": "type CanvasReleaseResult,"
+        },
+        {
+          "line": 13,
+          "text": "type CanvasSessionId,"
+        },
+        {
+          "line": 14,
+          "text": "type CanvasSessionSnapshot,"
+        },
+        {
+          "line": 15,
+          "text": "type CreateCanvasDocumentServiceDependencies,"
+        },
+        {
+          "line": 16,
+          "text": "createCanvasDocumentService,"
+        },
+        {
+          "line": 18,
+          "text": "type OpenedCanvasSession,"
+        },
+        {
+          "line": 21,
+          "text": "} from './application/canvas-document-service'"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/feed/AgentActivityFeed.tsx",
+      "area": "agent",
+      "count": 16,
+      "lines": [
+        {
+          "line": 77,
+          "text": "* 本组件不做任何几何计算 —— 除了四个派生量,而它们共用一次读取:画布相对滚动区"
+        },
+        {
+          "line": 106,
+          "text": "* 画布之后、滚动区之内。"
+        },
+        {
+          "line": 132,
+          "text": "const canvasRef = useRef<HTMLDivElement | null>(null)"
+        },
+        {
+          "line": 146,
+          "text": "* 画布相对滚动区的偏移:画布上面还有滚动区自己的上内边距,这段距离必须告诉"
+        },
+        {
+          "line": 155,
+          "text": "* 画布偏移。"
+        },
+        {
+          "line": 157,
+          "text": "* 滚动区是画布的 offsetParent(样式里的 position: relative),所以这是一次"
+        },
+        {
+          "line": 235,
+          "text": "* 它必须落在画布之外,否则会被虚拟器算进总高。而 scrollTop 已经在手上,"
+        },
+        {
+          "line": 399,
+          "text": "* 画布偏移只在它真的会变的时候量。"
+        },
+        {
+          "line": 413,
+          "text": "const canvas = canvasRef.current"
+        },
+        {
+          "line": 415,
+          "text": "if (viewport === null || canvas === null) {"
+        },
+        {
+          "line": 419,
+          "text": "const offset = canvas.offsetTop"
+        },
+        {
+          "line": 445,
+          "text": "const canvas = canvasRef.current"
+        },
+        {
+          "line": 447,
+          "text": "if (viewport === null || canvas === null) {"
+        },
+        {
+          "line": 454,
+          "text": "observer.observe(canvas)"
+        },
+        {
+          "line": 507,
+          "text": "className=\"agent-activity-feed__canvas\""
+        },
+        {
+          "line": 508,
+          "text": "ref={canvasRef}"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/presentation/AppShell.tsx",
+      "area": "apps",
+      "count": 16,
+      "lines": [
+        {
+          "line": 22,
+          "text": "type WorkspaceCanvasUIPort,"
+        },
+        {
+          "line": 46,
+          "text": "readonly canvases: WorkspaceCanvasUIPort"
+        },
+        {
+          "line": 117,
+          "text": "const createCanvasWithFeedback = useCallback("
+        },
+        {
+          "line": 120,
+          "text": "await runtime.canvases.create(title)"
+        },
+        {
+          "line": 122,
+          "text": "reportFailure('CANVAS_CREATE_FAILED', {"
+        },
+        {
+          "line": 124,
+          "text": "operation: 'create-canvas',"
+        },
+        {
+          "line": 129,
+          "text": "[runtime.canvases],"
+        },
+        {
+          "line": 157,
+          "text": "canvases: runtime.canvases,"
+        },
+        {
+          "line": 158,
+          "text": "createCanvas: createCanvasWithFeedback,"
+        },
+        {
+          "line": 163,
+          "text": "createCanvasWithFeedback,"
+        },
+        {
+          "line": 165,
+          "text": "runtime.canvases,"
+        },
+        {
+          "line": 212,
+          "text": "canvases: {"
+        },
+        {
+          "line": 213,
+          "text": "...runtime.canvases,"
+        },
+        {
+          "line": 214,
+          "text": "create: createCanvasWithFeedback,"
+        },
+        {
+          "line": 218,
+          "text": "[createCanvasWithFeedback, runtime.canvases, runtime.workspace],"
+        },
+        {
+          "line": 260,
+          "text": "? `有 ${termination.sessionIds.length} 个画布包含未保存的更改。`"
+        }
+      ]
+    },
+    {
+      "file": "AGENTS.md",
+      "area": "AGENTS.md",
+      "count": 15,
+      "lines": [
+        {
+          "line": 7,
+          "text": "它帮助人们描述想法、收集素材、在空间中组织关系、获得 AI 启发，并将不确定的思绪逐步发展为创作成果。画布是重要工具之一，但不是产品唯一或绝对的核心；描述、AI、笔记、素材和整理能力都应服务于创造过程。"
+        },
+        {
+          "line": 13,
+          "text": "- **多元入口**：不将画布或任何单一界面视为唯一创作中心。"
+        },
+        {
+          "line": 29,
+          "text": "- 静默修改用户的文本、文件或画布内容；"
+        },
+        {
+          "line": 33,
+          "text": "- 创建第二套画布文档模型或第二个画布状态来源。"
+        },
+        {
+          "line": 35,
+          "text": "AI 对画布的提案必须提供预览或显式应用操作；一旦应用，必须走正常 Editor / Store transaction，使其能够通过 History 撤销。"
+        },
+        {
+          "line": 39,
+          "text": "### 画布文档"
+        },
+        {
+          "line": 41,
+          "text": "- 对于画布文档，tldraw `Editor` 与 `TLStore` 是规范运行时。"
+        },
+        {
+          "line": 42,
+          "text": "- TLStore records 是可持久化画布状态的唯一事实来源。"
+        },
+        {
+          "line": 44,
+          "text": "- 所有画布写入必须通过 Editor 或 Store transactions。"
+        },
+        {
+          "line": 48,
+          "text": "这仅是画布文档的技术边界，不代表画布拥有整个产品的唯一中心地位。"
+        },
+        {
+          "line": 54,
+          "text": "- 不得重复维护 selection、tool、zoom、画布内容或保存状态。"
+        },
+        {
+          "line": 73,
+          "text": "- `editor/document` 拥有画布文档会话、文件位置、revision、保存状态与关闭计划。"
+        },
+        {
+          "line": 74,
+          "text": "- `agent/*` 拥有 AI 会话、协议、时间线、工具注册与传输，但不拥有画布状态或原生能力。"
+        },
+        {
+          "line": 107,
+          "text": "3. 判断改动是否影响画布、文档、AI 上下文、持久化、IPC、权限或公开 API。"
+        },
+        {
+          "line": 149,
+          "text": "- 画布状态保持单一事实来源与单一写入路径；"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/styles/tldraw-adapter.css",
+      "area": "editor",
+      "count": 15,
+      "lines": [
+        {
+          "line": 10,
+          "text": ".tl-canvas,"
+        },
+        {
+          "line": 12,
+          "text": "background-color: var(--color-canvas);"
+        },
+        {
+          "line": 30,
+          "text": "[data-canvas-host] .tl-container,"
+        },
+        {
+          "line": 31,
+          "text": "[data-canvas-host] .tlui-layout {"
+        },
+        {
+          "line": 36,
+          "text": "[data-canvas-host] .tlui-layout {"
+        },
+        {
+          "line": 53,
+          "text": "[data-canvas-host] .tlui-layout__top__center {"
+        },
+        {
+          "line": 67,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar {"
+        },
+        {
+          "line": 82,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar--horizontal {"
+        },
+        {
+          "line": 93,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar__inner {"
+        },
+        {
+          "line": 103,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar__tools,"
+        },
+        {
+          "line": 104,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar__extras,"
+        },
+        {
+          "line": 105,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar__extras__controls,"
+        },
+        {
+          "line": 106,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar button {"
+        },
+        {
+          "line": 120,
+          "text": "[data-canvas-host] .hc-canvas-top-toolbar .tlui-main-toolbar__extras {"
+        },
+        {
+          "line": 130,
+          "text": "[data-canvas-host] .tlui-layout__top__center {"
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-002-document-lifecycle-boundary.md",
+      "area": "docs",
+      "count": 14,
+      "lines": [
+        {
+          "line": 1,
+          "text": "# ADR-002：画布文档生命周期边界"
+        },
+        {
+          "line": 15,
+          "text": "它既拥有画布文档会话，又直接修改产品工作台状态。这导致编辑器子系统反向依赖产品 UI，并使文档生命周期无法在无 Workspace 的环境中独立测试或复用。"
+        },
+        {
+          "line": 19,
+          "text": "将画布文档生命周期移动到："
+        },
+        {
+          "line": 48,
+          "text": "- CanvasDocumentService；"
+        },
+        {
+          "line": 50,
+          "text": "- CanvasWorkflow。"
+        },
+        {
+          "line": 52,
+          "text": "CanvasWorkflow 是应用层协调器，负责在文档会话与 Workspace 标签页之间维护一致性。"
+        },
+        {
+          "line": 59,
+          "text": "Workflow[CanvasWorkflow]"
+        },
+        {
+          "line": 76,
+          "text": "- TLStore：唯一画布文档事实来源；"
+        },
+        {
+          "line": 78,
+          "text": "- CanvasDocumentService：文件路径、revision 和保存状态；"
+        },
+        {
+          "line": 79,
+          "text": "- WorkbenchSessionStore：标签页、活动画布和 Workspace 投影；"
+        },
+        {
+          "line": 80,
+          "text": "- CanvasWorkflow：跨模块事务与失败补偿；"
+        },
+        {
+          "line": 85,
+          "text": "### 保持 canvas-session 为 Feature"
+        },
+        {
+          "line": 87,
+          "text": "拒绝。它不是用户可选择的产品能力，而是所有画布文档都需要的编辑器生命周期基础能力。"
+        },
+        {
+          "line": 108,
+          "text": "- 增加一个小型 CanvasWorkflow 协调器；"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/CanvasTransformStatus.tsx",
+      "area": "editor",
+      "count": 11,
+      "lines": [
+        {
+          "line": 23,
+          "text": "export interface CanvasTransformStatusProps {"
+        },
+        {
+          "line": 24,
+          "text": "readonly canvasTitle: string | null"
+        },
+        {
+          "line": 27,
+          "text": "export function CanvasTransformStatus({ canvasTitle }: CanvasTransformStatusProps) {"
+        },
+        {
+          "line": 36,
+          "text": "if (!canvasTitle && !snapshot) {"
+        },
+        {
+          "line": 83,
+          "text": "{canvasTitle ? ("
+        },
+        {
+          "line": 89,
+          "text": "title={canvasTitle}"
+        },
+        {
+          "line": 91,
+          "text": "{canvasTitle}"
+        },
+        {
+          "line": 97,
+          "text": "{canvasTitle ? <StatusDivider /> : null}"
+        },
+        {
+          "line": 181,
+          "text": "<StatusState label=\"只读\" title=\"当前画布为只读状态\" />"
+        },
+        {
+          "line": 236,
+          "text": "return useValue('canvas transform status', () => {"
+        },
+        {
+          "line": 417,
+          "text": "* 编辑 1 为 2，再点击画布或其他控件，"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/public-api.ts",
+      "area": "editor",
+      "count": 11,
+      "lines": [
+        {
+          "line": 8,
+          "text": "CanvasTransformStatus,"
+        },
+        {
+          "line": 9,
+          "text": "type CanvasTransformStatusProps,"
+        },
+        {
+          "line": 10,
+          "text": "} from './CanvasTransformStatus'"
+        },
+        {
+          "line": 12,
+          "text": "CanvasInspectorPortalProvider,"
+        },
+        {
+          "line": 13,
+          "text": "type CanvasInspectorPortalProviderProps,"
+        },
+        {
+          "line": 14,
+          "text": "CanvasInspectorRightSidebar,"
+        },
+        {
+          "line": 15,
+          "text": "CanvasInspectorStylePanel,"
+        },
+        {
+          "line": 16,
+          "text": "type CanvasInspectorStylePanelProps,"
+        },
+        {
+          "line": 17,
+          "text": "useCanvasInspectorAvailability,"
+        },
+        {
+          "line": 18,
+          "text": "} from './canvas-inspector-portal'"
+        },
+        {
+          "line": 19,
+          "text": "export { EditorCanvas, type EditorCanvasProps } from './EditorCanvas'"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/WorkspaceShell.tsx",
+      "area": "features",
+      "count": 11,
+      "lines": [
+        {
+          "line": 48,
+          "text": "const hasCanvas = model.activeSurface.kind === 'canvas'"
+        },
+        {
+          "line": 50,
+          "text": "const dockInspector = inspectorAvailable && inspectorOpen && hasCanvas"
+        },
+        {
+          "line": 57,
+          "text": "canvas={"
+        },
+        {
+          "line": 60,
+          "text": "className=\"workspace-shell__canvas relative z-10 min-h-0 min-w-0 overflow-hidden border-r border-divider bg-background\""
+        },
+        {
+          "line": 89,
+          "text": "onCreateCanvas: actions.createCanvas,"
+        },
+        {
+          "line": 94,
+          "text": "hasStatusBar={hasCanvas}"
+        },
+        {
+          "line": 96,
+          "text": "hasCanvas && inspectorAvailable ? ("
+        },
+        {
+          "line": 141,
+          "text": "hasCanvas ? ("
+        },
+        {
+          "line": 155,
+          "text": "* switch 穷尽三种表面形态，没有兜底值：画布态返回 null，因为画布是文档而不是"
+        },
+        {
+          "line": 157,
+          "text": "* 于是打开画布之后侧栏仍然亮着「画布」——一个兜底常量造成的假状态。"
+        },
+        {
+          "line": 176,
+          "text": "case 'canvas':"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/presentation/application-commands.ts",
+      "area": "apps",
+      "count": 10,
+      "lines": [
+        {
+          "line": 3,
+          "text": "import { nextUntitledCanvasTitle, workspaceLayoutStore } from '@poietica/features-workspace/react'"
+        },
+        {
+          "line": 4,
+          "text": "import type { WorkspaceCanvasUIPort } from './workspace/WorkspaceContainer'"
+        },
+        {
+          "line": 19,
+          "text": "readonly canvases: Pick<WorkspaceCanvasUIPort, 'open'>"
+        },
+        {
+          "line": 20,
+          "text": "readonly createCanvas: (title: string) => Promise<void>"
+        },
+        {
+          "line": 40,
+          "text": "id: 'workspace.create-canvas',"
+        },
+        {
+          "line": 41,
+          "text": "label: '新建画布',"
+        },
+        {
+          "line": 45,
+          "text": "void context.createCanvas(nextUntitledCanvasTitle(context.workspace.getSnapshot().tabs))"
+        },
+        {
+          "line": 49,
+          "text": "id: 'workspace.open-canvas',"
+        },
+        {
+          "line": 50,
+          "text": "label: '打开画布',"
+        },
+        {
+          "line": 54,
+          "text": "void context.canvases.open()"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/empty/NoCanvasSurface.tsx",
+      "area": "features",
+      "count": 10,
+      "lines": [
+        {
+          "line": 5,
+          "text": "export interface NoCanvasSurfaceProps {"
+        },
+        {
+          "line": 11,
+          "text": "* Canvas start surface."
+        },
+        {
+          "line": 14,
+          "text": "* - onCreateDocument creates a real canvas session."
+        },
+        {
+          "line": 23,
+          "text": "export function NoCanvasSurface({ onCreateDocument, onOpenDocument }: NoCanvasSurfaceProps) {"
+        },
+        {
+          "line": 25,
+          "text": "{ icon: FilePlus, label: '创建新画布', shortcut: 'Mod+N', onClick: onCreateDocument },"
+        },
+        {
+          "line": 26,
+          "text": "{ icon: Folder, label: '打开画布文件', shortcut: 'Mod+O', onClick: onOpenDocument },"
+        },
+        {
+          "line": 31,
+          "text": "aria-labelledby=\"no-canvas-title\""
+        },
+        {
+          "line": 32,
+          "text": "className=\"relative grid h-full min-h-0 place-items-center overflow-hidden bg-canvas px-6\""
+        },
+        {
+          "line": 44,
+          "text": "<h1 className=\"mt-4 text-lg font-semibold tracking-tight\" id=\"no-canvas-title\">"
+        },
+        {
+          "line": 49,
+          "text": "创建一张无限画布，或打开已有的画布文件。"
+        }
+      ]
+    },
+    {
+      "file": "README.md",
+      "area": "README.md",
+      "count": 9,
+      "lines": [
+        {
+          "line": 71,
+          "text": "Use the canvas to place, compare, connect, and develop ideas, notes, and materials."
+        },
+        {
+          "line": 73,
+          "text": "The canvas is a tool for thought, not a rigid destination."
+        },
+        {
+          "line": 92,
+          "text": "| **Arrange on a canvas** | Place ideas and materials in space to reveal relationships and structure. |"
+        },
+        {
+          "line": 124,
+          "text": "| Interface | Canvas | Desktop runtime | Tooling | Validation |"
+        },
+        {
+          "line": 133,
+          "text": "- **tldraw** — canvas editing and the canvas document runtime."
+        },
+        {
+          "line": 189,
+          "text": "editor/        Canvas, documents, assets, persistence, and extensions"
+        },
+        {
+          "line": 197,
+          "text": "> **Important:** for canvas documents, tldraw's `Editor` and `TLStore` are the only source of truth."
+        },
+        {
+          "line": 198,
+          "text": "> Shapes, bindings, assets, pages, and canvas records must not be mirrored into a second document model."
+        },
+        {
+          "line": 217,
+          "text": "- **one normal write path** for canvas changes, with undo/redo remaining reliable;"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/bootstrap/application.ts",
+      "area": "apps",
+      "count": 8,
+      "lines": [
+        {
+          "line": 3,
+          "text": "import { createCanvasDocumentService } from '@poietica/editor-document'"
+        },
+        {
+          "line": 21,
+          "text": "import { type CanvasWorkflow, createCanvasWorkflow } from '../application/canvas/canvas-workflow'"
+        },
+        {
+          "line": 34,
+          "text": "readonly canvases: CanvasWorkflow"
+        },
+        {
+          "line": 64,
+          "text": "const documents = createCanvasDocumentService({"
+        },
+        {
+          "line": 70,
+          "text": "const canvases = createCanvasWorkflow(documents, workspace)"
+        },
+        {
+          "line": 79,
+          "text": "const termination = createApplicationTerminationCoordinator(canvases, {"
+        },
+        {
+          "line": 86,
+          "text": "canvases,"
+        },
+        {
+          "line": 96,
+          "text": "await canvases.dispose()"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/contracts/canvas-contract.ts",
+      "area": "editor",
+      "count": 8,
+      "lines": [
+        {
+          "line": 1,
+          "text": "export type CanvasToolId ="
+        },
+        {
+          "line": 14,
+          "text": "export interface CanvasBoundsViewModel {"
+        },
+        {
+          "line": 21,
+          "text": "export interface CanvasSelectionViewModel {"
+        },
+        {
+          "line": 24,
+          "text": "readonly bounds: CanvasBoundsViewModel | null"
+        },
+        {
+          "line": 27,
+          "text": "export interface CanvasSessionViewModel {"
+        },
+        {
+          "line": 28,
+          "text": "readonly activeToolId: CanvasToolId"
+        },
+        {
+          "line": 32,
+          "text": "readonly selection: CanvasSelectionViewModel"
+        },
+        {
+          "line": 35,
+          "text": "export const EMPTY_CANVAS_SESSION_VIEW_MODEL: CanvasSessionViewModel = {"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/application/public-api.ts",
+      "area": "editor",
+      "count": 7,
+      "lines": [
+        {
+          "line": 2,
+          "text": "type CanvasBoundsViewModel,"
+        },
+        {
+          "line": 3,
+          "text": "type CanvasSelectionViewModel,"
+        },
+        {
+          "line": 4,
+          "text": "type CanvasSessionViewModel,"
+        },
+        {
+          "line": 5,
+          "text": "type CanvasToolId,"
+        },
+        {
+          "line": 6,
+          "text": "EMPTY_CANVAS_SESSION_VIEW_MODEL,"
+        },
+        {
+          "line": 7,
+          "text": "} from '../contracts/canvas-contract'"
+        },
+        {
+          "line": 9,
+          "text": "type CanvasPageSnapshot,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/contracts/public-api.ts",
+      "area": "features",
+      "count": 7,
+      "lines": [
+        {
+          "line": 7,
+          "text": "CanvasPageViewModel,"
+        },
+        {
+          "line": 14,
+          "text": "type ActiveCanvasViewModel,"
+        },
+        {
+          "line": 15,
+          "text": "type CanvasId,"
+        },
+        {
+          "line": 16,
+          "text": "type CanvasSessionId,"
+        },
+        {
+          "line": 17,
+          "text": "type CanvasTabStatus,"
+        },
+        {
+          "line": 18,
+          "text": "type CanvasTabViewModel,"
+        },
+        {
+          "line": 20,
+          "text": "type CreateCanvasRequest,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/workspace-shell.css",
+      "area": "features",
+      "count": 7,
+      "lines": [
+        {
+          "line": 19,
+          "text": "/* 状态栏只属于画布界面，因此行数与区域表随之切换。 */"
+        },
+        {
+          "line": 24,
+          "text": "\"sidebar canvas inspector\";"
+        },
+        {
+          "line": 31,
+          "text": "\"sidebar canvas inspector\""
+        },
+        {
+          "line": 43,
+          "text": ".workspace-shell__canvas {"
+        },
+        {
+          "line": 44,
+          "text": "grid-area: canvas;"
+        },
+        {
+          "line": 69,
+          "text": ".workspace-shell__canvas,"
+        },
+        {
+          "line": 75,
+          "text": ".workspace-shell[data-inspector-docked=\"false\"] .workspace-shell__canvas,"
+        }
+      ]
+    },
+    {
+      "file": "tests/unit/design-system/surface-contract.test.ts",
+      "area": "tests",
+      "count": 7,
+      "lines": [
+        {
+          "line": 11,
+          "text": "* 二、两档线的比例不变量：同一张卡内，外框相对画布的对比度是卡内线的"
+        },
+        {
+          "line": 72,
+          "text": "/* 画布取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */"
+        },
+        {
+          "line": 73,
+          "text": "const CANVAS = { light: 0xf8, dark: 0x14 }"
+        },
+        {
+          "line": 86,
+          "text": "'--ui-canvas',"
+        },
+        {
+          "line": 101,
+          "text": "Math.abs(grayOf(declOf(css, token)) - CANVAS[name])"
+        },
+        {
+          "line": 121,
+          "text": "it('外框相对画布的对比度是卡内线的 3～6 倍', () => {"
+        },
+        {
+          "line": 125,
+          "text": "expect(rule, `${name}: 卡内线不能与画布同色`).toBeGreaterThan(0)"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/commands/settings.rs",
+      "area": "apps",
+      "count": 6,
+      "lines": [
+        {
+          "line": 46,
+          "text": "pub canvas: CanvasSettings,"
+        },
+        {
+          "line": 54,
+          "text": "pub struct CanvasSettings {"
+        },
+        {
+          "line": 60,
+          "text": "pub infinite_canvas: bool,"
+        },
+        {
+          "line": 100,
+          "text": "canvas: CanvasSettings::default(),"
+        },
+        {
+          "line": 108,
+          "text": "impl Default for CanvasSettings {"
+        },
+        {
+          "line": 116,
+          "text": "infinite_canvas: true,"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/application/model/canvas-session-view-model.ts",
+      "area": "editor",
+      "count": 6,
+      "lines": [
+        {
+          "line": 2,
+          "text": "type CanvasBoundsViewModel,"
+        },
+        {
+          "line": 3,
+          "text": "type CanvasSelectionViewModel,"
+        },
+        {
+          "line": 4,
+          "text": "type CanvasSessionViewModel,"
+        },
+        {
+          "line": 5,
+          "text": "type CanvasToolId,"
+        },
+        {
+          "line": 6,
+          "text": "EMPTY_CANVAS_SESSION_VIEW_MODEL,"
+        },
+        {
+          "line": 7,
+          "text": "} from '../../contracts/canvas-contract'"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/contracts/public-api.ts",
+      "area": "editor",
+      "count": 6,
+      "lines": [
+        {
+          "line": 2,
+          "text": "type CanvasBoundsViewModel,"
+        },
+        {
+          "line": 3,
+          "text": "type CanvasSelectionViewModel,"
+        },
+        {
+          "line": 4,
+          "text": "type CanvasSessionViewModel,"
+        },
+        {
+          "line": 5,
+          "text": "type CanvasToolId,"
+        },
+        {
+          "line": 6,
+          "text": "EMPTY_CANVAS_SESSION_VIEW_MODEL,"
+        },
+        {
+          "line": 7,
+          "text": "} from './canvas-contract'"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/public-api.ts",
+      "area": "editor",
+      "count": 6,
+      "lines": [
+        {
+          "line": 2,
+          "text": "type CanvasBoundsViewModel,"
+        },
+        {
+          "line": 3,
+          "text": "type CanvasSelectionViewModel,"
+        },
+        {
+          "line": 4,
+          "text": "type CanvasSessionViewModel,"
+        },
+        {
+          "line": 5,
+          "text": "type CanvasToolId,"
+        },
+        {
+          "line": 6,
+          "text": "EMPTY_CANVAS_SESSION_VIEW_MODEL,"
+        },
+        {
+          "line": 7,
+          "text": "} from './contracts/canvas-contract'"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/contracts/shell-contract.ts",
+      "area": "features",
+      "count": 6,
+      "lines": [
+        {
+          "line": 10,
+          "text": "export interface CanvasPageViewModel {"
+        },
+        {
+          "line": 17,
+          "text": "readonly createCanvas: () => void"
+        },
+        {
+          "line": 18,
+          "text": "readonly openCanvas: () => void"
+        },
+        {
+          "line": 23,
+          "text": "/** 打开画布槽的空态（起始页）。画布不是 surface，所以它有独立入口。 */"
+        },
+        {
+          "line": 24,
+          "text": "readonly openCanvasStart: () => void"
+        },
+        {
+          "line": 39,
+          "text": "readonly onCreateCanvas: () => void"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/application/termination/application-termination-coordinator.ts",
+      "area": "apps",
+      "count": 5,
+      "lines": [
+        {
+          "line": 1,
+          "text": "import type { CanvasSessionId } from '@poietica/editor-document'"
+        },
+        {
+          "line": 3,
+          "text": "import type { ApplicationClosePlan } from '../canvas/canvas-workflow'"
+        },
+        {
+          "line": 14,
+          "text": "readonly sessionIds: readonly CanvasSessionId[]"
+        },
+        {
+          "line": 43,
+          "text": "canvases: ApplicationClosePort,"
+        },
+        {
+          "line": 65,
+          "text": "evaluate(intent, canvases.planApplicationClose())"
+        }
+      ]
+    },
+    {
+      "file": "docs/architecture/refactor-progress.md",
+      "area": "docs",
+      "count": 5,
+      "lines": [
+        {
+          "line": 7,
+          "text": "- tldraw Editor and TLStore as the canonical canvas runtime"
+        },
+        {
+          "line": 20,
+          "text": "| 3. Workflow and errors | Complete after verification | Close orchestration moved to CanvasWorkflow; observability added |"
+        },
+        {
+          "line": 27,
+          "text": "1. TLStore records are the only persistent canvas source of truth."
+        },
+        {
+          "line": 28,
+          "text": "2. Canvas document writes go through Editor or Store transactions."
+        },
+        {
+          "line": 39,
+          "text": "- Record startup and multi-canvas memory baselines."
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/runtime/editor-session.ts",
+      "area": "editor",
+      "count": 5,
+      "lines": [
+        {
+          "line": 99,
+          "text": "export interface CanvasPageSnapshot {"
+        },
+        {
+          "line": 106,
+          "text": "readonly pages: readonly CanvasPageSnapshot[]"
+        },
+        {
+          "line": 207,
+          "text": "* TLStore document records are the sole persistable canvas source of truth."
+        },
+        {
+          "line": 279,
+          "text": "* 的内部写入被记成用户编辑，新建画布一挂载就变\"未保存\"。"
+        },
+        {
+          "line": 305,
+          "text": "* 独立的正确加固（远端合并不应标脏），但它与\"新建画布立刻显示未保存\""
+        }
+      ]
+    },
+    {
+      "file": "editor/persistence/native/src/revision.rs",
+      "area": "editor",
+      "count": 5,
+      "lines": [
+        {
+          "line": 107,
+          "text": "let first = document_revision(b\"canvas\");"
+        },
+        {
+          "line": 108,
+          "text": "let second = document_revision(b\"canvas\");"
+        },
+        {
+          "line": 117,
+          "text": "document_revision(b\"canvas-a\"),"
+        },
+        {
+          "line": 118,
+          "text": "document_revision(b\"canvas-b\"),"
+        },
+        {
+          "line": 157,
+          "text": "let revision = document_revision(b\"canvas\");"
+        }
+      ]
+    },
+    {
+      "file": "features/settings/src/domain/settings.ts",
+      "area": "features",
+      "count": 5,
+      "lines": [
+        {
+          "line": 3,
+          "text": "export interface CanvasSettings {"
+        },
+        {
+          "line": 9,
+          "text": "readonly infiniteCanvas: boolean"
+        },
+        {
+          "line": 41,
+          "text": "readonly canvas: CanvasSettings"
+        },
+        {
+          "line": 53,
+          "text": "canvas: {"
+        },
+        {
+          "line": 59,
+          "text": "infiniteCanvas: true,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/workbench-tabs/WorkbenchTab.tsx",
+      "area": "features",
+      "count": 5,
+      "lines": [
+        {
+          "line": 5,
+          "text": "import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'"
+        },
+        {
+          "line": 151,
+          "text": "const status = model.kind === 'canvas' ? model.status : 'clean'"
+        },
+        {
+          "line": 206,
+          "text": "/* 与侧栏「画布」同一个图标：用户点进来的入口和留下的标签必须看起来是一回事。 */"
+        },
+        {
+          "line": 208,
+          "text": "return CANVAS_START_DESCRIPTOR.icon"
+        },
+        {
+          "line": 211,
+          "text": "if (model.kind === 'canvas') {"
+        }
+      ]
+    },
+    {
+      "file": "tests/desktop-e2e/release-checklist.md",
+      "area": "tests",
+      "count": 5,
+      "lines": [
+        {
+          "line": 11,
+          "text": "- [ ] Close exits immediately when no canvas is dirty."
+        },
+        {
+          "line": 16,
+          "text": "- [ ] Create a canvas, save it through the native save dialog, close it and reopen it."
+        },
+        {
+          "line": 17,
+          "text": "- [ ] A dirty canvas requests confirmation before close."
+        },
+        {
+          "line": 18,
+          "text": "- [ ] Cancel keeps the dirty canvas open."
+        },
+        {
+          "line": 33,
+          "text": "- [ ] Theme, language, auto-save and canvas settings survive restart."
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/composer-metrics.css",
+      "area": "agent",
+      "count": 4,
+      "lines": [
+        {
+          "line": 92,
+          "text": "--cp-canvas: var(--ui-background);"
+        },
+        {
+          "line": 124,
+          "text": "* 画布是 --ui-background(#f8f8f8,chroma 为 0),气泡此前写死 #f5f5f5:两者"
+        },
+        {
+          "line": 128,
+          "text": "* 现在不再挑一个十六进制,而是从画布自己推:兑 5% 墨色。浅色主题下落在"
+        },
+        {
+          "line": 129,
+          "text": "* #ebebeb,与画布相差 0.040 明度 —— 一眼分得开,又不至于变成一个色块。这里"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/feed/agent-activity-feed.css",
+      "area": "agent",
+      "count": 4,
+      "lines": [
+        {
+          "line": 25,
+          "text": "* position: relative 不是为了层叠,是为了让它成为画布的 offsetParent ——"
+        },
+        {
+          "line": 62,
+          "text": "* 虚拟画布。"
+        },
+        {
+          "line": 67,
+          "text": ".agent-activity-feed__canvas {"
+        },
+        {
+          "line": 95,
+          "text": "* 属于这一轮而不属于其中某一条的东西:在画布之后、滚动区之内,跟着一起滚。"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/presentation/workspace/DocumentQuarantineSurface.tsx",
+      "area": "apps",
+      "count": 4,
+      "lines": [
+        {
+          "line": 49,
+          "text": "aria-label=\"当前画布不可用\""
+        },
+        {
+          "line": 59,
+          "text": "<h1 className=\"text-base font-medium tracking-tight\">此画布暂时无法继续</h1>"
+        },
+        {
+          "line": 62,
+          "text": "为保护其他画布，当前画布已停止运行。其他画布不受影响。"
+        },
+        {
+          "line": 72,
+          "text": "关闭画布"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/WorkspaceFrame.tsx",
+      "area": "features",
+      "count": 4,
+      "lines": [
+        {
+          "line": 26,
+          "text": "readonly canvas: ReactNode"
+        },
+        {
+          "line": 50,
+          "text": "canvas,"
+        },
+        {
+          "line": 83,
+          "text": "data-canvas-host=\"workspace\""
+        },
+        {
+          "line": 97,
+          "text": "{canvas}"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/untitled-canvas-title.ts",
+      "area": "features",
+      "count": 4,
+      "lines": [
+        {
+          "line": 1,
+          "text": "const BASE_TITLE = '未命名画布'"
+        },
+        {
+          "line": 7,
+          "text": "* 键盘建出来的画布会全部叫同一个名字，按钮建出来的才带序号。"
+        },
+        {
+          "line": 9,
+          "text": "export function nextUntitledCanvasTitle("
+        },
+        {
+          "line": 12,
+          "text": "const taken = new Set(tabs.filter((tab) => tab.kind === 'canvas').map((tab) => tab.title))"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/commands/document.rs",
+      "area": "apps",
+      "count": 3,
+      "lines": [
+        {
+          "line": 725,
+          "text": "\"document was removed outside Canvas\".into(),"
+        },
+        {
+          "line": 739,
+          "text": "\"document changed outside Canvas\".into(),"
+        },
+        {
+          "line": 747,
+          "text": "\"document changed outside Canvas\".into(),"
+        }
+      ]
+    },
+    {
+      "file": "docs/architecture/ui-authority-boundaries.md",
+      "area": "docs",
+      "count": 3,
+      "lines": [
+        {
+          "line": 22,
+          "text": "| Canvas document state and canvas interaction | tldraw Editor and TLStore |"
+        },
+        {
+          "line": 30,
+          "text": "- The design system contains no canvas, workspace, settings or desktop-window"
+        },
+        {
+          "line": 40,
+          "text": "- tldraw remains the visual and interaction authority inside the canvas."
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/presentation/status/CanvasStatus.tsx",
+      "area": "editor",
+      "count": 3,
+      "lines": [
+        {
+          "line": 6,
+          "text": "export function CanvasStatusLeft() {"
+        },
+        {
+          "line": 43,
+          "text": "export function CanvasStatusRight() {"
+        },
+        {
+          "line": 46,
+          "text": "'canvas zoom',"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/editor-context.tsx",
+      "area": "editor",
+      "count": 3,
+      "lines": [
+        {
+          "line": 5,
+          "text": "import { CanvasInspectorPortalProvider } from './canvas-inspector-portal'"
+        },
+        {
+          "line": 77,
+          "text": "<CanvasInspectorPortalProvider>{children}</CanvasInspectorPortalProvider>"
+        },
+        {
+          "line": 110,
+          "text": "* description string on every render of every canvas, to no effect."
+        }
+      ]
+    },
+    {
+      "file": "editor/persistence/native/src/atomic_write.rs",
+      "area": "editor",
+      "count": 3,
+      "lines": [
+        {
+          "line": 182,
+          "text": "let destination = directory.path().join(\"canvas.draw\");"
+        },
+        {
+          "line": 196,
+          "text": "let destination = directory.path().join(\"canvas.draw\");"
+        },
+        {
+          "line": 230,
+          "text": "let destination = parent_file.join(\"canvas.draw\");"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/surface-registry.ts",
+      "area": "features",
+      "count": 3,
+      "lines": [
+        {
+          "line": 34,
+          "text": "description: '恢复最近打开的画布和本地文件。',"
+        },
+        {
+          "line": 44,
+          "text": "description: '浏览、选择和组织当前画布中的对象层级。',"
+        },
+        {
+          "line": 49,
+          "text": "description: '查看并维护画布内容之间的结构化关系。',"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/light.css",
+      "area": "foundations",
+      "count": 3,
+      "lines": [
+        {
+          "line": 16,
+          "text": "--ui-canvas: var(--ui-palette-neutral-50);"
+        },
+        {
+          "line": 28,
+          "text": "* 三个角色，两套语境。值相对画布（--ui-palette-neutral-50）定。"
+        },
+        {
+          "line": 34,
+          "text": "* 唯一必须成立的不变量：同一张卡内，外框相对画布的对比度是卡内线的"
+        }
+      ]
+    },
+    {
+      "file": "tests/integration/document-lifecycle/canvas-document-open-rollback.test.ts",
+      "area": "tests",
+      "count": 3,
+      "lines": [
+        {
+          "line": 1,
+          "text": "import { createCanvasDocumentService } from '@poietica/editor-document'"
+        },
+        {
+          "line": 45,
+          "text": "const service = createCanvasDocumentService({"
+        },
+        {
+          "line": 58,
+          "text": "describe('CanvasDocumentService open transaction', () => {"
+        }
+      ]
+    },
+    {
+      "file": "agent/timeline/src/__fixtures__/tool-turn.generated.ts",
+      "area": "agent",
+      "count": 2,
+      "lines": [
+        {
+          "line": 1417,
+          "text": "text: '1\\t<!--\\n2\\t  Poietica README\\n3\\t  This file is generated by refactor.mjs.\\n4\\t  Update the template in refactor.mjs instead of editing generated sections by hand.\\n5\\t-->\\n6\\t\\n7\\t<div align="
+        },
+        {
+          "line": 1422,
+          "text": "'1\\t<!--\\n2\\t  Poietica README\\n3\\t  This file is generated by refactor.mjs.\\n4\\t  Update the template in refactor.mjs instead of editing generated sections by hand.\\n5\\t-->\\n6\\t\\n7\\t<div align=\"cente"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/assistant.css",
+      "area": "agent",
+      "count": 2,
+      "lines": [
+        {
+          "line": 21,
+          "text": "* It gives the scroller the height of the panel and the paint of the canvas,"
+        },
+        {
+          "line": 34,
+          "text": "background: var(--cp-canvas);"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/error.rs",
+      "area": "apps",
+      "count": 2,
+      "lines": [
+        {
+          "line": 326,
+          "text": "\"permission denied for /Users/example/private/canvas.draw\","
+        },
+        {
+          "line": 336,
+          "text": "assert!(!message.contains(\"canvas.draw\"));"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/ipc/export_bindings.rs",
+      "area": "apps",
+      "count": 2,
+      "lines": [
+        {
+          "line": 28,
+          "text": "settings::{AppSettings, CanvasSettings, EditorSettings, ExportSettings, PrivacySettings},"
+        },
+        {
+          "line": 116,
+          "text": ".typ::<CanvasSettings>()"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/tauri.conf.json",
+      "area": "apps",
+      "count": 2,
+      "lines": [
+        {
+          "line": 48,
+          "text": "\"shortDescription\": \"Local-first, AI-assisted canvas for thinking and creating.\","
+        },
+        {
+          "line": 49,
+          "text": "\"longDescription\": \"Poietica is a local-first, AI-assisted canvas for thinking, describing, and creating. Documents stay on your machine; AI assistance is opt-in per session.\","
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-003-opaque-window-surface.md",
+      "area": "docs",
+      "count": 2,
+      "lines": [
+        {
+          "line": 70,
+          "text": "- 为视觉问题建立第二套 canvas 状态；"
+        },
+        {
+          "line": 91,
+          "text": "它不承诺消除所有 GPU、显卡驱动或 WebView2 内容重绘延迟。即使复杂画布内容暂时没有跟上窗口尺寸，用户看到的也应是规定的 backing surface，而不是后方窗口。"
+        }
+      ]
+    },
+    {
+      "file": "docs/rfcs/tool-inspector-refactor.md",
+      "area": "docs",
+      "count": 2,
+      "lines": [
+        {
+          "line": 40,
+          "text": "├── CanvasInspectorContent.tsx"
+        },
+        {
+          "line": 97,
+          "text": "- Extract the existing canvas inspector from WorkspaceContainer."
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/presentation/inspector/CanvasInspector.tsx",
+      "area": "editor",
+      "count": 2,
+      "lines": [
+        {
+          "line": 7,
+          "text": "export function CanvasInspector() {"
+        },
+        {
+          "line": 22,
+          "text": "<InspectorEmptyState description=\"选择画布中的对象以查看和修改属性。\" title=\"未选择对象\" />"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/presentation/public-api.ts",
+      "area": "editor",
+      "count": 2,
+      "lines": [
+        {
+          "line": 1,
+          "text": "export { CanvasInspector } from './inspector/CanvasInspector'"
+        },
+        {
+          "line": 2,
+          "text": "export { CanvasStatusLeft, CanvasStatusRight } from './status/CanvasStatus'"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/src/react/EditorSessionHost.tsx",
+      "area": "editor",
+      "count": 2,
+      "lines": [
+        {
+          "line": 3,
+          "text": "import { EditorCanvas } from './EditorCanvas'"
+        },
+        {
+          "line": 128,
+          "text": "<EditorCanvas"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/public-api.ts",
+      "area": "features",
+      "count": 2,
+      "lines": [
+        {
+          "line": 14,
+          "text": "export { NoCanvasSurface } from './empty/NoCanvasSurface'"
+        },
+        {
+          "line": 23,
+          "text": "export { nextUntitledCanvasTitle } from './shell/untitled-canvas-title'"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/dark.css",
+      "area": "foundations",
+      "count": 2,
+      "lines": [
+        {
+          "line": 16,
+          "text": "--ui-canvas: var(--ui-palette-dark-900);"
+        },
+        {
+          "line": 23,
+          "text": "* 与 light.css 同构，相对画布（--ui-palette-dark-975）定档，同样保持"
+        }
+      ]
+    },
+    {
+      "file": "foundations/observability/src/diagnostic-buffer.test.ts",
+      "area": "foundations",
+      "count": 2,
+      "lines": [
+        {
+          "line": 21,
+          "text": "'canvas save failed',"
+        },
+        {
+          "line": 33,
+          "text": "message: 'canvas save failed',"
+        }
+      ]
+    },
+    {
+      "file": "platforms/desktop-ipc/src/generated/ipc-bindings.ts",
+      "area": "platforms",
+      "count": 2,
+      "lines": [
+        {
+          "line": 835,
+          "text": "autoSaveIntervalMs: number; shortcuts: Partial<{ [key in string]: string }>; canvas: CanvasSettings; editor: EditorSettings; export: ExportSettings; privacy: PrivacySettings }"
+        },
+        {
+          "line": 841,
+          "text": "export type CanvasSettings = { defaultZoom: number; showGrid: boolean; snapToGrid: boolean; gridSize: number; showRulers: boolean; infiniteCanvas: boolean }"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/AssistantSurface.tsx",
+      "area": "agent",
+      "count": 1,
+      "lines": [
+        {
+          "line": 77,
+          "text": "* derived, and both live outside the virtualised canvas."
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/feed/RestoreSpinner.tsx",
+      "area": "agent",
+      "count": 1,
+      "lines": [
+        {
+          "line": 12,
+          "text": "* 开场白被塌掉，画布高度为零，于是滚动区里一个像素都没有。那段空白是刻意"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/feed/reading-position.ts",
+      "area": "agent",
+      "count": 1,
+      "lines": [
+        {
+          "line": 6,
+          "text": "* 只有起点,没有终点:行是绝对定位、首尾相接、完整铺满画布的,所以起点单调"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/minimap/ConversationMinimap.tsx",
+      "area": "agent",
+      "count": 1,
+      "lines": [
+        {
+          "line": 23,
+          "text": "* 只能压缩表示,不能延长画布。"
+        }
+      ]
+    },
+    {
+      "file": "agent/ui/src/timeline/ThinkingIndicator.tsx",
+      "area": "agent",
+      "count": 1,
+      "lines": [
+        {
+          "line": 6,
+          "text": "* the virtualised canvas, and it disappears the moment a real frame arrives."
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/asset_protocol.rs",
+      "area": "apps",
+      "count": 1,
+      "lines": [
+        {
+          "line": 615,
+          "text": "/// the user can place on the canvas and then cannot save, which is the worst"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/bootstrap/tray.rs",
+      "area": "apps",
+      "count": 1,
+      "lines": [
+        {
+          "line": 7,
+          "text": "//! 直接 app.exit(0)，那条路径绕开了全部确认，从托盘退出会静默丢弃未保存的画布。"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/commands/asset.rs",
+      "area": "apps",
+      "count": 1,
+      "lines": [
+        {
+          "line": 220,
+          "text": "let hash = hex::encode(Sha256::digest(b\"canvas\"));"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/diagnostics/mod.rs",
+      "area": "apps",
+      "count": 1,
+      "lines": [
+        {
+          "line": 231,
+          "text": "let result = truncate(\"画布崩溃测试\".to_owned(), 5);"
+        }
+      ]
+    },
+    {
+      "file": "apps/desktop/src/application/failures/failure-coordinator.test.ts",
+      "area": "apps",
+      "count": 1,
+      "lines": [
+        {
+          "line": 49,
+          "text": "userMessage: '画布已停止运行。',"
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-001-tldraw-license.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 7,
+          "text": "项目采用 `tldraw@5.2.5` 作为画布编辑器核心。tldraw 采用 **源码可用、非开源** 的商业许可模式："
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-004-document-session-persistence-boundary.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 11,
+          "text": "- `document`：shape、page、binding、asset record 等画布文档；"
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-005-unified-fatal-incident.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 123,
+          "text": "- no second canvas or document state model is introduced."
+        }
+      ]
+    },
+    {
+      "file": "docs/adr/ADR-008-document-failure-isolation.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 12,
+          "text": "Without a session-level boundary, an EditorCanvas render failure continued to"
+        }
+      ]
+    },
+    {
+      "file": "docs/architecture/acp-client.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 553,
+          "text": "and it is rendered after the virtualised canvas rather than inside it. It is"
+        }
+      ]
+    },
+    {
+      "file": "docs/generated/dependency-cleanup-report.md",
+      "area": "docs",
+      "count": 1,
+      "lines": [
+        {
+          "line": 62,
+          "text": "| `canvas` | `canvas` | 是 | `features/settings/src/domain/settings.ts`<br>`features/settings/src/presentation/SettingsDialog.tsx` |"
+        }
+      ]
+    },
+    {
+      "file": "editor/core/tsconfig.json",
+      "area": "editor",
+      "count": 1,
+      "lines": [
+        {
+          "line": 5,
+          "text": "\"tsBuildInfoFile\": \"./node_modules/.cache/typescript/canvas.tsbuildinfo\","
+        }
+      ]
+    },
+    {
+      "file": "editor/persistence/native/src/asset_content_type.rs",
+      "area": "editor",
+      "count": 1,
+      "lines": [
+        {
+          "line": 12,
+          "text": "//! asset the user could place on the canvas and then could not save; adding"
+        }
+      ]
+    },
+    {
+      "file": "features/settings/src/presentation/useSettingsController.ts",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 159,
+          "text": "* Only the small settings object is written. Canvas document state remains"
+        }
+      ]
+    },
+    {
+      "file": "features/settings/src/public-api.ts",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 3,
+          "text": "type CanvasSettings,"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/SidebarRegion.tsx",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 25,
+          "text": "* 键盘焦点仍会 Tab 到抽屉背后的画布上，aside 也没有任何对话框角色。"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/WorkbenchTabs.tsx",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 93,
+          "text": "aria-label=\"新建画布\""
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/WorkspaceSurface.tsx",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 31,
+          "text": "className=\"relative grid h-full place-items-center overflow-hidden bg-canvas px-8\""
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/surface-registry.test.ts",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 52,
+          "text": "/* 画布不是 surface：它是被文档占据的那一格，空态是一等的 start 标签。 */"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/useSidebarResize.ts",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 34,
+          "text": "* 分隔条本身，即使指针越过画布或离开窗口，所以不需要 document 上的全局监听。"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/shell/workbench-tabs/workbench-tabs-model.test.ts",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 111,
+          "text": "expect(encodeWorkbenchTabDomId('canvas:hello/world')).toBe('canvas-hello-world')"
+        }
+      ]
+    },
+    {
+      "file": "features/workspace/src/presentation/status/StatusBarHost.tsx",
+      "area": "features",
+      "count": 1,
+      "lines": [
+        {
+          "line": 10,
+          "text": "aria-label=\"画布状态栏\""
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/components/ui/drawer.tsx",
+      "area": "foundations",
+      "count": 1,
+      "lines": [
+        {
+          "line": 23,
+          "text": "* 那种写法没有焦点陷阱，Tab 会走到抽屉背后的画布上。"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/accessibility.css",
+      "area": "foundations",
+      "count": 1,
+      "lines": [
+        {
+          "line": 18,
+          "text": "outline: var(--ui-focus-ring-width) solid CanvasText;"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/layers.css",
+      "area": "foundations",
+      "count": 1,
+      "lines": [
+        {
+          "line": 18,
+          "text": "--ui-z-canvas: 0;"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/palette.css",
+      "area": "foundations",
+      "count": 1,
+      "lines": [
+        {
+          "line": 14,
+          "text": "/* #f8f8f8 —— 主内容区与画布底色；中性灰，不带暖色偏移。 */"
+        }
+      ]
+    },
+    {
+      "file": "foundations/design-system/src/styles/tokens/semantic.css",
+      "area": "foundations",
+      "count": 1,
+      "lines": [
+        {
+          "line": 13,
+          "text": "--color-canvas: var(--ui-canvas);"
+        }
+      ]
+    },
+    {
+      "file": "package.json",
+      "area": "package.json",
+      "count": 1,
+      "lines": [
+        {
+          "line": 5,
+          "text": "\"description\": \"Poietica — a local-first, AI-assisted canvas for thinking, describing, and creating.\","
+        }
+      ]
+    },
+    {
+      "file": "tests/unit/document-lifecycle/document-dirty-ledger.test.ts",
+      "area": "tests",
+      "count": 1,
+      "lines": [
+        {
+          "line": 103,
+          "text": "* 「新建画布立刻显示未保存圆点」那个缺陷的最小复现。"
+        }
+      ]
+    }
+  ]
+}

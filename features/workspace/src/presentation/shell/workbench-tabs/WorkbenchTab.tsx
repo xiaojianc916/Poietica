@@ -2,7 +2,7 @@ import { FileText, X } from '@mynaui/icons-react'
 import type { WorkbenchTabId } from '@poietica/features-workspace'
 import type { WorkbenchTabViewModel } from '@poietica/features-workspace/contracts'
 import type { ComponentType, KeyboardEvent } from 'react'
-import { CANVAS_START_DESCRIPTOR, describeWorkspaceSurface } from '../surface-registry'
+import { describeWorkspaceSurface } from '../surface-registry'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
@@ -203,12 +203,12 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
-  /* 与侧栏「画布」同一个图标：用户点进来的入口和留下的标签必须看起来是一回事。 */
-  if (model.kind === 'start') {
-    return CANVAS_START_DESCRIPTOR.icon
-  }
-
-  if (model.kind === 'canvas') {
+  /*
+   * 画布槽已无导航入口：start 空态与 canvas 文档是同一个槽的两种状态，图标
+   * 因此只有一个文档字形。这两种标签形态在画布移除的下一步整体删除，届时
+   * 这个分支随之消失，不留兼容分支。
+   */
+  if (model.kind === 'start' || model.kind === 'canvas') {
     return FileText
   }
 

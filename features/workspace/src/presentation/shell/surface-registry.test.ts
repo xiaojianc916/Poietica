@@ -1,22 +1,9 @@
-import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 import { describe, expect, it } from 'vitest'
 import {
-  describeWorkspaceNavigation,
+  describeWorkspaceSurface,
   WORKSPACE_NAVIGATION_ORDER,
   WORKSPACE_SURFACE_REGISTRY,
 } from './surface-registry'
-
-const SURFACE_IDS: readonly WorkspaceSurfaceId[] = [
-  'documents',
-  'search',
-  'layers',
-  'relations',
-  'ai',
-  'assets',
-  'extensions',
-  'automations',
-  'hooks',
-]
 
 /*
  * React 的组件类型不一定是函数。
@@ -36,26 +23,26 @@ function isRenderableComponent(value: unknown): boolean {
 
 describe('WORKSPACE_SURFACE_REGISTRY', () => {
   it('为每个表面提供可渲染的图标与标题', () => {
-    for (const id of SURFACE_IDS) {
-      const descriptor = WORKSPACE_SURFACE_REGISTRY[id]
-
-      expect(descriptor, `missing descriptor for ${id}`).toBeDefined()
+    for (const [id, descriptor] of Object.entries(WORKSPACE_SURFACE_REGISTRY)) {
       expect(isRenderableComponent(descriptor.icon), `icon for ${id} is not renderable`).toBe(true)
       expect(descriptor.title.length).toBeGreaterThan(0)
       expect(descriptor.description.length).toBeGreaterThan(0)
     }
   })
 
-  it('不包含已废弃的 data / pages 表面', () => {
-    expect(Object.keys(WORKSPACE_SURFACE_REGISTRY)).not.toContain('data')
+  it('不包含已废弃的 data / pages / canvas-start 表面', () => {
+    const keys = Object.keys(WORKSPACE_SURFACE_REGISTRY)
 
-    /* 画布不是 surface：它是被文档占据的那一格，空态是一等的 start 标签。 */
-    expect(Object.keys(WORKSPACE_SURFACE_REGISTRY)).not.toContain('pages')
+    expect(keys).not.toContain('data')
+    expect(keys).not.toContain('pages')
+
+    /* 画布已移出产品：导航项与表面是同一个概念，不存在第二种导航 ID。 */
+    expect(keys).not.toContain('canvas-start')
   })
 
   it('导航顺序只引用注册表中存在的表面，且不重复', () => {
-    for (const navigationId of WORKSPACE_NAVIGATION_ORDER) {
-      const descriptor = describeWorkspaceNavigation(navigationId)
+    for (const surfaceId of WORKSPACE_NAVIGATION_ORDER) {
+      const descriptor = describeWorkspaceSurface(surfaceId)
 
       expect(descriptor).toBeDefined()
       expect(descriptor.title.length).toBeGreaterThan(0)

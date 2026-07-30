@@ -4,13 +4,11 @@ import type { WorkspaceSurfaceId } from '@poietica/features-workspace/contracts'
 import type { ReactNode } from 'react'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'
-import type { WorkspaceNavigationId } from './surface-registry'
 
 export interface WorkspaceSidebarProps {
-  readonly activeNavigationId: WorkspaceNavigationId | null
+  readonly activeNavigationId: WorkspaceSurfaceId | null
   readonly panel: ReactNode
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
-  readonly onCanvasStartActivate: () => void
   readonly onCreateConversation: () => void
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -33,7 +31,6 @@ export function WorkspaceSidebar({
   activeNavigationId,
   panel,
   onSurfaceActivate,
-  onCanvasStartActivate,
   onCreateConversation,
   onSettingsOpen,
   onDeveloperToolsOpen,
@@ -42,7 +39,6 @@ export function WorkspaceSidebar({
     <section className="workspace-sidebar flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <SidebarNav
         activeNavigationId={activeNavigationId}
-        onCanvasStartActivate={onCanvasStartActivate}
         onCreateConversation={onCreateConversation}
         onSurfaceActivate={onSurfaceActivate}
       />

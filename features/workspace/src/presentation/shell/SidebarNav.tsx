@@ -2,18 +2,15 @@ import { Message } from '@mynaui/icons-react'
 import type { WorkspaceSurfaceId } from '@poietica/features-workspace'
 import { cn } from '@poietica/foundations-design-system'
 import {
-  CANVAS_START_NAV_ID,
-  describeWorkspaceNavigation,
+  describeWorkspaceSurface,
   type SurfaceIcon,
   WORKSPACE_NAVIGATION_ORDER,
-  type WorkspaceNavigationId,
 } from './surface-registry'
 
 export interface SidebarNavProps {
-  /** 当前高亮的导航项。画布态为 null——画布是文档，不是导航目的地。 */
-  readonly activeNavigationId: WorkspaceNavigationId | null
+  /** 当前高亮的导航项，等于当前活动表面；非表面形态为 null。 */
+  readonly activeNavigationId: WorkspaceSurfaceId | null
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
-  readonly onCanvasStartActivate: () => void
   readonly onCreateConversation: () => void
 }
 
@@ -26,7 +23,6 @@ export interface SidebarNavProps {
 export function SidebarNav({
   activeNavigationId,
   onSurfaceActivate,
-  onCanvasStartActivate,
   onCreateConversation,
 }: SidebarNavProps) {
   return (
@@ -41,27 +37,22 @@ export function SidebarNav({
           <NavRow
             active={activeNavigationId === 'ai'}
             icon={Message}
-            label={describeWorkspaceNavigation('ai').title}
+            label={describeWorkspaceSurface('ai').title}
             onClick={onCreateConversation}
           />
         </li>
 
-        {WORKSPACE_NAVIGATION_ORDER.map((navigationId) => {
-          const { title, icon } = describeWorkspaceNavigation(navigationId)
+        {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
+          const { title, icon } = describeWorkspaceSurface(surfaceId)
 
           return (
-            <li key={navigationId}>
+            <li key={surfaceId}>
               <NavRow
-                active={navigationId === activeNavigationId}
+                active={surfaceId === activeNavigationId}
                 icon={icon}
                 label={title}
                 onClick={() => {
-                  if (navigationId === CANVAS_START_NAV_ID) {
-                    onCanvasStartActivate()
-                    return
-                  }
-
-                  onSurfaceActivate(navigationId)
+                  onSurfaceActivate(surfaceId)
                 }}
               />
             </li>
