@@ -54,6 +54,6 @@ pub use run_log::{
     RunOutcome, ToolCallState,
 };
 pub use run_slot::RunSlot;
-pub use session::{AgentConnection, AgentSpawn, OpenedSession, SessionEntry};
+pub use session::{AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry};
 pub use sessions::SessionBook;
 pub use stderr::StderrLog;

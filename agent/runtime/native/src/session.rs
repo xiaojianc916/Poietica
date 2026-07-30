@@ -52,13 +52,17 @@ pub struct AgentConnection {
     /// Held by the caller so a session opened later is entered in the same
     /// book the protocol handlers already read from.
     pub book: SessionBook,
-    /// 第一条会话的名字，或者握手为什么没成。
+    /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
     ///
     /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到
     /// 的是一个没有内容的 `Canceled` —— 「agent 要求先登录」「进程崩了」「协议
     /// 版本谈不拢」在它眼里是同一件事，屏幕上都是那句「应用操作失败」。原因在
     /// 类型上没有地方放，就不是漏写了一行日志，是这条路少了一半。
-    pub session_id: oneshot::Receiver<Result<String>>,
+    ///
+    /// 里面现在不只有会话名。agent 会不会装载一条旧会话，同样是握手才谈得出来
+    /// 的事实，而它决定了「点开上次运行留下的对话」走哪条路 —— 此前这个事实在
+    /// 类型上同样没有地方放，于是那条路只有一个走法。
+    pub handshake: oneshot::Receiver<Result<Handshake>>,
     /// Must be spawned; the connection only lives while this future is polled.
     pub driver: BoxFuture<'static, Result<()>>,
 }
@@ -70,6 +74,17 @@ impl fmt::Debug for AgentConnection {
             .field("client", &self.client)
             .finish_non_exhaustive()
     }
+}
+
+/// 握手谈成之后才知道的事。
+///
+/// 两件都只有 agent 说了算，而且都只在这一刻说一次。
+#[derive(Debug, Clone)]
+pub struct Handshake {
+    /// 这条连接自带的那个会话的名字。
+    pub session_id: String,
+    /// agent 会不会把一条它以前开过的会话重新装载起来（ACP `session/load`）。
+    pub can_load_session: bool,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

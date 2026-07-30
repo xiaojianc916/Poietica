@@ -19,6 +19,16 @@ pub(crate) enum Command {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
+    /// 让 agent 重新装载一条它以前开过的会话。
+    ///
+    /// 会话号是上一次运行存下来的。ACP 的 `session/load` 就是为跨进程恢复
+    /// 而设的：装载之后这条会话仍然是它自己，历史因此还在 agent 手里 ——
+    /// 与新开一条的分别不在于省一次握手，而在于上下文还在不在。
+    LoadSession {
+        session_id: String,
+        cwd: PathBuf,
+        reply: oneshot::Sender<Result<OpenedSession>>,
+    },
     /// Ask the agent which sessions it keeps, and what it calls them.
     Sessions {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
@@ -88,6 +98,29 @@ impl AgentClient {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::NewSession { cwd, reply })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+    }
+
+    /// Reloads a session this agent opened in an earlier run.
+    ///
+    /// 会话号原样交回去，agent 那侧把它重新装载起来，历史因此还在。只有在
+    /// agent 于握手时声明了这项能力时才该调用它。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, or when the agent no longer keeps
+    /// that session.
+    pub async fn load_session(&self, session_id: String, cwd: PathBuf) -> Result<OpenedSession> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::LoadSession {
+            session_id,
+            cwd,
+            reply,
+        })?;
 
         answer
             .await

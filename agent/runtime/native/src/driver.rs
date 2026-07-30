@@ -5,8 +5,8 @@ use std::pin::Pin;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, InitializeRequest, ListSessionsRequest, NewSessionRequest, PromptRequest,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, NewSessionRequest,
+    PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SelectedPermissionOutcome, SessionId, SessionNotification, SetSessionConfigOptionRequest,
     TextContent,
 };
@@ -24,7 +24,7 @@ use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::run_slot::RunSlot;
-use crate::session::{AgentConnection, AgentSpawn, OpenedSession, SessionEntry};
+use crate::session::{AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry};
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
@@ -144,7 +144,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     });
 
     let (commands, receiver) = mpsc::unbounded::<Command>();
-    let (ready, session_id) = oneshot::channel::<Result<String>>();
+    let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
     // and read it by name; the driver writes to it as sessions are created.
@@ -224,17 +224,26 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 随闭包一起被丢掉，调用者只看到通道断了 —— 一个没有内容的信号。
                 agent 要求先登录，是这条路上最常见的一种失败，而它恰恰是用户
                 自己就能解决的那一种。 */
-                if let Err(error) = connection
+                /* 答复不再被丢掉。agent 在这里声明它会不会把一条旧会话重新
+                装载起来（ACP 的 session/load），而那是「点开上次运行留下的对话」
+                唯一走得通的路 —— 此前这个 Ok 分支连变量都没绑定，于是每一条旧
+                对话都只能被换成一条空会话。 */
+                let initialized = match connection
                     .send_request(InitializeRequest::new(ProtocolVersion::V1))
                     .block_task()
                     .await
                 {
-                    let _ignored = ready.send(Err(AcpError::Handshake {
-                        message: error.to_string(),
-                    }));
+                    Ok(initialized) => initialized,
+                    Err(error) => {
+                        let _ignored = ready.send(Err(AcpError::Handshake {
+                            message: error.to_string(),
+                        }));
 
-                    return Err(error);
-                }
+                        return Err(error);
+                    }
+                };
+
+                let can_load_session = initialized.agent_capabilities.load_session;
 
                 let session = match connection
                     .send_request(NewSessionRequest::new(cwd))
@@ -280,7 +289,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                 // Nobody may still be waiting for the identifier, and that is
                 // not a failure of the session.
-                let _ignored = ready.send(Ok(primary.to_string()));
+                let _ignored = ready.send(Ok(Handshake {
+                    session_id: primary.to_string(),
+                    can_load_session,
+                }));
 
                 /*
                  * 在飞的每一件事各是一个未来，一起被推进。
@@ -336,6 +348,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             jobs.push(Box::pin(open_session(
                                 &connection,
                                 ledger.clone(),
+                                cwd,
+                                reply,
+                            )));
+                        }
+                        Step::Asked(Some(Command::LoadSession {
+                            session_id,
+                            cwd,
+                            reply,
+                        })) => {
+                            jobs.push(Box::pin(load_session(
+                                &connection,
+                                ledger.clone(),
+                                session_id,
                                 cwd,
                                 reply,
                             )));
@@ -580,6 +605,52 @@ async fn open_session(
     };
 
     Settled::Opened { opened, reply }
+}
+
+/// 让 agent 把一条它以前开过的会话重新装载起来。
+///
+/// 会话号不变，所以历史留在它原来的地方 —— 这正是 `session/load` 与
+/// `session/new` 的分别，也是「点开上次运行留下的对话」唯一走得通的路。
+///
+/// 装载期间 agent 以 `session/update` 把这条会话重放一遍。那些帧走接收路径上
+/// 同一个入口，而此刻这条会话上没有一轮在飞，槽里没有记录器，于是它们不被写进
+/// 日志：上下文回到 agent 手里，本地那一份记录不因此多出一个副本。
+async fn load_session(
+    connection: &ConnectionTo<Agent>,
+    ledger: SessionBook,
+    session_id: String,
+    cwd: PathBuf,
+    reply: oneshot::Sender<Result<OpenedSession>>,
+) -> Settled {
+    let named = SessionId::from(session_id.as_str());
+
+    // 帧要落在这条会话名下，所以它先进册子，再开始装载。
+    let loaded = match ledger.open(&session_id) {
+        Err(unusable) => Err(unusable),
+        Ok(_slot) => match connection
+            .send_request(LoadSessionRequest::new(named.clone(), cwd))
+            .block_task()
+            .await
+        {
+            Err(error) => Err(AcpError::Protocol {
+                message: error.to_string(),
+            }),
+            // 装载完了 agent 同样报一次这条会话的选择器，与新开一条对称。
+            Ok(session) => Ok(Started {
+                name: session_id,
+                named,
+                offered: match session.config_options.as_deref() {
+                    Some(options) => controls(options),
+                    None => Vec::new(),
+                },
+            }),
+        },
+    };
+
+    Settled::Opened {
+        opened: loaded,
+        reply,
+    }
 }
 
 /// Asks the agent for its own list of sessions.

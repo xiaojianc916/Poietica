@@ -93,6 +93,8 @@ struct Session {
     /// agent 提供什么的时候，总得有一个会话可以问，而那个问题与任何一条对话都
     /// 无关。所以它是锚，不是对话的会话。
     anchor: String,
+    /// 这个 agent 会不会装载一条旧会话。握手时问出来的，一条连接一份。
+    can_load_session: bool,
 }
 
 /// Managed state for everything the agent commands need.
@@ -737,6 +739,8 @@ struct Handle {
     client: AgentClient,
     /// 这条连接的锚会话。问 agent 能力时发往它。
     anchor: String,
+    /// 这个 agent 会不会装载一条旧会话。寻址要按它分路。
+    can_load_session: bool,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -778,7 +782,7 @@ async fn ensure_session(
     // over once it keeps more than one session at a time.
     let AgentConnection {
         client,
-        session_id,
+        handshake,
         driver,
         book: _,
     } = connect(spawn, state.slot.clone(), state.desk.clone()).map_err(translate)?;
@@ -792,10 +796,13 @@ async fn ensure_session(
     });
 
     /* 通道现在两头都说得出话：Canceled 是发送端没了，Err 是握手自己报的原因。 */
-    let session_id = session_id
+    let handshake = handshake
         .await
         .map_err(|_dropped| Error::Internal(NO_SESSION_ID.to_owned()))?
         .map_err(translate)?;
+
+    let session_id = handshake.session_id;
+    let can_load_session = handshake.can_load_session;
 
     let mut guard = lock(&state.session)?;
 
@@ -807,12 +814,14 @@ async fn ensure_session(
         return Ok(Handle {
             client: live.client.clone(),
             anchor: live.anchor.clone(),
+            can_load_session: live.can_load_session,
         });
     }
 
     *guard = Some(Session {
         client: client.clone(),
         anchor: session_id.clone(),
+        can_load_session,
     });
 
     /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
@@ -821,6 +830,7 @@ async fn ensure_session(
     Ok(Handle {
         client,
         anchor: session_id,
+        can_load_session,
     })
 }
 
@@ -831,6 +841,7 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
         anchor: live.anchor.clone(),
+        can_load_session: live.can_load_session,
     }))
 }
 
@@ -1185,8 +1196,9 @@ pub struct AgentOpenThreadRequest {
 /// 打开一条对话：让它握住一个这条连接认得的会话。
 ///
 /// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
-/// 认出它存着的会话号不是本次连接开的，于是重开一个并改写持有关系。两条路都在
-/// 同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
+/// 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
+/// 不变，历史因此还在。只有 agent 说它不装载旧会话时才重开一条。三条路都在同
+/// 一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
 /// 因此被删掉的。
 ///
 /// # Errors
@@ -1364,9 +1376,16 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// 一条上次运行留下的对话，它的选择器和它的每一轮提问都发往一个早已不存在的
 /// 会话：前者是屏幕上那句"会话设置读取失败"，后者是一轮永远不会开始的回答。
 ///
-/// 认不得就重开一个并改写这条对话的持有关系。新开的会话，agent 在同一个答复里
-/// 报了整张选择器表，所以第二个字段只在这种情况下有值：这不是缓存，是省掉一次
-/// 多余的往返。
+/// 认不得的那一个不是废号，是一条还在 agent 那侧的会话。ACP 为它准备了
+/// `session/load`：号原样交回去，agent 把它重新装载起来，历史因此还在。此前
+/// 这里直接重开一条空会话并用它覆盖掉旧号 —— 屏幕上的历史来自本地日志，所以
+/// 看起来一切正常，而 agent 手里什么都没有；被覆盖掉的那个号从此也再找不回来。
+///
+/// 只有 agent 自己在握手时说了它不装载旧会话，才开一条新的。那一刻旧号确实
+/// 不再指向任何东西，所以这不是兜底，是另一种事实。
+///
+/// 两条会话路径都由 agent 在同一个答复里报回整张选择器表，所以第三个字段只在
+/// 「这次真的开或装载了一条」时有值：这不是缓存，是省掉一次多余的往返。
 ///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
 async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
@@ -1379,14 +1398,37 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         store.session_for_thread(thread_id).map_err(persistence)?
     };
 
-    if let Some(session_id) = stored
-        && recognised(state, &session_id)?
-    {
-        return Ok(Held {
-            thread_id,
-            session_id,
-            offered: None,
-        });
+    if let Some(session_id) = stored {
+        /* 本次连接开的，直接用。 */
+        if recognised(state, &session_id)? {
+            return Ok(Held {
+                thread_id,
+                session_id,
+                offered: None,
+            });
+        }
+
+        /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
+        if live.can_load_session {
+            match live
+                .client
+                .load_session(session_id.clone(), state.root.clone())
+                .await
+            {
+                Ok(loaded) => {
+                    remember(state, &session_id)?;
+
+                    return Ok(Held {
+                        thread_id,
+                        session_id,
+                        offered: Some(loaded.selectors),
+                    });
+                }
+                /* agent 自己也不再留着这条会话了。那与它一开始就说不装载是同一个
+                处境，走同一条路 —— 但它是一件值得知道的事，所以写下来。 */
+                Err(error) => log::warn!("could not reload the stored session: {error}"),
+            }
+        }
     }
 
     let opened = live

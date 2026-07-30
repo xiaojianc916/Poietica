@@ -165,7 +165,7 @@ const MOONSHOT: AgentProviderPreset = {
     },
     {
       id: 'kimi-k2.7-code-highspeed',
-      displayName: 'Kimi K2.7 Code 高速版',
+      displayName: 'Kimi K2.7 Code Highspeed',
       maxContextSize: 256000,
       thinking: { toggle: true },
     },
