@@ -355,6 +355,104 @@ fn default_model_from_config(text: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// 上游闸门按 provider 的 `type` 决定「密钥也可以从 env 里来」时读哪个变量名。
+///
+/// 这张表是 `providerHasNonOAuthCredentials` 那个 switch 的逐字对照
+/// （packages/acp-adapter/src/server.ts）。认不出的 type 返回 None，由调用方退成宽松判断。
+fn credential_env_key(provider_type: &str) -> Option<&'static str> {
+    match provider_type {
+        "anthropic" => Some("ANTHROPIC_API_KEY"),
+        "openai" | "openai_responses" => Some("OPENAI_API_KEY"),
+        "kimi" => Some("KIMI_API_KEY"),
+        "google-genai" => Some("GOOGLE_API_KEY"),
+        "vertexai" => Some("VERTEXAI_API_KEY"),
+        _ => None,
+    }
+}
+
+/// 这个别名指向的 provider 手里有没有非 OAuth 的凭据。
+///
+/// 判据不是我们定的，是上游 session/new 的闸门定的：`hasUsableConfiguredDefaultModel`
+/// 拿 `config.models[default_model]` 解析出 provider，再要求
+/// `providerHasNonOAuthCredentials` 为真，否则配置文件里的 `api_key` 整条不算数、
+/// 一律 authRequired。所以这里照抄它的三步（packages/acp-adapter/src/server.ts）：
+///
+/// 1. provider 名取模型条目里的 `provider`，缺席就退到顶层 `default_provider`；
+/// 2. 那一段 `[providers.<name>]` 存在；
+/// 3. 段里没有 `oauth`（有就直接判否，哪怕同时写着 api_key —— 上游第一行逐字是
+///    `if (provider.oauth !== undefined) return false`），且 `api_key` 非空，或者
+///    `env` 里那个按 `type` 决定的变量非空。
+///
+/// 键名不是猜的：上游 packages/agent-core/src/config/toml.ts 用通用的 snake/camel
+/// 互转落盘，`defaultProvider` 因此写成 `default_provider`；而 `env` 走 cloneObjectValue，
+/// 表内的键原样保留，所以变量名就是 `KIMI_API_KEY` 这种全大写形式。
+///
+/// 不复刻的只有 vertexai 那条组合分支（GOOGLE_CLOUD_PROJECT 加 GOOGLE_CLOUD_LOCATION，
+/// 或从 base_url 的 `-aiplatform.googleapis.com` 后缀反推区域）。那是 Google 专属，我们
+/// 的界面配不出这种 provider，抄过来就是第二份迟早与上游走样的规则。对它和任何认不出的
+/// type，退成「env 表里有任何一个非空值就放行」—— 宽松只会漏拦，不会误拦一个本来能用的
+/// 模型，而漏拦的代价正好是今天的现状，不会更差。
+fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
+    let provider_name = document
+        .get("models")
+        .and_then(|models| models.as_table_like())
+        .and_then(|models| models.get(alias))
+        .and_then(|entry| entry.as_table_like())
+        .and_then(|entry| entry.get("provider"))
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
+        .or_else(|| {
+            document
+                .get("default_provider")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned)
+        });
+
+    let Some(provider_name) = provider_name else {
+        return false;
+    };
+
+    let Some(provider) = document
+        .get("providers")
+        .and_then(|providers| providers.as_table_like())
+        .and_then(|providers| providers.get(provider_name.as_str()))
+        .and_then(|entry| entry.as_table_like())
+    else {
+        return false;
+    };
+
+    if provider.get("oauth").is_some() {
+        return false;
+    }
+
+    let has_api_key = provider
+        .get("api_key")
+        .and_then(|value| value.as_str())
+        .is_some_and(|key| !key.trim().is_empty());
+
+    if has_api_key {
+        return true;
+    }
+
+    let Some(env) = provider.get("env").and_then(|env| env.as_table_like()) else {
+        return false;
+    };
+
+    match provider
+        .get("type")
+        .and_then(|value| value.as_str())
+        .and_then(credential_env_key)
+    {
+        Some(key) => env
+            .get(key)
+            .and_then(|value| value.as_str())
+            .is_some_and(|value| !value.trim().is_empty()),
+        None => env
+            .iter()
+            .any(|(_, value)| value.as_str().is_some_and(|text| !text.trim().is_empty())),
+    }
+}
+
 /// 原子写回一份配置：先写同目录的临时文件，再 rename 覆盖。
 ///
 /// 不直接截断原文件再写：agent 自己 watch 着它 —— 上游
@@ -423,13 +521,21 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
 /// would silently drop them」。会整份写回的只有走 CLI 的三件事（存密钥、删密钥、
 /// 一次性导入），界面上它们与这一格互斥，不会并发。
 ///
-/// 只认已经在 `models` 表里的别名。放行一个不存在的别名不会当场失败，代价推迟到下一次
-/// 开会话时的 authRequired —— 上游闸门查的是 `config.models[defaultModel]` 解析得出来。
+/// 写进去之前照上游闸门查两遍，不是一遍。
+///
+/// 第一遍是别名在 `models` 表里，第二遍是它指向的 provider 手里真有非 OAuth 的凭据
+/// （`alias_has_usable_credentials`）。只查第一遍不够：上游
+/// `hasUsableConfiguredDefaultModel` 两步都过才放行，所以一个在 `models` 表里、provider
+/// 却没配密钥的别名写下去不会当场失败，代价推迟到下一次开会话时的 authRequired ——
+/// 正是「模型选择器明明有得选，一发消息就说要登录」那个故障的另一条入口。
+///
+/// 推迟到那时才失败，用户看到的是一句与自己刚才的动作毫无关系的登录要求。所以宁可在
+/// 他点下去的那一刻就拒绝，并说清是哪一家缺钥匙。
 ///
 /// # Errors
 ///
-/// 受控 home 算不出来、配置读不到、不是合法 TOML、别名不在 `models` 表里，
-/// 或写回失败时返回错误。
+/// 受控 home 算不出来、配置读不到、不是合法 TOML、别名不在 `models` 表里、
+/// 那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
 #[command]
 #[specta::specta]
 pub async fn agent_set_default_model(
@@ -459,6 +565,12 @@ pub async fn agent_set_default_model(
         if !known {
             return Err(Error::AgentCli(format!(
                 "{agent_id} 的配置里没有 {alias} 这个模型"
+            )));
+        }
+
+        if !alias_has_usable_credentials(&document, &alias) {
+            return Err(Error::AgentCli(format!(
+                "{alias} 这一家还没有可用的 API 密钥，选它会让下一次开会话被要求登录"
             )));
         }
 
