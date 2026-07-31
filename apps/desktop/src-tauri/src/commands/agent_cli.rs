@@ -17,7 +17,7 @@
 //! 现算，不是用户输入；文档里没有密钥。
 
 use crate::commands::agent_config::{
-    agent_program, agent_provider_secret, global_launch_env, global_provider_secret, launch_env,
+    agent_program, global_launch_env, global_provider_secret, launch_env,
 };
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
@@ -79,16 +79,9 @@ pub struct AgentCliRequest {
     /// 与 `secret_value` 互斥（validate 会拒掉同带）。
     #[serde(default)]
     pub secret_from_global_provider: Option<String>,
-    /// 从这个 agent 自己的受控配置里取哪家 provider 的密钥来注入。
-    ///
-    /// 为改写顶层 `default_model` 服务：上游唯一能写它的出口是
-    /// `provider catalog add --default-model`，而那条命令先删后建 —— 重放它必须把
-    /// 这一家原有的密钥再交一次。密钥由原生侧从受控 home 取出直达子进程，界面从头到尾
-    /// 看不见它，也就不需要为了改一个默认模型而让用户重输一遍密钥。
-    ///
-    /// 与 `secret_value`、`secret_from_global_provider` 三者互斥。
-    #[serde(default)]
-    pub secret_from_agent_provider: Option<String>,
+    // secret_from_agent_provider 曾在这里，为重放 catalog add 服务。default_model
+    // 现在原地改（agent_config::agent_set_default_model），没有重放要喂。
+    //
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
     // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
     // 路径过来，就等于给了两条管线各算出不同目录的自由。
@@ -226,28 +219,6 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
         }
     }
 
-    // 受控 home 取密钥的限制与全局那条同样严：它同样只服务 catalog add（改写
-    // default_model 要重放的就是这一条），也同样不接受第二个密钥来源。
-    if let Some(provider_id) = &request.secret_from_agent_provider {
-        let is_catalog_add = request.args.get(1).map(String::as_str) == Some("catalog")
-            && request.args.get(2).map(String::as_str) == Some("add");
-
-        if !is_catalog_add {
-            return Err(Error::AgentCli(
-                "从 agent 自己的配置取密钥只用于从目录添加 provider".to_owned(),
-            ));
-        }
-
-        if provider_id.is_empty()
-            || !request.secret_value.is_empty()
-            || request.secret_from_global_provider.is_some()
-        {
-            return Err(Error::AgentCli(
-                "密钥只能有一个来源：随请求携带、从全局配置取，或从 agent 自己的配置取".to_owned(),
-            ));
-        }
-    }
-
     Ok(())
 }
 
@@ -295,17 +266,9 @@ pub async fn agent_cli_exec(
 
     // 密钥二选一：随请求带来的，或现在从全局配置取出 —— 不管哪种，都在 request
     // 被目录服务的 match 与闭包拆走之前落袋。
-    let secret = match (
-        request.secret_from_global_provider,
-        request.secret_from_agent_provider,
-    ) {
-        (Some(provider_id), _) => {
-            global_provider_secret(&app, &provider_id).map_err(IpcError::from)?
-        }
-        (None, Some(provider_id)) => {
-            agent_provider_secret(&app, &request.agent_id, &provider_id).map_err(IpcError::from)?
-        }
-        (None, None) => request.secret_value,
+    let secret = match request.secret_from_global_provider {
+        Some(provider_id) => global_provider_secret(&app, &provider_id).map_err(IpcError::from)?,
+        None => request.secret_value,
     };
 
     // 目录服务只活到这次调用结束：它随闭包进入阻塞线程，子进程退出、闭包返回时

@@ -39,6 +39,21 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 serde_with = "3.13.0"
 toml = "0.8.23"
+
+# 保留格式的原地 TOML 编辑。
+#
+# 与上面的 toml 不是重复：toml 是「反序列化成结构体」，往回写会重排键序、丢掉注释
+# 与空行。我们要改的是 agent 自己的 config.toml —— 那是用户和官方 CLI 都在写的文件，
+# 把它重排一遍等于把别人的东西弄乱。
+#
+# 业界标杆同款：Zed 根 Cargo.toml 逐字 toml_edit = { version = "0.22", ... }，
+# tooling/xtask/src/tasks/publish_gpui.rs 逐字
+# toml_contents.parse::<toml_edit::DocumentMut>() 之后 package.insert(...)。
+#
+# 不开 serde feature：我们不做结构体映射，只按名字改一个标量键。
+toml_edit = { version = "0.22.27", default-features = false, features = [
+  "display", "parse",
+] }
 url = { version = "2.5.4", features = ["serde"] }
 
 # Stable identifiers and time

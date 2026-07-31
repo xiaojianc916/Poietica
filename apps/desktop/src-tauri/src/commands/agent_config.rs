@@ -26,6 +26,7 @@ use specta::Type;
 use std::collections::BTreeMap;
 use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
+use toml_edit::DocumentMut;
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -339,38 +340,41 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
 
 /// 从一份 config.toml 的文本里取出顶层的 `default_model`。
 ///
-/// 「顶层」是字面意义上的：第一个 `[` 出现之前的那些行。写在任何一张表里的同名
-/// 键都不是它，扫到第一个段头就停 —— 猜一个位置比读不到更糟。
+/// 这里解析 TOML，而 `tails_from_config` 与 `secret_from_config` 仍在逐行扫描 ——
+/// 差别不是随意的：那两个只读，这一个有写的对侧（`agent_set_default_model`）。读一套、
+/// 写一套是两份迟早对不上的规则，所以这个键的两个方向共用一个解析器。
 ///
-/// 扫描规则与 `tails_from_config` 逐字相同：双引号必需、只认 ASCII 空白，不认就
-/// 跳过。同样刻意不解析 TOML —— 这里要的只是一个标量。
+/// 顺带修掉手写规则的一个盲区：「扫到第一个 `[` 就停」认不出多行字符串里的方括号，
+/// 解析器认得出。
 fn default_model_from_config(text: &str) -> Option<String> {
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
+    text.parse::<DocumentMut>()
+        .ok()?
+        .get("default_model")?
+        .as_str()
+        .filter(|alias| !alias.is_empty())
+        .map(str::to_owned)
+}
 
-        if line.starts_with('[') {
-            break;
-        }
+/// 原子写回一份配置：先写同目录的临时文件，再 rename 覆盖。
+///
+/// 不直接截断原文件再写：agent 自己 watch 着它 —— 上游
+/// packages/agent-core-v2/src/app/config/configService.ts 在
+/// `documentStore.watch(CONFIG_SCOPE, this.configKey)` 的回调里直接 `void this.reload()`。
+/// 截断与写入之间那一瞬如果被读到，对方拿到的是一份残缺的 TOML，整份配置判为无效。
+///
+/// rename 在三个平台上都是覆盖语义，对 watcher 是一次事件而不是两次。
+fn write_config_atomically(path: &std::path::Path, text: &str) -> Result<()> {
+    let directory = path
+        .parent()
+        .ok_or_else(|| Error::Internal("配置文件没有父目录".to_owned()))?;
 
-        let Some(value) = line.strip_prefix("default_model") else {
-            continue;
-        };
+    let temporary = directory.join("config.toml.poietica-tmp");
 
-        let quoted = value.trim_start_matches([' ', '=']);
+    std::fs::write(&temporary, text)
+        .map_err(|error| Error::AgentCli(format!("写不进临时配置：{error}")))?;
 
-        let Some(inner) = quoted
-            .strip_prefix('"')
-            .and_then(|rest| rest.strip_suffix('"'))
-        else {
-            continue;
-        };
-
-        if !inner.is_empty() {
-            return Some(inner.to_owned());
-        }
-    }
-
-    None
+    std::fs::rename(&temporary, path)
+        .map_err(|error| Error::AgentCli(format!("替换配置失败：{error}")))
 }
 
 /// 受控 home 里当前的默认模型；没有就是 None。
@@ -398,6 +402,71 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
         .ok()
         .as_deref()
         .and_then(default_model_from_config)
+}
+
+/// 改写受控 home 里顶层的 `default_model`。
+///
+/// 为什么不借 agent 的 CLI：官方唯一会写这个键的出口是
+/// `provider catalog add --default-model`，而它的实现是先 removeProvider 再
+/// applyCatalogProvider —— 为「换掉一家 provider 的整份模型清单」设计的。理由写在
+/// 上游自己的注释里（packages/node-sdk/src/catalog.ts 逐字：setConfig 是
+/// 「a deep-merge patch that cannot delete keys」，所以换清单必须先删）。
+///
+/// 我们要做的是把一个标量改成另一个标量，不删任何键。那条约束与这里无关 —— 借它等于
+/// 每换一次默认模型就重建一次 provider，还得为此把这一家的密钥再交一次。
+///
+/// 改文件不需要重启 agent：它自己 watch 着这个文件，上游在自己的测试里就依赖这一点
+/// （packages/kap-server/test/modelCatalogCatalog.test.ts 逐字
+/// 「hand edits to config.toml only take effect after the file watcher reloads」）。
+///
+/// 同一条注释也给出了唯一要防的竞态：「a write that starts from the pre-edit state
+/// would silently drop them」。会整份写回的只有走 CLI 的三件事（存密钥、删密钥、
+/// 一次性导入），界面上它们与这一格互斥，不会并发。
+///
+/// 只认已经在 `models` 表里的别名。放行一个不存在的别名不会当场失败，代价推迟到下一次
+/// 开会话时的 authRequired —— 上游闸门查的是 `config.models[defaultModel]` 解析得出来。
+///
+/// # Errors
+///
+/// 受控 home 算不出来、配置读不到、不是合法 TOML、别名不在 `models` 表里，
+/// 或写回失败时返回错误。
+#[command]
+#[specta::specta]
+pub async fn agent_set_default_model(
+    app: AppHandle,
+    agent_id: String,
+    alias: String,
+) -> AgentConfigCommandResult<()> {
+    (|| -> Result<()> {
+        if alias.is_empty() {
+            return Err(Error::AgentCli("默认模型不能为空".to_owned()));
+        }
+
+        let path = agent_home(&app, &agent_id)?.join("config.toml");
+
+        let text = std::fs::read_to_string(&path)
+            .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
+
+        let mut document = text.parse::<DocumentMut>().map_err(|error| {
+            Error::AgentCli(format!("{agent_id} 的配置不是合法的 TOML：{error}"))
+        })?;
+
+        let known = document
+            .get("models")
+            .and_then(|models| models.as_table_like())
+            .is_some_and(|models| models.contains_key(&alias));
+
+        if !known {
+            return Err(Error::AgentCli(format!(
+                "{agent_id} 的配置里没有 {alias} 这个模型"
+            )));
+        }
+
+        document["default_model"] = toml_edit::value(alias);
+
+        write_config_atomically(&path, &document.to_string())
+    })()
+    .map_err(IpcError::from)
 }
 
 /// 从一份 config.toml 的文本里取出某一家 provider 的完整密钥。
@@ -467,29 +536,16 @@ pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<Stri
         .ok_or_else(|| Error::AgentCli(format!("全局配置里读不到 {provider_id} 的密钥")))
 }
 
-/// 从受控 home 的 config.toml 里取出一家 provider 的完整密钥。
-///
-/// 为什么需要它：`default_model` 是顶层的一个标量，而上游没有 `config` 子命令
-/// （`cli/sub/` 全目录只有 acp / doctor / export / login-flow / login /
-/// plugin-run-node / provider / upgrade / vis / web），唯一能写它的官方出口是
-/// `provider catalog add --default-model`。那条命令先删后建，所以重放它必须把这一家
-/// 原有的密钥再交一次 —— 而那份密钥此刻只存在于受控 home 的明文配置里，我们没有副本。
-///
-/// 与 `global_provider_secret` 的唯一区别是读哪个文件。受控 home 由 `agent_home`
-/// 现算，与 ACP 会话、与 `launch_env` 同源；调用方报一个路径过来的自由不在这里。
-///
-/// # Errors
-///
-/// 受控 home 算不出来、文件读不到、或那一家的 `api_key` 缺席时返回错误。
-pub fn agent_provider_secret(app: &AppHandle, agent_id: &str, provider_id: &str) -> Result<String> {
-    let home = agent_home(app, agent_id)?;
-
-    let text = std::fs::read_to_string(home.join("config.toml"))
-        .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
-
-    secret_from_config(&text, provider_id)
-        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的配置里读不到 {provider_id} 的密钥")))
-}
+/*
+ * agent_provider_secret 曾在这里：从受控 home 里把一家 provider 的密钥再取一次。
+ *
+ * 它唯一的用途是重放 provider catalog add —— 那条命令先删后建，所以「改一个默认模型」
+ * 被迫连带把密钥重新交一遍。现在 default_model 由 agent_set_default_model 原地改，
+ * 没有重放，也就没有第二次交付密钥这件事。
+ *
+ * secret_from_config 留着：global_provider_secret 还在用它，一次性导入要从用户全局
+ * 配置里取密钥。
+ */
 
 /* agent_import_global 与整份复制曾在这里。
  *
