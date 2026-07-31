@@ -376,7 +376,7 @@ fn default_model_from_config(text: &str) -> Option<String> {
 /// 受控 home 里当前的默认模型；没有就是 None。
 ///
 /// 它不是一项偏好，是闸门。上游 `hasUsableConfiguredDefaultModel` 的第一行判的
-/// 就是这个键：缺席时配置文件里的 api_key 整条不算数，session/new 一律
+/// 就是这个键：缺席时配置文件里的 `api_key` 整条不算数，session/new 一律
 /// authRequired。界面必须能直接看见这件事，而不是等用户发出一条消息之后，在
 /// 「助手结束了一轮」里撞上它。
 ///

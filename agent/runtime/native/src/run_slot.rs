@@ -123,7 +123,9 @@ impl RunSlot {
     }
 
     /// 此刻有没有人在听。
-    pub fn is_recording(&self) -> bool {
+    ///
+    /// 不问是谁：一轮在飞和一条会话正被装载，对「这一帧有没有去处」是同一个答案。
+    pub fn is_listening(&self) -> bool {
         self.current.lock().is_ok_and(|current| current.is_some())
     }
 }

@@ -733,7 +733,7 @@ async fn load_session(
 /// 装载一条会话，并把 agent 重放回来的那些帧收下。
 ///
 /// 听众在请求发出之前就位。Zed 出于同一个理由在 await 装载 RPC 之前就把会话
-/// 登记进 `sessions`（crates/agent_servers/src/acp.rs），否则装载期到达的通知
+/// 登记进 `sessions`（`crates/agent_servers/src/acp.rs`），否则装载期到达的通知
 /// 找不到归属。
 async fn replay(
     connection: &ConnectionTo<Agent>,

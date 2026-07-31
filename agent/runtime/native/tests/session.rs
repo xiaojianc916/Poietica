@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
-    AcpError, Frames, Listening, RecordedEvent, Recorder, RunSlot,
+    AcpError, Frames, Listening, RecordedEvent, Recorder, Refusal, RunSlot,
 };
 use uuid::Uuid;
 
@@ -57,7 +57,7 @@ fn announcement() -> SessionNotification {
 fn an_update_outside_a_turn_is_dropped() {
     let slot = RunSlot::new();
 
-    assert!(!slot.is_recording());
+    assert!(!slot.is_listening());
     assert!(
         !slot.record(|listening| listening.session_update(&announcement())),
         "an update between turns belongs to no run"
@@ -73,7 +73,7 @@ fn updates_reach_the_installed_run() {
     slot.install(Listening::Turn(fixture.recorder))
         .expect("an empty slot");
 
-    assert!(slot.is_recording());
+    assert!(slot.is_listening());
     assert!(slot.record(|listening| {
         if let Some(recorder) = listening.turn_mut() {
             recorder.record_run_started("sess_alpha", "what the run was asked");
@@ -109,8 +109,12 @@ fn a_second_run_cannot_displace_the_first() {
         .install(Listening::Turn(second.recorder))
         .expect_err("an occupied slot refuses a second run");
 
+    /* 拒绝一次并发的轮次是这台机器自己的规矩，不是 agent 那侧出的事，所以
+    它是 Refused 而不是 Protocol。此前这里断言的是后者 —— 一条从 Refusal 这个
+    变体被引进来那天起就不成立的断言，直到 live_turn.rs 编译得过、这一整个测试
+    目标终于跑起来，才叫出声。 */
     assert!(
-        matches!(error, AcpError::Protocol { .. }),
+        matches!(error, AcpError::Refused(Refusal::Busy)),
         "a concurrent turn is refused, not silently interleaved"
     );
 }
@@ -166,7 +170,7 @@ fn taking_the_run_ends_the_routing() {
 
     let taken = slot.take().expect("the slot").expect("a run to close out");
 
-    assert!(!slot.is_recording());
+    assert!(!slot.is_listening());
     assert!(
         !slot.record(|listening| listening.session_update(&announcement())),
         "the turn is over, so nothing else may be attributed to it"
