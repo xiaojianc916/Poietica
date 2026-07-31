@@ -643,7 +643,6 @@
   font-size: var(--ui-prose-size-aux);
 }
 
-.timeline-tool__text,
 .timeline-tool__diff-old,
 .timeline-tool__diff-new {
   margin: 0;
@@ -1150,4 +1149,17 @@
 .timeline-prose > .katex-display:first-child,
 .timeline-prose > * > .katex-display:first-child {
   margin-block-start: 0;
+}
+
+/*
+ * 卡片里的 markdown。
+ *
+ * 排版本身全部来自 .timeline-prose —— Prose 组件自带那个类，所以标题级差、
+ * 围栏、表格与回答里的完全同款，这里不再写第二套。这条规则只说两件卡片自己
+ * 的事：与同卡其它块一致的留白，以及比回答低半档的字号（卡片是附注，不是
+ * 主文）。
+ */
+.timeline-tool__prose {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--ui-prose-size-aux);
 }

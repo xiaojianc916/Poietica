@@ -12,6 +12,7 @@ import {
   ToolIcon,
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
+import { Prose } from './Prose'
 import { toDiffStat, toToolContentParts } from './tool-call-content'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
@@ -120,11 +121,22 @@ export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) 
           {parts.map((part, index) => {
             const key = `${part.type}:${String(index)}`
 
+            /*
+             * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个
+             * 组件，而不是一个只会原样倒字符串的 <pre> —— 计划模式产出的整份
+             * 文档此前正是因此以 # 与 | 的原文出现在卡片里。
+             *
+             * 命令输出不受影响：协议把终端单列为一种 part，不走这条分支。
+             * 这里的内容已经落定，所以流式修补与增量揭示都关掉。
+             */
             if (part.type === 'text') {
               return (
-                <pre className="timeline-tool__text" key={key}>
-                  {part.text}
-                </pre>
+                <Prose
+                  className="timeline-tool__prose"
+                  isStreaming={false}
+                  key={key}
+                  text={part.text}
+                />
               )
             }
 
