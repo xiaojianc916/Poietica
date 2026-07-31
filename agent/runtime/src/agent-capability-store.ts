@@ -1,79 +1,52 @@
-import type {
-  AgentCapabilityPort,
-  SessionConfigChoice,
-  SessionConfigControl,
-} from '@poietica/agent-protocol'
+import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-protocol'
 import { useSyncExternalStore } from 'react'
 
 /*
- * 「有哪些模型可选」属于这个 agent，不属于任何一条会话。
+ * 这个 agent 提供哪些可调项，以及每一项此刻选中什么。
  *
- * 这张表此前是"学"来的：一条会话报回它的选择器，这里记下来、写进 localStorage，
- * 下次启动先摆上那一份。而两个写入口通向同一道闸 —— 原生侧的 agent_capabilities
- * 与 agent_open_thread 第一行都是 ensure_session，也就是先起进程、先握手，而握手
- * 要 agent 交出一个会话号。上游在开会话之前先查 default_model 可不可用
- * （hasUsableConfiguredDefaultModel 第一行：defaultModel 缺席就 return false）。
+ * 三件生命周期不同的事，分三处：
  *
- * 于是"看清单"依赖"已经从清单里选好一个"：一台刚配好密钥的机器没有缓存、开不了
- * 会话，这张表永远是空的，下面那个自动补齐也永远等不到候选。localStorage 那一份
- * 曾自称"离线兜底，不是任何东西的真相"，实际上它是全新机器上唯一能打破这个死锁的
- * 东西 —— 那不是兜底，那是替一条走不通的取数路径打掩护。
+ *   · 提供哪些：属于 agent 的配置与握手。问一次，全进程共用（产地见组合根的
+ *     desktopAgentCapabilities）。
+ *   · 选中哪个：属于人，不属于任何一条会话 —— 入口那一格没有会话，照样要选得动。
+ *   · 某条会话此刻真在用哪个：属于那条会话，由 ThreadsStore 按 threadId 保管，并
+ *     由它把会话对齐到这里选中的值。
  *
- * 现在只有一个产地：agent 官方 CLI 的 provider list --json（见组合根的
- * desktopAgentModels）。一次子进程调用，不需要会话、不需要握手，读的就是 agent
- * 那份 config.toml —— 设置页一直走的是它。路通了，掩护也就没有存在的理由。
- *
- * 三件生命周期不同的事仍然分开：
- *
- *   · 有哪些模型：属于 agent 的配置文件。问一次，全进程共用。
- *   · 选中的那个：属于同一份配置的顶层 default_model，一处。
- *   · 某条会话此刻真在用哪个：属于那条会话，由 ThreadsStore 按 threadId 保管。
- *
- * 非模型的那些选择器（thought / mode）不在这里。它们是会话级的，没有会话的时候
- * 说不出真话；有会话时由 ThreadsStore.selectorsOf 交出来。
+ * 模型不特殊，只多一件事：它有家，就是 agent 配置里的顶层 default_model。其余的
+ * 没有落盘的地方，也就不落 —— 落了就是第二个家。
  */
 
-/** ACP 里模型那一项的 id 是协议常量，不是我们起的名字。 */
-const MODEL_CONTROL_ID = 'model'
-
-const MODEL_CONTROL_LABEL = '模型'
+/** 模型那一格由组合根合成，id 与 purpose 都是这个字面量。 */
+const MODEL = 'model'
 
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
-const NO_MODELS: readonly SessionConfigChoice[] = []
+/* 这个 agent 提供的整张表。只在内存里：权威是它自己的配置。 */
+let offered: readonly SessionConfigControl[] = NO_CONTROLS
 
-/* 这个 agent 配了哪些模型。只在内存里：权威是它自己的配置文件。 */
-let models: readonly SessionConfigChoice[] = NO_MODELS
-
-/*
- * 模型那一项选中什么。
- *
- * 它的家是 agent 配置里的顶层 default_model，这里只是那个值的一份内存镜像：由
- * installAgentDefaultModelSource 问回来，由选择器拨动时更新。不落 localStorage
- * —— 落了就又是第二个家。
- */
-let chosenModel: string | null = null
+/* 每一项选中什么，按 controlId 记。 */
+const chosen = new Map<string, string>()
 
 /*
- * 画出去的那张表是投影：清单来自上面那份，选中值来自下面那份。
+ * 画出去的那张表是投影：清单来自 offered，选中值来自 chosen。
  *
  * 只在 publish 时算一次，不在每次读取时算 —— useSyncExternalStore 要求快照引用
  * 稳定，每次现算会让它认定"状态一直在变"而无限重渲染。
  */
 function project(): readonly SessionConfigControl[] {
-  if (models.length === 0) {
+  if (offered.length === 0) {
     return NO_CONTROLS
   }
 
-  return [
-    {
-      id: MODEL_CONTROL_ID,
-      label: MODEL_CONTROL_LABEL,
-      purpose: 'model',
-      current: chosenModel ?? models[0]?.value ?? '',
-      choices: models,
-    },
-  ]
+  return offered.map((control) => {
+    const wanted = chosen.get(control.id)
+
+    if (wanted === undefined || wanted === control.current) {
+      return control
+    }
+
+    return { ...control, current: wanted }
+  })
 }
 
 let snapshot: readonly SessionConfigControl[] = NO_CONTROLS
@@ -89,67 +62,81 @@ function publish(): void {
 }
 
 /**
- * 人拨动了模型选择器，或者刚从配置里读到 default_model。
+ * 人拨动了一个选择器，或者刚从配置里读到 default_model。
  *
- * 这是一次乐观更新，不是一份偏好。真值在 agent 自己的 config.toml 里，写它的是
- * 调用方；agent watch 着那个文件，但 watcher 有延迟，所以这里不等它、也不回读，
- * 先把屏幕上那一格改对。
+ * 这是一次乐观更新，不是一份偏好：真正的下发由 ThreadsStore 对每条会话统一去做
+ * （observeAgentControls → #realign → #align）。这里只回答"现在要的是哪个"。
+ *
+ * 传 null 就是撤回这一项的选择。
  */
-export function setAgentDefaultModel(alias: string | null): void {
-  if (chosenModel === alias) {
+export function chooseAgentControl(controlId: string, value: string | null): void {
+  if ((chosen.get(controlId) ?? null) === value) {
     return
   }
 
-  chosenModel = alias
+  if (value === null) {
+    chosen.delete(controlId)
+  } else {
+    chosen.set(controlId, value)
+  }
+
   publish()
 }
 
 /**
- * 此刻选中的是哪个模型。
+ * 这一项此刻选中的是哪个值。
  *
- * 会话那一侧要拿它把自己对齐过来：一条旧对话记着别的模型是它自己的历史，不是
+ * 会话那一侧要拿它把自己对齐过来：一条旧对话记着别的值是它自己的历史，不是
  * "现在选中什么"的答案。这个函数就是那个答案唯一的产地。
  */
-export function agentDefaultModel(): string | null {
-  return chosenModel
+export function agentChosen(controlId: string): string | undefined {
+  return chosen.get(controlId)
 }
 
 /*
  * 一个模型都没选中时，替他挑一个。
  *
  * 这是「配好了密钥、模型也列出来了，一发消息却说 Authentication required」的根治：
- * 上游 hasUsableConfiguredDefaultModel 第一行就是 config.defaultModel === undefined
- * 时 return false，于是配置文件里的 api_key 整条不算数。
+ * 上游 hasUsableConfiguredDefaultModel 第一行就是 defaultModel 缺席时 return false，
+ * 于是配置文件里的 api_key 整条不算数。
  *
- * 它此前够不着自己要治的那个病：候选表要等一条会话报回来，而开会话正是被这个病
- * 挡住的那件事。清单改由 CLI 直接读之后，这一路第一次真的能在"还开不了会话"的
- * 时刻跑起来。
- *
- * 挑第一个是稳定的：快照在 agent-provider-state 里按 provider id 排过序，同一份
- * 配置每次挑到的是同一个。挑出来的只是个起点，不是偏好 —— 人拨一下它就变了。
- *
- * 「配置里那个别名已经死了」也走这一路：原生侧读回 default_model 时用的是闸门自己
- * 的判据，指不到东西的别名读回来就是 null。
+ * 挑第一个是稳定的：快照在 agent-provider-state 里按 provider id 排过序。挑出来的
+ * 只是个起点，不是偏好 —— 人拨一下它就变了。
  */
 function ensureDefaultModel(): void {
   const save = defaultSource?.save
+  const model = offered.find((control) => control.purpose === MODEL)
 
-  if (!defaultKnown || chosenModel !== null || save === undefined) {
+  if (!defaultKnown || save === undefined || model === undefined) {
     return
   }
 
-  const first = models[0]?.value
+  if (chosen.get(model.id) !== undefined) {
+    return
+  }
+
+  const first = model.choices[0]?.value
 
   if (first === undefined) {
     return
   }
 
-  setAgentDefaultModel(first)
+  chooseAgentControl(model.id, first)
 
-  void save(first).catch(() => {
-    /* 没写进去就当没挑过，而不是让屏幕显示一个文件里没有的值。 */
-    setAgentDefaultModel(null)
-  })
+  void save(first).then(
+    () => {
+      /*
+       * 配置里第一次有了可用的 default_model：锚会话到这一刻才开得起来，而模式与
+       * 推理档位正是从那里来的。重问一次，不要让它们等到下次启动。
+       */
+      asked = false
+      loadOnce()
+    },
+    () => {
+      /* 没写进去就当没挑过，而不是让屏幕显示一个文件里没有的值。 */
+      chooseAgentControl(model.id, null)
+    },
+  )
 }
 
 /*
@@ -157,9 +144,6 @@ function ensureDefaultModel(): void {
  *
  * 端口在接线时装上，装上本身不问：真正那次读取要等第一个订阅者出现 —— 也就是
  * 屏幕上真的有一个选择器要画的时候。一个从没打开过助手的启动不为此付钱。
- *
- * 失败之后把 asked 放回去：下一次有人要看选择器时会再问一次，而不是让一次开机时
- * 的失败永久变成一张空表。
  */
 let source: AgentCapabilityPort | undefined
 
@@ -190,9 +174,9 @@ let askedFor: DefaultModelSource | undefined
 /*
  * 那一次读取回来过没有。
  *
- * 不能拿 chosenModel === null 当这个问题的答案：还没问到的时候它也是 null，而自动
- * 补齐正是靠这个判断决定要不要写入 —— 分不清「确实没有」与「还不知道」，就会拿第一个
- * 候选盖掉人原本配好的那个。只在读取成功时置位。
+ * 不能拿"没有选中值"当这个问题的答案：还没问到的时候也是没有，而自动补齐正是靠
+ * 这个判断决定要不要写入 —— 分不清「确实没有」与「还不知道」，就会拿第一个候选
+ * 盖掉人原本配好的那个。只在读取成功时置位。
  */
 let defaultKnown = false
 
@@ -213,7 +197,7 @@ function loadDefaultOnce(): void {
       }
 
       defaultKnown = true
-      setAgentDefaultModel(alias)
+      chooseAgentControl(MODEL, alias)
       ensureDefaultModel()
     })
     .catch(() => {
@@ -235,16 +219,15 @@ export function installAgentDefaultModelSource(source: DefaultModelSource): void
    */
   defaultSource = source
   defaultKnown = false
-  setAgentDefaultModel(null)
+  chooseAgentControl(MODEL, null)
   loadDefaultOnce()
 }
 
 /**
- * 接线时装上取清单的那一路。
+ * 接线时装上取整张表的那一路。
  *
  * 端口的身份就是「换没换一家」的判据，所以组合根按 agentId 记住那个对象；同一家
- * 反复装上是幂等的，换一家则连清单一起归零。此前这里无条件覆盖 source 而不动
- * asked，于是换 agent 之后屏幕上挂着的还是上一家的模型。
+ * 反复装上是幂等的，换一家则连表一起归零。
  */
 export function installAgentCapabilityPort(
   port: AgentCapabilityPort,
@@ -258,7 +241,7 @@ export function installAgentCapabilityPort(
 
   source = port
   asked = false
-  models = NO_MODELS
+  offered = NO_CONTROLS
   publish()
 
   /* 已经有人在看选择器了才立刻问；没有就仍旧等第一个订阅者。 */
@@ -277,13 +260,13 @@ function loadOnce(): void {
   asked = true
   port
     .read()
-    .then((offered) => {
+    .then((table) => {
       /* 问的时候还是这一家，答回来已经换了人。 */
       if (source !== port) {
         return
       }
 
-      models = offered
+      offered = table
       publish()
 
       /* 候选可能是这一刻才第一次到达的：那正是"该不该替他挑一个"重新有答案的时刻。 */
@@ -294,6 +277,7 @@ function loadOnce(): void {
         return
       }
 
+      /* 失败之后放回去：下一次有人要看选择器时再问，而不是永久一张空表。 */
       asked = false
       report?.(cause)
     })
@@ -303,8 +287,8 @@ function loadOnce(): void {
  * 只听，不问。
  *
  * 与 subscribeAgentControls 的区别只有一处，但那一处要紧：这个不调 loadOnce。
- * 挂一个监听器不该把 agent 的 CLI 叫起来 —— 会话那一侧在应用启动时就要听着默认
- * 模型的变化，而那时屏幕上可能一个选择器都还没有。
+ * 挂一个监听器不该把 agent 叫起来 —— 会话那一侧在应用启动时就要听着选中值的变化，
+ * 而那时屏幕上可能一个选择器都还没有。
  */
 export function observeAgentControls(listener: () => void): () => void {
   listeners.add(listener)

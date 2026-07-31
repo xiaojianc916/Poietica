@@ -1,19 +1,16 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
 import {
+  chooseAgentControl,
   installAgentCapabilityPort,
   installAgentDefaultModelSource,
-  setAgentDefaultModel,
   useAgentControls,
 } from '@poietica/agent-runtime'
 import { AssistantSurface } from '@poietica/agent-ui'
 import type { AgentConfigStore } from '@poietica/features-settings'
 import { useEffect } from 'react'
-import { desktopAgentModels } from '../../application/ai/agent-session'
+import { desktopAgentCapabilities } from '../../application/ai/agent-session'
 import { useSharedThreads } from '../../application/ai/threads-context'
 import { reportFailure } from '../../application/failures/failure-policy'
-
-/* ACP 里模型那一项的 id 是协议常量，不是我们起的名字。 */
-const MODEL_CONTROL_ID = 'model'
 
 /*
  * 一格只画一条对话。
@@ -61,7 +58,7 @@ export function ConversationSurface({
    * 不该替它决定时机。装上是幂等的 —— 端口按 agentId 记着，同一家只问一次。
    */
   useEffect(() => {
-    installAgentCapabilityPort(desktopAgentModels(agentConfig, agentId), (cause) => {
+    installAgentCapabilityPort(desktopAgentCapabilities(agentConfig, agentId), (cause) => {
       reportFailure('AGENT_MODELS_UNREADABLE', {
         scope: 'conversation-surface',
         operation: 'read-models',
@@ -134,30 +131,29 @@ export function ConversationSurface({
       }}
       onSelectControl={(controlId, value) => {
         /*
-         * 模型只有一条下发路径。
+         * 一条下发路径。
          *
-         * 此前这里做了两件事：改全局值，以及自己再 selectControl 一次。而改全局值
-         * 本来就会经由 observeAgentControls → ThreadsStore.#realign() → #switchModel()
-         * 下发 —— 两条路各打一次 set_config，而「这一条正在跑就先别下发」那道闸只装
-         * 在投影那一条上，于是它形同虚设。这里只留改全局值。
+         * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由 ThreadsStore 的
+         * 投影与对齐统一决定（observeAgentControls → #realign → #align），忙的那条
+         * 空下来由 onIdle 补发。
          *
-         * thought / mode 仍然直接下发：它们没有全局那一份，投影管不着。
-         *
-         * 换模型就是换默认模型，没有第二个概念：人在选择器里选的那个，就是下一条新
-         * 对话会用的那个。上游的 /model 也是这么做的（第四个参数 persist 恒为 true）。
-         *
-         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读到
-         * 旧值。写失败会自己说出来，而不是让人以为换过了。
+         * 此前模型走全局、mode / thought 各自 threads.selectControl 直发，而入口那
+         * 一格没有 threadId —— 于是在那里改模式是一次静默的空操作，屏幕上却显示改
+         * 过了。两条路各打一次 set_config，那道"正在跑就先别下发"的闸也只装在其中
+         * 一条上，形同虚设。
          */
-        if (controlId !== MODEL_CONTROL_ID) {
-          if (threadId !== null) {
-            threads.selectControl(threadId, controlId, value)
-          }
+        chooseAgentControl(controlId, value)
 
+        /*
+         * 模型多一件事：它有家，就是 agent 配置里的顶层 default_model。换模型就是换
+         * 默认模型，没有第二个概念，上游的 /model 也是这么做的（persist 恒为 true）。
+         *
+         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读
+         * 到旧值。写失败会自己说出来，而不是让人以为换过了。
+         */
+        if (controls.find((control) => control.purpose === 'model')?.id !== controlId) {
           return
         }
-
-        setAgentDefaultModel(value)
 
         void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
           reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {

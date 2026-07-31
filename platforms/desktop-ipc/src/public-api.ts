@@ -1,4 +1,5 @@
 export type {
+  AgentCapabilityBridge,
   AgentOpenedThreadDescription,
   AgentThreadBridge,
   AgentThreadDescription,
@@ -22,6 +23,7 @@ export {
    * select。名字分开，问题就不存在了。
    */
   type AgentSessionConfigBridge,
+  createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
   createAgentSessionConfigBridge,

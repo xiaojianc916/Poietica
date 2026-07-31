@@ -1,6 +1,8 @@
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  SessionConfigChoice,
+  SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/agent-protocol'
@@ -14,6 +16,7 @@ import { createIpcSession } from '@poietica/agent-transport'
 import type { AgentConfigStore } from '@poietica/features-settings'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
+  createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
   createAgentSessionConfigBridge,
@@ -50,69 +53,113 @@ export function desktopSessionConfig(): SessionConfigPort {
 }
 
 /*
- * 「这一家 agent 配了哪些模型」，一个 agent 一份。
+ * /*
+ * 「这一家 agent 提供哪些可调项」，一个 agent 一份。
  *
- * 此前这里走 agent_capabilities：原生侧要先 ensure_session，也就是先起进程、先
- * 握手，而上游在开会话之前会查 default_model 可不可用，缺席就拒绝。于是"看清单"
- * 依赖"已经从清单里选好一个" —— 一台刚填完密钥的机器因此永远看不到模型，而屏幕上
- * 唯一的解释是一句 Authentication required。
+ * 两个产地一张表，因为两件事的前提不同：
  *
- * provider list --json 没有这个前提：一次子进程调用，读的就是 agent 那份
- * config.toml。设置页一直走的是它，现在选择器也走它，同一个问题只剩一个产地。
+ *   · 模型清单：agent 自己的 CLI（provider list --json）。一次子进程调用，读的就是
+ *     它那份 config.toml，不需要会话 —— 这正是 0cbf5bc 修掉的那个死锁（上游在开会话
+ *     之前先查 default_model 可不可用，于是"看清单"曾被架在"已经选好一个"之上）。
+ *   · 模式与推理档位：只有 agent 说得出来。ACP 的 session/new 是唯一权威，原生侧
+ *     agent_capabilities 问的是连接自带的锚会话，不新开会话、不写库、不碰 thread。
  *
- * 按 agentId 记住那个对象，因为端口的身份就是 store 判断"换没换一家"的依据：每次
- * 渲染新建一个，等于每开一格对话都把清单重问一遍。
+ * 锚会话要有一个可用的 default_model 才开得起来，所以它排在清单之后，而且失败不
+ * 连坐：清单还在，少两项选择器好过一项都没有 —— 但要说出来，不是默不作声。配置里
+ * 第一次被补上 default_model 时，capability store 会把这一路重问一次。
+ *
+ * 按 agentId 记住那个对象，因为端口的身份就是 store 判断"换没换一家"的依据。
  */
-const modelSources = new Map<string, AgentCapabilityPort>()
+const capabilities = new Map<string, AgentCapabilityPort>()
 
-export function desktopAgentModels(store: AgentConfigStore, agentId: string): AgentCapabilityPort {
-  const held = modelSources.get(agentId)
+/* 模型那一格由这里合成：id 与 purpose 都是协议里那个字面量。 */
+const MODEL_CONTROL: Pick<SessionConfigControl, 'id' | 'label' | 'purpose'> = {
+  id: 'model',
+  label: '模型',
+  purpose: 'model',
+}
+
+export function desktopAgentCapabilities(
+  store: AgentConfigStore,
+  agentId: string,
+): AgentCapabilityPort {
+  const held = capabilities.get(agentId)
 
   if (held !== undefined) {
     return held
   }
 
+  const anchor = createAgentCapabilityBridge({
+    launch: acpAgentLaunch(acpAgentById(agentId) ?? defaultAcpAgent()),
+  })
+
   const source: AgentCapabilityPort = {
     read: async () => {
-      /* 问什么、哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。 */
-      const descriptor = acpAgentById(agentId)
-      const listArgs = descriptor?.providerListArgs
+      const choices = await readModels(store, agentId)
 
-      if (descriptor === undefined || listArgs === undefined) {
-        throw new Error(`${agentId} 没有声明查询模型清单的子命令。`)
-      }
+      const offered = await anchor.read().catch((cause: unknown) => {
+        reportError('the agent did not report its selectors', {
+          scope: 'agent-session',
+          operation: 'read-capabilities',
+          cause,
+        })
 
-      const outcome = await store.execCli({
-        agentId,
-        args: [...listArgs],
-        secretVar: '',
-        secretValue: '',
+        return []
       })
 
-      /*
-       * 非零退出时把 agent 自己的 stderr 原样上屏。config.toml 坏了的时候它说得比
-       * 我们清楚 —— 连怎么修都告诉你 —— 转述一遍只会丢信息。
-       */
-      if (outcome.status !== 0) {
-        const said = outcome.stderr.trim()
+      /* 模型那一项在这里成形：清单归 CLI，其余归 agent，两边不重叠。 */
+      const rest = offered.filter((control) => control.purpose !== 'model')
 
-        throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
+      if (choices.length === 0) {
+        return rest
       }
 
-      const snapshot = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
-
-      /* 没配凭据的那一家给不出答案：列出它的模型，只是让人挑一个必定失败的。 */
-      return snapshot.providers
-        .filter((provider) => provider.configured)
-        .flatMap((provider) =>
-          provider.models.map((model) => ({ value: model.alias, label: model.displayName })),
-        )
+      return [{ ...MODEL_CONTROL, current: choices[0]?.value ?? '', choices }, ...rest]
     },
   }
 
-  modelSources.set(agentId, source)
+  capabilities.set(agentId, source)
 
   return source
+}
+
+/** 这一家配了哪些模型。没配凭据的那一家不列 —— 挑一个必定失败的没有意义。 */
+async function readModels(
+  store: AgentConfigStore,
+  agentId: string,
+): Promise<readonly SessionConfigChoice[]> {
+  /* 问什么、哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。 */
+  const descriptor = acpAgentById(agentId)
+  const listArgs = descriptor?.providerListArgs
+
+  if (descriptor === undefined || listArgs === undefined) {
+    throw new Error(`${agentId} 没有声明查询模型清单的子命令。`)
+  }
+
+  const outcome = await store.execCli({
+    agentId,
+    args: [...listArgs],
+    secretVar: '',
+    secretValue: '',
+  })
+
+  /*
+   * 非零退出时把 agent 自己的 stderr 原样上屏。config.toml 坏了的时候它说得比我们
+   * 清楚 —— 连怎么修都告诉你 —— 转述一遍只会丢信息。
+   */
+  if (outcome.status !== 0) {
+    const said = outcome.stderr.trim()
+
+    throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
+  }
+
+  const snapshot = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
+
+  return snapshot.providers
+    .filter((provider) => provider.configured)
+    .flatMap((provider) =>
+      provider.models.map((model) => ({ value: model.alias, label: model.displayName })),
+    )
 }
 
 export interface DesktopAgentSession {

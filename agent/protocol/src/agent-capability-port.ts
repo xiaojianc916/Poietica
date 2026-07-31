@@ -1,30 +1,18 @@
-import type { SessionConfigChoice } from './session-config-contract'
+import type { SessionConfigControl } from './session-config-contract'
 
 /*
- * 「有哪些模型可选」属于这个 agent，不属于任何一条会话。
+ * 这个 agent 提供哪些可调项：模型、模式、推理档位，一张表。
  *
- * 所以这个端口不认识 threadId —— 不是省略，是它问不出那种问题。选择器曾经只有
- * 一个到达口（ThreadPort.open(threadId)）：必须先有一条对话、先起进程握两趟手，
- * 才知道有哪些模型。入口界面既没有对话也没有会话，于是在结构上不可能画出模型
- * 选择器，渲染层只能拿上一次学到的表去缓存 —— 那是替一条不存在的取数路径打掩护。
+ * 这个端口不认识 threadId —— 不是省略，是它问不出那种问题。能力属于 agent，
+ * 当前生效值才属于某一条会话（见 SessionConfigPort）。入口那一格既没有对话也
+ * 没有会话，而选择器在那里必须画得出来：ChatGPT / Claude / Cursor / VS Code
+ * Copilot Chat 的新会话界面模型与模式选择器一直都在。
  *
- * 当前生效值仍然属于那一条会话（见 SessionConfigPort）。两者生命周期不同，
- * 所以是两个端口，而不是一个端口上的两个参数。
- *
- * 它也不经过 ACP。握手要 agent 交出一个会话号，而上游在开会话之前先查
- * default_model 可不可用 —— 缺席就拒绝。拿握手去问"有哪些模型"，等于让"看清单"
- * 依赖"已经从清单里选好一个"，而这两件事的先后顺序在一台新机器上是反的。产地
- * 因此是 agent 自己的 CLI：provider list --json 读的就是那份 config.toml，一次
- * 子进程调用，没有会话可言。
- *
- * 返回的是清单本身，不是一张选择器表。id、label、purpose 三格全是这一侧的常量,
- * 让它们绕一趟 agent 再回来，只是给一个我们已经知道的答案编一条取数路径。
- *
- * 行业对照：ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面模型
- * 选择器一直在，不需要先开一条对话。
+ * 它交出来的 current 只是这一家 agent 的默认值。人选中什么由 capability store
+ * 保管，某条会话此刻真在用什么由 ThreadsStore 保管 —— 三件事生命周期不同。
  */
 
 export interface AgentCapabilityPort {
-  /** 这个 agent 配了哪些模型。别名与显示名，此外什么都不带。 */
-  readonly read: () => Promise<readonly SessionConfigChoice[]>
+  /** 这个 agent 提供的整张选择器表。 */
+  readonly read: () => Promise<readonly SessionConfigControl[]>
 }
