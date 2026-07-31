@@ -31,6 +31,16 @@ export interface ThreadRecord {
 export interface OpenedThread {
   readonly thread: ThreadRecord
   readonly selectors: readonly SessionConfigControl[]
+  /**
+   * 这条对话的经过，由持有它的 agent 交回来。
+   *
+   * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
+   * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
+   *
+   * 空的有两种：刚建的对话，以及会话一直没离开过本次连接的对话。后者屏幕上
+   * 的东西本来就还在。
+   */
+  readonly events: readonly unknown[]
 }
 
 /**

@@ -429,6 +429,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Ag
       return {
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
+        events: opened.events,
       }
     },
 

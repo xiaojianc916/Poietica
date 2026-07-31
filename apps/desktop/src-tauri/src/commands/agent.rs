@@ -6,10 +6,9 @@
 //! protocol handshake are not, and a session that restarted between turns
 //! would throw away the context the agent has built up.
 //!
-//! The renderer is never the source of truth. Every frame it receives has
-//! already been written to the encrypted log, so a dropped event is a
-//! reload away from being recovered through `agent_load_run` rather than
-//! lost.
+//! 一段对话的持有者是 agent，不是这一侧。打开它就是请 agent 把它装载回来，
+//! 重放的帧随 `agent_open_thread` 一起交出去。本地日志因此不再是历史的来源
+//! —— 它此前是第二份真相，而两份真相里只有一份是对面手里那份。
 //!
 //! An answer arriving from the renderer is untrusted. The desk checks it
 //! against the options the agent actually offered before anything is recorded

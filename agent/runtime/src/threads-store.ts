@@ -401,14 +401,22 @@ export class ThreadsStore {
     }
 
     this.#asked.add(threadId)
+
+    /* 这一趟要回来的不只是选择器，还有这条对话的经过。 */
+    this.#transcripts?.opening(threadId)
+
     port
       .open(threadId)
       .then((opened) => {
         this.#hold(opened.thread)
         this.#remember(threadId, opened.selectors)
+        this.#transcripts?.adopt(threadId, opened.events)
       })
       .catch((reason: unknown) => {
         this.#noteSelectorFailure(threadId, reason)
+
+        /* 同一次失败的两个后果：设置那一格画不出来，对话也打不开。 */
+        this.#transcripts?.failed(threadId, reason)
       })
   }
 

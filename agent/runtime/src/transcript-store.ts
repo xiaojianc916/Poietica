@@ -217,63 +217,60 @@ export class TranscriptStore {
     }
   }
 
-  /* ================= 读一段历史 ================= */
+  /* ================= 一段历史送到 ================= */
 
   /**
-   * 打开一条对话，就是把它整条取回来。
+   * 接上帧流。
    *
-   * 一次，整条。此前这里带着一个宽度：读最近 40 轮，人往上滚就再要 40 轮 ——
-   * 那套东西的前提是本地握着一份可以按轮切片的日志。会话的历史属于 agent，
-   * 它一次给全，所以这里没有"要多宽"可问，也没有"上面还有没有"可判。
+   * 只剩这一件事了。这里此前还要去取一次历史，而历史现在随「打开这条对话」
+   * 一起回来 —— 打开它就是请 agent 把那条会话装载回来，装载期间它用
+   * session/update 把整条重放一遍，那些帧就是历史本身。
    *
-   * 三道闸门都是事实：自己刚开的那条没什么可取；取过了不再取第二遍；已经在
-   * 飞的不叠着再发一次。
+   * 那次取读的是本地日志，也就是同一段对话的第二份。两份之中只有一份是 agent
+   * 手里那份；它们一旦分叉，屏幕上显示的是对的那份的赝品。所以这条取数路径
+   * 没有被优化，它被取消了。
    */
-  ensure = (port: AgentSessionPort, key: string): void => {
+  ensure = (port: AgentSessionPort): void => {
     this.#attach(port)
+  }
 
-    const loadThread = port.loadThread
+  /** 正在把这条对话要回来。 */
+  opening = (threadId: string): void => {
+    const current = this.read(threadId)
 
-    if (loadThread === undefined) {
+    if (current.owned || current.loaded) {
       return
     }
 
-    const current = this.read(key)
+    this.#put(threadId, { ...current, restoring: true })
+  }
 
-    if (current.owned || current.loaded || this.#reading.has(key)) {
-      return
-    }
+  /**
+   * agent 把这条对话交回来了。
+   *
+   * events 在这里从 unknown 收窄成帧，全程只有这一处。断言而不是逐帧校验，
+   * 与运行帧那条通道同一个判据：形状由平台那一侧定义，两条通道上的帧由同一个
+   * acp_update 做出来。今天这一步藏在端口声明背后（loadThread 声明自己交回
+   * RunEvent，而桥交出的是 unknown），挪到明处并不增加风险，只是让它可见。
+   */
+  adopt = (threadId: string, events: readonly unknown[]): void => {
+    this.#put(threadId, {
+      timeline: replayThreadEvents(RUN_PLACEHOLDER, events as readonly RunEvent[]),
+      restoring: false,
+      loaded: true,
+      owned: false,
+    })
+  }
 
-    this.#reading.add(key)
-    this.#put(key, { ...current, restoring: true })
+  /** 要不回来。这一条记在转录里，而不是记在会话设置那一格上。 */
+  failed = (threadId: string, cause: unknown): void => {
+    const latest = this.read(threadId)
 
-    void loadThread(key)
-      .then((events) => {
-        if (!this.#reading.delete(key)) {
-          return
-        }
-
-        this.#put(key, {
-          timeline: replayThreadEvents(RUN_PLACEHOLDER, events),
-          restoring: false,
-          loaded: true,
-          owned: false,
-        })
-      })
-      .catch((cause: unknown) => {
-        if (!this.#reading.delete(key)) {
-          return
-        }
-
-        const latest = this.read(key)
-
-        /* 取回来了和取失败了是同一次改变，所以只发一次通知。 */
-        this.#put(key, {
-          ...latest,
-          restoring: false,
-          timeline: noteOn(latest.timeline, cause, false),
-        })
-      })
+    this.#put(threadId, {
+      ...latest,
+      restoring: false,
+      timeline: noteOn(latest.timeline, cause, false),
+    })
   }
 
   /* ================= 说一句话 ================= */
