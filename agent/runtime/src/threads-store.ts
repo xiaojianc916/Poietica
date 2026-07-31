@@ -230,9 +230,16 @@ export class ThreadsStore {
   listSnapshot = (): ThreadsList => this.#list
 
   /** 这条对话现在叫什么。 */
-  titleOf = (threadId: string): string => {
-    const found = this.#byId.get(threadId)
+  titleOf = (threadId: string): string => this.#nameOf(this.#byId.get(threadId), threadId)
 
+  /*
+   * 名字的规则，只有这一份。
+   *
+   * 收的是记录本身，不是 id：投影那一趟手里已经握着 thread，让它把 id 交出去、
+   * 再由这里拿 #byId 查回同一个对象，是每行一次白跑的查表 —— 那张表就是同一个
+   * 函数里用同一个数组刚建出来的。公开的 titleOf 只多做一件事：按 id 找人。
+   */
+  #nameOf(found: ThreadRecord | undefined, threadId: string): string {
     /* 用户自己起的名字压过一切派生的名字。 */
     if (found?.titleSource === 'manual') {
       return found.title
@@ -561,15 +568,39 @@ export class ThreadsStore {
    * #align 自带闸门，重复调用不会重复发命令。
    */
   #realign(): void {
-    let selectors = this.#held.selectors
+    /*
+     * 表在这里捕获一次，两个循环都读它。
+     *
+     * 下面那趟对齐此前写的是 this.#held.selectors.keys()，而它跑在 #commit 之后
+     * —— #held 已经整个换过，读到的是新表。今天两张表的键相同，所以看不出毛病；
+     * 但那是「#shown 不增删键」这个从没写下来的前提在替它兜底。捕获之后，键从哪
+     * 来是写死的，不是推断的。
+     */
+    const held = this.#held.selectors
 
-    for (const [threadId, table] of this.#held.selectors) {
-      selectors = this.#with(selectors, threadId, this.#shown(table))
+    /*
+     * 不走 #with：那是改一格的工具，每改一格复制整张表。这里要改的是每一格，
+     * 逐格调用就是 N 张全量拷贝，其中 N-1 张当场变成垃圾。真有变化时复制一次，
+     * 一格都没变就连提交都不发。
+     */
+    let next: Map<string, readonly SessionConfigControl[]> | undefined
+
+    for (const [threadId, table] of held) {
+      const shown = this.#shown(table)
+
+      if (shown === table) {
+        continue
+      }
+
+      next ??= new Map(held)
+      next.set(threadId, shown)
     }
 
-    this.#commit({ selectors })
+    if (next !== undefined) {
+      this.#commit({ selectors: next })
+    }
 
-    for (const threadId of this.#held.selectors.keys()) {
+    for (const threadId of held.keys()) {
       this.#align(threadId)
     }
   }
@@ -791,7 +822,7 @@ export class ThreadsStore {
   }
 
   #itemFor(thread: ThreadRecord): ThreadListItem {
-    const title = this.titleOf(thread.threadId)
+    const title = this.#nameOf(thread, thread.threadId)
     const isPinned = thread.pinned === true
     const last = this.#items.get(thread.threadId)
 
