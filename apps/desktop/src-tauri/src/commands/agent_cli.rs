@@ -267,8 +267,9 @@ pub async fn agent_cli_exec(
     // 密钥二选一：随请求带来的，或现在从全局配置取出 —— 不管哪种，都在 request
     // 被目录服务的 match 与闭包拆走之前落袋。
     let secret = match request.secret_from_global_provider {
-        Some(provider_id) => global_provider_secret(&app, &request.agent_id, &provider_id)
-            .map_err(IpcError::from)?,
+        Some(provider_id) => {
+            global_provider_secret(&app, &request.agent_id, &provider_id).map_err(IpcError::from)?
+        }
         None => request.secret_value,
     };
 

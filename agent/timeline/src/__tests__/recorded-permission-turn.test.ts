@@ -105,11 +105,15 @@ describe('a recorded permission turn', () => {
         continue
       }
       const update = event.notification.update
-      if (update.sessionUpdate === 'tool_call') {
-        lastStatus.set(update.toolCallId, update.status)
+      if (update.sessionUpdate !== 'tool_call' && update.sessionUpdate !== 'tool_call_update') {
+        continue
       }
-      if (update.sessionUpdate === 'tool_call_update' && update.status !== undefined) {
-        lastStatus.set(update.toolCallId, update.status)
+      /* 协议把 status 标成可选，并且允许 tool_call_update 显式送 null。两者说的
+         是同一件事 —— 这一帧没有报告状态 —— 所以折成同一个缺席再判。此前这里
+         假定 tool_call 一定带状态，一帧不带就会把 undefined 记成它的末态。 */
+      const status = update.status ?? undefined
+      if (status !== undefined) {
+        lastStatus.set(update.toolCallId, status)
       }
     }
 

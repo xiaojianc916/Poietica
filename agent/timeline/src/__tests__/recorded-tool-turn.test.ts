@@ -64,11 +64,14 @@ describe('a recorded tool turn', () => {
   })
 
   it('ends each tool call where its last update left it', () => {
-    const expected = new Map<string, string>()
+    const expected = new Map<string, ToolCallTimelineItem['status']>()
 
     for (const update of toolUpdates) {
-      if (update.status !== undefined) {
-        expected.set(update.toolCallId, update.status)
+      /* 可选，而且 tool_call_update 允许显式 null；都表示这一帧没报状态。 */
+      const status = update.status ?? undefined
+
+      if (status !== undefined) {
+        expected.set(update.toolCallId, status)
       }
     }
 
