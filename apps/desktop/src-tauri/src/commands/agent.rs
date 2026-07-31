@@ -7,8 +7,8 @@
 //! would throw away the context the agent has built up.
 //!
 //! 一段对话的持有者是 agent，不是这一侧。打开它就是请 agent 把它装载回来，
-//! 重放的帧随 `agent_open_thread` 一起交出去。本地日志因此不再是历史的来源
-//! —— 它此前是第二份真相，而两份真相里只有一份是对面手里那份。
+//! 重放的帧随 `agent_open_thread` 一起交出去。这一侧不再留第二份记录：本地
+//! 库现在只是一张索引，记着有哪些对话、叫什么、各自握着谁的哪个会话。
 //!
 //! An answer arriving from the renderer is untrusted. The desk checks it
 //! against the options the agent actually offered before anything is recorded
@@ -53,7 +53,7 @@ const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
 const NO_SESSION_ID: &str = "the agent closed the connection before creating a session";
 const NO_ANSWER: &str = "the agent session ended before answering";
-const NO_READ: &str = "the log read did not finish";
+const NO_READ: &str = "the database read did not finish";
 
 /// 提问和改设置都必须点名一条对话。
 ///
@@ -71,8 +71,8 @@ const NO_TURN: &str = "that turn is not running";
 ///
 /// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
 /// 此前它在建立时就凭空建一条并 attach 上去，那一行永远没人看、也永远不会被
-/// 回收，只能靠 `list_threads` 的 WHERE EXISTS 挡在列表之外 —— 用每次读列表都要
-/// 付的一次子查询，去遮一次本不该发生的写入。
+/// 回收，只能靠列表的过滤条件挡在外面 —— 用每次读列表都要付的一次判断，去遮
+/// 一次本不该发生的写入。
 #[derive(Debug)]
 struct Connection {
     client: AgentClient,
@@ -110,12 +110,12 @@ pub struct AgentRuntime {
     /// 表是两者之间唯一的对应关系：一轮开始时写入，结束时删除。Arc 是因为
     /// 删除发生在那一轮自己的任务里，而托管状态借不进 'static。
     turns: Arc<Mutex<HashMap<String, String>>>,
-    /// The one connection to the encrypted log, opened on first use.
+    /// The one connection to the encrypted index, opened on first use.
     ///
     /// Every command used to open one of its own: a credential store
     /// read, a `SQLCipher` attach and a full migrate, all of it again for
     /// something as ordinary as refreshing the sidebar. The single writer
-    /// the log claims to be had never actually existed.
+    /// this file claims to have had never actually existed.
     store: OnceLock<Arc<Mutex<AgentStore>>>,
 }
 
@@ -784,12 +784,11 @@ fn borrow_store(shared: &Arc<Mutex<AgentStore>>) -> Result<MutexGuard<'_, AgentS
 
 /// Reads or writes the log without standing on the main thread.
 ///
-/// A command that is not `async` runs on the main thread, and one read of a
-/// conversation is a credential store lookup, a `SQLCipher` attach, a join
-/// across the whole log and a JSON parse per frame. Put that on the main
-/// thread and the window stops answering: the sidebar does not highlight,
-/// the click does not land, and the conversation looks broken rather than
-/// slow.
+/// A command that is not `async` runs on the main thread, and even a read of
+/// the index is a credential store lookup and a `SQLCipher` attach before a
+/// single row comes back. Put that on the main thread and the window stops
+/// answering: the sidebar does not highlight, the click does not land, and
+/// the conversation looks broken rather than slow.
 ///
 /// The two halves are separate on purpose. Taking the share needs the
 /// managed state, which is borrowed; running the work needs `'static`. So
@@ -1132,9 +1131,8 @@ pub async fn agent_open_thread(
             .map_err(translate)?
     };
 
-    // list_threads leaves out conversations that have had no turns, on
-    // purpose: a list of conversations lists ones that happened, so the row
-    // just created has to be read on its own.
+    // 列表故意漏掉还没有人开口的对话，而刚建的这一行正是那种，所以它只能
+    // 单独读回来。判据现在是标题源，见 threads.rs 的 list_threads。
     let thread = {
         let shared = shared_store(&state)?;
         let store = borrow_store(&shared)?;
@@ -1302,7 +1300,11 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// 号本身还要认人。sessionId 活在 agent 自己的命名空间里，B 不认识 A 开的
 /// 号：换一个 agent 再点开旧对话，发出去的是一个对面从没见过的名字，回来的
 /// 是 UnknownSession。所以持有者跟着号一起存，对不上就根本不装载，这条对话
-/// 在新 agent 这里从一条新会话开始 —— 本地日志照常显示，只是上下文重开。
+/// 在新 agent 这里从一条空会话开始。
+///
+/// 这一刻屏幕上是空的，而且只能是空的：那段历史在原来那个 agent 手里，这一侧
+/// 没有副本可拿。此前这里写着"本地日志照常显示"，那句话随着本地日志一起作废。
+/// 现在它安静地空着 —— 把这件事对用户说清楚，是下一刀要做的事。
 ///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
 async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
@@ -1428,13 +1430,11 @@ pub async fn agent_rename_thread(
     Ok(())
 }
 
-/// Deletes a conversation and every frame recorded under it.
+/// Deletes a conversation, on this side and on the agent's.
 ///
-/// 本地那一份删得干净：runs 挂在 threads 上，`run_events`、`tool_calls`、
-/// permissions 各自挂在 runs 上，全是 ON DELETE CASCADE，而外键在
-/// `open_encrypted` 里是开着的。一句 DELETE 就够。
+/// 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
 ///
-/// 但一条对话有两份。agent 自己也存着它的全文，此前从没有人告诉过它这条
+/// 真正的那一份在 agent 手里。它存着这条对话的全文，此前从没有人告诉过它这条
 /// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
 /// 有 session/delete，而它可不可用由 agent 在握手时自己说。
 ///
