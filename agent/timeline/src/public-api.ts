@@ -14,6 +14,7 @@ export {
   appendLocalError,
   appendUserMessage,
   applyRunEvent,
+  applyRunEvents,
   createTimelineState,
   replayRunEvents,
   replayThreadEvents,

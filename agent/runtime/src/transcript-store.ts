@@ -3,7 +3,7 @@ import type { TimelineState } from '@poietica/agent-timeline'
 import {
   appendLocalError,
   appendUserMessage,
-  applyRunEvent,
+  applyRunEvents,
   createTimelineState,
   replayThreadEvents,
 } from '@poietica/agent-timeline'
@@ -219,6 +219,14 @@ export class TranscriptStore {
    */
   #routes = new Map<string, string>()
 
+  /**
+   * 收到了、还没折进转录的帧，按对话攒着。
+   *
+   * 每折一帧要复制一遍整条 items（见 timeline-reducer 的 draftOf）。所以帧先攒，
+   * 折叠推迟到真的有人要看的那一刻：下一拍，或者任何一次同步读。
+   */
+  #pending = new Map<string, RunEvent[]>()
+
   /** 想知道「某条对话空下来了」的人。 */
   #idle = new Set<(threadId: string) => void>()
 
@@ -233,7 +241,14 @@ export class TranscriptStore {
     return `${DRAFT}${String(this.#drafts)}`
   }
 
-  read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
+  /**
+   * 这一格现在是什么样子。
+   *
+   * 攒着的帧在这里折进去，折完再交出去：快照永远是当前那一份，
+   * useSyncExternalStore 的契约要的正是这个。推迟的只有「折」这个动作本身 ——
+   * 没人看的那些中间态，本来就没有人看。
+   */
+  read = (key: string): Transcript => this.#settle(this.#resolveKey(key))
 
   subscribe = (key: string, listener: () => void): (() => void) => {
     const set = this.#listeners.get(key) ?? new Set<() => void>()
@@ -517,6 +532,7 @@ export class TranscriptStore {
     this.#dirty = new Set<string>()
 
     for (const real of dirty) {
+      this.#settle(real)
       this.#fire(real)
 
       const draft = this.#aliased.get(real)
@@ -555,6 +571,9 @@ export class TranscriptStore {
 
       this.#held.delete(key)
 
+      /* 攒着的帧跟着走：转录都不留了，等着折进它的那些帧也没有去处。 */
+      this.#pending.delete(key)
+
       /* 别名跟着走。此前 alias 只增不减，进程活多久它就长多久。 */
       const draft = this.#aliased.get(key)
 
@@ -566,7 +585,18 @@ export class TranscriptStore {
   }
 
   #put(key: string, next: Transcript): void {
-    const real = this.#resolveKey(key)
+    this.#write(this.#resolveKey(key), next)
+    this.#notify(this.#resolveKey(key))
+  }
+
+  /*
+   * 写下来，不惊动任何人。
+   *
+   * 「写」与「叫醒」此前是同一件事，于是「把攒下的帧折进去」这个动作本身也会
+   * 再约一拍，而那一拍没有任何新东西可看。分开之后，叫醒由收到帧的那一刻负责
+   * （#queue），折叠只管把状态改对。
+   */
+  #write(real: string, next: Transcript): void {
     const was = running(this.#held.get(real)?.timeline.status ?? 'idle')
 
     /* delete + set 把它挪到末尾：Map 的插入序就是 LRU 的顺序。 */
@@ -630,10 +660,49 @@ export class TranscriptStore {
     this.#put(key, { ...current, timeline: noteOn(current.timeline, cause, false) })
   }
 
-  #handOver(owner: string, event: RunEvent): void {
-    const current = this.read(owner)
+  /*
+   * 攒一帧，并说一声「这条对话变了」。
+   *
+   * 说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻才折出来。
+   */
+  #queue(owner: string, event: RunEvent): void {
+    const real = this.#resolveKey(owner)
+    const waiting = this.#pending.get(real)
 
-    this.#put(owner, { ...current, timeline: applyRunEvent(current.timeline, event) })
+    if (waiting === undefined) {
+      this.#pending.set(real, [event])
+    } else {
+      waiting.push(event)
+    }
+
+    this.#notify(real)
+  }
+
+  /*
+   * 攒下的这一批，一趟折进去。
+   *
+   * 一批一份草稿、一次复制、一次封版（见 applyRunEvents）。全是重复帧时它原样
+   * 交回旧对象，那就什么都没发生过：引用不变，下游的记忆化不被打掉。
+   */
+  #settle(real: string): Transcript {
+    const waiting = this.#pending.get(real)
+    const current = this.#held.get(real) ?? EMPTY
+
+    if (waiting === undefined) {
+      return current
+    }
+
+    this.#pending.delete(real)
+
+    const timeline = applyRunEvents(current.timeline, waiting)
+
+    if (timeline === current.timeline) {
+      return current
+    }
+
+    this.#write(real, { ...current, timeline })
+
+    return this.#held.get(real) ?? EMPTY
   }
 
   /*
@@ -650,7 +719,7 @@ export class TranscriptStore {
       return
     }
 
-    this.#handOver(owner, event)
+    this.#queue(owner, event)
   }
 
   /* 一个 store 订着一条线路。此前这道守卫是进程级的。 */

@@ -188,26 +188,45 @@ export function appendLocalError(
   return freeze(draft)
 }
 
+/**
+ * 一批帧，一趟草稿。
+ *
+ * 逐帧调用会为每一帧复制一次整条 items —— 一次回答几千帧，那是 O(帧 × 条目)，
+ * 而屏幕一秒只画六十次：中间那些副本没有一个被人看见过。上游按屏幕的节拍把帧
+ * 攒起来，攒到的这一批在这里合成一次复制、一次封版。
+ *
+ * 判据一个字没改，只是共用一份草稿：草稿自己带着 lastSeq，同一批里的重复帧
+ * 照样被丢掉。一批全是重复帧时原样交回入参那个对象 —— 引用不变，下游的记忆化
+ * 不会被白白打掉，这正是此前那道提前返回守着的东西。
+ */
+export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]): TimelineState {
+  let draft: Draft | null = null
+
+  for (const event of events) {
+    /* run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，
+       拿上一段的窗口去判它，判出来的"重复"是假的。 */
+    if (event.kind !== 'run_started' && event.seq <= (draft?.lastSeq ?? state.lastSeq)) {
+      continue
+    }
+
+    draft ??= draftOf(state)
+
+    /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。
+       它从 1 开始编自己的号，窗口必须跟着换，否则整轮会被上一轮的 seq
+       判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。 */
+    if (event.kind === 'run_started') {
+      openSegment(draft)
+    }
+
+    apply(draft, event)
+  }
+
+  return draft === null ? state : freeze(draft)
+}
+
+/** 一帧就是一批只有一帧的批。两条路径共用同一套判据，不是两份实现。 */
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
-  /* 重复帧不产生新状态：身份不变，下游的记忆化才不会被白白打掉。
-     run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，
-     拿上一段的窗口去判它，判出来的"重复"是假的。 */
-  if (event.kind !== 'run_started' && event.seq <= state.lastSeq) {
-    return state
-  }
-
-  const draft = draftOf(state)
-
-  /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。
-     它从 1 开始编自己的号，窗口必须跟着换，否则整轮会被上一轮的 seq
-     判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。 */
-  if (event.kind === 'run_started') {
-    openSegment(draft)
-  }
-
-  apply(draft, event)
-
-  return freeze(draft)
+  return applyRunEvents(state, [event])
 }
 
 /* -------------------------------------------------------------- */
