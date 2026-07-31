@@ -24,10 +24,10 @@ import {
  * its two halves; neither knows about the other. This file is the only place
  * they meet, which is why it lives in the app and not in either of them.
  *
- * Nothing is adapted here. The desktop bridge accepts a narrower prompt
- * request than the port declares, which is exactly the direction that type
- * checks, so the two compose directly rather than through a translation layer
- * that could drift.
+ * Nothing is adapted here, and there is nothing left to adapt: the bridge the
+ * platform implements is the interface the transport itself declares. The two
+ * compose by identity now, not by a structural match that merely happened to
+ * hold — and a name that meant two different types in two packages is gone.
  */
 
 /*

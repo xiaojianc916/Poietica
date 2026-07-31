@@ -16,7 +16,6 @@ import type { RunEvent, ThreadId } from './run-contract'
 export interface AgentPromptRequest {
   readonly threadId: ThreadId
   readonly text: string
-  readonly attachmentPaths?: readonly string[]
 }
 
 /**

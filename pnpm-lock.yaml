@@ -516,6 +516,9 @@ importers:
 
   platforms/desktop-ipc:
     dependencies:
+      '@poietica/agent-transport':
+        specifier: workspace:*
+        version: link:../../agent/transport
       '@tauri-apps/api':
         specifier: catalog:tauri
         version: 2.11.1

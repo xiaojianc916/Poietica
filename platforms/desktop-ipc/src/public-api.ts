@@ -8,7 +8,6 @@ export {
   AGENT_SELECTOR_EVENT,
   type AgentBridgeOptions,
   type AgentCapabilityBridge,
-  type AgentCommandBridge,
   type AgentConfigChoiceDescription,
   type AgentConfigControlDescription,
   type AgentConfigPurposeName,

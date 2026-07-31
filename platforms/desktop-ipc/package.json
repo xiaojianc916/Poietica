@@ -10,6 +10,7 @@
     "./generated/ipc-bindings": "./src/generated/ipc-bindings.ts"
   },
   "dependencies": {
+    "@poietica/agent-transport": "workspace:*",
     "@tauri-apps/api": "catalog:tauri"
   }
 }

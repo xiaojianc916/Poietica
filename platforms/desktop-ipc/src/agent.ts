@@ -1,3 +1,4 @@
+import type { AgentCommandBridge } from '@poietica/agent-transport'
 import { IpcInvocationError, isIpcError } from './error'
 import {
   type AgentConfigChoice,
@@ -78,17 +79,6 @@ export interface AgentBridgeOptions {
   readonly launch: AgentLaunchDescription
   /** The working directory the session is created against. */
   readonly cwd?: string
-}
-
-export interface AgentCommandBridge {
-  readonly prompt: (request: {
-    readonly text: string
-    /** The conversation the turn belongs to, where the interface named one. */
-    readonly threadId?: string
-  }) => Promise<{ readonly sessionId: string }>
-  /** 停掉这条对话上正在跑的那一轮。原生侧按它查出对话握着哪条会话。 */
-  readonly cancel: (threadId: string) => Promise<void>
-  readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }
 
 /**
@@ -191,7 +181,7 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
       const result = await call(() =>
         commands.agentPrompt({
           text: request.text,
-          threadId: request.threadId ?? null,
+          threadId: request.threadId,
           launch: nativeLaunch(launch),
           cwd: cwd ?? null,
         }),
