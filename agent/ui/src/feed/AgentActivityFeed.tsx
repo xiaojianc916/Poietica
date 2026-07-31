@@ -365,23 +365,39 @@ export function AgentActivityFeed({
    * 多了一个条件:表里得有东西。此前它在首帧就把 opened 置真,于是从列表打开
    * 一段既存对话时,那一次 scrollToEnd 落在空表上,而它再也不会重来。
    */
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
+  /*
+   * 量一次转录偏移。
+   *
+   * 只有一个调用者：下面那个观察者。此前它和开场定位挤在同一个效应里，依赖数组
+   * 带着 items.length —— 而滚动经过每一个 overscan 边界都会改变可见行数，于是
+   * 滚动期间反复强制同步布局，量的还是一个与转录长度无关的量。
+   */
+  const measureMargin = useCallback(() => {
     const transcript = transcriptRef.current
 
-    if (viewport === null || transcript === null) {
+    if (transcript !== null) {
+      setScrollMargin(transcript.offsetTop)
+    }
+  }, [])
+
+  /*
+   * 开场那一次定位，只做一次，而且要等基准定下来。
+   *
+   * 这里仍然读一次 offsetTop：偏移那一步可能刚刚把它改过，而 scrollToEnd 用的是
+   * 上一次渲染的 scrollMargin，基准不对就差一整个偏移。但这道门前面挡着
+   * opened.current —— 整个生命周期最多几次，不是每次滚动几次。
+   *
+   * 表里得有东西。此前它在首帧就把 opened 置真，于是从列表打开一段既存对话时，
+   * 那一次 scrollToEnd 落在空表上，而它再也不会重来。
+   */
+  useLayoutEffect(() => {
+    const transcript = transcriptRef.current
+
+    if (opened.current || transcript === null || items.length === 0) {
       return
     }
 
-    const offset = transcript.offsetTop
-
-    if (offset !== scrollMargin) {
-      setScrollMargin(offset)
-
-      return
-    }
-
-    if (opened.current || items.length === 0) {
+    if (transcript.offsetTop !== scrollMargin) {
       return
     }
 
@@ -405,7 +421,16 @@ export function AgentActivityFeed({
       return
     }
 
-    const observer = new ResizeObserver(scheduleSync)
+    /*
+     * 尺寸变了，两件事都得重算：同一个滚动位置对应到哪一行，以及转录相对滚动区
+     * 的偏移。后者此前不在这里 —— 注释说「容器变了下面那个 ResizeObserver 会说」，
+     * 而这个回调从头到尾没碰过 offsetTop。于是面板被拖窄却没有行数变化时，偏移
+     * 停在旧值，虚拟器算出来的位置整体错开那么多。
+     */
+    const observer = new ResizeObserver(() => {
+      measureMargin()
+      scheduleSync()
+    })
 
     observer.observe(viewport)
     observer.observe(transcript)
@@ -413,7 +438,7 @@ export function AgentActivityFeed({
     return () => {
       observer.disconnect()
     }
-  }, [scheduleSync])
+  }, [measureMargin, scheduleSync])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。

@@ -238,7 +238,8 @@ export function AssistantSurface({
    *
    * 于是幽灵帧、预热、加载、粘贴、聚焦，一概动不了排版。
    */
-  const isBusy = useMemo(() => selectIsBusy(assistant.timeline), [assistant.timeline])
+  /* 一次字符串比较，返回原始值：缓存槽比它包的东西贵，而原始值不需要引用稳定。 */
+  const isBusy = selectIsBusy(assistant.timeline)
 
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
 
