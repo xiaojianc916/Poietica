@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
-use toml_edit::DocumentMut;
+use toml_edit::{DocumentMut, Item, TableLike};
 
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -370,62 +370,61 @@ pub async fn agent_config_get(app: AppHandle) -> AgentConfigCommandResult<AgentC
     .map_err(IpcError::from)
 }
 
-/// 从一份 config.toml 的文本里提取每个 provider 的密钥尾号。
+/// 一份 config.toml 里那一家 provider 的表。
 ///
-/// 刻意逐行扫描而不是解析 TOML：为五个字符引入一个 TOML 解析器不值当。扫描规则
-/// 刻意严格 —— [providers.<id>] 段内的 `api_key` = "..."，双引号必需、只认 ASCII 空白，
-/// 不认就跳过而不是猜。界面的行不来自这份表（产地是 provider list），读不到时
-/// 那一行只显示 id，不编。
+/// 三处都要它：尾号、完整密钥、闸门那道凭据判断。同一段下钻各写一遍，就是三份
+/// 迟早走样的说法。
+fn provider_table<'a>(document: &'a DocumentMut, provider_id: &str) -> Option<&'a dyn TableLike> {
+    document
+        .get("providers")
+        .and_then(Item::as_table_like)
+        .and_then(|providers| providers.get(provider_id))
+        .and_then(Item::as_table_like)
+}
+
+/// 这一家 provider 现在配着的 `api_key`；缺席、不是字符串、或者只有空白都是 None。
+fn api_key_of(document: &DocumentMut, provider_id: &str) -> Option<String> {
+    provider_table(document, provider_id)
+        .and_then(|provider| provider.get("api_key"))
+        .and_then(Item::as_str)
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(str::to_owned)
+}
+
+/// 一把钥匙露在界面上的那几个字符。
+const TAIL_CHARS: usize = 5;
+
+/// 每个 provider 的密钥尾号：provider id → 密钥最后几个字符。
+///
+/// 读的是 TOML，不是逐行扫。此前这里手写了一套扫描规则，它为自己辩护的原话是
+/// 「为五个字符引入一个 TOML 解析器不值当」——而 `toml_edit` 本来就是这个文件的依赖
+/// （见文件头的 use），那笔成本一次都没有发生过。手写换来的是三个盲区：
+/// `strip_prefix("api_key")` 把 `api_key_id` 也当成 `api_key`，单引号写的密钥一律当没配，
+/// 段头认死 `[providers.<id>]` 而认不出带引号的键名。agent 自己读这份文件用的是真
+/// 解析器，所以每一个盲区都是同一个文件上我们与 agent 各说一套。
+///
+/// 界面的行不来自这份表（产地是 provider list），读不到时那一行只显示 id，不编。
 fn tails_from_config(text: &str) -> BTreeMap<String, String> {
-    let mut tails: BTreeMap<String, String> = BTreeMap::new();
-    let mut current: Option<String> = None;
+    let Ok(document) = text.parse::<DocumentMut>() else {
+        return BTreeMap::new();
+    };
 
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
+    let Some(providers) = document.get("providers").and_then(Item::as_table_like) else {
+        return BTreeMap::new();
+    };
 
-        if line.starts_with('[') {
-            current = line
-                .strip_prefix("[providers.")
-                .and_then(|rest| rest.strip_suffix(']'))
-                .map(str::to_owned);
+    providers
+        .iter()
+        .filter_map(|(provider_id, _)| {
+            let key = api_key_of(&document, provider_id)?;
+            let mut tail: Vec<char> = key.chars().rev().take(TAIL_CHARS).collect();
 
-            continue;
-        }
+            tail.reverse();
 
-        let Some(provider_id) = current.as_deref() else {
-            continue;
-        };
-
-        let Some(value) = line.strip_prefix("api_key") else {
-            continue;
-        };
-
-        let quoted = value.trim_start_matches([' ', '=']);
-
-        let Some(inner) = quoted
-            .strip_prefix('"')
-            .and_then(|rest| rest.strip_suffix('"'))
-        else {
-            continue;
-        };
-
-        if inner.is_empty() {
-            continue;
-        }
-
-        let tail: String = inner
-            .chars()
-            .rev()
-            .take(5)
-            .collect::<Vec<char>>()
-            .into_iter()
-            .rev()
-            .collect();
-
-        let _previous = tails.insert(provider_id.to_owned(), tail);
-    }
-
-    tails
+            Some((provider_id.to_owned(), tail.into_iter().collect()))
+        })
+        .collect()
 }
 
 /// 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
@@ -474,12 +473,10 @@ fn alias_is_declared(document: &DocumentMut, alias: &str) -> bool {
 /// 且它指向的那一家握着非 OAuth 的凭据。达不到就是 None —— 对闸门而言，一个死别名和
 /// 一个空键是同一件事，读回侧没有理由把它们说成两件。
 ///
-/// 这里解析 TOML，而 `tails_from_config` 与 `secret_from_config` 仍在逐行扫描 ——
-/// 差别不是随意的：那两个只读，这一个有写的对侧（`agent_set_default_model`）。读一套、
-/// 写一套是两份迟早对不上的规则，所以这个键的两个方向共用一个解析器。
-///
-/// 顺带修掉手写规则的一个盲区：「扫到第一个 `[` 就停」认不出多行字符串里的方括号，
-/// 解析器认得出。
+/// 这个文件里读 config.toml 只有一条路：`text.parse::<DocumentMut>()`。读一套、写一套
+/// 是两份迟早对不上的规则，而手写的那一套已经对不上过：「扫到第一个 `[` 就停」认不出
+/// 多行字符串里的方括号，`strip_prefix("api_key")` 认不出 `api_key_id` 不是 `api_key`，
+/// 单引号写的密钥它一律当没配。agent 自己读这份文件用的是真解析器。
 fn usable_default_model(text: &str) -> Option<String> {
     let document = text.parse::<DocumentMut>().ok()?;
 
@@ -553,12 +550,7 @@ fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
         return false;
     };
 
-    let Some(provider) = document
-        .get("providers")
-        .and_then(|providers| providers.as_table_like())
-        .and_then(|providers| providers.get(provider_name.as_str()))
-        .and_then(|entry| entry.as_table_like())
-    else {
+    let Some(provider) = provider_table(document, &provider_name) else {
         return false;
     };
 
@@ -566,12 +558,7 @@ fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
         return false;
     }
 
-    let has_api_key = provider
-        .get("api_key")
-        .and_then(|value| value.as_str())
-        .is_some_and(|key| !key.trim().is_empty());
-
-    if has_api_key {
+    if api_key_of(document, &provider_name).is_some() {
         return true;
     }
 
@@ -737,47 +724,13 @@ pub async fn agent_set_default_model(
 
 /// 从一份 config.toml 的文本里取出某一家 provider 的完整密钥。
 ///
-/// 扫描规则与 `tails_from_config` 逐字相同：段头 `[providers.<id>]`、双引号必需、
-/// 只认 ASCII 空白，不认就跳过而不是猜。全局 home 与受控 home 读的是同一种文件，
-/// 所以扫描只有这一份 —— 抄第二份等于给同一个格式留两个迟早走样的说法。
+/// 与尾号同一条读法（`api_key_of`）。全局 home 与受控 home 读的是同一种文件，
+/// 各写一份解析就是给同一个格式留两个迟早走样的说法 —— 此前那两份的注释里
+/// 逐字写着「扫描规则与 `tails_from_config` 逐字相同」。
 ///
 /// 密钥本体不离开这条调用链：它唯一的去处是 `agent_cli_exec` 注入子进程的环境变量。
 fn secret_from_config(text: &str, provider_id: &str) -> Option<String> {
-    let section = format!("[providers.{provider_id}]");
-    let mut inside = false;
-
-    for raw_line in text.lines() {
-        let line = raw_line.trim();
-
-        if line.starts_with('[') {
-            inside = line == section;
-
-            continue;
-        }
-
-        if !inside {
-            continue;
-        }
-
-        let Some(value) = line.strip_prefix("api_key") else {
-            continue;
-        };
-
-        let quoted = value.trim_start_matches([' ', '=']);
-
-        let Some(inner) = quoted
-            .strip_prefix('"')
-            .and_then(|rest| rest.strip_suffix('"'))
-        else {
-            continue;
-        };
-
-        if !inner.is_empty() {
-            return Some(inner.to_owned());
-        }
-    }
-
-    None
+    api_key_of(&text.parse::<DocumentMut>().ok()?, provider_id)
 }
 
 /// 从用户自己那份 home 的 config.toml 里取出一家 provider 的完整密钥。

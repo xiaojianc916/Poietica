@@ -431,8 +431,29 @@ impl Recorder {
     }
 }
 
+/// 现在，毫秒。
+///
+/// 时钟走在 1970 之前、或者走过 i64 毫秒能表示的尽头时算 0。两处兜底都是有意
+/// 的：帧上的时刻是给人看的排序依据，让一次记录因为系统时钟不对劲而失败，换来
+/// 的是一条对话在屏幕上断掉 —— 代价不对等。
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
+    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由。根 Cargo.toml 说
+    // 「#[cfg(test)] 模块内层统一放开」，但仓库根没有 clippy.toml，也就没有
+    // allow-expect-in-tests —— 放开一直是逐处写出来的，这个内联模块只是漏了。
+    #![allow(
+        clippy::expect_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
     use std::sync::{Arc, Mutex};
 
     use super::{Frames, RecordedEvent, SeqLine};
