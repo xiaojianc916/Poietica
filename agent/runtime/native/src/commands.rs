@@ -29,6 +29,14 @@ pub(crate) enum Command {
         cwd: PathBuf,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
+    /// 让 agent 删掉一条它自己存着的会话。
+    ///
+    /// 删除对话不是本地的事：agent 那侧存着同一条对话的全文。ACP 的
+    /// session/delete 就是为它设的。
+    DeleteSession {
+        session_id: String,
+        reply: oneshot::Sender<Result<()>>,
+    },
     /// Ask the agent which sessions it keeps, and what it calls them.
     Sessions {
         reply: oneshot::Sender<Result<Vec<SessionEntry>>>,
@@ -130,6 +138,25 @@ impl AgentClient {
             cwd,
             reply,
         })?;
+
+        answer
+            .await
+            .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
+    }
+
+    /// Asks the agent to delete one of the sessions it keeps.
+    ///
+    /// 只有在 agent 于握手时声明了这项能力时才该调用它。号删掉之后它不再
+    /// 指向任何东西：驱动器会同时把它从选择器表和会话册子里抹掉。
+    ///
+    /// # Errors
+    ///
+    /// Fails when the connection is gone, or when the agent refuses to
+    /// delete that session.
+    pub async fn delete_session(&self, session_id: String) -> Result<()> {
+        let (reply, answer) = oneshot::channel();
+
+        self.send(Command::DeleteSession { session_id, reply })?;
 
         answer
             .await

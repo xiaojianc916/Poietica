@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, NewSessionRequest,
-    PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionId, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, TextContent,
+    ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest, LoadSessionRequest,
+    NewSessionRequest, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionId, SessionNotification,
+    SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -59,6 +59,11 @@ enum Settled {
         session_id: String,
         outcome: Result<Vec<ConfigControl>>,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
+    },
+    Deleted {
+        session_id: String,
+        outcome: Result<()>,
+        reply: oneshot::Sender<Result<()>>,
     },
     Turn {
         asked: String,
@@ -265,6 +270,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                 let can_load_session = initialized.agent_capabilities.load_session;
 
+                /* 删一条会话要不要发给 agent，由 agent 自己在这里说。盲发再
+                看它报不报错，是把「它不支持」和「它出错了」混成一件事。 */
+                let can_delete_session = initialized
+                    .agent_capabilities
+                    .session_capabilities
+                    .delete
+                    .is_some();
+
                 let session = match connection
                     .send_request(NewSessionRequest::new(cwd))
                     .block_task()
@@ -312,6 +325,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 let _ignored = ready.send(Ok(Handshake {
                     session_id: primary.to_string(),
                     can_load_session,
+                    can_delete_session,
                 }));
 
                 /*
@@ -384,6 +398,9 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 cwd,
                                 reply,
                             )));
+                        }
+                        Step::Asked(Some(Command::DeleteSession { session_id, reply })) => {
+                            jobs.push(Box::pin(delete_session(&connection, session_id, reply)));
                         }
                         Step::Asked(Some(Command::Sessions { reply })) => {
                             jobs.push(Box::pin(list_sessions(&connection, reply)));
@@ -523,6 +540,21 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 && let Some(held) = sessions.get_mut(&session_id)
                             {
                                 held.1.clone_from(offered);
+                            }
+
+                            let _ignored = reply.send(outcome);
+                        }
+                        Step::Settled(Settled::Deleted {
+                            session_id,
+                            outcome,
+                            reply,
+                        }) => {
+                            /* 一条会话存在与否，这里有两份记载：选择器表和会话
+                            册子。忘掉一份留下另一份，就是又一个只在出错时才被
+                            发现的第二事实来源。 */
+                            if outcome.is_ok() {
+                                let _forgotten = sessions.remove(&session_id);
+                                let _was_open = ledger.close(&session_id);
                             }
 
                             let _ignored = reply.send(outcome);
@@ -693,6 +725,40 @@ async fn load_session(
 
     Settled::Opened {
         opened: loaded,
+        reply,
+    }
+}
+
+/// 让 agent 也把这条会话删掉。
+///
+/// 删除一条对话，删的是两份东西：本地那份加密日志，和 agent 自己存的那份
+/// 会话。ACP 为后者准备了 session/delete —— 只删前者，屏幕上没了而对面
+/// 还留着完整的一份。
+///
+/// 只有 agent 在握手时声明了这项能力才该走到这里。
+async fn delete_session(
+    connection: &ConnectionTo<Agent>,
+    session_id: String,
+    reply: oneshot::Sender<Result<()>>,
+) -> Settled {
+    /* 与装载那条路同一个理由：构造函数收的是它自己拥有的字符串，借来的一段
+    满足不了那个 'static 的 From。 */
+    let named = SessionId::new(Arc::<str>::from(session_id.as_str()));
+
+    let outcome = match connection
+        .send_request(DeleteSessionRequest::new(named))
+        .block_task()
+        .await
+    {
+        Ok(_deleted) => Ok(()),
+        Err(error) => Err(AcpError::Protocol {
+            message: error.to_string(),
+        }),
+    };
+
+    Settled::Deleted {
+        session_id,
+        outcome,
         reply,
     }
 }

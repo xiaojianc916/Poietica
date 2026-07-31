@@ -121,6 +121,12 @@ pub struct Handshake {
     pub session_id: String,
     /// agent 会不会把一条它以前开过的会话重新装载起来（ACP `session/load`）。
     pub can_load_session: bool,
+    /// agent 会不会真的删掉一条会话（ACP session/delete）。
+    ///
+    /// 删除对话若只删本地那一份，agent 自己存的那一份原样留着 —— 屏幕上没了，
+    /// 对面还在。那不是删除，是隐藏。这一件同样只有 agent 说了算，而且只在
+    /// 握手这一刻说一次：它在 `sessionCapabilities.delete` 里。
+    pub can_delete_session: bool,
 }
 
 /// A session the agent just opened, and the selectors it offers for it.

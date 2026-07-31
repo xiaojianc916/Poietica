@@ -97,6 +97,8 @@ struct Session {
     anchor: String,
     /// 这个 agent 会不会装载一条旧会话。握手时问出来的，一条连接一份。
     can_load_session: bool,
+    /// 这个 agent 会不会删掉一条会话。同样是握手问出来的。
+    can_delete_session: bool,
 }
 
 /// Managed state for everything the agent commands need.
@@ -745,6 +747,8 @@ struct Handle {
     anchor: String,
     /// 这个 agent 会不会装载一条旧会话。寻址要按它分路。
     can_load_session: bool,
+    /// 这个 agent 会不会删掉一条会话。删除要按它分路。
+    can_delete_session: bool,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -813,6 +817,7 @@ async fn ensure_session(
 
     let session_id = handshake.session_id;
     let can_load_session = handshake.can_load_session;
+    let can_delete_session = handshake.can_delete_session;
 
     let mut guard = lock(&state.session)?;
 
@@ -826,6 +831,7 @@ async fn ensure_session(
             agent_id: live.agent_id.clone(),
             anchor: live.anchor.clone(),
             can_load_session: live.can_load_session,
+            can_delete_session: live.can_delete_session,
         });
     }
 
@@ -834,6 +840,7 @@ async fn ensure_session(
         agent_id: agent_id.clone(),
         anchor: session_id.clone(),
         can_load_session,
+        can_delete_session,
     });
 
     /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
@@ -844,6 +851,7 @@ async fn ensure_session(
         agent_id,
         anchor: session_id,
         can_load_session,
+        can_delete_session,
     })
 }
 
@@ -856,6 +864,7 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
         agent_id: live.agent_id.clone(),
         anchor: live.anchor.clone(),
         can_load_session: live.can_load_session,
+        can_delete_session: live.can_delete_session,
     }))
 }
 
@@ -1373,6 +1382,20 @@ fn remember(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// 忘掉一个会话号。
+///
+/// 与 remember 成对：agent 那侧已经没有它了，这里再认得它就是认得一个
+/// 不存在的东西。
+fn forget(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
+    let _forgotten = state
+        .live
+        .lock()
+        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
+        .remove(session_id);
+
+    Ok(())
+}
+
 /// 本次连接是否认得这个会话号。
 fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool> {
     Ok(state
@@ -1529,6 +1552,18 @@ pub async fn agent_rename_thread(
 
 /// Deletes a conversation and every frame recorded under it.
 ///
+/// 本地那一份删得干净：runs 挂在 threads 上，run_events、tool_calls、
+/// permissions 各自挂在 runs 上，全是 ON DELETE CASCADE，而外键在
+/// open_encrypted 里是开着的。一句 DELETE 就够。
+///
+/// 但一条对话有两份。agent 自己也存着它的全文，此前从没有人告诉过它这条
+/// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
+/// 有 session/delete，而它可不可用由 agent 在握手时自己说。
+///
+/// 三个前提缺一不可：连接还活着、这条会话确实是这个 agent 的、它声明了这
+/// 项能力。都不满足就只删本地那一份 —— 并且不为此去起一个进程：删一条对话
+/// 不该是拉起一个 agent 的理由。那种情况下 agent 那份会留到下次它自己清理。
+///
 /// # Errors
 ///
 /// Fails when the identifier is not a UUID or the database rejects the
@@ -1540,6 +1575,39 @@ pub async fn agent_delete_thread(
     request: AgentThreadRequest,
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
+
+    let stored = {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
+
+        store.thread(id).map_err(persistence)?
+    };
+
+    let live = borrow(&state)?;
+
+    /* 持有者对不上就不发：会话号活在各自 agent 的命名空间里，把 A 的号发给
+    B，删的可能是 B 的东西。空的持有者是这一列存在之前写下的行，按本次这个
+    算 —— 与 session_for 同一条规矩，不另立一套。 */
+    let held = stored.and_then(|thread| {
+        let owner = thread.agent_id;
+
+        thread.session_id.filter(|_| {
+            live.as_ref().is_some_and(|live| {
+                live.can_delete_session
+                    && owner.as_deref().is_none_or(|agent| agent == live.agent_id)
+            })
+        })
+    });
+
+    if let (Some(live), Some(session_id)) = (live, held) {
+        if let Err(error) = live.client.delete_session(session_id.clone()).await {
+            /* agent 拒绝，或者它自己也早就不留着这条会话了。本地这一份仍然
+            要删：用户按的是删除，不是「如果 agent 同意就删除」。 */
+            log::warn!("could not delete the session on the agent: {error}");
+        }
+
+        forget(&state, &session_id)?;
+    }
 
     on_store(&state, move |store| {
         store.delete_thread(id).map_err(persistence)
