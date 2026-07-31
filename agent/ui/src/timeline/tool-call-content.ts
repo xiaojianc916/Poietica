@@ -1,5 +1,4 @@
 import type { AcpToolCallContent } from '@poietica/agent-protocol'
-import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { diffLines } from 'diff'
 
 /**
@@ -126,11 +125,12 @@ export interface ToolCallView {
 }
 
 /*
- * 按 item 引用记一次。
+ * 按来源对象的引用记一次。
  *
- * 键是 reducer 冻结过的那个 item：任何变更都造新对象，所以「同一个引用 ⇒ 同一
- * 份结果」是构造保证的，不是约定。上游 timeline-selectors.ts 的行投影用的是同
- * 一张形状的表，这里不引入第二种记忆化范式。
+ * 键是 reducer 冻结过的那个对象：任何变更都造新对象，所以「同一个引用 ⇒ 同一
+ * 份结果」是构造保证的，不是约定。权限请求随身带来的那次调用同理 —— 它从事件里
+ * 读出来之后就不再改。上游 timeline-selectors.ts 的行投影用的是同一张形状的表，
+ * 这里不引入第二种记忆化范式。
  *
  * 不用 useMemo。转录区是虚拟化的，卡片滚出视口就卸载，useMemo 的缓存跟着一起
  * 走 —— 偏偏在长会话里最需要它的时候失效。WeakMap 的生命周期跟着数据而不是跟
@@ -141,19 +141,36 @@ export interface ToolCallView {
  * 重渲，视口里每一张带 diff 的卡片都在里面，包括早就结束的、包括折叠着的
  * （徽章画在 button 上，不在 DisclosureBody 里）。
  */
-const VIEWS = new WeakMap<ToolCallTimelineItem, ToolCallView>()
+/*
+ * 带着一次调用内容的东西：时间线上那条工具调用，或者权限请求随身带来的那一次。
+ *
+ * 两边画的是同一份内容 —— 同样的 part、同样的行数增删 —— 所以它们走同一条管线，
+ * 而不是各自解析一遍。这里只要 content 这一点形状，谁带着它不重要。
+ */
+export interface ToolCallContentSource {
+  readonly content?: readonly AcpToolCallContent[] | null | undefined
+}
 
-export function toToolCallView(item: ToolCallTimelineItem): ToolCallView {
-  const held = VIEWS.get(item)
+/** 没有调用就没有内容。常量，免得每次问都造一个新对象。 */
+const EMPTY_VIEW: ToolCallView = { diffStat: null, parts: [] }
+
+const VIEWS = new WeakMap<ToolCallContentSource, ToolCallView>()
+
+export function toToolCallView(source: ToolCallContentSource | null | undefined): ToolCallView {
+  if (source === null || source === undefined) {
+    return EMPTY_VIEW
+  }
+
+  const held = VIEWS.get(source)
 
   if (held !== undefined) {
     return held
   }
 
-  const parts = toToolContentParts(item.content)
+  const parts = toToolContentParts(source.content)
   const view: ToolCallView = { diffStat: diffStatOf(parts), parts }
 
-  VIEWS.set(item, view)
+  VIEWS.set(source, view)
 
   return view
 }

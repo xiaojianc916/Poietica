@@ -9,7 +9,7 @@ import { Surface } from './primitives/surface'
 import { OutcomeCard } from './timeline/OutcomeCard'
 import { Prose } from './timeline/Prose'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
-import { type ToolContentPart, toDiffStat, toToolContentParts } from './timeline/tool-call-content'
+import { type DiffStat, type ToolContentPart, toToolCallView } from './timeline/tool-call-content'
 
 /**
  * A permission request, answered in place.
@@ -109,13 +109,14 @@ function askedOf(item: PermissionItem, parts: readonly ToolContentPart[]): strin
  * 是另起一段的附注；长路径在胶囊内换行，不截断。
  */
 function PermissionSubject({
+  diffStat: stat,
   parts,
   toolCall,
 }: {
+  readonly diffStat: DiffStat | null
   readonly parts: readonly ToolContentPart[]
   readonly toolCall: AcpToolCallUpdate
 }) {
-  const stat = toDiffStat(parts)
   const places = placesOf(parts, toolCall)
 
   const said = saidOf(parts)
@@ -202,10 +203,10 @@ export const PermissionRequest = memo(function PermissionRequest({
   )
 
   /*
-   * toolCall.content 一次渲染只解析一遍。此前 PermissionAsk、PermissionSubject
-   * 与 askedOf 各自再调 toToolContentParts，同一份内容一趟渲染过了四遍。
+   * 一次渲染只解析一遍，而且和工具卡走同一条管线：解析与行级增删都在
+   * toToolCallView 里算，按这次调用的对象记一次，两张卡不会各跑一遍 Myers。
    */
-  const parts = toToolContentParts(item.toolCall?.content)
+  const { diffStat, parts } = toToolCallView(item.toolCall)
 
   /*
    * 提问不是权限请求，尽管它借的是同一条通道。
@@ -252,7 +253,7 @@ export const PermissionRequest = memo(function PermissionRequest({
       <PermissionAsk parts={parts} title={item.title} toolCall={item.toolCall} />
 
       {item.toolCall === undefined ? null : (
-        <PermissionSubject parts={parts} toolCall={item.toolCall} />
+        <PermissionSubject diffStat={diffStat} parts={parts} toolCall={item.toolCall} />
       )}
 
       <div className="assistant-permission__options">
