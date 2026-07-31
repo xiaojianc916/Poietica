@@ -54,6 +54,13 @@ export interface AgentConfigBridge {
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
   /** 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。 */
   readonly loadKeyTails: (agentId: string) => Promise<Record<string, string>>
+  /**
+   * 受控 home 里当前的默认模型；没设过就是 null。
+   *
+   * 它是 ACP 鉴权闸门的第一个条件，也是对方 `provider list --json` 唯一不给的
+   * 那一项（非 json 分支才打印 Default model）。模型清单仍然来自 provider list。
+   */
+  readonly loadDefaultModel: (agentId: string) => Promise<string | null>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
@@ -71,5 +78,7 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     execCli: (request) => invoke<AgentCliResult>('agent_cli_exec', { request }),
 
     loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
+
+    loadDefaultModel: (agentId) => invoke<string | null>('agent_default_model', { agentId }),
   }
 }

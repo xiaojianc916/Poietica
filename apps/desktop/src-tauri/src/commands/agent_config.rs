@@ -337,6 +337,69 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
         .unwrap_or_default()
 }
 
+/// 从一份 config.toml 的文本里取出顶层的 `default_model`。
+///
+/// 「顶层」是字面意义上的：第一个 `[` 出现之前的那些行。写在任何一张表里的同名
+/// 键都不是它，扫到第一个段头就停 —— 猜一个位置比读不到更糟。
+///
+/// 扫描规则与 `tails_from_config` 逐字相同：双引号必需、只认 ASCII 空白，不认就
+/// 跳过。同样刻意不解析 TOML —— 这里要的只是一个标量。
+fn default_model_from_config(text: &str) -> Option<String> {
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+
+        if line.starts_with('[') {
+            break;
+        }
+
+        let Some(value) = line.strip_prefix("default_model") else {
+            continue;
+        };
+
+        let quoted = value.trim_start_matches([' ', '=']);
+
+        let Some(inner) = quoted
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+        else {
+            continue;
+        };
+
+        if !inner.is_empty() {
+            return Some(inner.to_owned());
+        }
+    }
+
+    None
+}
+
+/// 受控 home 里当前的默认模型；没有就是 None。
+///
+/// 它不是一项偏好，是闸门。上游 `hasUsableConfiguredDefaultModel` 的第一行判的
+/// 就是这个键：缺席时配置文件里的 api_key 整条不算数，session/new 一律
+/// authRequired。界面必须能直接看见这件事，而不是等用户发出一条消息之后，在
+/// 「助手结束了一轮」里撞上它。
+///
+/// 只读受控 home，不像 `agent_key_tails` 那样退回用户全局 home：模式 B 下 ACP
+/// 会话读的就是这一份，拿全局那一份来显示等于报一个 agent 根本不会用的值。
+///
+/// 模型清单不从这里来 —— 那是对方 `provider list` 的输出。这里只补它的 json
+/// 分支唯一不给的那个标量。
+///
+/// # Errors
+///
+/// 此命令不返回错误。读不到文件、或文件里没有这个键，都是 None。
+#[command]
+#[specta::specta]
+pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<String> {
+    let home = agent_home(&app, &agent_id).ok()?;
+
+    std::fs::read_to_string(home.join("config.toml"))
+        .ok()
+        .as_deref()
+        .and_then(default_model_from_config)
+}
+
 /// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
 ///
 /// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
