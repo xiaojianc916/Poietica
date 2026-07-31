@@ -29,7 +29,7 @@ export function ProviderIcon({ className, label = '', provider }: ProviderIconPr
       alt={label}
       aria-hidden={label.length === 0}
       className={
-        className === undefined ? 'assistant-provider-icon' : 'assistant-provider-icon ' + className
+        className === undefined ? 'assistant-provider-icon' : `assistant-provider-icon ${className}`
       }
       data-fallback={source === PROVIDER_ICON_FALLBACK}
       data-provider={provider ?? 'unknown'}

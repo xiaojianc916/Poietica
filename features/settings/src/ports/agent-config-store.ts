@@ -45,6 +45,16 @@ export interface AgentCliInvocation {
    * 密钥由原生侧取出直达子进程，不进渲染层。与 secretValue 互斥。
    */
   readonly secretFromGlobalProvider?: string
+  /**
+   * 从这个 agent 自己的受控配置里取哪家 provider 的密钥来注入。
+   *
+   * 改写顶层 default_model 时用：官方唯一的写入出口 catalog add 先删后建，重放它
+   * 要把这一家原有的密钥再交一次，而那份密钥只在 agent 自己的配置里。原生侧取出后
+   * 直达子进程，渲染层不持有它 —— 所以换一个默认模型不必让用户重输密钥。
+   *
+   * 与 secretValue、secretFromGlobalProvider 三者互斥。
+   */
+  readonly secretFromAgentProvider?: string
 }
 
 export interface AgentCliOutcome {

@@ -400,25 +400,14 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
         .and_then(default_model_from_config)
 }
 
-/// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
+/// 从一份 config.toml 的文本里取出某一家 provider 的完整密钥。
 ///
-/// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
-/// 扫描规则与 `tails_from_config` 逐字相同 —— 平表里的平字段，不认就报错而不是猜。
+/// 扫描规则与 `tails_from_config` 逐字相同：段头 `[providers.<id>]`、双引号必需、
+/// 只认 ASCII 空白，不认就跳过而不是猜。全局 home 与受控 home 读的是同一种文件，
+/// 所以扫描只有这一份 —— 抄第二份等于给同一个格式留两个迟早走样的说法。
 ///
-/// # Errors
-///
-/// 文件不存在、读不到、或那一家的 `api_key` 缺席时返回错误。
-pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<String> {
-    let global = app
-        .path()
-        .home_dir()
-        .map_err(|error| Error::Internal(error.to_string()))?
-        .join(".kimi-code")
-        .join("config.toml");
-
-    let text = std::fs::read_to_string(&global)
-        .map_err(|error| Error::AgentCli(format!("读不到全局配置：{error}")))?;
-
+/// 密钥本体不离开这条调用链：它唯一的去处是 `agent_cli_exec` 注入子进程的环境变量。
+fn secret_from_config(text: &str, provider_id: &str) -> Option<String> {
     let section = format!("[providers.{provider_id}]");
     let mut inside = false;
 
@@ -449,13 +438,63 @@ pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<Stri
         };
 
         if !inner.is_empty() {
-            return Ok(inner.to_owned());
+            return Some(inner.to_owned());
         }
     }
 
-    Err(Error::AgentCli(format!(
-        "全局配置里读不到 {provider_id} 的密钥"
-    )))
+    None
+}
+
+/// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
+///
+/// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
+///
+/// # Errors
+///
+/// 文件不存在、读不到、或那一家的 `api_key` 缺席时返回错误。
+pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<String> {
+    let global = app
+        .path()
+        .home_dir()
+        .map_err(|error| Error::Internal(error.to_string()))?
+        .join(".kimi-code")
+        .join("config.toml");
+
+    let text = std::fs::read_to_string(&global)
+        .map_err(|error| Error::AgentCli(format!("读不到全局配置：{error}")))?;
+
+    secret_from_config(&text, provider_id).ok_or_else(|| {
+        Error::AgentCli(format!("全局配置里读不到 {provider_id} 的密钥"))
+    })
+}
+
+/// 从受控 home 的 config.toml 里取出一家 provider 的完整密钥。
+///
+/// 为什么需要它：`default_model` 是顶层的一个标量，而上游没有 `config` 子命令
+/// （`cli/sub/` 全目录只有 acp / doctor / export / login-flow / login /
+/// plugin-run-node / provider / upgrade / vis / web），唯一能写它的官方出口是
+/// `provider catalog add --default-model`。那条命令先删后建，所以重放它必须把这一家
+/// 原有的密钥再交一次 —— 而那份密钥此刻只存在于受控 home 的明文配置里，我们没有副本。
+///
+/// 与 `global_provider_secret` 的唯一区别是读哪个文件。受控 home 由 `agent_home`
+/// 现算，与 ACP 会话、与 `launch_env` 同源；调用方报一个路径过来的自由不在这里。
+///
+/// # Errors
+///
+/// 受控 home 算不出来、文件读不到、或那一家的 `api_key` 缺席时返回错误。
+pub fn agent_provider_secret(
+    app: &AppHandle,
+    agent_id: &str,
+    provider_id: &str,
+) -> Result<String> {
+    let home = agent_home(app, agent_id)?;
+
+    let text = std::fs::read_to_string(home.join("config.toml"))
+        .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
+
+    secret_from_config(&text, provider_id).ok_or_else(|| {
+        Error::AgentCli(format!("{agent_id} 的配置里读不到 {provider_id} 的密钥"))
+    })
 }
 
 /* agent_import_global 与整份复制曾在这里。
