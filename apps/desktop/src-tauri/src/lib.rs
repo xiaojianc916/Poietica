@@ -13,7 +13,6 @@
     reason = "async dispatches a command onto the async runtime; sync would run it on the main thread"
 )]
 
-
 pub mod asset_protocol;
 pub mod bootstrap;
 pub mod commands;

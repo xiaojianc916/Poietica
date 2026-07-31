@@ -127,7 +127,6 @@ fn every_frame_carries_the_fields_the_interface_validates() {
         "end_turn",
         "the interface only accepts the protocol's own stop reasons"
     );
-
 }
 
 #[test]
@@ -156,7 +155,6 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
         inner.get("status").is_none(),
         "an optional field the agent did not set is absent, not null"
     );
-
 }
 
 #[test]

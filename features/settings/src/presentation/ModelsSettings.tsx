@@ -13,7 +13,7 @@ import {
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliFailure } from './agentCliText'
 import { OptionSelect } from './models-fields'
@@ -184,6 +184,23 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [defaultModel, setDefaultModel] = useState<string | null>(null)
   const [defaultModelBusy, setDefaultModelBusy] = useState(false)
   const [defaultModelNote, setDefaultModelNote] = useState<string | null>(null)
+  /*
+   * 「已经读过一次受控 home 里的 default_model」。
+   *
+   * 不能拿 defaultModel === null 当这个问题的答案：那一次往返还没回来时它也是 null，
+   * 而自动补齐正是靠这个判断决定要不要写入 —— 分不清「确实没有」与「还不知道」，就会
+   * 拿第一个模型盖掉用户原本配好的默认模型。
+   *
+   * 只在读取成功时置位。读失败也置位的话，一次读不到文件就会触发一次真实的写入。
+   */
+  const [defaultModelLoaded, setDefaultModelLoaded] = useState(false)
+  /*
+   * 这个 agent 已经自动挑过了。
+   *
+   * 写入失败会把 defaultModel 回滚成 null，触发条件于是重新成立 —— 没有这道闸就是一个
+   * 拿命令行进程当燃料的死循环。按 agentId 记名，换一家重新算一次。
+   */
+  const autoPickedFor = useRef<string | null>(null)
 
   const providers = useAgentProviders(store, agentId)
 
@@ -418,6 +435,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * config.toml 里，快照变了就意味着那个文件被动过。
    */
   useEffect(() => {
+    setDefaultModelLoaded(false)
+
     if (providerSnapshot === undefined) {
       setDefaultModel(null)
       return
@@ -429,6 +448,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       (alias) => {
         if (active) {
           setDefaultModel(alias)
+          setDefaultModelLoaded(true)
         }
       },
       () => {
@@ -586,20 +606,27 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   }, [allModels])
 
   /*
-   * 那一格左边说什么。三种情况，第二种不是假想：删掉一家 provider 会带走它的模型，而
-   * 对方只在别名仍解析得出来时才保留 default_model —— 指着一个不存在的别名是真实的
-   * 中间态，它的表现就是下一次开会话报 Authentication required。
+   * 那一格左边说什么。
+   *
+   * 这里曾经写着「未设置 —— agent 开不了会话，先选一个」。那句话是设计缺陷的自白：
+   * default_model 是启动条件不是偏好，缺席时上游闸门第一条就判死，而这个界面手里既有
+   * 模型清单也有写入通道，完全做得完这件事，却把它变成一道题甩给用户。现在没有默认模型
+   * 时后台直接挑一个（下面那个自动补齐的 effect），这一格只负责如实说出结果。
+   *
+   * 第二种情况不是假想：删掉一家 provider 会带走它的模型，而对方只在别名仍解析得出来时
+   * 才保留 default_model —— 指着一个不存在的别名是真实的中间态，它的表现就是下一次开会话
+   * 报 Authentication required。这种时候照直说，不含糊过去。
    */
   const defaultModelLabel = useMemo(() => {
     if (defaultModel === null) {
-      return '未设置 —— agent 开不了会话，先选一个'
+      return defaultModelOptions.length > 0 ? '正在挑一个' : '配好密钥之后会自动选一个'
     }
 
     if (!defaultModelOptions.some(([alias]) => alias === defaultModel)) {
       return `配置里写着 ${defaultModel}，但这个模型已经不在了`
     }
 
-    return '开会话时用它'
+    return '这就是选择器当前选中的模型，新会话从这里起步'
   }, [defaultModel, defaultModelOptions])
 
   /*
@@ -634,6 +661,44 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     },
     [agentId, defaultModel, defaultModelBusy, store],
   )
+
+  /*
+   * 没有默认模型就替他挑一个。
+   *
+   * 这是那个「配好了密钥、模型也列出来了，一发消息却说 Authentication required」的根治。
+   * 病根是 default_model 缺席：上游 hasUsableConfiguredDefaultModel 第一行就是
+   * `if (config.defaultModel === undefined) return false`，于是配置文件里的 api_key 整条
+   * 不算数。而用户看到的界面上，模型明明列得好好的 —— 故障现场与病因之间没有任何可见的
+   * 联系，这种错让人查不下去。
+   *
+   * 挑第一个不是随便：快照在 agent-provider-state 里已经按 provider id 排过序
+   * （providers.sort((l, r) => l.id.localeCompare(r.id))），所以「第一个」在同一份配置上
+   * 每次都是同一个，不会今天挑这个明天挑那个。
+   *
+   * 三道闸缺一不可：
+   * - defaultModelLoaded：那一次读取回来之前 defaultModel 也是 null，此时写入等于拿第一个
+   *   模型盖掉用户原本配好的默认模型；
+   * - autoPickedFor：写入失败会把 defaultModel 回滚成 null，条件于是重新成立；
+   * - defaultModelBusy：不与用户自己那一次拨动抢同一个文件。
+   *
+   * 挑完要说出来。背着用户改他自己的配置文件，即便改对了也是坏事 —— 下一次他发现
+   * default_model 不是自己写的那个，会先怀疑软件坏了。
+   */
+  useEffect(() => {
+    if (!defaultModelLoaded || defaultModel !== null || defaultModelBusy) {
+      return
+    }
+
+    const first = allModels[0]
+
+    if (first === undefined || autoPickedFor.current === agentId) {
+      return
+    }
+
+    autoPickedFor.current = agentId
+    selectDefaultModel(first.alias)
+    setDefaultModelNote(`原来没有设默认模型，已经替你选了 ${agentModelDisplayName(first)}。`)
+  }, [agentId, allModels, defaultModel, defaultModelBusy, defaultModelLoaded, selectDefaultModel])
 
   /*
    * 删除就是官方 CLI 的 provider remove：provider 与它的全部模型别名一起消失，
