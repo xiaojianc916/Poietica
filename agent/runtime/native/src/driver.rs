@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
@@ -24,7 +24,8 @@ use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
-use crate::run_slot::RunSlot;
+use crate::recorder::{Frames, RecordedEvent};
+use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
     AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
     SessionEntry,
@@ -78,6 +79,9 @@ struct Started {
     name: String,
     named: SessionId,
     offered: Vec<ConfigControl>,
+    /// 装载一条旧会话时 agent 重放回来的那些帧。新开一条时是空的 —— 一条
+    /// 刚开的会话没有历史，这不是缺省值，是事实。
+    events: Vec<Value>,
 }
 
 /// 一轮是怎么结束的。
@@ -192,8 +196,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // not ours to record, so it is dropped here rather than
                     // written against whichever session happens to be open.
                     if let Ok(Some(slot)) = updates.slot(&named) {
-                        let _routed = slot.record(|recorder| {
-                            recorder.record_session_update(&notification);
+                        let _routed = slot.record(|listening| {
+                            listening.session_update(&notification);
                         });
                     }
 
@@ -209,8 +213,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // A question belongs to the session that asked it, and
                     // is recorded there or nowhere.
                     if let Ok(Some(slot)) = permissions.slot(&named) {
-                        let _routed = slot.record(|recorder| {
-                            opened = Some(recorder.record_permission_requested(&request));
+                        let _routed = slot.record(|listening| {
+                            if let Some(recorder) = listening.turn_mut() {
+                                opened = Some(recorder.record_permission_requested(&request));
+                            }
                         });
                     }
 
@@ -233,8 +239,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // The answer belongs to the same session as the
                     // question, and is recorded there or nowhere.
                     if let Ok(Some(slot)) = permissions.slot(&named) {
-                        let _routed = slot.record(|recorder| {
-                            recorder.record_permission_resolved(&request_id, &decision);
+                        let _routed = slot.record(|listening| {
+                            if let Some(recorder) = listening.turn_mut() {
+                                recorder.record_permission_resolved(&request_id, &decision);
+                            }
                         });
                     }
 
@@ -478,7 +486,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             /* 一条会话同时只走一轮 —— 这是记录槽自己的规矩，
                             而它的范围正好是一条会话。"整条连接只许一轮"那道
                             闸门已经没有了：它拦下的是别的对话。 */
-                            if let Err(error) = turn.install(*recorder) {
+                            if let Err(error) = turn.install(Listening::Turn(*recorder)) {
                                 let _ignored = reply.send(Err(error));
 
                                 continue;
@@ -493,8 +501,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             // The prompt is recorded before it is sent, so a turn
                             // that fails on the first request still shows what was
                             // asked.
-                            let _routed = turn.record(|recorder| {
-                                recorder.record_run_started(&session_id, &text);
+                            let _routed = turn.record(|listening| {
+                                if let Some(recorder) = listening.turn_mut() {
+                                    recorder.record_run_started(&session_id, &text);
+                                }
                             });
 
                             let (halt, halted) = oneshot::channel::<()>();
@@ -518,12 +528,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                      name,
                                      named,
                                      offered,
+                                     events,
                                  }| {
                                     sessions.insert(name.clone(), (named, offered.clone()));
 
                                     OpenedSession {
                                         session_id: name,
                                         selectors: offered,
+                                        events,
                                     }
                                 },
                             );
@@ -567,7 +579,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         }) => {
                             let _halted = flying.remove(&asked);
 
-                            let Ok(Some(mut recorder)) = turn.take() else {
+                            let Ok(Some(Listening::Turn(mut recorder))) = turn.take() else {
                                 let _ignored = reply.send(Err(AcpError::Poisoned));
 
                                 continue;
@@ -669,6 +681,7 @@ async fn open_session(
                 name,
                 named: session.session_id.clone(),
                 offered,
+                events: Vec::new(),
             })
         }
     };
@@ -681,9 +694,13 @@ async fn open_session(
 /// 会话号不变，所以历史留在它原来的地方 —— 这正是 `session/load` 与
 /// `session/new` 的分别，也是「点开上次运行留下的对话」唯一走得通的路。
 ///
-/// 装载期间 agent 以 `session/update` 把这条会话重放一遍。那些帧走接收路径上
-/// 同一个入口，而此刻这条会话上没有一轮在飞，槽里没有记录器，于是它们不被写进
-/// 日志：上下文回到 agent 手里，本地那一份记录不因此多出一个副本。
+/// 装载期间 agent 以 `session/update` 把这条会话重放一遍，而那正是这条对话的
+/// 历史本身。那些帧走接收路径上同一个入口，所以只要这条会话上有人在听，它们
+/// 与当初实时收到的那一批逐字节相同。
+///
+/// 此前没有人在听：槽只装得下记录器，而记录器离不开日志，于是「转发但不落库」
+/// 说不出来，那些帧被 [`RunSlot::record`] 静默丢掉。历史只好从本地日志再读一
+/// 份 —— 这就是第二个事实来源的由来。现在装的是一位重播听众。
 async fn load_session(
     connection: &ConnectionTo<Agent>,
     ledger: SessionBook,
@@ -703,30 +720,68 @@ async fn load_session(
     // 帧要落在这条会话名下，所以它先进册子，再开始装载。
     let loaded = match ledger.open(&session_id) {
         Err(unusable) => Err(unusable),
-        Ok(_slot) => match connection
-            .send_request(LoadSessionRequest::new(named.clone(), cwd))
-            .block_task()
-            .await
-        {
-            Err(error) => Err(AcpError::Protocol {
-                message: error.to_string(),
-            }),
-            // 装载完了 agent 同样报一次这条会话的选择器，与新开一条对称。
-            Ok(session) => Ok(Started {
-                name: session_id,
-                named,
-                offered: match session.config_options.as_deref() {
-                    Some(options) => controls(options),
-                    None => Vec::new(),
-                },
-            }),
-        },
+        Ok(slot) => replay(connection, &slot, session_id, named, cwd).await,
     };
 
     Settled::Opened {
         opened: loaded,
         reply,
     }
+}
+
+/// 装载一条会话，并把 agent 重放回来的那些帧收下。
+///
+/// 听众在请求发出之前就位。Zed 出于同一个理由在 await 装载 RPC 之前就把会话
+/// 登记进 `sessions`（crates/agent_servers/src/acp.rs），否则装载期到达的通知
+/// 找不到归属。
+async fn replay(
+    connection: &ConnectionTo<Agent>,
+    slot: &RunSlot,
+    session_id: String,
+    named: SessionId,
+    cwd: PathBuf,
+) -> Result<Started> {
+    let collected: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&collected);
+
+    /* 号是空的，而这不是敷衍：run 是本地日志那张表的主键，而这一份历史的
+    持有者是 agent。重播出来的帧不属于任何一轮，收下它们时也不读这一格。 */
+    slot.install(Listening::Replay(Frames::new(
+        Uuid::nil(),
+        Box::new(move |event: &RecordedEvent| {
+            if let Ok(mut held) = sink.lock() {
+                held.push(event.frame.clone());
+            }
+        }),
+    )))?;
+
+    let outcome = connection
+        .send_request(LoadSessionRequest::new(named.clone(), cwd))
+        .block_task()
+        .await;
+
+    /* 装载结束，这条会话上不再有人听 —— 下一轮提问要装得进它自己的记录器。 */
+    let _listened = slot.take();
+
+    let session = outcome.map_err(|error| AcpError::Protocol {
+        message: error.to_string(),
+    })?;
+
+    let events = collected
+        .lock()
+        .map(|mut held| std::mem::take(&mut *held))
+        .unwrap_or_default();
+
+    // 装载完了 agent 同样报一次这条会话的选择器，与新开一条对称。
+    Ok(Started {
+        name: session_id,
+        named,
+        offered: match session.config_options.as_deref() {
+            Some(options) => controls(options),
+            None => Vec::new(),
+        },
+        events,
+    })
 }
 
 /// 让 agent 也把这条会话删掉。

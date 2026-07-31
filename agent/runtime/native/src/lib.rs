@@ -53,7 +53,7 @@ pub use run_log::{
     LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
     RunOutcome, ToolCallState,
 };
-pub use run_slot::RunSlot;
+pub use run_slot::{Listening, RunSlot};
 pub use session::{
     AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
     SessionEntry,

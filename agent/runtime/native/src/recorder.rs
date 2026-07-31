@@ -10,7 +10,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
-use crate::frame::{FrameNotification, RunFrame, normalize, prune, wire_name};
+use crate::frame::{RunFrame, acp_update, prune, wire_name};
 use crate::permission::Decision;
 use crate::run_log::{PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 
@@ -107,6 +107,22 @@ impl Frames {
         self.next_seq = event.seq.saturating_add(1);
 
         (self.sink)(event);
+    }
+
+    /// 装载一条旧会话时重播回来的一帧：成形，投递，不落库。
+    ///
+    /// 没有日志可写，因为这一份历史的持有者是 agent 而不是这台机器。走的是
+    /// 与实时那一轮同一个 [`acp_update`]，所以两边的帧一模一样。
+    ///
+    /// # Errors
+    ///
+    /// 序列化失败时报错；此时这一帧不投递，位置也不前进。
+    pub fn record_session_update(&mut self, notification: &SessionNotification) -> Result<()> {
+        let event = self.shape(&acp_update(notification)?)?;
+
+        self.deliver(&event);
+
+        Ok(())
     }
 }
 
@@ -283,16 +299,7 @@ impl Recorder {
     fn persist_update(&mut self, notification: &SessionNotification) -> Result<()> {
         self.updates = self.updates.saturating_add(1);
 
-        let mut update = serde_json::to_value(&notification.update)?;
-
-        normalize(&mut update, &notification.update)?;
-
-        self.append(&RunFrame::AcpUpdate {
-            notification: FrameNotification {
-                session_id: notification.session_id.to_string(),
-                update,
-            },
-        })?;
+        self.append(&acp_update(notification)?)?;
 
         self.project(&notification.update)
     }
@@ -464,6 +471,57 @@ impl Recorder {
         {
             self.failure = Some(error);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use uuid::Uuid;
+
+    use super::{Frames, RecordedEvent};
+    use crate::frame::RunFrame;
+
+    fn ending() -> RunFrame {
+        RunFrame::RunFinished {
+            stop_reason: "end_turn".to_owned(),
+            diagnostics: None,
+        }
+    }
+
+    /// 落库失败的那一帧不该在日志里留下一个空号，所以成形不占位置。
+    #[test]
+    fn a_position_is_used_up_only_once_the_frame_is_delivered() {
+        let seen: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+
+        let mut frames = Frames::new(
+            Uuid::nil(),
+            Box::new(move |event: &RecordedEvent| {
+                if let Ok(mut held) = sink.lock() {
+                    held.push(event.seq);
+                }
+            }),
+        );
+
+        let shaped = frames.shape(&ending()).expect("the frame shapes");
+
+        assert_eq!(shaped.seq, 1);
+        assert_eq!(
+            frames.shape(&ending()).expect("shaping again").seq,
+            1,
+            "成形两次仍是同一个位置：没有投递就没有用掉"
+        );
+
+        frames.deliver(&shaped);
+
+        assert_eq!(
+            frames.shape(&ending()).expect("after delivery").seq,
+            2,
+            "投递之后位置才前进"
+        );
+        assert_eq!(*seen.lock().expect("the sink is readable"), vec![1]);
     }
 }
 

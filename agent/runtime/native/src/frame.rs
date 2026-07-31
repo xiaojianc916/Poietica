@@ -13,7 +13,7 @@
 //! 同义，后者会让一个 tool call 的首帧缺标题。两者都是第三方序列化的产物，
 //! 所以在帧离开这一层之前就抹平。
 
-use agent_client_protocol::schema::v1::{SessionUpdate, ToolCall};
+use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -176,6 +176,30 @@ pub(crate) fn normalize(value: &mut Value, update: &SessionUpdate) -> serde_json
     }
 
     Ok(())
+}
+
+/// 把一条会话通知做成一帧。
+///
+/// 实时的一轮与装载期的重播都走这里，所以两边的帧一模一样 —— 一条对话重开
+/// 之后，与当时看着它发生，不可能有出入。
+///
+/// 此前这段成形长在 `Recorder` 里，紧挨着那一次落库。于是「不落库地做一帧」
+/// 在结构上不存在，而那正是重播帧唯一需要的事。
+///
+/// # Errors
+///
+/// 序列化协议更新失败时报错。
+pub(crate) fn acp_update(notification: &SessionNotification) -> serde_json::Result<RunFrame> {
+    let mut update = serde_json::to_value(&notification.update)?;
+
+    normalize(&mut update, &notification.update)?;
+
+    Ok(RunFrame::AcpUpdate {
+        notification: FrameNotification {
+            session_id: notification.session_id.to_string(),
+            update,
+        },
+    })
 }
 
 fn restore_tool_call(value: &mut Value, call: &ToolCall) -> serde_json::Result<()> {
