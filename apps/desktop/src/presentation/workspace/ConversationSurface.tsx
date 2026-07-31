@@ -59,7 +59,7 @@ export function ConversationSurface({
    */
   useEffect(() => {
     installAgentCapabilityPort(desktopAgentCapabilities(agentConfig, agentId), (cause) => {
-      reportFailure('AGENT_MODELS_UNREADABLE', {
+      reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
         scope: 'conversation-surface',
         operation: 'read-models',
         cause,

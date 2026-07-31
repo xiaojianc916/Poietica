@@ -29,6 +29,12 @@ pub fn build() -> tauri::Builder<Wry> {
     let asset_protocol = AssetProtocolRegistry::default();
     let protocol_registry = asset_protocol.clone();
 
+    /*
+     * 命令清单不在这个文件里。它在 crate::ipc::surface，与导出 TypeScript 绑定的
+     * 是同一份 —— 此前这里手抄了第二份，五条命令因此从未进过生成绑定。
+     */
+    let ipc = crate::ipc::surface();
+
     tauri::Builder::<Wry>::default()
         /*
          * 必须是第一个注册的插件：它要在其余初始化发生之前判定本进程是不是多余
@@ -141,38 +147,7 @@ pub fn build() -> tauri::Builder<Wry> {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::agent::agent_prompt,
-            commands::agent::agent_cancel,
-            commands::agent::agent_resolve_permission,
-            commands::agent::agent_shutdown,
-            commands::agent::agent_set_config_option,
-            commands::agent::agent_capabilities,
-            commands::agent::agent_new_session,
-            commands::agent::agent_sessions,
-            commands::agent::agent_threads,
-            commands::agent::agent_open_thread,
-            commands::agent::agent_rename_thread,
-            commands::agent::agent_delete_thread,
-            commands::agent::agent_pin_thread,
-            commands::asset::asset_session_open,
-            commands::asset::asset_upload,
-            commands::asset::asset_remove,
-            commands::asset::asset_session_close,
-            commands::diagnostics::diagnostics_take_previous_crash,
-            commands::window::window_open_devtools,
-            commands::window::window_open_external_url,
-            commands::settings::settings_get,
-            commands::settings::settings_set,
-            commands::settings::settings_reset,
-            commands::agent_config::agent_config_get,
-            commands::agent_config::agent_default_model,
-            commands::agent_config::agent_set_default_model,
-            commands::agent_config::agent_key_tails,
-            commands::agent_config::agent_config_save_agents,
-            commands::agent_config::agent_config_clear_legacy_providers,
-            commands::agent_cli::agent_cli_exec,
-        ])
+        .invoke_handler(ipc.invoke_handler())
 }
 
 /// 把窗口约束回它所在显示器的可视范围内。

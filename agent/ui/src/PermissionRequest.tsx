@@ -147,8 +147,7 @@ function PermissionAsk({
 }: {
   readonly parts: readonly ToolContentPart[]
   readonly title: string
-  readonly toolCall: AcpToolCall
-  Update | undefined
+  readonly toolCall: AcpToolCallUpdate | undefined
 }) {
   const places = placesOf(parts, toolCall)
 

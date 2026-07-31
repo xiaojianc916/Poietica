@@ -286,6 +286,40 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
 },
 /**
+ * 打开开发者工具。没有 `JavaScript` 对应物的两个窗口操作之一。
+ * 
+ * 渲染层需要的其余能力（show / hide / minimize / maximize / close / destroy /
+ * `set_title`）都由 @tauri-apps/api/window 直接提供，权限在
+ * capabilities/main-window.json 里声明。此前它们各自被包成一条自定义命令，
+ * 其中 `window_destroy` 与 `window_open_devtools` 从未出现在 `invoke_handler` 里，
+ * 于是应用退出的第一跳每次都失败，靠渲染层的 catch 兜底才走得下去。
+ * 
+ * 窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，那不是故障。
+ * 
+ * 它不返回 `Result`。此前返回的唯一理由是「这张 `invoke_handler` 上的命令共用
+ * 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
+ * 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
+ */
+async windowOpenDevtools(label: string) : Promise<void> {
+    await TAURI_INVOKE("window_open_devtools", { label });
+},
+/**
+ * 把一个外部 URL 交给系统默认浏览器。没有 `JavaScript` 对应物的两个之二。
+ * 
+ * 主窗口是 decorations: false，没有地址栏也没有后退按钮。让 webview 自己导航
+ * 到外站，等于把应用替换成一个回不来的浏览器 —— 用户只能去杀进程。所以渲染层
+ * 里所有 http(s) 链接都在 capture 阶段被拦下，改走这里。
+ * 
+ * 协议白名单在渲染层（presentation/chrome/external-links.ts）先过一遍，这里
+ * 再过一遍：一条能把任意字符串交给系统 shell 的命令，不能只靠调用方自律。
+ * 
+ * 打不开一个链接不是故障，不中断调用方：拒掉一个非 web 协议、以及系统浏览器没能
+ * 打开，都各自记进原生日志。不返回 `Result` 的理由与上一条命令相同。
+ */
+async windowOpenExternalUrl(url: string) : Promise<void> {
+    await TAURI_INVOKE("window_open_external_url", { url });
+},
+/**
  * # Errors
  * 
  * Returns an error when the underlying operation fails; the message handed
@@ -323,6 +357,98 @@ async settingsReset() : Promise<AppSettings> {
  */
 async agentConfigGet() : Promise<AgentConfigSnapshot> {
     return await TAURI_INVOKE("agent_config_get");
+},
+/**
+ * 受控 home 里那个真的能开会话的默认模型；没有就是 None。
+ * 
+ * 它不是一项偏好，是闸门。上游 `hasUsableConfiguredDefaultModel` 的第一行判的
+ * 就是这个键：缺席时配置文件里的 `api_key` 整条不算数，session/new 一律
+ * authRequired。界面必须能直接看见这件事，而不是等用户发出一条消息之后，在
+ * 「助手结束了一轮」里撞上它。
+ * 
+ * 「有一个死别名」与「一个都没有」在这里是同一种答案，因为对闸门而言它们本来就是同一
+ * 件事。此前这一侧只判非空：写入时查两遍（在 `models` 表里、那一家有可用凭据），读回
+ * 时一遍都不查 —— 而让别名变死的动作根本不经过写入侧。删掉一家 provider 会连带删掉它
+ * 名下的模型条目，`default_model` 原地不动地指着一个不存在的东西，读回来仍是一个像模
+ * 像样的字符串，于是渲染层认定「已经选好了」，自动补齐那一路（ensureDefaultModel 的
+ * 第一行判的是 chosenModel === null）永远不会触发，代价推迟到用户下一次发消息时的
+ * Authentication required。
+ * 
+ * 读的是这家 agent 自己会去读的那一份（`agent_config_file`）：受控就是受控 home
+ * 那份，不受控就是它自己 home 那份。拿一份它不会读的配置来显示，等于报一个与会话
+ * 无关的值 —— `agent_key_tails` 现在与它同一个判据，此前不是。
+ * 
+ * 模型清单不从这里来 —— 那是对方 `provider list` 的输出。这里只补它的 json
+ * 分支唯一不给的那个标量。
+ * 
+ * # Errors
+ * 
+ * 此命令不返回错误。路径算不出来、读不到文件、或文件里没有这个键，都是 None。
+ */
+async agentDefaultModel(agentId: string) : Promise<string | null> {
+    return await TAURI_INVOKE("agent_default_model", { agentId });
+},
+/**
+ * 改写受控 home 里顶层的 `default_model`。
+ * 
+ * 为什么不借 agent 的 CLI：官方唯一会写这个键的出口是
+ * `provider catalog add --default-model`，而它的实现是先 removeProvider 再
+ * applyCatalogProvider —— 为「换掉一家 provider 的整份模型清单」设计的。理由写在
+ * 上游自己的注释里（packages/node-sdk/src/catalog.ts 逐字：setConfig 是
+ * 「a deep-merge patch that cannot delete keys」，所以换清单必须先删）。
+ * 
+ * 我们要做的是把一个标量改成另一个标量，不删任何键。那条约束与这里无关 —— 借它等于
+ * 每换一次默认模型就重建一次 provider，还得为此把这一家的密钥再交一次。
+ * 
+ * 改文件不需要重启 agent：它自己 watch 着这个文件，上游在自己的测试里就依赖这一点
+ * （packages/kap-server/test/modelCatalogCatalog.test.ts 逐字
+ * 「hand edits to config.toml only take effect after the file watcher reloads」）。
+ * 
+ * 同一条注释也给出了唯一要防的竞态：「a write that starts from the pre-edit state
+ * would silently drop them」。会整份写回的只有走 CLI 的三件事（存密钥、删密钥、
+ * 一次性导入），界面上它们与这一格互斥，不会并发。
+ * 
+ * 写进去之前照上游闸门查两遍，不是一遍。
+ * 
+ * 第一遍是别名在 `models` 表里，第二遍是它指向的 provider 手里真有非 OAuth 的凭据
+ * （`alias_has_usable_credentials`）。只查第一遍不够：上游
+ * `hasUsableConfiguredDefaultModel` 两步都过才放行，所以一个在 `models` 表里、provider
+ * 却没配密钥的别名写下去不会当场失败，代价推迟到下一次开会话时的 authRequired ——
+ * 正是「模型选择器明明有得选，一发消息就说要登录」那个故障的另一条入口。
+ * 
+ * 推迟到那时才失败，用户看到的是一句与自己刚才的动作毫无关系的登录要求。所以宁可在
+ * 他点下去的那一刻就拒绝，并说清是哪一家缺钥匙。
+ * 
+ * # Errors
+ * 
+ * 这家 agent 不受控、受控 home 算不出来、配置读不到、不是合法 TOML、别名不在
+ * `models` 表里、
+ * 那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
+ */
+async agentSetDefaultModel(agentId: string, alias: string) : Promise<null> {
+    return await TAURI_INVOKE("agent_set_default_model", { agentId, alias });
+},
+/**
+ * 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
+ * 
+ * 尾号的事实就在 agent 自己的 config.toml 里，与「写经谁手」无关 —— 所以是读时
+ * 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。读的是
+ * `agent_config_file`，也就是这家 agent 自己会去读的那一份，只此一份。
+ * 
+ * 此前它在受控 home 的文件不在时退回用户全局 home。那是一份 agent 不会读的配置：
+ * 受控 home 一旦生效，全局那边的密钥再真也不参与任何一次会话，把它的尾号显示成
+ * 「已配置」正是「明明填过却说要登录」那类故障的另一个源头 —— `agent_default_model`
+ * 的注释早就拒绝了这条退路，两者此前判据不一致。何况那条退路里的 .kimi-code 是写死
+ * 的，接第二家 agent 时它会拿着 kimi 的目录去问别人的密钥。
+ * 
+ * 密钥本体不离开这个函数。
+ * 
+ * # Errors
+ * 
+ * 此命令不返回错误；任何一步失败都退成空表或更少的条目。
+ */
+async agentKeyTails(agentId: string) : Promise<Partial<{ [key in string]: string }>> {
+    return await TAURI_INVOKE("agent_key_tails", { agentId });
 },
 /**
  * 替换 agent 列表与默认 agent。

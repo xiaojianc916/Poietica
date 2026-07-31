@@ -1,99 +1,29 @@
-//! Build-time `TypeScript` binding exporter for document IPC.
+//! 构建期把 IPC 面导出成 `TypeScript`。
 //!
-//! Rust command DTOs are the source of truth. The generated file is consumed by
-//! @poietica/desktop-runtime; renderer code must not redefine native DTOs.
+//! 命令与 DTO 的清单不在这里，在 `super::surface` —— 运行期的 `invoke_handler`
+//! 读的是同一份。这个文件只回答一个问题：写到哪。
 
 use specta_typescript::Typescript;
-use tauri::Wry;
-use tauri_specta::{Builder, ErrorHandlingMode};
-
-use crate::{
-    commands::{
-        agent::{
-            AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
-            AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
-            AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
-        },
-        agent_cli::{AgentCliRequest, AgentCliResult},
-        agent_config::AgentConfigSnapshot,
-        asset::{
-            AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
-            AssetUploadResult,
-        },
-        settings::{AppSettings, PrivacySettings},
-    },
-    diagnostics::NativeCrashReport,
-};
 
 const OUTPUT_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../platforms/desktop-ipc/src/generated/ipc-bindings.ts"
 );
 
-/// Exports the document IPC DTO surface consumed by the `TypeScript` runtime.
+/// 导出渲染层消费的那一份 IPC DTO 面。
 ///
-/// This function is intentionally called by the dedicated
-/// `export-ipc-bindings` binary, never on desktop application startup.
+/// 只由专用的 `export-ipc-bindings` 可执行文件调用，绝不在桌面应用启动时调用。
+///
 /// # Panics
 ///
-/// Panics when the `TypeScript` bindings cannot be written. That is a build
-/// fault rather than a runtime condition, so the build must stop here.
+/// 写不出绑定时 panic。那是构建故障而不是运行期状况，构建必须停在这里 ——
+/// 静默失败的结果是发布一份过时的 IPC 面。
 #[allow(
     clippy::expect_used,
     reason = "a binding export that silently failed would ship a stale IPC surface"
 )]
 pub fn export_document_bindings() {
-    Builder::<Wry>::new()
-        .error_handling(ErrorHandlingMode::Throw)
-        .commands(tauri_specta::collect_commands![
-            crate::commands::agent::agent_prompt,
-            crate::commands::agent::agent_cancel,
-            crate::commands::agent::agent_resolve_permission,
-            crate::commands::agent::agent_shutdown,
-            crate::commands::agent::agent_set_config_option,
-            crate::commands::agent::agent_capabilities,
-            crate::commands::agent::agent_new_session,
-            crate::commands::agent::agent_sessions,
-            crate::commands::agent::agent_threads,
-            crate::commands::agent::agent_open_thread,
-            crate::commands::agent::agent_rename_thread,
-            crate::commands::agent::agent_delete_thread,
-            crate::commands::agent::agent_pin_thread,
-            crate::commands::asset::asset_session_open,
-            crate::commands::asset::asset_upload,
-            crate::commands::asset::asset_remove,
-            crate::commands::asset::asset_session_close,
-            crate::commands::diagnostics::diagnostics_take_previous_crash,
-            crate::commands::settings::settings_get,
-            crate::commands::settings::settings_set,
-            crate::commands::settings::settings_reset,
-            crate::commands::agent_config::agent_config_get,
-            crate::commands::agent_config::agent_config_save_agents,
-            crate::commands::agent_config::agent_config_clear_legacy_providers,
-            crate::commands::agent_cli::agent_cli_exec,
-        ])
-        .typ::<AgentPromptRequest>()
-        .typ::<AgentPromptResult>()
-        .typ::<AgentResolvePermissionRequest>()
-        .typ::<AgentConfigPurpose>()
-        .typ::<AgentConfigChoice>()
-        .typ::<AgentConfigControl>()
-        .typ::<AgentCapabilitiesRequest>()
-        .typ::<AgentSelectConfigRequest>()
-        .typ::<AgentRenameThreadRequest>()
-        .typ::<AgentThreadRequest>()
-        .typ::<AgentPinThreadRequest>()
-        .typ::<AssetSessionResult>()
-        .typ::<AssetUploadRequest>()
-        .typ::<AssetUploadResult>()
-        .typ::<AssetRemoveRequest>()
-        .typ::<AssetSessionCloseRequest>()
-        .typ::<NativeCrashReport>()
-        .typ::<AppSettings>()
-        .typ::<PrivacySettings>()
-        .typ::<AgentConfigSnapshot>()
-        .typ::<AgentCliRequest>()
-        .typ::<AgentCliResult>()
+    super::surface()
         .export(Typescript::default(), OUTPUT_PATH)
         .expect("failed to export document IPC TypeScript bindings");
 }
