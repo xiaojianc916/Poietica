@@ -34,6 +34,35 @@ function started(seq: number, sessionId: string): RunEvent {
   return { kind: 'run_started', seq, at: seq, sessionId, prompt: '在吗' }
 }
 
+/* 一段流式文本。 */
+function chunk(seq: number, text: string): RunEvent {
+  return {
+    kind: 'acp_update',
+    seq,
+    at: seq,
+    notification: {
+      sessionId: 'sess_a',
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
+    },
+  }
+}
+
+/* 屏幕的节拍归用例掌握：攒下的通知什么时候发出去，由它说了算。 */
+function painted(): { readonly store: TranscriptStore; readonly paint: () => void } {
+  const waiting: Array<() => void> = []
+
+  return {
+    store: new TranscriptStore((flush) => {
+      waiting.push(flush)
+    }),
+    paint: () => {
+      for (const flush of waiting.splice(0)) {
+        flush()
+      }
+    },
+  }
+}
+
 describe('transcript store', () => {
   /* 这个用例本身就是这次重构的目的：此前拿不到干净实例，写不出它。 */
   it('keeps two stores apart', () => {
@@ -44,7 +73,7 @@ describe('transcript store', () => {
   })
 
   it('shows what was said even when there is nowhere to send it', () => {
-    const store = new TranscriptStore()
+    const { store, paint } = painted()
     const key = store.newDraft()
     let told = 0
 
@@ -54,11 +83,16 @@ describe('transcript store', () => {
 
     store.send({ port: undefined, key, endpoint: null, text: '在吗' })
 
+    /* 状态是同步的：说出去和记下事故都已经在里面了。 */
     const { timeline } = store.read(key)
 
     expect(timeline.items.map((item) => item.type)).toEqual(['user_message', 'error'])
     expect(timeline.status).toBe('failed')
-    expect(told).toBe(2)
+
+    /* 通知按节拍：同一拍里的两次改动，界面只需要被叫醒一次。 */
+    expect(told).toBe(0)
+    paint()
+    expect(told).toBe(1)
   })
 
   it('把帧交给持有这条会话的那条对话', () => {
@@ -108,5 +142,31 @@ describe('transcript store', () => {
     emit(started(3, 'sess_a'), 'sess_a')
 
     expect(store.read('thread_a')).not.toBe(ended)
+  })
+
+  it('一拍里来两百段文字，界面只被叫醒一次', () => {
+    const { store, paint } = painted()
+    const { port, emit } = fakePort()
+    let told = 0
+
+    store.ensure(port)
+    store.route('sess_a', 'thread_a')
+    store.subscribe('thread_a', () => {
+      told += 1
+    })
+
+    emit(started(1, 'sess_a'), 'sess_a')
+
+    for (let seq = 2; seq <= 201; seq += 1) {
+      emit(chunk(seq, '字'), 'sess_a')
+    }
+
+    /* 一帧都没丢：两百零一帧全在状态里，而屏幕只被要求画一次。 */
+    expect(store.read('thread_a').timeline.lastSeq).toBe(201)
+    expect(told).toBe(0)
+
+    paint()
+
+    expect(told).toBe(1)
   })
 })

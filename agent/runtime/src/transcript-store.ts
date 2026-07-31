@@ -26,7 +26,7 @@ import {
  * "一个进程订着一条线路"。held / alias / aliased / routes / orphans 本来就互相
  * 耦合（rename 同时写三张，evict 同时删三张），它们是一个对象的内部字段。
  *
- * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 frame.rs 的 Envelope，
+ * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的 RecordedEvent，
  * 六种帧无一例外），而"这条会话属于哪条对话"在打开这条对话时就登记好了（见
  * route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻交过来）。
  *
@@ -149,7 +149,48 @@ function lossOf(history: ThreadHistory): string | null {
   }
 }
 
+/**
+ * 什么时候把「变了」告诉界面。
+ */
+export type Paint = (flush: () => void) => void
+
+/*
+ * 默认按屏幕的节拍。
+ *
+ * 一次回答是几千帧，屏幕一秒画六十次。把每一帧都当成一次「该重画了」，是
+ * 拿几千趟投影、比对与布局去换六十张画面 —— 多出来的那些趟，画面上没有任何
+ * 一个像素因它们而不同。
+ *
+ * 推迟的只有「去看一眼」这个动作：状态本身仍然是同步写进去的，read 任何时刻
+ * 交出的都是当前那一份。useSyncExternalStore 的契约要的正是这个 —— 快照必须
+ * 准，通知只要不漏，它从来没有要求「立刻」。
+ *
+ * 没有屏幕的地方（测试、SSR）退回微任务：同一句语义（下一个空档），换一个时基。
+ */
+const onNextPaint: Paint = (flush) => {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      flush()
+    })
+
+    return
+  }
+
+  queueMicrotask(flush)
+}
+
 export class TranscriptStore {
+  readonly #paint: Paint
+
+  /** 这一拍里变过的对话。同一条变一百次也只叫醒一次。 */
+  #dirty = new Set<string>()
+
+  #waiting = false
+
+  constructor(paint: Paint = onNextPaint) {
+    this.#paint = paint
+  }
+
   #held = new Map<string, Transcript>()
 
   #listeners = new Map<string, Set<() => void>>()
@@ -410,18 +451,43 @@ export class TranscriptStore {
   }
 
   /*
-   * 通知走反向索引。
+   * 变了就记下，一拍发一次。
    *
-   * 此前这里是 for (const [from, to] of alias) 找 to === key —— 把正向表当反向表
-   * 用，于是流式输出的每一帧都线性扫一遍。
+   * 写入是同步的，叫醒不是。此前这两件事焊在一起，于是「agent 多说了一个字」
+   * 与「该重画一屏了」成了同一件事 —— 一次回答两千次投影加布局，换六十张画面。
    */
   #notify(real: string): void {
-    this.#fire(real)
+    this.#dirty.add(real)
 
-    const draft = this.#aliased.get(real)
+    if (this.#waiting) {
+      return
+    }
 
-    if (draft !== undefined) {
-      this.#fire(draft)
+    this.#waiting = true
+    this.#paint(this.#flush)
+  }
+
+  /*
+   * 这一拍攒下的变化，一次交出去。
+   *
+   * 通知走反向索引：此前是 for (const [from, to] of alias) 找 to === key ——
+   * 把正向表当反向表用，于是流式输出的每一帧都线性扫一遍。
+   */
+  #flush = (): void => {
+    this.#waiting = false
+
+    const dirty = this.#dirty
+
+    this.#dirty = new Set<string>()
+
+    for (const real of dirty) {
+      this.#fire(real)
+
+      const draft = this.#aliased.get(real)
+
+      if (draft !== undefined) {
+        this.#fire(draft)
+      }
     }
   }
 
