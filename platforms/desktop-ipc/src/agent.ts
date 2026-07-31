@@ -22,6 +22,9 @@ import {
 /** The channel run frames are broadcast on. */
 export const AGENT_EVENT = 'ai-run-event'
 
+/** 会话自己报来的选择器表走这一条。它不属于任何一轮，所以不与运行帧同流。 */
+export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
+
 /**
  * The envelope the native side broadcasts.
  *
@@ -99,45 +102,58 @@ export interface AgentCommandBridge {
 }
 
 /**
- * Subscribes to run frames.
+ * Subscribes to one native event.
  *
  * Unsubscribing has to be synchronous for the port, while Tauri's listener
  * registration is asynchronous, so a handle that arrives after the caller has
  * already given up is torn down immediately instead of leaking.
+ *
+ * 两条通道共用它。这段拆解此前只服务于运行帧一条，而第二条通道到来时照抄一遍，
+ * 就是第二处要各自修的地方。
  */
+function subscribeToEvent<TPayload>(
+  event: string,
+  handler: (payload: TPayload) => void,
+  onListenFailure?: (error: unknown) => void,
+): () => void {
+  let cancelled = false
+  let stop: (() => void) | null = null
+
+  void import('@tauri-apps/api/event')
+    .then((module) => module.listen<TPayload>(event, (received) => handler(received.payload)))
+    .then((unlisten) => {
+      if (cancelled) {
+        unlisten()
+        return
+      }
+
+      stop = unlisten
+    })
+    .catch((error: unknown) => {
+      onListenFailure?.(error)
+    })
+
+  return () => {
+    cancelled = true
+    stop?.()
+    stop = null
+  }
+}
+
+/** Subscribes to run frames. */
 export function createAgentEventSource({
   onListenFailure,
 }: AgentEventSourceOptions = {}): AgentEventSource {
   return {
-    listen: (handler) => {
-      let cancelled = false
-      let stop: (() => void) | null = null
-
-      void import('@tauri-apps/api/event')
-        .then((module) =>
-          module.listen<AgentEventEnvelope>(AGENT_EVENT, (event) => {
-            // The frame is the contract; the run identifier is its address.
-            handler(event.payload.frame, event.payload.runId)
-          }),
-        )
-        .then((unlisten) => {
-          if (cancelled) {
-            unlisten()
-            return
-          }
-
-          stop = unlisten
-        })
-        .catch((error: unknown) => {
-          onListenFailure?.(error)
-        })
-
-      return () => {
-        cancelled = true
-        stop?.()
-        stop = null
-      }
-    },
+    listen: (handler) =>
+      subscribeToEvent<AgentEventEnvelope>(
+        AGENT_EVENT,
+        (payload) => {
+          // The frame is the contract; the run identifier is its address.
+          handler(payload.frame, payload.runId)
+        },
+        onListenFailure,
+      ),
   }
 }
 
@@ -253,12 +269,38 @@ export interface AgentConfigControlDescription {
   readonly choices: readonly AgentConfigChoiceDescription[]
 }
 
+/*
+ * 线上那条推送的形状。
+ *
+ * 原生侧的 AgentSelectorReport，camelCase 之后就是它。事件不是命令，specta 只
+ * 认命令签名，所以它不在生成绑定里 —— 但里面那一格仍然取自生成绑定的
+ * AgentConfigControl，形状没有第二个定义（这个文件开头就是这么说的）。
+ */
+interface AgentSelectorEnvelope {
+  readonly sessionId: string
+  readonly selectors: AgentConfigControl[]
+}
+
+/** 一条会话报来的整张表，以及它是哪条会话。 */
+export interface AgentSelectorReport {
+  readonly sessionId: string
+  readonly controls: readonly AgentConfigControlDescription[]
+}
+
 export interface AgentSessionConfigBridge {
   readonly select: (
     threadId: string | null,
     configId: string,
     value: string,
   ) => Promise<readonly AgentConfigControlDescription[]>
+  /**
+   * agent 自己改了设置时，它会说。
+   *
+   * ACP 的 session/update 里有 config_option_update 这一档，agent 在一轮里换模型
+   * 或换推理档位时走它。没有这一路，屏幕上的选择器只反映人最后点过的值，而真正
+   * 在答话的是另一个 —— 那不是过时，那是界面在撒谎。
+   */
+  readonly subscribe: (handler: (report: AgentSelectorReport) => void) => () => void
 }
 
 /*
@@ -298,13 +340,25 @@ function controlOf(native: AgentConfigControl): AgentConfigControlDescription {
   }
 }
 
-export function createAgentSessionConfigBridge(): AgentSessionConfigBridge {
+export function createAgentSessionConfigBridge({
+  onListenFailure,
+}: AgentEventSourceOptions = {}): AgentSessionConfigBridge {
   return {
     select: async (threadId, configId, value) => {
       const offered = await call(() => commands.agentSetConfigOption({ threadId, configId, value }))
 
       return offered.map(controlOf)
     },
+
+    /* 线上叫 selectors，端口叫 controls；改名只发生在这一层。 */
+    subscribe: (handler) =>
+      subscribeToEvent<AgentSelectorEnvelope>(
+        AGENT_SELECTOR_EVENT,
+        (payload) => {
+          handler({ sessionId: payload.sessionId, controls: payload.selectors.map(controlOf) })
+        },
+        onListenFailure,
+      ),
   }
 }
 

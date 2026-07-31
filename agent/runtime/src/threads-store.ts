@@ -1,6 +1,7 @@
 import type {
   SessionConfigControl,
   SessionConfigPort,
+  SessionConfigReport,
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
@@ -114,9 +115,26 @@ export class ThreadsStore {
   /* 问过的对话不再问第二遍：重读是显式动作，不是渲染的副作用。 */
   #asked = new Set<string>()
 
+  /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
+  #sessions = new Map<string, string>()
+
+  /* 推送那一路的退订句柄；端口没有这一路时就是 undefined。 */
+  #stop: (() => void) | undefined
+
   constructor(port?: ThreadPort, config?: SessionConfigPort) {
     this.#port = port
     this.#config = config
+
+    /* 听 agent 自己说话。它什么时候说不由这一侧决定，所以只能一直听着。 */
+    this.#stop = config?.subscribe?.((report) => {
+      this.#reported(report)
+    })
+  }
+
+  /** 不再听。窗口关掉时调用；不调用也只是多留一个监听器。 */
+  dispose = (): void => {
+    this.#stop?.()
+    this.#stop = undefined
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -193,6 +211,8 @@ export class ThreadsStore {
     try {
       const opened = await port.open()
       const threadId = opened.thread.threadId
+
+      this.#hold(opened.thread)
 
       /*
        * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一
@@ -375,11 +395,47 @@ export class ThreadsStore {
     port
       .open(threadId)
       .then((opened) => {
+        this.#hold(opened.thread)
         this.#remember(threadId, opened.selectors)
       })
       .catch((reason: unknown) => {
         this.#noteSelectorFailure(threadId, reason)
       })
+  }
+
+  /*
+   * 记下这条对话现在握着哪个会话。
+   *
+   * 会话是在 port.open() 里诞生（或被装载回来）的，所以那两处就是这张反查表
+   * 唯一建立得起来的时刻。列表读回来的那些号不算：它们可能是上一次运行留下的，
+   * 而推送只会来自活着的会话。
+   */
+  #hold(thread: ThreadRecord): void {
+    const sessionId = thread.sessionId
+
+    if (sessionId === null) {
+      return
+    }
+
+    this.#sessions.set(sessionId, thread.threadId)
+  }
+
+  /*
+   * agent 自己报来了一张新表。
+   *
+   * 到达口仍然是 #remember —— 与 open 和 select 同一个。所以这不是第三条取数
+   * 路径，只是第三个说话的人；能力表照样学，失败那一格照样清。
+   *
+   * 认不得的会话号直接丢掉，那是别的连接或者已经不在的对话。
+   */
+  #reported(report: SessionConfigReport): void {
+    const threadId = this.#sessions.get(report.sessionId)
+
+    if (threadId === undefined) {
+      return
+    }
+
+    this.#remember(threadId, report.controls)
   }
 
   #remember(threadId: string, offered: readonly SessionConfigControl[]): void {

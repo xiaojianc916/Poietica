@@ -40,6 +40,14 @@ type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";
 
+/// 会话自己报来的选择器表走这一条。
+///
+/// 与 [`AGENT_EVENT`] 分开，因为它们说的不是一件事：那一条是某一轮里的一帧，
+/// 而这一条不属于任何一轮 —— agent 在 session/update 里推 config_option_update
+/// 时可能正在答话，也可能没有。混进同一条通道，就得让渲染层去分辨，而分辨的
+/// 依据只会是一个字符串标签。
+pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
+
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
 
@@ -605,6 +613,22 @@ pub struct AgentConfigControl {
     pub choices: Vec<AgentConfigChoice>,
 }
 
+/// agent 自己换了设置之后报回来的整张表。
+///
+/// 它带着 session_id，因为这是它唯一带得出的地址：帧里没有对话，会话号是
+/// agent 那侧的命名。反查由渲染层用「开这条会话时是哪条对话」去做。
+///
+/// 它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。线上的形状
+/// 由这里的 serde 属性说了算。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSelectorReport {
+    /// 报这张表的那条会话。
+    pub session_id: String,
+    /// 那条会话上现在的整张选择器表。
+    pub selectors: Vec<AgentConfigControl>,
+}
+
 /// A change made in the interface.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -798,6 +822,7 @@ async fn ensure_session(
         client,
         handshake,
         driver,
+        reports,
         book: _,
     } = connect(spawn, state.slot.clone(), state.desk.clone()).map_err(translate)?;
 
@@ -806,6 +831,30 @@ async fn ensure_session(
     async_runtime::spawn(async move {
         if let Err(error) = driver.await {
             log::error!("the agent session ended: {error}");
+        }
+    });
+
+    // agent 自己改了设置，这里把它送上屏。
+    //
+    // 一条连接一个排空任务：报告是 agent 主动推的，不挂在任何一次往返的答复
+    // 上，所以没有任何命令可以顺路把它带回去。通道关掉（连接没了）时循环自己
+    // 结束，任务随之退出。
+    //
+    // 发的是引用：emit 要 Serialize + Clone，而 &T 两样都满足，上面那条运行帧
+    // 通道也是这么发的。为一个只发一次的载荷去 derive Clone 是多余的。
+    let herald = app.clone();
+
+    async_runtime::spawn(async move {
+        let mut reports = reports;
+
+        while let Some(report) = reports.next().await {
+            let payload = AgentSelectorReport {
+                session_id: report.session_id,
+                selectors: report.controls.into_iter().map(restate).collect(),
+            };
+
+            // 渲染层没在听不是错：下一次 open 这条对话仍然会拿到权威的整张表。
+            let _ignored = herald.emit(AGENT_SELECTOR_EVENT, &payload);
         }
     });
 

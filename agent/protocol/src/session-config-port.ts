@@ -17,10 +17,31 @@ import type { SessionConfigControl } from './session-config-contract'
  * （那句「会话设置读取失败」）。把读这条路删掉，到达口就只剩下会话本身。
  */
 
+/**
+ * 一条会话自己报来的整张表。
+ *
+ * 它带的地址是 sessionId 而不是 threadId：帧从来只认会话，对话是这一侧的命名。
+ * 反查放在保管着「哪条对话握着哪个会话」的那一层，而不是让平台去猜。
+ */
+export interface SessionConfigReport {
+  readonly sessionId: string
+  readonly controls: readonly SessionConfigControl[]
+}
+
 export interface SessionConfigPort {
   readonly select: (
     threadId: string,
     configId: string,
     value: string,
   ) => Promise<readonly SessionConfigControl[]>
+  /**
+   * agent 自己改了设置时报过来的那一路。
+   *
+   * 上面那句「这里没有读」仍然成立：这不是一次取数，是 agent 主动说话。到达口
+   * 与 open / select 是同一个，所以它不是第三条路径，只是第三个说话的人。
+   *
+   * 可选，与 ThreadPort 的几个动作同例：一个不打算听推送的实现（测试里的桩、
+   * 或者别的宿主）不该被迫写一个假的订阅。
+   */
+  readonly subscribe?: (handler: (report: SessionConfigReport) => void) => () => void
 }

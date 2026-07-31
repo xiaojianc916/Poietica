@@ -6,6 +6,7 @@ export type {
 } from './agent'
 export {
   AGENT_EVENT,
+  AGENT_SELECTOR_EVENT,
   type AgentBridgeOptions,
   type AgentCapabilityBridge,
   type AgentCommandBridge,
@@ -14,6 +15,7 @@ export {
   type AgentConfigPurposeName,
   type AgentEventSource,
   type AgentEventSourceOptions,
+  type AgentSelectorReport,
   /*
    * 会话的设置，和 agent 的配置，是两件事。
    *

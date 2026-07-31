@@ -31,5 +31,5 @@ export type {
   SessionConfigControl,
   SessionConfigPurpose,
 } from './session-config-contract'
-export type { SessionConfigPort } from './session-config-port'
+export type { SessionConfigPort, SessionConfigReport } from './session-config-port'
 export type { OpenedThread, ThreadPort, ThreadRecord, ThreadTitleSource } from './thread-port'
