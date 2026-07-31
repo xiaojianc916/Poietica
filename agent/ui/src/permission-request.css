@@ -150,14 +150,16 @@
  * .timeline-prose 自己判断，不该由外面一刀切；font-size 从 meta 提到 aux，因为
  * 这里可能是一整份要读的计划，而不再只是一行待执行的命令。
  *
- * 留下的是盒子：上限、滚动、圆角、底色 —— 一份长文档在这张卡里滚，不把卡撑爆。
+ * 留下的是盒子，但没有上限：圆角与底色把它标成一段被引用的内容，高度则由内容
+ * 自己决定。
+ *
+ * 要批准的就是这份文档本身。把它压进一个固定高度的窗口、再让人滚着读完才能点
+ * 「批准」，是在让用户为一个自己没看全的东西负责 —— 计划评审这类卡片在专业
+ * 工具里一律整份铺开。限高留给工具调用：那边的输出是过程记录，扫一眼就够。
  */
 .timeline-prose.assistant-permission__command {
-  max-block-size: var(--cp-permission-command-max);
   margin: 0;
   padding: 0.5rem 0.625rem;
-  overflow: auto;
-  overscroll-behavior: contain;
   border-radius: var(--ui-radius-sm);
   background: var(--cp-timeline-output-surface);
   font-size: var(--ui-prose-size-aux);
