@@ -31,7 +31,7 @@ const OPAQUE_LABELS: Record<string, string> = {
 }
 
 export function toToolContentParts(
-  content: readonly AcpToolCallContent[] | undefined,
+  content: readonly AcpToolCallContent[] | null | undefined,
 ): readonly ToolContentPart[] {
   if (content === undefined) {
     return []

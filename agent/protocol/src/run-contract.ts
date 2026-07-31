@@ -1,12 +1,9 @@
 import type {
+  AcpPermissionOption,
   AcpSessionId,
   AcpSessionNotification,
   AcpStopReason,
-  AcpToolCallContent,
-  AcpToolCallId,
-  AcpToolCallLocation,
-  AcpToolCallStatus,
-  AcpToolKind,
+  AcpToolCallUpdate,
 } from './acp-session-contract'
 
 export type ThreadId = string
@@ -18,32 +15,6 @@ export type RunStatus =
   | 'completed'
   | 'cancelled'
   | 'failed'
-
-export interface PermissionOption {
-  readonly optionId: string
-  readonly name: string
-  readonly kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always'
-}
-
-/**
- * The operation consent is being asked for.
- *
- * The agent sends the whole tool call alongside the request, in the same flat
- * shape a tool_call_update carries, because a prompt naming only the verb is
- * not a question anyone can answer: Write, to which file, replacing what.
- *
- * Optional because a run recorded before this field was carried across still
- * has to replay, not because the agent may omit it.
- */
-export interface PermissionToolCall {
-  readonly toolCallId: AcpToolCallId
-  readonly title?: string
-  readonly kind?: AcpToolKind
-  readonly status?: AcpToolCallStatus
-  readonly content?: readonly AcpToolCallContent[]
-  readonly locations?: readonly AcpToolCallLocation[]
-  readonly rawInput?: unknown
-}
 
 /**
  * The append-only run event log.
@@ -68,7 +39,7 @@ export type RunEvent =
        * 时的 run_started 都缺这一格。
        *
        * 日志是历史，历史改不了。同一件事这个文件里已有先例，见下面
-       * PermissionToolCall 上的那句话。
+       * permission_requested 的 toolCall 上的那句话。
        */
       readonly prompt?: string | undefined
     }
@@ -85,8 +56,16 @@ export type RunEvent =
       readonly requestId: string
       readonly toolCallId?: string
       readonly title: string
-      readonly toolCall?: PermissionToolCall
-      readonly options: readonly PermissionOption[]
+      /**
+       * 被征求同意的那次操作：协议连同请求一起送来，形状就是 ToolCallUpdate。
+       *
+       * 一句只点了动作的提示不是一个能回答的问题 —— Write，写哪个文件，替换掉
+       * 什么。可选说的不是 agent 可以不带，而是日志：这一格加进来之前录下的帧
+       * 没有它，而那些录制就在本仓库里。此前手抄的类型少了 name 与 rawOutput，
+       * 那是类型在瞒报线上实际到达的东西。
+       */
+      readonly toolCall?: AcpToolCallUpdate
+      readonly options: readonly AcpPermissionOption[]
     }
   | {
       readonly kind: 'permission_resolved'

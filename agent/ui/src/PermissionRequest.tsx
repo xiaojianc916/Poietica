@@ -1,6 +1,6 @@
 import './permission-request.css'
 
-import type { PermissionOption, PermissionToolCall } from '@poietica/agent-protocol'
+import type { AcpPermissionOption, AcpToolCallUpdate } from '@poietica/agent-protocol'
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useState } from 'react'
 import { useAgentDialect } from './domain/agent-dialect'
@@ -47,7 +47,7 @@ const KIND_LABELS: Record<string, string> = {
  * agent 说的话，不是协议的一部分，所以归它自己的档案，不归这个文件。查不到就
  * 照原文显示：宁可显示英文，也不能显示一个错的中文。
  */
-function labelFor(option: PermissionOption, labels: Readonly<Record<string, string>>): string {
+function labelFor(option: AcpPermissionOption, labels: Readonly<Record<string, string>>): string {
   return labels[option.name] ?? option.name
 }
 
@@ -60,7 +60,7 @@ function labelFor(option: PermissionOption, labels: Readonly<Record<string, stri
  */
 function placesOf(
   parts: readonly ToolContentPart[],
-  toolCall: PermissionToolCall | undefined,
+  toolCall: AcpToolCallUpdate | undefined,
 ): readonly string[] {
   const changed = parts.flatMap((part) => (part.type === 'diff' ? [part.path] : []))
 
@@ -112,7 +112,7 @@ function PermissionSubject({
   toolCall,
 }: {
   readonly parts: readonly ToolContentPart[]
-  readonly toolCall: PermissionToolCall
+  readonly toolCall: AcpToolCallUpdate
 }) {
   const stat = toDiffStat(parts)
   const places = placesOf(parts, toolCall)
@@ -147,7 +147,8 @@ function PermissionAsk({
 }: {
   readonly parts: readonly ToolContentPart[]
   readonly title: string
-  readonly toolCall: PermissionToolCall | undefined
+  readonly toolCall: AcpToolCall
+  Update | undefined
 }) {
   const places = placesOf(parts, toolCall)
 
@@ -268,7 +269,7 @@ export const PermissionRequest = memo(function PermissionRequest({
 })
 
 function labelOf(
-  options: readonly PermissionOption[],
+  options: readonly AcpPermissionOption[],
   optionId: string,
   labels: Readonly<Record<string, string>>,
 ): string {

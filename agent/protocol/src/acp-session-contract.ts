@@ -22,6 +22,7 @@ export type {
   AvailableCommand as AcpAvailableCommand,
   ContentBlock as AcpContentBlock,
   EmbeddedResourceResource as AcpEmbeddedResource,
+  PermissionOption as AcpPermissionOption,
   PlanEntry as AcpPlanEntry,
   PlanEntryPriority as AcpPlanEntryPriority,
   PlanEntryStatus as AcpPlanEntryStatus,
@@ -33,5 +34,6 @@ export type {
   ToolCallId as AcpToolCallId,
   ToolCallLocation as AcpToolCallLocation,
   ToolCallStatus as AcpToolCallStatus,
+  ToolCallUpdate as AcpToolCallUpdate,
   ToolKind as AcpToolKind,
 } from '@agentclientprotocol/sdk'

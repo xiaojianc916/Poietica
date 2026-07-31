@@ -1,12 +1,12 @@
 import type {
+  AcpPermissionOption,
   AcpPlanEntry,
   AcpToolCallContent,
   AcpToolCallId,
   AcpToolCallLocation,
   AcpToolCallStatus,
+  AcpToolCallUpdate,
   AcpToolKind,
-  PermissionOption,
-  PermissionToolCall,
   RunStatus,
 } from '@poietica/agent-protocol'
 
@@ -73,8 +73,8 @@ export interface PermissionItem {
   readonly at: number
   readonly requestId: string
   readonly title: string
-  readonly toolCall?: PermissionToolCall
-  readonly options: readonly PermissionOption[]
+  readonly toolCall?: AcpToolCallUpdate
+  readonly options: readonly AcpPermissionOption[]
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }
 

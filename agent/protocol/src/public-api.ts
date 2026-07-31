@@ -2,6 +2,7 @@ export type {
   AcpAvailableCommand,
   AcpContentBlock,
   AcpEmbeddedResource,
+  AcpPermissionOption,
   AcpPlanEntry,
   AcpPlanEntryPriority,
   AcpPlanEntryStatus,
@@ -13,14 +14,13 @@ export type {
   AcpToolCallId,
   AcpToolCallLocation,
   AcpToolCallStatus,
+  AcpToolCallUpdate,
   AcpToolKind,
 } from './acp-session-contract'
 export type { AgentCapabilityPort } from './agent-capability-port'
 export type { AgentPromptHandle, AgentPromptRequest, AgentSessionPort } from './agent-session-port'
 export type { ChatStatus } from './chat-status-contract'
 export type {
-  PermissionOption,
-  PermissionToolCall,
   RunEvent,
   RunStatus,
   ThreadId,
