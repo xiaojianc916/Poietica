@@ -63,6 +63,8 @@ export const kimiCode = {
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',
+  // 同一行 resolveKimiHome 的最后一个回落，也就是没有受控 home 时它自己去的地方。
+  ownHomeDirectory: '.kimi-code',
   // docs/en/reference/kimi-command.md 的 provider catalog add：--api-key
   // "Falls back to KIMI_REGISTRY_API_KEY if not provided"。我们从不给 --api-key，
   // 所以走的一直是这条回落。

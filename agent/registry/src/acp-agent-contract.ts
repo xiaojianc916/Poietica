@@ -55,6 +55,21 @@ export interface AcpAgentDescriptor {
    */
   readonly homeVar?: string | undefined
   /**
+   * 不受控时，这家 agent 在用户 home 之下的数据目录名。
+   *
+   * 同样是那一家二进制的固有事实，就是 homeVar 那一行里的最后一个回落：
+   * kimi-code 的 resolveKimiHome 逐字写着
+   * homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
+   *
+   * 用途是回答「用户自己在命令行上配出来的那份配置在哪」——一次性导入要去那里取
+   * 密钥。此前这个名字写死在原生侧（agent_config.rs 两处 .kimi-code），也就是说
+   * 通用层认准了一家的目录名，接第二家时它会拿着 kimi 的目录去问别人的密钥。
+   *
+   * 只记名字，不记路径：用户 home 由原生侧现算。缺席表示我们说不出这一家把配置
+   * 放在哪，那就不猜。
+   */
+  readonly ownHomeDirectory?: string | undefined
+  /**
    * 从目录添加 provider 时，密钥该注入哪个环境变量。
    *
    * 密钥不能上命令行（Windows 上任何用户都读得到别的进程的完整命令行），所以只剩

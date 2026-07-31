@@ -45,6 +45,12 @@ export interface AcpAgentProfile {
    * 缺席表示这一家不接受由我们代填密钥。
    */
   readonly registryKeyVar?: string | undefined
+  /**
+   * 不受控时，这家 agent 在用户 home 之下的数据目录名，例如 Kimi Code 的 .kimi-code。
+   *
+   * 只记名字：用户 home 由原生侧现算。缺席表示我们说不出它把配置放在哪。
+   */
+  readonly ownHomeDirectory?: string | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -65,6 +71,9 @@ export interface AcpAgentProfileSetParse {
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
+/* 一个纯粹的目录名：允许开头一个点（.kimi-code），但第二个字符必须是字母数字，
+ * 于是 .. 与任何带分隔符的路径都进不来 —— 这一格会被接在用户 home 后面去读文件。 */
+const HOME_DIRECTORY_PATTERN = /^\.?[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const SHELL_METACHARACTERS = /[;&|<>$`\n\r"']/
 
 const MAX_ARGS = 32
@@ -129,6 +138,12 @@ const ProfileSchema = v.object({
   /* 受控 home 与代填密钥只记名字不记值，规则逐字相同，所以是同一个 envName。 */
   homeVar: v.nullish(envName('受控 home 的变量名不合法，应为大写字母、数字与下划线')),
   registryKeyVar: v.nullish(envName('注册表密钥的变量名不合法，应为大写字母、数字与下划线')),
+  ownHomeDirectory: v.nullish(
+    v.pipe(
+      text(64, '自有 home 的目录名必须是非空字符串'),
+      v.regex(HOME_DIRECTORY_PATTERN, '自有 home 只能是一个目录名，不能是路径'),
+    ),
+  ),
   defaultConfigOptions: v.optional(
     v.record(
       text(64, '会话配置项 id 必须是非空字符串'),
@@ -168,6 +183,7 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
     env: parsed.env,
     homeVar: parsed.homeVar ?? undefined,
     registryKeyVar: parsed.registryKeyVar ?? undefined,
+    ownHomeDirectory: parsed.ownHomeDirectory ?? undefined,
     defaultConfigOptions: parsed.defaultConfigOptions,
   }
 }
@@ -292,6 +308,7 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       env: {},
       homeVar: agent.homeVar,
       registryKeyVar: agent.registryKeyVar,
+      ownHomeDirectory: agent.ownHomeDirectory,
       defaultConfigOptions: {},
     }
   })
@@ -309,8 +326,8 @@ export interface AcpAgentProfileReconcile {
 
 /*
  * 内置 agent 的身份由二进制拥有：起哪个程序、带哪些参数、把受控 home 与代填密钥注入
- * 到哪个变量名。用户改不了这些，也没有理由改 —— 改了只会让界面与真正被 spawn 的进程
- * 说两套话。
+ * 到哪个变量名、以及它自己那份 home 叫什么。用户改不了这些，也没有理由改 —— 改了只会
+ * 让界面与真正被 spawn 的进程说两套话。
  *
  * 用户拥有的是另外三格：cwd、env、defaultConfigOptions。物化不碰它们。
  */
@@ -321,7 +338,8 @@ function sameLaunchIdentity(profile: AcpAgentProfile, builtin: AcpAgentProfile):
     profile.args.length === builtin.args.length &&
     profile.args.every((arg, index) => arg === builtin.args[index]) &&
     profile.homeVar === builtin.homeVar &&
-    profile.registryKeyVar === builtin.registryKeyVar
+    profile.registryKeyVar === builtin.registryKeyVar &&
+    profile.ownHomeDirectory === builtin.ownHomeDirectory
   )
 }
 
@@ -359,6 +377,7 @@ export function reconcileAcpAgentProfiles(
       args: [...builtin.args],
       homeVar: builtin.homeVar,
       registryKeyVar: builtin.registryKeyVar,
+      ownHomeDirectory: builtin.ownHomeDirectory,
     }
   })
 

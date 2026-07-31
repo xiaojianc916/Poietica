@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
 use toml_edit::DocumentMut;
@@ -31,6 +32,12 @@ use toml_edit::DocumentMut;
 type AgentConfigCommandResult<T> = std::result::Result<T, IpcError>;
 
 const STORE_KEY: &str = "agentConfig";
+
+/// 配置文件名。受控 home 与用户自己的 home 下都是它。
+///
+/// 此前它在四处各写一遍字面量。真出现一家不叫这个名字的 agent，那属于档案里的
+/// 一格，不属于散落在四个函数里的四个字符串。
+const CONFIG_FILE: &str = "config.toml";
 
 /// 渲染层工作所依据的完整配置快照。
 ///
@@ -68,12 +75,138 @@ struct PersistedAgentConfig {
  * snapshot.secrets 从第一天起就是空数组。没有人看得出来，因为也没有人读它。
  */
 
-/// 「这个 agent 没有接入档案」只有一句话。
+/// 这个 agent 的接入档案。
 ///
-/// `launch_env` 与 `agent_program` 找的是同一条档案。各写一句，迟早写出两种说法，
-/// 而用户看到的是哪一句取决于他先点了什么 —— 那种差异没有任何信息量。
-fn profile_missing(agent_id: &str) -> String {
-    format!("agents.json 里没有 {agent_id} 的接入档案")
+/// 此前 `launch_env_inner` 与 `agent_program` 各写一遍同样的 find、各写一句同样的
+/// 失败文案。各查一次迟早查出两种结果，各写一句迟早写出两种说法，而用户看到的是
+/// 哪一句取决于他先点了什么 —— 那种差异没有任何信息量。
+///
+/// # Errors
+///
+/// store 无法打开或档案不存在时返回错误。
+fn profile_of(app: &AppHandle, agent_id: &str) -> Result<Value> {
+    let (config, _issues) = read_config(app)?;
+
+    config
+        .agents
+        .into_iter()
+        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
+        .ok_or_else(|| Error::AgentCli(format!("agents.json 里没有 {agent_id} 的接入档案")))
+}
+
+/// 一个纯粹的目录名：不是路径，也不能往上走。
+///
+/// 判据与 `validate_program` 同源 —— agents.json 是一个可以手改的文件，TS 侧那道
+/// 校验不在这个进程里，信它等于把校验交给了文本编辑器。这一格会被接在用户 home
+/// 后面去读文件，一个 `..` 或者一个分隔符就能把它带到别处。
+fn is_plain_directory_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name != "."
+        && name != ".."
+        && !name.contains(['/', '\\', ':'])
+}
+
+/// 档案里声明的、这家 agent 自己那份 home 的目录名（用户 home 之下）。
+///
+/// 约定同 homeVar：只记名字，不记路径。缺失表示我们说不出这一家把配置放在哪，
+/// 那就不猜。
+fn own_home_of(agent: &Value) -> Option<String> {
+    agent
+        .get("ownHomeDirectory")
+        .and_then(Value::as_str)
+        .filter(|name| is_plain_directory_name(name))
+        .map(str::to_owned)
+}
+
+/// 受控 home：这家 agent 的配置文件在我们手上时，它在哪、认哪个变量名。
+#[derive(Debug)]
+struct ControlledHome {
+    /// 它认自己数据根目录的那个环境变量名。
+    variable: String,
+    /// 已经创建好的目录。
+    path: PathBuf,
+}
+
+/// 这家 agent 的配置文件归不归我们管。
+///
+/// 判据只有一条：档案里声明了 homeVar。声明了，启动时我们就把这个目录设给它，
+/// 它读写的就是这里；没声明，那个变量我们不设，它去哪儿是它自己的事。
+///
+/// 这个判断此前有两个产地：`launch_env_inner` 看 homeVar，而读写配置的那几条命令
+/// 无条件地按 `agent_home` 算一条路径。两边对不上时没有任何一处报错 —— 一个没声明
+/// homeVar 的 agent 把密钥写进它自己的 home，我们对着受控 home 那个空目录读，
+/// `agent_set_default_model` 甚至会在那里凭空造一个只有一行、它永远不会读的文件。
+/// 用户看到的是「填了两遍密钥，一发消息却说要登录」，与他刚做的任何一个动作都对
+/// 不上号。现在这个问题只有这一个答案处。
+///
+/// # Errors
+///
+/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
+fn controlled_home(
+    app: &AppHandle,
+    agent_id: &str,
+    profile: &Value,
+) -> Result<Option<ControlledHome>> {
+    let Some(variable) = home_var_of(profile) else {
+        return Ok(None);
+    };
+
+    Ok(Some(ControlledHome {
+        variable,
+        path: agent_home(app, agent_id)?,
+    }))
+}
+
+/// 受控 home 里那份 config.toml；这家 agent 不受控时是 None。
+///
+/// 写入只认它。往一个我们不确定对方会不会读的文件里写，比什么都不做更糟 ——
+/// 什么都不做至少不会让屏幕说「改好了」。
+///
+/// # Errors
+///
+/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
+fn controlled_config_file(app: &AppHandle, agent_id: &str) -> Result<Option<PathBuf>> {
+    let profile = profile_of(app, agent_id)?;
+
+    Ok(controlled_home(app, agent_id, &profile)?.map(|home| home.path.join(CONFIG_FILE)))
+}
+
+/// 用户自己那份 home 里的 config.toml —— 他在命令行上配出来的那一份。
+///
+/// 目录名来自档案的 ownHomeDirectory，不是写死的 .kimi-code。写死等于让通用层认准
+/// 一家的目录名，接第二家 agent 时它会拿着 kimi 的目录去问别人的密钥。
+///
+/// # Errors
+///
+/// 档案不存在、档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
+fn own_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+    let profile = profile_of(app, agent_id)?;
+
+    let directory = own_home_of(&profile)
+        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的档案没有说它自己把配置放在哪")))?;
+
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|error| Error::Internal(error.to_string()))?;
+
+    Ok(home.join(directory).join(CONFIG_FILE))
+}
+
+/// 这家 agent 实际会去读的那份 config.toml。
+///
+/// 只读用途：受控就是受控 home 那份，不受控就是它自己 home 那份。读一份它根本不看
+/// 的文件，等于把屏幕上因此显示出来的每一行都说成假话。
+///
+/// # Errors
+///
+/// 两条路都算不出来时返回错误。
+fn agent_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+    match controlled_config_file(app, agent_id)? {
+        Some(path) => Ok(path),
+        None => own_config_file(app, agent_id),
+    }
 }
 
 /// 读取某个 agent 声明的 home 环境变量名。
@@ -141,24 +274,17 @@ pub fn global_launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String,
 fn launch_env_inner(
     app: &AppHandle,
     agent_id: &str,
-    controlled_home: bool,
+    controlled: bool,
 ) -> Result<Vec<(String, String)>> {
-    let (config, _issues) = read_config(app)?;
-
-    let found = config
-        .agents
-        .iter()
-        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
-        .ok_or_else(|| Error::AgentCli(profile_missing(agent_id)))?;
+    let profile = profile_of(app, agent_id)?;
 
     // 档案声明的变量先进去，受控 home 后进去 —— 后者必须压过前者。用户在 env
     // 里手写的 home 路径可能根本不存在，而 agent_home 交回来的目录是刚刚
     // create_dir_all 出来的。
-    let mut env = declared_env_of(found);
+    let mut env = declared_env_of(&profile);
 
-    if controlled_home && let Some(home_var) = home_var_of(found) {
-        let home = agent_home(app, agent_id)?;
-        let _replaced = env.insert(home_var, home.to_string_lossy().into_owned());
+    if controlled && let Some(home) = controlled_home(app, agent_id, &profile)? {
+        let _replaced = env.insert(home.variable, home.path.to_string_lossy().into_owned());
     }
 
     Ok(env.into_iter().collect())
@@ -178,15 +304,9 @@ fn launch_env_inner(
 ///
 /// store 无法打开、档案不存在、或档案里没有可用的 command 时返回错误。
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
-    let (config, _issues) = read_config(app)?;
+    let profile = profile_of(app, agent_id)?;
 
-    let found = config
-        .agents
-        .iter()
-        .find(|agent| agent.get("id").and_then(Value::as_str) == Some(agent_id))
-        .ok_or_else(|| Error::AgentCli(profile_missing(agent_id)))?;
-
-    let program = found
+    let program = profile
         .get("command")
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty())
@@ -311,9 +431,16 @@ fn tails_from_config(text: &str) -> BTreeMap<String, String> {
 /// 每个已配置 provider 的密钥尾号：provider id → 密钥最后 5 个字符。
 ///
 /// 尾号的事实就在 agent 自己的 config.toml 里，与「写经谁手」无关 —— 所以是读时
-/// 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。只读、
-/// 尽力而为：受控 home 的文件不在就退回用户全局 home（官方 CLI 写的那一份），
-/// 都不在就是空表。密钥本体不离开这个函数。
+/// 现算，而不是写时备忘（上一版的备忘方案对官方 CLI 配置的密钥永远失效）。读的是
+/// `agent_config_file`，也就是这家 agent 自己会去读的那一份，只此一份。
+///
+/// 此前它在受控 home 的文件不在时退回用户全局 home。那是一份 agent 不会读的配置：
+/// 受控 home 一旦生效，全局那边的密钥再真也不参与任何一次会话，把它的尾号显示成
+/// 「已配置」正是「明明填过却说要登录」那类故障的另一个源头 —— `agent_default_model`
+/// 的注释早就拒绝了这条退路，两者此前判据不一致。何况那条退路里的 .kimi-code 是写死
+/// 的，接第二家 agent 时它会拿着 kimi 的目录去问别人的密钥。
+///
+/// 密钥本体不离开这个函数。
 ///
 /// # Errors
 ///
@@ -321,19 +448,11 @@ fn tails_from_config(text: &str) -> BTreeMap<String, String> {
 #[command]
 #[specta::specta]
 pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<String, String> {
-    let home = agent_home(&app, &agent_id).ok();
-
-    if let Some(home) = home
-        && let Ok(text) = std::fs::read_to_string(home.join("config.toml"))
-    {
-        return tails_from_config(&text);
-    }
-
-    let Some(config_dir) = app.path().home_dir().ok().map(|dir| dir.join(".kimi-code")) else {
+    let Ok(path) = agent_config_file(&app, &agent_id) else {
         return BTreeMap::new();
     };
 
-    std::fs::read_to_string(config_dir.join("config.toml"))
+    std::fs::read_to_string(path)
         .map(|text| tails_from_config(&text))
         .unwrap_or_default()
 }
@@ -483,7 +602,7 @@ fn alias_has_usable_credentials(document: &DocumentMut, alias: &str) -> bool {
 /// 截断与写入之间那一瞬如果被读到，对方拿到的是一份残缺的 TOML，整份配置判为无效。
 ///
 /// rename 在三个平台上都是覆盖语义，对 watcher 是一次事件而不是两次。
-fn write_config_atomically(path: &std::path::Path, text: &str) -> Result<()> {
+fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
     let directory = path
         .parent()
         .ok_or_else(|| Error::Internal("配置文件没有父目录".to_owned()))?;
@@ -512,21 +631,22 @@ fn write_config_atomically(path: &std::path::Path, text: &str) -> Result<()> {
 /// 第一行判的是 chosenModel === null）永远不会触发，代价推迟到用户下一次发消息时的
 /// Authentication required。
 ///
-/// 只读受控 home，不像 `agent_key_tails` 那样退回用户全局 home：模式 B 下 ACP
-/// 会话读的就是这一份，拿全局那一份来显示等于报一个 agent 根本不会用的值。
+/// 读的是这家 agent 自己会去读的那一份（`agent_config_file`）：受控就是受控 home
+/// 那份，不受控就是它自己 home 那份。拿一份它不会读的配置来显示，等于报一个与会话
+/// 无关的值 —— `agent_key_tails` 现在与它同一个判据，此前不是。
 ///
 /// 模型清单不从这里来 —— 那是对方 `provider list` 的输出。这里只补它的 json
 /// 分支唯一不给的那个标量。
 ///
 /// # Errors
 ///
-/// 此命令不返回错误。读不到文件、或文件里没有这个键，都是 None。
+/// 此命令不返回错误。路径算不出来、读不到文件、或文件里没有这个键，都是 None。
 #[command]
 #[specta::specta]
 pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<String> {
-    let home = agent_home(&app, &agent_id).ok()?;
+    let path = agent_config_file(&app, &agent_id).ok()?;
 
-    std::fs::read_to_string(home.join("config.toml"))
+    std::fs::read_to_string(path)
         .ok()
         .as_deref()
         .and_then(usable_default_model)
@@ -564,7 +684,8 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
 ///
 /// # Errors
 ///
-/// 受控 home 算不出来、配置读不到、不是合法 TOML、别名不在 `models` 表里、
+/// 这家 agent 不受控、受控 home 算不出来、配置读不到、不是合法 TOML、别名不在
+/// `models` 表里、
 /// 那一家没有可用的非 OAuth 凭据，或写回失败时返回错误。
 #[command]
 #[specta::specta]
@@ -578,7 +699,11 @@ pub async fn agent_set_default_model(
             return Err(Error::AgentCli("默认模型不能为空".to_owned()));
         }
 
-        let path = agent_home(&app, &agent_id)?.join("config.toml");
+        let Some(path) = controlled_config_file(&app, &agent_id)? else {
+            return Err(Error::AgentCli(format!(
+                "{agent_id} 的配置文件不归 Poietica 管：它的档案没有声明受控 home 的变量名，写下去它也不会读"
+            )));
+        };
 
         let text = std::fs::read_to_string(&path)
             .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
@@ -651,20 +776,23 @@ fn secret_from_config(text: &str, provider_id: &str) -> Option<String> {
     None
 }
 
-/// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
+/// 从用户自己那份 home 的 config.toml 里取出一家 provider 的完整密钥。
 ///
-/// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
+/// 只为一次性导入服务：密钥从那份配置直达子进程的环境变量，全程不进渲染层。
+///
+/// 路径由 `own_config_file` 算，目录名来自档案。此前这里写死 .kimi-code，于是
+/// 「用户自己那份配置在哪」在这个文件里有两个说法，其中一个只对 kimi 成立。
 ///
 /// # Errors
 ///
-/// 文件不存在、读不到、或那一家的 `api_key` 缺席时返回错误。
-pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<String> {
-    let global = app
-        .path()
-        .home_dir()
-        .map_err(|error| Error::Internal(error.to_string()))?
-        .join(".kimi-code")
-        .join("config.toml");
+/// 档案没说这家 agent 把配置放在哪、文件不存在、读不到、或那一家的 `api_key`
+/// 缺席时返回错误。
+pub fn global_provider_secret(
+    app: &AppHandle,
+    agent_id: &str,
+    provider_id: &str,
+) -> Result<String> {
+    let global = own_config_file(app, agent_id)?;
 
     let text = std::fs::read_to_string(&global)
         .map_err(|error| Error::AgentCli(format!("读不到全局配置：{error}")))?;
