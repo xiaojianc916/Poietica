@@ -101,8 +101,12 @@ export interface AgentConfigStore {
   /*
    * 每个已配置 provider 的密钥尾号。只读现算：原生侧扫 agent 自己的 config.toml，
    * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
+   *
+   * 缺席的 provider 没有那一格，所以是 Partial：这张表的键空间是开放的，
+   * Record<string, string> 的意思是任何字符串键都取得到一个 string，那是假的。
+   * 原生侧是 BTreeMap，生成绑定照实说了，是中间这一层把 Partial 抹掉了。
    */
-  readonly loadKeyTails: (agentId: string) => Promise<Readonly<Record<string, string>>>
+  readonly loadKeyTails: (agentId: string) => Promise<Readonly<Partial<Record<string, string>>>>
   /*
    * 顶层的 default_model，没有就是 null。
    *

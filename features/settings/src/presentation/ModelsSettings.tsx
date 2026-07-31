@@ -176,7 +176,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [probing, setProbing] = useState(false)
   const [globalSnapshot, setGlobalSnapshot] = useState<AgentProviderSnapshot | undefined>(undefined)
   const [globalNote, setGlobalNote] = useState<string | null>(null)
-  const [keyTails, setKeyTails] = useState<Readonly<Record<string, string>>>({})
+  const [keyTails, setKeyTails] = useState<Readonly<Partial<Record<string, string>>>>({})
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
