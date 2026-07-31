@@ -385,3 +385,25 @@ export function agentProviderImportDocument(provider: AgentProviderState): strin
     },
   })
 }
+
+/*
+ * 这一家该拿哪个模型当 default_model。
+ *
+ * 为什么它是必填而不是偏好：ACP 的鉴权闸门第一条判的就是它 ——
+ * packages/acp-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
+ * `if (config.defaultModel === undefined) return false`。顶层没有这一行，
+ * 配置文件里的 api_key 那条路整条不算数，session/new 一律 authRequired。
+ * 它与 api_key 同级。
+ *
+ * 候选只在「进得了导入文档」的那几条里挑：--default-model 的校验名单是对方从目录
+ * 里解析出来的模型（handleCatalogAdd 的 models.some(m => m.id === opts.defaultModel)），
+ * 而没有正整数上下文的模型在 agentProviderImportDocument 那一步已经被跳过。挑一条
+ * 被跳过的，整次导入会以 exit 1 收场。两处过滤必须是同一条，所以这里不另写判据。
+ *
+ * 一条都不合格时缺席 —— 编一个 id 出来只会把失败推迟到对方的校验里。
+ */
+export function agentProviderDefaultModelId(provider: AgentProviderState): string | undefined {
+  const first = provider.models.find((model) => model.maxContextSize !== undefined)
+
+  return first === undefined ? undefined : bareModelId(first.alias, provider.id)
+}

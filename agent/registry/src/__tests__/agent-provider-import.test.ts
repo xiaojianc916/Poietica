@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentProviderState } from '../agent-provider-state'
-import { agentModelDisplayName, agentProviderImportDocument } from '../builtin-provider-catalog'
+import {
+  agentModelDisplayName,
+  agentProviderDefaultModelId,
+  agentProviderImportDocument,
+} from '../builtin-provider-catalog'
 
 const provider: AgentProviderState = {
   id: 'moonshot-cn',
@@ -128,5 +132,41 @@ describe('agentModelDisplayName', () => {
         supportEfforts: [],
       }),
     ).toBe('strange/thing')
+  })
+})
+
+describe('agentProviderDefaultModelId', () => {
+  it('取第一条进得了导入文档的模型，并剥掉前缀', () => {
+    expect(agentProviderDefaultModelId(provider)).toBe('kimi-k3')
+  })
+
+  it('跳过没有上下文的模型 —— 那几条对方会整条丢掉，挑中就是 exit 1', () => {
+    expect(
+      agentProviderDefaultModelId({
+        ...provider,
+        models: [
+          {
+            alias: 'moonshot-cn/bare',
+            displayName: 'bare',
+            providerId: 'moonshot-cn',
+            maxContextSize: undefined,
+            capabilities: [],
+            supportEfforts: [],
+          },
+          {
+            alias: 'moonshot-cn/kimi-k2.6',
+            displayName: 'kimi-k2.6',
+            providerId: 'moonshot-cn',
+            maxContextSize: 262144,
+            capabilities: [],
+            supportEfforts: [],
+          },
+        ],
+      }),
+    ).toBe('kimi-k2.6')
+  })
+
+  it('一条都不合格时缺席，而不是编一个 id', () => {
+    expect(agentProviderDefaultModelId({ ...provider, models: [] })).toBeUndefined()
   })
 })

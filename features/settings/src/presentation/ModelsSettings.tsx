@@ -6,6 +6,7 @@ import {
   acpAgents,
   agentModelDisplayName,
   agentProviderCatalogAddArgs,
+  agentProviderDefaultModelId,
   agentProviderImportDocument,
   builtinAgentProviders,
   defaultAcpAgent,
@@ -254,6 +255,22 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       return
     }
 
+    /*
+     * 谁来定 default_model。
+     *
+     * 顶层没有这一行，ACP 的鉴权闸门第一条就判死，配置文件里的密钥整条不算数。
+     * 导入以前不带这个参数，而上游只在旧值还解析得出来时才恢复它
+     * （handleCatalogAdd 的 stillResolves）—— 删干净重来的机器上没有旧值可恢复，
+     * 于是导完一切都对，就是开不了会话。
+     *
+     * 只给第一家带：后面几家不带参数时，上游会把刚写进去的这个值原样恢复（它仍在
+     * config.models 里，stillResolves 为真）。每家都带只会让最后一家赢，那是随机，
+     * 不是选择。
+     */
+    const defaultModelOwner = usable.find(
+      (provider) => agentProviderDefaultModelId(provider) !== undefined,
+    )
+
     setImporting(true)
     setImportNote(null)
 
@@ -262,10 +279,14 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
       for (const provider of usable) {
         try {
+          const defaultModelId =
+            provider === defaultModelOwner ? agentProviderDefaultModelId(provider) : undefined
+
           const outcome = await store.execCli({
             agentId,
             args: agentProviderCatalogAddArgs({
               providerId: provider.id,
+              ...(defaultModelId === undefined ? {} : { defaultModelId }),
               ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
             }),
             secretVar: registryKeyVar,

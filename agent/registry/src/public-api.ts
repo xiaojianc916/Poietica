@@ -37,6 +37,7 @@ export type {
 export {
   agentModelDisplayName,
   agentProviderCatalogDocument,
+  agentProviderDefaultModelId,
   agentProviderImportDocument,
   agentProviderModelOptions,
   builtinAgentProviderById,
