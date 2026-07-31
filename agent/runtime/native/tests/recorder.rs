@@ -20,9 +20,8 @@ use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder};
+use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder, SeqLine};
 use serde_json::Value;
-use uuid::Uuid;
 
 struct Fixture {
     recorder: Recorder,
@@ -35,7 +34,8 @@ fn fixture() -> Fixture {
 
     Fixture {
         recorder: Recorder::new(
-            Uuid::now_v7(),
+            "sess_alpha".to_owned(),
+            SeqLine::new(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
                     seen.push(event.clone());
@@ -74,9 +74,7 @@ fn text_of(frame: &Value, field: &str) -> String {
 fn every_frame_carries_the_fields_the_interface_validates() {
     let mut fixture = fixture();
 
-    fixture
-        .recorder
-        .record_run_started("sess_alpha", "read config.toml");
+    fixture.recorder.record_run_started("read config.toml");
     fixture.notify(SessionUpdate::ToolCall(
         ToolCall::new("call_001", "Read config.toml")
             .kind(ToolKind::Read)
@@ -92,6 +90,11 @@ fn every_frame_carries_the_fields_the_interface_validates() {
 
     for (position, frame) in frames.iter().enumerate() {
         assert!(frame.get("kind").is_some_and(Value::is_string), "kind");
+        assert_eq!(
+            text_of(frame, "sessionId"),
+            "sess_alpha",
+            "每一帧都带会话号，六种无一例外"
+        );
         assert!(frame.get("seq").is_some_and(Value::is_number), "seq");
         assert!(frame.get("at").is_some_and(Value::is_number), "at");
         assert_eq!(

@@ -20,9 +20,8 @@ use agent_client_protocol::schema::v1::{
     ToolCallUpdateFields,
 };
 use futures::executor::block_on;
-use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder};
+use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder, SeqLine};
 use serde_json::Value;
-use uuid::Uuid;
 
 struct Fixture {
     recorder: Recorder,
@@ -35,7 +34,8 @@ fn fixture() -> Fixture {
 
     Fixture {
         recorder: Recorder::new(
-            Uuid::now_v7(),
+            "sess_alpha".to_owned(),
+            SeqLine::new(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
                     seen.push(event.clone());

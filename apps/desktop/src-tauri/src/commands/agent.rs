@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
 use poietica_agent_runtime_native::{
     AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
-    PermissionDesk, RecordedEvent, Recorder, Refusal, RunSlot, connect,
+    PermissionDesk, RecordedEvent, Refusal, RunSlot, connect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -265,18 +265,15 @@ pub async fn agent_prompt(
     }
 
     let handle = app.clone();
-    let recorder = Recorder::new(
-        run_id,
-        Box::new(move |event: &RecordedEvent| {
-            // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
-            // 随 agent_open_thread 一起交回来。
-            let _ignored = handle.emit(AGENT_EVENT, event);
-        }),
-    );
+    let frames = Box::new(move |event: &RecordedEvent| {
+        // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
+        // 随 agent_open_thread 一起交回来。
+        let _ignored = handle.emit(AGENT_EVENT, event);
+    });
 
     let answer = session
         .client
-        .prompt(addressed.clone(), text, recorder)
+        .prompt(addressed.clone(), text, frames)
         .map_err(translate)?;
 
     /* 这一轮的地址。取消点名一条会话，而界面手里只有 runId。 */

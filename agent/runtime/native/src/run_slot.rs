@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use agent_client_protocol::schema::v1::SessionNotification;
 
 use crate::error::{AcpError, Refusal, Result};
-use crate::recorder::{Frames, Recorder};
+use crate::recorder::{Frames, Recorder, SeqLine};
 
 /// 此刻在这条会话上听着的是谁。
 ///
@@ -62,6 +62,8 @@ impl Listening {
 #[derive(Clone, Debug, Default)]
 pub struct RunSlot {
     current: Arc<Mutex<Option<Listening>>>,
+    /// 这条会话的序号线。它比任何一位听众都活得久，所以位置的家在这里。
+    seq: SeqLine,
 }
 
 impl RunSlot {
@@ -69,6 +71,12 @@ impl RunSlot {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 这条会话的序号线。听众换人，位置接着数。
+    #[must_use]
+    pub fn seq(&self) -> SeqLine {
+        self.seq.clone()
     }
 
     /// 让这一位来听接下来的更新。

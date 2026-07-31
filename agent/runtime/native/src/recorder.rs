@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
@@ -7,7 +9,6 @@ use agent_client_protocol::schema::v1::{
 };
 use serde::Serialize;
 use serde_json::Value;
-use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
 use crate::frame::{RunFrame, acp_update, prune};
@@ -20,18 +21,58 @@ const CANCELLED: &str = "cancelled";
 ///
 /// `frame` 就是界面读的那一份，也是装载一条旧会话时重播回来的那一份 —— 两者
 /// 由同一个 `acp_update` 做出来，所以重开一条对话与看着它发生不可能对不上。
-/// 轮次号留在帧外面，因为它是传输层的寻址，不属于事件契约。
+/// 会话号既在帧里也在这一层：帧是会话发生的事，投递也按同一个主语寻址。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordedEvent {
-    /// The run the frame belongs to.
-    pub run_id: String,
-    /// Position within the run, starting at one.
+    /// The session the frame belongs to.
+    pub session_id: String,
+    /// Position within the session, starting at one.
     pub seq: i64,
     /// Discriminator, as `RunFrame::kind` spells it.
     pub kind: String,
     /// The frame as the interface receives it.
     pub frame: Value,
+}
+
+/// 一帧交出去的地方。
+///
+/// 四处签名都要写这一串，而它们说的是同一件事。
+pub type FrameSink = Box<dyn FnMut(&RecordedEvent) + Send>;
+
+/// 一条会话上的序号线。
+///
+/// 位置按会话单调，不按轮次。此前它是 [`Frames`] 自己的一个 `i64`，每一轮新
+/// 造一条流就从头数起 —— 同一条会话上的第二轮因此与第一轮撞号，而界面正是用
+/// 「seq 单调」去重的。装载期重播的帧与实时帧同属一条会话，所以也从这一条线
+/// 取号。
+///
+/// 它的家在会话槽（见 `run_slot.rs`）：听众换人，位置接着数。
+#[derive(Clone, Debug)]
+pub struct SeqLine(Arc<AtomicI64>);
+
+impl Default for SeqLine {
+    fn default() -> Self {
+        Self(Arc::new(AtomicI64::new(1)))
+    }
+}
+
+impl SeqLine {
+    /// 一条从一开始的序号线。
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 下一帧会站的位置。此刻还没有被用掉。
+    fn peek(&self) -> i64 {
+        self.0.load(Ordering::Acquire)
+    }
+
+    /// 这个位置用掉了。
+    fn used(&self, seq: i64) {
+        self.0.store(seq.saturating_add(1), Ordering::Release);
+    }
 }
 
 /// 一次运行的帧流：成形，然后投递。
@@ -47,9 +88,9 @@ pub struct RecordedEvent {
 /// 被算出来，投递成功才算用掉。写日志失败时这一帧不投递，序号也就不前进，
 /// 下一帧仍然占这个位置 —— 日志里不留空洞。
 pub struct Frames {
-    run_id: Uuid,
-    next_seq: i64,
-    sink: Box<dyn FnMut(&RecordedEvent) + Send>,
+    session_id: String,
+    seq: SeqLine,
+    sink: FrameSink,
 }
 
 /// 一个闭包印不出来，但它长在一个公共结构上。
@@ -57,27 +98,21 @@ impl fmt::Debug for Frames {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("Frames")
-            .field("run_id", &self.run_id)
-            .field("next_seq", &self.next_seq)
+            .field("session_id", &self.session_id)
+            .field("seq", &self.seq)
             .finish_non_exhaustive()
     }
 }
 
 impl Frames {
-    /// 开始一条帧流，每一帧投递给 `sink`。
+    /// 开始一条帧流：帧属于 `session_id`，位置从它那条序号线上取。
     #[must_use]
-    pub fn new(run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
+    pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
-            run_id,
-            next_seq: 1,
+            session_id,
+            seq,
             sink,
         }
-    }
-
-    /// 这条帧流属于哪一轮。
-    #[must_use]
-    pub const fn run_id(&self) -> Uuid {
-        self.run_id
     }
 
     /// 给这一帧一个位置和一个时刻。位置此刻还没有被用掉。
@@ -86,20 +121,20 @@ impl Frames {
     ///
     /// 序列化失败时报错；此时这一帧既不落盘也不投递。
     pub fn shape(&self, frame: &RunFrame) -> serde_json::Result<RecordedEvent> {
-        let seq = self.next_seq;
+        let seq = self.seq.peek();
         let kind = frame.kind();
 
         Ok(RecordedEvent {
-            run_id: self.run_id.to_string(),
+            session_id: self.session_id.clone(),
             seq,
             kind: kind.to_owned(),
-            frame: frame.envelope(seq, now_millis())?,
+            frame: frame.envelope(&self.session_id, seq, now_millis())?,
         })
     }
 
     /// 交出去，位置就此用掉。
     pub fn deliver(&mut self, event: &RecordedEvent) {
-        self.next_seq = event.seq.saturating_add(1);
+        self.seq.used(event.seq);
 
         (self.sink)(event);
     }
@@ -161,23 +196,17 @@ impl fmt::Debug for Recorder {
 }
 
 impl Recorder {
-    /// Starts recording a run, forwarding every frame to `sink`.
+    /// Starts recording a turn on one session, forwarding every frame to `sink`.
     #[must_use]
-    pub fn new(run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
+    pub fn new(session_id: String, seq: SeqLine, sink: FrameSink) -> Self {
         Self {
-            frames: Frames::new(run_id, sink),
+            frames: Frames::new(session_id, seq, sink),
             failure: None,
             diagnostics: String::new(),
             updates: 0,
             titles: HashMap::new(),
             pending: Vec::new(),
         }
-    }
-
-    /// The run being recorded.
-    #[must_use]
-    pub const fn run_id(&self) -> Uuid {
-        self.frames.run_id()
     }
 
     /// Hands over what the agent said on its own error stream.
@@ -191,9 +220,8 @@ impl Recorder {
     }
 
     /// Records that the run began, and what was asked.
-    pub fn record_run_started(&mut self, session_id: &str, prompt: &str) {
+    pub fn record_run_started(&mut self, prompt: &str) {
         let outcome = self.append(&RunFrame::RunStarted {
-            session_id: session_id.to_owned(),
             prompt: prompt.to_owned(),
         });
         self.remember(outcome);
@@ -421,9 +449,7 @@ impl Recorder {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use uuid::Uuid;
-
-    use super::{Frames, RecordedEvent};
+    use super::{Frames, RecordedEvent, SeqLine};
     use crate::frame::RunFrame;
 
     fn ending() -> RunFrame {
@@ -440,7 +466,8 @@ mod tests {
         let sink = Arc::clone(&seen);
 
         let mut frames = Frames::new(
-            Uuid::nil(),
+            "sess_alpha".to_owned(),
+            SeqLine::new(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut held) = sink.lock() {
                     held.push(event.seq);

@@ -17,7 +17,6 @@ use futures::future::{Either, select};
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
-use uuid::Uuid;
 
 use crate::commands::{AgentClient, Command};
 use crate::config::{ConfigControl, controls};
@@ -25,7 +24,7 @@ use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
-use crate::recorder::{Frames, RecordedEvent};
+use crate::recorder::{Frames, RecordedEvent, Recorder};
 use crate::run_slot::{Listening, RunSlot};
 use crate::session::{
     AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
@@ -464,7 +463,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(Some(Command::Prompt {
                             session_id,
                             text,
-                            recorder,
+                            frames,
                             reply,
                         })) => {
                             // 这一轮属于哪条会话，就问哪条会话要它的协议 id 和
@@ -487,7 +486,11 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             /* 一条会话同时只走一轮 —— 这是记录槽自己的规矩，
                             而它的范围正好是一条会话。"整条连接只许一轮"那道
                             闸门已经没有了：它拦下的是别的对话。 */
-                            if let Err(error) = turn.install(Listening::Turn(*recorder)) {
+                            /* 记录器在这里出生：位置从这条会话的序号线上取，
+                            而那条线是槽的，不是这一轮的。 */
+                            let recorder = Recorder::new(session_id.clone(), turn.seq(), frames);
+
+                            if let Err(error) = turn.install(Listening::Turn(recorder)) {
                                 let _ignored = reply.send(Err(error));
 
                                 continue;
@@ -504,7 +507,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             // asked.
                             let _routed = turn.record(|listening| {
                                 if let Some(recorder) = listening.turn_mut() {
-                                    recorder.record_run_started(&session_id, &text);
+                                    recorder.record_run_started(&text);
                                 }
                             });
 
@@ -745,10 +748,11 @@ async fn replay(
     let collected: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&collected);
 
-    /* 号是空的，而这不是敷衍：run 是本地日志那张表的主键，而这一份历史的
-    持有者是 agent。重播出来的帧不属于任何一轮，收下它们时也不读这一格。 */
+    /* 重播帧与实时帧同属一条会话，所以它们共用那条会话的序号线：一段历史
+    装载回来之后接着往下走，位置不会撞，也不会从头再来。 */
     slot.install(Listening::Replay(Frames::new(
-        Uuid::nil(),
+        session_id.clone(),
+        slot.seq(),
         Box::new(move |event: &RecordedEvent| {
             if let Ok(mut held) = sink.lock() {
                 held.push(event.frame.clone());

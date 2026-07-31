@@ -5,7 +5,7 @@ use futures::channel::{mpsc, oneshot};
 
 use crate::config::ConfigControl;
 use crate::error::{AcpError, Refusal, Result};
-use crate::recorder::Recorder;
+use crate::recorder::FrameSink;
 use crate::session::{OpenedSession, SessionEntry};
 
 /// What the driver is asked to do next.
@@ -48,9 +48,11 @@ pub(crate) enum Command {
         /// 提问也必须说出它是给哪一条的，否则它只能发给第一条。
         session_id: String,
         text: String,
-        /// Boxed because a channel message is sized by its largest variant,
-        /// and stopping a turn should not be charged for starting one.
-        recorder: Box<Recorder>,
+        /// 这一轮的帧交到哪里去。
+        ///
+        /// 记录器由驱动器造：位置要从这条会话的序号线上取，而那条线在它的
+        /// 槽里 —— 组合根手上没有它，也不该有。
+        frames: FrameSink,
         reply: oneshot::Sender<Result<String>>,
     },
     /// 停掉这条会话上正在飞的那一轮，只停它。
@@ -181,11 +183,11 @@ impl AgentClient {
             .map_err(|_dropped| AcpError::Refused(Refusal::Gone))?
     }
 
-    /// Starts a turn, recording it with the recorder handed in.
+    /// Starts a turn, delivering every frame of it to the sink handed in.
     ///
     /// The answer resolves to the stop reason the agent reported once the turn
     /// is over. Every frame of the turn reaches the caller through the
-    /// recorder's sink long before that, which is what the interface consumes.
+    /// sink long before that, which is what the interface consumes.
     ///
     /// 一条会话同时只走一轮，那是它的记录槽的规矩；别的会话不受影响。
     ///
@@ -196,14 +198,14 @@ impl AgentClient {
         &self,
         session_id: String,
         text: String,
-        recorder: Recorder,
+        frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
         let (reply, answer) = oneshot::channel();
 
         self.send(Command::Prompt {
             session_id,
             text,
-            recorder: Box::new(recorder),
+            frames,
             reply,
         })?;
 

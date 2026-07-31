@@ -13,9 +13,8 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
-    AcpError, Frames, Listening, RecordedEvent, Recorder, Refusal, RunSlot,
+    AcpError, Frames, Listening, RecordedEvent, Recorder, Refusal, RunSlot, SeqLine,
 };
-use uuid::Uuid;
 
 struct Fixture {
     recorder: Recorder,
@@ -28,7 +27,8 @@ fn fixture() -> Fixture {
 
     Fixture {
         recorder: Recorder::new(
-            Uuid::now_v7(),
+            "sess_alpha".to_owned(),
+            SeqLine::new(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
                     seen.push(event.clone());
@@ -69,7 +69,7 @@ fn updates_reach_the_installed_run() {
     assert!(slot.is_listening());
     assert!(slot.record(|listening| {
         if let Some(recorder) = listening.turn_mut() {
-            recorder.record_run_started("sess_alpha", "what the run was asked");
+            recorder.record_run_started("what the run was asked");
         }
     }));
     assert!(slot.record(|listening| listening.session_update(&announcement())));
@@ -124,7 +124,8 @@ fn a_loading_session_forwards_its_replay_without_a_log() {
     let slot = RunSlot::new();
 
     slot.install(Listening::Replay(Frames::new(
-        Uuid::nil(),
+        "sess_alpha".to_owned(),
+        slot.seq(),
         Box::new(move |event: &RecordedEvent| {
             if let Ok(mut held) = sink.lock() {
                 held.push(event.clone());
@@ -170,4 +171,43 @@ fn taking_the_run_ends_the_routing() {
     );
 
     drop(taken);
+}
+
+/// 一条会话上的第二轮接着第一轮数，而不是从头再来。
+///
+/// 位置的家是会话槽，不是记录器。界面按「会话内 seq 单调」去重，撞号的那一帧
+/// 会被当成重复的丢掉 —— 这是把计数从轮次搬到会话时唯一会掉进去的坑。
+#[test]
+fn a_second_turn_continues_the_sequence_of_the_first() {
+    let seen: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(Vec::new()));
+    let slot = RunSlot::new();
+
+    for _turn in 0..2 {
+        let sink = Arc::clone(&seen);
+        let recorder = Recorder::new(
+            "sess_alpha".to_owned(),
+            slot.seq(),
+            Box::new(move |event: &RecordedEvent| {
+                if let Ok(mut held) = sink.lock() {
+                    held.push(event.seq);
+                }
+            }),
+        );
+
+        slot.install(Listening::Turn(recorder))
+            .expect("an empty slot");
+        assert!(slot.record(|listening| {
+            if let Some(recorder) = listening.turn_mut() {
+                recorder.record_run_started("what the run was asked");
+            }
+        }));
+
+        let _ended = slot.take().expect("the slot");
+    }
+
+    assert_eq!(
+        *seen.lock().expect("the sink"),
+        vec![1, 2],
+        "同一条会话上的两轮共用一条序号线"
+    );
 }

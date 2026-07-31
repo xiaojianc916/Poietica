@@ -56,10 +56,9 @@ use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
-    RecordedEvent, Recorder, RunSlot, connect,
+    RecordedEvent, RunSlot, connect,
 };
 use tempfile::TempDir;
-use uuid::Uuid;
 
 const DEFAULT_PROGRAM: &str = "kimi";
 const DEFAULT_ARGS: &str = "acp";
@@ -136,8 +135,6 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
      * 这一层不写任何存储，所以这个测试也不建数据库。它要证明的是驱动器：握手、
      * 会话、通知流、取消 —— 那些没有真进程就永远走不到的路径。
      */
-    let run_id = Uuid::now_v7();
-
     let cwd = env::var("POIETICA_ACP_CWD")
         .map_or_else(|_unset| directory.path().to_path_buf(), PathBuf::from);
 
@@ -213,13 +210,10 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         let _ignored = watchdog.cancel(watched);
     });
 
-    let (frames, observed) = mpsc::channel::<RecordedEvent>();
-    let recorder = Recorder::new(
-        run_id,
-        Box::new(move |event: &RecordedEvent| {
-            let _ignored = frames.send(event.clone());
-        }),
-    );
+    let (sent, observed) = mpsc::channel::<RecordedEvent>();
+    let frames = Box::new(move |event: &RecordedEvent| {
+        let _ignored = sent.send(event.clone());
+    });
 
     let started = Instant::now();
     /* 一条连接可以开很多条会话，所以提问必须说出它是给哪一条的。此前这里少
@@ -228,7 +222,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         .prompt(
             session_id.clone(),
             setting("POIETICA_ACP_PROMPT", DEFAULT_PROMPT),
-            recorder,
+            frames,
         )
         .expect("the driver to accept the prompt");
 
@@ -407,7 +401,7 @@ fn capture(events: &[RecordedEvent]) {
          //   cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored\n\
          \n\
          export interface RecordedFrame {{\n\
-         \u{20}\u{20}readonly runId: string\n\
+         \u{20}\u{20}readonly sessionId: string\n\
          \u{20}\u{20}readonly seq: number\n\
          \u{20}\u{20}readonly kind: string\n\
          \u{20}\u{20}readonly frame: unknown\n\

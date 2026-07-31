@@ -53,8 +53,6 @@ pub struct FrameNotification {
 pub enum RunFrame {
     /// 这一轮开始了，以及问的是什么。
     RunStarted {
-        /// 这一轮发往哪条会话。
-        session_id: String,
         /// 人说的那句话，按记录时的原文。
         prompt: String,
     },
@@ -103,11 +101,14 @@ pub enum RunFrame {
     },
 }
 
-/// 帧加上它在这一轮里的位置与时刻。
+/// 帧加上它属于哪条会话、在那条会话上的位置与时刻。
 ///
-/// `seq` 与 `at` 对六种帧都一样，所以它们在信封上而不是在每个变体里各写一遍。
+/// 地址在信封上而不在变体里：帧是会话发生的事，六种无一例外。`seq` 与 `at`
+/// 同理 —— 它们对六种帧都一样，所以只写一遍。
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct Envelope<'frame> {
+    session_id: &'frame str,
     seq: i64,
     at: i64,
     #[serde(flatten)]
@@ -133,8 +134,9 @@ impl RunFrame {
     /// # Errors
     ///
     /// 序列化失败时报错；此时这一帧不转发。
-    pub fn envelope(&self, seq: i64, at: i64) -> serde_json::Result<Value> {
+    pub fn envelope(&self, session_id: &str, seq: i64, at: i64) -> serde_json::Result<Value> {
         serde_json::to_value(Envelope {
+            session_id,
             seq,
             at,
             frame: self,
