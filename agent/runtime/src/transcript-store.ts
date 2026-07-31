@@ -247,8 +247,10 @@ export class TranscriptStore {
    *
    * events 在这里从 unknown 收窄成帧，全程只有这一处。断言而不是逐帧校验，
    * 与运行帧那条通道同一个判据：形状由平台那一侧定义，两条通道上的帧由同一个
-   * acp_update 做出来。今天这一步藏在端口声明背后（loadThread 声明自己交回
-   * RunEvent，而桥交出的是 unknown），挪到明处并不增加风险，只是让它可见。
+   * acp_update 做出来 —— 重放的帧与实时的帧是同一批东西，走同一条重放函数。
+   *
+   * 收窄发生在明处，而不是藏在某个端口声明的返回类型里：声明成 RunEvent 而
+   * 实际交出 unknown，那是一次没人看得见的断言。这里看得见。
    */
   adopt = (threadId: string, events: readonly unknown[]): void => {
     this.#put(threadId, {

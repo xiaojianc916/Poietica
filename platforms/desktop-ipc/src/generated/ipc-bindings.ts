@@ -191,12 +191,18 @@ async agentThreads() : Promise<AgentThread[]> {
     return await TAURI_INVOKE("agent_threads");
 },
 /**
- * 打开一条对话：让它握住一个这条连接认得的会话。
+ * 打开一条对话：把它整条要回来。
  * 
  * 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
- * 认出它存着的会话号不是本次连接开的，于是重开一个并改写持有关系。两条路都在
- * 同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
- * 因此被删掉的。
+ * 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
+ * 不变，而 agent 在装载期间用 session/update 把这条对话重放一遍 —— 那些帧就
+ * 是历史本身，随这次答复一起交出去。只有 agent 说它不装载旧会话时才重开一条。
+ * 
+ * 历史从这里回来，不从别处。屏幕上曾经显示的是本地日志里的另一份，于是同一
+ * 段对话有两个来源，而只有一个是 agent 手里那份 —— 两份一旦分叉，人看见的是
+ * 对的那份的赝品。现在只有一份，它的持有者是这条会话的主人。
+ * 
+ * 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
  * 
  * # Errors
  * 
@@ -223,6 +229,18 @@ async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
 },
 /**
  * Deletes a conversation and every frame recorded under it.
+ * 
+ * 本地那一份删得干净：runs 挂在 threads 上，`run_events`、`tool_calls`、
+ * permissions 各自挂在 runs 上，全是 ON DELETE CASCADE，而外键在
+ * `open_encrypted` 里是开着的。一句 DELETE 就够。
+ * 
+ * 但一条对话有两份。agent 自己也存着它的全文，此前从没有人告诉过它这条
+ * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
+ * 有 session/delete，而它可不可用由 agent 在握手时自己说。
+ * 
+ * 三个前提缺一不可：连接还活着、这条会话确实是这个 agent 的、它声明了这
+ * 项能力。都不满足就只删本地那一份 —— 并且不为此去起一个进程：删一条对话
+ * 不该是拉起一个 agent 的理由。那种情况下 agent 那份会留到下次它自己清理。
  * 
  * # Errors
  * 
@@ -433,7 +451,13 @@ catalogDocument?: string | null;
  * 读用户全局 home 而不是受控 home。只为一次性导入的只读探测（provider
  * list）使用；validate 会拒掉任何带着它的写操作。
  */
-useGlobalHome?: boolean }
+useGlobalHome?: boolean; 
+/**
+ * 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
+ * 密钥由原生侧从全局 config.toml 取出直达子进程，全程不进渲染层。
+ * 与 `secret_value` 互斥（validate 会拒掉同带）。
+ */
+secretFromGlobalProvider?: string | null }
 export type AgentCliResult = { 
 /**
  * 进程退出码。被信号终止时为 -1。
@@ -628,7 +652,17 @@ thread: AgentThread;
 /**
  * What may be chosen for this session, as the agent reported it.
  */
-selectors: AgentConfigControl[] }
+selectors: AgentConfigControl[]; 
+/**
+ * 这条对话的经过，由持有它的 agent 交回来。
+ * 
+ * 帧的形状与实时那条通道上的一模一样 —— 两者由同一个 `acp_update` 做出来
+ * （见运行时 crate 的 frame.rs），所以重开一条对话与看着它发生不可能对不上。
+ * 
+ * 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
+ * 的东西本来就还在。
+ */
+events: JsonValue[] }
 /**
  * A conversation being held at the top of the list, or released.
  */
