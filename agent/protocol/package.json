@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@agentclientprotocol/sdk": "1.3.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
