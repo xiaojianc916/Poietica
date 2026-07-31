@@ -6,7 +6,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
 use crate::commands::AgentClient;
@@ -39,6 +39,36 @@ pub struct AgentSpawn {
     pub env: Vec<(String, String)>,
 }
 
+/// agent 主动报的一份选择器表。
+///
+/// 事件载荷：会话号就是它的寻址（帧没有别的地址），界面按它找到那条对话。
+/// 这张表是可上屏的形状：协议枚举在帧离开原生层之前就被换成它了。
+#[derive(Debug, Clone)]
+pub struct SelectorReport {
+    /// 这份表属于哪条会话。
+    pub session_id: String,
+    /// agent 刚报过来的整张选择器表。
+    pub controls: Vec<ConfigControl>,
+}
+
+/// 一条连接上 agent 主动报的选择器表，接收端。
+///
+/// 组合根（桌面 seam）把它排干到界面事件；通道在驱动器退出时合上，那就是
+/// 排空任务自己的终点。通道类型包在这里而不是把 futures 的类型泄进公共
+/// 字段：这个 crate 对执行器不可知，接口上不该长出某一个执行器生态的类型名。
+pub struct SelectorReports(mpsc::UnboundedReceiver<SelectorReport>);
+
+impl SelectorReports {
+    pub(crate) const fn new(reports: mpsc::UnboundedReceiver<SelectorReport>) -> Self {
+        Self(reports)
+    }
+
+    /// 收下一份报告；通道合上（连接走了）时得到 None。
+    pub async fn next(&mut self) -> Option<SelectorReport> {
+        futures::StreamExt::next(&mut self.0).await
+    }
+}
+
 /// A connected session, before anything has been spawned onto a runtime.
 ///
 /// The crate stays runtime-agnostic on purpose: it hands back a future and the
@@ -52,6 +82,12 @@ pub struct AgentConnection {
     /// Held by the caller so a session opened later is entered in the same
     /// book the protocol handlers already read from.
     pub book: SessionBook,
+    /// agent 主动报的选择器表，往界面去的那条路。
+    ///
+    /// 选择器是会话的状态，不是某一轮的内容：它变化的时刻多半不在任何一轮里
+    /// （导入配置、终端 CLI、热重载），所以它有自己到达界面的路，而不搭运行
+    /// 帧的车 —— 帧过了轮次就不录，是本仓库刻意的设计，保护的是日志。
+    pub reports: SelectorReports,
     /// 握手谈成之后才知道的那几件事，或者握手为什么没成。
     ///
     /// 此前是 `Receiver<String>`：失败只能靠把发送端丢掉来表示，于是调用者收到

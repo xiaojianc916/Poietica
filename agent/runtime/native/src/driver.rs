@@ -8,8 +8,8 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     ContentBlock, InitializeRequest, ListSessionsRequest, LoadSessionRequest, NewSessionRequest,
     PromptRequest, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionId, SessionNotification, SetSessionConfigOptionRequest,
-    TextContent,
+    SelectedPermissionOutcome, SessionId, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -25,7 +25,9 @@ use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::run_slot::RunSlot;
-use crate::session::{AgentConnection, AgentSpawn, Handshake, OpenedSession, SessionEntry};
+use crate::session::{
+    AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReports, SessionEntry,
+};
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
@@ -145,6 +147,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     });
 
     let (commands, receiver) = mpsc::unbounded::<Command>();
+    let (reports, selector_reports) = mpsc::unbounded::<SelectorReport>();
     let (ready, handshake) = oneshot::channel::<Result<Handshake>>();
 
     // One book per connection. The handlers live as long as the connection
@@ -155,6 +158,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     let first = book.clone();
     let ledger = book.clone();
     let waiting = desk.clone();
+    let reported = commands.clone();
 
     let driver = async move {
         let served = agent_client_protocol::Client
@@ -163,6 +167,20 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
             .on_receive_notification(
                 async move |notification: SessionNotification, _cx| {
                     let named = notification.session_id.to_string();
+
+                    /* 选择器变更是一条通知，不是一次答复。它到达的时刻多半没有
+                    一轮在飞（改配置、终端 CLI、热重载），帧那一格照样录得到就
+                    录；而选择器表本身走主循环 —— 它是那张表唯一的持有者，别的
+                    地方更新它就是第二个事实来源。载荷恒为整表，重报无害。 */
+                    if let SessionUpdate::ConfigOptionUpdate(update) = &notification.update
+                        && let Ok(Some(_slot)) = updates.slot(&named)
+                    {
+                        let offered = controls(&update.config_options);
+                        let _sent = reported.unbounded_send(Command::Reported {
+                            session_id: named.clone(),
+                            offered,
+                        });
+                    }
 
                     // A frame naming a session this client never opened is
                     // not ours to record, so it is dropped here rather than
@@ -369,6 +387,19 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(Some(Command::Sessions { reply })) => {
                             jobs.push(Box::pin(list_sessions(&connection, reply)));
                         }
+                        /* agent 推的整表：先落账（这条会话的那一份换成最新），
+                        再推进通道（桌面 seam 在那里把它变成界面事件）。通道的接收
+                        端跟着连接走，连接一断发送自然失败 —— 那时已没人要看了。 */
+                        Step::Asked(Some(Command::Reported { session_id, offered })) => {
+                            if let Some(held) = sessions.get_mut(&session_id) {
+                                held.1 = offered.clone();
+                            }
+
+                            let _sent = reports.unbounded_send(SelectorReport {
+                                session_id,
+                                controls: offered,
+                            });
+                                                    }
                         // 读一份列表不需要问 agent，就地答。
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
                             let answer = match sessions.get(&session_id) {
@@ -568,6 +599,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
         book,
         client: AgentClient::new(commands),
         handshake,
+        reports: SelectorReports::new(selector_reports),
         driver,
     })
 }
