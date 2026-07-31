@@ -1,4 +1,6 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
+import { defaultAcpAgent } from '@poietica/agent-registry'
+import type { AgentConfigStore } from '@poietica/features-settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/features-workspace/contracts'
 import type { ReactNode } from 'react'
 
@@ -29,17 +31,38 @@ export interface AssistantWiring {
   readonly renderConversation: (threadId: string) => ReactNode
 }
 
+/*
+ * 写给哪一家 agent，和起哪一家 agent，是同一个答案。
+ *
+ * 会话是拿 defaultAcpAgent() 建起来的（application/ai/agent-session.ts 里三处
+ * acpAgentLaunch 都用它），所以选择器要写的 default_model 也只能落在这一家的
+ * 受控 home 上。取两次不同的来源，就会出现"改完了但会话没变"。
+ *
+ * 一个进程一份：每次渲染重算会让下游的依赖数组每帧都变。
+ */
+const AGENT_ID = defaultAcpAgent().id
+
 export function createAssistantWiring(
   session: AgentSessionPort,
+  agentConfig: AgentConfigStore,
   onConversationStarted: (threadId: string, title: string) => void,
 ): AssistantWiring {
   return {
     surfaces: {
-      ai: () => <AssistantPane onConversationStarted={onConversationStarted} session={session} />,
+      ai: () => (
+        <AssistantPane
+          agentConfig={agentConfig}
+          agentId={AGENT_ID}
+          onConversationStarted={onConversationStarted}
+          session={session}
+        />
+      ),
     },
 
     renderConversation: (threadId) => (
       <ConversationSurface
+        agentConfig={agentConfig}
+        agentId={AGENT_ID}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}

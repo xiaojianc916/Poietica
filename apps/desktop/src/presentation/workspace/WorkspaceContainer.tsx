@@ -138,8 +138,8 @@ export function WorkspaceContainer({
   )
 
   const assistant = useMemo(
-    () => createAssistantWiring(agentSession, startConversation),
-    [agentSession, startConversation],
+    () => createAssistantWiring(agentSession, agentConfigStore, startConversation),
+    [agentConfigStore, agentSession, startConversation],
   )
 
   /*

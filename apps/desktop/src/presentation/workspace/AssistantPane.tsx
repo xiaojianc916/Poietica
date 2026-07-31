@@ -1,4 +1,5 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
+import type { AgentConfigStore } from '@poietica/features-settings'
 import { useCallback, useRef, useState } from 'react'
 import { useSharedThreads } from '../../application/ai/threads-context'
 import { ConversationSurface } from './ConversationSurface'
@@ -24,11 +25,18 @@ import { ConversationSurface } from './ConversationSurface'
  */
 
 export interface AssistantPaneProps {
+  readonly agentConfig: AgentConfigStore
+  readonly agentId: string
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
 }
 
-export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps) {
+export function AssistantPane({
+  agentConfig,
+  agentId,
+  onConversationStarted,
+  session,
+}: AssistantPaneProps) {
   const threads = useSharedThreads()
   const open = threads.create
   const [threadId, setThreadId] = useState<string | null>(null)
@@ -54,6 +62,8 @@ export function AssistantPane({ onConversationStarted, session }: AssistantPaneP
 
   return (
     <ConversationSurface
+      agentConfig={agentConfig}
+      agentId={agentId}
       onIdentify={identify}
       onStarted={onConversationStarted}
       session={session}

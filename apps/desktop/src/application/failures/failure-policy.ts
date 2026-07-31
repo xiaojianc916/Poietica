@@ -10,6 +10,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_STATE_QUERY_UNAVAILABLE',
   'WINDOW_RESIZE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
+  'AGENT_DEFAULT_MODEL_SAVE_FAILED',
 ] as const
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
@@ -118,6 +119,21 @@ export const APPLICATION_FAILURE_POLICIES = {
 
     scope: featureScope('window-close-coordination'),
   },
+
+  /*
+   * 模型已经换了，只是没能记住。
+   *
+   * 所以它不是"功能受限"：选择器照常能用，这一条会话也确实在用新模型，失手的
+   * 只是"下次开会话从哪个起步"。人重选一次就好，因此 recovery 是 retry。
+   */
+  AGENT_DEFAULT_MODEL_SAVE_FAILED: {
+    impact: 'recoverable',
+    userMessage: '已经换到这个模型，但没能把它记成默认。',
+
+    recovery: 'retry',
+
+    scope: operationScope('save-default-model'),
+  },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 
 export function reportFailure(
@@ -170,6 +186,20 @@ function featureScope(
   return (_context) => ({
     kind: 'feature',
     featureId,
+  })
+}
+
+/*
+ * 一次操作失手，不是一个功能没了。
+ *
+ * 可恢复的失败不许挂 application / native-process 作用域（见 kernel 的
+ * validateFailurePolicy），而 feature 作用域会把它算进"降级的功能"里、让控件
+ * 变灰 —— 那不是这里要的：选择器照常能用。
+ */
+function operationScope(operation: string): (context: FailureReportContext) => FailureScope {
+  return (_context) => ({
+    kind: 'operation',
+    operation,
   })
 }
 

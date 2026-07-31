@@ -1,7 +1,12 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
 import { chooseAgentControl, useAgentControls } from '@poietica/agent-runtime'
 import { AssistantSurface } from '@poietica/agent-ui'
+import type { AgentConfigStore } from '@poietica/features-settings'
 import { useSharedThreads } from '../../application/ai/threads-context'
+import { reportFailure } from '../../application/failures/failure-policy'
+
+/* ACP 里模型那一项的 id 是协议常量，不是我们起的名字。 */
+const MODEL_CONTROL_ID = 'model'
 
 /*
  * 一格只画一条对话。
@@ -17,6 +22,10 @@ import { useSharedThreads } from '../../application/ai/threads-context'
  */
 
 export interface ConversationSurfaceProps {
+  /** 改 default_model 的那一路。选择器选中什么，那里就写什么。 */
+  readonly agentConfig: AgentConfigStore
+  /** 写给哪一家 agent。与会话 spawn 的那一家同一个产地。 */
+  readonly agentId: string
   /** 取得这一格即将成为的那条对话。只有入口那一格需要它。 */
   readonly onIdentify?: (() => Promise<string | null>) | undefined
   /** 这条对话说出第一句话时，带上它当时的名字。 */
@@ -26,6 +35,8 @@ export interface ConversationSurfaceProps {
 }
 
 export function ConversationSurface({
+  agentConfig,
+  agentId,
   onIdentify,
   onStarted,
   session,
@@ -87,17 +98,37 @@ export function ConversationSurface({
       }}
       onSelectControl={(controlId, value) => {
         /*
-         * 选择先记成偏好，再落到会话上。
+         * 屏幕先改，会话跟上，最后写进 agent 自己的配置。
          *
-         * 记下来的那一份是下一条新对话的默认值 —— 人换了模型，不该在下一次
-         * 新建会话时被打回原样。没有会话的时候，它就是这次选择的全部效果，
-         * 而 ThreadsStore.create 会在会话开出来时把它补上。
+         * 顺序照上游的 performModelSwitch：会话级先生效，再落盘。三步各自的
+         * 家不同 —— 第一步是这一帧的显示，第二步是这条会话，第三步是"下次开
+         * 会话从哪个模型起步"，也就是顶层 default_model。
+         *
+         * 换模型就是换默认模型，没有第二个概念：人在选择器里选的那个，就是
+         * 下一条新对话会用的那个。上游的 /model 也是这么做的（第四个参数
+         * persist 恒为 true），只有它的次要入口才只管当前会话。
+         *
+         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读
+         * 只会读到旧值。写失败会自己说出来，而不是让人以为换过了。
          */
         chooseAgentControl(controlId, value)
 
         if (threadId !== null) {
           threads.selectControl(threadId, controlId, value)
         }
+
+        if (controlId !== MODEL_CONTROL_ID) {
+          return
+        }
+
+        void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
+          reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {
+            scope: 'conversation-surface',
+            operation: 'save-default-model',
+            alias: value,
+            cause,
+          })
+        })
       }}
       onUserMessage={(conversation, text) => {
         threads.nameFromMessage(conversation, text)

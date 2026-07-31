@@ -17,7 +17,7 @@ import * as v from 'valibot'
  * 这里把三件生命周期不同的事分开：
  *
  *   · 能力表：属于进程。谁报回来的都算，学一次，全进程共用，跨启动缓存。
- *   · 偏好：属于用户，持久。入口那一格画的就是它，不需要任何会话。
+ *   · 选中的那个值：属于 agent 自己的配置（顶层 default_model），一处。
  *   · 当前生效值：属于那一条会话，仍由 ThreadsStore 按 threadId 保管。
  *
  * 行业对照：ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面模型
@@ -26,12 +26,13 @@ import * as v from 'valibot'
  * 进程仍然按需才起 —— 第一个订阅者出现时才问一次（见 loadOnce），一个从没打开
  * 过助手的启动不为此付钱。
  *
- * 仍欠：localStorage 那一份只是离线兜底。偏好的正确的家是一个 preferences 端口，
- * 它和能力表生命周期不同，所以不在这一刀里。
+ * localStorage 那一份只是离线兜底，画首帧用；它不是任何东西的真相。"人选了哪个
+ * 模型"的家是 agent 自己配置里的 default_model —— 上游的 TUI 也是这么做的：
+ * apps/kimi-code/src/tui/commands/config.ts 的 showModelPicker 主回调逐字是
+ * performModelSwitch(host, alias, thinking, true)，末位那个 true 就是落盘。
  */
 
 const TABLE_KEY = 'poietica.agent.controls'
-const CHOICE_KEY = 'poietica.agent.control-choice'
 
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
@@ -66,8 +67,6 @@ const ControlSchema = v.object({
 
 const TableSchema = v.array(ControlSchema)
 
-const ChoiceSchema = v.record(v.string(), v.string())
-
 /** 解析一段落盘的 JSON；坏了就当没有。 */
 function revive<TSchema extends v.GenericSchema>(
   schema: TSchema,
@@ -94,10 +93,6 @@ function parseTable(raw: string | null): readonly SessionConfigControl[] {
   return revive(TableSchema, raw) ?? NO_CONTROLS
 }
 
-function parseChoice(raw: string | null): Readonly<Record<string, string>> {
-  return revive(ChoiceSchema, raw) ?? {}
-}
-
 let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_KEY) ?? null)
 
 /*
@@ -111,35 +106,22 @@ let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_K
  * 固定;它不是通用的深比较。
  */
 let signature = JSON.stringify(table.map(shapeOf))
-let choice: Readonly<Record<string, string>> = parseChoice(store()?.getItem(CHOICE_KEY) ?? null)
 
 /*
- * 入口那一格看到的那张表：能力表，当前值换成偏好。
+ * 画出去的就是那张表本身，没有投影。
  *
- * 引用只在真的变了时才更换 —— useSyncExternalStore 用引用相等判断变化。
+ * 此前这里把一份 localStorage 偏好覆盖到 current 上，于是同一个问题有两个答案：
+ * agent 报回来的 current（它读的是自己配置里的 default_model），和我们自己存的
+ * 那一份。两者一分叉，界面就会出现图标是这家、模型是那家。
+ *
+ * 现在选择器一改就写 default_model，agent 报回来的就是我们刚写下去的那个值。
  */
-function project(): readonly SessionConfigControl[] {
-  if (table.length === 0) {
-    return NO_CONTROLS
-  }
-
-  return table.map((control) => {
-    const wanted = choice[control.id]
-
-    if (wanted === undefined || wanted === control.current) {
-      return control
-    }
-
-    return { ...control, current: wanted }
-  })
-}
-
-let snapshot: readonly SessionConfigControl[] = project()
+let snapshot: readonly SessionConfigControl[] = table
 
 const listeners = new Set<() => void>()
 
 function publish(): void {
-  snapshot = project()
+  snapshot = table
 
   for (const listener of listeners) {
     listener()
@@ -185,20 +167,34 @@ export function learnAgentControls(offered: readonly SessionConfigControl[]): vo
   publish()
 }
 
-/** 人选了一个值。没有会话的时候，这就是一次偏好。 */
+/**
+ * 人选了一个值：就地记下它，界面立刻改。
+ *
+ * 这是一次乐观更新，不是一份偏好。真值在 agent 自己的 config.toml 里（顶层
+ * default_model），写它的是调用方；agent watch 着那个文件，但 watcher 有延迟，
+ * 所以这里不等它、也不回读，先把屏幕上那一格改对。下一次 agent 报表回来，报的
+ * 就是我们刚写下去的同一个值。
+ *
+ * 形状签名不受影响：shapeOf 不含 current，所以这次改动不会被误当成"表变了"。
+ */
 export function chooseAgentControl(controlId: string, value: string): void {
-  if (choice[controlId] === value) {
+  const index = table.findIndex((control) => control.id === controlId)
+  const control = table[index]
+
+  if (control === undefined || control.current === value) {
     return
   }
 
-  choice = { ...choice, [controlId]: value }
-  persist(CHOICE_KEY, choice)
+  const next = [...table]
+  next[index] = { ...control, current: value }
+  table = next
+  persist(TABLE_KEY, table)
   publish()
 }
 
-/** 这一项人想用什么；没表达过就是 undefined。 */
+/** 这一项现在是什么值；表里没有这一项就是 undefined。 */
 export function preferredAgentControl(controlId: string): string | undefined {
-  return choice[controlId]
+  return table.find((control) => control.id === controlId)?.current
 }
 
 /*
