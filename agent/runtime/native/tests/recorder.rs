@@ -11,10 +11,8 @@
 //! pins that definition to the shape the interface reads, so a renamed field
 //! fails here rather than emptying a conversation on screen.
 //!
-//! 投影读回的是 `common::MemoryLog`，不是 SQLite。这些断言问的是 recorder 把
-//! 什么交给了日志，而"日志怎么落盘"是 agent/persistence 自己的测试。
-
-mod common;
+//! 断言只看帧。recorder 不写任何存储 —— 一段对话的持有者是 agent，历史由
+//! session/load 交回来，所以这里没有第二份东西可以对。
 
 use std::sync::{Arc, Mutex};
 
@@ -22,31 +20,21 @@ use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_agent_runtime_native::{
-    Decision, PermissionAnswer, RecordedEvent, Recorder, ToolCallState,
-};
+use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder};
 use serde_json::Value;
 use uuid::Uuid;
 
-use common::MemoryLog;
-
 struct Fixture {
     recorder: Recorder,
-    /// 同一份日志的另一个句柄，用来读回它记下了什么。
-    written: MemoryLog,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
 fn fixture() -> Fixture {
-    let log = MemoryLog::new();
-    let written = log.reader();
-
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
 
     Fixture {
         recorder: Recorder::new(
-            Box::new(log),
             Uuid::now_v7(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
@@ -54,7 +42,6 @@ fn fixture() -> Fixture {
                 }
             }),
         ),
-        written,
         observed,
     }
 }
@@ -141,8 +128,6 @@ fn every_frame_carries_the_fields_the_interface_validates() {
         "the interface only accepts the protocol's own stop reasons"
     );
 
-    // 每一帧都是先写进日志、才广播出去的，所以这两边只能一样长。
-    assert_eq!(fixture.written.frames().len(), frames.len());
 }
 
 #[test]
@@ -172,42 +157,6 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
         "an optional field the agent did not set is absent, not null"
     );
 
-    let calls = fixture.written.calls();
-    let call = calls.first().expect("exactly one call");
-
-    assert_eq!(call.title, "Editing main.rs");
-    assert_eq!(
-        call.state,
-        ToolCallState::InProgress,
-        "a title change must not move the state"
-    );
-}
-
-#[test]
-fn a_tool_call_reaches_a_terminal_state_in_the_projection() {
-    let mut fixture = fixture();
-
-    fixture.notify(SessionUpdate::ToolCall(
-        ToolCall::new("call_003", "Read config.toml")
-            .kind(ToolKind::Read)
-            .status(ToolCallStatus::Pending),
-    ));
-    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-        "call_003",
-        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
-    )));
-
-    assert!(fixture.recorder.take_failure().is_none());
-
-    let calls = fixture.written.calls();
-    let call = calls.first().expect("exactly one call");
-
-    assert_eq!(
-        calls.len(),
-        1,
-        "one announcement plus one update is one row"
-    );
-    assert_eq!(call.state, ToolCallState::Completed);
 }
 
 #[test]
@@ -222,27 +171,6 @@ fn an_update_for_an_unannounced_call_is_surfaced() {
     assert!(
         fixture.recorder.take_failure().is_some(),
         "the driver has to learn about this once the turn ends"
-    );
-}
-
-#[test]
-fn a_failed_write_is_kept_for_the_driver() {
-    let mut fixture = fixture();
-
-    // 日志写不进去不是协议错误，不能回给 agent：它被记下来，等这一轮结束时
-    // 由驱动器来问。这条路以前没有任何测试走过，因为假件是新的。
-    fixture.written.refuse("the disk is gone");
-    fixture
-        .recorder
-        .record_run_started("sess_alpha", "anything at all");
-
-    assert!(
-        fixture.recorder.take_failure().is_some(),
-        "a frame that never became durable must be reported"
-    );
-    assert!(
-        fixture.frames().is_empty(),
-        "nothing may be broadcast that was not written first"
     );
 }
 
@@ -314,16 +242,9 @@ fn a_permission_request_is_refused_and_recorded() {
     );
 
     assert!(
-        fixture.written.outstanding().is_empty(),
+        fixture.recorder.outstanding_permissions().is_empty(),
         "the request was answered as it was recorded"
     );
-
-    let all = fixture.written.permissions();
-    let record = all.first().expect("exactly one request");
-
-    assert_eq!(record.request_id, request_id);
-    assert_eq!(record.tool_call_id.as_deref(), Some("call_005"));
-    assert_eq!(record.answer, Some(PermissionAnswer::Denied));
 }
 
 #[test]

@@ -1,5 +1,3 @@
-use crate::run_log::LogError;
-
 /// 这一侧自己判定的拒绝。
 ///
 /// 这三件事都不是 agent 说的，是请求发出去之前本侧就知道的。此前它们与 agent
@@ -20,9 +18,6 @@ pub enum Refusal {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AcpError {
-    /// The log rejected a read or a write.
-    #[error("the run log rejected an operation: {0}")]
-    Log(#[from] LogError),
     /// A protocol payload could not be encoded for the log.
     #[error("a session update could not be encoded: {0}")]
     Encoding(#[from] serde_json::Error),

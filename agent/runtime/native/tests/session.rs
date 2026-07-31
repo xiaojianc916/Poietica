@@ -8,10 +8,6 @@
 //! The driver itself needs an agent process, so what is covered here is the
 //! part that decides which run an update belongs to. Getting that wrong would
 //! attribute frames to the previous turn, which no compiler would catch.
-//!
-//! 日志是 `common::MemoryLog`：这一层不认识数据库，测它的东西也不该认识。
-
-mod common;
 
 use std::sync::{Arc, Mutex};
 
@@ -20,8 +16,6 @@ use poietica_agent_runtime_native::{
     AcpError, Frames, Listening, RecordedEvent, Recorder, Refusal, RunSlot,
 };
 use uuid::Uuid;
-
-use common::MemoryLog;
 
 struct Fixture {
     recorder: Recorder,
@@ -34,7 +28,6 @@ fn fixture() -> Fixture {
 
     Fixture {
         recorder: Recorder::new(
-            Box::new(MemoryLog::new()),
             Uuid::now_v7(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {

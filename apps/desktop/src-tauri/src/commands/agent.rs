@@ -29,7 +29,6 @@ use specta::Type;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
-use crate::agent_log::SharedLog;
 use crate::commands::agent_config::launch_env;
 use crate::error::{Error, IpcError, Result};
 use crate::paths::agent_database;
@@ -212,8 +211,8 @@ pub struct AgentResolvePermissionRequest {
 ///
 /// # Errors
 ///
-/// Fails when the prompt is empty, the agent cannot be started, or the log
-/// cannot be written.
+/// Fails when the prompt is empty, the agent cannot be started, or the
+/// conversation's name cannot be written.
 #[tauri::command]
 #[specta::specta]
 pub async fn agent_prompt(
@@ -243,14 +242,9 @@ pub async fn agent_prompt(
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
-    // The log is the one thing that must exist before the turn does, so
-    // it is taken here rather than handed to a thread whose failure would
-    // arrive after the fact. Nothing awaits below this line, so holding the
-    // lock to the end of the command keeps this future Send.
-    let shared = shared_store(&state)?;
-    let store = borrow_store(&shared)?;
-
-    let run_id = store.start_run(thread_id).map_err(persistence)?;
+    // 轮次号是这一侧铸的，不再由数据库发。它只用来把这一轮的帧路由到界面，
+    // 一轮结束就没人再提起 —— 一个活几十秒的路由标签，不值一次写事务。
+    let run_id = Uuid::now_v7();
 
     // The first thing said names the conversation, which is what a
     // conversation in a list should read as. Recorded as coming from the
@@ -258,17 +252,23 @@ pub async fn agent_prompt(
     // not come back.
     let opener: String = text.chars().take(TITLE_CHARS).collect();
 
-    store
-        .name_from_message(thread_id, &opener)
-        .map_err(persistence)?;
+    // 括号是为了让锁在这里就还回去：下面还有 await，而一个跨 await 持有的
+    // guard 会让这个 future 不再 Send。
+    {
+        let shared = shared_store(&state)?;
+        let store = borrow_store(&shared)?;
+
+        store
+            .name_from_message(thread_id, &opener)
+            .map_err(persistence)?;
+    }
 
     let handle = app.clone();
     let recorder = Recorder::new(
-        Box::new(SharedLog::new(Arc::clone(&shared))),
         run_id,
         Box::new(move |event: &RecordedEvent| {
-            // The frame is already durable. A renderer that is not listening
-            // can replay the run, so a failed emit must not fail the turn.
+            // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
+            // 随 agent_open_thread 一起交回来。
             let _ignored = handle.emit(AGENT_EVENT, event);
         }),
     );
@@ -851,7 +851,6 @@ const fn refusal(reason: Refusal) -> &'static str {
 /// `public_message` 原样返回，不来自多一个变体。
 fn translate(error: AcpError) -> Error {
     match error {
-        AcpError::Log(inner) => Error::Persistence(inner.to_string()),
         AcpError::Encoding(inner) => Error::SerdeJson(inner),
         AcpError::Refused(reason) => Error::AgentCli(refusal(reason).to_owned()),
         // The enum is non-exhaustive, so the wildcard arm is required.

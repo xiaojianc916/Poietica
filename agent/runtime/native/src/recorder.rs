@@ -4,29 +4,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
-    ToolCallStatus as ProtocolToolCallStatus,
 };
 use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
-use crate::frame::{RunFrame, acp_update, prune, wire_name};
+use crate::frame::{RunFrame, acp_update, prune};
 use crate::permission::Decision;
-use crate::run_log::{PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 
 /// The stop reason for a turn the user stopped, as the interface spells it.
 const CANCELLED: &str = "cancelled";
 
-/// 一个 `ToolKind` 连序列化器都说不出名字时的归类。协议自己留了这一档。
-const OTHER: &str = "other";
-
-/// A frame that is already durable and is now safe to forward.
+/// 一帧，已经成形，可以交出去了。
 ///
-/// `frame` is exactly what the interface consumes, and exactly what was
-/// written to the log, so replaying a stored run cannot drift from watching a
-/// live one. The run identifier stays outside the frame because it is a routing
-/// concern of the transport, not part of the event contract.
+/// `frame` 就是界面读的那一份，也是装载一条旧会话时重播回来的那一份 —— 两者
+/// 由同一个 `acp_update` 做出来，所以重开一条对话与看着它发生不可能对不上。
+/// 轮次号留在帧外面，因为它是传输层的寻址，不属于事件契约。
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordedEvent {
@@ -127,18 +121,19 @@ impl Frames {
     }
 }
 
-/// Writes the event log and keeps the projections in step with it.
+/// 一轮的记录者：决定此刻发生了哪一种事，然后把它做成一帧交出去。
 ///
-/// The order inside every method is deliberate: append to the log, update the
-/// projections, then forward. A consumer can therefore never observe an event
-/// that would disappear on restart.
+/// 它不写任何存储。一段对话的持有者是 agent，历史由 `session/load` 交回来
+/// （见 commands/agent.rs 的 `agent_open_thread`），所以本地再记一份，记的
+/// 就是第二份真相 —— 两份一旦分叉，屏幕上那份是对面那份的赝品。
+///
+/// 剩下的两张表是这一轮自己的工作内存：见过的工具调用叫什么，还有谁在等
+/// 答复。一轮结束它们跟着走，本来就不该活到下一次启动。
 ///
 /// 帧的形状不在这里定义。这里只决定「此刻发生了哪一种事」，形状由 frame.rs
 /// 的 `RunFrame` 说了算，于是一个拼错的字段名过不了编译。
 pub struct Recorder {
-    /// Where frames are made durable.
-    log: Box<dyn RunLog>,
-    /// 成形与投递。这一半不认识日志，所以它也走得通没有日志的那条路。
+    /// 成形与投递。
     frames: Frames,
     failure: Option<AcpError>,
     /// What the agent said on its own error stream during this run.
@@ -166,15 +161,10 @@ impl fmt::Debug for Recorder {
 }
 
 impl Recorder {
-    /// Starts recording a run, forwarding every durable frame to `sink`.
+    /// Starts recording a run, forwarding every frame to `sink`.
     #[must_use]
-    pub fn new(
-        log: Box<dyn RunLog>,
-        run_id: Uuid,
-        sink: Box<dyn FnMut(&RecordedEvent) + Send>,
-    ) -> Self {
+    pub fn new(run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
         Self {
-            log,
             frames: Frames::new(run_id, sink),
             failure: None,
             diagnostics: String::new(),
@@ -252,44 +242,31 @@ impl Recorder {
 
     /// Records that the run ended on the agent's terms.
     pub fn record_run_finished(&mut self, stop_reason: &str) {
-        let outcome = self.finish(
-            RunOutcome::Finished,
-            RunFrame::RunFinished {
-                stop_reason: stop_reason.to_owned(),
-                diagnostics: None,
-            },
-            stop_reason,
-        );
+        let outcome = self.finish(RunFrame::RunFinished {
+            stop_reason: stop_reason.to_owned(),
+            diagnostics: None,
+        });
         self.remember(outcome);
     }
 
     /// Records that the user stopped the run.
     ///
     /// The frame is a normal end of turn carrying the protocol's own cancelled
-    /// stop reason. The run row is marked cancelled rather than finished,
-    /// because that is what happened.
+    /// stop reason.
     pub fn record_run_cancelled(&mut self) {
-        let outcome = self.finish(
-            RunOutcome::Cancelled,
-            RunFrame::RunFinished {
-                stop_reason: CANCELLED.to_owned(),
-                diagnostics: None,
-            },
-            CANCELLED,
-        );
+        let outcome = self.finish(RunFrame::RunFinished {
+            stop_reason: CANCELLED.to_owned(),
+            diagnostics: None,
+        });
         self.remember(outcome);
     }
 
     /// Records that the run ended in a failure.
     pub fn record_run_failed(&mut self, message: &str) {
-        let outcome = self.finish(
-            RunOutcome::Failed,
-            RunFrame::RunFailed {
-                message: message.to_owned(),
-                diagnostics: None,
-            },
-            message,
-        );
+        let outcome = self.finish(RunFrame::RunFailed {
+            message: message.to_owned(),
+            diagnostics: None,
+        });
         self.remember(outcome);
     }
 
@@ -306,48 +283,22 @@ impl Recorder {
             SessionUpdate::ToolCall(call) => {
                 self.titles
                     .insert(call.tool_call_id.to_string(), call.title.clone());
-
-                // An unrecognised state is left out of the projection rather
-                // than guessed at; the log still carries it verbatim.
-                if let Some(status) = translate(call.status) {
-                    let kind = wire_name(call.kind).unwrap_or_else(|| OTHER.to_owned());
-
-                    self.log.apply_tool_call(
-                        self.frames.run_id(),
-                        &call.tool_call_id.to_string(),
-                        &call.title,
-                        &kind,
-                        status,
-                    )?;
-                }
             }
             SessionUpdate::ToolCallUpdate(change) => {
                 let tool_call_id = change.tool_call_id.to_string();
 
-                if let Some(title) = change.fields.title.clone() {
-                    self.titles.insert(tool_call_id.clone(), title);
-                }
-
-                let matched = if let Some(status) = change.fields.status.and_then(translate) {
-                    self.log.update_tool_call(
-                        self.frames.run_id(),
-                        &tool_call_id,
-                        status,
-                        change.fields.title.as_deref(),
-                    )?
-                } else if let Some(title) = change.fields.title.as_deref() {
-                    self.log
-                        .rename_tool_call(self.frames.run_id(), &tool_call_id, title)?
-                } else {
-                    true
+                // 认不认得这次调用，就看这一轮宣告过它没有。此前这个答案由
+                // 一次 UPDATE 影响了几行给出 —— 同一个问题，绕了一趟数据库。
+                let Some(title) = self.titles.get_mut(&tool_call_id) else {
+                    return Err(AcpError::UnknownToolCall { tool_call_id });
                 };
 
-                if !matched {
-                    return Err(AcpError::UnknownToolCall { tool_call_id });
+                if let Some(renamed) = change.fields.title.clone() {
+                    *title = renamed;
                 }
             }
-            // The update enum grows with the protocol. Anything else is still
-            // logged above; only the projections are selective.
+            // 协议还会长出新的更新种类。它们照样成帧交出去，只是这一轮的
+            // 工作内存里没有它们的位置。
             _ => {}
         }
 
@@ -361,9 +312,6 @@ impl Recorder {
         request: &RequestPermissionRequest,
     ) -> Result<()> {
         self.pending.push(request_id.to_owned());
-
-        self.log
-            .record_permission_request(self.frames.run_id(), request_id, Some(tool_call_id))?;
 
         let mut options = serde_json::to_value(&request.options)?;
         let mut tool_call = serde_json::to_value(&request.tool_call)?;
@@ -386,24 +334,19 @@ impl Recorder {
         // Refusing by choosing the agent's own refusal option is still a
         // selection as far as the protocol is concerned. Only an unanswered
         // request is cancelled.
-        let (outcome, option_id, wire_outcome) = match decision {
-            Decision::Allow(option_id) => {
-                (PermissionAnswer::Allowed, option_id.to_string(), "selected")
+        let (option_id, outcome) = match decision {
+            Decision::Allow(option_id) | Decision::Reject(option_id) => {
+                (option_id.to_string(), "selected")
             }
-            Decision::Reject(option_id) => {
-                (PermissionAnswer::Denied, option_id.to_string(), "selected")
-            }
-            Decision::Cancel => (PermissionAnswer::Cancelled, String::new(), "cancelled"),
+            Decision::Cancel => (String::new(), "cancelled"),
         };
 
         self.pending.retain(|waiting| waiting != request_id);
 
-        let _settled = self.log.resolve_permission(request_id, outcome)?;
-
         self.append(&RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),
             option_id,
-            outcome: wire_outcome.to_owned(),
+            outcome: outcome.to_owned(),
         })
     }
 
@@ -422,10 +365,7 @@ impl Recorder {
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn finish(&mut self, status: RunOutcome, frame: RunFrame, detail: &str) -> Result<()> {
-        self.log
-            .finish_run(self.frames.run_id(), status, Some(detail))?;
-
+    fn finish(&mut self, frame: RunFrame) -> Result<()> {
         let frame = self.narrate(frame);
 
         self.append(&frame)
@@ -456,15 +396,12 @@ impl Recorder {
         }
     }
 
-    /// 成形、落库、投递，按这个顺序。
+    /// 成形，然后投递。
     ///
-    /// 顺序是一条保证：界面看得见的每一帧都已经耐久，所以它永远不会看到一帧
-    /// 在重启之后消失。落库失败时这一帧不投递，序号也不前进。
+    /// 成形失败的那一帧不投递，序号也不前进：位置在投递成功时才算用掉，见
+    /// [`Frames::shape`]。
     fn append(&mut self, frame: &RunFrame) -> Result<()> {
         let event = self.frames.shape(frame)?;
-
-        self.log
-            .append_event(self.frames.run_id(), event.seq, &event.kind, &event.frame)?;
 
         self.frames.deliver(&event);
 
@@ -537,14 +474,4 @@ fn now_millis() -> i64 {
         .ok()
         .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
         .unwrap_or_default()
-}
-
-fn translate(status: ProtocolToolCallStatus) -> Option<ToolCallState> {
-    match status {
-        ProtocolToolCallStatus::Pending => Some(ToolCallState::Pending),
-        ProtocolToolCallStatus::InProgress => Some(ToolCallState::InProgress),
-        ProtocolToolCallStatus::Completed => Some(ToolCallState::Completed),
-        ProtocolToolCallStatus::Failed => Some(ToolCallState::Failed),
-        _ => None,
-    }
 }

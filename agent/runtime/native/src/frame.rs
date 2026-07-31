@@ -17,17 +17,17 @@ use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, Tool
 use serde::Serialize;
 use serde_json::Value;
 
-/// Log kind for the first event of a run.
+/// 一轮的第一帧。
 pub const RUN_STARTED: &str = "run_started";
-/// Log kind for a session update received from the agent.
+/// agent 发来的一帧会话通知。
 pub const ACP_UPDATE: &str = "acp_update";
-/// Log kind for a permission request the agent is blocked on.
+/// agent 正卡在一次授权请求上。
 pub const PERMISSION_REQUESTED: &str = "permission_requested";
-/// Log kind for the answer given to a permission request.
+/// 那次授权请求得到的答复。
 pub const PERMISSION_RESOLVED: &str = "permission_resolved";
-/// Log kind for a run that ended on the agent's terms.
+/// 这一轮按 agent 自己的说法结束了。
 pub const RUN_FINISHED: &str = "run_finished";
-/// Log kind for a run that ended in a failure.
+/// 这一轮以失败结束。
 pub const RUN_FAILED: &str = "run_failed";
 
 /// 一条会话通知，按界面读到的形状。
@@ -128,11 +128,11 @@ impl RunFrame {
         }
     }
 
-    /// 落盘与上屏的那一份 JSON。
+    /// 上屏的那一份 JSON。
     ///
     /// # Errors
     ///
-    /// 序列化失败时报错；此时这一帧既不落盘也不转发。
+    /// 序列化失败时报错；此时这一帧不转发。
     pub fn envelope(&self, seq: i64, at: i64) -> serde_json::Result<Value> {
         serde_json::to_value(Envelope {
             seq,
@@ -215,16 +215,5 @@ fn restore(update: &mut Value, field: &str, value: Value) {
         && !fields.contains_key(field)
     {
         let _absent = fields.insert(field.to_owned(), value);
-    }
-}
-
-/// 一个协议枚举在 wire 上的名字。
-///
-/// 手抄一份 match 会在协议新增成员时静默把它归到别处；序列化器不会。
-#[must_use]
-pub(crate) fn wire_name<T: Serialize>(value: T) -> Option<String> {
-    match serde_json::to_value(value) {
-        Ok(Value::String(name)) => Some(name),
-        _ => None,
     }
 }

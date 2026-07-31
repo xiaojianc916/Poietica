@@ -1,14 +1,11 @@
 //! The Agent Client Protocol client, over a locally spawned agent process.
 //!
-//! Four rules shape this crate.
-//!
-//! Every session update is written to the encrypted log before it is handed to
-//! anything else, so an interrupted run is replayable rather than lost.
+//! Three rules shape this crate.
 //!
 //! The protocol handlers never synthesise a protocol error out of one of our
-//! own failures. A failed write is recorded and surfaced by the driver once the
-//! run ends; reporting it back to the agent as a JSON-RPC error would invite it
-//! to react to a fault that is not its own.
+//! own failures. A failure on this side is recorded and surfaced by the driver
+//! once the run ends; reporting it back to the agent as a JSON-RPC error would
+//! invite it to react to a fault that is not its own.
 //!
 //! A session outlives a turn, and a connection outlives a session. The
 //! process is started once; sessions, prompts, cancellation and shutdown
@@ -30,7 +27,6 @@ mod frame;
 mod permission;
 mod program;
 mod recorder;
-mod run_log;
 mod run_slot;
 mod session;
 mod sessions;
@@ -49,7 +45,6 @@ pub use frame::{
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
 pub use recorder::{Frames, RecordedEvent, Recorder};
-pub use run_log::{LogError, LogResult, PermissionAnswer, RunLog, RunOutcome, ToolCallState};
 pub use run_slot::{Listening, RunSlot};
 pub use session::{
     AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,

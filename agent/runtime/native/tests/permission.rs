@@ -10,10 +10,8 @@
 //! ones: an answer nobody asked for, an option nobody offered, and a turn that
 //! ended before anyone answered at all.
 //!
-//! 投影读回的是 `common::MemoryLog`：一次许可请求有没有被 settle，是这一层自己
-//! 的事，不需要一个加密数据库来见证。
-
-mod common;
+//! 一次许可请求有没有被 settle，问的是 recorder 自己那份待答清单：请求号由它
+//! 铸造，答复也从它手上过，所以这件事本来就只有它知道。
 
 use std::sync::{Arc, Mutex};
 
@@ -22,31 +20,21 @@ use agent_client_protocol::schema::v1::{
     ToolCallUpdateFields,
 };
 use futures::executor::block_on;
-use poietica_agent_runtime_native::{
-    Decision, PermissionAnswer, PermissionDesk, RecordedEvent, Recorder,
-};
+use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder};
 use serde_json::Value;
 use uuid::Uuid;
 
-use common::MemoryLog;
-
 struct Fixture {
     recorder: Recorder,
-    /// 同一份日志的另一个句柄，用来读回它记下了什么。
-    written: MemoryLog,
     observed: Arc<Mutex<Vec<RecordedEvent>>>,
 }
 
 fn fixture() -> Fixture {
-    let log = MemoryLog::new();
-    let written = log.reader();
-
     let observed = Arc::new(Mutex::new(Vec::new()));
     let sink = Arc::clone(&observed);
 
     Fixture {
         recorder: Recorder::new(
-            Box::new(log),
             Uuid::now_v7(),
             Box::new(move |event: &RecordedEvent| {
                 if let Ok(mut seen) = sink.lock() {
@@ -54,7 +42,6 @@ fn fixture() -> Fixture {
                 }
             }),
         ),
-        written,
         observed,
     }
 }
@@ -159,7 +146,7 @@ fn a_request_and_its_answer_are_two_frames() {
     let request_id = fixture.recorder.record_permission_requested(&request());
 
     assert_eq!(
-        fixture.written.outstanding().len(),
+        fixture.recorder.outstanding_permissions().len(),
         1,
         "the request is outstanding for as long as the agent is blocked on it"
     );
@@ -184,14 +171,10 @@ fn a_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(resolved, "optionId"), "allow");
     assert_eq!(text_of(resolved, "outcome"), "selected");
 
-    let record = fixture
-        .written
-        .permissions()
-        .first()
-        .cloned()
-        .expect("exactly one request");
-
-    assert_eq!(record.answer, Some(PermissionAnswer::Allowed));
+    assert!(
+        fixture.recorder.outstanding_permissions().is_empty(),
+        "an answered request is no longer outstanding"
+    );
 }
 
 #[test]
@@ -204,18 +187,9 @@ fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
 
     assert!(fixture.recorder.take_failure().is_none());
     assert!(
-        fixture.written.outstanding().is_empty(),
-        "the log must not keep a request nobody can ever answer"
+        fixture.recorder.outstanding_permissions().is_empty(),
+        "a request nobody can ever answer must not stay outstanding"
     );
-
-    let record = fixture
-        .written
-        .permissions()
-        .first()
-        .cloned()
-        .expect("exactly one request");
-
-    assert_eq!(record.answer, Some(PermissionAnswer::Cancelled));
 
     let resolved = fixture.frames();
     let last = resolved.last().expect("the answer frame");

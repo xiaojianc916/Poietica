@@ -45,8 +45,6 @@
 //! about why, so each wait that comes back empty asks the driver thread for the
 //! actual failure before reporting anything.
 
-mod common;
-
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
@@ -62,8 +60,6 @@ use poietica_agent_runtime_native::{
 };
 use tempfile::TempDir;
 use uuid::Uuid;
-
-use common::MemoryLog;
 
 const DEFAULT_PROGRAM: &str = "kimi";
 const DEFAULT_ARGS: &str = "acp";
@@ -137,15 +133,9 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let directory = TempDir::new().expect("a temporary directory");
 
     /*
-     * 这一层不认识数据库，所以这个测试也不建数据库。它要证明的是驱动器：握手、
+     * 这一层不写任何存储，所以这个测试也不建数据库。它要证明的是驱动器：握手、
      * 会话、通知流、取消 —— 那些没有真进程就永远走不到的路径。
-     *
-     * "帧真的落进了 SQLCipher" 是 agent/persistence 自己的断言。此前它被搬到了
-     * 这里，代价是这个 crate 要 use 一个不在它 dev-dependencies 里的 crate（于是
-     * 从写下那天起就编译不过），而且每次跑都得先编一遍 vendored OpenSSL。
      */
-    let log = MemoryLog::new();
-    let written = log.reader();
     let run_id = Uuid::now_v7();
 
     let cwd = env::var("POIETICA_ACP_CWD")
@@ -225,7 +215,6 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     let (frames, observed) = mpsc::channel::<RecordedEvent>();
     let recorder = Recorder::new(
-        Box::new(log),
         run_id,
         Box::new(move |event: &RecordedEvent| {
             let _ignored = frames.send(event.clone());
@@ -281,32 +270,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         "the turn must end on the agent's terms, not in a client failure"
     );
 
-    // 顺序是重点：每一帧都是先写进日志、才广播出去的。所以写下去的序列与
-    // 广播出去的序列只能逐字段相同，而且不能有任何一帧被写过两次。
-    let recorded = written.frames();
-
-    assert_eq!(
-        recorded.len(),
-        broadcast.len(),
-        "every frame that was broadcast had already been written, and nothing was written twice"
-    );
-
-    for (position, (stored, sent)) in recorded.iter().zip(&broadcast).enumerate() {
+    // 序号必须致密：位置在投递成功时才算用掉，所以一轮里不该出现空号。
+    for (position, sent) in broadcast.iter().enumerate() {
         let expected = i64::try_from(position + 1).expect("a small sequence number");
 
-        assert_eq!(stored.seq, expected, "sequence numbers are dense");
-        assert_eq!(stored.seq, sent.seq);
-        assert_eq!(stored.kind, sent.kind);
-        assert_eq!(
-            stored.frame, sent.frame,
-            "a replayed run must not differ from the run as it was watched"
-        );
+        assert_eq!(sent.seq, expected, "sequence numbers are dense");
     }
 
-    println!(
-        "recorded {} frames, every one of them written before it was broadcast",
-        recorded.len()
-    );
+    println!("recorded {} frames", broadcast.len());
 }
 
 /// Everything the turn actually contained.
