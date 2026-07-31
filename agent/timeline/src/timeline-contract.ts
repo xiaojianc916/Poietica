@@ -32,7 +32,18 @@ export interface AgentTextItem {
   readonly id: TimelineItemId
   readonly at: number
   readonly text: string
-  /** Sealed entries never receive further chunks. */
+  /**
+   * 这些字属于哪一条消息，由 agent 自己说（ContentChunk.messageId）。
+   *
+   * 与 sealed 是两件事，此前由 sealed 一个人兼着：sealed 说的是「还会不会再
+   * 来字」，那是生命周期，喂的是流式动画；这里说的是「这些字属于谁」，那是
+   * 身份，定的是边界。一个布尔同时表达两件事，边界就只能靠「末尾那条封没封
+   * 口」去推 —— 背靠背发来的两条消息中间没有任何东西打断，于是被推成一条。
+   *
+   * 缺席表示这个 agent 不报身份，边界退回相邻推断。
+   */
+  readonly messageId?: string
+  /** Sealed entries never receive further chunks. 只管生命周期。 */
   readonly sealed: boolean
 }
 
@@ -41,6 +52,7 @@ export interface AgentThoughtItem {
   readonly id: TimelineItemId
   readonly at: number
   readonly text: string
+  readonly messageId?: string
   readonly sealed: boolean
 }
 

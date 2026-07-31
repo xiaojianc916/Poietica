@@ -107,10 +107,11 @@ importers:
         version: 7.0.2
 
   agent/protocol:
-    devDependencies:
+    dependencies:
       '@agentclientprotocol/sdk':
         specifier: 1.3.0
         version: 1.3.0(zod@4.4.3)
+    devDependencies:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

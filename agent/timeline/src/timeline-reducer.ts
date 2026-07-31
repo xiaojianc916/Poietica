@@ -366,13 +366,13 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
     }
 
     case 'agent_message_chunk': {
-      appendChunk(draft, 'agent_text', textOf(update.content), scope, seq, at)
+      appendChunk(draft, 'agent_text', update, scope, seq, at)
 
       return
     }
 
     case 'agent_thought_chunk': {
-      appendChunk(draft, 'agent_thought', textOf(update.content), scope, seq, at)
+      appendChunk(draft, 'agent_thought', update, scope, seq, at)
 
       return
     }
@@ -529,17 +529,37 @@ function withPrompt(
   })
 }
 
+/**
+ * 把一段流式文本并进它所属的那一条消息。
+ *
+ * 边界此前是遍历顺序的副产品：末尾那条同类型、还没封口，就接着往上贴，而任何
+ * 别的条目进来都会先给它封口。除此之外没有第二个信号 —— 所以 agent 背靠背发
+ * 两条消息、中间什么都没插时，两条会粘成一条。
+ *
+ * 协议给了信号：ContentChunk 带 messageId，同一条消息的每一段带同一个号。
+ * 号变了就是另一条消息，哪怕它紧挨着上一段。
+ *
+ * 它只会切，不会合。中间隔着一张工具卡片的两段，即使同号也仍然是两条：时间轴
+ * 记的是发生的顺序，为了让同号的两段并拢而跨过中间那张卡片，就是在改写这个
+ * 顺序。
+ *
+ * 号缺席时退回相邻续写，逐字保持原行为。这不是兼容层：messageId 在 schema 里
+ * 本来就是可选的，client 必须能处理它不在的情况，而实现上也只是同一个条件里
+ * 多一个合取项，没有第二条代码路径。
+ */
 function appendChunk(
   draft: Draft,
   type: 'agent_text' | 'agent_thought',
-  chunk: string,
+  update: AcpUpdateOf<'agent_message_chunk'> | AcpUpdateOf<'agent_thought_chunk'>,
   scope: string,
   seq: number,
   at: number,
 ): void {
+  const chunk = textOf(update.content)
+  const messageId = update.messageId
   const tail = draft.items.at(-1)
 
-  if (tail && tail.type === type && !tail.sealed) {
+  if (tail && tail.type === type && !tail.sealed && sameMessage(tail, messageId)) {
     const grown: AgentTextItem | AgentThoughtItem = { ...tail, text: tail.text + chunk }
 
     draft.items[draft.items.length - 1] = grown
@@ -555,7 +575,17 @@ function appendChunk(
     at,
     text: chunk,
     sealed: false,
+    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+    ...(messageId === undefined ? {} : { messageId }),
   } as AgentTextItem | AgentThoughtItem)
+}
+
+/** 号缺席时不表态，退回相邻续写；号在，就必须是同一个号。 */
+function sameMessage(
+  tail: AgentTextItem | AgentThoughtItem,
+  messageId: string | undefined,
+): boolean {
+  return messageId === undefined || messageId === tail.messageId
 }
 
 /** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
