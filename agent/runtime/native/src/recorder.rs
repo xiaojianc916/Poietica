@@ -211,7 +211,7 @@ impl Recorder {
     /// 会由紧接着的 `record_pending_cancelled` 记成失败。
     pub fn outstanding_permissions(&mut self) -> Vec<String> {
         self.log
-            .outstanding_permissions(self.run_id)
+            .outstanding_permissions(self.frames.run_id())
             .map(|pending| {
                 pending
                     .into_iter()
@@ -223,7 +223,7 @@ impl Recorder {
 
     /// Settles every request still outstanding when the turn ended.
     pub fn record_pending_cancelled(&mut self) {
-        let pending = match self.log.outstanding_permissions(self.run_id) {
+        let pending = match self.log.outstanding_permissions(self.frames.run_id()) {
             Ok(pending) => pending,
             Err(error) => {
                 self.remember(Err(error.into()));
@@ -306,7 +306,7 @@ impl Recorder {
                     let kind = wire_name(call.kind).unwrap_or_else(|| OTHER.to_owned());
 
                     self.log.apply_tool_call(
-                        self.run_id,
+                        self.frames.run_id(),
                         &call.tool_call_id.to_string(),
                         &call.title,
                         &kind,
@@ -319,14 +319,14 @@ impl Recorder {
 
                 let matched = if let Some(status) = change.fields.status.and_then(translate) {
                     self.log.update_tool_call(
-                        self.run_id,
+                        self.frames.run_id(),
                         &tool_call_id,
                         status,
                         change.fields.title.as_deref(),
                     )?
                 } else if let Some(title) = change.fields.title.as_deref() {
                     self.log
-                        .rename_tool_call(self.run_id, &tool_call_id, title)?
+                        .rename_tool_call(self.frames.run_id(), &tool_call_id, title)?
                 } else {
                     true
                 };
@@ -350,7 +350,7 @@ impl Recorder {
         request: &RequestPermissionRequest,
     ) -> Result<()> {
         self.log
-            .record_permission_request(self.run_id, request_id, Some(tool_call_id))?;
+            .record_permission_request(self.frames.run_id(), request_id, Some(tool_call_id))?;
 
         let mut options = serde_json::to_value(&request.options)?;
         let mut tool_call = serde_json::to_value(&request.tool_call)?;
@@ -399,7 +399,7 @@ impl Recorder {
         }
 
         self.log
-            .tool_calls(self.run_id)
+            .tool_calls(self.frames.run_id())
             .ok()
             .and_then(|calls| {
                 calls
@@ -411,7 +411,7 @@ impl Recorder {
     }
 
     fn finish(&mut self, status: RunOutcome, frame: RunFrame, detail: &str) -> Result<()> {
-        self.log.finish_run(self.run_id, status, Some(detail))?;
+        self.log.finish_run(self.frames.run_id(), status, Some(detail))?;
 
         let frame = self.narrate(frame);
 

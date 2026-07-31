@@ -48,7 +48,7 @@ pub use frame::{
 };
 pub use permission::{Decision, answers, decide};
 pub use program::resolve_program;
-pub use recorder::{RecordedEvent, Recorder};
+pub use recorder::{Frames, RecordedEvent, Recorder};
 pub use run_log::{
     LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
     RunOutcome, ToolCallState,

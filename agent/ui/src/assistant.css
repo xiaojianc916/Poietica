@@ -1198,3 +1198,17 @@
   block-size: var(--cp-icon-xs);
   color: #b0455c;
 }
+
+/* --- 开场那枚标记 --- */
+
+/*
+ * 同一张图，两个尺度。
+ *
+ * .assistant-provider-icon 在本文件里排在 .assistant-masthead__mark 之后，
+ * 两者特异性相同，后来者胜——所以开场那枚标记必须自己提一档，否则它会缩成
+ * 工具条里那个 1em。几何仍然只有 --cp-mark 一个来源。
+ */
+.assistant-masthead__mark.assistant-provider-icon {
+  block-size: var(--cp-mark);
+  inline-size: var(--cp-mark);
+}

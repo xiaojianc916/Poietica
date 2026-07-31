@@ -10,6 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/foundations-design-system'
+import { modelProviderOf } from '../primitives/model-provider'
 import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
@@ -76,7 +77,7 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
     .filter((control) => control.purpose !== 'mode')
     .sort((left, right) => rank(left.purpose) - rank(right.purpose))
   const model = controls.find((control) => control.purpose === 'model')
-  const provider = model?.current.split('/')[0]
+  const provider = modelProviderOf(controls)
 
   /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
   const [firstRow] = rows
@@ -117,7 +118,7 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
         出口。
       */}
       <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
-        <ProviderIcon {...(provider === undefined || provider === '' ? {} : { provider })} />
+        <ProviderIcon {...(provider === undefined ? {} : { provider })} />
 
         <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
       </DropdownMenuTrigger>

@@ -23,7 +23,8 @@ import { AgentActivityFeed } from './feed/AgentActivityFeed'
 import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
-import { AgentIcon } from './primitives/icons'
+import { modelProviderOf } from './primitives/model-provider'
+import { ProviderIcon } from './primitives/provider-icon'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 import { TimelineRow } from './timeline/TimelineRow'
@@ -125,6 +126,19 @@ export function AssistantSurface({
 
   /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
   const dialect = useAgentDialect()
+
+  /*
+   * 开场那张脸，就是下一句话要交给谁的那张脸。
+   *
+   * 它读的是这一格已经拿在手里的 controls——和工具条那颗胶囊同一份数据，
+   * 所以两处永远说同一件事，换模型时一起换，不需要任何同步。
+   *
+   * 入口相位没有会话，controls 此时是 agent 的已知能力加上人上次的偏好
+   * （见 ConversationSurface 的 known），所以这里读得到东西：这正是那条
+   * 回退路径存在的理由。读不到就是读不到，ProviderIcon 画中性标记，而不是
+   * 一个空盒子。
+   */
+  const provider = useMemo(() => modelProviderOf(controls), [controls])
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
@@ -378,7 +392,10 @@ export function AssistantSurface({
       ) : (
         <div className="assistant-surface__entry">
           <header className="assistant-masthead">
-            <AgentIcon aria-hidden="true" className="assistant-masthead__mark" />
+            <ProviderIcon
+              className="assistant-masthead__mark"
+              {...(provider === undefined ? {} : { provider })}
+            />
 
             <h1 className="assistant-masthead__title">接下来我们做点什么？</h1>
           </header>
