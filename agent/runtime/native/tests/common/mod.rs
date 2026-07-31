@@ -19,8 +19,7 @@
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use poietica_agent_runtime_native::{
-    LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
-    RunOutcome, ToolCallState,
+    LogError, LogResult, PermissionAnswer, RunLog, RunOutcome, ToolCallState,
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -268,29 +267,5 @@ impl RunLog for MemoryLog {
         asked.answer = Some(answer);
 
         Ok(true)
-    }
-
-    fn outstanding_permissions(&self, _run_id: Uuid) -> LogResult<Vec<OutstandingPermission>> {
-        Ok(self
-            .written()
-            .permissions
-            .iter()
-            .filter(|asked| asked.answer.is_none())
-            .map(|asked| OutstandingPermission {
-                request_id: asked.request_id.clone(),
-            })
-            .collect())
-    }
-
-    fn tool_calls(&self, _run_id: Uuid) -> LogResult<Vec<RecordedToolCall>> {
-        Ok(self
-            .written()
-            .calls
-            .iter()
-            .map(|call| RecordedToolCall {
-                id: call.id.clone(),
-                title: call.title.clone(),
-            })
-            .collect())
     }
 }
