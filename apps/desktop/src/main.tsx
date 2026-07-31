@@ -38,14 +38,38 @@ async function bootstrapApplication(): Promise<void> {
  * 若这里因为任何原因没能执行，原生侧的看门狗会在 8 秒后兜底呈现，不会留下一个
  * 永远不可见的进程。
  */
+const PRESENT_DEADLINE_MS = 100
+
 function presentWhenPainted(mainWindow: MainWindowController): void {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      void mainWindow.present().catch((cause: unknown) => {
-        console.error('[Poietica] Failed to present the main window', cause)
-      })
+  let presented = false
+
+  const present = (): void => {
+    if (presented) {
+      return
+    }
+
+    presented = true
+
+    void mainWindow.present().catch((cause: unknown) => {
+      console.error('[Poietica] Failed to present the main window', cause)
     })
+  }
+
+  /*
+   * 两帧是理想路径：第一帧提交 DOM，第二帧之前浏览器完成绘制。
+   *
+   * 但窗口是 visible: false 创建的，而 requestAnimationFrame 在文档不可见时
+   * 会被节流、甚至完全不触发 —— 那是规范行为，不是缺陷。只挂在 rAF 上，
+   * 这条正常路径就没有保证，冷启动会落到原生侧那个 8 秒看门狗上，用户看到
+   * 的是八秒的空窗。
+   *
+   * 所以两个信号赛跑，谁先到谁呈现：绘制完成，或者这个期限到了。
+   */
+  requestAnimationFrame(() => {
+    requestAnimationFrame(present)
   })
+
+  setTimeout(present, PRESENT_DEADLINE_MS)
 }
 
 async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null> {

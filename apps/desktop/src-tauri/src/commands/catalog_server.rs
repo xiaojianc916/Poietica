@@ -2,41 +2,54 @@
 //!
 //! agent 的 catalog add 只吃一个 http(s) 的目录 URL —— 那是它读协议类型、接口地址
 //! 与模型清单的唯一入口。默认目录是 models.dev，在部分网络下不可达，拉不到它就
-//! exit 1。
-//!
-//! 这里把渲染层随请求带来的那份目录文档（api.json 形状，TS 侧由
-//! agentProviderCatalogDocument 序列化）绑在 127.0.0.1 的随机端口上，只活到那一次
-//! 调用结束。文档里没有密钥 —— 密钥走环境变量，从不经过这里。
+//! exit 1。所以这里把渲染层随请求带来的那份目录文档绑在 127.0.0.1 上，经官方
+//! --url 喂给它。
 //!
 //! 用 `std::net` 手写而不是引入 HTTP 框架：一份静态文档、一个内容类型、一次调用的
 //! 生命周期，框架能提供的我们一样都用不上。
+//!
+//! 「一次性」此前只写在注释里：实现是一个无限循环，任何本机进程在这段时间里
+//! 发一个请求都拿得到这份文档，而且不看路径、不看 Host、不看任何凭据。三条一起补：
+//!
+//!   - 地址里带一个 128 位的一次性凭据，对不上回 404；
+//!   - Host 必须是我们自己绑的那个 loopback 地址，挡住 DNS rebinding；
+//!   - 答完一次就收摊，不等 Drop。
+//!
+//! 「文档里没有密钥」不再是这个服务依赖的前提 —— 那个不变式由调用方持有，
+//! 不该由这里替它承诺。
 
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hasher};
 use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-/// 请求头读到这个尺寸就够：一个 GET 加几个头，远超所需。超了就当读完了直接回答。
+/// 请求头读到这个尺寸就够：一个 GET 加几个头，远超所需。
 const MAX_HEAD_BYTES: usize = 8 * 1024;
 
-/// 单个连接上等请求头的时限。对方不说话了，我们也不干等 —— 文档是静态的，随时能答。
-const READ_TIMEOUT: Duration = Duration::from_secs(5);
+/// 单个连接上等请求头的时限。对方不说话了，我们也不干等。
+const READ_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// 轮询停止旗标的间隔。调用结束后服务最晚在这个量级内停下。
-const POLL_INTERVAL: Duration = Duration::from_millis(25);
+/// 轮询停止旗标的间隔。没有异步执行器可借，这是唯一能被取消的等法。
+const POLL_INTERVAL: Duration = Duration::from_millis(5);
 
-/// 绑在 loopback 上的一次性目录服务。Drop 即停止并收编线程。
+/// 整个服务的总时限。对方在这之内不来取，这次调用本来也已经失败了。
+const LIFETIME: Duration = Duration::from_secs(30);
+
+/// 绑在 loopback 上的一次性目录服务。答过一次即停；Drop 提前收编线程。
 #[derive(Debug)]
 pub struct CatalogServer {
     port: u16,
+    token: String,
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
 }
 
 impl CatalogServer {
-    /// 在 127.0.0.1 的随机端口上开始服务这份文档，直到被 Drop。
+    /// 在 127.0.0.1 的随机端口上服务这份文档，直到被取走一次、超时，或被 Drop。
     ///
     /// # Errors
     ///
@@ -44,24 +57,33 @@ impl CatalogServer {
     pub fn start(document: String) -> std::io::Result<Self> {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
         listener.set_nonblocking(true)?;
+
         let port = listener.local_addr()?.port();
+        let token = one_time_token();
         let stop = Arc::new(AtomicBool::new(false));
+
         let worker = {
             let stop = Arc::clone(&stop);
+            let expected = Expected {
+                token: token.clone(),
+                host: format!("127.0.0.1:{port}"),
+            };
 
-            thread::spawn(move || serve_loop(&listener, &document, &stop))
+            thread::spawn(move || serve_once(&listener, &document, &expected, &stop))
         };
 
         Ok(Self {
             port,
+            token,
             stop,
             worker: Some(worker),
         })
     }
 
-    /// 喂给 agent CLI 的目录地址。路径叫什么都可以 —— 对方只 fetch 一次。
+    /// 喂给 agent CLI 的目录地址。凭据在路径里 —— 对方只 fetch 一次，不需要
+    /// 一个额外的头，而 URL 从绑定结果现算，从不经过调用方。
     pub fn url(&self) -> String {
-        format!("http://127.0.0.1:{}/api.json", self.port)
+        format!("http://127.0.0.1:{}/{}.json", self.port, self.token)
     }
 }
 
@@ -70,32 +92,67 @@ impl Drop for CatalogServer {
         self.stop.store(true, Ordering::Relaxed);
 
         if let Some(worker) = self.worker.take() {
-            // 收编最多等一个读超时（5 秒），而且只在有连接悬着的时候。join 失败
-            // 不代表文档没送到 —— 这次调用的成败看的是子进程的退出码。
+            // 有界：工作线程最多停在一次读超时上，且答过一次就已经自己退出了。
             let _ = worker.join();
         }
     }
 }
 
-fn serve_loop(listener: &TcpListener, document: &str, stop: &AtomicBool) {
+/// 这次调用认得的那一份地址。
+struct Expected {
+    token: String,
+    host: String,
+}
+
+/// 一个不可预测的一次性凭据。
+///
+/// RandomState的种子来自操作系统的随机源，这是标准库内不引依赖就能拿到
+/// 的随机性。两次取样拼成 128 位 —— 这条地址只活几百毫秒，且只有一次机会。
+fn one_time_token() -> String {
+    let high = RandomState::new().build_hasher().finish();
+    let low = RandomState::new().build_hasher().finish();
+
+    format!("{high:016x}{low:016x}")
+}
+
+fn serve_once(
+    listener: &TcpListener,
+    document: &str,
+    expected: &Expected,
+    stop: &AtomicBool,
+) {
+    let deadline = Instant::now() + LIFETIME;
+
     while !stop.load(Ordering::Relaxed) {
+        if Instant::now() >= deadline {
+            return;
+        }
+
         match listener.accept() {
             Ok((stream, _)) => {
-                let _ = serve_connection(stream, document);
+                // 答过一次这条地址就没有用处了，不论那一次是 200 还是 404：
+                // 凭据错了说明来的不是我们喂出去的那个 URL。
+                let _served = serve_connection(stream, document, expected);
+
+                return;
             }
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
                 thread::sleep(POLL_INTERVAL);
             }
-            Err(_) => break,
+            Err(_) => return,
         }
     }
 }
 
-fn serve_connection(mut stream: TcpStream, document: &str) -> std::io::Result<()> {
+fn serve_connection(
+    mut stream: TcpStream,
+    document: &str,
+    expected: &Expected,
+) -> std::io::Result<()> {
     stream.set_read_timeout(Some(READ_TIMEOUT))?;
 
     // 先把请求头读完再回答：带着未读数据 close，Windows 会用 RST 把还没被取走
-    // 的响应一起吃掉。文档与路径无关，读出头就够了，不解析。
+    // 的响应一起吃掉。
     let mut head: Vec<u8> = Vec::with_capacity(1024);
     let mut chunk = [0_u8; 1024];
 
@@ -113,12 +170,55 @@ fn serve_connection(mut stream: TcpStream, document: &str) -> std::io::Result<()
         head.extend_from_slice(chunk.get(..read).unwrap_or_default());
     }
 
-    let response_head = format!(
-        "HTTP/1.1 200 OK\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-        document.len(),
+    let request = String::from_utf8_lossy(&head);
+
+    if is_ours(&request, expected) {
+        write_response(
+            &mut stream,
+            "200 OK",
+            "application/json; charset=utf-8",
+            document,
+        )
+    } else {
+        write_response(&mut stream, "404 Not Found", "text/plain; charset=utf-8", "")
+    }
+}
+
+/// 这个请求是不是冲着我们刚刚交出去的那条地址来的。
+///
+/// 两条都要过：凭据挡住本机上其他进程的盲猜，Host 挡住把一个外部域名解析到
+/// 127.0.0.1 之后由浏览器发起的请求（DNS rebinding）。
+fn is_ours(request: &str, expected: &Expected) -> bool {
+    let Some(request_line) = request.lines().next() else {
+        return false;
+    };
+
+    let path_matches = request_line
+        .split_whitespace()
+        .nth(1)
+        .is_some_and(|target| target == format!("/{}.json", expected.token));
+
+    let host_matches = request.lines().any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.eq_ignore_ascii_case("host") && value.trim() == expected.host
+        })
+    });
+
+    path_matches && host_matches
+}
+
+fn write_response(
+    stream: &mut TcpStream,
+    status: &str,
+    content_type: &str,
+    body: &str,
+) -> std::io::Result<()> {
+    let head = format!(
+        "HTTP/1.1 {status}\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        body.len(),
     );
 
-    stream.write_all(response_head.as_bytes())?;
-    stream.write_all(document.as_bytes())?;
+    stream.write_all(head.as_bytes())?;
+    stream.write_all(body.as_bytes())?;
     stream.flush()
 }

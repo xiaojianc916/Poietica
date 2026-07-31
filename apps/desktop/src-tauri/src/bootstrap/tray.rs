@@ -21,12 +21,10 @@ const TRAY_ID: &str = "poietica-tray";
 const MENU_SHOW: &str = "poietica-tray-show";
 const MENU_HIDE: &str = "poietica-tray-hide";
 const MENU_QUIT: &str = "poietica-tray-quit";
+const MENU_FORCE_QUIT: &str = "poietica-tray-force-quit";
 
 /// 与渲染层之间唯一的退出契约。
 pub const TERMINATION_REQUESTED_EVENT: &str = "poietica://termination-requested";
-
-/// 渲染层无响应时的兜底时限：它可能正停在崩溃屏上，处理不了退出请求。
-const TERMINATION_FALLBACK: Duration = Duration::from_secs(5);
 
 /// Installs the tray icon and its menu. Called once from the composition root.
 ///
@@ -39,7 +37,16 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let hide = MenuItem::with_id(app, MENU_HIDE, "隐藏到托盘", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, MENU_QUIT, "退出程序", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &hide, &separator, &quit])?;
+    // 前端完全无响应（例如停在崩溃屏上）时的出路。它是破坏性的，所以它是
+    // 用户看得见、点得到的一个动作，而不是一个替用户做决定的倒计时。
+    let force_quit = MenuItem::with_id(
+        app,
+        MENU_FORCE_QUIT,
+        "强制退出（丢弃未保存的更改）",
+        true,
+        None::<&str>,
+    )?;
+    let menu = Menu::with_items(app, &[&show, &hide, &separator, &quit, &force_quit])?;
 
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("Poietica")
@@ -62,6 +69,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
         MENU_SHOW => show_main(app),
         MENU_HIDE => hide_main(app),
         MENU_QUIT => request_termination(app),
+        MENU_FORCE_QUIT => force_quit(app),
         other => log::debug!("unhandled tray menu id: {other}"),
     }
 }
@@ -86,20 +94,16 @@ fn request_termination(app: &AppHandle) {
         log::warn!("tray: could not deliver the termination request: {error}");
     }
 
-    let fallback = app.clone();
+    // 到此为止。窗口还在不在，不是原生侧该替用户回答的问题 —— 它最常见的
+    // 含义是确认框还开着，或者用户点了取消。
+}
 
-    std::thread::spawn(move || {
-        std::thread::sleep(TERMINATION_FALLBACK);
+/// 不问确认，立刻结束进程。只由托盘上那条显式的菜单项发起。
+fn force_quit(app: &AppHandle) {
+    log::warn!("tray: force quit requested; unsaved work is discarded");
 
-        // 渲染层活着就会在这之前销毁窗口。窗口还在，说明它处理不了退出请求，
-        // 由原生侧收尾——但只在这一种情况下。
-        if fallback.get_webview_window(MAIN_WINDOW).is_some() {
-            log::warn!("tray: frontend did not terminate within the fallback window");
-
-            persist_window_state(&fallback);
-            fallback.exit(0);
-        }
-    });
+    persist_window_state(app);
+    app.exit(0);
 }
 
 fn toggle_main(app: &AppHandle) {

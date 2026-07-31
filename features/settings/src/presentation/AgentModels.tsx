@@ -501,12 +501,12 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       <div className="models-card models-card--list">
         <div className="models-toolbar">
           <input
-            aria-label="添加或搜索模型"
+            aria-label="搜索模型"
             className="models-input models-input--search"
             onChange={(event) => {
               setQuery(event.target.value)
             }}
-            placeholder="添加或搜索模型"
+            placeholder="搜索模型"
             type="text"
             value={query}
           />
@@ -601,7 +601,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
                             type="button"
                             variant="soft"
                           >
-                            {deletingId === row.id ? '正在删除…' : '确认删除'}
+                            {deletingId === row.id ? '正在删除' : '确认删除'}
                           </Button>
                         </>
                       ) : (
