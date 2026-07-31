@@ -30,7 +30,7 @@ describe('replay session', () => {
 
 describe('ipc session', () => {
   it('原样转发帧与它的地址，不在客户端重新描述协议', () => {
-    let emit: (payload: unknown, runId: string) => void = () => {}
+    let emit: (payload: unknown, sessionId: string) => void = () => {}
 
     const session = createIpcSession({
       bridge: {
@@ -47,11 +47,11 @@ describe('ipc session', () => {
     })
 
     const received: Array<[RunEvent, string]> = []
-    session.subscribe((event, runId) => received.push([event, runId]))
+    session.subscribe((event, sessionId) => received.push([event, sessionId]))
 
     const first = SAMPLE_RUN_EVENTS.at(0)
 
-    emit(first, 'r')
+    emit(first, 'sess_1')
 
     /*
      * 帧的形状由原生侧的 RunFrame enum 保证，地址由信封给出。这一层不再持有
@@ -60,6 +60,6 @@ describe('ipc session', () => {
      */
     expect(received).toHaveLength(1)
     expect(received.at(0)?.[0]).toEqual(first)
-    expect(received.at(0)?.[1]).toBe('r')
+    expect(received.at(0)?.[1]).toBe('sess_1')
   })
 })

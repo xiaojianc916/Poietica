@@ -1,9 +1,9 @@
 import type {
+  AcpSessionId,
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
   RunEvent,
-  RunId,
 } from '@poietica/agent-protocol'
 import { SAMPLE_RUN_EVENTS } from '@poietica/agent-timeline/fixtures'
 
@@ -29,16 +29,17 @@ const defaultScheduler: ReplayScheduler = (callback, delayMs) => {
   return () => clearTimeout(handle)
 }
 
+/* 录像里只有一条会话：假的端口也按真的契约说话，而契约上的地址是会话号。 */
+const SESSION: AcpSessionId = 'sess_replay'
+
 export function createReplaySession(options: ReplaySessionOptions = {}): AgentSessionPort {
   const events = options.events ?? SAMPLE_RUN_EVENTS
   const stepMs = options.stepMs ?? 40
   const scheduler = options.scheduler ?? defaultScheduler
 
-  const listeners = new Set<(event: RunEvent, runId: RunId) => void>()
+  const listeners = new Set<(event: RunEvent, sessionId: AcpSessionId) => void>()
   let pending: Array<() => void> = []
   let runCounter = 0
-  /* 录像也得报出这一帧属于哪一轮：假的端口按真的契约说话，否则它测不出什么。 */
-  let current: RunId = 'run_replay_0'
 
   const clearPending = () => {
     for (const cancel of pending) {
@@ -49,7 +50,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
 
   const emit = (event: RunEvent) => {
     for (const listener of listeners) {
-      listener(event, current)
+      listener(event, SESSION)
     }
   }
 
@@ -66,15 +67,13 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
       runCounter += 1
       const runId = `run_replay_${String(runCounter)}`
 
-      current = runId
-
       events.forEach((event, index) => {
         pending.push(scheduler(() => emit(event), stepMs * index))
       })
 
       return Promise.resolve({
         runId,
-        sessionId: 'sess_replay',
+        sessionId: SESSION,
         cancel: () => {
           clearPending()
           return Promise.resolve()

@@ -24,7 +24,7 @@ const FAILURE_FALLBACK = '读取会话记录失败。'
 const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
 
 /**
- * 转录那一侧，只要这三句话。
+ * 转录那一侧，只要这四句话。
  *
  * 打开一条对话现在会把它的经过一起带回来，而经过归转录 store 管。注入而不是
  * import 那个单例：这个文件自己在下面说过，模块级可变量让测试拿不到干净实例。
@@ -34,6 +34,8 @@ export interface TranscriptSink {
   readonly opening: (threadId: string) => void
   readonly adopt: (threadId: string, events: readonly unknown[], history: ThreadHistory) => void
   readonly failed: (threadId: string, cause: unknown) => void
+  /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
+  readonly route: (sessionId: string, threadId: string) => void
 }
 
 /** Cuts a stand in title down to something a tab can show. */
@@ -480,6 +482,14 @@ export class ThreadsStore {
     }
 
     this.#sessions.set(sessionId, thread.threadId)
+
+    /*
+     * 同一个事实，转录那一侧也要一份。
+     *
+     * 这里是打开一条对话的两条路（create 与 #read）唯一的汇合处，也是这张表
+     * 唯一建得起来的时刻：会话号到手在前，第一帧到达在后。
+     */
+    this.#transcripts?.route(sessionId, thread.threadId)
   }
 
   /*

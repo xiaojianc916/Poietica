@@ -26,13 +26,13 @@ import {
  * "一个进程订着一条线路"。held / alias / aliased / routes / orphans 本来就互相
  * 耦合（rename 同时写三张，evict 同时删三张），它们是一个对象的内部字段。
  *
- * 路由也在这里，而且是查表：线路上每一帧都带着它的 runId（见
- * AgentSessionPort.subscribe 的第二个参数），这里按 runId 找主人。帧上仍然没有
- * 地址（run-contract.ts 的六个变体全是 { kind, seq, at, ... }），地址在信封上。
+ * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 frame.rs 的 Envelope，
+ * 六种帧无一例外），而"这条会话属于哪条对话"在打开这条对话时就登记好了（见
+ * route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻交过来）。
  *
- * 那张欠条已经还了：runId 此前在 platforms/desktop-ipc/src/agent.ts 的
- * module.listen 那一行被丢弃，现在一路交到这里。于是"当前那一轮"这个概念不再
- * 存在 —— 它曾经是一条靠代码顺序维持的约定，而不是一个事实。
+ * 地址因此先于帧存在，"无主的帧"不再是一种正常状态：此前键是轮次号，它由
+ * prompt 的答复带回来而原生广播先到，于是这里养着一整套排队、补投、计数与
+ * 上限，只为等一个本来就已经在手里的东西。
  */
 
 /** 还没有真 run 之前，转录的占位轮次。 */
@@ -40,12 +40,6 @@ export const RUN_PLACEHOLDER = 'run_pending'
 
 /** 留住多少条对话的转录。淘汰策略属于 store，这是它的本职。 */
 const HELD_KEYS = 8
-
-/** 同时记得多少轮的归属。一轮结束就删，这个上限只是兜底。 */
-const ROUTED_RUNS = 64
-
-/** 无主的帧最多攒多少。 */
-const ORPHAN_FRAMES = 200
 
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
@@ -168,28 +162,14 @@ export class TranscriptStore {
   #drafts = 0
 
   /**
-   * 归属是一张按 runId 的表，不是"当前那一轮"。
+   * 会话号 → 对话。归属只有这一张表。
    *
-   * 上一版这里是一个可变量，记着此刻在飞的那一轮属于谁，靠"这个进程同时只有
-   * 一轮在飞"这条约定活着。那是一条约定，不是一个事实：它由代码顺序维持
-   * （在 prompt 之前赋值），任何一次并发、一次重试、一次未来的多 agent 都会让它
-   * 悄悄对不上，而对不上的表现是帧落进别人的转录。
-   *
-   * 现在地址由线路给出（AgentSessionPort.subscribe 的第二个参数），归属因此是
-   * 查表，错误状态在这套结构里无法被表达：查不到就是查不到，不会猜成手边那条。
+   * 它在打开一条对话时就写好了（route），而帧是此后才发生的事，所以查不到主人
+   * 是一种真正的异常，不是一段要等的时差。一条会话跨越它上面的每一轮，这张表
+   * 因此不随一轮结束而删；它的规模等于这个进程打开过几条对话，与 ThreadsStore
+   * 的 #sessions 同阶。
    */
   #routes = new Map<string, string>()
-
-  /**
-   * 地址已知、主人还没登记的帧。
-   *
-   * 原生广播和 prompt 的返回是两条路，广播先到是常态而不是异常 —— 上一版靠"发
-   * 出去之前先记下归属"掩盖了它。这里正面收着：按 runId 攒，登记那一刻补投，
-   * 顺序不变。攒不下就丢最早的，因为一段无主的帧流不该把内存吃光。
-   */
-  #orphans = new Map<string, RunEvent[]>()
-
-  #orphaned = 0
 
   #attachedTo: AgentSessionPort | null = null
 
@@ -219,31 +199,14 @@ export class TranscriptStore {
     }
   }
 
-  /** 这一轮属于这条对话。在它之前到的帧在这里补投。 */
-  claimRun = (runId: string, key: string): void => {
-    this.#routes.set(runId, key)
-
-    while (this.#routes.size > ROUTED_RUNS) {
-      const oldest = this.#routes.keys().next().value
-
-      if (oldest === undefined) {
-        break
-      }
-
-      this.#routes.delete(oldest)
-    }
-
-    const waiting = this.#orphans.get(runId)
-
-    if (waiting === undefined) {
-      return
-    }
-
-    this.#dropOrphans(runId)
-
-    for (const event of waiting) {
-      this.#route(event, runId)
-    }
+  /**
+   * 这条会话属于这条对话。
+   *
+   * 由握着这个事实的那一方交过来（ThreadsStore 在打开的答复里拿到它），所以
+   * 这里不猜也不问。同一条会话重复登记是幂等的。
+   */
+  route = (sessionId: string, key: string): void => {
+    this.#routes.set(sessionId, key)
   }
 
   /* ================= 一段历史送到 ================= */
@@ -351,13 +314,13 @@ export class TranscriptStore {
           this.#cancels.set(threadId, handle.cancel)
 
           /*
-           * 地址在这里落表。
+           * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *
-           * 比它先到的帧不会丢：那些帧带着同一个 runId 在 orphans 里等着，
-           * claimRun 按原顺序补投。此前这里是"发出去之前先记下归属"，那不是解决
-           * 竞态，那是把竞态藏进代码顺序里。
+           * 这里再写一次是同一个事实写进同一张表 —— 答复里的会话号是原生侧
+           * 此刻真正在用的那一条，而一条刚建出来的对话在开口之前还没有会话
+           * 号可登记。它是幂等的，不是补救。
            */
-          this.claimRun(handle.runId, threadId)
+          this.route(handle.sessionId, threadId)
 
           const latest = this.read(threadId)
 
@@ -523,54 +486,17 @@ export class TranscriptStore {
     this.#put(owner, { ...current, timeline: applyRunEvent(current.timeline, event) })
   }
 
-  #hold(runId: string, event: RunEvent): void {
-    const queue = this.#orphans.get(runId) ?? []
-
-    queue.push(event)
-    this.#orphans.set(runId, queue)
-    this.#orphaned += 1
-
-    while (this.#orphaned > ORPHAN_FRAMES) {
-      const oldest = this.#orphans.keys().next().value
-
-      if (oldest === undefined) {
-        /* 表空了而计数没归零：走到这里本身就说明不变式已经破了。 */
-        this.#orphaned = 0
-
-        return
-      }
-
-      this.#dropOrphans(oldest)
-    }
-  }
-
   /*
-   * 丢掉一段无主的帧，连同它在计数里的那一份。
+   * 一帧到了，交给它的主人。
    *
-   * #orphaned 是各队列长度之和，此前由三处分别手工维护，其中 #route 那一处
-   * 只删表不减数。它今天不发作，而且能证明为什么：#hold 只在查不到主人时
-   * 入队，而 claimRun 是设路由与排空队列一起做的，所以 #route 走到终结分支
-   * 时那个 runId 必然已经不在表里 —— 那是一个永远删不到东西的删除，紧挨着
-   * 一个它一旦生效就会写坏的计数。收成一处之后，这个不变式不再依赖三个地方
-   * 都记得。
+   * 查不到主人只有一种由来：这条会话不是这一侧登记过的。那就该丢掉。此前这里
+   * 会把它攒起来等一个后发的地址 —— 地址现在先于帧到达，那段等待连同它的队列、
+   * 计数与上限一起没有了。
    */
-  #dropOrphans(runId: string): void {
-    const queue = this.#orphans.get(runId)
-
-    if (queue === undefined) {
-      return
-    }
-
-    this.#orphans.delete(runId)
-    this.#orphaned -= queue.length
-  }
-
-  #route(event: RunEvent, runId: string): void {
-    const owner = this.#routes.get(runId)
+  #route(event: RunEvent, sessionId: string): void {
+    const owner = this.#routes.get(sessionId)
 
     if (owner === undefined) {
-      this.#hold(runId, event)
-
       return
     }
 
@@ -580,15 +506,12 @@ export class TranscriptStore {
       return
     }
 
-    this.#routes.delete(runId)
-    this.#dropOrphans(runId)
-
     /*
      * 这一轮的取消口跟着这一轮走。
      *
      * 此前 #cancels 只增不减，是这个类里唯一没有上界的表：held 有 #evict，
-     * routes 有 ROUTED_RUNS，orphans 有 ORPHAN_FRAMES，alias 跟着 held 走，
-     * 只有它谁都不跟。
+     * alias 跟着 held 走，只有它谁都不跟。（#routes 是按会话记的，一条会话
+     * 跨越它上面的每一轮，本来就不该随一轮结束而删。）
      *
      * 而它留下的不只是内存。一轮跑完之后那个闭包还在，停止键按在一条早已
      * 结束的对话上，仍然会照着旧 handle 发一次取消 —— 指向一个已经翻篇的
@@ -605,8 +528,8 @@ export class TranscriptStore {
 
     this.#detach?.()
     this.#attachedTo = port
-    this.#detach = port.subscribe((event, runId) => {
-      this.#route(event, runId)
+    this.#detach = port.subscribe((event, sessionId) => {
+      this.#route(event, sessionId)
     })
   }
 }

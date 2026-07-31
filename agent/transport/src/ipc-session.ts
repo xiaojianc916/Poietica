@@ -1,4 +1,5 @@
 import type {
+  AcpSessionId,
   AgentPromptHandle,
   AgentPromptRequest,
   AgentSessionPort,
@@ -26,8 +27,8 @@ import type {
  */
 
 export interface AgentEventSource {
-  /** Hands out the frame and the run it belongs to; the frames carry no address. */
-  readonly listen: (handler: (payload: unknown, runId: RunId) => void) => () => void
+  /** Hands out the frame and the session it belongs to, as the envelope says. */
+  readonly listen: (handler: (payload: unknown, sessionId: AcpSessionId) => void) => () => void
 }
 
 export interface AgentCommandBridge {
@@ -46,8 +47,8 @@ export interface IpcSessionOptions {
 export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSessionPort {
   return {
     subscribe: (listener) =>
-      source.listen((payload, runId) => {
-        listener(payload as RunEvent, runId)
+      source.listen((payload, sessionId) => {
+        listener(payload as RunEvent, sessionId)
       }),
 
     prompt: async (request): Promise<AgentPromptHandle> => {

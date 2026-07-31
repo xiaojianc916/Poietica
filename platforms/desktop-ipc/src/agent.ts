@@ -29,11 +29,11 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
 /**
  * The envelope the native side broadcasts.
  *
- * Only the frame is part of the event contract; the run identifier rides
- * outside it because it is routing, not content.
+ * 只有 frame 属于事件契约；会话号在信封外面，因为它是寻址，不是内容。它
+ * 与下面的选择器推送（AgentSelectorEnvelope）用的是同一个主语。
  */
 interface AgentEventEnvelope {
-  readonly runId: string
+  readonly sessionId: string
   readonly seq: number
   readonly kind: string
   readonly frame: unknown
@@ -46,14 +46,12 @@ export interface AgentEventSourceOptions {
 
 export interface AgentEventSource {
   /**
-   * Hands out the frame together with the run it belongs to.
+   * Hands out the frame together with the session it belongs to.
    *
-   * The envelope is not the frame contract, but the run identifier in it is the
-   * only address that exists: the frames carry none. Dropping it here forced
-   * every layer above to guess, so it is passed on as a separate argument —
-   * routing beside content, not inside it.
+   * 信封不是帧契约，但信封上的会话号是这批帧唯一的地址。它在打开一条对话时
+   * 就已经在上层手里了，所以认领是一次查表，而不是一场等待。
    */
-  readonly listen: (handler: (payload: unknown, runId: string) => void) => () => void
+  readonly listen: (handler: (payload: unknown, sessionId: string) => void) => () => void
 }
 
 /** 起一个 agent 进程要说清的三件事。与原生侧的 AgentLaunch 同形。 */
@@ -140,8 +138,8 @@ export function createAgentEventSource({
       subscribeToEvent<AgentEventEnvelope>(
         AGENT_EVENT,
         (payload) => {
-          // The frame is the contract; the run identifier is its address.
-          handler(payload.frame, payload.runId)
+          // The frame is the contract; the session is its address.
+          handler(payload.frame, payload.sessionId)
         },
         onListenFailure,
       ),

@@ -27,19 +27,19 @@ export interface AgentPromptHandle {
 
 export interface AgentSessionPort {
   /**
-   * Emits run events with the run they belong to; returns an unsubscribe function.
+   * Emits run events with the session they belong to; returns an unsubscribe
+   * function.
    *
-   * The run identifier is a parameter rather than a field on the frame because
-   * the frames themselves carry no address: every variant in run-contract.ts is
-   * { kind, seq, at, ... }. A subscriber that is handed a frame without one can
-   * only guess which conversation it belongs to, and seq is numbered per run, so
-   * two turns both have a seq 3 and de-duplicating by seq cannot tell them apart.
+   * 地址是会话号，和 ACP 的 session/update 同一个主语。它由原生侧写在信封上
+   * （frame.rs 的 Envelope.session_id），六种帧无一例外，所以订阅者不必猜。
    *
-   * Multiplexed transports address every message: JSON-RPC has id, LSP has the
-   * request id, gRPC has the stream id, ACP's session/update carries sessionId.
-   * This is that, and nothing more.
+   * 它先于帧存在：一条对话在打开的那一刻就握住了会话号（ThreadRecord.sessionId），
+   * 而帧是此后才发生的事。此前这里是轮次号，它由 prompt 的答复带回来，比原生
+   * 广播晚到 —— 上层那一整套排队、补投、计数与上限，就是为了等它才长出来的。
+   *
+   * seq 也随之改为按会话单调，所以按 seq 去重在两轮之间仍然成立。
    */
-  readonly subscribe: (listener: (event: RunEvent, runId: RunId) => void) => () => void
+  readonly subscribe: (listener: (event: RunEvent, sessionId: AcpSessionId) => void) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }
