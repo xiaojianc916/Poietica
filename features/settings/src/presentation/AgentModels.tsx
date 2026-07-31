@@ -500,6 +500,17 @@ export function AgentModels({
         </div>
       </div>
 
+      {/*
+       * 下面那份清单是上一次读到的。它继续显示 —— 那仍是 agent 片刻前的真实配置 ——
+       * 但不能让它冒充这一刻的事实：刚按过刷新、刚删过一个 provider 的人，有权知道
+       * 屏幕为什么没动。
+       */}
+      {providers.refreshError !== null ? (
+        <p className="models-notice">
+          下面这份清单是上一次读到的 —— 这一次重读没成：{providers.refreshError}
+        </p>
+      ) : null}
+
       <div className="models-card models-card--list">
         <div className="models-toolbar">
           <input

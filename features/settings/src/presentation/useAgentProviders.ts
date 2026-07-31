@@ -25,7 +25,10 @@ const lastGood = new Map<string, AgentProviderSnapshot>()
 export interface AgentProvidersState {
   readonly loading: boolean
   readonly snapshot: AgentProviderSnapshot | undefined
+  /** 什么都拿不出来。列表的位置归它。 */
   readonly error: string | null
+  /** 有东西可看，但这一次没读成。旧清单继续显示，由界面在旁边说清它是旧的。 */
+  readonly refreshError: string | null
   readonly reload: () => void
 }
 
@@ -35,6 +38,16 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     lastGood.get(agentId),
   )
   const [error, setError] = useState<string | null>(null)
+
+  /*
+   * 「有东西可看，但这一次没读成」，与 error 分开。
+   *
+   * 界面对这两件事的处置不同：error 出现时列表是空的，它占据列表的位置；这一条
+   * 出现时列表还在，它只挂在上方。stale-while-revalidate 保留旧数据的同时本来就
+   * 要把失败暴露出去 —— 此前这里连失败一起吞了，于是删掉一个 provider、重读没成，
+   * 那一行还在屏幕上，界面一个字都不说。
+   */
+  const [refreshError, setRefreshError] = useState<string | null>(null)
 
   /*
    * 每次询问领一个号，只有最新的号有权写状态。卸载时递增一次，在飞的那次自然作废。
@@ -89,6 +102,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     }
 
     setError(null)
+    setRefreshError(null)
 
     void store
       .execCli({
@@ -97,23 +111,27 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
       })
       .then(
         (outcome) => {
-          if (stale()) {
-            return
-          }
-
-          setLoading(false)
-
           /*
            * 非零退出时把 agent 自己的 stderr 直接给用户看。config.toml 坏了的
            * 时候它说得比我们清楚 —— 连怎么修都告诉你 —— 转述一遍只会丢信息。
            *
-           * 有缓存时后台这次失败不换掉列表：上一快照仍是 agent 片刻前的真实
-           * 配置，下一次进入或手动刷新会重试。没有缓存才把错误摆到列表的位置。
+           * 有缓存时不换掉列表：上一快照仍是 agent 片刻前的真实配置。但这次没读成
+           * 要说出来 —— 保存密钥、删除密钥、按刷新，三条路都靠这一次往返给回音。
            */
           if (outcome.status !== 0) {
+            if (stale()) {
+              return
+            }
+
+            setLoading(false)
+
+            const reason = describeAgentCliExit(outcome.status, outcome.stderr)
+
             if (cached === undefined) {
               setSnapshot(undefined)
-              setError(describeAgentCliExit(outcome.status, outcome.stderr))
+              setError(reason)
+            } else {
+              setRefreshError(reason)
             }
 
             return
@@ -121,7 +139,19 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
 
           const next = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
 
+          /*
+           * 缓存写在作废判断之前。号过期只意味着这份回执无权改屏幕，不意味着数据
+           * 是假的 —— 它是 agent 刚说的。写缓存与订阅是两件事，绑在一起会让一次
+           * 已经付过进程启动代价的往返白跑。
+           */
           lastGood.set(agentId, next)
+
+          if (stale()) {
+            return
+          }
+
+          setLoading(false)
+          setRefreshError(null)
           setSnapshot(next)
         },
         (cause: unknown) => {
@@ -131,9 +161,13 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
 
           setLoading(false)
 
+          const reason = describeAgentCliFailure(cause, '无法读取模型清单。')
+
           if (cached === undefined) {
             setSnapshot(undefined)
-            setError(describeAgentCliFailure(cause, '无法读取模型清单。'))
+            setError(reason)
+          } else {
+            setRefreshError(reason)
           }
         },
       )
@@ -147,7 +181,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
     }
   }, [ask])
 
-  return { loading, snapshot, error, reload: ask }
+  return { loading, snapshot, error, refreshError, reload: ask }
 }
 
 /* describeExit 曾在这里。另一处有一份逐字相同的副本，两份都搬进了 agentCliText.ts。 */
