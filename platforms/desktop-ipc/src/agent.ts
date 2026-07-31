@@ -37,6 +37,10 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
  * 没有任何人读过：下面这个 listen 只取 frame 与 sessionId，而 RunEvent
  * （run-contract.ts）压根没有 sessionId 这一格。它们只是每一帧都要在线上
  * 多走一趟。
+ *
+ * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent.rs
+ * 的 batched），所以跨进程往返的次数不再随 agent 说得多快而涨。信封本身的形状
+ * 没有变，端口交出去的仍然是一帧一次。
  */
 interface AgentEventEnvelope {
   readonly sessionId: string
@@ -128,11 +132,14 @@ export function createAgentEventSource({
 }: AgentEventSourceOptions = {}): AgentEventSource {
   return {
     listen: (handler) =>
-      subscribeToEvent<AgentEventEnvelope>(
+      subscribeToEvent<readonly AgentEventEnvelope[]>(
         AGENT_EVENT,
         (payload) => {
-          // 帧就是信封；会话号是它自报的地址。
-          handler(payload, payload.sessionId)
+          /* 一拍的帧一起到。攒批发生在原生侧，端口这一层仍然一帧一次。 */
+          for (const frame of payload) {
+            // 帧就是信封；会话号是它自报的地址。
+            handler(frame, frame.sessionId)
+          }
         },
         onListenFailure,
       ),

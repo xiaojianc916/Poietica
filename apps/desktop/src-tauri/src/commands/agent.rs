@@ -17,11 +17,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
 use poietica_agent_runtime_native::{
-    AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
-    PermissionDesk, RecordedEvent, Refusal, RunSlot, connect,
+    ACP_UPDATE, AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
+    FrameSink, PermissionDesk, RecordedEvent, Refusal, RunSlot, connect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -48,6 +49,12 @@ pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
 
 /// How much of the first message stands in as a conversation name.
 const TITLE_CHARS: usize = 60;
+
+/// 一拍的宽度：帧攒到这么久，就交货一次。
+///
+/// 六十赫兹的屏幕上，比这更密的投递没有人看得见 —— 收帧的那一侧也正是按这个
+/// 节拍醒来的（见 transcript-store.ts 的 `#paint`）。
+const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 
 const NO_SESSION: &str = "no agent session is running";
 const POISONED: &str = "the agent session lock was left locked by a panicking task";
@@ -251,12 +258,7 @@ pub async fn agent_prompt(
             .map_err(persistence)?;
     }
 
-    let handle = app.clone();
-    let frames = Box::new(move |event: &RecordedEvent| {
-        // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
-        // 随 agent_open_thread 一起交回来。
-        let _ignored = handle.emit(AGENT_EVENT, event);
-    });
+    let frames = batched(app);
 
     let answer = session
         .client
@@ -279,6 +281,44 @@ pub async fn agent_prompt(
 
     Ok(AgentPromptResult {
         session_id: addressed,
+    })
+}
+
+/// 帧攒着走，一拍一趟。
+///
+/// 每一帧一次 emit，就是每一个 token 一次 `RecordedEvent` 全量序列化、一次跨
+/// 进程投递、一次 webview 事件派发；一段长回答几千趟。而收帧的那一侧本来就只
+/// 按屏幕的节拍看一眼，所以投递的频率此前绑在 token 速率上，消费的频率绑在屏
+/// 幕上 —— 两条时钟不同源，中间那一段必然是白付的，而且 agent 越快付得越多。
+///
+/// 这里让前者服从后者：一拍之内的帧攒成一批，一次上线。
+///
+/// 不需要定时器，也就没有第二条时间线要管。「一拍之内不会再有下一帧」的处境
+/// 只有两种，两种都不是流：一轮的最后一帧必然是 run_finished 或 run_failed，
+/// 而权限请求之后 agent 就闭嘴等人答话。所以流以外的每一种帧都立刻发，连同
+/// 它前面攒着的那些，顺序原样 —— 攒着的批不可能卡在谁的手里。
+fn batched(app: AppHandle) -> FrameSink {
+    let mut held: Vec<RecordedEvent> = Vec::new();
+    let mut sent = Instant::now();
+
+    Box::new(move |event: &RecordedEvent| {
+        /* 判别式由帧自己说，这一侧不另立一套分类。 */
+        let streaming = event.frame.kind() == ACP_UPDATE;
+        let now = Instant::now();
+
+        held.push(event.clone());
+
+        if streaming && now.duration_since(sent) < FRAME_INTERVAL {
+            return;
+        }
+
+        sent = now;
+
+        // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
+        // 随 agent_open_thread 一起交回来。
+        let _ignored = app.emit(AGENT_EVENT, &held);
+
+        held.clear();
     })
 }
 
