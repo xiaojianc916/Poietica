@@ -51,7 +51,7 @@ pub const AGENT_SELECTORS: &str = "ai-selectors";
 /// 会话自己报来的选择器表走这一条。
 ///
 /// 与 [`AGENT_EVENT`] 分开，因为它们说的不是一件事：那一条是某一轮里的一帧，
-/// 而这一条不属于任何一轮 —— agent 在 session/update 里推 config_option_update
+/// 而这一条不属于任何一轮 —— agent 在 session/update 里推 `config_option_update`
 /// 时可能正在答话，也可能没有。混进同一条通道，就得让渲染层去分辨，而分辨的
 /// 依据只会是一个字符串标签。
 pub const AGENT_SELECTOR_EVENT: &str = "ai-selector-report";
@@ -100,7 +100,7 @@ const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50)
 /// 回收，只能靠 `list_threads` 的 WHERE EXISTS 挡在列表之外 —— 用每次读列表都要
 /// 付的一次子查询，去遮一次本不该发生的写入。
 #[derive(Debug)]
-struct Session {
+struct Connection {
     client: AgentClient,
     /// 这条连接起的是哪个 agent。寻址要拿它跟对话记下的那个比。
     agent_id: String,
@@ -124,7 +124,7 @@ pub struct AgentRuntime {
     root: PathBuf,
     slot: RunSlot,
     desk: PermissionDesk,
-    session: Mutex<Option<Session>>,
+    connection: Mutex<Option<Connection>>,
     /// 本次连接开出来的会话号。
     ///
     /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
@@ -168,7 +168,7 @@ impl AgentRuntime {
             root,
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
-            session: Mutex::new(None),
+            connection: Mutex::new(None),
             live: Mutex::new(HashSet::new()),
             turns: Arc::new(Mutex::new(HashMap::new())),
             store: OnceLock::new(),
@@ -410,7 +410,7 @@ pub fn agent_cancel(
     let addressed = turn_session(&state.turns, &request.run_id)?
         .ok_or_else(|| Error::NotFound(NO_TURN.to_owned()))?;
 
-    let guard = lock(&state.session)?;
+    let guard = lock(&state.connection)?;
     let live = guard
         .as_ref()
         .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
@@ -428,7 +428,7 @@ pub fn agent_cancel(
 #[tauri::command]
 #[specta::specta]
 pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
-    let taken = lock(&state.session)?.take();
+    let taken = lock(&state.connection)?.take();
 
     if let Some(live) = taken {
         // The process is going away either way, so a driver that already
@@ -623,7 +623,7 @@ pub struct AgentConfigControl {
 
 /// agent 自己换了设置之后报回来的整张表。
 ///
-/// 它带着 session_id，因为这是它唯一带得出的地址：帧里没有对话，会话号是
+/// 它带着 `session_id`，因为这是它唯一带得出的地址：帧里没有对话，会话号是
 /// agent 那侧的命名。反查由渲染层用「开这条会话时是哪条对话」去做。
 ///
 /// 它不出现在任何命令签名里，所以不进生成绑定 —— 事件不是命令。线上的形状
@@ -892,7 +892,7 @@ async fn ensure_session(
     let can_load_session = handshake.can_load_session;
     let can_delete_session = handshake.can_delete_session;
 
-    let mut guard = lock(&state.session)?;
+    let mut guard = lock(&state.connection)?;
 
     // Two prompts can race to be the first. The loser hands its process back
     // rather than leaving an orphan behind.
@@ -908,7 +908,7 @@ async fn ensure_session(
         });
     }
 
-    *guard = Some(Session {
+    *guard = Some(Connection {
         client: client.clone(),
         agent_id: agent_id.clone(),
         anchor: session_id.clone(),
@@ -930,7 +930,7 @@ async fn ensure_session(
 
 /// Reads the session without holding the lock across an await point.
 fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
-    let guard = lock(&state.session)?;
+    let guard = lock(&state.connection)?;
 
     Ok(guard.as_ref().map(|live| Handle {
         client: live.client.clone(),
@@ -1037,8 +1037,14 @@ where
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
-fn lock(session: &Mutex<Option<Session>>) -> Result<MutexGuard<'_, Option<Session>>> {
-    session
+/// 取那条连接，一句话的功夫。
+///
+/// 这个结构此前叫 `Session`，而它自己的文档第一行写着「一条连接自己不是任何
+/// 人的对话」。会话在这个模块里是一个有精确含义的协议名词：一条连接上有很多
+/// 条，每条属于一个对话。把连接叫成会话，等于让每一次读到 `state.connection` 的
+/// 人都在脑子里转换一次。
+fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<Connection>>> {
+    connection
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))
 }
@@ -1625,9 +1631,9 @@ pub async fn agent_rename_thread(
 
 /// Deletes a conversation and every frame recorded under it.
 ///
-/// 本地那一份删得干净：runs 挂在 threads 上，run_events、tool_calls、
+/// 本地那一份删得干净：runs 挂在 threads 上，`run_events`、`tool_calls`、
 /// permissions 各自挂在 runs 上，全是 ON DELETE CASCADE，而外键在
-/// open_encrypted 里是开着的。一句 DELETE 就够。
+/// `open_encrypted` 里是开着的。一句 DELETE 就够。
 ///
 /// 但一条对话有两份。agent 自己也存着它的全文，此前从没有人告诉过它这条
 /// 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此

@@ -340,11 +340,11 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
 /// 从用户全局 home 的 config.toml 里取出一家 provider 的完整密钥。
 ///
 /// 只为一次性导入服务：密钥从全局配置直达子进程的环境变量，全程不进渲染层。
-/// 扫描规则与 tails_from_config 逐字相同 —— 平表里的平字段，不认就报错而不是猜。
+/// 扫描规则与 `tails_from_config` 逐字相同 —— 平表里的平字段，不认就报错而不是猜。
 ///
 /// # Errors
 ///
-/// 文件不存在、读不到、或那一家的 api_key 缺席时返回错误。
+/// 文件不存在、读不到、或那一家的 `api_key` 缺席时返回错误。
 pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<String> {
     let global = app
         .path()

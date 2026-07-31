@@ -78,6 +78,36 @@ const AGENT_OPTIONS: readonly (readonly [string, string])[] = acpAgents().map(
 /** agents.json 那条写入失败时说什么。三个调用点共用一句。 */
 const AGENT_ACTION_FAILED = 'agent 配置操作失败，请重试。'
 
+/** 一家没导进去，以及 agent 说的原因。 */
+interface ImportFailure {
+  readonly id: string
+  readonly reason: string
+}
+
+/*
+ * agent 拒绝这一次写入时说了什么。
+ *
+ * 上游每一条失败路径都先往 stderr 写一行再退出，所以第一行非空就是全部原因
+ * （`Provider "x" not found in catalog at ...`、`Missing API key.`、
+ * `... lists no usable models ...`）。原文直出不改写：那一行指得到地方，
+ * 而一句读着体面的「导入失败」指不到任何地方。
+ *
+ * stderr 空就退回 stdout —— 有些失败是 commander 层打印的；两样都空时只剩
+ * 退出码，那也比不说强。
+ */
+function reasonOf(outcome: {
+  readonly status: number
+  readonly stdout: string
+  readonly stderr: string
+}): string {
+  const spoken = [outcome.stderr, outcome.stdout]
+    .flatMap((stream) => stream.split('\n'))
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+
+  return spoken ?? `退出码 ${String(outcome.status)}`
+}
+
 export interface ModelsSettingsProps {
   readonly store: AgentConfigStore
 }
@@ -227,8 +257,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     setImporting(true)
     setImportNote(null)
 
-    const importAll = async (): Promise<readonly string[]> => {
-      const failed: string[] = []
+    const importAll = async (): Promise<readonly ImportFailure[]> => {
+      const failed: ImportFailure[] = []
 
       for (const provider of usable) {
         try {
@@ -245,11 +275,11 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
           })
 
           if (outcome.status !== 0) {
-            failed.push(provider.id)
+            failed.push({ id: provider.id, reason: reasonOf(outcome) })
           }
-        } catch {
+        } catch (cause: unknown) {
           /* 一家失败不该让后面几家不再尝试。逐家记名，最后一次说清楚。 */
-          failed.push(provider.id)
+          failed.push({ id: provider.id, reason: describeAgentCliFailure(cause, '调用失败') })
         }
       }
 
@@ -262,7 +292,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         setImportNote(
           failed.length === 0
             ? `已导入 ${usable.length} 家 provider。`
-            : `已导入 ${usable.length - failed.length} 家，${failed.join('、')} 没有导入成功。`,
+            : `已导入 ${usable.length - failed.length} 家。` +
+                failed.map((one) => `${one.id}：${one.reason}`).join('；'),
         )
         setGlobalSnapshot(undefined)
         setGlobalNote(null)

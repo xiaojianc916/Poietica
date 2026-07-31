@@ -76,7 +76,7 @@ pub struct AgentCliRequest {
     pub use_global_home: bool,
     /// 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
     /// 密钥由原生侧从全局 config.toml 取出直达子进程，全程不进渲染层。
-    /// 与 secret_value 互斥（validate 会拒掉同带）。
+    /// 与 `secret_value` 互斥（validate 会拒掉同带）。
     #[serde(default)]
     pub secret_from_global_provider: Option<String>,
     // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的

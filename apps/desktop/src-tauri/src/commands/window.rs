@@ -12,8 +12,13 @@ use crate::error::Result;
 ///
 /// # Errors
 ///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
+/// 不会失败。窗口已经不在了就什么也不做 —— 一个关掉的窗口没有开发者工具可开，
+/// 那不是故障。
+///
+/// 此前这一段写的是「底层操作失败时返回错误」，而这个函数的每一条路径都返回
+/// `Ok` —— 那不是一段文档，是一句假话，它唯一的作用是让 clippy 闭嘴。返回
+/// `Result` 的真实理由是这张 `invoke_handler` 上的命令共用一个返回形状；要换成
+/// `()`，得连生成绑定和渲染层的调用点一起改。
 #[command]
 pub async fn window_open_devtools(app: AppHandle, label: String) -> Result<()> {
     if let Some(window) = app.get_webview_window(&label) {
@@ -33,6 +38,12 @@ pub async fn window_open_devtools(app: AppHandle, label: String) -> Result<()> {
 /// 再过一遍：一条能把任意字符串交给系统 shell 的命令，不能只靠调用方自律。
 ///
 /// 打不开一个链接不是故障，不中断调用方。真实原因留在原生日志里。
+///
+/// # Errors
+///
+/// 不会失败，理由就是上面那句：拒掉一个非 web 协议、以及系统浏览器没能打开，
+/// 都各自记进日志，而不是变成一次调用失败。返回 `Result` 的理由与上面那条命令
+/// 相同。
 #[command]
 pub async fn window_open_external_url(url: String) -> Result<()> {
     let allowed =

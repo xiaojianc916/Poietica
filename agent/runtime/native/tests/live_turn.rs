@@ -180,18 +180,38 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
 
+    /* 选择器推送那一路不接。它的终点在桌面组合层（那里把它变成界面事件），
+    而这个测试证明的是驱动器自己走得通一轮。接收端在这里被丢掉，驱动器那侧的
+    发送随之失败并被忽略，这一轮不受影响。 */
     let AgentConnection {
         client,
-        session_id,
-        driver,
         book: _,
+        reports: _,
+        handshake,
+        driver,
     } = connect(spawn, slot, desk).expect("the program to be launchable");
 
     let mut driver = Driver::spawn(driver);
 
-    let session_id = driver.expect(session_id, "the agent never created a session");
+    /* 握手现在自己带着原因回来。此前这一格是一个只送会话号的通道，失败唯一
+    的表示就是发送端被丢掉 —— 于是「agent 要求先登录」在这里也只报成一句
+    「通道断了」，而这个测试正是最需要那个原因的地方。
 
-    println!("session: {session_id}");
+    这一行还是这个文件八轮编译不过的原因：那次改动没有走到这里，而它是
+    #[ignore] 的，Rust 又一直没有被编译。同一个文件里已经写着一句一模一样的
+    病历（「而它编译不过的事实一直没人看见」）—— 那句话说的是上一次。 */
+    let handshake = driver
+        .expect(handshake, "the agent never finished the handshake")
+        .expect("the handshake to succeed");
+
+    /* 两项能力只有真 agent 说得出来，所以只有在这里观察得到。它们决定了
+    「点开旧对话」和「删除对话」各自走哪条路。 */
+    println!(
+        "session: {} (load_session: {}, delete_session: {})",
+        handshake.session_id, handshake.can_load_session, handshake.can_delete_session
+    );
+
+    let session_id = handshake.session_id;
 
     // Nobody is here to answer a permission request, and an agent that asks one
     // would otherwise wait forever. Cancelling is both the escape and a free
