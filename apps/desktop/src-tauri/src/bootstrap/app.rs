@@ -2,7 +2,7 @@ use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
-use super::{logging, tray};
+use super::{logging, tray, updates};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
 use crate::paths::{AGENTS_STORE, SETTINGS_STORE};
@@ -96,12 +96,14 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.store(SETTINGS_STORE)?;
             app.store(AGENTS_STORE)?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
+            updates::spawn(app.handle());
 
             /*
              * 承接 skip_initial_state：初始几何恢复的责任在这里，不在插件。
@@ -132,8 +134,12 @@ pub fn build() -> tauri::Builder<Wry> {
              */
             let watchdog = main_window.clone();
 
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(8));
+            /*
+             * 一个 8 秒定时器不值得一整条 OS 线程。这个进程里已经有 Tauri 的
+             * async runtime，等待交给它，兜底逻辑本身一行没变。
+             */
+            async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(8)).await;
 
                 if watchdog.is_visible().unwrap_or(false) {
                     return;

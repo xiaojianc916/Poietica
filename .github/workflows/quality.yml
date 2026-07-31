@@ -78,8 +78,10 @@ jobs:
       - name: JavaScript tests
         run: pnpm test
 
-      - name: Build
-        run: pnpm build
+      # pnpm build 是整包 bundle（需要 Rust 与 NSIS），与 windows-desktop job
+      # 完全重复且这台机器没有 Rust 缓存。前端 job 构建前端。
+      - name: Build web assets
+        run: pnpm build:web
 
   windows-desktop:
     name: Windows Desktop

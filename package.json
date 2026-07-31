@@ -20,8 +20,8 @@
   "scripts": {
     "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "dev": "turbo run dev --filter=@poietica/desktop",
-    "build": "pnpm --filter @poietica/desktop exec tauri build",
-    "build:debug": "pnpm --filter @poietica/desktop exec tauri build --debug --no-bundle",
+    "build": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc",
+    "build:debug": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --debug --no-bundle",
     "build:web": "turbo run build",
     "check": "pnpm check:web && pnpm check:rust",
     "check:web": "biome ci . && node tests/architecture/run.mjs && turbo run typecheck test --continue",
@@ -43,7 +43,9 @@
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build",
     "tauri": "pnpm --filter @poietica/desktop exec tauri",
     "clean": "node scripts/clean.mjs",
-    "prepare": "node scripts/git-hooks/install.mjs"
+    "prepare": "node scripts/git-hooks/install.mjs",
+    "build:release": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
+    "version:set": "node scripts/release/set-version.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.5",

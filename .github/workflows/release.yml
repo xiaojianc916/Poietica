@@ -18,11 +18,15 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # 产物路径必须是确定的。构建脚本固定 --target，这里才敢写死这条路径。
+  BUNDLE_DIR: target/x86_64-pc-windows-msvc/release/bundle/nsis
+
 jobs:
-  windows-installers:
-    name: Windows installers
+  windows-installer:
+    name: Windows installer
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: write # required to create the draft release
 
@@ -51,8 +55,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Release preflight
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # 占位公钥发出去的后果是所有已安装客户端永远更新失败，且我们不会
+          # 收到任何信号。在构建之前拦下。
+          $conf = Get-Content "apps/desktop/src-tauri/tauri.conf.json" -Raw
+          if ($conf -match "REPLACE_WITH_TAURI_SIGNER_PUBKEY") {
+            throw "updater pubkey is still the placeholder. Run: pnpm tauri signer generate -w ~/.tauri/poietica.key"
+          }
+
       - name: Verify version consistency
         run: pnpm check:versions
+
+      # 发布必须来自绿灯提交。此前 release 只跑版本检查与依赖策略，
+      # 一个 lint 全红的 tag 照样能发出去。
+      - name: Quality gate
+        run: pnpm check
 
       - name: Dependency policy
         uses: EmbarkStudios/cargo-deny-action@v2
@@ -60,52 +81,57 @@ jobs:
           command: check
           arguments: --all-features
 
-      - name: Build installers
-        run: pnpm build
+      - name: Build installer
+        run: pnpm build:release
         env:
-          # Populate these secrets to produce signed installers. Unsigned
-          # builds still succeed, they just trigger SmartScreen.
-          TAURI_WINDOWS_CERTIFICATE: ${{ secrets.TAURI_WINDOWS_CERTIFICATE }}
-          TAURI_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.TAURI_WINDOWS_CERTIFICATE_PASSWORD }}
+          # updater 产物签名（Tauri 官方 minisign 密钥对）。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-      - name: Collect artifacts and checksums
-        id: collect
+      - name: Collect artifacts
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          $bundle = "target/x86_64-pc-windows-msvc/release/bundle"
           $out = "dist-release"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-          $installers = Get-ChildItem -Path $bundle -Recurse -Include *.msi, *.exe
-          if ($installers.Count -eq 0) {
-            throw "No installer was produced under $bundle"
+          $artifacts = Get-ChildItem -Path $env:BUNDLE_DIR -Include *.exe, *.sig -Recurse
+          if ($artifacts.Count -eq 0) {
+            throw "No installer was produced under $env:BUNDLE_DIR"
           }
 
-          foreach ($file in $installers) {
+          foreach ($file in $artifacts) {
             Copy-Item $file.FullName -Destination $out
           }
 
-          Get-ChildItem $out | ForEach-Object {
+      - name: Generate updater manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/release/latest-json.mjs "${{ env.BUNDLE_DIR }}" dist-release "${{ github.ref_name }}"
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Get-ChildItem "dist-release" -Filter *.exe | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)"
-          } | Set-Content -Path "$out/SHA256SUMS.txt" -Encoding utf8
+          } | Set-Content -Path "dist-release/SHA256SUMS.txt" -Encoding utf8
 
-          Get-Content "$out/SHA256SUMS.txt"
+          Get-Content "dist-release/SHA256SUMS.txt"
 
-      - name: Smoke test the NSIS installer
+      - name: Smoke test the installer
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           $setup = Get-ChildItem "dist-release" -Filter *-setup.exe | Select-Object -First 1
           if (-not $setup) {
-            Write-Host "No NSIS installer found, skipping smoke test."
-            exit 0
+            throw "No NSIS installer to smoke test"
           }
 
-          # /S is NSIS silent mode; currentUser install needs no elevation.
+          # /S 是 NSIS 静默模式；currentUser 安装不需要提权。
           Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
 
           $installed = Get-ChildItem "$env:LOCALAPPDATA\\Programs" -Recurse -Filter "Poietica.exe" -ErrorAction SilentlyContinue |
@@ -114,15 +140,23 @@ jobs:
             throw "Silent install did not place Poietica.exe"
           }
 
+          # 子系统回归检查：console 子系统的产物会给终端用户弹黑框。
+          $bytes = [System.IO.File]::ReadAllBytes($installed.FullName)
+          $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3C)
+          $subsystem = [System.BitConverter]::ToUInt16($bytes, $peOffset + 0x5C)
+          if ($subsystem -ne 2) {
+            throw "Poietica.exe is not a Windows GUI binary (subsystem = $subsystem)"
+          }
+
           $uninstaller = Join-Path $installed.Directory "uninstall.exe"
           if (Test-Path $uninstaller) {
             Start-Process -FilePath $uninstaller -ArgumentList "/S" -Wait
           }
 
-      - name: Upload installers
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: poietica-windows-installers
+          name: poietica-windows-installer
           path: dist-release/*
           if-no-files-found: error
           retention-days: 14

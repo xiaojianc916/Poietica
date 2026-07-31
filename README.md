@@ -164,7 +164,8 @@ pnpm dev
 | `pnpm format:check` | Verify source formatting. |
 | `pnpm test:architecture` | Verify architectural, state-ownership, and UI-boundary constraints. |
 | `pnpm test` | Run frontend and Rust tests. |
-| `pnpm build` | Build the desktop frontend. |
+| `pnpm build:web` | Build the web assets. |
+| `pnpm build` | Build the Windows installer (NSIS). |
 | `pnpm clippy` | Run Rust Clippy with warnings treated as errors. |
 | `pnpm audit` | Audit JavaScript dependencies for high-severity vulnerabilities. |
 | `pnpm audit:rust` | Check Rust advisories, licenses, dependency sources, and policy rules. |
