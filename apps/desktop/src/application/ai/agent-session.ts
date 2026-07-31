@@ -139,8 +139,6 @@ async function readModels(
   const outcome = await store.execCli({
     agentId,
     args: [...listArgs],
-    secretVar: '',
-    secretValue: '',
   })
 
   /*

@@ -94,8 +94,6 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
       .execCli({
         agentId,
         args: [...listArgs],
-        secretVar: '',
-        secretValue: '',
       })
       .then(
         (outcome) => {

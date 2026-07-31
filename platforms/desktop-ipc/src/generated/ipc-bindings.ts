@@ -535,13 +535,17 @@ agentId: string;
 args: string[]; 
 /**
  * 要注入的凭据环境变量名。它不是秘密，只是个名字。
+ * 
+ * 缺席即不注入。此前它是必填，于是一次只读的 provider list 也得先声称自己
+ * 带着凭据、再用一对空字符串把这句话收回去 —— 用 "" 编码「没有」，而 ""
+ * 同时也是一个合法的变量名。
  */
-secretVar: string; 
+secretVar?: string; 
 /**
  * 凭据本身。只在内存里过一趟：注入子进程后随请求一起丢弃，不落盘、不进
- * 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。留空表示不注入。
+ * 日志，也永远不上命令行（见 `FORBIDDEN_FLAGS`）。缺席即不注入。
  */
-secretValue: string; 
+secretValue?: string; 
 /**
  * api.json 形状的目录文档：只在 catalog add 时携带。它会被绑在一次性
  * loopback 服务上，经官方 --url 喂给对方的目录命令。

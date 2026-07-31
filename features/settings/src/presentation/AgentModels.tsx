@@ -178,8 +178,6 @@ export function AgentModels({
       .execCli({
         agentId,
         args: [...listArgs],
-        secretVar: '',
-        secretValue: '',
         useGlobalHome: true,
       })
       .then(
@@ -432,8 +430,6 @@ export function AgentModels({
         .execCli({
           agentId,
           args: ['provider', 'remove', providerId],
-          secretVar: '',
-          secretValue: '',
         })
         .then(
           (outcome) => {
