@@ -83,6 +83,16 @@ export interface WorkbenchSessionCommands {
 
   readonly activateTab: (tabId: WorkbenchTabId) => void
   readonly closeTab: (tabId: WorkbenchTabId) => void
+
+  /**
+   * 这条对话不存在了：开着它的那一格跟着消失。
+   *
+   * 与 closeTab 不是同一件事。closeTab 说的是「人按了叉」，身份是标签；
+   * 这里说的是「这条对话没了」，身份是 threadId —— 调用方不必知道它此刻
+   * 有没有被提升成标签，也不必自己去拼 tab id。正在看着它时按标签条的
+   * 顺序落到邻居上，一格都不剩就回到「新建对话」。
+   */
+  readonly closeConversation: (threadId: ConversationId) => void
   readonly moveTab: (tabId: WorkbenchTabId, targetIndex: number) => void
 }
 

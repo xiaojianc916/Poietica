@@ -260,6 +260,42 @@ export class TranscriptStore {
     this.#routes.set(sessionId, key)
   }
 
+  /**
+   * 这条对话不存在了。
+   *
+   * 删除是一条对话的终点，不是一次淘汰：转录、别名、以及指向它的每一条
+   * 路由都在这一刻作废。此前清理只有 LRU 一条路径（#evict），而那条路径
+   * 明确跳过有人正订阅着的键 —— 于是被删掉的那条对话，只要标签页还开着
+   * 就永远读得回来，屏幕上照旧是它的全文。
+   *
+   * 删完就通知：还挂着的界面下一帧读到的是 EMPTY，不是一份不存在的东西。
+   */
+  forget = (key: string): void => {
+    const real = this.#resolveKey(key)
+    const draft = this.#aliased.get(real)
+
+    this.#held.delete(real)
+    this.#aliased.delete(real)
+    this.#dirty.delete(real)
+
+    if (draft !== undefined) {
+      this.#alias.delete(draft)
+    }
+
+    /* 会话号那张表也是按对话记的：留着它，死会话的帧仍会找到主人。 */
+    for (const [sessionId, owner] of this.#routes) {
+      if (owner === real) {
+        this.#routes.delete(sessionId)
+      }
+    }
+
+    this.#fire(real)
+
+    if (draft !== undefined) {
+      this.#fire(draft)
+    }
+  }
+
   /** 这条对话此刻有没有一轮在飞。 */
   busy = (key: string): boolean => running(this.read(key).timeline.status)
 

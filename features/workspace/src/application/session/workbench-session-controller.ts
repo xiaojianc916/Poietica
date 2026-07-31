@@ -166,27 +166,25 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     emit()
   }
 
-  function closeTab(tabId: WorkbenchTabId): void {
-    const closingIndex = entries.findIndex((entry) => entry.id === tabId)
+  /*
+   * 拿掉一格，并决定接下来看哪一格。
+   *
+   * 「人按了叉」与「这条对话没了」是两个入口、同一套后果：右邻居优先，
+   * 没有就左邻居，一格都不剩就回到启动时那一格。两处各写一遍必然分叉，
+   * 所以这段只有一份。
+   *
+   * 移除之后，原索引处正好是右邻居，原索引减一是左邻居 —— 此前那里还挂着
+   * 第三个兜底 entries[0]，前两者已经穷尽了非空数组的所有情形，它到不了。
+   */
+  function dropEntry(index: number): void {
+    const wasActive = entries[index]?.id === activeTabId
 
-    if (closingIndex < 0) {
-      return
-    }
-
-    const closingEntry = entries[closingIndex]
-
-    if (!closingEntry?.canClose) {
-      return
-    }
-
-    const wasActive = tabId === activeTabId
-
-    entries = entries.filter((entry) => entry.id !== tabId)
+    entries = entries.filter((_, candidate) => candidate !== index)
 
     if (wasActive) {
-      const nextEntry = entries[closingIndex] ?? entries[closingIndex - 1] ?? entries[0]
+      const nextEntry = entries[index] ?? entries[index - 1]
 
-      if (!nextEntry) {
+      if (nextEntry === undefined) {
         entries = [DEFAULT_ENTRY]
         activeTabId = DEFAULT_ENTRY.id
       } else {
@@ -195,6 +193,34 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     }
 
     emit()
+  }
+
+  function closeTab(tabId: WorkbenchTabId): void {
+    const index = entries.findIndex((entry) => entry.id === tabId)
+
+    if (index < 0 || entries[index]?.canClose !== true) {
+      return
+    }
+
+    dropEntry(index)
+  }
+
+  /*
+   * 删掉的那条对话，开着它的那一格跟着走。
+   *
+   * canClose 在这里不参与判断：它说的是「人能不能按叉关掉」，而这一格的
+   * 内容此刻已经不存在了 —— 留着它就是留一片读不回来的空白。
+   */
+  function closeConversation(threadId: ConversationId): void {
+    const index = entries.findIndex(
+      (entry) => entry.kind === 'conversation' && entry.threadId === threadId,
+    )
+
+    if (index < 0) {
+      return
+    }
+
+    dropEntry(index)
   }
 
   function moveTab(tabId: WorkbenchTabId, targetIndex: number): void {
@@ -249,6 +275,7 @@ export function createWorkbenchSessionController(): WorkbenchSessionStore {
     setConversationTitle,
     activateTab,
     closeTab,
+    closeConversation,
     moveTab,
   }
 }

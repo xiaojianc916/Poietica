@@ -32,6 +32,8 @@ export interface TranscriptSink {
   readonly failed: (threadId: string, cause: unknown) => void
   /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void
+  /** 这条对话不存在了：转录连同指向它的路由一起作废。 */
+  readonly forget: (threadId: string) => void
   /**
    * 这条对话此刻有没有一轮在飞。
    *
@@ -130,6 +132,9 @@ export class ThreadsStore {
 
   #listeners = new Set<() => void>()
 
+  /* 想知道「某条对话没了」的人。 */
+  #removed = new Set<(threadId: string) => void>()
+
   /* 一次索引，而不是每一行各扫一遍整张表。 */
   #byId = new Map<string, ThreadRecord>()
 
@@ -221,6 +226,21 @@ export class ThreadsStore {
 
     return () => {
       this.#listeners.delete(listener)
+    }
+  }
+
+  /**
+   * 某条对话被删除的那一刻；交回取消订阅的办法。
+   *
+   * 「这条对话存不存在」的权威只有这一份，所以说得出这句话的也只有这里。
+   * 谁需要跟着收拾（工作台上开着它的那一格，以后可能出现的别的观众）由他们
+   * 自己来听 —— 而不是让每一个删除入口各自记得再删一遍标签，那是两条写路径。
+   */
+  onRemoved = (listener: (threadId: string) => void): (() => void) => {
+    this.#removed.add(listener)
+
+    return () => {
+      this.#removed.delete(listener)
     }
   }
 
@@ -391,12 +411,26 @@ export class ThreadsStore {
     this.#actual.delete(threadId)
     this.#tried.delete(threadId)
 
+    /* 会话号那张反查表同样按对话记。#hold 只写不删，删除是它唯一的出口。 */
+    for (const [sessionId, owner] of this.#sessions) {
+      if (owner === threadId) {
+        this.#sessions.delete(sessionId)
+      }
+    }
+
     this.#commit({
       threads: this.#held.threads.filter((thread) => thread.threadId !== threadId),
       pending: this.#held.pending.filter((thread) => thread.threadId !== threadId),
       selectors: this.#without(this.#held.selectors, threadId),
       selectorFailure: this.#without(this.#held.selectorFailure, threadId),
     })
+
+    /* 经过随对话一起作废：删掉的东西不该还能被读回来。 */
+    this.#transcripts?.forget(threadId)
+
+    for (const listener of this.#removed) {
+      listener(threadId)
+    }
 
     await this.#settle(act(threadId))
   }

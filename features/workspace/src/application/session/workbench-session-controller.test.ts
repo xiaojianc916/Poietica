@@ -1,14 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { createWorkbenchSessionController } from './workbench-session-controller'
-
-beforeEach(() => {
-  let id = 0
-
-  vi.stubGlobal('crypto', {
-    randomUUID: () => `generated-${String(++id)}`,
-  })
-})
 
 describe('workbench session controller', () => {
   it('starts on the AI workspace surface', () => {
@@ -129,5 +121,36 @@ describe('workbench session controller', () => {
     store.moveTab('workspace:ai', 2)
 
     expect(store.getSnapshot().tabs[2]?.id).toBe('workspace:ai')
+  })
+
+  it('drops the tab of a deleted conversation and lands on a neighbour', () => {
+    const store = createWorkbenchSessionController()
+
+    store.openConversationInNewTab({ threadId: 'thread-1', title: 'One' })
+    store.openConversationInNewTab({ threadId: 'thread-2', title: 'Two' })
+    store.activateTab('conversation:thread-1')
+
+    store.closeConversation('thread-1')
+
+    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
+      'workspace:ai',
+      'conversation:thread-2',
+    ])
+    expect(store.getSnapshot().activeTabId).toBe('conversation:thread-2')
+  })
+
+  it('falls back to the conversation entry when the last tab is deleted', () => {
+    const store = createWorkbenchSessionController()
+
+    store.openConversation({ threadId: 'thread-1', title: 'One' })
+
+    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['conversation:thread-1'])
+
+    store.closeConversation('thread-1')
+
+    expect(store.getSnapshot()).toMatchObject({
+      activeTabId: 'workspace:ai',
+      activeSurface: { kind: 'workspace', surfaceId: 'ai' },
+    })
   })
 })

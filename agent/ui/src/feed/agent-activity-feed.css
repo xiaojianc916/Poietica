@@ -33,8 +33,13 @@
  * 下沿不涂颜色,用遮罩化开:涂色必须先假定背后是什么颜色,再准也只是一块压在
  * 字上的色块;遮罩按渐变抹掉像素本身的不透明度,换主题、换背景都成立。停靠点
  * 是加权的而非线性 —— 线性的 alpha 在感知上前段掉得太快、尾巴又拖着。遮罩常开,
- * 不需要「下面还有没有内容」这个状态:下内边距等于溶解长度,滚到底时最后一行
- * 永远停在溶解带之外。
+ * 不需要「下面还有没有内容」这个状态：末端永远有一段清空距离，
+ * 滚到底时最后一行停在溶解带之外。
+ *
+ * 这段距离此前是这个盒子的下内边距，也就是「转录之后」—— 而虚拟器只认转录，
+ * 它算出来的末端因此比真实末端短了这么多，流式输出静止后总能再往下拨一点。
+ * 现在它在 .agent-activity-feed__tail 里，由 paddingEnd 声明给虚拟器，末端
+ * 于是只有一个定义。
  */
 .agent-activity-feed__viewport {
   position: relative;
@@ -47,7 +52,7 @@
   overflow-anchor: none;
   overscroll-behavior: contain;
   contain: layout paint;
-  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
+  padding-block-start: var(--cp-gutter);
   padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
   mask-image: linear-gradient(
     to bottom,
@@ -96,15 +101,32 @@
 }
 
 /*
- * 属于这一轮而不属于其中某一条的东西:在转录之后、滚动区之内,跟着一起滚。
- */
-.agent-activity-feed__footer {
-  position: relative;
-  padding-block: var(--cp-feed-row-gap);
-}
-
-/*
  * 这里曾经有两条"这几帧不要动画"的规则:一条给回放,一条给减弱动态偏好。它们
  * 关的都是那段 flex-grow 补间 —— 补间没有了,需要被关掉的东西也就没有了。用
  * 一个开关去抑制一段本来就不该存在的动画,是治标;让它不存在,才不需要开关。
  */
+
+/*
+ * 转录的尾部。
+ *
+ * 它装两样东西：属于这一轮而不属于其中某一条的内容（等待指示器），以及末端那段
+ * 让最后一行避开溶解带的清空距离。两样都是「在最后一行之后、仍然跟着一起滚」，
+ * 所以它们是同一件事，用同一个盒子。
+ *
+ * 绝对定位，坐在转录框底部由 paddingEnd 预留出来的那块空间里 —— 转录框的高度是
+ * 虚拟器给的，尾部若走文档流就会把它撑破。它的实测高度反过来就是 paddingEnd：
+ * 声明与实物是同一个数，不会各走一边。
+ *
+ * 没有等待指示器时它只剩清空距离，所以上间距归 :not(:empty) 管：一个空盒子不该
+ * 自带一段间距。
+ */
+.agent-activity-feed__tail {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  padding-block-end: var(--cp-dock-dissolve);
+}
+
+.agent-activity-feed__tail:not(:empty) {
+  padding-block-start: var(--cp-feed-row-gap);
+}

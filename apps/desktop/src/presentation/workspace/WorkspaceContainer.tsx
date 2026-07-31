@@ -18,7 +18,8 @@ import {
   WorkspaceShell,
   WorkspaceSurface,
 } from '@poietica/features-workspace/react'
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useThreadsActions } from '../../application/ai/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantWiring } from './assistant-wiring'
@@ -74,6 +75,17 @@ export function WorkspaceContainer({
     workspace.getSnapshot,
     workspace.getSnapshot,
   )
+
+  const threads = useThreadsActions()
+
+  /*
+   * 一条对话被删除时，开着它的那一格跟着消失。
+   *
+   * 接线只有这一处：删除的写路径是 ThreadsStore.remove，工作台在这里听它。
+   * 侧栏那个菜单项因此不需要知道标签的存在 —— 否则命令面板、快捷键、以后
+   * 任何第二个删除入口都要各自记得再关一次标签，漏一个就是今天这个 bug。
+   */
+  useEffect(() => threads.onRemoved(workspace.closeConversation), [threads, workspace])
 
   const actions = useMemo<WorkspaceShellActions>(
     () => ({

@@ -96,8 +96,11 @@ export interface AgentActivityFeedProps {
   /**
    * 转录之后、滚动区之内。
    *
-   * 用于属于这一轮而不属于其中某一条的东西,例如等待。缺席就是缺席:undefined,
+   * 用于属于这一轮而不属于其中某一条的东西，例如等待。缺席就是缺席：undefined，
    * 不是 null。
+   *
+   * 它落在转录末端由 paddingEnd 预留出的那块空间里，因此仍然跟着一起滚，而虚拟器
+   * 知道它占了多少 —— 「转录之后」与「滚动区之内」不再是两个互相不知道的事实。
    */
   readonly footer?: ReactNode
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
@@ -113,6 +116,7 @@ export function AgentActivityFeed({
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
+  const tailRef = useRef<HTMLDivElement | null>(null)
 
   /*
    * 行的落点要踩在设备像素上。
@@ -141,6 +145,21 @@ export function AgentActivityFeed({
    * offsetTop,不需要两次 getBoundingClientRect 再减去 scrollTop。
    */
   const [scrollMargin, setScrollMargin] = useState(0)
+
+  /*
+   * 转录之后还有多少东西。
+   *
+   * scrollMargin 说的是转录之前，这个说的是转录之后，两者必须成对存在：滚动盒的
+   * 末端等于 scrollMargin + getTotalSize() + 这一段，而虚拟器算末端时只用前两项。
+   * 少声明一头，它的「底」就永远比真正的底高出这么多 —— 那正是流式输出停下之后
+   * 还能再往下拨一点的距离，而且它落在 BOTTOM_THRESHOLD_PX 的容差里，所以既不会
+   * 被察觉、也不会被纠正。
+   *
+   * 交给 paddingEnd 之后，这段空间进入虚拟器的坐标系，两个末端合成一个。数值是实
+   * 测的而不是抄自令牌：尾部里装着等待指示器，高度本来就不是常量，而抄一份令牌就
+   * 意味着 CSS 改了这里不会跟。
+   */
+  const [tailSize, setTailSize] = useState(0)
 
   /*
    * 人此刻是不是贴在末端。
@@ -314,6 +333,7 @@ export function AgentActivityFeed({
      */
     getItemKey: (index) => rows[index]?.item.id ?? index,
     scrollMargin,
+    paddingEnd: tailSize,
     /*
      * 哪一侧稳定，取决于此刻正在发生什么 —— 它不是一个常量。
      *
@@ -372,11 +392,16 @@ export function AgentActivityFeed({
    * 带着 items.length —— 而滚动经过每一个 overscan 边界都会改变可见行数，于是
    * 滚动期间反复强制同步布局，量的还是一个与转录长度无关的量。
    */
-  const measureMargin = useCallback(() => {
+  const measureBounds = useCallback(() => {
     const transcript = transcriptRef.current
+    const tail = tailRef.current
 
     if (transcript !== null) {
       setScrollMargin(transcript.offsetTop)
+    }
+
+    if (tail !== null) {
+      setTailSize(tail.offsetHeight)
     }
   }, [])
 
@@ -428,17 +453,22 @@ export function AgentActivityFeed({
      * 停在旧值，虚拟器算出来的位置整体错开那么多。
      */
     const observer = new ResizeObserver(() => {
-      measureMargin()
+      measureBounds()
       scheduleSync()
     })
 
     observer.observe(viewport)
     observer.observe(transcript)
 
+    /* 等待指示器出现与消失都改变末端的位置，而它们不产生滚动事件。 */
+    if (tailRef.current !== null) {
+      observer.observe(tailRef.current)
+    }
+
     return () => {
       observer.disconnect()
     }
-  }, [measureMargin, scheduleSync])
+  }, [measureBounds, scheduleSync])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。
@@ -530,9 +560,17 @@ export function AgentActivityFeed({
               )
             })}
           </div>
+          {/*
+           * 尾部坐在 paddingEnd 预留出来的那块空间里。
+           *
+           * 它此前是转录的兄弟，也就是「虚拟器看不见的地方」—— 滚动盒因此比虚拟
+           * 器以为的更长。恒定挂载：末端的清空距离与等待指示器在不在无关，而一个
+           * 会时有时无的元素会让末端的位置也时有时无。
+           */}
+          <div className="agent-activity-feed__tail" ref={tailRef}>
+            {footer}
+          </div>
         </div>
-
-        {footer === undefined ? null : <div className="agent-activity-feed__footer">{footer}</div>}
       </div>
 
       {overlay === undefined ? null : overlay({ activeRow, scrollToRow })}
