@@ -40,6 +40,15 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 侧给出的那一句，而不是一句无从下手的"读取失败"。 */
 const UNAVAILABLE = '没连上 agent，点击重试'
 
+/*
+ * 模型那一行为什么灰着。
+ *
+ * 灰掉而不说原因，人只会以为它坏了。上游在这一刻给的是一句错误
+ * （Cannot switch models while streaming — press Esc or Ctrl-C first），
+ * 我们这里有停止键，所以话说到"停下"为止。
+ */
+const BUSY_HINT = '正在回答，停下才能换模型'
+
 const ORDER = ['model', 'thought', 'other'] as const
 
 /** Where a purpose sits; anything unrecognised sorts last rather than away. */
@@ -56,7 +65,29 @@ function chosen(control: SessionConfigControl): string {
   )
 }
 
+/*
+ * 一轮回答正在跑的时候，模型换不得。
+ *
+ * 上游 kimi-code 的 performModelSwitch 第一行就是这个判据：
+ * streamingPhase !== 'idle' 直接拒绝。理由不是并发安全，是语义——这一句
+ * 已经发给某个模型了，中途改人不会让它换个人重答，只会让下一句话和这一句
+ * 话的落款对不上。
+ *
+ * 判据只写在这里一处，画成灰的和拦下来的读的是同一句话。两处各写一遍，
+ * 就会有"灰着但点得动"或者"亮着但没反应"的那一天。
+ */
+function isLocked(busy: boolean | undefined, control: SessionConfigControl): boolean {
+  return busy === true && control.purpose === 'model'
+}
+
 export interface SessionControlsProps {
+  /**
+   * 这一格所属的那条对话正在被回答。
+   *
+   * 它不是在这里问出来的：相位属于会话，会话属于对话。这一层拿到的是
+   * 输入框那一侧已经握着的同一个 status，不另开一条通路去打听。
+   */
+  readonly busy?: boolean | undefined
   readonly controls: readonly SessionConfigControl[]
   readonly failure?: string | undefined
   readonly onSelect: (controlId: string, value: string) => void
@@ -64,7 +95,13 @@ export interface SessionControlsProps {
   readonly onRetry?: (() => void) | undefined
 }
 
-export function SessionControls({ controls, failure, onRetry, onSelect }: SessionControlsProps) {
+export function SessionControls({
+  busy,
+  controls,
+  failure,
+  onRetry,
+  onSelect,
+}: SessionControlsProps) {
   /*
    * 模式不在这一格。
    *
@@ -136,9 +173,18 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
           </div>
         )}
 
+        {busy === true ? (
+          <div className="assistant-config-menu__row" role="status">
+            <span className="assistant-config-menu__row-label">{BUSY_HINT}</span>
+          </div>
+        ) : null}
+
         {rows.map((control) => (
           <DropdownMenuSub key={control.id}>
-            <DropdownMenuSubTrigger className="assistant-config-menu__row">
+            <DropdownMenuSubTrigger
+              className="assistant-config-menu__row"
+              disabled={isLocked(busy, control)}
+            >
               <span className="assistant-config-menu__row-label">{control.label}</span>
 
               <span className="assistant-config-menu__row-value">{chosen(control)}</span>
@@ -162,6 +208,11 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
               <DropdownMenuRadioGroup
                 onValueChange={(value) => {
                   if (value === control.current) {
+                    return
+                  }
+
+                  /* 灰掉的那一行本来就点不动，这里兜的是别的入口。 */
+                  if (isLocked(busy, control)) {
                     return
                   }
 

@@ -87,7 +87,12 @@ function ComposerToolbar({
         都把它放在发送键这一侧。左下那一簇回答的是另一个问题——往这句话里加
         什么。
       */}
+      {/*
+        这一格已经握着 status 了，发送键读的就是它。选择器此前没接，
+        于是一轮回答跑着的时候模型仍然可以被拨走。
+      */}
       <SessionControls
+        busy={status === 'streaming'}
         controls={controls}
         failure={controlsFailure}
         onRetry={onRetryControls}
