@@ -7,6 +7,7 @@ import { useAgentDialect } from './domain/agent-dialect'
 import { isQuestionRequest } from './domain/ask-user-question'
 import { Surface } from './primitives/surface'
 import { OutcomeCard } from './timeline/OutcomeCard'
+import { Prose } from './timeline/Prose'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { type ToolContentPart, toDiffStat, toToolContentParts } from './timeline/tool-call-content'
 
@@ -134,7 +135,15 @@ function PermissionSubject({
         </p>
       ) : null}
 
-      {said.length > 0 ? <pre className="assistant-permission__command">{said}</pre> : null}
+      {/*
+       * 这段文本和工具卡里的那一段是同一个东西 —— toToolContentParts 的 text
+       * part。所以它走同一个组件。计划模式送来的是一整份 markdown 文档，此前
+       * 在这里以 # 与 ** 的原文出现，正是因为这条通道上还留着一个裸 <pre>。
+       * 内容已经落定，流式修补与逐词揭示都关掉。
+       */}
+      {said.length > 0 ? (
+        <Prose className="assistant-permission__command" isStreaming={false} text={said} />
+      ) : null}
     </div>
   )
 }

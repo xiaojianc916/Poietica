@@ -13,7 +13,7 @@ import {
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
 import { Prose } from './Prose'
-import { toDiffStat, toToolContentParts } from './tool-call-content'
+import { toToolCallView } from './tool-call-content'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
@@ -52,8 +52,7 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  */
 export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
   const { isOpen, toggle } = useDisclosure(item.status === 'failed')
-  const parts = toToolContentParts(item.content)
-  const diffStat = toDiffStat(parts)
+  const { diffStat, parts } = toToolCallView(item)
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
   return (

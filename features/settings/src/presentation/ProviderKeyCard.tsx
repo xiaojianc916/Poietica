@@ -73,8 +73,8 @@ export function ProviderKeyCard({
    * React 18 起「卸载后 setState」不再是错误，那条警告本身已被官方删掉
    * （facebook/react#22114）。而它真该防的那件事它也防不住：这张卡的 key 是
    * provider id，换 agent 时组件不重建，于是在 A 上按下保存、立刻切到 B，回执会
-   * 落在 B 的界面上 —— 那一刻 mounted.current 为真。换 agent 的作废由外壳的
-   * key={agentId} 整棵重建来做，见 AgentModels。
+   * 落在 B 的界面上 —— 那一刻组件还挂着，任何按卸载判断的守卫都会放行。换 agent
+   * 的作废由外壳的 key={agentId} 整棵重建来做，见 AgentModels。
    */
 
   /*

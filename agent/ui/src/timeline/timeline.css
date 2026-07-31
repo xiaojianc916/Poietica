@@ -1155,11 +1155,31 @@
  * 卡片里的 markdown。
  *
  * 排版本身全部来自 .timeline-prose —— Prose 组件自带那个类，所以标题级差、
- * 围栏、表格与回答里的完全同款，这里不再写第二套。这条规则只说两件卡片自己
- * 的事：与同卡其它块一致的留白，以及比回答低半档的字号（卡片是附注，不是
- * 主文）。
+ * 围栏、表格与回答里的完全同款，这里不再写第二套。
+ *
+ * 盒子的那几条则必须自己声明，而且取值与它取代的那个 <pre> 逐条一致：底色、
+ * 上限、滚动、留白。它们此前是搭在 .timeline-tool__diff-old / __diff-new 那一
+ * 组选择器里的，换成 markdown 之后这个块不再属于那一组，于是三样一起没了 ——
+ * 一次输出既不封顶也没有底色，白底一直铺到底。上限归 --cp-timeline-output-max，
+ * 与两侧 diff 同一个 token：同一张卡里的三种输出不该有三个高度。
  */
 .timeline-tool__prose {
-  padding: 0.5rem 0.75rem;
+  max-block-size: var(--cp-timeline-output-max);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.625rem 0.75rem;
+  background: var(--cp-timeline-output-surface);
   font-size: var(--ui-prose-size-aux);
+}
+
+/*
+ * 行内代码在这张卡里要再退一档。
+ *
+ * 它平时的底色就是 --cp-timeline-output-surface —— 那在回答里是对的，因为回答
+ * 铺在卡面上。可这个块自己已经是那个颜色了，同色叠同色，胶囊直接消失。所以在
+ * 这个作用域里往上挪一档，用 hover 那一层：仍是同一套灰阶，只是不再和自己的
+ * 背景撞在一起。
+ */
+.timeline-tool__prose :not(pre) > code {
+  background: var(--cp-hover);
 }

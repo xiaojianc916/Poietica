@@ -415,9 +415,9 @@ export function AgentModels({
    * 删除就是官方 CLI 的 provider remove：provider 与它的全部模型别名一起消失，默认模型
    * 若指着它也会被对方清空。没有回收站 —— 所以删除是两步。
    *
-   * 删完不再重读 agents.json：这条命令改的是 agent 自己的 config.toml，而 store.load()
-   * 读的是 agents.json，那次往返拿不回任何新东西。失败的话说在这一块里，而不是顶上那张
-   * 与它无关的「ACP Agent」卡片的副标题上。
+   * 删完不再重读 agents.json：这条命令改的是 agent 自己的 config.toml，而那次读取取回
+   * 的是接入档案，与刚删掉的 provider 没有关系，拿不到任何新东西。失败的话说在这一块
+   * 里，而不是顶上那张与它无关的「ACP Agent」卡片的副标题上。
    */
   const removeKey = useCallback(
     (providerId: string) => {

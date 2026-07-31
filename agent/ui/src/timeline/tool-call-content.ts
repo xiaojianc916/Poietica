@@ -1,4 +1,5 @@
 import type { AcpToolCallContent } from '@poietica/agent-protocol'
+import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { diffLines } from 'diff'
 
 /**
@@ -86,8 +87,11 @@ export interface DiffStat {
  *
  * 比对交给 jsdiff：Myers 差分是有标准答案的问题，手写一份只会多一份要维护的
  * 边界情况。新建文件没有前一版，整份文本都是新增。
+ *
+ * 不再对外：Myers 是 O(N·D)，一个随手可调的导出等于邀请下一个人在渲染路径上
+ * 再调一次。结果只经 toToolCallView 出去，那里记着。
  */
-export function toDiffStat(parts: readonly ToolContentPart[]): DiffStat | null {
+function diffStatOf(parts: readonly ToolContentPart[]): DiffStat | null {
   let added = 0
   let removed = 0
   let sawDiff = false
@@ -112,4 +116,44 @@ export function toDiffStat(parts: readonly ToolContentPart[]): DiffStat | null {
   }
 
   return sawDiff ? { added, removed } : null
+}
+
+/** 一次工具调用画出来需要的全部东西，一趟算完。 */
+export interface ToolCallView {
+  readonly parts: readonly ToolContentPart[]
+  /** 这次调用改了多少行；没带 diff 时是 null。 */
+  readonly diffStat: DiffStat | null
+}
+
+/*
+ * 按 item 引用记一次。
+ *
+ * 键是 reducer 冻结过的那个 item：任何变更都造新对象，所以「同一个引用 ⇒ 同一
+ * 份结果」是构造保证的，不是约定。上游 timeline-selectors.ts 的行投影用的是同
+ * 一张形状的表，这里不引入第二种记忆化范式。
+ *
+ * 不用 useMemo。转录区是虚拟化的，卡片滚出视口就卸载，useMemo 的缓存跟着一起
+ * 走 —— 偏偏在长会话里最需要它的时候失效。WeakMap 的生命周期跟着数据而不是跟
+ * 着组件实例，而且旧 item 被回收时缓存自动消失，不需要任何淘汰策略。
+ *
+ * 值得记的原因是它不便宜：diffStatOf 里是 Myers 差分，而调用它的
+ * ToolCallCard 函数体每一帧都要跑一遍 —— 流式期间每个 chunk 都会让整个 feed
+ * 重渲，视口里每一张带 diff 的卡片都在里面，包括早就结束的、包括折叠着的
+ * （徽章画在 button 上，不在 DisclosureBody 里）。
+ */
+const VIEWS = new WeakMap<ToolCallTimelineItem, ToolCallView>()
+
+export function toToolCallView(item: ToolCallTimelineItem): ToolCallView {
+  const held = VIEWS.get(item)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const parts = toToolContentParts(item.content)
+  const view: ToolCallView = { diffStat: diffStatOf(parts), parts }
+
+  VIEWS.set(item, view)
+
+  return view
 }
