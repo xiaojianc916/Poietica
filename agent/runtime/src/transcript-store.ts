@@ -397,7 +397,14 @@ export class TranscriptStore {
   }
 
   #fire(key: string): void {
-    for (const listener of this.#listeners.get(key) ?? []) {
+    /* 没人听就是没人听：?? [] 会为每一帧白建一个空数组，而 #put 一帧调一次。 */
+    const set = this.#listeners.get(key)
+
+    if (set === undefined) {
+      return
+    }
+
+    for (const listener of set) {
       listener()
     }
   }
@@ -434,7 +441,8 @@ export class TranscriptStore {
       return
     }
 
-    for (const key of [...this.#held.keys()]) {
+    /* Map 的迭代器允许在遍历中删除已访问项，快照因此是白付的一次分配。 */
+    for (const key of this.#held.keys()) {
       if (this.#held.size <= HELD_KEYS) {
         return
       }

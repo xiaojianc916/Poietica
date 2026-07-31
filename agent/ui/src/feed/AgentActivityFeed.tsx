@@ -350,7 +350,7 @@ export function AgentActivityFeed({
    */
   useLayoutEffect(() => {
     spansRef.current = items
-  })
+  }, [items])
 
   /*
    * 转录偏移只在它真的会变的时候量。
@@ -466,29 +466,45 @@ export function AgentActivityFeed({
           role="log"
           style={{ height: virtualizer.getTotalSize() }}
         >
-          {items.map((item) => {
-            const row = rows[item.index]
+          {/*
+           * 一次位移，不是每行一次。
+           *
+           * TanStack Virtual 官方的 dynamic 示例正是这个形状：窗口整体平移到首个
+           * 虚拟行的起点，行本身按文档流首尾相接。此前每一行各带一个内联 transform，
+           * 于是每一帧都要为可见的每一行新建一个 style 对象、写一次内联声明 ——
+           * 而行与行之间的相对位置本来就是它们各自的高度，用不着再算一遍。
+           *
+           * 设备像素对齐因此也只剩一处：位移只有一个写入点，对齐也只需要一个。
+           * 行上不再有任何内联样式，未变的行在 React 那侧的属性差分因此是空的。
+           */}
+          <div
+            style={{
+              transform: `translateY(${String(
+                snapToDevicePixels((items[0]?.start ?? 0) - scrollMargin),
+              )}px)`,
+            }}
+          >
+            {items.map((item) => {
+              const row = rows[item.index]
 
-            if (row === undefined) {
-              return null
-            }
+              if (row === undefined) {
+                return null
+              }
 
-            return (
-              <div
-                className="agent-activity-feed__row"
-                data-index={item.index}
-                data-streaming={row.isStreamingTail ? 'true' : undefined}
-                data-type={row.item.type}
-                key={item.key}
-                ref={virtualizer.measureElement}
-                style={{
-                  transform: `translateY(${String(snapToDevicePixels(item.start - scrollMargin))}px)`,
-                }}
-              >
-                {renderRow(row)}
-              </div>
-            )
-          })}
+              return (
+                <div
+                  className="agent-activity-feed__row"
+                  data-index={item.index}
+                  data-streaming={row.isStreamingTail ? 'true' : undefined}
+                  data-type={row.item.type}
+                  key={item.key}
+                  ref={virtualizer.measureElement}
+                >
+                  {renderRow(row)}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {footer === undefined ? null : <div className="agent-activity-feed__footer">{footer}</div>}

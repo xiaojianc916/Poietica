@@ -8,9 +8,21 @@ import type {
 /**
  * Read models for the activity feed.
  *
- * Pure derivations only. The feed renders whatever these return, in order, with
- * no filtering logic of its own, so what the user sees is always a function of
- * the event log alone.
+ * 派生是增量的，不是每帧重算的。
+ *
+ * reducer 只有两个写入点（timeline-reducer.ts 的 push 与 draft.items[position]
+ * = …），两者都是追加或就地替换，所以相邻两帧的 items 共享一段前缀，且共享的
+ * 那一段里每一项都是同一个对象。派生因此只需要从第一处引用不同的地方往后重算。
+ *
+ * 此前这里是反过来的：buildFeedRows 每帧 filter + map 整条 items，buildTurns
+ * 每帧重建全部轮次，然后由六张 WeakMap 与一个 stable() 在事后判断「其实没变」。
+ * 那些表挡住的是下游的重渲染，挡不住上游的重算 —— 而重算是 O(N)/帧，N 是这条
+ * 对话的长度，帧率是模型吐字的速度。文件里三处注释互相解释「这一层盖不住那一
+ * 层」，那是补丁叠补丁的自证，不是设计。
+ *
+ * 换成变更驱动之后，剩下两张身份表（ROWS、TURN_OF）与两张投影表。投影按
+ * items[0] / rows[0] 弱引用：一条对话每一帧的首项都是同一个对象，所以键天然
+ * 按对话隔离，也随对话一起回收。
  */
 
 export interface FeedRow {
@@ -19,13 +31,15 @@ export interface FeedRow {
   readonly isStreamingTail: boolean
 }
 
+/** 空态交出同一个数组：下游按引用判等。 */
+const NO_ROWS: readonly FeedRow[] = []
+const NO_TURNS: readonly ConversationTurn[] = []
+
 /*
- * A row keeps its identity for as long as its entry and its role do.
+ * 一行的身份，和它描述的那一条一样长寿。
  *
- * The reducer replaces only the entry a frame touched, so caching the row on
- * the entry itself is what turns "the tail grew" into one changed row instead
- * of a whole new transcript for a memoised renderer to walk. Keyed weakly, so a
- * row is collected together with the entry it describes.
+ * reducer 每帧只换掉被这一帧碰过的那一条，所以把行记在条目上，就把「尾巴长了
+ * 一点」变成一行改变，而不是一整份新转录。
  */
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 
@@ -37,86 +51,106 @@ function toRow(item: TimelineItem, isStreamingTail: boolean): FeedRow {
   }
 
   const row: FeedRow = { item, isStreamingTail }
+
   ROWS.set(item, row)
 
   return row
 }
 
-/*
- * 一个转录状态对应一份读模型。
- *
- * reducer 每帧产出新状态，而读它的地方不止一个（流、缩略图、页脚、忙碌位），
- * 于是同一次渲染里整条转录被过滤又映射好几遍。按状态弱引用记住之后，一个状态
- * 只算一次；状态被换掉，它的读模型跟着一起回收。
- */
-const FEEDS = new WeakMap<TimelineState, readonly FeedRow[]>()
+/** 两个数组从头开始有多少项是同一个对象。指针比较，不分配。 */
+function sharedPrefix(before: readonly object[], after: readonly object[]): number {
+  const limit = Math.min(before.length, after.length)
+  let index = 0
+
+  while (index < limit && before[index] === after[index]) {
+    index += 1
+  }
+
+  return index
+}
+
+interface FeedProjection {
+  readonly items: readonly TimelineItem[]
+  /** items 下标 → 行下标；-1 表示这一条不上屏。行与条目不一一对应。 */
+  readonly rowOf: readonly number[]
+  readonly rows: readonly FeedRow[]
+  readonly live: boolean
+}
+
+const FEEDS = new WeakMap<TimelineItem, FeedProjection>()
 
 export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
-  const held = FEEDS.get(state)
+  const items = state.items
+  const anchor = items[0]
+
+  if (anchor === undefined) {
+    return NO_ROWS
+  }
+
+  const live = state.status === 'running' || state.status === 'awaiting_permission'
+  const held = FEEDS.get(anchor)
+
+  if (held !== undefined && held.items === items && held.live === live) {
+    return held.rows
+  }
+
+  const shared = held === undefined ? 0 : sharedPrefix(held.items, items)
+
+  /* 保留的行数：共享前缀里最后一条上屏条目的行号加一。 */
+  let keep = 0
 
   if (held !== undefined) {
-    return held
+    for (let index = shared - 1; index >= 0; index -= 1) {
+      const at = held.rowOf[index] ?? -1
+
+      if (at >= 0) {
+        keep = at + 1
+        break
+      }
+    }
   }
 
-  const built = buildFeedRows(state)
-  FEEDS.set(state, built)
+  const rowOf: number[] = held === undefined ? [] : held.rowOf.slice(0, shared)
+  const rows: FeedRow[] = held === undefined ? [] : held.rows.slice(0, keep)
 
-  return built
-}
+  for (let index = shared; index < items.length; index += 1) {
+    const item = items[index]
 
-/*
- * 内容没变时，把上一次那个数组原样还回去。
- *
- * 行和轮次都要这一手，而且要的是逐字相同的一段：取锚、比长度、逐项比、命中就
- * 还旧的、否则记下新的。此前它被抄了两遍 —— 同一个不变式由两处各自维护，改一
- * 处漏一处，性能会静默塌回去而功能测试照样全绿。收成一处之后，turn-identity
- * 那条守卫测的就是这一个实现。
- *
- * 键取首项而不是数组本身：reducer 每帧只换掉末尾一条，数组每帧都是新的、首项
- * 却始终是同一个对象。以数组为键的记忆因此每帧必然落空 —— 那正是这里要修的。
- */
-function stable<TAnchor extends object, TItem>(
-  memo: WeakMap<TAnchor, readonly TItem[]>,
-  anchor: TAnchor | undefined,
-  built: readonly TItem[],
-): readonly TItem[] {
-  if (anchor === undefined) {
-    return built
+    if (item === undefined || !isRenderable(item)) {
+      rowOf.push(-1)
+      continue
+    }
+
+    rowOf.push(rows.length)
+    rows.push(toRow(item, false))
   }
 
-  const held = memo.get(anchor)
+  /* 会长大的只有末尾那一条，而且只在一轮还在跑的时候。 */
+  const last = rows.length - 1
+  const tail = last < 0 ? undefined : rows[last]
 
-  if (
+  if (tail !== undefined) {
+    rows[last] = toRow(tail.item, live && isGrowable(tail.item))
+  }
+
+  /*
+   * 内容一个字没变的那一种帧：交还上一份数组。
+   *
+   * 判据是常数时间的 —— 共享前缀覆盖了全部条目，行数又相同，那么唯一可能换过
+   * 的就是尾行。此前这件事是「先全量重建，再逐项比较，命中就把刚建的丢掉」。
+   */
+  const settled =
     held !== undefined &&
-    held.length === built.length &&
-    held.every((item, index) => item === built[index])
-  ) {
-    return held
-  }
+    shared === items.length &&
+    shared === held.items.length &&
+    rows.length === held.rows.length &&
+    (last < 0 || rows[last] === held.rows[last])
+      ? held.rows
+      : rows
 
-  memo.set(anchor, built)
+  FEEDS.set(anchor, { items, rowOf, rows: settled, live })
 
-  return built
-}
-
-/*
- * 可见条目一个都没换的那一种帧：行数组原样复用。
- *
- * 末尾那一行的角色变了时它照样交出新数组，那是对的 —— 行确实变了。也正因为
- * 如此，这份记忆盖不住下面那层：轮次在同一帧里没有变化，所以 selectTurns 要
- * 有它自己的一份。
- */
-const LAST_ROWS = new WeakMap<TimelineItem, readonly FeedRow[]>()
-
-function buildFeedRows(state: TimelineState): readonly FeedRow[] {
-  const visible = state.items.filter(isRenderable)
-  const lastIndex = visible.length - 1
-  const live = state.status === 'running' || state.status === 'awaiting_permission'
-  const built = visible.map((item, index) =>
-    toRow(item, live && index === lastIndex && isGrowable(item)),
-  )
-
-  return stable(LAST_ROWS, visible[0], built)
+  return settled
 }
 
 /**
@@ -135,15 +169,13 @@ export interface ConversationTurn {
   /**
    * The opening text of the AI answer, for the preview card.
    *
-   * Absent while the turn has not yet received a reply (e.g. the run is still
-   * streaming the first chunk, or the turn produced no agent text at all).
-   * Capped at 300 characters — the card never renders more than three lines,
-   * so more would be invisible weight.
+   * Absent while the turn has not yet received a reply. Capped at 300
+   * characters — the card never renders more than three lines.
    */
   readonly reply?: string
 }
 
-/** 一次收集的产物:提出这一轮的那一行,加上它的位置与标题。 */
+/** 一次收集的产物：提出这一轮的那一行，加上它的位置与标题。 */
 interface StagedTurn {
   readonly row: FeedRow
   readonly id: TimelineItemId
@@ -152,15 +184,10 @@ interface StagedTurn {
 }
 
 /*
- * 一轮的身份,和提出它的那一行一样长寿。
+ * 一轮的身份，和提出它的那一行一样长寿。
  *
- * 这是上面 toRow 的同一招,用在下一层。流式输出时 reducer 每帧换掉末尾那一条,
- * buildFeedRows 的 map 于是每帧产出一个新数组 —— 里面的元素几乎全是复用的,
- * 但数组本身是新的,而 TURNS 以数组为键,所以每帧必然落空、必然重建全部 N 个
- * 轮次对象。下游那个 memo 过的缩略导航因此在整段流式期间形同虚设。
- *
- * 复用条件只看 rowIndex 和 reply。id 与 label 都是这一行自己的函数,而行就是
- * 键 —— 键相同,它们不可能不同,比较它们只是自我安慰。
+ * 复用条件只看 rowIndex 与 reply：id 与 label 都是这一行自己的函数，而行就是
+ * 键 —— 键相同它们不可能不同，比较它们只是自我安慰。
  */
 const TURN_OF = new WeakMap<FeedRow, ConversationTurn>()
 
@@ -172,8 +199,8 @@ function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn 
   }
 
   /*
-   * exactOptionalPropertyTypes 打开时,reply?: string 不接受显式的 undefined,
-   * 所以按有无分两支构造,而不是写成 { ..., reply } 一了百了。
+   * exactOptionalPropertyTypes 打开时，reply?: string 不接受显式的 undefined，
+   * 所以按有无分两支构造。
    */
   const turn: ConversationTurn =
     reply === undefined
@@ -185,53 +212,72 @@ function toTurn(entry: StagedTurn, reply: string | undefined): ConversationTurn 
   return turn
 }
 
-const TURNS = new WeakMap<readonly FeedRow[], readonly ConversationTurn[]>()
+interface TurnProjection {
+  readonly rows: readonly FeedRow[]
+  readonly turns: readonly ConversationTurn[]
+}
 
-/*
- * 行与轮次的变化频率不同：末尾那一行的角色一翻，buildFeedRows 就必须交出新数组
- * —— 行确实变了；而同一帧里提问行和它的预览一个都没动，轮次不该跟着换。TURNS
- * 以行数组为键，于是整段流式期间每帧必落空、必重建全部 N 个轮次对象，下游那个
- * memo 过的缩略导航形同虚设。下一层的引用稳定盖不住这一层。
- */
-const LAST_TURNS = new WeakMap<FeedRow, readonly ConversationTurn[]>()
+const TURNS = new WeakMap<FeedRow, TurnProjection>()
 
 export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
-  const held = TURNS.get(rows)
+  const anchor = rows[0]
 
-  if (held !== undefined) {
-    return held
+  if (anchor === undefined) {
+    return NO_TURNS
   }
 
-  const built = buildTurns(rows)
-  TURNS.set(rows, built)
+  const held = TURNS.get(anchor)
+
+  if (held !== undefined && held.rows === rows) {
+    return held.turns
+  }
+
+  const built = buildTurns(rows, held)
+
+  TURNS.set(anchor, { rows, turns: built })
 
   return built
 }
 
-function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
+function buildTurns(
+  rows: readonly FeedRow[],
+  held: TurnProjection | undefined,
+): readonly ConversationTurn[] {
+  const shared = held === undefined ? 0 : sharedPrefix(held.rows, rows)
+
   /*
-   * First pass: collect every user message with its feed-row position.
-   *
-   * The result is a plain mutable staging array; the readonly ConversationTurn
-   * objects are built in the second pass once reply text is known.
+   * 一轮的预览要往后扫到下一轮为止，所以共享前缀里最后那一轮的答复仍可能被
+   * 前缀之后的行改写 —— 它跟着一起重算。再往前的轮次，扫描区间整个落在共享
+   * 前缀里，一个字都不会变。
    */
+  let keep = 0
+  let from = 0
+
+  if (held !== undefined) {
+    while (
+      keep < held.turns.length &&
+      (held.turns[keep + 1]?.rowIndex ?? Number.POSITIVE_INFINITY) <= shared
+    ) {
+      keep += 1
+    }
+
+    from = Math.min(held.turns[keep]?.rowIndex ?? shared, shared)
+  }
+
+  /* 第一趟：从重算起点开始，收下每一句人说的话和它的行号。 */
   const staged: StagedTurn[] = []
 
-  rows.forEach((row, rowIndex) => {
-    if (row.item.type === 'user_message') {
+  for (let rowIndex = from; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex]
+
+    if (row !== undefined && row.item.type === 'user_message') {
       staged.push({ id: row.item.id, label: firstLine(row.item.text), row, rowIndex })
     }
-  })
+  }
 
-  /*
-   * Second pass: for each turn, scan forward to the next user message (or the
-   * end of the feed) and pick the first agent_text chunk that has content.
-   *
-   * The scan is bounded by the next turn's rowIndex, so each chunk is assigned
-   * to exactly one turn and the loop is O(n) over the feed in total.
-   */
-  const built = staged.map((entry, turnIndex) => {
-    const until = staged[turnIndex + 1]?.rowIndex ?? rows.length
+  /* 第二趟：每一轮向后扫到下一轮为止，取第一段有内容的答复。 */
+  const rebuilt = staged.map((entry, position) => {
+    const until = staged[position + 1]?.rowIndex ?? rows.length
     let reply: string | undefined
 
     for (let index = entry.rowIndex + 1; index < until; index += 1) {
@@ -246,7 +292,16 @@ function buildTurns(rows: readonly FeedRow[]): readonly ConversationTurn[] {
     return toTurn(entry, reply)
   })
 
-  return stable(LAST_TURNS, rows[0], built)
+  if (held === undefined) {
+    return rebuilt
+  }
+
+  const built = keep === 0 ? rebuilt : [...held.turns.slice(0, keep), ...rebuilt]
+
+  /* 缩略导航是 memo 过的：轮次没变就必须是同一个数组。 */
+  return built.length === held.turns.length && sharedPrefix(held.turns, built) === built.length
+    ? held.turns
+    : built
 }
 
 function firstLine(text: string): string {
@@ -263,12 +318,31 @@ export function selectActiveToolCalls(state: TimelineState): readonly TimelineIt
 /**
  * The question the run is currently blocked on, if any.
  *
- * At most one: the agent waits for an answer before asking anything else.
+ * At most one: the agent waits for an answer before asking anything else. 那条
+ * 不变式此前只写在注释里，实现却是一次正向 find —— 于是为了找一个恒在本轮末尾
+ * 的东西，每次都要走完整条已答的历史。反着走，并在本轮开头收手：走到人说的上
+ * 一句话，就说明这一轮没有在等谁。
  */
 export function selectPendingPermission(state: TimelineState): PermissionItem | undefined {
-  return state.items.find(
-    (item): item is PermissionItem => item.type === 'permission' && item.resolution === undefined,
-  )
+  const items = state.items
+
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index]
+
+    if (item === undefined) {
+      continue
+    }
+
+    if (item.type === 'user_message') {
+      return undefined
+    }
+
+    if (item.type === 'permission' && item.resolution === undefined) {
+      return item
+    }
+  }
+
+  return undefined
 }
 
 export function selectIsBusy(state: TimelineState): boolean {
@@ -303,13 +377,10 @@ export type TurnFooter = { readonly kind: 'waiting' } | ({ readonly kind: 'ended
  * A live run whose transcript still ends on the question is the gap before the
  * first frame of the answer. A finished run in the same shape produced nothing
  * of its own — an agent may end its turn having said nothing, and a refusal
- * ends a run without ever sending a failure — which on screen is
- * indistinguishable from a transport that lost the answer.
+ * ends a run without ever sending a failure.
  *
  * One derivation owns both, so the wait and the ending cannot disagree about
- * which turn they belong to. Nothing is invented: the status is the one the
- * reducer derived from the stop reason of the run, and the tail is found by
- * walking back rather than by filtering the log into a second array.
+ * which turn they belong to.
  */
 export function selectTurnFooter(state: TimelineState): TurnFooter | null {
   if (lastRenderable(state.items)?.type !== 'user_message') {

@@ -137,108 +137,86 @@ export function AssistantSurface({
 
   const rows = useMemo(() => selectFeedRows(assistant.timeline), [assistant.timeline])
 
-  /*
-   * The rail indexes turns, so before the first one there is nothing to index
-   * and it is not mounted at all: the resting state carries no overlay, no
-   * listener and no markup for one.
-   */
-  const turns = useMemo(() => selectTurns(rows), [rows])
-
   const footer = useMemo(() => selectTurnFooter(assistant.timeline), [assistant.timeline])
 
   /*
-   * 待答的提问从流里摘出来，交给输入框。
+   * 待答的那道题：一趟扫描，从末尾往回，走到本轮开头为止。
    *
-   * 判据在 domain 层，看的是 optionId 的形状而不是工具名：q0_opt_0 / q0_skip
-   * 这套命名空间是 kimi-code 的 ACP adapter 自己造的，稳定，而工具名在不同
-   * agent 与版本下写法不一。它今天一次只发一道题（多题被 adapter 降级），所以
-   * 题组恒为 1 题、面板显示 1/1；等上游放开多题，这里和面板都不用改。
+   * 协议一次只等一个答复 —— agent 在拿到答案之前不会再问，而 permission_resolved
+   * 一到就把 resolution 写进那一条（timeline-reducer.ts）。所以历史里的权限行全
+   * 是已答的，还在等的那一道必在本轮末尾；走到人说的上一句话就说明这一轮没有在
+   * 等谁，可以收手。
    *
-   * 只摘 pending 的。已答的那条留在流里，由 PermissionRequest 渲染成
-   * "已选择：X" —— 那就是答完之后留下的痕迹。
+   * 此前这里是三趟：一趟 for 扫出全部未决题、一趟 map 出 requestId 集合、一趟
+   * filter 把它们从流里摘掉。三趟都以 rows 为依赖，而 rows 每一帧都是新的 ——
+   * 于是每一个 token 都要把整条转录走三遍，去找一个恒在末尾的东西。
    *
-   * 普通权限请求（批准/拒绝）不在此列，仍然内联在流里回答。
+   * 判据仍在 domain 层：看 optionId 的形状而不是工具名。普通权限请求（批准／
+   * 拒绝）不在此列，仍然内联在流里回答。
    */
-  const pendingQuestions = useMemo(() => {
-    /*
-     * 元素类型由 PermissionItem 说了算，不由判据说了算。
-     *
-     * isQuestionRequest 回答的是"是不是一道题"，它的参数刻意放得宽（只认
-     * optionId 的形状，不绑死任何一个契约类型）。让它顺便兼任"这是什么类型"，
-     * 整张表就会塌成 any —— 类型不是从这里漏的，是从这里被交出去的。
-     */
-    const found: PermissionItem[] = []
+  const pending = useMemo((): PermissionItem | undefined => {
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const item = rows[index]?.item
 
-    for (const row of rows) {
-      const item = row.item
-
-      if (item.type !== 'permission') {
+      if (item === undefined) {
         continue
       }
 
-      /* 已经答过的留在流里，由痕迹卡片渲染；输入框只接待还在等的。 */
-      if (item.resolution !== undefined) {
+      if (item.type === 'user_message') {
+        return undefined
+      }
+
+      if (item.type !== 'permission' || item.resolution !== undefined) {
         continue
       }
 
-      if (!isQuestionRequest(item, dialect.questions)) {
-        continue
+      if (isQuestionRequest(item, dialect.questions)) {
+        return item
       }
-
-      found.push(item)
     }
 
-    return found
+    return undefined
   }, [dialect.questions, rows])
 
-  /*
-   * requestId 集合，供 visibleRows 排除用。
-   *
-   * pendingQuestions 已经用同一判据扫过一遍 rows；visibleRows 此前再扫
-   * 一遍，两趟判据完全等价。Set 查找把第二趟降为 O(1)，判据也收敛到
-   * 一处，两者不再需要同步。
-   */
-  const pendingIds = useMemo(
-    () => new Set(pendingQuestions.map((item) => item.requestId)),
-    [pendingQuestions],
-  )
-
   const questionDeck = useMemo(() => {
-    const first = pendingQuestions[0]
-
-    if (first === undefined) {
+    if (pending === undefined) {
       return null
     }
 
     return buildQuestionDeck(
-      first.requestId,
-      pendingQuestions.map((item) => ({
-        requestId: item.requestId,
-        prompt: readQuestionPrompt(item),
-        options: item.options.map((option) => ({
-          optionId: option.optionId,
-          label: option.name,
-        })),
-      })),
+      pending.requestId,
+      [
+        {
+          requestId: pending.requestId,
+          prompt: readQuestionPrompt(pending),
+          options: pending.options.map((option) => ({
+            optionId: option.optionId,
+            label: option.name,
+          })),
+        },
+      ],
       dialect.questions,
     )
-  }, [dialect.questions, pendingQuestions])
+  }, [dialect.questions, pending])
 
-  /* 摘出去的那几行不再进流，否则同一道题会同时长在两个地方。 */
+  /* 摘出去的那一行不再进流，否则同一道题会同时长在两个地方。 */
   const visibleRows = useMemo(
-    () =>
-      questionDeck === null
-        ? rows
-        : rows.filter(
-            (row) =>
-              !(
-                row.item.type === 'permission' &&
-                row.item.resolution === undefined &&
-                pendingIds.has(row.item.requestId)
-              ),
-          ),
-    [pendingIds, questionDeck, rows],
+    () => (pending === undefined ? rows : rows.filter((row) => row.item !== pending)),
+    [pending, rows],
   )
+
+  /*
+   * 轮次读的是屏幕上真正在滚的那个数组。
+   *
+   * 此前它读 rows，而滚动区拿到的是 visibleRows —— 摘出去一行，两个数组的下标
+   * 就错开一位。而 ConversationTurn.rowIndex 正是喂给 virtualizer.scrollToIndex
+   * 的那个行号（见 AgentActivityFeed 的 pending 分支）：于是待答提问在场时，点
+   * 缩略导航会跳到相邻的那一条，高亮也跟着错轮。
+   *
+   * 两个数组、一个下标空间，只能有一个。轨道在第一轮出现之前不挂载，所以空态
+   * 也不需要在这里判。
+   */
+  const turns = useMemo(() => selectTurns(visibleRows), [visibleRows])
 
   /*
    * 入口态与会话态之间只有一次单向转场，判据是一个显式的相位，不是任何派生量。

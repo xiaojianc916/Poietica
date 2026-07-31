@@ -556,7 +556,9 @@ function appendChunk(
   at: number,
 ): void {
   const chunk = textOf(update.content)
-  const messageId = update.messageId
+  /* 协议里「没报」是 undefined、「报了个空」是 null，对边界是同一件事；
+     归一在这里做一次，模型里就只有「有号」和「没号」。 */
+  const messageId = update.messageId ?? undefined
   const tail = draft.items.at(-1)
 
   if (tail && tail.type === type && !tail.sealed && sameMessage(tail, messageId)) {

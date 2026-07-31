@@ -83,10 +83,14 @@
  * 新开层叠上下文,行内的浮层、工具提示、代码块的悬浮按钮都会因此换锚点。
  * 理由写错会让下一个人以为"加上就崩",从而错过一个本来可以评估的选项。
  */
+/*
+ * 行不再自己定位。
+ *
+ * 绝对定位是「每行一个 transform」那套写法的必然配套：位置既然逐行给出，行就
+ * 不能参与文档流。位移收敛成窗口的一次平移之后，行回到流里首尾相接 —— 行距由
+ * padding 给出，高度由内容给出，两者都不需要第二个来源。
+ */
 .agent-activity-feed__row {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: 0;
   contain: style;
   padding-block: var(--cp-feed-row-gap);
 }
