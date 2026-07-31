@@ -753,8 +753,14 @@ async fn replay(
         session_id.clone(),
         slot.seq(),
         Box::new(move |event: &RecordedEvent| {
-            if let Ok(mut held) = sink.lock() {
-                held.push(event.frame.clone());
+            /* 帧变成 JSON 的地方只有这一处：重播帧不走 IPC，它随
+            OpenedSession 一起交回主循环，所以要在这里定形。实时那条路上
+            一次都不做 —— 帧本身就是上屏的形状，序列化只在它离开进程时
+            由 Tauri 做一次。两边形状逐字节相同，因为定形的是同一个类型。 */
+            if let Ok(value) = serde_json::to_value(event)
+                && let Ok(mut held) = sink.lock()
+            {
+                held.push(value);
             }
         }),
     )))?;

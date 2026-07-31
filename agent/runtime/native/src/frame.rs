@@ -43,7 +43,7 @@ pub struct FrameNotification {
 /// 一次运行里可能发生的六种事。
 ///
 /// `acp_update` 承载协议通知原文；其余五种是协议不建模、而客户端必须记住的
-/// 事实。每一种都带 `seq`（见 `Envelope`），所以重放是确定的。
+/// 事实。每一种都带 `seq` 与 `at`（见 `RecordedEvent`），所以重放是确定的。
 #[derive(Clone, Debug, Serialize)]
 #[serde(
     tag = "kind",
@@ -101,20 +101,6 @@ pub enum RunFrame {
     },
 }
 
-/// 帧加上它属于哪条会话、在那条会话上的位置与时刻。
-///
-/// 地址在信封上而不在变体里：帧是会话发生的事，六种无一例外。`seq` 与 `at`
-/// 同理 —— 它们对六种帧都一样，所以只写一遍。
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Envelope<'frame> {
-    session_id: &'frame str,
-    seq: i64,
-    at: i64,
-    #[serde(flatten)]
-    frame: &'frame RunFrame,
-}
-
 impl RunFrame {
     /// 这一帧在日志里记作哪一类。返回的就是 wire 上的判别式。
     #[must_use]
@@ -127,20 +113,6 @@ impl RunFrame {
             Self::RunFinished { .. } => RUN_FINISHED,
             Self::RunFailed { .. } => RUN_FAILED,
         }
-    }
-
-    /// 上屏的那一份 JSON。
-    ///
-    /// # Errors
-    ///
-    /// 序列化失败时报错；此时这一帧不转发。
-    pub fn envelope(&self, session_id: &str, seq: i64, at: i64) -> serde_json::Result<Value> {
-        serde_json::to_value(Envelope {
-            session_id,
-            seq,
-            at,
-            frame: self,
-        })
     }
 }
 
