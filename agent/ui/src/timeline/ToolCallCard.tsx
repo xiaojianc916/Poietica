@@ -52,7 +52,7 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  */
 export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
   const { isOpen, toggle } = useDisclosure(item.status === 'failed')
-  const { diffStat, parts } = toToolCallView(item)
+  const { diffStat, parts } = toToolCallView(item.content)
   const isRunning = item.status === 'pending' || item.status === 'in_progress'
 
   return (

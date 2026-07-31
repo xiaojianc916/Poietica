@@ -204,9 +204,10 @@ export const PermissionRequest = memo(function PermissionRequest({
 
   /*
    * 一次渲染只解析一遍，而且和工具卡走同一条管线：解析与行级增删都在
-   * toToolCallView 里算，按这次调用的对象记一次，两张卡不会各跑一遍 Myers。
+   * toToolCallView 里算，按 content 本身记一次 —— 所以同一次调用被两张卡画到，
+   * 也只有一遍 Myers。
    */
-  const { diffStat, parts } = toToolCallView(item.toolCall)
+  const { diffStat, parts } = toToolCallView(item.toolCall?.content)
 
   /*
    * 提问不是权限请求，尽管它借的是同一条通道。

@@ -18,8 +18,12 @@ export interface AgentCliInvocation {
    * 报一个程序路径过去，而白名单只校验参数，那等于放行任意程序。
    */
   readonly args: readonly string[]
-  /** 要注入的凭据环境变量名。它不是秘密，只是个名字。 */
-  readonly secretVar: string
+  /**
+   * 要注入的凭据环境变量名。它不是秘密，只是个名字。
+   *
+   * 缺席即不注入 —— 只读的那几条调用没有凭据可给，不该被迫先声明再撤回。
+   */
+  readonly secretVar?: string
   /**
    * 凭据本身。
    *
@@ -27,7 +31,7 @@ export interface AgentCliInvocation {
    * 配置文件，两端都不留副本。所以「配没配过」不能问我们 —— 要问 agent 的
    * provider list。
    */
-  readonly secretValue: string
+  readonly secretValue?: string
   /**
    * api.json 形状的目录文档：只在「从目录添加 provider」时携带。
    *

@@ -124,53 +124,48 @@ export interface ToolCallView {
   readonly diffStat: DiffStat | null
 }
 
-/*
- * 按来源对象的引用记一次。
- *
- * 键是 reducer 冻结过的那个对象：任何变更都造新对象，所以「同一个引用 ⇒ 同一
- * 份结果」是构造保证的，不是约定。权限请求随身带来的那次调用同理 —— 它从事件里
- * 读出来之后就不再改。上游 timeline-selectors.ts 的行投影用的是同一张形状的表，
- * 这里不引入第二种记忆化范式。
- *
- * 不用 useMemo。转录区是虚拟化的，卡片滚出视口就卸载，useMemo 的缓存跟着一起
- * 走 —— 偏偏在长会话里最需要它的时候失效。WeakMap 的生命周期跟着数据而不是跟
- * 着组件实例，而且旧 item 被回收时缓存自动消失，不需要任何淘汰策略。
- *
- * 值得记的原因是它不便宜：diffStatOf 里是 Myers 差分，而调用它的
- * ToolCallCard 函数体每一帧都要跑一遍 —— 流式期间每个 chunk 都会让整个 feed
- * 重渲，视口里每一张带 diff 的卡片都在里面，包括早就结束的、包括折叠着的
- * （徽章画在 button 上，不在 DisclosureBody 里）。
- */
-/*
- * 带着一次调用内容的东西：时间线上那条工具调用，或者权限请求随身带来的那一次。
- *
- * 两边画的是同一份内容 —— 同样的 part、同样的行数增删 —— 所以它们走同一条管线，
- * 而不是各自解析一遍。这里只要 content 这一点形状，谁带着它不重要。
- */
-export interface ToolCallContentSource {
-  readonly content?: readonly AcpToolCallContent[] | null | undefined
-}
-
 /** 没有调用就没有内容。常量，免得每次问都造一个新对象。 */
 const EMPTY_VIEW: ToolCallView = { diffStat: null, parts: [] }
 
-const VIEWS = new WeakMap<ToolCallContentSource, ToolCallView>()
+const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
 
-export function toToolCallView(source: ToolCallContentSource | null | undefined): ToolCallView {
-  if (source === null || source === undefined) {
+/**
+ * 上面那两步，按 content 记一次。
+ *
+ * 键就是 content 数组本身 —— 它是这个投影唯一的输入，也已经是个对象。此前键是
+ * 「带着 content 的那个容器」，那需要专门发明一个接口才能让两种容器都塞得进来，
+ * 而且时间线上那条调用和权限请求随身带来的那一次是两个不同的容器：同一份内容会
+ * 被解析两遍。按 content 记就没有这回事，谁带着它都不重要。
+ *
+ * 引用稳定是构造保证的，不是约定：reducer 冻结每一个 item，任何变更都造新对象，
+ * 事件里读出来的那份读完就不再改。
+ *
+ * 不用 useMemo。转录区是虚拟化的，卡片滚出视口就卸载，useMemo 的缓存跟着一起
+ * 走 —— 偏偏在长会话里最需要它的时候失效。WeakMap 的生命周期跟着数据而不是跟着
+ * 组件实例，旧内容被回收时缓存自动消失，不需要任何淘汰策略。
+ *
+ * 值得记的原因是它不便宜：diffStatOf 里是 Myers 差分，而两张卡的函数体都在渲染
+ * 路径上 —— 流式期间每个 chunk 都会让整个 feed 重渲，视口里每一张带 diff 的卡片
+ * 都在里面，包括早就结束的、包括折叠着的（徽章画在 button 上，不在
+ * DisclosureBody 里）。
+ */
+export function toToolCallView(
+  content: readonly AcpToolCallContent[] | null | undefined,
+): ToolCallView {
+  if (content === null || content === undefined) {
     return EMPTY_VIEW
   }
 
-  const held = VIEWS.get(source)
+  const held = VIEWS.get(content)
 
   if (held !== undefined) {
     return held
   }
 
-  const parts = toToolContentParts(source.content)
+  const parts = toToolContentParts(content)
   const view: ToolCallView = { diffStat: diffStatOf(parts), parts }
 
-  VIEWS.set(source, view)
+  VIEWS.set(content, view)
 
   return view
 }
