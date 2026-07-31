@@ -4,7 +4,7 @@ import {
   agentProviderCatalogDocument,
 } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
 import { SubField } from './models-fields'
@@ -67,16 +67,15 @@ export function ProviderKeyCard({
   const [message, setMessage] = useState<string | null>(null)
   const [waited, setWaited] = useState(false)
 
-  /* 写入是一次往返，期间用户可以切走。卸载之后再 setState 是一次无处可去的更新。 */
-  const mounted = useRef(true)
-
-  useEffect(() => {
-    mounted.current = true
-
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  /*
+   * 没有 mounted 守卫。
+   *
+   * React 18 起「卸载后 setState」不再是错误，那条警告本身已被官方删掉
+   * （facebook/react#22114）。而它真该防的那件事它也防不住：这张卡的 key 是
+   * provider id，换 agent 时组件不重建，于是在 A 上按下保存、立刻切到 B，回执会
+   * 落在 B 的界面上 —— 那一刻 mounted.current 为真。换 agent 的作废由外壳的
+   * key={agentId} 整棵重建来做，见 AgentModels。
+   */
 
   /*
    * 忙碌指示的唯一驱动是 busy，而 busy 只在 execCli 这一次真实往返期间为真：没有假进度、
@@ -142,10 +141,6 @@ export function ProviderKeyCard({
       })
       .then(
         (outcome) => {
-          if (!mounted.current) {
-            return
-          }
-
           setBusy(false)
 
           if (outcome.status !== 0) {
@@ -158,10 +153,6 @@ export function ProviderKeyCard({
           onSaved()
         },
         (cause: unknown) => {
-          if (!mounted.current) {
-            return
-          }
-
           setBusy(false)
           setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
         },
