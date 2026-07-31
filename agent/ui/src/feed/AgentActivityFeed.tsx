@@ -31,7 +31,12 @@ const ESTIMATED_ROW_PX: Record<string, number> = {
 /** 未知类型的兜底估高。 */
 const ESTIMATED_FALLBACK_PX = 120
 
-/** 距末端多近算作「仍在看最新一条」。约等于一格滚轮。 */
+/**
+ * 距末端多近算作「仍在看最新一条」。约等于一格滚轮。
+ *
+ * 只交给虚拟器：scrollEndThreshold 是 followOnAppend 与 isAtEnd() 共用的判据，
+ * 官方 Chat 指南给的参考值是 80，这里取一格滚轮的量。
+ */
 const BOTTOM_THRESHOLD_PX = 48
 
 /**
@@ -162,14 +167,6 @@ export function AgentActivityFeed({
   const [tailSize, setTailSize] = useState(0)
 
   /*
-   * 人此刻是不是贴在末端。
-   *
-   * 这是决定锚点归属的两个事实之一,而它是纯几何的 —— 所以直接问滚动区,不引第二
-   * 个位置来源,也不写 scrollTop。初值为真:打开一段对话看到的就是最新一条。
-   */
-  const [isPinnedToEnd, setIsPinnedToEnd] = useState(true)
-
-  /*
    * 视线落在哪一行。
    *
    * null 是"还没读到过",不是"第 0 行"。首帧的布局效应会把视口送到末尾,那一帧
@@ -205,21 +202,18 @@ export function AgentActivityFeed({
   const frame = useRef(0)
 
   /*
-   * 一次读取,三个派生量。
+   * 一次读取，两个派生量。
    *
-   * 分开写会读三次几何,还会让三个真源在时间上错开。这里全部是读,没有写夹在
-   * 中间,所以不会有强制回流。
+   * 分开写会读两次几何，还会让两个真源在时间上错开。这里全部是读，没有写夹在
+   * 中间，所以不会有强制回流。
    *
-   * 三个 setState 都直接写值:React 对 Object.is 相等的新值本来就跳过重渲染,
-   * 手写一个"相等就返回原值"的更新器,只是把官方行为抄了一遍,还会让读者以为
-   * 这里有什么特殊语义。
+   * 曾经是三个：还有一个「人是不是贴在末端」。它被删掉不是因为多余，而是因为
+   * 它是第二个答案 —— 虚拟器用 scrollEndThreshold 判同一件事，判得比这里早一帧，
+   * 而且量的是自己的末端而不是 DOM 的末端。同一个问题有两个答案时，问题不在
+   * 哪个更准，在于不该有两个。
    */
   const syncScrollState = useCallback(
     (viewport: HTMLDivElement) => {
-      const distance = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop
-
-      setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
-
       const spans = spansRef.current
       const reading = rowAtAnchor(
         spans,
@@ -335,25 +329,23 @@ export function AgentActivityFeed({
     scrollMargin,
     paddingEnd: tailSize,
     /*
-     * 哪一侧稳定，取决于此刻正在发生什么 —— 它不是一个常量。
+     * 会话流是末端锚定的，恒定如此。
      *
-     * end 模式下位置从末端反推，于是任何一次总高度变化都会让上方所有行整体
-     * 位移：展开一行长高多少，上面的一切就上移多少。这正是「点开思考过程，
-     * 界面莫名向上」的出处，而它与抽屉无关 —— 抽屉只是长高了。
+     * 这里曾经按「不在跳转 && 忙 && 贴底」在 start/end 之间来回切。三个判据都
+     * 是对的问题，但都问错了地方 —— 官方 Chat 指南把它们各自的归属写得很清楚：
      *
-     * end 只有一个真实理由：流式输出时，贴在末端的人要跟着最后一条长高。那是
-     * 一个特例，所以让它以特例的形式出现。其余一切时刻用 start：一行长高只推
-     * 它下面的内容，偏移从顶部量起、原本就不变，被展开的那一行天然留在原地。
-     * 没有错误发生，也就没有任何需要纠正的东西 —— 补偿本身就是那道抖动。
+     *   anchorTo 'end'  —— 末端被钉住时，最后一条流式长高要跟着
+     *   followOnAppend  —— 只有在追加之前就已经贴底，才跟随新消息
+     *   scrollEndThreshold —— 「够不够近算贴底」由它判
      *
-     * 跳转也归入 start,而且优先于末端:落点之上的行此后才被真正测量,估高与
-     * 真高的全部落差都会在那里结算。从顶部量起,这些落差发生在视口之外;从末端
-     * 反推,它们会推着落点走 —— 那就是"跳过去之后又滑一下"。
+     * 也就是说，那三个条件里有两个本来就在库内部、按同一份坐标、在数据变化那
+     * 一刻同步求值。在外面用 React state 再判一遍，得到的是同一个答案的延迟版，
+     * 而它却决定着模式翻不翻面。anchorTo 是模式不是开关：库为它维护一个待定
+     * 锚点，模式在两次渲染之间换掉，锚点的含义也就换了。
      *
-     * 打开一条对话时整条一次到齐，所以不存在向上补一段历史这回事，也就没有
-     * 视口之上的增长需要考虑。
+     * 于是这里只留立场：这是一条会话流，它的稳定侧永远是末端。
      */
-    anchorTo: !revealing && isBusy && isPinnedToEnd ? 'end' : 'start',
+    anchorTo: 'end',
     /* 人正在别处看的时候,新消息不夺取视口。 */
     followOnAppend: !revealing,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
@@ -522,44 +514,44 @@ export function AgentActivityFeed({
           style={{ height: virtualizer.getTotalSize() }}
         >
           {/*
-           * 一次位移，不是每行一次。
+           * 每行各自落位。
            *
-           * TanStack Virtual 官方的 dynamic 示例正是这个形状：窗口整体平移到首个
-           * 虚拟行的起点，行本身按文档流首尾相接。此前每一行各带一个内联 transform，
-           * 于是每一帧都要为可见的每一行新建一个 style 对象、写一次内联声明 ——
-           * 而行与行之间的相对位置本来就是它们各自的高度，用不着再算一遍。
+           * 官方 Chat 指南的两处示例都是这个形状：position absolute，transform
+           * 平移到 item.start。此前是窗口整体平移一次、行走文档流，注释写着
+           * 「官方 dynamic 示例正是这个形状」—— 不是。
            *
-           * 设备像素对齐因此也只剩一处：位移只有一个写入点，对齐也只需要一个。
-           * 行上不再有任何内联样式，未变的行在 React 那侧的属性差分因此是空的。
+           * 差别不在写法，在模型与 DOM 说不说同一句话。走文档流时，只有首行的
+           * 位置来自虚拟器，其余每一行的位置都来自它前面那些行的真实高度；而
+           * 虚拟器的 start 表来自上一次测量，测量经 ResizeObserver 与 state 落地，
+           * 是异步的。流式输出每吐一个词，DOM 已按新高度排好，表还停在旧高度上 ——
+           * 两者每一帧都在错位，而末端锚定的补偿正是拿这张表算的。
+           *
+           * 代价是每个可见行一个内联 style 对象，约十几个每帧。用这个换掉一致性，
+           * 是笔亏账。
            */}
-          <div
-            style={{
-              transform: `translateY(${String(
-                snapToDevicePixels((items[0]?.start ?? 0) - scrollMargin),
-              )}px)`,
-            }}
-          >
-            {items.map((item) => {
-              const row = rows[item.index]
+          {items.map((item) => {
+            const row = rows[item.index]
 
-              if (row === undefined) {
-                return null
-              }
+            if (row === undefined) {
+              return null
+            }
 
-              return (
-                <div
-                  className="agent-activity-feed__row"
-                  data-index={item.index}
-                  data-streaming={row.isStreamingTail ? 'true' : undefined}
-                  data-type={row.item.type}
-                  key={item.key}
-                  ref={virtualizer.measureElement}
-                >
-                  {renderRow(row)}
-                </div>
-              )
-            })}
-          </div>
+            return (
+              <div
+                className="agent-activity-feed__row"
+                data-index={item.index}
+                data-streaming={row.isStreamingTail ? 'true' : undefined}
+                data-type={row.item.type}
+                key={item.key}
+                ref={virtualizer.measureElement}
+                style={{
+                  transform: `translateY(${String(snapToDevicePixels(item.start - scrollMargin))}px)`,
+                }}
+              >
+                {renderRow(row)}
+              </div>
+            )
+          })}
           {/*
            * 尾部坐在 paddingEnd 预留出来的那块空间里。
            *
