@@ -45,16 +45,6 @@ export interface AgentCliInvocation {
    * 密钥由原生侧取出直达子进程，不进渲染层。与 secretValue 互斥。
    */
   readonly secretFromGlobalProvider?: string
-  /**
-   * 从这个 agent 自己的受控配置里取哪家 provider 的密钥来注入。
-   *
-   * 改写顶层 default_model 时用：官方唯一的写入出口 catalog add 先删后建，重放它
-   * 要把这一家原有的密钥再交一次，而那份密钥只在 agent 自己的配置里。原生侧取出后
-   * 直达子进程，渲染层不持有它 —— 所以换一个默认模型不必让用户重输密钥。
-   *
-   * 与 secretValue、secretFromGlobalProvider 三者互斥。
-   */
-  readonly secretFromAgentProvider?: string
 }
 
 export interface AgentCliOutcome {
@@ -123,4 +113,15 @@ export interface AgentConfigStore {
    * 里反推。
    */
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>
+  /*
+   * 改写 default_model。
+   *
+   * 原地改受控 home 里的那一个键，不经 agent 的 CLI —— 官方唯一会写它的出口
+   * （provider catalog add --default-model）是为「换掉一家 provider 的整份模型清单」
+   * 设计的，先删后建，还要求把那一家的密钥再交一次。我们要改的是一个标量。
+   *
+   * 生效不需要重启 agent：它自己 watch 着那个文件。但 watcher 有延迟，所以调用方
+   * 不要在返回后立刻回读 —— 界面该用乐观更新。
+   */
+  readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
 }

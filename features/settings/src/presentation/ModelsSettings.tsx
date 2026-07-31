@@ -4,7 +4,6 @@ import {
   type AgentProviderSnapshot,
   acpAgentById,
   acpAgents,
-  agentBareModelId,
   agentModelDisplayName,
   agentProviderCatalogAddArgs,
   agentProviderDefaultModelId,
@@ -150,46 +149,17 @@ async function importOne(input: {
 }
 
 /*
- * 改写顶层的 default_model。
+ * writeDefaultModel 曾在这里：拿这一家现有的模型清单重放一次 catalog add，只为把顶层
+ * 那一个键改掉，顺带把密钥再交一次。
  *
- * 官方没有「只改这一个键」的命令 —— CLI 的子命令表里根本没有 config 那一项。唯一会写
- * 这个键的出口是 provider catalog add 的 --default-model，而它对已存在的 id 是先删后
- * 建。所以换一个默认模型，等于拿这一家现有的模型清单重放一次导入，只是这次带上目标。
+ * 它借的是一把为拆房子设计的锤子。官方那条命令先删后建，原因写在上游自己的注释里
+ * （packages/node-sdk/src/catalog.ts：setConfig 是深合并、删不掉键，所以换清单必须先
+ * removeProvider）—— 那条约束是它内部 API 的局限，而我们要做的事是把一个标量改成另一个
+ * 标量，不删任何键。
  *
- * 密钥不经这里：重放要求把这一家的 api_key 再交一次，由原生侧从 agent 自己的配置里取出
- * 直达子进程（secretFromAgentProvider）。渲染层从头到尾没有那个值，用户也不必为了换个
- * 模型重输一遍密钥。
- *
- * 返回 undefined 表示成了；没成返回对方的原话。与 importOne 同一种约定。
+ * 现在由原生侧用 toml_edit 原地改（store.saveDefaultModel）。agent 自己 watch 着那个
+ * 文件，所以照样不需要重启它。
  */
-async function writeDefaultModel(input: {
-  readonly agentId: string
-  readonly alias: string
-  readonly owner: AgentProviderSnapshot['providers'][number]
-  readonly registryKeyVar: string
-  readonly store: AgentConfigStore
-}): Promise<string | undefined> {
-  const { agentId, alias, owner, registryKeyVar, store } = input
-
-  try {
-    const outcome = await store.execCli({
-      agentId,
-      args: agentProviderCatalogAddArgs({
-        providerId: owner.id,
-        defaultModelId: agentBareModelId(alias, owner.id),
-        ...(owner.baseUrl === undefined ? {} : { baseUrl: owner.baseUrl }),
-      }),
-      secretVar: registryKeyVar,
-      secretValue: '',
-      catalogDocument: agentProviderImportDocument(owner),
-      secretFromAgentProvider: owner.id,
-    })
-
-    return outcome.status === 0 ? undefined : reasonOf(outcome)
-  } catch (cause: unknown) {
-    return describeAgentCliFailure(cause, '改默认模型失败，请重试。')
-  }
-}
 
 export interface ModelsSettingsProps {
   readonly store: AgentConfigStore
@@ -645,37 +615,15 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         return
       }
 
-      const owner = providers.snapshot?.providers.find((provider) => {
-        return provider.models.some((model) => model.alias === alias)
-      })
-
-      if (owner === undefined) {
-        setDefaultModelNote('这个模型不属于任何已配置的 provider。')
-        return
-      }
-
-      if (registryKeyVar === undefined) {
-        setDefaultModelNote('这个 agent 没有声明该往哪个环境变量注入密钥，改不了默认模型。')
-        return
-      }
-
       const previous = defaultModel
 
       setDefaultModel(alias)
       setDefaultModelBusy(true)
       setDefaultModelNote(null)
 
-      void writeDefaultModel({ agentId, alias, owner, registryKeyVar, store }).then(
-        (reason) => {
+      void store.saveDefaultModel(agentId, alias).then(
+        () => {
           setDefaultModelBusy(false)
-
-          if (reason !== undefined) {
-            setDefaultModel(previous)
-            setDefaultModelNote(reason)
-            return
-          }
-
-          providers.reload()
         },
         (cause: unknown) => {
           setDefaultModelBusy(false)
@@ -684,7 +632,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         },
       )
     },
-    [agentId, defaultModel, defaultModelBusy, providers, registryKeyVar, store],
+    [agentId, defaultModel, defaultModelBusy, store],
   )
 
   /*

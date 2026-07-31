@@ -69,6 +69,8 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
     loadKeyTails: (agentId) => bridge.loadKeyTails(agentId),
 
     loadDefaultModel: (agentId) => bridge.loadDefaultModel(agentId),
+
+    saveDefaultModel: (agentId, alias) => bridge.saveDefaultModel(agentId, alias),
   }
 }
 

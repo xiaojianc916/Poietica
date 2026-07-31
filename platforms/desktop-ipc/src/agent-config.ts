@@ -21,17 +21,6 @@ export interface AgentCliRequest {
    * 密钥由原生侧取出直达子进程，不进渲染层。与 secretValue 互斥。
    */
   readonly secretFromGlobalProvider?: string
-  /**
-   * 从这个 agent 自己的受控配置里取哪家 provider 的密钥来注入。
-   *
-   * 为改写顶层 default_model 服务：上游唯一能写它的出口是
-   * `provider catalog add --default-model`，而那条命令先删后建，重放它要把这一家
-   * 原有的密钥再交一次。密钥由原生侧取出直达子进程 —— 所以改一个默认模型不需要
-   * 用户重输密钥，界面也始终看不见它。
-   *
-   * 与 secretValue、secretFromGlobalProvider 三者互斥。
-   */
-  readonly secretFromAgentProvider?: string
 }
 
 export interface AgentCliResult {
@@ -72,6 +61,13 @@ export interface AgentConfigBridge {
    * 那一项（非 json 分支才打印 Default model）。模型清单仍然来自 provider list。
    */
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>
+  /**
+   * 改写受控 home 里的 default_model。
+   *
+   * 原地改一个键，不经 agent 的 CLI：官方那条 catalog add 是为换整份模型清单设计的，
+   * 先删后建。agent 自己 watch 着配置文件，所以改完不需要重启它。
+   */
+  readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
@@ -91,5 +87,8 @@ export function createAgentConfigBridge(): AgentConfigBridge {
     loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
 
     loadDefaultModel: (agentId) => invoke<string | null>('agent_default_model', { agentId }),
+
+    saveDefaultModel: (agentId, alias) =>
+      invoke<void>('agent_set_default_model', { agentId, alias }),
   }
 }
