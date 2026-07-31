@@ -63,7 +63,7 @@ export function ConversationSurface({
   }, [agentConfig, agentId])
 
   /*
-   * 手伸向一条已有的对话，才为它开一个 ACP 会话。
+   * 打开一条已有的对话，就为它开一个 ACP 会话。
    *
    * 入口那一格没有身份可以"预先准备"。它此前会在指针移入或聚焦时调用 onIdentify,
    * 也就是拿一次鼠标经过去认领一条真的对话：于是用户什么都还没说，这一格就已经有
@@ -75,18 +75,24 @@ export function ConversationSurface({
    * appendUserMessage → identify() → prompt），提前认领一次，除了多出一条没人要的
    * 对话之外什么也没换来。
    *
-   * 已有对话这一路留着：adopt 只是为一条已经存在的对话开会话、拿它的选择器，不改
-   * 这一格的身份，因此动不了排版；它是幂等的，重复触发安全。开会话确实贵（spawn
-   * 加两趟握手，且在同一条连接上排队），所以它仍然等到手伸过来才做，而不是挂在
-   * "这一格出现了"上。
+   * 已有对话这一路不一样：adopt 只为一条已经存在的对话开会话、拿它的选择器和它
+   * 的经过，不改这一格的身份，因此动不了排版；它是幂等的，重复触发安全。
+   *
+   * 它此前挂在 onEngage 上 —— 指针移入或聚焦输入框才装载，理由是"开会话贵"。
+   * 那个理由在屏幕上的历史还来自本地日志的时候成立：历史另有来源，会话晚一点
+   * 开无非是第一句话慢一点。历史改由持有它的 agent 交回来之后，这句权衡的意思
+   * 就变成了"不把鼠标移到输入框上，这条对话就永远是一块白板"，而且连加载图标
+   * 都不会出现 —— opening() 从没被调用过，isRestoring 一直是假。
+   *
+   * 打开就是装载。贵也得付，那是这条对话的内容本身。
    */
-  const engage = () => {
+  useEffect(() => {
     if (threadId === null) {
       return
     }
 
     threads.adopt(threadId)
-  }
+  }, [threadId, threads])
 
   /*
    * 没有会话的那一格，画的是偏好。
@@ -108,7 +114,6 @@ export function ConversationSurface({
       controlsFailure={threadId === null ? undefined : threads.selectorFailureOf(threadId)}
       endpoint={threadId}
       identify={onIdentify}
-      onEngage={engage}
       onRetryControls={() => {
         if (threadId !== null) {
           threads.retrySelectors(threadId)

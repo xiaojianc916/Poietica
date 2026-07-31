@@ -238,7 +238,8 @@ pub async fn agent_prompt(
         .as_deref()
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
-    let held = session_for(&state, &session, named).await?;
+    /* 提问不需要历史：屏幕上正看着的就是这条对话。 */
+    let held = session_for(&state, &session, named, Wanted::Address).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
@@ -506,7 +507,7 @@ pub async fn agent_set_config_option(
         .as_deref()
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
-    let held = session_for(&state, &live, named).await?;
+    let held = session_for(&state, &live, named, Wanted::Address).await?;
     let addressed = held.session_id;
 
     let answer = live
@@ -1033,8 +1034,8 @@ pub struct AgentOpenedThread {
     /// 帧的形状与实时那条通道上的一模一样 —— 两者由同一个 `acp_update` 做出来
     /// （见运行时 crate 的 frame.rs），所以重开一条对话与看着它发生不可能对不上。
     ///
-    /// 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
-    /// 的东西本来就还在。
+    /// 空只有一种理由是理所应当的：这条对话刚建。其余的空都是"有经过但拿不
+    /// 到"，由下面那一格说清是为什么。
     pub events: Vec<Value>,
     /// 上面那格为什么是它现在的样子。
     ///
@@ -1090,6 +1091,11 @@ pub struct AgentOpenThreadRequest {
 /// 段对话有两个来源，而只有一个是 agent 手里那份 —— 两份一旦分叉，人看见的是
 /// 对的那份的赝品。现在只有一份，它的持有者是这条会话的主人。
 ///
+/// 每一次打开都问一次经过，本次连接开的那些会话也不例外。渲染层可以在连接
+/// 还活着的时候整个重来 —— Ctrl+R 就是，开第二个窗口也是 —— 那一刻它手里什么
+/// 都没有，而这一侧只知道"会话还在"。用后者去猜前者，猜错的那次就是一块永远
+/// 填不上的白板。
+///
 /// 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
 ///
 /// # Errors
@@ -1123,7 +1129,7 @@ pub async fn agent_open_thread(
         offered,
         events,
         history,
-    } = session_for(&state, &live, &named).await?;
+    } = session_for(&state, &live, &named, Wanted::History).await?;
 
     let offered = if let Some(offered) = offered {
         offered
@@ -1241,7 +1247,10 @@ pub enum AgentHistoryLoss {
 pub enum AgentHistory {
     /// 这条对话刚刚建出来，本来就没有经过。
     Fresh,
-    /// 它的会话一直没离开过本次连接，屏幕上的东西还在。
+    /// 这一次只要了一个地址，没问经过。
+    ///
+    /// 提问和改设置走的就是这一路：它们不需要历史，也就不该为此让 agent 把整段
+    /// 对话重放一遍。所以这一格到不了界面 —— 打开一条对话永远要经过。
     Live,
     /// agent 把它装载回来了，`events` 就是它交出来的那一整段。
     Loaded,
@@ -1255,6 +1264,20 @@ pub enum AgentHistory {
     },
 }
 
+/// 这一次寻址，要的是什么。
+///
+/// 两个问题此前挤在一个函数里：「这条对话该发往哪个会话」每一轮提问都要问,
+/// 「把它的经过取回来」只有打开的时候才要。挤在一起就只能二选一 —— 为了不让
+/// 每一轮提问都付一次重放的代价，打开时也就拿不到经过，于是原生侧改去猜屏幕
+/// 上还有没有东西。分开问，两边都对，也没什么可猜的了。
+#[derive(Clone, Copy, Debug)]
+enum Wanted {
+    /// 只要一个能把东西发过去的会话号。
+    Address,
+    /// 还要这条对话的经过：屏幕上现在什么都没有。
+    History,
+}
+
 /// 一条对话所持有的活会话，以及装载它时 agent 交回来的东西。
 struct Held {
     thread_id: Uuid,
@@ -1263,8 +1286,8 @@ struct Held {
     offered: Option<Vec<ConfigControl>>,
     /// 装载一条旧会话时，agent 用 session/update 重放的那一整段。
     ///
-    /// 与上面那格同一条规矩：只有真的开或装载了一条，才有东西可带。认得的
-    /// 会话这里是空的 —— 它本来就没离开过，屏幕上的东西一直在。
+    /// 与上面那格同一条规矩：只有真的开或装载了一条，才有东西可带。只要地址
+    /// 的那一路这里是空的 —— 它压根没问。
     events: Vec<Value>,
     /// 上面那格为什么是它现在的样子。
     history: AgentHistory,
@@ -1362,7 +1385,12 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// `history`，说清这一次的空是"刚建"、"本来就在"，还是"打不开，以及为什么"。
 ///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
-async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
+async fn session_for(
+    state: &State<'_, AgentRuntime>,
+    live: &Handle,
+    named: &str,
+    wanted: Wanted,
+) -> Result<Held> {
     let thread_id = conversation(named)?;
 
     let stored = {
@@ -1388,14 +1416,20 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
     let mut lost: Option<AgentHistory> = None;
 
     if let Some(session_id) = session_id {
+        /* 本次连接开出来的号，agent 此刻就认得它。
+        它认得，不等于屏幕上还有东西：渲染层可以在连接活着的时候整个重来
+        （Ctrl+R、第二个窗口），那一刻它手里一片空白。「有没有经过可看」是
+        那一侧的事实，这一侧猜不出来，所以不猜 —— 要经过的那一路照样去装载。 */
+        let known = recognised(state, &session_id)?;
+
         if !mine {
             /* 号发出去只会换回 UnknownSession，所以不发。 */
             lost = Some(AgentHistory::Unavailable {
                 reason: AgentHistoryLoss::OtherAgent,
                 owner,
             });
-        } else if recognised(state, &session_id)? {
-            /* 本次连接开的，直接用。 */
+        } else if known && matches!(wanted, Wanted::Address) {
+            /* 只要一个地址，那就是它，不必惊动 agent。 */
             return Ok(Held {
                 thread_id,
                 session_id,
@@ -1437,12 +1471,40 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
                 Err(error) => {
                     log::warn!("could not reload the stored session: {error}");
 
+                    /* 号还活着，只是这一次没能把它重放出来。绝不能顺势重开一
+                    条：那会把一条正在用的会话丢掉，而人可能还在里面说话。 */
+                    if known {
+                        return Ok(Held {
+                            thread_id,
+                            session_id,
+                            offered: None,
+                            events: Vec::new(),
+                            history: AgentHistory::Unavailable {
+                                reason: AgentHistoryLoss::Forgotten,
+                                owner,
+                            },
+                        });
+                    }
+
                     lost = Some(AgentHistory::Unavailable {
                         reason: AgentHistoryLoss::Forgotten,
                         owner,
                     });
                 }
             }
+        } else if known {
+            /* 它不装载旧会话，可这一条本来就还在这条连接上：经过取不回来，会话
+            得留着。重开一条只会把它也赔进去。 */
+            return Ok(Held {
+                thread_id,
+                session_id,
+                offered: None,
+                events: Vec::new(),
+                history: AgentHistory::Unavailable {
+                    reason: AgentHistoryLoss::NotSupported,
+                    owner,
+                },
+            });
         } else {
             /* 它握手时就说了它不做这件事。 */
             lost = Some(AgentHistory::Unavailable {
