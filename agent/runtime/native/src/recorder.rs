@@ -9,6 +9,7 @@ use agent_client_protocol::schema::v1::{
 };
 use serde::Serialize;
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
 use crate::frame::{RunFrame, acp_update, prune};
