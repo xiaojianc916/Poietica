@@ -11,9 +11,8 @@ use crate::{
     commands::{
         agent::{
             AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
-            AgentLoadRunRequest, AgentLoadThreadRequest, AgentPinThreadRequest, AgentPromptRequest,
-            AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-            AgentRunSnapshot, AgentSelectConfigRequest, AgentThreadRequest, AgentThreadTranscript,
+            AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
+            AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
         },
         agent_cli::{AgentCliRequest, AgentCliResult},
         agent_config::AgentConfigSnapshot,
@@ -51,8 +50,6 @@ pub fn export_document_bindings() {
             crate::commands::agent::agent_cancel,
             crate::commands::agent::agent_resolve_permission,
             crate::commands::agent::agent_shutdown,
-            crate::commands::agent::agent_load_run,
-            crate::commands::agent::agent_load_thread,
             crate::commands::agent::agent_set_config_option,
             crate::commands::agent::agent_capabilities,
             crate::commands::agent::agent_new_session,
@@ -77,11 +74,7 @@ pub fn export_document_bindings() {
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
-        .typ::<AgentLoadRunRequest>()
         .typ::<AgentResolvePermissionRequest>()
-        .typ::<AgentRunSnapshot>()
-        .typ::<AgentLoadThreadRequest>()
-        .typ::<AgentThreadTranscript>()
         .typ::<AgentConfigPurpose>()
         .typ::<AgentConfigChoice>()
         .typ::<AgentConfigControl>()

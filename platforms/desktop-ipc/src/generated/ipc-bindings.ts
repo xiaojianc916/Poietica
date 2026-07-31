@@ -59,43 +59,6 @@ async agentShutdown() : Promise<null> {
     return await TAURI_INVOKE("agent_shutdown");
 },
 /**
- * Reads a run back out of the log.
- * 
- * The frames returned are the same values that were broadcast while the run
- * was live, so replaying a stored run cannot drift from having watched it.
- * 
- * # Errors
- * 
- * Fails when the identifier is not a UUID or the log cannot be read.
- */
-async agentLoadRun(request: AgentLoadRunRequest) : Promise<AgentRunSnapshot> {
-    return await TAURI_INVOKE("agent_load_run", { request });
-},
-/**
- * Reads a window of a conversation back out of the log.
- * 
- * Opening a conversation is reading one, so this is what the interface calls
- * when the user picks one: the frames are the same values that were broadcast
- * while each turn was live, which is why a conversation reopened cannot drift
- * from having watched it happen.
- * 
- * A window, because the whole log is tens of thousands of frames for a
- * conversation that has seen real use and all of it would land on the click.
- * The turn count travels with it, so the interface can say where the window
- * ends and ask for a wider one.
- * 
- * A conversation the log has never seen has no frames. That is an empty
- * transcript rather than a failure, which is what a conversation nobody has
- * spoken in yet actually is.
- * 
- * # Errors
- * 
- * Fails when the log cannot be opened or read.
- */
-async agentLoadThread(request: AgentLoadThreadRequest) : Promise<AgentThreadTranscript> {
-    return await TAURI_INVOKE("agent_load_thread", { request });
-},
-/**
  * Changes one selector on the running session.
  * 
  * The change applies to the session in flight, so nothing is restarted
@@ -569,38 +532,6 @@ program: string;
  */
 args: string[] }
 /**
- * A request to replay a run from the log.
- */
-export type AgentLoadRunRequest = { 
-/**
- * The run to read.
- */
-runId: string; 
-/**
- * Resume after this position; omit to read from the beginning.
- * 
- * The width is deliberate. Sequence numbers are 64-bit in the log, but
- * the generated `TypeScript` refuses a 64-bit integer rather than hand the
- * renderer a value it cannot represent, and no single run is going to
- * reach four billion frames.
- */
-afterSeq: number | null }
-/**
- * A request to replay a whole conversation from the log.
- */
-export type AgentLoadThreadRequest = { 
-/**
- * The conversation to read.
- */
-threadId: string; 
-/**
- * How many turns to read, newest first; omit for the default window.
- * 
- * 宽度是界面的决定：只有它知道用户已经翻到哪里、还想不想往前看。这里
- * 的默认值不是策略，只是没人交代时的兜底。
- */
-recentRuns: number | null }
-/**
  * Where a new session should be opened, and how to start the agent if it
  * is not running yet.
  */
@@ -732,18 +663,6 @@ requestId: string;
  */
 optionId: string }
 /**
- * A run as it was recorded.
- */
-export type AgentRunSnapshot = { 
-/**
- * The run the frames belong to.
- */
-runId: string; 
-/**
- * The frames, in order, exactly as they were broadcast when live.
- */
-events: JsonValue[] }
-/**
  * A change made in the interface.
  */
 export type AgentSelectConfigRequest = { 
@@ -811,27 +730,6 @@ export type AgentThreadRequest = {
  * The conversation the action applies to.
  */
 threadId: string }
-/**
- * A conversation as it was recorded.
- */
-export type AgentThreadTranscript = { 
-/**
- * The conversation the frames belong to.
- */
-threadId: string; 
-/**
- * The frames of the turns inside the window, in the order they happened.
- */
-events: JsonValue[]; 
-/**
- * How many turns the conversation holds in total.
- * 
- * The window can be narrower than the conversation, and an interface that
- * is not told so has no honest way to draw the boundary: it would either
- * present a fragment as the whole thing, or offer to reach back when there
- * is nothing behind it.
- */
-totalRuns: number }
 /**
  * Where a conversation's name came from.
  * 

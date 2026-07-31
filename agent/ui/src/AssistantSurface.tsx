@@ -256,7 +256,7 @@ export function AssistantSurface({
    *
    *   · 转录会被外面塞进来：run 帧上没有 threadId（run-contract.ts 的六个变体全是
    *     { kind, seq, at, ... }），而端口的 subscribe 也不按对话订阅，于是每个挂载
-   *     着的界面都会收下别人的帧；它还会被 opening() 清空、被 loadThread 覆盖。
+   *     着的界面都会收下别人的帧；它还会被 opening() 清空、被装载回来的那段历史覆盖。
    *     一个会来回变的量，拿来当一次不可逆转场的判据，就一定会来回跑。
    *   · isRestoring 是"有请求在飞"，不是"有东西可看"。加载中的反馈是 RestoreSpinner
    *     的职责，不是把整块构成换掉的理由。
