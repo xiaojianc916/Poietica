@@ -1,5 +1,42 @@
 import { invoke } from './invoke'
 
+/*
+ * 同一个 agent 的配置调用排成一列。
+ *
+ * agent 的 config.toml 没有跨进程锁，而写它的动作有四个：保存密钥、删除密钥、一次性
+ * 导入、改默认模型。前三个都是起一个 agent CLI 子进程做「读整份 → 合并 → 写回」，
+ * 一次要好几秒。两个并发跑起来，后写的那个从写前状态出发 —— 上游在自己的测试里写下
+ * 过这句话：a write that starts from the pre-edit state would silently drop them.
+ *
+ * 用户真会这么干：三张厂商卡的忙碌状态各是各的，填完一家的密钥点保存，不等它转完接着
+ * 填下一家，是配置 agent 时最自然的动作。两张卡都会说「已写入」，而其中一家的密钥不在
+ * 文件里，直到用那家模型时被要求登录。
+ *
+ * 排队放在这里，而不是把按钮灰掉：用户想做的两件事都合理，只是不该同时写。为此把一个
+ * 「谁在写」的状态从页面穿到每张卡再穿到对话页，是让用户替我们的实现细节让路。
+ *
+ * 读也排在写后面：一次 provider list 若在写到一半时发出，读回的是写前的配置，还会被
+ * 存成展示缓存。排队顺带消掉了这条。纯读的那两条命令（密钥尾号、默认模型）不排 ——
+ * 原生侧写入是先写临时文件再 rename，读者永远看不到半份文件。
+ *
+ * 这不是文件锁，拦不住用户手改或 agent 自己写。今天所有写入都出自这一个渲染进程，
+ * 所以这条链就是完整的；那个文件本来也没有更强的东西可用。
+ */
+const queues = new Map<string, Promise<unknown>>()
+
+function inOrder<T>(agentId: string, work: () => Promise<T>): Promise<T> {
+  const tail = queues.get(agentId) ?? Promise.resolve()
+  const next = tail.then(work)
+
+  /* 队尾永远不带失败：一次写入出错，不该把后面排着的那些一并拒掉。 */
+  queues.set(
+    agentId,
+    next.catch(() => undefined),
+  )
+
+  return next
+}
+
 /** 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。 */
 export interface AgentCliRequest {
   readonly agentId: string
@@ -82,13 +119,14 @@ export function createAgentConfigBridge(): AgentConfigBridge {
 
     clearLegacyProviders: () => invoke<AgentConfigSnapshot>('agent_config_clear_legacy_providers'),
 
-    execCli: (request) => invoke<AgentCliResult>('agent_cli_exec', { request }),
+    execCli: (request) =>
+      inOrder(request.agentId, () => invoke<AgentCliResult>('agent_cli_exec', { request })),
 
     loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
 
     loadDefaultModel: (agentId) => invoke<string | null>('agent_default_model', { agentId }),
 
     saveDefaultModel: (agentId, alias) =>
-      invoke<void>('agent_set_default_model', { agentId, alias }),
+      inOrder(agentId, () => invoke<void>('agent_set_default_model', { agentId, alias })),
   }
 }

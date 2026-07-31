@@ -274,7 +274,6 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * 目录由这一家在全局配置里的模型清单现场序列化，密钥由原生侧从全局 config.toml
    * 取出直达子进程 —— 两样都不进渲染层，与厂商卡那条写入是同一条管线。
    *
-   * 串行而不是并发：每一次都在改 agent 同一个 config.toml，而那个文件没有跨进程锁。
    *
    * 只导已配置密钥的那几家。没有密钥的那几家取不到 api_key，catalog add 必然失败；
    * 与其让用户看一串错误，不如一开始就不发那几次调用。
@@ -318,10 +317,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     const importAll = async (): Promise<readonly ImportFailure[]> => {
       const failed: ImportFailure[] = []
 
-      /*
-       * 串行而不是并发：每一次都在改 agent 同一个 config.toml，而那个文件没有跨
-       * 进程锁。一家失败也不中断 —— 逐家记名，最后一次说清楚。
-       */
+      /* 一家失败也不中断 —— 逐家记名，最后一次说清楚。 */
       for (const provider of usable) {
         const failure = await importOne({
           agentId,
