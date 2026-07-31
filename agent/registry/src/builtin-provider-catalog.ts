@@ -271,35 +271,29 @@ function bareModelId(alias: string, providerId: string): string {
 }
 
 /*
- * 一张厂商卡的模型下拉选项。
+ * agentProviderModelOptions 曾在这里：一张厂商卡一个「默认模型」下拉。
  *
- * 候选的产地按优先级只有一个答案：这家已经在 agent 里配过，就以 provider list 的
- * 快照为准 —— 那是 agent 此刻的真实配置；否则用内置表兜底。两边都只给 [id, 显示名]：
- * id 原样交给 --default-model 校验，显示名给人看。
+ * 删掉不是因为它有 bug，是那个形状本身错了。配置里的 default_model 是顶层唯一的一个
+ * 键，界面却给每家画一格；catalog add 又是最后写的那家赢，于是三张卡各显示各的内置表
+ * 首条，没有一张说的是真话 —— 「图标还是 DeepSeek、模型却成了 Kimi」就是这里来的。
+ *
+ * Zed 的形状是单数：crates/agent_settings/src/agent_settings.rs 上
+ * pub default_model: Option<LanguageModelSelection>，而 LanguageModelSelection
+ * （crates/settings_content/src/agent.rs）里同时装着 provider 与 model —— 全局一份，
+ * 跨厂商单选。现在那一格在 ModelsSettings 里，候选是所有已配置的模型。
  */
-export function agentProviderModelOptions(
-  preset: AgentProviderPreset,
-  configured: AgentProviderState | undefined,
-): readonly (readonly [string, string])[] {
-  const source =
-    configured !== undefined && configured.models.length > 0
-      ? configured.models.map(
-          (model) => [bareModelId(model.alias, configured.id), model.displayName] as const,
-        )
-      : preset.models.map((model) => [model.id, model.displayName] as const)
 
-  /* 同一家配两次（先内置目录、后自定义注册表）会留下重复别名，去重而不是让下拉出现两行一样的。 */
-  const seen = new Set<string>()
-  const options: Array<readonly [string, string]> = []
-
-  for (const option of source) {
-    if (!seen.has(option[0])) {
-      seen.add(option[0])
-      options.push(option)
-    }
-  }
-
-  return options
+/*
+ * 别名剥掉 provider/ 前缀后的裸模型 id。
+ *
+ * --default-model 只认它：对方的校验名单是 catalogProviderModels 解析出来的模型
+ * （handleCatalogAdd 里 models.some((m) => m.id === opts.defaultModel)），那里面的 id
+ * 没有前缀；写成功之后它自己再拼回去（Default model set to ${providerId}/${...}）。
+ *
+ * 导出而不是让调用方各剥各的：这是对方命令行的约定，抄第二遍就会有第二种剥法。
+ */
+export function agentBareModelId(alias: string, providerId: string): string {
+  return bareModelId(alias, providerId)
 }
 
 /*

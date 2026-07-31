@@ -418,7 +418,8 @@ impl Recorder {
     }
 
     fn finish(&mut self, status: RunOutcome, frame: RunFrame, detail: &str) -> Result<()> {
-        self.log.finish_run(self.frames.run_id(), status, Some(detail))?;
+        self.log
+            .finish_run(self.frames.run_id(), status, Some(detail))?;
 
         let frame = self.narrate(frame);
 

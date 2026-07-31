@@ -1,15 +1,13 @@
 import {
   type AgentProviderPreset,
-  type AgentProviderState,
   agentProviderCatalogAddArgs,
   agentProviderCatalogDocument,
-  agentProviderModelOptions,
 } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
-import { OptionSelect, SubField } from './models-fields'
+import { SubField } from './models-fields'
 
 /*
  * 一家厂商的凭据卡。传进来的是 builtinAgentProviders 的一条。
@@ -25,7 +23,11 @@ import { OptionSelect, SubField } from './models-fields'
  * 界面（api_url() 从设置里读，空则用常量）。真要改地址的场景是自建网关，那是另一类
  * provider，不该让每个填密钥的人都先看见一个空框。
  *
- * 模型名不给键盘：用户记不住 gpt 后面是点还是横线，这不是用户的问题。
+ * 「默认模型」那一格也删了，它搬去了这一页的顶层。配置里 default_model 是顶层唯一的一个
+ * 键，一家一格必然有两格在说假话；而且那一格从不读配置、只在提交密钥的瞬间才有效，配好
+ * 之后再拨它没有任何动作。Zed 的 AgentSettings 上也只有一个 default_model。
+ *
+ * 这张卡因此只剩它真正拥有的东西：这一家的密钥。
  *
  * 密钥不上命令行、不落我们的盘：随一次 execCli 经环境变量进子进程，写进 agent 自己的
  * 配置之后就与我们无关 —— 包括「配没配过」，答案在上面那张模型列表里。
@@ -50,8 +52,6 @@ export interface ProviderKeyCardProps {
   readonly provider: AgentProviderPreset
   /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
   readonly registryKeyVar: string | undefined
-  /** 这家在 agent 里已配置的条目。在场时模型候选以它为准，内置表退为兜底。 */
-  readonly configured: AgentProviderState | undefined
   readonly onSaved: () => void
 }
 
@@ -60,10 +60,8 @@ export function ProviderKeyCard({
   agentId,
   provider,
   registryKeyVar,
-  configured,
   onSaved,
 }: ProviderKeyCardProps) {
-  const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -103,22 +101,6 @@ export function ProviderKeyCard({
     }
   }, [busy])
 
-  const options = useMemo<readonly (readonly [string, string])[]>(() => {
-    return agentProviderModelOptions(provider, configured)
-  }, [provider, configured])
-
-  /*
-   * 下拉的值必须是选项之一，否则触发器会显示空白。换厂商之后上一家的 modelId 不再在
-   * 选项里，这里就落回第一项，而不是让界面停在一个不存在的选择上。
-   */
-  const modelValue = useMemo(() => {
-    if (modelId !== '' && options.some(([id]) => id === modelId)) {
-      return modelId
-    }
-
-    return options[0]?.[0] ?? ''
-  }, [modelId, options])
-
   const submit = useCallback(() => {
     if (registryKeyVar === undefined) {
       setMessage('这个 agent 没有声明该往哪个环境变量注入密钥，无法从这里写入。')
@@ -140,7 +122,6 @@ export function ProviderKeyCard({
     try {
       args = agentProviderCatalogAddArgs({
         providerId: provider.id,
-        ...(modelValue === '' ? {} : { defaultModelId: modelValue }),
         ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
       })
     } catch (cause: unknown) {
@@ -185,7 +166,7 @@ export function ProviderKeyCard({
           setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
         },
       )
-  }, [agentId, apiKey, modelValue, onSaved, provider, registryKeyVar, store])
+  }, [agentId, apiKey, onSaved, provider, registryKeyVar, store])
 
   return (
     <div className="models-card">
@@ -200,21 +181,6 @@ export function ProviderKeyCard({
 
       {busy && waited ? (
         <p className="models-empty">还在等 agent 回应，正在等它写完配置。</p>
-      ) : null}
-
-      {options.length > 0 ? (
-        <div className="models-row models-row--field">
-          <span className="models-row__name">默认模型</span>
-
-          <div className="models-row__control">
-            <OptionSelect
-              ariaLabel={`${provider.displayName} 默认模型`}
-              onChange={setModelId}
-              options={options}
-              value={modelValue}
-            />
-          </div>
-        </div>
       ) : null}
 
       <SubField

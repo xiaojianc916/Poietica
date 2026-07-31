@@ -35,11 +35,11 @@ export type {
   AgentProviderWire,
 } from './builtin-provider-catalog'
 export {
+  agentBareModelId,
   agentModelDisplayName,
   agentProviderCatalogDocument,
   agentProviderDefaultModelId,
   agentProviderImportDocument,
-  agentProviderModelOptions,
   builtinAgentProviderById,
   builtinAgentProviders,
 } from './builtin-provider-catalog'

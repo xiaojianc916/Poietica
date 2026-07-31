@@ -4,6 +4,7 @@ import {
   type AgentProviderSnapshot,
   acpAgentById,
   acpAgents,
+  agentBareModelId,
   agentModelDisplayName,
   agentProviderCatalogAddArgs,
   agentProviderDefaultModelId,
@@ -148,6 +149,48 @@ async function importOne(input: {
   }
 }
 
+/*
+ * 改写顶层的 default_model。
+ *
+ * 官方没有「只改这一个键」的命令 —— CLI 的子命令表里根本没有 config 那一项。唯一会写
+ * 这个键的出口是 provider catalog add 的 --default-model，而它对已存在的 id 是先删后
+ * 建。所以换一个默认模型，等于拿这一家现有的模型清单重放一次导入，只是这次带上目标。
+ *
+ * 密钥不经这里：重放要求把这一家的 api_key 再交一次，由原生侧从 agent 自己的配置里取出
+ * 直达子进程（secretFromAgentProvider）。渲染层从头到尾没有那个值，用户也不必为了换个
+ * 模型重输一遍密钥。
+ *
+ * 返回 undefined 表示成了；没成返回对方的原话。与 importOne 同一种约定。
+ */
+async function writeDefaultModel(input: {
+  readonly agentId: string
+  readonly alias: string
+  readonly owner: AgentProviderSnapshot['providers'][number]
+  readonly registryKeyVar: string
+  readonly store: AgentConfigStore
+}): Promise<string | undefined> {
+  const { agentId, alias, owner, registryKeyVar, store } = input
+
+  try {
+    const outcome = await store.execCli({
+      agentId,
+      args: agentProviderCatalogAddArgs({
+        providerId: owner.id,
+        defaultModelId: agentBareModelId(alias, owner.id),
+        ...(owner.baseUrl === undefined ? {} : { baseUrl: owner.baseUrl }),
+      }),
+      secretVar: registryKeyVar,
+      secretValue: '',
+      catalogDocument: agentProviderImportDocument(owner),
+      secretFromAgentProvider: owner.id,
+    })
+
+    return outcome.status === 0 ? undefined : reasonOf(outcome)
+  } catch (cause: unknown) {
+    return describeAgentCliFailure(cause, '改默认模型失败，请重试。')
+  }
+}
+
 export interface ModelsSettingsProps {
   readonly store: AgentConfigStore
 }
@@ -168,6 +211,9 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importNote, setImportNote] = useState<string | null>(null)
+  const [defaultModel, setDefaultModel] = useState<string | null>(null)
+  const [defaultModelBusy, setDefaultModelBusy] = useState(false)
+  const [defaultModelNote, setDefaultModelNote] = useState<string | null>(null)
 
   const providers = useAgentProviders(store, agentId)
 
@@ -180,17 +226,6 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   const registryKeyVar = useMemo(() => {
     return profiles.find((profile) => profile.id === agentId)?.registryKeyVar
   }, [agentId, profiles])
-
-  /* 厂商卡的候选需要知道「这家在 agent 里配过没有」。按 id 索引一次，三张卡各取一条。 */
-  const configuredByProvider = useMemo(() => {
-    const index = new Map<string, AgentProviderSnapshot['providers'][number]>()
-
-    for (const provider of providers.snapshot?.providers ?? []) {
-      index.set(provider.id, provider)
-    }
-
-    return index
-  }, [providers.snapshot])
 
   /*
    * 一次性导入的第一步：对用户全局 home 跑一次只读的 provider list，把将导入的
@@ -408,6 +443,36 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     }
   }, [agentId, providerSnapshot, store])
 
+  /*
+   * 顶层的 default_model，与密钥尾号同一个时机重取：两样都住在 agent 自己的
+   * config.toml 里，快照变了就意味着那个文件被动过。
+   */
+  useEffect(() => {
+    if (providerSnapshot === undefined) {
+      setDefaultModel(null)
+      return
+    }
+
+    let active = true
+
+    void store.loadDefaultModel(agentId).then(
+      (alias) => {
+        if (active) {
+          setDefaultModel(alias)
+        }
+      },
+      () => {
+        if (active) {
+          setDefaultModel(null)
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [agentId, providerSnapshot, store])
+
   /* agent 自己报的配置问题。它比我们更清楚哪一条坏了。 */
   const providerIssues = useMemo(() => {
     const issues = providers.snapshot?.issues ?? []
@@ -538,6 +603,89 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
 
     return rows
   }, [keyTails, providers.snapshot])
+
+  /*
+   * 「默认模型」那一格的候选：所有已配置的模型，跨厂商摆在一起。
+   *
+   * 不是内置表：这一格问的是「agent 现在拿哪个开会话」，只有它自己配着的模型答得了。
+   * 值用别名（provider/model 的全名）—— 配置里 default_model 存的就是这个形状，读回来
+   * 可以直接比，不必在两种写法之间来回换算。
+   */
+  const defaultModelOptions = useMemo<readonly (readonly [string, string])[]>(() => {
+    return allModels.map((model) => [model.alias, agentModelDisplayName(model)] as const)
+  }, [allModels])
+
+  /*
+   * 那一格左边说什么。三种情况，第二种不是假想：删掉一家 provider 会带走它的模型，而
+   * 对方只在别名仍解析得出来时才保留 default_model —— 指着一个不存在的别名是真实的
+   * 中间态，它的表现就是下一次开会话报 Authentication required。
+   */
+  const defaultModelLabel = useMemo(() => {
+    if (defaultModel === null) {
+      return '未设置 —— agent 开不了会话，先选一个'
+    }
+
+    if (!defaultModelOptions.some(([alias]) => alias === defaultModel)) {
+      return `配置里写着 ${defaultModel}，但这个模型已经不在了`
+    }
+
+    return '开会话时用它'
+  }, [defaultModel, defaultModelOptions])
+
+  /*
+   * 拨动即写入。没有「保存」按钮：这一格背后是一次命令调用，不是一份待提交的表单 ——
+   * 上一版那三个下拉之所以是装饰，正因为它们只在提交密钥时才被读一眼。
+   *
+   * 先把界面切过去、失败再切回来，与「智能体」那一行同一套做法。回滚用的是拨动前的
+   * 那个值，不是「默认值」。
+   */
+  const selectDefaultModel = useCallback(
+    (alias: string) => {
+      if (defaultModelBusy) {
+        return
+      }
+
+      const owner = providers.snapshot?.providers.find((provider) => {
+        return provider.models.some((model) => model.alias === alias)
+      })
+
+      if (owner === undefined) {
+        setDefaultModelNote('这个模型不属于任何已配置的 provider。')
+        return
+      }
+
+      if (registryKeyVar === undefined) {
+        setDefaultModelNote('这个 agent 没有声明该往哪个环境变量注入密钥，改不了默认模型。')
+        return
+      }
+
+      const previous = defaultModel
+
+      setDefaultModel(alias)
+      setDefaultModelBusy(true)
+      setDefaultModelNote(null)
+
+      void writeDefaultModel({ agentId, alias, owner, registryKeyVar, store }).then(
+        (reason) => {
+          setDefaultModelBusy(false)
+
+          if (reason !== undefined) {
+            setDefaultModel(previous)
+            setDefaultModelNote(reason)
+            return
+          }
+
+          providers.reload()
+        },
+        (cause: unknown) => {
+          setDefaultModelBusy(false)
+          setDefaultModel(previous)
+          setDefaultModelNote(describeAgentCliFailure(cause, '改默认模型失败，请重试。'))
+        },
+      )
+    },
+    [agentId, defaultModel, defaultModelBusy, providers, registryKeyVar, store],
+  )
 
   /*
    * 删除就是官方 CLI 的 provider remove：provider 与它的全部模型别名一起消失，
@@ -688,10 +836,36 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
         </summary>
 
         <div className="models-keys__body">
+          <div className="models-block">
+            <span className="models-block__label">默认模型</span>
+
+            <div className="models-card">
+              <div className="models-row models-row--field">
+                <span className="models-row__name">{defaultModelLabel}</span>
+
+                <div className="models-row__control">
+                  {defaultModelBusy ? <InlineSpinner /> : null}
+
+                  {defaultModelOptions.length > 0 ? (
+                    <OptionSelect
+                      ariaLabel="默认模型"
+                      onChange={selectDefaultModel}
+                      options={defaultModelOptions}
+                      value={defaultModel ?? ''}
+                    />
+                  ) : (
+                    <span className="models-row__meta">还没有可选的模型</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {defaultModelNote !== null ? <p className="models-empty">{defaultModelNote}</p> : null}
+          </div>
+
           {BUILTIN_PROVIDERS.map((preset) => (
             <ProviderKeyCard
               agentId={agentId}
-              configured={configuredByProvider.get(preset.id)}
               key={preset.id}
               onSaved={providers.reload}
               provider={preset}

@@ -113,4 +113,14 @@ export interface AgentConfigStore {
    * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
    */
   readonly loadKeyTails: (agentId: string) => Promise<Readonly<Record<string, string>>>
+  /*
+   * 顶层的 default_model，没有就是 null。
+   *
+   * 它不是偏好，是开会话的前提：ACP 的鉴权闸门第一条判的就是它在不在
+   * （packages/acp-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
+   * `if (config.defaultModel === undefined) return false`）。所以界面要能说出
+   * 「现在是哪个」和「一个都没有」，而不是让用户从一次 Authentication required
+   * 里反推。
+   */
+  readonly loadDefaultModel: (agentId: string) => Promise<string | null>
 }

@@ -463,9 +463,8 @@ pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<Stri
     let text = std::fs::read_to_string(&global)
         .map_err(|error| Error::AgentCli(format!("读不到全局配置：{error}")))?;
 
-    secret_from_config(&text, provider_id).ok_or_else(|| {
-        Error::AgentCli(format!("全局配置里读不到 {provider_id} 的密钥"))
-    })
+    secret_from_config(&text, provider_id)
+        .ok_or_else(|| Error::AgentCli(format!("全局配置里读不到 {provider_id} 的密钥")))
 }
 
 /// 从受控 home 的 config.toml 里取出一家 provider 的完整密钥。
@@ -482,19 +481,14 @@ pub fn global_provider_secret(app: &AppHandle, provider_id: &str) -> Result<Stri
 /// # Errors
 ///
 /// 受控 home 算不出来、文件读不到、或那一家的 `api_key` 缺席时返回错误。
-pub fn agent_provider_secret(
-    app: &AppHandle,
-    agent_id: &str,
-    provider_id: &str,
-) -> Result<String> {
+pub fn agent_provider_secret(app: &AppHandle, agent_id: &str, provider_id: &str) -> Result<String> {
     let home = agent_home(app, agent_id)?;
 
     let text = std::fs::read_to_string(home.join("config.toml"))
         .map_err(|error| Error::AgentCli(format!("读不到 {agent_id} 自己的配置：{error}")))?;
 
-    secret_from_config(&text, provider_id).ok_or_else(|| {
-        Error::AgentCli(format!("{agent_id} 的配置里读不到 {provider_id} 的密钥"))
-    })
+    secret_from_config(&text, provider_id)
+        .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的配置里读不到 {provider_id} 的密钥")))
 }
 
 /* agent_import_global 与整份复制曾在这里。

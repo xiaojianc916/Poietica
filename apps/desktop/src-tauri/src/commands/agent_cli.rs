@@ -243,8 +243,7 @@ fn validate(request: &AgentCliRequest) -> Result<()> {
             || request.secret_from_global_provider.is_some()
         {
             return Err(Error::AgentCli(
-                "密钥只能有一个来源：随请求携带、从全局配置取，或从 agent 自己的配置取"
-                    .to_owned(),
+                "密钥只能有一个来源：随请求携带、从全局配置取，或从 agent 自己的配置取".to_owned(),
             ));
         }
     }

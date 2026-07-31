@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentProviderState } from '../agent-provider-state'
 import {
+  agentBareModelId,
   agentProviderCatalogDocument,
-  agentProviderModelOptions,
   builtinAgentProviderById,
   builtinAgentProviders,
 } from '../builtin-provider-catalog'
@@ -129,57 +128,30 @@ describe('agentProviderCatalogDocument', () => {
   })
 })
 
-describe('agentProviderModelOptions', () => {
-  const deepseek = builtinAgentProviderById('deepseek')
-
-  if (deepseek === undefined) {
-    throw new Error('内置表缺 deepseek')
-  }
-
-  const configured: AgentProviderState = {
-    id: 'deepseek',
-    type: 'openai',
-    baseUrl: 'https://api.deepseek.com',
-    configured: true,
-    credentialKind: 'apiKey',
-    registryUrl: undefined,
-    synthetic: false,
-    models: [
-      {
-        alias: 'deepseek/deepseek-v4-flash',
-        displayName: 'DeepSeek V4 Flash',
-        providerId: 'deepseek',
-        maxContextSize: 1000000,
-        capabilities: [],
-        supportEfforts: [],
-      },
-      {
-        alias: 'deepseek/deepseek-v4-flash',
-        displayName: 'DeepSeek V4 Flash（重复）',
-        providerId: 'deepseek',
-        maxContextSize: 1000000,
-        capabilities: [],
-        supportEfforts: [],
-      },
-    ],
-  }
-
-  it('没配过时用内置表，值是裸模型 id', () => {
-    const options = agentProviderModelOptions(deepseek, undefined)
-
-    expect(options.map(([id]) => id)).toEqual(deepseek.models.map((model) => model.id))
+/*
+ * 别名与裸 id 的换算。
+ *
+ * 判据是对方的两处逐字：校验名单里的 id 不带前缀（handleCatalogAdd 的
+ * models.some((m) => m.id === opts.defaultModel)），而成功之后它自己拼回全名
+ * （Default model set to ${providerId}/${opts.defaultModel}）。给错一头，
+ * 整次写入以 exit 1 收场。
+ */
+describe('agentBareModelId', () => {
+  it('剥掉 provider/ 前缀', () => {
+    expect(agentBareModelId('moonshot-cn/kimi-k2.6', 'moonshot-cn')).toBe('kimi-k2.6')
   })
 
-  it('配过之后以快照为准，值剥掉 provider 前缀', () => {
-    const options = agentProviderModelOptions(deepseek, configured)
-
-    expect(options[0]?.[0]).toBe('deepseek-v4-flash')
-    expect(options[0]?.[1]).toBe('DeepSeek V4 Flash')
+  it('别名本来就没带前缀时原样返回，不猜', () => {
+    expect(agentBareModelId('kimi-k2.6', 'moonshot-cn')).toBe('kimi-k2.6')
   })
 
-  it('同一家配两次留下的重复别名只出现一次', () => {
-    const options = agentProviderModelOptions(deepseek, configured)
+  it('只剥开头那一段：模型 id 自己带的斜杠不动', () => {
+    expect(agentBareModelId('openrouter/moonshotai/kimi-k2', 'openrouter')).toBe(
+      'moonshotai/kimi-k2',
+    )
+  })
 
-    expect(options.filter(([id]) => id === 'deepseek-v4-flash')).toHaveLength(1)
+  it('前缀只是碰巧同名的一段时不剥', () => {
+    expect(agentBareModelId('deepseek-v4-pro', 'deepseek')).toBe('deepseek-v4-pro')
   })
 })

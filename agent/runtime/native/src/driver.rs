@@ -17,6 +17,7 @@ use futures::future::{Either, select};
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::commands::{AgentClient, Command};
 use crate::config::{ConfigControl, controls};

@@ -16,7 +16,9 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
-use poietica_agent_runtime_native::{AcpError, RecordedEvent, Recorder, RunSlot};
+use poietica_agent_runtime_native::{
+    AcpError, Frames, Listening, RecordedEvent, Recorder, RunSlot,
+};
 use uuid::Uuid;
 
 use common::MemoryLog;
@@ -57,7 +59,7 @@ fn an_update_outside_a_turn_is_dropped() {
 
     assert!(!slot.is_recording());
     assert!(
-        !slot.record(|recorder| recorder.record_session_update(&announcement())),
+        !slot.record(|listening| listening.session_update(&announcement())),
         "an update between turns belongs to no run"
     );
 }
@@ -68,13 +70,16 @@ fn updates_reach_the_installed_run() {
     let observed = Arc::clone(&fixture.observed);
     let slot = RunSlot::new();
 
-    slot.install(fixture.recorder).expect("an empty slot");
+    slot.install(Listening::Turn(fixture.recorder))
+        .expect("an empty slot");
 
     assert!(slot.is_recording());
-    assert!(slot.record(|recorder| {
-        recorder.record_run_started("sess_alpha", "what the run was asked");
+    assert!(slot.record(|listening| {
+        if let Some(recorder) = listening.turn_mut() {
+            recorder.record_run_started("sess_alpha", "what the run was asked");
+        }
     }));
-    assert!(slot.record(|recorder| recorder.record_session_update(&announcement())));
+    assert!(slot.record(|listening| listening.session_update(&announcement())));
 
     let seen = observed.lock().expect("the sink");
 
@@ -97,10 +102,11 @@ fn a_second_run_cannot_displace_the_first() {
     let second = fixture();
     let slot = RunSlot::new();
 
-    slot.install(first.recorder).expect("an empty slot");
+    slot.install(Listening::Turn(first.recorder))
+        .expect("an empty slot");
 
     let error = slot
-        .install(second.recorder)
+        .install(Listening::Turn(second.recorder))
         .expect_err("an occupied slot refuses a second run");
 
     assert!(
@@ -109,18 +115,60 @@ fn a_second_run_cannot_displace_the_first() {
     );
 }
 
+/// 装载一条旧会话时，槽里站的是重播听众：帧照样成形、照样投递，只是没有
+/// 日志可写 —— 这一份历史的持有者是 agent。
+///
+/// 断言的 kind 与上面那个实时测试是同一个，这才是重点：两边不是碰巧长得像，
+/// 是同一个 `acp_update` 做出来的同一种帧。
+#[test]
+fn a_loading_session_forwards_its_replay_without_a_log() {
+    let seen: Arc<Mutex<Vec<RecordedEvent>>> = Arc::new(Mutex::new(Vec::new()));
+    let sink = Arc::clone(&seen);
+    let slot = RunSlot::new();
+
+    slot.install(Listening::Replay(Frames::new(
+        Uuid::nil(),
+        Box::new(move |event: &RecordedEvent| {
+            if let Ok(mut held) = sink.lock() {
+                held.push(event.clone());
+            }
+        }),
+    )))
+    .expect("an empty slot");
+
+    assert!(
+        slot.record(|listening| listening.session_update(&announcement())),
+        "装载期间这条会话上有人在听"
+    );
+
+    let held = seen.lock().expect("the sink");
+
+    assert_eq!(held.len(), 1);
+    assert_eq!(
+        held.first().map(|event| event.kind.clone()),
+        Some("acp_update".to_owned())
+    );
+    assert!(
+        held.first()
+            .and_then(|event| event.frame.get("notification"))
+            .is_some(),
+        "重播帧的形状与实时帧相同"
+    );
+}
+
 #[test]
 fn taking_the_run_ends_the_routing() {
     let fixture = fixture();
     let slot = RunSlot::new();
 
-    slot.install(fixture.recorder).expect("an empty slot");
+    slot.install(Listening::Turn(fixture.recorder))
+        .expect("an empty slot");
 
     let taken = slot.take().expect("the slot").expect("a run to close out");
 
     assert!(!slot.is_recording());
     assert!(
-        !slot.record(|recorder| recorder.record_session_update(&announcement())),
+        !slot.record(|listening| listening.session_update(&announcement())),
         "the turn is over, so nothing else may be attributed to it"
     );
 
