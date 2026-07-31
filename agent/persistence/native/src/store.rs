@@ -1,9 +1,9 @@
 //! The encrypted store itself.
 //!
 //! Opening the file is all this module does. What can be asked of it lives
-//! next to the thing being asked about: threads.rs, runs.rs and events.rs,
-//! each extending this same type, in the manner projections.rs already
-//! established.
+//! next to the thing being asked about: threads.rs extends this same type
+//! with everything a list of conversations needs, and that is now the whole
+//! of it.
 
 use std::path::Path;
 
@@ -52,38 +52,6 @@ impl AgentStore {
     pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
         let mut connection = open_encrypted(path, key)?;
         migrate(&mut connection)?;
-        seal_orphaned_runs(&connection)?;
         Ok(Self { connection })
     }
-}
-
-/// 把上一次运行留下的、永远停在 running 的轮次封掉。
-///
-/// 一轮的存活完全依赖内存里的那个 `Recorder`：`finish_run` 只有它一个调用者。
-/// 进程一旦退出，不可能再有任何人去写那一行，所以开库这一刻看到的每一个
-/// running 都是上一次运行留下的尸体。这是从架构本身推出来的判定，不是一个
-/// 超时启发式。同一时刻只有一个进程开这个库，由 bootstrap/app.rs 里第一个
-/// 注册的 single-instance 插件保证。
-///
-/// 结束时间不编造。日志里那一行最后一帧的时间，就是它最后活着的证据；一帧
-/// 都没留下的，就用它开始的时间。往这里填一个"发现它的时刻"，等于让日志说
-/// 一件没发生过的事。
-///
-/// 界面本来就把非终态的重放显示成失败，所以这一刀不改变任何人看到的东西。
-/// 它改变的是：这些轮次从此可以被折叠 —— 而最容易留下孤儿的，恰恰是跑得最
-/// 久、帧最多、最需要折叠的那些轮次。
-fn seal_orphaned_runs(connection: &Connection) -> Result<()> {
-    connection.execute(
-        "UPDATE runs
-            SET status = 'failed',
-                ended_at = coalesce(
-                  ended_at,
-                  (SELECT max(recorded_at) FROM run_events WHERE run_events.run_id = runs.id),
-                  started_at
-                )
-          WHERE status = 'running'",
-        [],
-    )?;
-
-    Ok(())
 }

@@ -1,26 +1,18 @@
-//! Encrypted local storage for agent runs.
+//! Encrypted local index of conversations.
 //!
-//! The event log is the source of truth. Everything else in this crate is a
-//! projection of it, which is what makes an interrupted run replayable: the
-//! ACP client persists each session update before forwarding it, so recovery
-//! is a matter of reading the log back in sequence order.
+//! 这个 crate 只回答三个问题：这台机器上有哪些对话、它们叫什么、各自握着
+//! 谁的哪个会话。对话说过什么不在这里 —— 那份记录属于 agent，由 session/load
+//! 交还，那是唯一一份不会和别人漂移的历史。
 
-mod compaction;
 mod connection;
 mod error;
-mod events;
 mod key;
 mod migrations;
-mod projections;
-mod runs;
 mod store;
 mod threads;
 
 pub use connection::{DEFAULT_BUSY_TIMEOUT, open_encrypted};
 pub use error::{Result, StoreError};
-pub use events::StoredEvent;
 pub use key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
-pub use projections::{PermissionOutcome, PermissionRecord, ToolCall, ToolCallStatus};
-pub use runs::RunStatus;
 pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};

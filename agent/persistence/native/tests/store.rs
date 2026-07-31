@@ -5,7 +5,7 @@
 )]
 use std::path::PathBuf;
 
-use poietica_agent_persistence_native::{AgentStore, DatabaseKey, RunStatus, StoreError};
+use poietica_agent_persistence_native::{AgentStore, DatabaseKey, StoreError};
 use tempfile::TempDir;
 
 fn database_path(directory: &TempDir) -> PathBuf {
@@ -13,49 +13,27 @@ fn database_path(directory: &TempDir) -> PathBuf {
 }
 
 #[test]
-fn events_replay_in_sequence_order() {
+fn a_conversation_is_listed_once_someone_has_spoken_in_it() {
     let directory = TempDir::new().expect("temporary directory");
     let key = DatabaseKey::generate();
     let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
 
-    let thread = store.create_thread("first thread").expect("thread");
-    let run = store.start_run(thread).expect("run");
-
-    for seq in 1..=3 {
-        store
-            .append_event(run, seq, "acp_update", &serde_json::json!({ "seq": seq }))
-            .expect("append");
-    }
+    let quiet = store.create_thread("新建对话").expect("thread");
+    let spoken = store.create_thread("新建对话").expect("thread");
 
     store
-        .finish_run(run, RunStatus::Finished, Some("end_turn"))
-        .expect("finish");
+        .name_from_message(spoken, "帮我看看这段代码")
+        .expect("name");
 
-    let events = store.events_since(run, 0).expect("read");
-    let sequence: Vec<i64> = events.iter().map(|event| event.seq).collect();
+    let listed = store.list_threads().expect("list");
+    let ids: Vec<String> = listed.into_iter().map(|thread| thread.id).collect();
 
-    assert_eq!(sequence, vec![1, 2, 3]);
-
-    let resumed = store.events_since(run, 1).expect("resume");
-    assert_eq!(resumed.len(), 2);
-}
-
-#[test]
-fn a_redelivered_event_is_rejected() {
-    let directory = TempDir::new().expect("temporary directory");
-    let key = DatabaseKey::generate();
-    let store = AgentStore::open_with_key(&database_path(&directory), &key).expect("open");
-
-    let thread = store.create_thread("thread").expect("thread");
-    let run = store.start_run(thread).expect("run");
-
-    store
-        .append_event(run, 1, "acp_update", &serde_json::json!({}))
-        .expect("first append");
-
-    let repeated = store.append_event(run, 1, "acp_update", &serde_json::json!({}));
-
-    assert!(matches!(repeated, Err(StoreError::DuplicateSeq { .. })));
+    assert_eq!(
+        ids,
+        vec![spoken.to_string()],
+        "名字来自第一句话，所以还挂着占位名的那条还没有人开口"
+    );
+    assert!(!ids.contains(&quiet.to_string()));
 }
 
 #[test]

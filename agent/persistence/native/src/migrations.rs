@@ -41,6 +41,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "thread_agents",
         include_str!("schema/0008_thread_agents.sql"),
     ),
+    (
+        9,
+        "drop_run_log",
+        include_str!("schema/0009_drop_run_log.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

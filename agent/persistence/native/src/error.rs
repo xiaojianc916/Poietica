@@ -27,15 +27,6 @@ pub enum StoreError {
     #[error("payload error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// The same sequence number arrived twice for one run.
-    #[error("event {seq} already exists for run {run_id}")]
-    DuplicateSeq {
-        /// The run the duplicate belongs to.
-        run_id: String,
-        /// The sequence number that was already recorded.
-        seq: i64,
-    },
-
     /// A timestamp could not be formatted.
     #[error("timestamp error: {0}")]
     Time(#[from] time::error::Format),

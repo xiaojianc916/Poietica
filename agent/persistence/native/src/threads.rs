@@ -31,15 +31,15 @@ impl AgentStore {
     /// # Errors
     ///
     /// Fails when the query is rejected.
-    // A conversation with no run has never been spoken in, so it is not a
-    // record of anything and is left out. A run is written when a prompt is
-    // sent, whether the turn then succeeds or fails, which is exactly the
-    // line between a conversation that happened and one that did not.
+    // 没被说过话的对话不进列表。判据此前是「有没有 runs 行」，而本地已经
+    // 不再记轮次。同一件事现在由名字回答：一条对话的名字取自它的第一句话
+    // （name_from_message），所以还挂着占位名的，就是还没有人开口的那一条。
+    // 迁移 0009 在删表之前把存量对齐过，列表成员一行不差。
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
             "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned
                FROM threads
-              WHERE EXISTS (SELECT 1 FROM runs WHERE runs.thread_id = threads.id)
+              WHERE title_source <> 'fallback'
               ORDER BY pinned DESC, updated_at DESC",
         )?;
 
@@ -185,17 +185,10 @@ impl AgentStore {
         Ok(())
     }
 
-    /// Deletes a conversation and everything recorded under it.
+    /// Deletes a conversation from the local index.
     ///
-    /// One statement, because the schema already says what must happen.
-    /// runs reference their thread, and `run_events`, `tool_calls` and
-    /// permissions all reference their run, every one of them ON DELETE
-    /// CASCADE; `open_encrypted` turns foreign keys on. A single statement
-    /// is atomic on its own, so there is nothing left for a transaction to
-    /// hold together either.
-    ///
-    /// What was here before spelled out two of those four children by hand
-    /// and left the other two to the very cascade it was working around.
+    /// 一行没了就是没了：这张表底下已经不挂任何东西。对话在 agent 那边的
+    /// 那一份由 session/delete 去删，两边各删各的一份，这里不越权。
     ///
     /// # Errors
     ///
