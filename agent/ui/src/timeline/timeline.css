@@ -508,7 +508,7 @@
  * 上限是一个最大值：短于它的内容没有滚动区，也就没有滚动条 —— 这正是「文字不高
  * 就不出现滚动条」，不需要任何额外判断。
  *
- * 这一处，而且只有这一处，用引擎自己的滚动条，不走 chrome/scrollbar-activity.ts
+ * 这一处，而且只有这一处，用平台原生的滚动条，不走 chrome/scrollbar-activity.ts
  * 那层 fixed 浮层。规则是一条，不是两套：
  *
  *   临时出现的滚动条不能占布局    → 浮层；
@@ -516,79 +516,36 @@
  *
  * 浮层撑不起常驻，是几何决定的：那层滑块是 position: fixed，而这个盒子嵌在虚拟化
  * 的转录里，随 translateY 一起移动 —— 一个常驻滑块因此必须每一帧重测一次几何，等
- * 于用一个永不停止的 rAF 去模拟引擎免费提供的东西。三角同理：
- * ::-webkit-scrollbar-button 的单步与长按连发由引擎实现，手绘一对三角就得自己写
- * pointerdown 计时器、自己补无障碍。VS Code 的 ScrollableElement 自绘并带 arrows
- * 选项，前提是它连内容排版都不交给引擎；这里的内容是普通文档流，没有那个前提。
+ * 于用一个永不停止的 rAF 去模拟引擎免费提供的东西。
+ *
+ * 两端的三角同理，而且这里踩过一次坑：曾经用 ::-webkit-scrollbar-button 加
+ * clip-path 手绘三角，画出来是两个实心方块 —— 那一族伪元素在 Chromium 里只处理
+ * background / border / border-radius / box-shadow / 尺寸这几项，clip-path 不在
+ * 其中，颜色照画而裁剪不发生。结论不是换一种画法，是不该自己画：
+ * scrollbar-width: auto 就是平台原生滚动条，三角、长按连发、点轨道翻页、按压态、
+ * 高对比度与 RTL 全都由系统给。此前它们不出现，只是被 app.css 里那条
+ * * { scrollbar-width: none } 关掉了。
+ *
+ * 因此这里用标准属性，不用 ::-webkit-scrollbar：两者是互斥的两条路，标准的那条
+ * 才被推荐，而且它只换配色、不动几何 —— thin 会连按钮一起去掉，所以必须是 auto。
  *
  * 两根滑块同时在动的旧事故（见本文件末尾那一节）由 --overlay-scrollbar: none 挡住：
- * 浮层读这个令牌决定要不要接管，判定点仍然只有一个，没有第二套契约。
+ * 浮层读这个令牌决定要不要接管，判定点仍然只有一个。
  *
  * scrollbar-gutter: stable 常驻留出车道：流式输出越过上限的那一刻，正文不会横向跳
  * 一次。没有溢出时车道是空的，屏幕上什么都看不到。
  *
- * 边缘淡出遮罩连同 use-scroll-fade 一起退场。它存在的唯一理由是「这里没有滚动条，
- * 得有别的东西提示还有内容」；现在有了。而且 mask-image 打在滚动容器上会连自绘的
- * 滚动条一并吃掉 —— 留着它，三角会淡出。
+ * 横向恒为 hidden：这个盒子里是散文，没有需要横滚的东西，而一个不会滚的滚动轴
+ * 只会白占一条车道。
  */
 .timeline-reasoning__scroll {
   --overlay-scrollbar: none;
-  --cp-thought-lane: 10px;
-  --cp-thought-ink: var(--cp-timeline-quiet-text);
 
   max-block-size: var(--cp-timeline-thought-cap);
-  overflow: auto;
+  overflow: hidden auto;
   scrollbar-width: auto;
+  scrollbar-color: color-mix(in srgb, var(--cp-ink) 30%, transparent) transparent;
   scrollbar-gutter: stable;
-}
-
-/* 这几个伪元素不认逻辑属性，只认 width / height。 */
-.timeline-reasoning__scroll::-webkit-scrollbar {
-  width: var(--cp-thought-lane);
-  height: var(--cp-thought-lane);
-}
-
-.timeline-reasoning__scroll::-webkit-scrollbar-track,
-.timeline-reasoning__scroll::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* 3px 透明边 + padding-box 裁剪：可见 4px，命中区仍是整条车道 —— 与浮层那一版逐像素同宽。 */
-.timeline-reasoning__scroll::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background-color: var(--cp-thought-ink);
-  background-clip: padding-box;
-}
-
-/*
- * 两端各一个三角。Chromium 还会为「双按钮」布局准备 start:increment 与
- * end:decrement 两个盒子，不关掉就是四个按钮 —— 那是引擎的历史包袱，不是这里的设计。
- */
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement,
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment {
-  display: block;
-  height: var(--cp-thought-lane);
-  background-color: var(--cp-thought-ink);
-}
-
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement {
-  clip-path: polygon(50% 28%, 82% 68%, 18% 68%);
-}
-
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment {
-  clip-path: polygon(50% 72%, 82% 32%, 18% 32%);
-}
-
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:start:increment,
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:end:decrement {
-  display: none;
-}
-
-.timeline-reasoning__scroll::-webkit-scrollbar-thumb:hover,
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement:hover,
-.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment:hover {
-  background-color: var(--cp-ink);
 }
 
 /* 外框归 [data-surface]；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */

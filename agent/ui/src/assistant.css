@@ -360,7 +360,12 @@
  * 于是各走一条线，而且不会报错。同时 padding 写了两遍，后一句把 --cp-pad-mid
  * 覆盖掉，那个值从来没生效过。
  *
- * 留下的两个令牌才是会话列表自己的事：行内操作按钮的尺寸，底部渐隐的高度。
+ * 留下的那个令牌才是会话列表自己的事：行内操作按钮的尺寸。
+ *
+ * 底部渐隐的高度曾经也在这里，连同它那两条 [data-fade] 规则一起删了 —— 那段
+ * 渐隐从来没有出现过。写它的注释说「由 use-scroll-fade 量出来写成 data-fade」，
+ * 但 AssistantThreadList.tsx 里没有那个 hook、没有 ref，全文不出现 data-fade：
+ * 属性没有人写，选择器一次都没命中过。注释描述的是一条从未接线的管线。
  */
 .assistant-threads {
   display: flex;
@@ -371,27 +376,6 @@
   padding-block: var(--cp-mast-gap);
   padding-inline: var(--sidebar-row-inset);
   --assistant-threads-action-size: 20px;
-  --assistant-threads-fade: 12px;
-}
-
-/*
- * 列表与底部那一行之间的过渡。
- *
- * 遮罩,不是叠一层渐变色块:叠色必须先猜背后是什么颜色,猜错就出现一条看得见
- * 的带 —— 时间线里的思考链和折叠气泡为同一个理由早就这么做了。遮罩是把像素
- * 去掉,任何背景、任何主题都成立。
- *
- * 只在下面还有内容没露出来时才淡。CSS 问不出这个问题(滚动状态容器查询只有
- * 一个引擎实现),所以由 use-scroll-fade 量出来写成 data-fade —— 也是同一个
- * 管线,不新造第二套。列表没滚满一屏时最后一行完整,不会被平白啃掉一截。
- */
-.assistant-threads[data-fade="bottom"],
-.assistant-threads[data-fade="both"] {
-  mask-image: linear-gradient(
-    to bottom,
-    #000 calc(100% - var(--assistant-threads-fade)),
-    transparent
-  );
 }
 
 .assistant-threads__header {
