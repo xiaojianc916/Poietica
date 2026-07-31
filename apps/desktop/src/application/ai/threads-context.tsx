@@ -1,5 +1,5 @@
 import type { ThreadsList } from '@poietica/agent-runtime'
-import { ThreadsStore } from '@poietica/agent-runtime'
+import { ThreadsStore, transcripts } from '@poietica/agent-runtime'
 import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
 

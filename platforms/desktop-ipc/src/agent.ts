@@ -402,6 +402,8 @@ export type AgentThreadDescription = AgentThread
 export interface AgentOpenedThreadDescription {
   readonly thread: AgentThreadDescription
   readonly selectors: readonly AgentConfigControlDescription[]
+  /** 这条对话的经过，由持有它的 agent 交回来。形状不在这里定义。 */
+  readonly events: readonly unknown[]
 }
 
 export interface AgentThreadBridge {

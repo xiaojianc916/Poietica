@@ -18,6 +18,19 @@ const FAILURE_FALLBACK = '读取会话记录失败。'
 /** 说的是选择器那一路，和上面那句不是同一件事。 */
 const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
 
+/**
+ * 转录那一侧，只要这三句话。
+ *
+ * 打开一条对话现在会把它的经过一起带回来，而经过归转录 store 管。注入而不是
+ * import 那个单例：这个文件自己在下面说过，模块级可变量让测试拿不到干净实例。
+ * 声明成一个只有三个方法的接口，是为了让测试能塞一个假的进来。
+ */
+export interface TranscriptSink {
+  readonly opening: (threadId: string) => void
+  readonly adopt: (threadId: string, events: readonly unknown[]) => void
+  readonly failed: (threadId: string, cause: unknown) => void
+}
+
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {
   const tidy = text.trim().replace(/\s+/g, ' ')
@@ -118,9 +131,12 @@ export class ThreadsStore {
   /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
   #sessions = new Map<string, string>()
 
-  constructor(port?: ThreadPort, config?: SessionConfigPort) {
+  readonly #transcripts: TranscriptSink | undefined
+
+  constructor(port?: ThreadPort, config?: SessionConfigPort, transcripts?: TranscriptSink) {
     this.#port = port
     this.#config = config
+    this.#transcripts = transcripts
   }
 
   /**
@@ -222,6 +238,9 @@ export class ThreadsStore {
       const threadId = opened.thread.threadId
 
       this.#hold(opened.thread)
+
+      /* 刚建的一条没有经过。说出来，好过让它停在"还在取"上。 */
+      this.#transcripts?.adopt(threadId, opened.events)
 
       /*
        * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一

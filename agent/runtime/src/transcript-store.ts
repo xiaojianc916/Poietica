@@ -118,9 +118,6 @@ export class TranscriptStore {
 
   #listeners = new Map<string, Set<() => void>>()
 
-  /** 正在取回来的那几条。一条对话同一时刻只取一次。 */
-  #reading = new Set<string>()
-
   /** 每条对话最近一轮的取消口。 */
   #cancels = new Map<string, () => Promise<void>>()
 

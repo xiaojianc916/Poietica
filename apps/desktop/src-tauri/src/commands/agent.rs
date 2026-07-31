@@ -1232,6 +1232,14 @@ pub struct AgentOpenedThread {
     pub thread: AgentThread,
     /// What may be chosen for this session, as the agent reported it.
     pub selectors: Vec<AgentConfigControl>,
+    /// 这条对话的经过，由持有它的 agent 交回来。
+    ///
+    /// 帧的形状与实时那条通道上的一模一样 —— 两者由同一个 `acp_update` 做出来
+    /// （见运行时 crate 的 frame.rs），所以重开一条对话与看着它发生不可能对不上。
+    ///
+    /// 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
+    /// 的东西本来就还在。
+    pub events: Vec<Value>,
 }
 
 /// Lists the stored conversations, newest first.
@@ -1270,13 +1278,18 @@ pub struct AgentOpenThreadRequest {
     pub cwd: Option<String>,
 }
 
-/// 打开一条对话：让它握住一个这条连接认得的会话。
+/// 打开一条对话：把它整条要回来。
 ///
 /// 不点名就先落一行，再为它开会话；点开一条上次运行留下的对话时，`session_for`
 /// 认出它存着的会话号不是本次连接开的，于是请 agent 把那条会话装载回来 —— 号
-/// 不变，历史因此还在。只有 agent 说它不装载旧会话时才重开一条。三条路都在同
-/// 一次答复里带回整张选择器表，界面因此从不需要"读一次设置"——那个读命令正是
-/// 因此被删掉的。
+/// 不变，而 agent 在装载期间用 session/update 把这条对话重放一遍 —— 那些帧就
+/// 是历史本身，随这次答复一起交出去。只有 agent 说它不装载旧会话时才重开一条。
+///
+/// 历史从这里回来，不从别处。屏幕上曾经显示的是本地日志里的另一份，于是同一
+/// 段对话有两个来源，而只有一个是 agent 手里那份 —— 两份一旦分叉，人看见的是
+/// 对的那份的赝品。现在只有一份，它的持有者是这条会话的主人。
+///
+/// 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
 ///
 /// # Errors
 ///
@@ -1303,13 +1316,18 @@ pub async fn agent_open_thread(
             .to_string()
     };
 
-    let held = session_for(&state, &live, &named).await?;
+    let Held {
+        thread_id,
+        session_id,
+        offered,
+        events,
+    } = session_for(&state, &live, &named).await?;
 
-    let offered = if let Some(offered) = held.offered {
+    let offered = if let Some(offered) = offered {
         offered
     } else {
         /* 本次运行已经为它开过会话：只有这一种情况需要把表再问一次。 */
-        let answer = live.client.selectors(held.session_id).map_err(translate)?;
+        let answer = live.client.selectors(session_id).map_err(translate)?;
 
         answer
             .await
@@ -1325,7 +1343,7 @@ pub async fn agent_open_thread(
         let store = borrow_store(&shared)?;
 
         store
-            .thread(held.thread_id)
+            .thread(thread_id)
             .map_err(persistence)?
             .map(retitle)
             .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?
@@ -1334,6 +1352,7 @@ pub async fn agent_open_thread(
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
+        events,
     })
 }
 
@@ -1388,12 +1407,17 @@ fn conversation(named: &str) -> Result<Uuid> {
     })
 }
 
-/// 一条对话所持有的活会话，以及开它时 agent 报的那张选择器表。
+/// 一条对话所持有的活会话，以及装载它时 agent 交回来的东西。
 struct Held {
     thread_id: Uuid,
     session_id: String,
     /// 只有刚开出来的会话有：agent 在同一个答复里报了它。
     offered: Option<Vec<ConfigControl>>,
+    /// 装载一条旧会话时，agent 用 session/update 重放的那一整段。
+    ///
+    /// 与上面那格同一条规矩：只有真的开或装载了一条，才有东西可带。认得的
+    /// 会话这里是空的 —— 它本来就没离开过，屏幕上的东西一直在。
+    events: Vec<Value>,
 }
 
 /// 记下这一轮飞在哪条会话上。
@@ -1511,6 +1535,7 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
                 thread_id,
                 session_id,
                 offered: None,
+                events: Vec::new(),
             });
         }
 
@@ -1538,6 +1563,7 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
                     return Ok(Held {
                         thread_id,
                         session_id,
+                        events: loaded.events,
                         offered: Some(loaded.selectors),
                     });
                 }
@@ -1569,6 +1595,7 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         thread_id,
         session_id: opened.session_id,
         offered: Some(opened.selectors),
+        events: Vec::new(),
     })
 }
 
