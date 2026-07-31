@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -144,6 +145,14 @@ pub struct Recorder {
     diagnostics: String,
     /// How many session updates this run carried.
     updates: u32,
+    /// 这一轮见过的工具调用叫什么。
+    ///
+    /// 权限请求可以不带标题，界面却要求有一个。此前那个退路是去日志里查，
+    /// 于是「这一轮正在发生什么」被存进了「历史」——两个身份压在一张表上。
+    /// 它本来就是一轮的工作内存，一轮结束就该跟着走。
+    titles: HashMap<String, String>,
+    /// 还没有人答复的权限请求，按到达顺序。
+    pending: Vec<String>,
 }
 
 impl fmt::Debug for Recorder {
@@ -170,6 +179,8 @@ impl Recorder {
             failure: None,
             diagnostics: String::new(),
             updates: 0,
+            titles: HashMap::new(),
+            pending: Vec::new(),
         }
     }
 
@@ -223,33 +234,19 @@ impl Recorder {
 
     /// The requests this run is still waiting on.
     ///
-    /// 一轮结束时要从权限桌上放掉的就是这些。读不出来就当作没有：那件事
-    /// 会由紧接着的 `record_pending_cancelled` 记成失败。
+    /// 一轮结束时要从权限桌上放掉的就是这些。请求号是这个记录器自己发的，
+    /// 答复也从它手上过，所以这份清单本来就在它这里。此前它绕道去问日志，
+    /// 唯一的理由是日志恰好也存了一份。
     pub fn outstanding_permissions(&mut self) -> Vec<String> {
-        self.log
-            .outstanding_permissions(self.frames.run_id())
-            .map(|pending| {
-                pending
-                    .into_iter()
-                    .map(|record| record.request_id)
-                    .collect()
-            })
-            .unwrap_or_default()
+        self.pending.clone()
     }
 
     /// Settles every request still outstanding when the turn ended.
     pub fn record_pending_cancelled(&mut self) {
-        let pending = match self.log.outstanding_permissions(self.frames.run_id()) {
-            Ok(pending) => pending,
-            Err(error) => {
-                self.remember(Err(error.into()));
-
-                return;
-            }
-        };
-
-        for record in pending {
-            self.record_permission_resolved(&record.request_id, &Decision::Cancel);
+        // 先取走再逐个记：每一次记录都会把它自己从清单里划掉，边遍历边改
+        // 同一个 Vec 是借用检查器本来就不允许的事。
+        for request_id in std::mem::take(&mut self.pending) {
+            self.record_permission_resolved(&request_id, &Decision::Cancel);
         }
     }
 
@@ -307,6 +304,9 @@ impl Recorder {
     fn project(&mut self, update: &SessionUpdate) -> Result<()> {
         match update {
             SessionUpdate::ToolCall(call) => {
+                self.titles
+                    .insert(call.tool_call_id.to_string(), call.title.clone());
+
                 // An unrecognised state is left out of the projection rather
                 // than guessed at; the log still carries it verbatim.
                 if let Some(status) = translate(call.status) {
@@ -323,6 +323,10 @@ impl Recorder {
             }
             SessionUpdate::ToolCallUpdate(change) => {
                 let tool_call_id = change.tool_call_id.to_string();
+
+                if let Some(title) = change.fields.title.clone() {
+                    self.titles.insert(tool_call_id.clone(), title);
+                }
 
                 let matched = if let Some(status) = change.fields.status.and_then(translate) {
                     self.log.update_tool_call(
@@ -356,6 +360,8 @@ impl Recorder {
         tool_call_id: &str,
         request: &RequestPermissionRequest,
     ) -> Result<()> {
+        self.pending.push(request_id.to_owned());
+
         self.log
             .record_permission_request(self.frames.run_id(), request_id, Some(tool_call_id))?;
 
@@ -390,6 +396,8 @@ impl Recorder {
             Decision::Cancel => (PermissionAnswer::Cancelled, String::new(), "cancelled"),
         };
 
+        self.pending.retain(|waiting| waiting != request_id);
+
         let _settled = self.log.resolve_permission(request_id, outcome)?;
 
         self.append(&RunFrame::PermissionResolved {
@@ -400,20 +408,17 @@ impl Recorder {
     }
 
     /// The interface requires a title; the protocol makes it optional.
+    ///
+    /// 退而求其次的那个标题来自这一轮自己见过的工具调用。每一次 `ToolCall`
+    /// 与每一次改名都从 `project` 过一遍，所以这里不必回头去查日志。
     fn permission_title(&self, request: &RequestPermissionRequest, tool_call_id: &str) -> String {
         if let Some(title) = request.tool_call.fields.title.clone() {
             return title;
         }
 
-        self.log
-            .tool_calls(self.frames.run_id())
-            .ok()
-            .and_then(|calls| {
-                calls
-                    .into_iter()
-                    .find(|call| call.id == tool_call_id)
-                    .map(|call| call.title)
-            })
+        self.titles
+            .get(tool_call_id)
+            .cloned()
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 

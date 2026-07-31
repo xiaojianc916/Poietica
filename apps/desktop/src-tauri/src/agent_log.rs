@@ -14,8 +14,7 @@ use poietica_agent_persistence_native::{
     AgentStore, PermissionOutcome, Result as StoreResult, RunStatus, ToolCallStatus,
 };
 use poietica_agent_runtime_native::{
-    LogError, LogResult, OutstandingPermission, PermissionAnswer, RecordedToolCall, RunLog,
-    RunOutcome, ToolCallState,
+    LogError, LogResult, PermissionAnswer, RunLog, RunOutcome, ToolCallState,
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -115,28 +114,5 @@ impl RunLog for SharedLog {
 
     fn resolve_permission(&self, request_id: &str, value: PermissionAnswer) -> LogResult<bool> {
         self.with(|store| store.resolve_permission(request_id, answer(value)))
-    }
-
-    fn outstanding_permissions(&self, run_id: Uuid) -> LogResult<Vec<OutstandingPermission>> {
-        let pending = self.with(|store| store.pending_permissions(run_id))?;
-
-        Ok(pending
-            .into_iter()
-            .map(|record| OutstandingPermission {
-                request_id: record.request_id,
-            })
-            .collect())
-    }
-
-    fn tool_calls(&self, run_id: Uuid) -> LogResult<Vec<RecordedToolCall>> {
-        let calls = self.with(|store| store.tool_calls_for_run(run_id))?;
-
-        Ok(calls
-            .into_iter()
-            .map(|call| RecordedToolCall {
-                id: call.id,
-                title: call.title,
-            })
-            .collect())
     }
 }

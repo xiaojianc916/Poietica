@@ -1,6 +1,6 @@
 //! What recording a run requires of a store.
 //!
-//! Nine methods, because the recorder calls nine. The names are the
+//! Seven methods, because the recorder calls seven. The names are the
 //! runtime's own rather than the store's: a trait that repeats the
 //! vocabulary of one implementation is not an abstraction, it is a
 //! forwarding layer with extra steps.
@@ -68,22 +68,6 @@ pub enum PermissionAnswer {
     Denied,
     /// Nobody answered before the turn ended.
     Cancelled,
-}
-
-/// A tool call as the log has it, reduced to what the runtime reads back.
-#[derive(Clone, Debug)]
-pub struct RecordedToolCall {
-    /// The identifier the agent used.
-    pub id: String,
-    /// The title it was announced or renamed with.
-    pub title: String,
-}
-
-/// A permission request that is still waiting for an answer.
-#[derive(Clone, Debug)]
-pub struct OutstandingPermission {
-    /// The request the answer would settle.
-    pub request_id: String,
 }
 
 /// The durable log a run is recorded into, and the projections kept in step
@@ -159,18 +143,4 @@ pub trait RunLog: Send {
     ///
     /// Fails when the answer cannot be written.
     fn resolve_permission(&self, request_id: &str, answer: PermissionAnswer) -> LogResult<bool>;
-
-    /// Every request in this run still waiting for an answer.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the requests cannot be read.
-    fn outstanding_permissions(&self, run_id: Uuid) -> LogResult<Vec<OutstandingPermission>>;
-
-    /// Every tool call recorded in this run.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the projection cannot be read.
-    fn tool_calls(&self, run_id: Uuid) -> LogResult<Vec<RecordedToolCall>>;
 }
