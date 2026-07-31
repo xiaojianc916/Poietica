@@ -572,8 +572,6 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
                 return `${provider.id}（${provider.models.length} 个模型，${state}）`
               })
               .join('；')}
-            。导入按 provider 逐家写入 agent 自己的配置（走官方 catalog
-            add），只导带密钥的那几家，OAuth 账号不在其中。
           </span>
 
           <Button disabled={importing} onClick={runImport} size="xs" type="button" variant="soft">

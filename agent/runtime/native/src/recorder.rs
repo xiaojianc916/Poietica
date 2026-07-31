@@ -39,6 +39,77 @@ pub struct RecordedEvent {
     pub frame: Value,
 }
 
+/// 一次运行的帧流：成形，然后投递。
+///
+/// 它不认识日志。此前这三个字段长在 [`Recorder`] 上，而 [`Recorder::append`]
+/// 把「算序号」「写日志」「推给界面」焊成一个函数 —— 于是「只上屏、不落库」
+/// 在类型上说不出来，而那正是装载一条旧会话时重播帧的处境：`session/load`
+/// 期间 agent 把整条会话重放一遍，那些帧走的是同一个通知入口，此刻槽里没有
+/// 记录器，它们被静默丢掉（见 driver.rs 的 `load_session`）。历史因此只能从
+/// 本地日志再读一遍 —— 第二份真相就是这么来的。
+///
+/// 分成两步而不是一个 `emit`，是为了让序号的语义原样保留：位置在成形时只是
+/// 被算出来，投递成功才算用掉。写日志失败时这一帧不投递，序号也就不前进，
+/// 下一帧仍然占这个位置 —— 日志里不留空洞。
+pub struct Frames {
+    run_id: Uuid,
+    next_seq: i64,
+    sink: Box<dyn FnMut(&RecordedEvent) + Send>,
+}
+
+/// 一个闭包印不出来，但它长在一个公共结构上。
+impl fmt::Debug for Frames {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Frames")
+            .field("run_id", &self.run_id)
+            .field("next_seq", &self.next_seq)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Frames {
+    /// 开始一条帧流，每一帧投递给 `sink`。
+    #[must_use]
+    pub fn new(run_id: Uuid, sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> Self {
+        Self {
+            run_id,
+            next_seq: 1,
+            sink,
+        }
+    }
+
+    /// 这条帧流属于哪一轮。
+    #[must_use]
+    pub const fn run_id(&self) -> Uuid {
+        self.run_id
+    }
+
+    /// 给这一帧一个位置和一个时刻。位置此刻还没有被用掉。
+    ///
+    /// # Errors
+    ///
+    /// 序列化失败时报错；此时这一帧既不落盘也不投递。
+    pub fn shape(&self, frame: &RunFrame) -> serde_json::Result<RecordedEvent> {
+        let seq = self.next_seq;
+        let kind = frame.kind();
+
+        Ok(RecordedEvent {
+            run_id: self.run_id.to_string(),
+            seq,
+            kind: kind.to_owned(),
+            frame: frame.envelope(seq, now_millis())?,
+        })
+    }
+
+    /// 交出去，位置就此用掉。
+    pub fn deliver(&mut self, event: &RecordedEvent) {
+        self.next_seq = event.seq.saturating_add(1);
+
+        (self.sink)(event);
+    }
+}
+
 /// Writes the event log and keeps the projections in step with it.
 ///
 /// The order inside every method is deliberate: append to the log, update the
@@ -50,9 +121,8 @@ pub struct RecordedEvent {
 pub struct Recorder {
     /// Where frames are made durable.
     log: Box<dyn RunLog>,
-    run_id: Uuid,
-    next_seq: i64,
-    sink: Box<dyn FnMut(&RecordedEvent) + Send>,
+    /// 成形与投递。这一半不认识日志，所以它也走得通没有日志的那条路。
+    frames: Frames,
     failure: Option<AcpError>,
     /// What the agent said on its own error stream during this run.
     diagnostics: String,
@@ -64,8 +134,7 @@ impl fmt::Debug for Recorder {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("Recorder")
-            .field("run_id", &self.run_id)
-            .field("next_seq", &self.next_seq)
+            .field("frames", &self.frames)
             .field("failed", &self.failure.is_some())
             .finish_non_exhaustive()
     }
@@ -81,9 +150,7 @@ impl Recorder {
     ) -> Self {
         Self {
             log,
-            run_id,
-            next_seq: 1,
-            sink,
+            frames: Frames::new(run_id, sink),
             failure: None,
             diagnostics: String::new(),
             updates: 0,
@@ -93,7 +160,7 @@ impl Recorder {
     /// The run being recorded.
     #[must_use]
     pub const fn run_id(&self) -> Uuid {
-        self.run_id
+        self.frames.run_id()
     }
 
     /// Hands over what the agent said on its own error stream.
@@ -376,22 +443,17 @@ impl Recorder {
         }
     }
 
+    /// 成形、落库、投递，按这个顺序。
+    ///
+    /// 顺序是一条保证：界面看得见的每一帧都已经耐久，所以它永远不会看到一帧
+    /// 在重启之后消失。落库失败时这一帧不投递，序号也不前进。
     fn append(&mut self, frame: &RunFrame) -> Result<()> {
-        let seq = self.next_seq;
-        let kind = frame.kind();
-        let body = frame.envelope(seq, now_millis())?;
+        let event = self.frames.shape(frame)?;
 
-        self.log.append_event(self.run_id, seq, kind, &body)?;
-        self.next_seq = seq.saturating_add(1);
+        self.log
+            .append_event(self.frames.run_id(), event.seq, &event.kind, &event.frame)?;
 
-        let event = RecordedEvent {
-            run_id: self.run_id.to_string(),
-            seq,
-            kind: kind.to_owned(),
-            frame: body,
-        };
-
-        (self.sink)(&event);
+        self.frames.deliver(&event);
 
         Ok(())
     }
