@@ -129,6 +129,23 @@
   --cp-timeline-diff-old: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
   --cp-timeline-diff-new: color-mix(in srgb, var(--ui-success) 12%, transparent);
 
+  /*
+   * 时间线的几何。
+   *
+   * 这几个此前一个都没有声明：每一处 var(--cp-timeline-*, …) 都把真值写在兜底位，
+   * 于是同一个 --cp-timeline-output-max 在 timeline.css 是 18rem、在
+   * permission-request.css 是 12rem —— 一个名字两个真值，而且谁都不算错。名字现在
+   * 在这里，消费处的兜底全部删除；那两个本就不同的上限拆成两个各自的名字。
+   */
+  --cp-timeline-pad: 0.625rem 0.875rem;
+  --cp-timeline-said-max: 10.5rem;
+  --cp-timeline-code-cap: 32rem;
+  --cp-timeline-output-max: 18rem;
+  --cp-timeline-thought-cap: 13rem;
+  --cp-timeline-thought-fade: 2.5rem;
+  --cp-timeline-thought-max: 48rem;
+  --cp-permission-command-max: 12rem;
+
   /* 等宽字族没有理由自己再列一遍，设计系统已经定了。 */
   --cp-font-mono: var(--ui-font-mono);
 

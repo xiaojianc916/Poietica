@@ -79,17 +79,17 @@
   grid-column: 1;
   grid-row: 1;
   justify-self: start;
-  font-size: 11px;
+  font-size: var(--cp-font-micro);
   line-height: 1.4;
-  color: var(--assistant-text-muted, #8b8b8b);
+  color: var(--cp-ink-subtle);
 }
 
 .assistant-question-panel__prompt {
   grid-column: 1;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--cp-font-label);
   font-weight: 500;
-  line-height: 1.55;
+  line-height: var(--ui-prose-line-height);
 }
 
 .assistant-question-panel__nav {
@@ -112,16 +112,16 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--assistant-text-muted, #8b8b8b);
+  color: var(--cp-ink-subtle);
   cursor: pointer;
   transition:
-    background-color 120ms ease-out,
-    color 120ms ease-out;
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-question-panel__arrow:hover:not(:disabled),
 .assistant-question-panel__dismiss:hover:not(:disabled) {
-  background: var(--assistant-surface-hover, rgba(0, 0, 0, 0.05));
+  background: var(--cp-hover);
   color: inherit;
 }
 
@@ -130,7 +130,6 @@
   cursor: default;
 }
 
-/* 叉叉是个动作，不是个位子：不描边，只在 hover 时给一圈底色。 */
 .assistant-question-panel__dismiss {
   margin-left: 6px;
 }
@@ -138,9 +137,9 @@
 .assistant-question-panel__count {
   min-width: 30px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--cp-font-micro);
   font-variant-numeric: tabular-nums;
-  color: var(--assistant-text-muted, #8b8b8b);
+  color: var(--cp-ink-subtle);
 }
 
 .assistant-question-panel__options {
@@ -159,23 +158,23 @@
   width: 100%;
   padding: 9px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--cp-radius-item);
   background: transparent;
   font: inherit;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--cp-font-caption);
+  line-height: var(--ui-line-height-normal);
   text-align: left;
   color: inherit;
   cursor: pointer;
-  transition: background-color 120ms ease-out;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-question-panel__option:hover:not(:disabled) {
-  background: var(--assistant-surface-hover, rgba(0, 0, 0, 0.04));
+  background: var(--cp-hover);
 }
 
 .assistant-question-panel__option[data-selected="true"] {
-  background: var(--assistant-surface-sunken, rgba(0, 0, 0, 0.07));
+  background: color-mix(in srgb, var(--ui-foreground) 10%, transparent);
 }
 
 .assistant-question-panel__option:disabled {
@@ -186,12 +185,12 @@
 .assistant-question-panel__mark {
   display: inline-flex;
   flex: none;
-  color: var(--assistant-text-muted, #a0a0a0);
-  transition: color 120ms ease-out;
+  color: var(--cp-ink-subtle);
+  transition: color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-question-panel__option[data-selected="true"] .assistant-question-panel__mark {
-  color: var(--assistant-accent, #2f6fed);
+  color: var(--cp-accent);
 }
 
 .assistant-question-panel__label {
@@ -207,20 +206,20 @@
 }
 
 .assistant-question-panel__hint {
-  font-size: 11px;
-  color: var(--assistant-text-muted, #8b8b8b);
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
 }
 
 .assistant-question-panel__advance {
   padding: 7px 16px;
   border: 0;
   border-radius: 999px;
-  background: var(--assistant-accent, #2f6fed);
-  color: #fff;
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--cp-font-micro);
   cursor: pointer;
-  transition: opacity 120ms ease-out;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-question-panel__advance.is-idle {

@@ -1073,7 +1073,7 @@
   block-size: 10px;
   margin: 0;
   border-radius: 4px;
-  background: var(--am-line, color-mix(in srgb, var(--ui-foreground) 8%, transparent));
+  background: var(--am-line);
   animation: assistant-thread-ghost 1200ms ease-in-out infinite;
 }
 
@@ -1196,7 +1196,7 @@
   flex: none;
   inline-size: var(--cp-icon-xs);
   block-size: var(--cp-icon-xs);
-  color: #b0455c;
+  color: var(--ui-destructive);
 }
 
 /* --- 开场那枚标记 --- */

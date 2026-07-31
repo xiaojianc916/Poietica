@@ -501,11 +501,3 @@ mod tests {
         assert_eq!(*seen.lock().expect("the sink is readable"), vec![1]);
     }
 }
-
-fn now_millis() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
-        .unwrap_or_default()
-}

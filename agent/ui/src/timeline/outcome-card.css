@@ -28,9 +28,9 @@
 /* 题面是上下文，不是主行：小半档、淡一档。 */
 .assistant-outcome__prompt {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--ui-prose-size-meta);
   font-weight: 400;
-  line-height: 1.5;
+  line-height: var(--ui-prose-line-height);
   color: var(--cp-timeline-quiet-text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -39,16 +39,16 @@
 /* 结局是这张卡片的主行：比题面大半档、重一点，正文墨色，不带底色也不带框。 */
 .assistant-outcome__answer {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--ui-prose-size);
   font-weight: 500;
-  line-height: 1.5;
+  line-height: var(--ui-prose-line-height);
   color: var(--cp-ink);
   overflow-wrap: anywhere;
 }
 
 .assistant-outcome__note {
   margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
   color: var(--cp-timeline-quiet-text);
 }

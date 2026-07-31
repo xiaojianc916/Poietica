@@ -36,8 +36,8 @@
   align-items: center;
   gap: 0.5rem;
   margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.6;
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-prose-line-height);
 }
 
 .assistant-permission__path {
@@ -45,8 +45,8 @@
   border-radius: var(--ui-radius-sm);
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
-  font-size: 0.78125rem;
-  line-height: 1.5;
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
   word-break: break-all;
 }
 
@@ -68,7 +68,7 @@
   border-radius: var(--ui-radius-md);
   background: var(--cp-surface);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
   font-weight: 500;
   color: inherit;
   cursor: pointer;
@@ -122,8 +122,8 @@
   align-items: center;
   gap: 0.5rem;
   margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-tight);
   color: var(--cp-timeline-quiet-text);
 }
 
@@ -143,14 +143,14 @@
 }
 
 .assistant-permission__command {
-  max-block-size: var(--cp-timeline-output-max, 12rem);
+  max-block-size: var(--cp-permission-command-max);
   margin: 0;
   padding: 0.5rem 0.625rem;
   overflow: auto;
   border-radius: var(--ui-radius-sm);
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: var(--ui-prose-size-meta);
+  line-height: var(--ui-line-height-normal);
   white-space: pre-wrap;
 }
