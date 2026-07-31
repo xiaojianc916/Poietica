@@ -528,13 +528,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             in_flight = in_flight.saturating_add(1);
 
-                            jobs.push(Box::pin(run_turn(
-                                &connection,
-                                named,
-                                text,
-                                turn,
-                                reply,
-                            )));
+                            jobs.push(Box::pin(run_turn(&connection, named, text, turn, reply)));
                         }
                         Step::Settled(Settled::Done) => {}
                         Step::Settled(Settled::Opened { opened, reply }) => {
@@ -923,11 +917,7 @@ async fn run_turn(
         },
     };
 
-    Settled::Turn {
-        ended,
-        slot,
-        reply,
-    }
+    Settled::Turn { ended, slot, reply }
 }
 
 /// The response that carries a decision back to the agent.

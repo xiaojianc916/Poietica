@@ -102,6 +102,11 @@ export interface AgentConfigStore {
    * 每个已配置 provider 的密钥尾号。只读现算：原生侧扫 agent 自己的 config.toml，
    * 只把最后 5 个字符交出来 —— 与「写经谁手」无关，官方 CLI 配置的也有。
    *
+   * 键域是开放的：provider 名由对方的配置文件说了算，所以问一个没配过的
+   * provider 要尾号，答案就是「没有」。此前这里写的是 Record<string, string>，
+   * 声称任意字符串键都必然有值 —— 那不是一个更严的类型，那是一句假话，而
+   * Rust 侧经 specta 生成出来的 Partial<Record<…>> 从一开始就没同意过它。
+   *
    * 缺席的 provider 没有那一格，所以是 Partial：这张表的键空间是开放的，
    * Record<string, string> 的意思是任何字符串键都取得到一个 string，那是假的。
    * 原生侧是 BTreeMap，生成绑定照实说了，是中间这一层把 Partial 抹掉了。

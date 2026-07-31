@@ -79,6 +79,78 @@ interface FeedProjection {
 
 const FEEDS = new WeakMap<TimelineItem, FeedProjection>()
 
+/** 共享前缀能留下多少行：前缀里最后一条上屏条目的行号加一。 */
+function keptRows(held: FeedProjection, shared: number): number {
+  for (let index = shared - 1; index >= 0; index -= 1) {
+    const at = held.rowOf[index] ?? -1
+
+    if (at >= 0) {
+      return at + 1
+    }
+  }
+
+  return 0
+}
+
+/** 沿用共享前缀那一段，只把它之后的条目投影成行。 */
+function projectRows(
+  held: FeedProjection | undefined,
+  items: readonly TimelineItem[],
+  shared: number,
+): { rowOf: number[]; rows: FeedRow[] } {
+  const rowOf: number[] = held === undefined ? [] : held.rowOf.slice(0, shared)
+  const rows: FeedRow[] = held === undefined ? [] : held.rows.slice(0, keptRows(held, shared))
+
+  for (let index = shared; index < items.length; index += 1) {
+    const item = items[index]
+
+    if (item === undefined || !isRenderable(item)) {
+      rowOf.push(-1)
+      continue
+    }
+
+    rowOf.push(rows.length)
+    rows.push(toRow(item, false))
+  }
+
+  return { rowOf, rows }
+}
+
+/** 会长大的只有末尾那一条，而且只在一轮还在跑的时候。 */
+function growTail(rows: FeedRow[], live: boolean): void {
+  const last = rows.length - 1
+  const tail = rows[last]
+
+  if (tail !== undefined) {
+    rows[last] = toRow(tail.item, live && isGrowable(tail.item))
+  }
+}
+
+/**
+ * 这一帧的内容与上一帧逐字相同吗。
+ *
+ * 常数时间：共享前缀覆盖了全部条目、行数又相同，那么唯一可能换过的就是尾行。
+ * 此前这件事的做法是「先全量重建，再逐项比较，命中就把刚建的整份丢掉」。
+ */
+function isSettled(
+  held: FeedProjection,
+  items: readonly TimelineItem[],
+  shared: number,
+  rows: readonly FeedRow[],
+): boolean {
+  if (shared !== items.length || shared !== held.items.length) {
+    return false
+  }
+
+  if (rows.length !== held.rows.length) {
+    return false
+  }
+
+  const last = rows.length - 1
+
+  return last < 0 || rows[last] === held.rows[last]
+}
+
 export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   const items = state.items
   const anchor = items[0]
@@ -95,58 +167,12 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   }
 
   const shared = held === undefined ? 0 : sharedPrefix(held.items, items)
+  const { rowOf, rows } = projectRows(held, items, shared)
 
-  /* 保留的行数：共享前缀里最后一条上屏条目的行号加一。 */
-  let keep = 0
+  growTail(rows, live)
 
-  if (held !== undefined) {
-    for (let index = shared - 1; index >= 0; index -= 1) {
-      const at = held.rowOf[index] ?? -1
-
-      if (at >= 0) {
-        keep = at + 1
-        break
-      }
-    }
-  }
-
-  const rowOf: number[] = held === undefined ? [] : held.rowOf.slice(0, shared)
-  const rows: FeedRow[] = held === undefined ? [] : held.rows.slice(0, keep)
-
-  for (let index = shared; index < items.length; index += 1) {
-    const item = items[index]
-
-    if (item === undefined || !isRenderable(item)) {
-      rowOf.push(-1)
-      continue
-    }
-
-    rowOf.push(rows.length)
-    rows.push(toRow(item, false))
-  }
-
-  /* 会长大的只有末尾那一条，而且只在一轮还在跑的时候。 */
-  const last = rows.length - 1
-  const tail = last < 0 ? undefined : rows[last]
-
-  if (tail !== undefined) {
-    rows[last] = toRow(tail.item, live && isGrowable(tail.item))
-  }
-
-  /*
-   * 内容一个字没变的那一种帧：交还上一份数组。
-   *
-   * 判据是常数时间的 —— 共享前缀覆盖了全部条目，行数又相同，那么唯一可能换过
-   * 的就是尾行。此前这件事是「先全量重建，再逐项比较，命中就把刚建的丢掉」。
-   */
-  const settled =
-    held !== undefined &&
-    shared === items.length &&
-    shared === held.items.length &&
-    rows.length === held.rows.length &&
-    (last < 0 || rows[last] === held.rows[last])
-      ? held.rows
-      : rows
+  /* 内容没变就交还上一份数组：下游按引用判等。 */
+  const settled = held !== undefined && isSettled(held, items, shared, rows) ? held.rows : rows
 
   FEEDS.set(anchor, { items, rowOf, rows: settled, live })
 
