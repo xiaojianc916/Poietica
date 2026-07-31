@@ -520,7 +520,7 @@ fn credential_env_key(provider_type: &str) -> Option<&'static str> {
 ///
 /// 1. provider 名取模型条目里的 `provider`，缺席就退到顶层 `default_provider`；
 /// 2. 那一段 `[providers.<name>]` 存在；
-/// 3. 段里没有 `oauth`（有就直接判否，哪怕同时写着 api_key —— 上游第一行逐字是
+/// 3. 段里没有 `oauth`（有就直接判否，哪怕同时写着 `api_key` —— 上游第一行逐字是
 ///    `if (provider.oauth !== undefined) return false`），且 `api_key` 非空，或者
 ///    `env` 里那个按 `type` 决定的变量非空。
 ///
@@ -528,8 +528,8 @@ fn credential_env_key(provider_type: &str) -> Option<&'static str> {
 /// 互转落盘，`defaultProvider` 因此写成 `default_provider`；而 `env` 走 cloneObjectValue，
 /// 表内的键原样保留，所以变量名就是 `KIMI_API_KEY` 这种全大写形式。
 ///
-/// 不复刻的只有 vertexai 那条组合分支（GOOGLE_CLOUD_PROJECT 加 GOOGLE_CLOUD_LOCATION，
-/// 或从 base_url 的 `-aiplatform.googleapis.com` 后缀反推区域）。那是 Google 专属，我们
+/// 不复刻的只有 vertexai 那条组合分支（`GOOGLE_CLOUD_PROJECT` 加 `GOOGLE_CLOUD_LOCATION`，
+/// 或从 `base_url` 的 `-aiplatform.googleapis.com` 后缀反推区域）。那是 Google 专属，我们
 /// 的界面配不出这种 provider，抄过来就是第二份迟早与上游走样的规则。对它和任何认不出的
 /// type，退成「env 表里有任何一个非空值就放行」—— 宽松只会漏拦，不会误拦一个本来能用的
 /// 模型，而漏拦的代价正好是今天的现状，不会更差。
@@ -724,7 +724,11 @@ pub async fn agent_set_default_model(
             )));
         }
 
-        document["default_model"] = toml_edit::value(alias);
+        /* 用 insert 而不是 `document["default_model"] = ...`。toml_edit 的 IndexMut
+        在键不存在时会自己插进去，所以那一行其实不会 panic —— 但那是要翻它的文档才
+        确认得到的隐性契约，而 Index 在 Rust 里的默认语义就是"越界即 panic"。改掉的
+        不是行为，是"每个读者都得自己去验一遍"这件事。 */
+        let _previous = document.insert("default_model", toml_edit::value(alias));
 
         write_config_atomically(&path, &document.to_string())
     })()

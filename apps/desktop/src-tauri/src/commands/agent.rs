@@ -315,15 +315,15 @@ pub struct AgentCancelRequest {
 /// Asks the agent to stop the turn running on one conversation.
 ///
 /// 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
-/// 这条对应关系在打开这条对话时就写进了库（attach_session），提问走的也是它。
+/// 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
 /// 此前这里点名的是一个轮次号，为它在内存里另养了一张 runId → sessionId 的表，
 /// 一轮开始时写、结束时删：那张表回答的问题，库里本来就有答案。
 ///
-/// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 session_for 会为一条
+/// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
 /// 还没开过口的对话新开一个会话，那是纯副作用。
 ///
 /// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读是一次凭据
-/// 库查询加一次 SQLCipher attach，窗口会在那段时间里停止应答（见 on_store）。
+/// 库查询加一次 `SQLCipher` attach，窗口会在那段时间里停止应答（见 `on_store`）。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
@@ -1216,7 +1216,7 @@ pub enum AgentHistoryLoss {
     /// 这条对话是另一个 agent 开的。
     ///
     /// sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
-    /// UnknownSession —— 所以这里根本不发。
+    /// `UnknownSession` —— 所以这里根本不发。
     OtherAgent,
     /// 这个 agent 在握手时说了它不装载旧会话。
     NotSupported,
