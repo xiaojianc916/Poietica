@@ -311,6 +311,20 @@ export function AgentActivityFeed({
    */
   const revealing = pending !== null
 
+  /*
+   * 条目的身份函数，记住不重建。
+   *
+   * 官方在 getItemKey 的说明里专门补了一句：虚拟器虽然会自行判断哪些选项影响测量
+   * 并适时作废缓存，仍然建议把它 memo 住。此前是内联箭头，每次渲染换一个身份函数 ——
+   * 流式输出每个 token 一次渲染，就是每个 token 换一次，而它恰好是末端锚定跨数据
+   * 变化认人的那个函数。
+   *
+   * 身份是 id 不是序号：恢复会话与回填历史都会让每一条换序号，用序号当身份，锚点
+   * 会在那之后落到别的条目上。官方同样点名过这一条 ——「Index keys cannot distinguish
+   * prepends from appends after items shift」。
+   */
+  const getItemKey = useCallback((index: number) => rows[index]?.item.id ?? index, [rows])
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => viewportRef.current,
@@ -321,11 +335,8 @@ export function AgentActivityFeed({
         ? ESTIMATED_FALLBACK_PX
         : (ESTIMATED_ROW_PX[type] ?? ESTIMATED_FALLBACK_PX)
     },
-    /*
-     * 条目的身份是它的 id,不是它此刻的序号。恢复会话与回填历史都会让每一条
-     * 换序号,用序号当身份,锚点会在那之后落到别的条目上。
-     */
-    getItemKey: (index) => rows[index]?.item.id ?? index,
+    /* 身份函数见上方 getItemKey 的定义。 */
+    getItemKey,
     scrollMargin,
     paddingEnd: tailSize,
     /*
@@ -350,6 +361,16 @@ export function AgentActivityFeed({
     followOnAppend: !revealing,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
     overscan: OVERSCAN_ROWS,
+    /*
+     * 滚动停没停，问浏览器。
+     *
+     * 这个选项默认 false，库于是退回一个 isScrollingResetDelay 的定时器去猜。官方
+     * 写明了那条退路存在的理由：「until all browsers uniformly support the scrollEnd
+     * event」。这里的渲染器是 WebView2，只有 Chromium，原生 scrollend 早已可用 ——
+     * 一个为跨浏览器差异准备的降级，在一个单引擎的桌面应用里只是一个会晚 150ms
+     * 的猜测。
+     */
+    useScrollendEvent: true,
   })
 
   const items = virtualizer.getVirtualItems()
@@ -513,22 +534,31 @@ export function AgentActivityFeed({
           role="log"
           style={{ height: virtualizer.getTotalSize() }}
         >
-          {/*
-           * 每行各自落位。
-           *
-           * 官方 Chat 指南的两处示例都是这个形状：position absolute，transform
-           * 平移到 item.start。此前是窗口整体平移一次、行走文档流，注释写着
-           * 「官方 dynamic 示例正是这个形状」—— 不是。
-           *
-           * 差别不在写法，在模型与 DOM 说不说同一句话。走文档流时，只有首行的
-           * 位置来自虚拟器，其余每一行的位置都来自它前面那些行的真实高度；而
-           * 虚拟器的 start 表来自上一次测量，测量经 ResizeObserver 与 state 落地，
-           * 是异步的。流式输出每吐一个词，DOM 已按新高度排好，表还停在旧高度上 ——
-           * 两者每一帧都在错位，而末端锚定的补偿正是拿这张表算的。
-           *
-           * 代价是每个可见行一个内联 style 对象，约十几个每帧。用这个换掉一致性，
-           * 是笔亏账。
-           */}
+          {
+            {
+              /*
+               * 每行各自落位。
+               *
+               * 官方对布局策略给过两处建议，前提不同，上一版只引了一处就下了断言，
+               * 这里如实写全：
+               *
+               *   Chat 指南 —— position absolute，transform 平移到 item.start。
+               *   scrollToIndex 注记 —— 平滑滚动时首选「整块平移」，因为平滑滚动期间
+               *     虚拟器只测量目标附近缓冲区内的条目，跳过的那些若各自定位就会错位。
+               *
+               * 本组件落在前者，理由是后者的前提在这里不存在：这里没有任何一次平滑
+               * 滚动。跳转是 scrollToIndex(align 'start') 不带 behavior，开场是
+               * scrollToEnd()，都是瞬移 —— 而瞬移是刻意的，行是动态测量的，平滑滚动
+               * 要求目标偏移在动画期间保持不变，而它会自己跑掉。
+               *
+               * 于是这里取一致性：每一行都坐在虚拟器算出来的 start 上，模型说它在哪
+               * 它就在哪。走文档流则只有首行的位置来自虚拟器，其余来自前面各行的真实
+               * 高度 —— 那是第二个来源，且与虚拟器的表差着一次异步测量。
+               *
+               * 代价是每个可见行一个内联 style 对象，约十几个每帧。
+               */
+            }
+          }
           {items.map((item) => {
             const row = rows[item.index]
 
