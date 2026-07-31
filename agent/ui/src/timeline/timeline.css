@@ -544,7 +544,7 @@
   max-block-size: var(--cp-timeline-thought-cap);
   overflow: hidden auto;
   scrollbar-width: auto;
-  scrollbar-color: color-mix(in srgb, var(--cp-ink) 30%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--cp-ink) 20%, transparent) transparent;
   scrollbar-gutter: stable;
 }
 

@@ -56,7 +56,7 @@ use futures::channel::oneshot;
 use futures::executor::block_on;
 use poietica_agent_runtime_native::{
     AcpError, AgentConnection, AgentSpawn, PermissionDesk, RUN_FINISHED, RUN_STARTED,
-    RecordedEvent, RunSlot, connect,
+    RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
 
@@ -242,7 +242,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         println!(
             "  {:>3} {:<12} {}",
             event.seq,
-            event.kind,
+            event.frame.kind(),
             describe(&event.frame)
         );
     }
@@ -258,9 +258,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     let first = broadcast.first().expect("at least one frame");
     let last = broadcast.last().expect("at least one frame");
 
-    assert_eq!(first.kind, RUN_STARTED, "a run announces itself first");
     assert_eq!(
-        last.kind, RUN_FINISHED,
+        first.frame.kind(),
+        RUN_STARTED,
+        "a run announces itself first"
+    );
+    assert_eq!(
+        last.frame.kind(),
+        RUN_FINISHED,
         "the turn must end on the agent's terms, not in a client failure"
     );
 
@@ -283,7 +288,7 @@ fn markers(events: &[RecordedEvent]) -> BTreeMap<String, usize> {
     let mut counted: BTreeMap<String, usize> = BTreeMap::new();
 
     for event in events {
-        *counted.entry(event.kind.clone()).or_default() += 1;
+        *counted.entry(event.frame.kind().to_owned()).or_default() += 1;
 
         let discriminator = describe(&event.frame);
 
@@ -343,11 +348,14 @@ fn require_expected(events: &[RecordedEvent]) {
 /// A run of twenty identical `acp_update` lines says nothing. The interesting
 /// part is the protocol's own discriminator, because those are exactly the
 /// cases the timeline will have to render.
-fn describe(frame: &serde_json::Value) -> String {
-    frame
-        .get("notification")
-        .and_then(|notification| notification.get("update"))
-        .and_then(|update| update.get("sessionUpdate"))
+fn describe(frame: &RunFrame) -> String {
+    let RunFrame::AcpUpdate { notification } = frame else {
+        return String::new();
+    };
+
+    notification
+        .update
+        .get("sessionUpdate")
         .and_then(serde_json::Value::as_str)
         .unwrap_or("")
         .to_owned()
@@ -403,8 +411,9 @@ fn capture(events: &[RecordedEvent]) {
          export interface RecordedFrame {{\n\
          \u{20}\u{20}readonly sessionId: string\n\
          \u{20}\u{20}readonly seq: number\n\
+         \u{20}\u{20}readonly at: number\n\
          \u{20}\u{20}readonly kind: string\n\
-         \u{20}\u{20}readonly frame: unknown\n\
+         \u{20}\u{20}readonly [field: string]: unknown\n\
          }}\n\
          \n\
          export const recordedTurn: readonly RecordedFrame[] = {body}\n"

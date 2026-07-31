@@ -47,12 +47,17 @@ fn fixture() -> Fixture {
 }
 
 impl Fixture {
+    /// 帧按 wire 形态读回来。
+    ///
+    /// 下面几个断言查的是 `kind`、`title`、`requestId` 这些界面读的字段名，
+    /// 那是 serde 派生出来的形状，不是 Rust 的字段名，所以这里序列化一次，
+    /// 让断言看到的和界面看到的是同一份 JSON。
     fn frames(&self) -> Vec<Value> {
         self.observed
             .lock()
             .expect("the sink")
             .iter()
-            .map(|event| event.frame.clone())
+            .map(|event| serde_json::to_value(&event.frame).expect("the frame serialises"))
             .collect()
     }
 }

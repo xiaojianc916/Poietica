@@ -13,7 +13,8 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
-    AcpError, Frames, Listening, RecordedEvent, Recorder, Refusal, RunSlot, SeqLine,
+    ACP_UPDATE, AcpError, Frames, Listening, RUN_STARTED, RecordedEvent, Recorder, Refusal,
+    RunFrame, RunSlot, SeqLine,
 };
 
 struct Fixture {
@@ -78,13 +79,12 @@ fn updates_reach_the_installed_run() {
 
     assert_eq!(seen.len(), 2);
     assert_eq!(
-        seen.first().map(|event| event.kind.clone()),
-        Some("run_started".to_owned())
+        seen.first().map(|event| event.frame.kind()),
+        Some(RUN_STARTED)
     );
     assert!(
         seen.get(1)
-            .and_then(|event| event.frame.get("notification"))
-            .is_some(),
+            .is_some_and(|event| matches!(event.frame, RunFrame::AcpUpdate { .. })),
         "the update frame keeps the shape the interface validates"
     );
 }
@@ -143,13 +143,12 @@ fn a_loading_session_forwards_its_replay_without_a_log() {
 
     assert_eq!(held.len(), 1);
     assert_eq!(
-        held.first().map(|event| event.kind.clone()),
-        Some("acp_update".to_owned())
+        held.first().map(|event| event.frame.kind()),
+        Some(ACP_UPDATE)
     );
     assert!(
         held.first()
-            .and_then(|event| event.frame.get("notification"))
-            .is_some(),
+            .is_some_and(|event| matches!(event.frame, RunFrame::AcpUpdate { .. })),
         "重播帧的形状与实时帧相同"
     );
 }
