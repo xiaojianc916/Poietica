@@ -247,16 +247,14 @@ pub async fn agent_prompt(
     // not come back.
     let opener: String = text.chars().take(TITLE_CHARS).collect();
 
-    // 括号是为了让锁在这里就还回去：下面还有 await，而一个跨 await 持有的
-    // guard 会让这个 future 不再 Send。
-    {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
+    // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
+    // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
+    on_store(&state, move |store| {
         store
             .name_from_message(thread_id, &opener)
-            .map_err(persistence)?;
-    }
+            .map_err(persistence)
+    })
+    .await?;
 
     let frames = batched(app);
 
@@ -1145,13 +1143,13 @@ pub async fn agent_open_thread(
     let named = if let Some(given) = request.thread_id {
         given
     } else {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
-        store
-            .create_thread(FALLBACK_THREAD_TITLE)
-            .map_err(persistence)?
-            .to_string()
+        on_store(&state, |store| {
+            store
+                .create_thread(FALLBACK_THREAD_TITLE)
+                .map(|id| id.to_string())
+                .map_err(persistence)
+        })
+        .await?
     };
 
     let Held {
@@ -1176,16 +1174,14 @@ pub async fn agent_open_thread(
 
     // 列表故意漏掉还没有人开口的对话，而刚建的这一行正是那种，所以它只能
     // 单独读回来。判据现在是标题源，见 threads.rs 的 list_threads。
-    let thread = {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
+    let thread = on_store(&state, move |store| {
         store
             .thread(thread_id)
             .map_err(persistence)?
             .map(retitle)
-            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))?
-    };
+            .ok_or_else(|| Error::Internal(NO_THREAD.to_owned()))
+    })
+    .await?;
 
     Ok(AgentOpenedThread {
         thread,
@@ -1395,12 +1391,10 @@ async fn session_for(
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
 
-    let stored = {
-        let shared = shared_store(state)?;
-        let store = borrow_store(&shared)?;
-
-        store.thread(thread_id).map_err(persistence)?
-    };
+    let stored = on_store(state, move |store| {
+        store.thread(thread_id).map_err(persistence)
+    })
+    .await?;
 
     /* 号和持有者分开拿。此前它们被 and_then + filter 折成一个 Option，于是
     "这条对话属于别的 agent"与"这条对话还没有会话"在类型上不可分辨 —— 那正是
@@ -1452,12 +1446,17 @@ async fn session_for(
                     /* 装载成功，这条会话确实是这个 agent 的。空的那一格在这里
                     记实，所以补写只发生一次，不是每次开对话都写一遍。 */
                     {
-                        let shared = shared_store(state)?;
-                        let store = borrow_store(&shared)?;
+                        // 交给线程池的活得自己拥有它读的东西：号下面还要用，
+                        // 而 agent_id 借的是调用者的 Handle。
+                        let attached = session_id.clone();
+                        let owner = live.agent_id.clone();
 
-                        store
-                            .attach_session(thread_id, &session_id, &live.agent_id)
-                            .map_err(persistence)?;
+                        on_store(state, move |store| {
+                            store
+                                .attach_session(thread_id, &attached, &owner)
+                                .map_err(persistence)
+                        })
+                        .await?;
                     }
 
                     return Ok(Held {
@@ -1523,12 +1522,15 @@ async fn session_for(
         .map_err(translate)?;
 
     {
-        let shared = shared_store(state)?;
-        let store = borrow_store(&shared)?;
+        let attached = opened.session_id.clone();
+        let owner = live.agent_id.clone();
 
-        store
-            .attach_session(thread_id, &opened.session_id, &live.agent_id)
-            .map_err(persistence)?;
+        on_store(state, move |store| {
+            store
+                .attach_session(thread_id, &attached, &owner)
+                .map_err(persistence)
+        })
+        .await?;
     }
 
     remember(state, &opened.session_id)?;
@@ -1598,12 +1600,7 @@ pub async fn agent_delete_thread(
 ) -> AgentCommandResult<()> {
     let id = conversation(&request.thread_id)?;
 
-    let stored = {
-        let shared = shared_store(&state)?;
-        let store = borrow_store(&shared)?;
-
-        store.thread(id).map_err(persistence)?
-    };
+    let stored = on_store(&state, move |store| store.thread(id).map_err(persistence)).await?;
 
     let live = borrow(&state)?;
 
