@@ -11,6 +11,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_RESIZE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_DEFAULT_MODEL_SAVE_FAILED',
+  'AGENT_MODELS_UNREADABLE',
 ] as const
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
@@ -133,6 +134,22 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('save-default-model'),
+  },
+
+  /*
+   * 没能读到 agent 配了哪些模型。
+   *
+   * 此前这一路只写一条日志：选择器空着，屏幕上没有任何解释 —— 而 agent 的 stderr
+   * 恰恰说得出是哪一行配置坏了。一次子进程往返失手不是功能没了，重进这一格就会
+   * 再问一次，所以 recovery 是 retry。
+   */
+  AGENT_MODELS_UNREADABLE: {
+    impact: 'recoverable',
+    userMessage: '没能读到可用的模型清单。',
+
+    recovery: 'retry',
+
+    scope: operationScope('read-models'),
   },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 

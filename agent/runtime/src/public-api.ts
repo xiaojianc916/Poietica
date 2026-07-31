@@ -1,7 +1,6 @@
 export {
   installAgentCapabilityPort,
   installAgentDefaultModelSource,
-  learnAgentControls,
   setAgentDefaultModel,
   useAgentControls,
 } from './agent-capability-store'

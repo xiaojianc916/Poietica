@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from './session-config-contract'
+import type { SessionConfigChoice } from './session-config-contract'
 
 /*
  * 「有哪些模型可选」属于这个 agent，不属于任何一条会话。
@@ -11,11 +11,20 @@ import type { SessionConfigControl } from './session-config-contract'
  * 当前生效值仍然属于那一条会话（见 SessionConfigPort）。两者生命周期不同，
  * 所以是两个端口，而不是一个端口上的两个参数。
  *
- * 行业对照：ACP 把能力放在 initialize 阶段的握手里，只有当前选中值是 per-session；
- * ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面模型选择器一直在。
+ * 它也不经过 ACP。握手要 agent 交出一个会话号，而上游在开会话之前先查
+ * default_model 可不可用 —— 缺席就拒绝。拿握手去问"有哪些模型"，等于让"看清单"
+ * 依赖"已经从清单里选好一个"，而这两件事的先后顺序在一台新机器上是反的。产地
+ * 因此是 agent 自己的 CLI：provider list --json 读的就是那份 config.toml，一次
+ * 子进程调用，没有会话可言。
+ *
+ * 返回的是清单本身，不是一张选择器表。id、label、purpose 三格全是这一侧的常量,
+ * 让它们绕一趟 agent 再回来，只是给一个我们已经知道的答案编一条取数路径。
+ *
+ * 行业对照：ChatGPT / Claude / Cursor / VS Code Copilot Chat 的新会话界面模型
+ * 选择器一直在，不需要先开一条对话。
  */
 
 export interface AgentCapabilityPort {
-  /** 这个 agent 提供哪些选择器。当前值是它自己报的默认值。 */
-  readonly read: () => Promise<readonly SessionConfigControl[]>
+  /** 这个 agent 配了哪些模型。别名与显示名，此外什么都不带。 */
+  readonly read: () => Promise<readonly SessionConfigChoice[]>
 }

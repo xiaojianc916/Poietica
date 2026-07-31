@@ -6,11 +6,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
-import {
-  agentDefaultModel,
-  learnAgentControls,
-  observeAgentControls,
-} from './agent-capability-store'
+import { agentDefaultModel, observeAgentControls } from './agent-capability-store'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -524,7 +520,7 @@ export class ThreadsStore {
    * agent 自己报来了一张新表。
    *
    * 到达口仍然是 #remember —— 与 open 和 select 同一个。所以这不是第三条取数
-   * 路径，只是第三个说话的人；能力表照样学，失败那一格照样清。
+   * 路径，只是第三个说话的人；失败那一格照样清。
    *
    * 认不得的会话号直接丢掉，那是别的连接或者已经不在的对话。
    */
@@ -546,9 +542,6 @@ export class ThreadsStore {
    * "真值"共用一格，谁也说不清那格里的东西是哪一个。
    */
   #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
-    /* 这张表属于这个 agent，不属于这一条对话；入口那一格靠它才有东西可画。 */
-    learnAgentControls(offered)
-
     const model = offered.find((control) => control.purpose === 'model')
 
     if (model !== undefined) {

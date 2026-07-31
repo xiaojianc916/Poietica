@@ -329,32 +329,16 @@ export function createAgentSessionConfigBridge({
 }
 
 /*
- * 问这个 agent 提供什么，不点名任何一条对话。
+ * createAgentCapabilityBridge 曾在这里。
  *
- * 命令早就生成好了（commands.agentCapabilities），此前这一层一个调用点都没有：
- * 原生侧砌好了门，TS 侧一次都没走过。它问的是连接自己的锚会话，不新开会话、
- * 不写库、不碰任何 thread。
+ * 它问的锚会话不是白来的：原生侧 ensure_session 里那个号是握手期间 agent 交出来
+ * 的，而上游在开会话之前先查 default_model 可不可用。于是"有哪些模型"这个问题
+ * 被架在了"已经选好一个模型"之上。模型清单改由 agent 自己的 CLI 回答
+ * （provider list --json，见 app 层的 desktopAgentModels），那条路是一次普通的
+ * 子进程调用，没有这个前提。
  *
- * 形状不在这里重新定义：请求体来自生成绑定，答复复用 controlOf。
+ * 原生侧的 agent_capabilities 因此再没有调用者。
  */
-export interface AgentCapabilityBridge {
-  readonly read: () => Promise<readonly AgentConfigControlDescription[]>
-}
-
-export function createAgentCapabilityBridge({
-  cwd,
-  launch,
-}: AgentBridgeOptions): AgentCapabilityBridge {
-  return {
-    read: async () => {
-      const offered = await call(() =>
-        commands.agentCapabilities({ launch: nativeLaunch(launch), cwd: cwd ?? null }),
-      )
-
-      return offered.map(controlOf)
-    },
-  }
-}
 
 /*
  * Conversations, reached through two ordinary commands.

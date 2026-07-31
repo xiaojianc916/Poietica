@@ -4,12 +4,16 @@ import type {
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/agent-protocol'
-import { acpAgentLaunch, defaultAcpAgent } from '@poietica/agent-registry'
-import { installAgentCapabilityPort } from '@poietica/agent-runtime'
+import {
+  acpAgentById,
+  acpAgentLaunch,
+  defaultAcpAgent,
+  parseAgentProviderListOutput,
+} from '@poietica/agent-registry'
 import { createIpcSession } from '@poietica/agent-transport'
+import type { AgentConfigStore } from '@poietica/features-settings'
 import { error as reportError } from '@poietica/foundations-observability'
 import {
-  createAgentCapabilityBridge,
   createAgentCommandBridge,
   createAgentEventSource,
   createAgentSessionConfigBridge,
@@ -46,33 +50,69 @@ export function desktopSessionConfig(): SessionConfigPort {
 }
 
 /*
- * 能力表那一路，整个进程一份。
+ * 「这一家 agent 配了哪些模型」，一个 agent 一份。
  *
- * 桥是无状态的问答口，可它握着一条 IPC 通道；而能力表本身是全进程共用的一张表，
- * 每次渲染新建一座桥只会让同一张表被问上好几遍。
- */
-let capabilities: AgentCapabilityPort | undefined
-
-export function desktopAgentCapabilities(): AgentCapabilityPort {
-  capabilities ??= createAgentCapabilityBridge({ launch: acpAgentLaunch(defaultAcpAgent()) })
-
-  return capabilities
-}
-
-/**
- * 把能力端口交给 store。
+ * 此前这里走 agent_capabilities：原生侧要先 ensure_session，也就是先起进程、先
+ * 握手，而上游在开会话之前会查 default_model 可不可用，缺席就拒绝。于是"看清单"
+ * 依赖"已经从清单里选好一个" —— 一台刚填完密钥的机器因此永远看不到模型，而屏幕上
+ * 唯一的解释是一句 Authentication required。
  *
- * 只是交出去，不在这里问：进程要等到屏幕上真有一个选择器要画时才起。读失败会被
- * 说出来，然后停在缓存那一份上 —— 缓存是离线兜底，不是取数路径。
+ * provider list --json 没有这个前提：一次子进程调用，读的就是 agent 那份
+ * config.toml。设置页一直走的是它，现在选择器也走它，同一个问题只剩一个产地。
+ *
+ * 按 agentId 记住那个对象，因为端口的身份就是 store 判断"换没换一家"的依据：每次
+ * 渲染新建一个，等于每开一格对话都把清单重问一遍。
  */
-export function installDesktopAgentCapabilities(): void {
-  installAgentCapabilityPort(desktopAgentCapabilities(), (cause) => {
-    reportError('agent capabilities could not be read', {
-      scope: 'agent-session',
-      operation: 'capabilities',
-      cause,
-    })
-  })
+const modelSources = new Map<string, AgentCapabilityPort>()
+
+export function desktopAgentModels(store: AgentConfigStore, agentId: string): AgentCapabilityPort {
+  const held = modelSources.get(agentId)
+
+  if (held !== undefined) {
+    return held
+  }
+
+  const source: AgentCapabilityPort = {
+    read: async () => {
+      /* 问什么、哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。 */
+      const descriptor = acpAgentById(agentId)
+      const listArgs = descriptor?.providerListArgs
+
+      if (descriptor === undefined || listArgs === undefined) {
+        throw new Error(`${agentId} 没有声明查询模型清单的子命令。`)
+      }
+
+      const outcome = await store.execCli({
+        agentId,
+        args: [...listArgs],
+        secretVar: '',
+        secretValue: '',
+      })
+
+      /*
+       * 非零退出时把 agent 自己的 stderr 原样上屏。config.toml 坏了的时候它说得比
+       * 我们清楚 —— 连怎么修都告诉你 —— 转述一遍只会丢信息。
+       */
+      if (outcome.status !== 0) {
+        const said = outcome.stderr.trim()
+
+        throw new Error(said.length === 0 ? `agent 以 ${outcome.status} 退出。` : said)
+      }
+
+      const snapshot = parseAgentProviderListOutput(outcome.stdout, descriptor.syntheticProviderId)
+
+      /* 没配凭据的那一家给不出答案：列出它的模型，只是让人挑一个必定失败的。 */
+      return snapshot.providers
+        .filter((provider) => provider.configured)
+        .flatMap((provider) =>
+          provider.models.map((model) => ({ value: model.alias, label: model.displayName })),
+        )
+    },
+  }
+
+  modelSources.set(agentId, source)
+
+  return source
 }
 
 export interface DesktopAgentSession {

@@ -1,5 +1,6 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
 import {
+  installAgentCapabilityPort,
   installAgentDefaultModelSource,
   setAgentDefaultModel,
   useAgentControls,
@@ -7,6 +8,7 @@ import {
 import { AssistantSurface } from '@poietica/agent-ui'
 import type { AgentConfigStore } from '@poietica/features-settings'
 import { useEffect } from 'react'
+import { desktopAgentModels } from '../../application/ai/agent-session'
 import { useSharedThreads } from '../../application/ai/threads-context'
 import { reportFailure } from '../../application/failures/failure-policy'
 
@@ -50,12 +52,23 @@ export function ConversationSurface({
   const threads = useSharedThreads()
 
   /*
-   * 告诉能力表怎么问 default_model。
+   * 告诉能力表：这一家 agent 有哪些模型，以及怎么读写它的 default_model。
    *
-   * 交的是一个函数而不是一个值：那一次读取该在有人真要看选择器时才发生，而这里
-   * 是渲染层，不该替它决定时机。装上是幂等的，问只会问一次。
+   * 两件事同一个产地（agent 自己那份 config.toml），也同一个时机（换一家就都得
+   * 重来），所以它们在同一个 effect 里，依赖同一对 agentConfig / agentId。
+   *
+   * 交的是函数而不是值：那两次读取该在有人真要看选择器时才发生，而这里是渲染层，
+   * 不该替它决定时机。装上是幂等的 —— 端口按 agentId 记着，同一家只问一次。
    */
   useEffect(() => {
+    installAgentCapabilityPort(desktopAgentModels(agentConfig, agentId), (cause) => {
+      reportFailure('AGENT_MODELS_UNREADABLE', {
+        scope: 'conversation-surface',
+        operation: 'read-models',
+        cause,
+      })
+    })
+
     installAgentDefaultModelSource({
       load: () => agentConfig.loadDefaultModel(agentId),
       save: (alias) => agentConfig.saveDefaultModel(agentId, alias),
