@@ -48,7 +48,7 @@
   background: none;
   color: var(--cp-timeline-quiet-text);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
   cursor: pointer;
 }
 
@@ -288,8 +288,8 @@
   border-radius: 0;
   background: transparent;
   font-family: var(--cp-font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.55;
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
 }
 
 /*
@@ -348,14 +348,11 @@
  */
 .timeline-prose [data-streamdown="code-block-body"] pre code span {
   color: light-dark(var(--sdm-c, inherit), var(--shiki-dark, var(--sdm-c, inherit)));
-}
-
-/*
- * 少数 token 自带底色（diff、命中标记）。这里只花 --sdm-tbg，不碰
- * --shiki-dark-bg —— 后者是整块的主题底色，写在 pre 上并会继承下来，花在每个
- * span 上就等于把主题的底色一格一格铺回我们已经交给卡片的表面上。
- */
-.timeline-prose [data-streamdown="code-block-body"] pre code span {
+  /*
+   * 少数 token 自带底色（diff、命中标记）。只花 --sdm-tbg，不碰 --shiki-dark-bg ——
+   * 后者是整块的主题底色，写在 pre 上并会继承下来，花在每个 span 上就等于把主题的
+   * 底色一格一格铺回我们已经交给卡片的表面上。
+   */
   background-color: var(--sdm-tbg, transparent);
 }
 
@@ -443,7 +440,7 @@
 }
 
 .timeline-reasoning__label {
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 /*
@@ -485,11 +482,11 @@
  * lists and fences keep the rhythm they have everywhere else.
  */
 .timeline-reasoning__body {
-  --cp-prose-flow: 0.5em;
+  --cp-prose-flow: var(--ui-prose-flow-quiet);
 
   max-inline-size: var(--cp-timeline-thought-max, 48rem);
   font-size: var(--ui-prose-size-quiet);
-  line-height: 1.5;
+  line-height: var(--ui-prose-line-height);
   overflow-wrap: anywhere;
 }
 
@@ -630,7 +627,7 @@
   padding: 0.5rem 0.75rem;
   list-style: none;
   color: var(--cp-timeline-quiet-text);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 .timeline-tool__text,
@@ -643,7 +640,8 @@
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -664,7 +662,7 @@
   margin: 0;
   padding: 0.5rem 0.75rem;
   color: var(--cp-timeline-quiet-text);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 .timeline-plan {
@@ -683,7 +681,7 @@
 .timeline-plan__status {
   flex: none;
   color: var(--cp-timeline-quiet-text);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 .timeline-plan__entry[data-status="completed"] .timeline-plan__content {
@@ -742,7 +740,7 @@
   background: none;
   color: var(--cp-timeline-quiet-text);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: var(--ui-prose-size-meta);
   line-height: 1.4;
   cursor: pointer;
   transition: color 120ms var(--cp-motion-ease, ease);
@@ -853,7 +851,7 @@
   gap: 0.375rem;
   margin: 0;
   color: var(--cp-timeline-quiet-text);
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 .timeline-notice__status {
@@ -1008,7 +1006,7 @@
 .timeline-prose [data-streamdown="table"] {
   inline-size: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: var(--ui-prose-size-aux);
 }
 
 .timeline-prose [data-streamdown="table-header"] {
@@ -1072,7 +1070,7 @@
   flex: 0 0 auto;
   gap: 0.375rem;
   font-family: var(--cp-font-mono);
-  font-size: 0.75rem;
+  font-size: var(--ui-prose-size-meta);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }

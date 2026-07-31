@@ -19,7 +19,8 @@
   --cp-stack: 20px;
 
   /* the transcript, and the band the transcript stops above */
-  --cp-feed-row-gap: var(--cp-pad-mid);
+  /* 轮次间距是半行正文，所以它从正文行高推出，而不是另写一个像素值。 */
+  --cp-feed-row-gap: calc(var(--ui-prose-size) * var(--ui-prose-line-height) / 2);
   --cp-dock-gap: var(--cp-stack);
   /* 溶解距离按行给:一行半正文(39px)。三行是过量,那段渐变自己变成了色带。 */
   /* 对话下沿化开的距离:一行半正文。涂色的那一版没有了,这是遮罩的长度。 */

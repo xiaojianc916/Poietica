@@ -36,8 +36,11 @@
    * 控件字号，这一组是一段连续文字的刻度 —— 一个根字号，一个行高，一个节奏，
    * 其余级差在消费处用 em 相对它表达。桌面 IDE 的聊天正文量级（13px / 1.6）。
    */
-  --ui-prose-size: 0.8125rem;
-  --ui-prose-size-quiet: 0.75rem;
-  --ui-prose-line-height: 1.6;
-  --ui-prose-flow: 0.6em;
+  --ui-prose-size: 0.875rem;
+  --ui-prose-size-quiet: 0.8125rem;
+  --ui-prose-size-aux: 0.8125rem;
+  --ui-prose-size-meta: 0.75rem;
+  --ui-prose-line-height: 1.65;
+  --ui-prose-flow: 0.7em;
+  --ui-prose-flow-quiet: 0.55em;
 }
