@@ -115,19 +115,15 @@ export interface AgentModelsProps {
   readonly agentId: string
   /** 档案声明的注入变量名。缺席时不写入，而不是自己挑一个名字。 */
   readonly registryKeyVar: string | undefined
-  /** agents.json 自己的问题。与这一家 agent 报回来的问题不是一回事，所以分两个来源。 */
-  readonly agentError: string | null
-  /** 选哪一家 agent 的控件。状态归外壳（它跨 agent），位置归这里（它属于这块版面）。 */
-  readonly agentSelector: ReactNode
 }
 
-export function AgentModels({
-  store,
-  agentId,
-  registryKeyVar,
-  agentError,
-  agentSelector,
-}: AgentModelsProps) {
+/*
+ * 这里只画随所选 agent 一起作废的东西 —— 那正是外壳用 key 圈起来的范围。
+ *
+ * 选 agent 的下拉与「智能体」那张卡都跨 agent，搬回外壳了：它们此前渲染在这棵子树
+ * 里，而这棵子树正是它们自己按一下就会重建的那一棵。
+ */
+export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps) {
   const [query, setQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [probing, setProbing] = useState(false)
@@ -452,7 +448,7 @@ export function AgentModels({
   )
 
   return (
-    <section className="models-page">
+    <>
       <p className="models-notice models-notice--bar">
         <span>模型清单来自内置名单，也支持从配置文件中反向导入</span>
 
@@ -483,28 +479,19 @@ export function AgentModels({
 
       {importNote !== null ? <p className="models-empty">{importNote}</p> : null}
 
-      <div className="models-block">
-        <span className="models-block__label">智能体</span>
-
-        <div className="models-card">
-          <div className="models-row">
-            <div className="models-row__copy">
-              <strong>ACP Agent</strong>
-              <p>
-                {agentError ?? providerIssues ?? '选择用于对话的 agent，可用模型与密钥由它提供'}
-              </p>
-            </div>
-
-            <div className="models-row__control">{agentSelector}</div>
-          </div>
-        </div>
-      </div>
-
       {/*
        * 下面那份清单是上一次读到的。它继续显示 —— 那仍是 agent 片刻前的真实配置 ——
        * 但不能让它冒充这一刻的事实：刚按过刷新、刚删过一个 provider 的人，有权知道
        * 屏幕为什么没动。
        */}
+      {/*
+       * agent 自己报回来的配置问题，说在它的清单旁边。
+       *
+       * 此前它和 agents.json 的错误挤在「ACP Agent」那张卡的副标题里三选一 ——
+       * 两个来源、一个位置，谁盖住谁全看当时哪一个不是 null。
+       */}
+      {providerIssues !== null ? <p className="models-notice">{providerIssues}</p> : null}
+
       {providers.refreshError !== null ? (
         <p className="models-notice">
           下面这份清单是上一次读到的 —— 这一次重读没成：{providers.refreshError}
@@ -640,7 +627,7 @@ export function AgentModels({
           </div>
         </div>
       </details>
-    </section>
+    </>
   )
 }
 

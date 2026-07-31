@@ -120,20 +120,41 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
   )
 
   return (
-    <AgentModels
-      agentError={agentError}
-      agentId={agentId}
-      agentSelector={
-        <OptionSelect
-          ariaLabel="ACP Agent"
-          onChange={selectAgent}
-          options={agentOptions}
-          value={agentId}
-        />
-      }
-      key={agentId}
-      registryKeyVar={registryKeyVar}
-      store={store}
-    />
+    <section className="models-page">
+      {/*
+       * 这张卡与它上面的下拉都住在 key 的外面。
+       *
+       * 它们此前是作为 prop 传进 AgentModels 的，也就是渲染在 key={agentId} 控制的
+       * 那棵子树里。于是：点一项 → selectAgent 先乐观地 setAgentId → key 变 → 下拉
+       * 连同触发器一起被销毁重建，Base UI 的关闭过渡与「焦点还给触发器」都落在一个
+       * 已经不存在的节点上，焦点掉回 body。落盘失败回滚时再拆一次，而每次挂载都会
+       * 真去起一个子进程重读清单 —— 一次失败的切换要跑两趟。
+       *
+       * key 重置的是「随所选 agent 一起作废」的状态；做出这个选择的控件不在其中。
+       */}
+      <div className="models-block">
+        <span className="models-block__label">智能体</span>
+
+        <div className="models-card">
+          <div className="models-row">
+            <div className="models-row__copy">
+              <strong>ACP Agent</strong>
+              <p>{agentError ?? '选择用于对话的 agent，可用模型与密钥由它提供'}</p>
+            </div>
+
+            <div className="models-row__control">
+              <OptionSelect
+                ariaLabel="ACP Agent"
+                onChange={selectAgent}
+                options={agentOptions}
+                value={agentId}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AgentModels agentId={agentId} key={agentId} registryKeyVar={registryKeyVar} store={store} />
+    </section>
   )
 }
