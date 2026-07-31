@@ -8,7 +8,6 @@ use agent_client_protocol::schema::v1::{
     RequestPermissionRequest, SessionNotification, SessionUpdate,
 };
 use serde::Serialize;
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::error::{AcpError, Result};
@@ -27,10 +26,19 @@ pub struct RecordedEvent {
     pub session_id: String,
     /// Position within the session, starting at one.
     pub seq: i64,
-    /// Discriminator, as `RunFrame::kind` spells it.
-    pub kind: String,
-    /// The frame as the interface receives it.
-    pub frame: Value,
+    /// When it was recorded, in milliseconds since the epoch.
+    pub at: i64,
+    /// 这一帧本身：判别式与载荷平铺在同一层。
+    ///
+    /// 它此前是一棵已经序列化好的 `Value`。帧先被 `acp_update` 做成一棵树，
+    /// 而 `envelope` 又把那棵树整个走一遍序列化器，深拷贝出第二棵一模一样
+    /// 的——同一份内容在原生侧建两遍，每个 token 一次。而两棵都不是最终形态：
+    /// emit 还要再序列化一次才上线。
+    ///
+    /// 类型换成帧本身之后，序列化只发生在它真正离开进程的那一刻，由 Tauri
+    /// 做，一次。
+    #[serde(flatten)]
+    pub frame: RunFrame,
 }
 
 /// 一帧交出去的地方。
@@ -115,19 +123,14 @@ impl Frames {
 
     /// 给这一帧一个位置和一个时刻。位置此刻还没有被用掉。
     ///
-    /// # Errors
-    ///
-    /// 序列化失败时报错；此时这一帧既不落盘也不投递。
-    pub fn shape(&self, frame: &RunFrame) -> serde_json::Result<RecordedEvent> {
-        let seq = self.seq.peek();
-        let kind = frame.kind();
-
-        Ok(RecordedEvent {
+    /// 它不会失败：这里不再序列化任何东西，只是给帧配上它的地址。
+    pub fn shape(&self, frame: RunFrame) -> RecordedEvent {
+        RecordedEvent {
             session_id: self.session_id.clone(),
-            seq,
-            kind: kind.to_owned(),
-            frame: frame.envelope(&self.session_id, seq, now_millis())?,
-        })
+            seq: self.seq.peek(),
+            at: now_millis(),
+            frame,
+        }
     }
 
     /// 交出去，位置就此用掉。
@@ -146,7 +149,7 @@ impl Frames {
     ///
     /// 序列化失败时报错；此时这一帧不投递，位置也不前进。
     pub fn record_session_update(&mut self, notification: &SessionNotification) -> Result<()> {
-        let event = self.shape(&acp_update(notification)?)?;
+        let event = self.shape(acp_update(notification)?);
 
         self.deliver(&event);
 
@@ -219,10 +222,9 @@ impl Recorder {
 
     /// Records that the run began, and what was asked.
     pub fn record_run_started(&mut self, prompt: &str) {
-        let outcome = self.append(&RunFrame::RunStarted {
+        self.append(RunFrame::RunStarted {
             prompt: prompt.to_owned(),
         });
-        self.remember(outcome);
     }
 
     /// Records a session notification and projects it.
@@ -244,8 +246,7 @@ impl Recorder {
 
     /// Records the answer a permission request was settled with.
     pub fn record_permission_resolved(&mut self, request_id: &str, decision: &Decision) {
-        let outcome = self.persist_resolution(request_id, decision);
-        self.remember(outcome);
+        self.persist_resolution(request_id, decision);
     }
 
     /// The requests this run is still waiting on.
@@ -268,26 +269,24 @@ impl Recorder {
 
     /// Records that the run ended on the agent's terms.
     pub fn record_run_finished(&mut self, stop_reason: &str) {
-        let outcome = self.finish(RunFrame::RunFinished {
+        self.finish(RunFrame::RunFinished {
             stop_reason: stop_reason.to_owned(),
             diagnostics: None,
         });
-        self.remember(outcome);
     }
 
     /// Records that the run ended in a failure.
     pub fn record_run_failed(&mut self, message: &str) {
-        let outcome = self.finish(RunFrame::RunFailed {
+        self.finish(RunFrame::RunFailed {
             message: message.to_owned(),
             diagnostics: None,
         });
-        self.remember(outcome);
     }
 
     fn persist_update(&mut self, notification: &SessionNotification) -> Result<()> {
         self.updates = self.updates.saturating_add(1);
 
-        self.append(&acp_update(notification)?)?;
+        self.append(acp_update(notification)?);
 
         self.project(&notification.update)
     }
@@ -335,16 +334,18 @@ impl Recorder {
 
         let title = self.permission_title(request, tool_call_id);
 
-        self.append(&RunFrame::PermissionRequested {
+        self.append(RunFrame::PermissionRequested {
             request_id: request_id.to_owned(),
             tool_call_id: tool_call_id.to_owned(),
             title,
             tool_call,
             options,
-        })
+        });
+
+        Ok(())
     }
 
-    fn persist_resolution(&mut self, request_id: &str, decision: &Decision) -> Result<()> {
+    fn persist_resolution(&mut self, request_id: &str, decision: &Decision) {
         // Refusing by choosing the agent's own refusal option is still a
         // selection as far as the protocol is concerned. Only an unanswered
         // request is cancelled.
@@ -357,11 +358,11 @@ impl Recorder {
 
         self.pending.retain(|waiting| waiting != request_id);
 
-        self.append(&RunFrame::PermissionResolved {
+        self.append(RunFrame::PermissionResolved {
             request_id: request_id.to_owned(),
             option_id,
             outcome: outcome.to_owned(),
-        })
+        });
     }
 
     /// The interface requires a title; the protocol makes it optional.
@@ -379,10 +380,10 @@ impl Recorder {
             .unwrap_or_else(|| tool_call_id.to_owned())
     }
 
-    fn finish(&mut self, frame: RunFrame) -> Result<()> {
+    fn finish(&mut self, frame: RunFrame) {
         let frame = self.narrate(frame);
 
-        self.append(&frame)
+        self.append(frame);
     }
 
     /// A failure always carries the agent account of it. A turn that ended on
@@ -410,16 +411,11 @@ impl Recorder {
         }
     }
 
-    /// 成形，然后投递。
-    ///
-    /// 成形失败的那一帧不投递，序号也不前进：位置在投递成功时才算用掉，见
-    /// [`Frames::shape`]。
-    fn append(&mut self, frame: &RunFrame) -> Result<()> {
-        let event = self.frames.shape(frame)?;
+    /// 成形，然后投递。位置在投递时才算用掉，见 [`Frames::shape`]。
+    fn append(&mut self, frame: RunFrame) {
+        let event = self.frames.shape(frame);
 
         self.frames.deliver(&event);
-
-        Ok(())
     }
 
     fn remember(&mut self, outcome: Result<()>) {
@@ -482,11 +478,11 @@ mod tests {
             }),
         );
 
-        let shaped = frames.shape(&ending()).expect("the frame shapes");
+        let shaped = frames.shape(ending());
 
         assert_eq!(shaped.seq, 1);
         assert_eq!(
-            frames.shape(&ending()).expect("shaping again").seq,
+            frames.shape(ending()).seq,
             1,
             "成形两次仍是同一个位置：没有投递就没有用掉"
         );
@@ -494,7 +490,7 @@ mod tests {
         frames.deliver(&shaped);
 
         assert_eq!(
-            frames.shape(&ending()).expect("after delivery").seq,
+            frames.shape(ending()).seq,
             2,
             "投递之后位置才前进"
         );

@@ -30,14 +30,16 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
 /**
  * The envelope the native side broadcasts.
  *
- * 只有 frame 属于事件契约；会话号在信封外面，因为它是寻址，不是内容。它
- * 与下面的选择器推送（AgentSelectorEnvelope）用的是同一个主语。
+ * 信封就是帧：判别式、位置、时刻与载荷平铺在同一层，会话号也在这一层 ——
+ * 六种帧无一例外都自报它（见原生侧 recorder.rs 的 RecordedEvent）。
+ *
+ * 帧此前被套在一个 frame 字段里，而外面那层另抄了一份 seq 与 kind。两份都
+ * 没有任何人读过：下面这个 listen 只取 frame 与 sessionId，而 RunEvent
+ * （run-contract.ts）压根没有 sessionId 这一格。它们只是每一帧都要在线上
+ * 多走一趟。
  */
 interface AgentEventEnvelope {
   readonly sessionId: string
-  readonly seq: number
-  readonly kind: string
-  readonly frame: unknown
 }
 
 export interface AgentEventSourceOptions {
@@ -129,8 +131,8 @@ export function createAgentEventSource({
       subscribeToEvent<AgentEventEnvelope>(
         AGENT_EVENT,
         (payload) => {
-          // The frame is the contract; the session is its address.
-          handler(payload.frame, payload.sessionId)
+          // 帧就是信封；会话号是它自报的地址。
+          handler(payload, payload.sessionId)
         },
         onListenFailure,
       ),

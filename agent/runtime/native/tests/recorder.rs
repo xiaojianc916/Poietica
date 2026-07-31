@@ -52,7 +52,7 @@ impl Fixture {
             .lock()
             .expect("the sink")
             .iter()
-            .map(|event| event.frame.clone())
+            .map(|event| serde_json::to_value(event).expect("the frame serialises"))
             .collect()
     }
 
