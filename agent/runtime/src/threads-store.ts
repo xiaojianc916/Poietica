@@ -6,7 +6,11 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
-import { agentDefaultModel, learnAgentControls } from './agent-capability-store'
+import {
+  agentDefaultModel,
+  learnAgentControls,
+  observeAgentControls,
+} from './agent-capability-store'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -132,6 +136,23 @@ export class ThreadsStore {
   /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
   #sessions = new Map<string, string>()
 
+  /*
+   * 这条会话内部真的握着哪个模型 —— agent 最近一次报的原话。
+   *
+   * 它不是显示值。显示的那一份被投影成了全局选中的那个（见 #shown），拿它去判断
+   * 「要不要真的切一次」永远会得出「已经切好了」。两个值必须分开存，这与 capability
+   * store 里 reported 和 chosenModel 的分工是同一件事。
+   */
+  #reportedModel = new Map<string, string>()
+
+  /*
+   * 已经为这条会话试过切到哪个值。
+   *
+   * 切换失败会走 catch 里的重读，重读又会得出同一个结论 —— 没有这道闸，一次 agent
+   * 拒绝就是一个不停打命令的循环。换一个目标值时重新允许。
+   */
+  #switchTried = new Map<string, string>()
+
   readonly #transcripts: TranscriptSink | undefined
 
   constructor(port?: ThreadPort, config?: SessionConfigPort, transcripts?: TranscriptSink) {
@@ -158,8 +179,22 @@ export class ThreadsStore {
       this.#reported(report)
     })
 
+    /*
+     * 人在别处拨动了模型选择器。
+     *
+     * 缓存下来的那些会话表是历史快照：它们记着自己到达那一刻的值，此后全局选中什么
+     * 变了多少次都与它们无关。此前「打开一条开过的旧对话又变回旧模型」就是这么来的
+     * —— adopt 在 #asked 那一行直接返回，没有任何人回头去更新那份缓存。
+     *
+     * 投影必须是持续成立的，不能是到达时对齐一次。
+     */
+    const release = observeAgentControls(() => {
+      this.#realign()
+    })
+
     return () => {
       stop?.()
+      release()
     }
   }
 
@@ -359,6 +394,12 @@ export class ThreadsStore {
    */
   adopt = (threadId: string): void => {
     if (this.#asked.has(threadId)) {
+      /*
+       * 会话早就开着了，不必再问一趟。但它内部握的模型可能还是上一次的 —— 手伸过来
+       * 就是把它掰回当前选中那个的时刻。是幂等的：已经对上了就什么都不做。
+       */
+      this.#switchModel(threadId)
+
       return
     }
 
@@ -462,55 +503,74 @@ export class ThreadsStore {
   /*
    * 一张表到了。这是三条路（open / select / agent 主动上报）唯一的汇合处。
    *
-   * 模型那一项不归这条对话管。一条旧对话记着的模型是它自己的历史，而"现在选中哪个"
-   * 全局只有一个答案，写在 agent 配置的 default_model 里。所以这里先把它对齐，再存。
-   *
-   * 光改显示是撒谎：那条会话内部仍然握着旧模型，下一句话就会由旧模型来答。所以对齐
-   * 是两步 —— 先乐观地把屏幕改对（不然要等一整趟往返才不闪），再向 agent 发一次真实
-   * 的切换。递归会自己停：切完之后 agent 报回来的就是 wanted，判据不再成立。
+   * 两件事在这里分开：agent 报的原话进 #reportedModel（这条会话真在用什么），存进
+   * selectors 的那一份则是投影（屏幕上该显示什么）。此前只存了一份，于是"显示"与
+   * "真值"共用一格，谁也说不清那格里的东西是哪一个。
    */
   #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
     /* 这张表属于这个 agent，不属于这一条对话；入口那一格靠它才有东西可画。 */
     learnAgentControls(offered)
 
-    const wanted = agentDefaultModel()
-    const aligned = this.#aligned(offered, wanted)
+    const model = offered.find((control) => control.purpose === 'model')
+
+    if (model !== undefined) {
+      this.#reportedModel.set(threadId, model.current)
+    }
 
     this.#commit({
-      selectors: this.#with(this.#held.selectors, threadId, aligned),
+      selectors: this.#with(this.#held.selectors, threadId, this.#shown(threadId, offered)),
       selectorFailure: this.#without(this.#held.selectorFailure, threadId),
     })
 
-    if (aligned === offered || wanted === null) {
-      return
+    this.#switchModel(threadId)
+  }
+
+  /*
+   * 全局选中的那个模型变了：所有缓存下来的表都要重新投影一次。
+   *
+   * 这是"投影"与"到达时对齐一次"的分水岭。少了这一步，一条开过的旧对话会永远停在
+   * 它第一次打开时的那个模型上 —— 而那正是这一刀要修的东西。
+   *
+   * 顺带把每条会话真的切过去：屏幕上写着甲、内部握着乙，是比显示错更坏的一种错。
+   * #switchModel 自带闸门，重复调用不会重复发命令。
+   */
+  #realign(): void {
+    let selectors = this.#held.selectors
+
+    for (const [threadId, table] of this.#held.selectors) {
+      selectors = this.#with(selectors, threadId, this.#shown(threadId, table))
     }
 
-    for (const control of aligned) {
-      if (control.purpose === 'model') {
-        this.selectControl(threadId, control.id, wanted)
-      }
+    this.#commit({ selectors })
+
+    for (const threadId of this.#held.selectors.keys()) {
+      this.#switchModel(threadId)
     }
   }
 
   /*
-   * 把模型那一项换成全局选中的那个。没有可换的就原样交回同一个引用 —— 调用方靠这个
-   * 引用是否变化来判断"要不要真去切一次"，也靠它避免一次没有内容的提交。
+   * 这条对话的表画出来该是什么样：模型那一项恒等于全局选中的那个。
    *
-   * 那个别名不在这条会话的候选里就不动：agent 会拒绝一次它不认识的值，届时 catch
-   * 里那次重读只会把同一件事再走一遍。宁可这条会话继续用它自己的，也不发一次注定失败
-   * 的调用。
+   * 没有全局值时才退回这条会话自己报的值 —— 那是启动后还没问到 default_model 的那
+   * 一小段，总得有东西可画。
+   *
+   * 那个别名不在这条会话的候选里就不动：显示一个它给不出的值，只会让下一次切换失败。
+   *
+   * 没有可换的就原样交回同一个引用，#with 因此认得出"没变"，一次多余的提交都不会发生。
    */
-  #aligned(
-    offered: readonly SessionConfigControl[],
-    wanted: string | null,
+  #shown(
+    threadId: string,
+    table: readonly SessionConfigControl[],
   ): readonly SessionConfigControl[] {
-    if (wanted === null) {
-      return offered
+    const wanted = agentDefaultModel() ?? this.#reportedModel.get(threadId)
+
+    if (wanted === undefined || wanted === null) {
+      return table
     }
 
     let changed = false
 
-    const next = offered.map((control) => {
+    const next = table.map((control) => {
       if (control.purpose !== 'model' || control.current === wanted) {
         return control
       }
@@ -524,7 +584,38 @@ export class ThreadsStore {
       return { ...control, current: wanted }
     })
 
-    return changed ? next : offered
+    return changed ? next : table
+  }
+
+  /*
+   * 把这条会话真的切到全局选中的那个模型上。
+   *
+   * 判据是 #reportedModel，不是屏幕上那份 —— 后者已经被投影过，拿它判永远得出"已经
+   * 对上了"。这就是光改显示会撒谎的地方：下一句话仍由旧模型来答。
+   *
+   * 一个目标值只试一次。切换失败会走 selectControl 的 catch 去重读，重读得出同样的
+   * 结论，没有这道闸就是一个不停打命令的循环。
+   */
+  #switchModel(threadId: string): void {
+    const wanted = agentDefaultModel()
+    const actual = this.#reportedModel.get(threadId)
+
+    if (wanted === null || actual === undefined || actual === wanted) {
+      return
+    }
+
+    if (this.#switchTried.get(threadId) === wanted) {
+      return
+    }
+
+    const model = this.#held.selectors.get(threadId)?.find((control) => control.purpose === 'model')
+
+    if (model === undefined || !model.choices.some((choice) => choice.value === wanted)) {
+      return
+    }
+
+    this.#switchTried.set(threadId, wanted)
+    this.selectControl(threadId, model.id, wanted)
   }
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {

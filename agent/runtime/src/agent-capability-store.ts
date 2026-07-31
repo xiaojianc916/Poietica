@@ -410,6 +410,22 @@ function loadOnce(): void {
     })
 }
 
+/**
+ * 只听，不问。
+ *
+ * 与 subscribeAgentControls 的区别只有一处，但那一处要紧：这个不调 loadOnce。
+ * 挂一个监听器不该把 agent 进程拉起来 —— 会话那一侧在应用启动时就要听着默认模型
+ * 的变化，而那时屏幕上可能一个选择器都还没有。「一个从没打开过助手的启动不为此
+ * 付钱」这条约束，在这里同样成立。
+ */
+export function observeAgentControls(listener: () => void): () => void {
+  listeners.add(listener)
+
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 function subscribeAgentControls(listener: () => void): () => void {
   listeners.add(listener)
   loadOnce()
