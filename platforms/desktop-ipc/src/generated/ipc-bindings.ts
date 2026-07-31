@@ -21,18 +21,26 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
 },
 /**
- * Asks the agent to stop one turn.
+ * Asks the agent to stop the turn running on one conversation.
  * 
- * 取消点名一轮。ACP 的取消是发给一条会话的，而一条连接上同时有多条会话：
- * 不点名就只能停「此刻恰好在飞的那一轮」，那可能是另一条对话的。
+ * 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
+ * 这条对应关系在打开这条对话时就写进了库（attach_session），提问走的也是它。
+ * 此前这里点名的是一个轮次号，为它在内存里另养了一张 runId → sessionId 的表，
+ * 一轮开始时写、结束时删：那张表回答的问题，库里本来就有答案。
+ * 
+ * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 session_for 会为一条
+ * 还没开过口的对话新开一个会话，那是纯副作用。
+ * 
+ * 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读是一次凭据
+ * 库查询加一次 SQLCipher attach，窗口会在那段时间里停止应答（见 on_store）。
  * 
  * Cancellation is cooperative: the agent may still finish normally, and the
  * recorded stop reason reports which of the two happened.
  * 
  * # Errors
  * 
- * Fails when that turn is not running, when no session is running, or when
- * the driver has stopped.
+ * Fails when that conversation holds no live session, when no session is
+ * running, or when the driver has stopped.
  */
 async agentCancel(request: AgentCancelRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_cancel", { request });
@@ -164,6 +172,11 @@ async agentThreads() : Promise<AgentThread[]> {
  * 历史从这里回来，不从别处。屏幕上曾经显示的是本地日志里的另一份，于是同一
  * 段对话有两个来源，而只有一个是 agent 手里那份 —— 两份一旦分叉，人看见的是
  * 对的那份的赝品。现在只有一份，它的持有者是这条会话的主人。
+ * 
+ * 每一次打开都问一次经过，本次连接开的那些会话也不例外。渲染层可以在连接
+ * 还活着的时候整个重来 —— Ctrl+R 就是，开第二个窗口也是 —— 那一刻它手里什么
+ * 都没有，而这一侧只知道"会话还在"。用后者去猜前者，猜错的那次就是一块永远
+ * 填不上的白板。
  * 
  * 三条路都在同一次答复里带回整张选择器表，界面因此从不需要"读一次设置"。
  * 
@@ -360,13 +373,13 @@ async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
 /** user-defined types **/
 
 /**
- * 要停的那一轮。
+ * 要停的那条对话。
  */
 export type AgentCancelRequest = { 
 /**
- * The run to stop.
+ * The conversation whose turn should stop.
  */
-runId: string }
+threadId: string }
 /**
  * 问这个 agent 提供什么，不点名任何一条对话。
  */
@@ -523,7 +536,10 @@ export type AgentHistory =
  */
 { state: "fresh" } | 
 /**
- * 它的会话一直没离开过本次连接，屏幕上的东西还在。
+ * 这一次只要了一个地址，没问经过。
+ * 
+ * 提问和改设置走的就是这一路：它们不需要历史，也就不该为此让 agent 把整段
+ * 对话重放一遍。所以这一格到不了界面 —— 打开一条对话永远要经过。
  */
 { state: "live" } | 
 /**
@@ -638,8 +654,8 @@ selectors: AgentConfigControl[];
  * 帧的形状与实时那条通道上的一模一样 —— 两者由同一个 `acp_update` 做出来
  * （见运行时 crate 的 frame.rs），所以重开一条对话与看着它发生不可能对不上。
  * 
- * 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
- * 的东西本来就还在。
+ * 空只有一种理由是理所应当的：这条对话刚建。其余的空都是"有经过但拿不
+ * 到"，由下面那一格说清是为什么。
  */
 events: JsonValue[]; 
 /**
@@ -686,11 +702,7 @@ cwd: string | null }
  */
 export type AgentPromptResult = { 
 /**
- * The run every frame of this turn is tagged with.
- */
-runId: string; 
-/**
- * The session the run belongs to.
+ * 这一轮发到了哪条会话。它的每一帧都带着同一个号。
  */
 sessionId: string }
 /**
