@@ -68,6 +68,17 @@ export function ProviderKeyCard({
   const [waited, setWaited] = useState(false)
 
   /*
+   * 上一次的回执不该压在下一次的输入上：一动密钥，那句话就作废。
+   *
+   * 此前只有 submit 里清一次，于是「已写入 agent 自己的配置。」会和一个刚填了
+   * 一半的新密钥同框 —— 那句话说的是上一次。
+   */
+  const editKey = useCallback((next: string) => {
+    setApiKey(next)
+    setMessage(null)
+  }, [])
+
+  /*
    * 这里没有「卸载后不 setState」那道守卫。
    *
    * React 18 起「卸载后 setState」不再是错误，那条警告本身已被官方删掉
@@ -160,7 +171,7 @@ export function ProviderKeyCard({
   }, [agentId, apiKey, onSaved, provider, registryKeyVar, store])
 
   return (
-    <div className="models-card">
+    <div aria-busy={busy} className="models-card">
       <div className="models-row">
         <div className="models-row__copy">
           <strong>{provider.displayName}</strong>
@@ -168,15 +179,9 @@ export function ProviderKeyCard({
         </div>
       </div>
 
-      {message !== null ? <p className="models-empty">{message}</p> : null}
-
-      {busy && waited ? (
-        <p className="models-empty">还在等 agent 回应，正在等它写完配置。</p>
-      ) : null}
-
       <SubField
         label="API 密钥"
-        onChange={setApiKey}
+        onChange={editKey}
         placeholder={`输入 ${provider.displayName} API 密钥`}
         secret
         value={apiKey}
@@ -190,8 +195,34 @@ export function ProviderKeyCard({
         </div>
       </div>
 
+      {/*
+       * 接口地址与上一行同构：名字在左、值在右。此前它把值拼进标签里，而
+       * baseUrl 可以是空 —— submit 里那句 provider.baseUrl === '' 就是证据 ——
+       * 于是那种厂商这里显示的是「接口地址 」加一段空白。空就不画这一行。
+       */}
+      {provider.baseUrl === '' ? null : (
+        <div className="models-row models-row--field">
+          <span className="models-row__name">接口地址</span>
+
+          <div className="models-row__control">
+            <span className="models-row__meta">{provider.baseUrl}</span>
+          </div>
+        </div>
+      )}
+
       <div className="models-row models-row--field">
-        <span className="models-row__name">接口地址 {provider.baseUrl}</span>
+        {/*
+         * 回执与动作同一行：左边说发生了什么，右边是引发它的那个动作。
+         *
+         * 此前这两句话是卡片中段两段 .models-empty —— 一个叫「空状态」的类被拿
+         * 来说「已写入」和错误原因，而且回执与按钮隔着三行。
+         *
+         * 这个区域常驻，不再随内容出现才挂载：live region 要先在场、再变内容，
+         * 否则读屏不会播报 —— 按下保存之后什么也听不到，正是此前的行为。
+         */}
+        <span aria-live="polite" className="models-row__meta">
+          {busy && waited ? '还在等 agent 回应，正在等它写完配置。' : message}
+        </span>
 
         <div className="models-row__control">
           {busy ? <InlineSpinner /> : null}

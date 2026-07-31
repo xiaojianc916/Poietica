@@ -100,7 +100,6 @@ async function importOne(input: {
         ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
       }),
       secretVar: registryKeyVar,
-      secretValue: '',
       catalogDocument: agentProviderImportDocument(provider),
       secretFromGlobalProvider: provider.id,
     })
