@@ -83,10 +83,5 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
     },
 
     resolvePermission: () => Promise.resolve(),
-
-    loadRun: () => Promise.resolve(events),
-
-    /* 录像就一轮，而整条就是那一轮。 */
-    loadThread: () => Promise.resolve(events),
   }
 }

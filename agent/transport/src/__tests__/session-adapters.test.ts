@@ -37,8 +37,6 @@ describe('ipc session', () => {
         prompt: () => Promise.resolve({ runId: 'r', sessionId: 's' }),
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
-        loadRun: () => Promise.resolve([]),
-        loadThread: () => Promise.resolve([]),
       },
       source: {
         listen: (handler) => {

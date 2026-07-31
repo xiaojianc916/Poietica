@@ -36,8 +36,6 @@ export interface AgentCommandBridge {
   ) => Promise<{ readonly runId: RunId; readonly sessionId: string }>
   readonly cancel: (runId: RunId) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
-  readonly loadRun: (runId: RunId) => Promise<readonly unknown[]>
-  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
 }
 
 export interface IpcSessionOptions {
@@ -59,9 +57,5 @@ export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSe
     },
 
     resolvePermission: (requestId, optionId) => bridge.resolvePermission(requestId, optionId),
-
-    loadRun: async (runId) => (await bridge.loadRun(runId)) as readonly RunEvent[],
-
-    loadThread: async (threadId) => (await bridge.loadThread(threadId)) as readonly RunEvent[],
   }
 }

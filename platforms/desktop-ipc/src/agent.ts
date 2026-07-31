@@ -89,8 +89,6 @@ export interface AgentCommandBridge {
   }) => Promise<{ readonly runId: string; readonly sessionId: string }>
   readonly cancel: (runId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
-  readonly loadRun: (runId: string) => Promise<readonly unknown[]>
-  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
 }
 
 /**
@@ -208,19 +206,6 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
 
     resolvePermission: async (requestId, optionId) => {
       await call(() => commands.agentResolvePermission({ requestId, optionId }))
-    },
-
-    loadRun: async (runId) => {
-      const snapshot = await call(() => commands.agentLoadRun({ runId, afterSeq: null }))
-
-      return snapshot.events
-    },
-
-    loadThread: async (threadId) => {
-      /* null 就是整条。轮数上限属于窗口，而窗口已经不在了。 */
-      const transcript = await call(() => commands.agentLoadThread({ threadId, recentRuns: null }))
-
-      return transcript.events
     },
   }
 }

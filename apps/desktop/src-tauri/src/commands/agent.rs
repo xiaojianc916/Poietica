@@ -68,22 +68,6 @@ const NO_CONVERSATION: &str = "no conversation was named";
 /// 这不是兜底：一轮结束就把地址删掉，所以查不到恰好是「没有什么可停的」。
 const NO_TURN: &str = "that turn is not running";
 
-/// How many turns a conversation opens with.
-///
-/// Opening a conversation used to read every frame ever recorded under it.
-/// A frame is a streamed fragment, so that is tens of thousands of rows for a
-/// conversation that has seen real use — parsed on the way out, serialised
-/// again over IPC, and reduced once more in the interface, all of it on the
-/// click that opened it. Chat clients open a window and reach further back on
-/// demand; this is the window.
-const RECENT_RUNS: u32 = 40;
-
-/// 后台补建快照时，一批处理多少轮。
-const SNAPSHOT_BATCH: i64 = 16;
-
-/// 两批之间让开多久，好让前台的读先过。
-const SNAPSHOT_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
-
 /// The live connection, if one has been started.
 ///
 /// 它不持有对话。哪条对话握着哪个会话写在库里，而一条连接自己不是任何人的对话：
@@ -218,31 +202,6 @@ pub struct AgentResolvePermissionRequest {
     pub request_id: String,
     /// One of the options the agent offered with that request.
     pub option_id: String,
-}
-
-/// A request to replay a run from the log.
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentLoadRunRequest {
-    /// The run to read.
-    pub run_id: String,
-    /// Resume after this position; omit to read from the beginning.
-    ///
-    /// The width is deliberate. Sequence numbers are 64-bit in the log, but
-    /// the generated `TypeScript` refuses a 64-bit integer rather than hand the
-    /// renderer a value it cannot represent, and no single run is going to
-    /// reach four billion frames.
-    pub after_seq: Option<u32>,
-}
-
-/// A run as it was recorded.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRunSnapshot {
-    /// The run the frames belong to.
-    pub run_id: String,
-    /// The frames, in order, exactly as they were broadcast when live.
-    pub events: Vec<Value>,
 }
 
 /// Starts a turn and returns as soon as it is under way.
@@ -440,129 +399,6 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     }
 
     Ok(())
-}
-
-/// Reads a run back out of the log.
-///
-/// The frames returned are the same values that were broadcast while the run
-/// was live, so replaying a stored run cannot drift from having watched it.
-///
-/// # Errors
-///
-/// Fails when the identifier is not a UUID or the log cannot be read.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_load_run(
-    state: State<'_, AgentRuntime>,
-    request: AgentLoadRunRequest,
-) -> AgentCommandResult<AgentRunSnapshot> {
-    let run_id = Uuid::parse_str(&request.run_id)
-        .map_err(|_invalid| Error::Validation("the run identifier is not a UUID".to_owned()))?;
-
-    let after_seq = i64::from(request.after_seq.unwrap_or_default());
-
-    let events = on_store(&state, move |store| {
-        Ok(store
-            .events_since(run_id, after_seq)
-            .map_err(persistence)?
-            .into_iter()
-            .map(|event| event.payload)
-            .collect::<Vec<Value>>())
-    })
-    .await?;
-
-    Ok(AgentRunSnapshot {
-        run_id: request.run_id,
-        events,
-    })
-}
-
-/// A request to replay a whole conversation from the log.
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentLoadThreadRequest {
-    /// The conversation to read.
-    pub thread_id: String,
-    /// How many turns to read, newest first; omit for the default window.
-    ///
-    /// 宽度是界面的决定：只有它知道用户已经翻到哪里、还想不想往前看。这里
-    /// 的默认值不是策略，只是没人交代时的兜底。
-    pub recent_runs: Option<u32>,
-}
-
-/// A conversation as it was recorded.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentThreadTranscript {
-    /// The conversation the frames belong to.
-    pub thread_id: String,
-    /// The frames of the turns inside the window, in the order they happened.
-    pub events: Vec<Value>,
-    /// How many turns the conversation holds in total.
-    ///
-    /// The window can be narrower than the conversation, and an interface that
-    /// is not told so has no honest way to draw the boundary: it would either
-    /// present a fragment as the whole thing, or offer to reach back when there
-    /// is nothing behind it.
-    pub total_runs: u32,
-}
-
-/// Reads a window of a conversation back out of the log.
-///
-/// Opening a conversation is reading one, so this is what the interface calls
-/// when the user picks one: the frames are the same values that were broadcast
-/// while each turn was live, which is why a conversation reopened cannot drift
-/// from having watched it happen.
-///
-/// A window, because the whole log is tens of thousands of frames for a
-/// conversation that has seen real use and all of it would land on the click.
-/// The turn count travels with it, so the interface can say where the window
-/// ends and ask for a wider one.
-///
-/// A conversation the log has never seen has no frames. That is an empty
-/// transcript rather than a failure, which is what a conversation nobody has
-/// spoken in yet actually is.
-///
-/// # Errors
-///
-/// Fails when the log cannot be opened or read.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_load_thread(
-    state: State<'_, AgentRuntime>,
-    request: AgentLoadThreadRequest,
-) -> AgentCommandResult<AgentThreadTranscript> {
-    let Ok(thread_id) = Uuid::parse_str(&request.thread_id) else {
-        return Ok(AgentThreadTranscript {
-            thread_id: request.thread_id,
-            events: Vec::new(),
-            total_runs: 0,
-        });
-    };
-
-    let window = i64::from(request.recent_runs.unwrap_or(RECENT_RUNS));
-
-    /* 一次进池子，两条语句：宽度和总数必须来自同一次读，否则界面会拿到
-    一个自相矛盾的答复——比如说"一共 3 轮"却收到 4 轮的帧。 */
-    let (events, total_runs) = on_store(&state, move |store| {
-        let events = store
-            .thread_events(thread_id, window)
-            .map_err(persistence)?
-            .into_iter()
-            .map(|event| event.payload)
-            .collect::<Vec<Value>>();
-
-        let total = store.thread_run_count(thread_id).map_err(persistence)?;
-
-        Ok((events, total))
-    })
-    .await?;
-
-    Ok(AgentThreadTranscript {
-        thread_id: request.thread_id,
-        events,
-        total_runs: u32::try_from(total_runs).unwrap_or(u32::MAX),
-    })
 }
 
 /// What a session selector is for.
@@ -932,45 +768,7 @@ fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AgentStore>
 
     // Two commands can race to be the first. The loser's connection is
     // dropped and everyone uses the winner's, which is the whole point.
-    let shared = Arc::clone(state.store.get_or_init(|| Arc::clone(&opened)));
-
-    // 赢的那一个顺便把存量对话的快照补上，一次运行一趟。
-    //
-    // 挂在这里而不是启动时，是因为打开日志本身就是懒的（见上面那段）：一次
-    // 从不打开助手的启动，不该为此去读一遍凭据库。日志第一次被真正打开的这
-    // 一刻，才是"这个人要用助手了"的那一刻。
-    if Arc::ptr_eq(&shared, &opened) {
-        catch_up_snapshots(Arc::clone(&shared));
-    }
-
-    Ok(shared)
-}
-
-/// 把还没有快照的存量轮次在后台补齐。
-///
-/// 一批一批地做，每批之间放开锁：补建是为了让点击变快，它自己不能反过来把
-/// 点击堵在锁外面。做完就退出。
-///
-/// 这一趟没跑完也没关系，剩下的轮次下一次运行接着补，中途读到它们只是走回
-/// 日志那条慢路 —— 也就是今天的行为。
-fn catch_up_snapshots(shared: Arc<Mutex<AgentStore>>) {
-    async_runtime::spawn_blocking(move || {
-        loop {
-            let done = match shared.lock() {
-                Ok(store) => store.compact_backlog(SNAPSHOT_BATCH),
-                Err(_poisoned) => return,
-            };
-
-            match done {
-                Ok(0) => return,
-                Ok(_more) => std::thread::sleep(SNAPSHOT_PAUSE),
-                Err(error) => {
-                    log::warn!("could not compact stored turns: {error}");
-                    return;
-                }
-            }
-        }
-    });
+    Ok(Arc::clone(state.store.get_or_init(|| opened)))
 }
 
 /// Takes the connection for the length of one statement.

@@ -7,6 +7,10 @@ import type { RunEvent, RunId, ThreadId } from './run-contract'
  * The implementation is Rust behind typed IPC: it owns the ACP client, the agent
  * subprocess and every credential. This interface is the entire surface the UI
  * is allowed to know about.
+ *
+ * 历史不从这里来。一条对话的经过由持有它的 agent 在 session/load 期间重放，
+ * 随打开这条对话的那次答复一起交回（见 thread-port.ts 的 OpenedThread.events）。
+ * 这个端口只管正在发生的事。
  */
 
 export interface AgentPromptRequest {
@@ -38,18 +42,4 @@ export interface AgentSessionPort {
   readonly subscribe: (listener: (event: RunEvent, runId: RunId) => void) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
-  /** Replays a persisted run out of the encrypted event log. */
-  readonly loadRun: (runId: RunId) => Promise<readonly RunEvent[]>
-  /**
-   * Replays a conversation, whole.
-   *
-   * 整条而不是一段。一条会话的重播由 agent 一次给全（ACP 的 session/load 期间，
-   * 历史就是普通的 session/update 通知），所以调用方没有"要多宽"可问，也没有
-   * "上面还有没有"可判 —— 那两个问题只在本地持有一份可切片的日志时才存在。
-   *
-   * Optional because a port that has no conversation behind it — a recorded
-   * replay, a fixture — has nothing to replay, and a surface built against
-   * one must still render.
-   */
-  readonly loadThread?: (threadId: ThreadId) => Promise<readonly RunEvent[]>
 }
