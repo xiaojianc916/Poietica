@@ -64,8 +64,10 @@ enum Settled {
         outcome: Result<()>,
         reply: oneshot::Sender<Result<()>>,
     },
+    /* 这里没有会话号：结算这一轮要用到它的地方只有记录器，而记录器出生时就
+    拿着它。此前有一格 `asked: String` 装着它，从被填进去到被解构出来，中间没有
+    任何一个读者 —— 而那个名字读起来像是"问出去的那句话"（真正的那句叫 `text`）。 */
     Turn {
-        asked: String,
         ended: Ended,
         slot: RunSlot,
         reply: oneshot::Sender<Result<String>>,
@@ -501,7 +503,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             闸门已经没有了：它拦下的是别的对话。 */
                             /* 记录器在这里出生：位置从这条会话的序号线上取，
                             而那条线是槽的，不是这一轮的。 */
-                            let recorder = Recorder::new(session_id.clone(), turn.seq(), frames);
+                            let recorder = Recorder::new(session_id, turn.seq(), frames);
 
                             if let Err(error) = turn.install(Listening::Turn(recorder)) {
                                 let _ignored = reply.send(Err(error));
@@ -528,7 +530,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             jobs.push(Box::pin(run_turn(
                                 &connection,
-                                session_id,
                                 named,
                                 text,
                                 turn,
@@ -586,7 +587,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             let _ignored = reply.send(outcome);
                         }
                         Step::Settled(Settled::Turn {
-                            asked,
                             ended,
                             slot: turn,
                             reply,
@@ -900,7 +900,6 @@ async fn change_selector(
 /// 而 agent 那侧记的是完成，`session/load` 把历史交回来时，两份对不上。
 async fn run_turn(
     connection: &ConnectionTo<Agent>,
-    asked: String,
     named: SessionId,
     text: String,
     slot: RunSlot,
@@ -925,7 +924,6 @@ async fn run_turn(
     };
 
     Settled::Turn {
-        asked,
         ended,
         slot,
         reply,
