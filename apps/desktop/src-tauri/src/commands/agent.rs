@@ -1036,6 +1036,11 @@ pub struct AgentOpenedThread {
     /// 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
     /// 的东西本来就还在。
     pub events: Vec<Value>,
+    /// 上面那格为什么是它现在的样子。
+    ///
+    /// 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
+    /// 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
+    pub history: AgentHistory,
 }
 
 /// Lists the stored conversations, newest first.
@@ -1117,6 +1122,7 @@ pub async fn agent_open_thread(
         session_id,
         offered,
         events,
+        history,
     } = session_for(&state, &live, &named).await?;
 
     let offered = if let Some(offered) = offered {
@@ -1148,6 +1154,7 @@ pub async fn agent_open_thread(
         thread,
         selectors: offered.into_iter().map(restate).collect(),
         events,
+        history,
     })
 }
 
@@ -1202,6 +1209,52 @@ fn conversation(named: &str) -> Result<Uuid> {
     })
 }
 
+/// 一段历史打不开的时候，是因为什么。
+///
+/// 三种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面
+/// 要么不是同一个 agent，要么不做这件事，要么自己也不留着了。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentHistoryLoss {
+    /// 这条对话是另一个 agent 开的。
+    ///
+    /// sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
+    /// UnknownSession —— 所以这里根本不发。
+    OtherAgent,
+    /// 这个 agent 在握手时说了它不装载旧会话。
+    NotSupported,
+    /// 号发过去了，agent 说它这边已经没有这条会话。
+    Forgotten,
+}
+
+/// 这一次打开，屏幕上应该出现什么。
+///
+/// 加这一格是因为四种截然不同的处境此前长得一模一样：`events` 都是空数组。
+/// 刚建的对话是空的，理所应当；而一条聊过两小时的对话在换了 agent 之后也是
+/// 空的 —— 界面分不出来，就只能默不作声地给一块白板。那不是"没有历史"，那
+/// 是"有历史但拿不到"，两件事对人的意义完全不同。
+///
+/// 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
+/// `{ state: "unavailable", reason: …, owner: … }`。
+#[derive(Debug, Serialize, Type)]
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum AgentHistory {
+    /// 这条对话刚刚建出来，本来就没有经过。
+    Fresh,
+    /// 它的会话一直没离开过本次连接，屏幕上的东西还在。
+    Live,
+    /// agent 把它装载回来了，`events` 就是它交出来的那一整段。
+    Loaded,
+    /// 打不开。说清是为什么，以及它在谁手里。
+    #[serde(rename_all = "camelCase")]
+    Unavailable {
+        /// 为什么打不开。
+        reason: AgentHistoryLoss,
+        /// 持有这条对话的那个 agent；这一列存在之前写下的行没有。
+        owner: Option<String>,
+    },
+}
+
 /// 一条对话所持有的活会话，以及装载它时 agent 交回来的东西。
 struct Held {
     thread_id: Uuid,
@@ -1213,6 +1266,8 @@ struct Held {
     /// 与上面那格同一条规矩：只有真的开或装载了一条，才有东西可带。认得的
     /// 会话这里是空的 —— 它本来就没离开过，屏幕上的东西一直在。
     events: Vec<Value>,
+    /// 上面那格为什么是它现在的样子。
+    history: AgentHistory,
 }
 
 /// 记下这一轮飞在哪条会话上。
@@ -1303,8 +1358,8 @@ fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool>
 /// 在新 agent 这里从一条空会话开始。
 ///
 /// 这一刻屏幕上是空的，而且只能是空的：那段历史在原来那个 agent 手里，这一侧
-/// 没有副本可拿。此前这里写着"本地日志照常显示"，那句话随着本地日志一起作废。
-/// 现在它安静地空着 —— 把这件事对用户说清楚，是下一刀要做的事。
+/// 没有副本可拿。空本身不是问题，不作声才是 —— 所以每一条返回路径都带一个
+/// `history`，说清这一次的空是"刚建"、"本来就在"，还是"打不开，以及为什么"。
 ///
 /// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
 async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str) -> Result<Held> {
@@ -1317,29 +1372,39 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         store.thread(thread_id).map_err(persistence)?
     };
 
-    /* 号和持有者一起读出来。空的持有者是这一列存在之前写下的行：那时候
-    只装得下一个 agent，所以按本次这个算，装载成功时在下面记实。 */
-    let held = stored.and_then(|thread| {
-        let owner = thread.agent_id;
+    /* 号和持有者分开拿。此前它们被 and_then + filter 折成一个 Option，于是
+    "这条对话属于别的 agent"与"这条对话还没有会话"在类型上不可分辨 —— 那正是
+    这一路说不出话的原因：折叠丢掉的不是数据，是问句的答案。 */
+    let (session_id, owner) = match stored {
+        Some(thread) => (thread.session_id, thread.agent_id),
+        None => (None, None),
+    };
 
-        thread
-            .session_id
-            .filter(|_| owner.as_deref().is_none_or(|id| id == live.agent_id))
-    });
+    /* 空的持有者是这一列存在之前写下的行：那时候只装得下一个 agent，所以按
+    本次这个算，装载成功时在下面记实。 */
+    let mine = owner.as_deref().is_none_or(|id| id == live.agent_id);
 
-    if let Some(session_id) = held {
-        /* 本次连接开的，直接用。 */
-        if recognised(state, &session_id)? {
+    /* 走到下面新开一条时，这里说得出刚才为什么没能装载回来。 */
+    let mut lost: Option<AgentHistory> = None;
+
+    if let Some(session_id) = session_id {
+        if !mine {
+            /* 号发出去只会换回 UnknownSession，所以不发。 */
+            lost = Some(AgentHistory::Unavailable {
+                reason: AgentHistoryLoss::OtherAgent,
+                owner,
+            });
+        } else if recognised(state, &session_id)? {
+            /* 本次连接开的，直接用。 */
             return Ok(Held {
                 thread_id,
                 session_id,
                 offered: None,
                 events: Vec::new(),
+                history: AgentHistory::Live,
             });
-        }
-
-        /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
-        if live.can_load_session {
+        } else if live.can_load_session {
+            /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
             match live
                 .client
                 .load_session(session_id.clone(), state.root.clone())
@@ -1364,12 +1429,26 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
                         session_id,
                         events: loaded.events,
                         offered: Some(loaded.selectors),
+                        history: AgentHistory::Loaded,
                     });
                 }
-                /* agent 自己也不再留着这条会话了。那与它一开始就说不装载是同一个
-                处境，走同一条路 —— 但它是一件值得知道的事，所以写下来。 */
-                Err(error) => log::warn!("could not reload the stored session: {error}"),
+                /* agent 自己也不再留着这条会话了。往下仍然开一条新的，但这一次
+                不装作无事发生：拿不到就是拿不到，说出来。 */
+                Err(error) => {
+                    log::warn!("could not reload the stored session: {error}");
+
+                    lost = Some(AgentHistory::Unavailable {
+                        reason: AgentHistoryLoss::Forgotten,
+                        owner,
+                    });
+                }
             }
+        } else {
+            /* 它握手时就说了它不做这件事。 */
+            lost = Some(AgentHistory::Unavailable {
+                reason: AgentHistoryLoss::NotSupported,
+                owner,
+            });
         }
     }
 
@@ -1395,6 +1474,7 @@ async fn session_for(state: &State<'_, AgentRuntime>, live: &Handle, named: &str
         session_id: opened.session_id,
         offered: Some(opened.selectors),
         events: Vec::new(),
+        history: lost.unwrap_or(AgentHistory::Fresh),
     })
 }
 
