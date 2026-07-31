@@ -338,7 +338,22 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
         .unwrap_or_default()
 }
 
-/// 从一份 config.toml 的文本里取出顶层的 `default_model`。
+/// 这个别名在 `models` 表里声明过没有。
+///
+/// 读与写共用它。此前写入侧内联写着这三行，读回侧一行都没有 —— 同一个键的两个方向
+/// 各带一套规则，迟早对不上，而这一次它们已经对不上了。
+fn alias_is_declared(document: &DocumentMut, alias: &str) -> bool {
+    document
+        .get("models")
+        .and_then(|models| models.as_table_like())
+        .is_some_and(|models| models.contains_key(alias))
+}
+
+/// 一份 config.toml 里那个「现在真的能开会话」的默认模型。
+///
+/// 判据不是「这个键非空」，是上游 session/new 那道闸门的判据本身：别名在 `models` 表里，
+/// 且它指向的那一家握着非 OAuth 的凭据。达不到就是 None —— 对闸门而言，一个死别名和
+/// 一个空键是同一件事，读回侧没有理由把它们说成两件。
 ///
 /// 这里解析 TOML，而 `tails_from_config` 与 `secret_from_config` 仍在逐行扫描 ——
 /// 差别不是随意的：那两个只读，这一个有写的对侧（`agent_set_default_model`）。读一套、
@@ -346,13 +361,20 @@ pub async fn agent_key_tails(app: AppHandle, agent_id: String) -> BTreeMap<Strin
 ///
 /// 顺带修掉手写规则的一个盲区：「扫到第一个 `[` 就停」认不出多行字符串里的方括号，
 /// 解析器认得出。
-fn default_model_from_config(text: &str) -> Option<String> {
-    text.parse::<DocumentMut>()
-        .ok()?
+fn usable_default_model(text: &str) -> Option<String> {
+    let document = text.parse::<DocumentMut>().ok()?;
+
+    let alias = document
         .get("default_model")?
         .as_str()
-        .filter(|alias| !alias.is_empty())
-        .map(str::to_owned)
+        .filter(|alias| !alias.is_empty())?
+        .to_owned();
+
+    if !alias_is_declared(&document, &alias) || !alias_has_usable_credentials(&document, &alias) {
+        return None;
+    }
+
+    Some(alias)
 }
 
 /// 上游闸门按 provider 的 `type` 决定「密钥也可以从 env 里来」时读哪个变量名。
@@ -475,12 +497,20 @@ fn write_config_atomically(path: &std::path::Path, text: &str) -> Result<()> {
         .map_err(|error| Error::AgentCli(format!("替换配置失败：{error}")))
 }
 
-/// 受控 home 里当前的默认模型；没有就是 None。
+/// 受控 home 里那个真的能开会话的默认模型；没有就是 None。
 ///
 /// 它不是一项偏好，是闸门。上游 `hasUsableConfiguredDefaultModel` 的第一行判的
 /// 就是这个键：缺席时配置文件里的 `api_key` 整条不算数，session/new 一律
 /// authRequired。界面必须能直接看见这件事，而不是等用户发出一条消息之后，在
 /// 「助手结束了一轮」里撞上它。
+///
+/// 「有一个死别名」与「一个都没有」在这里是同一种答案，因为对闸门而言它们本来就是同一
+/// 件事。此前这一侧只判非空：写入时查两遍（在 `models` 表里、那一家有可用凭据），读回
+/// 时一遍都不查 —— 而让别名变死的动作根本不经过写入侧。删掉一家 provider 会连带删掉它
+/// 名下的模型条目，`default_model` 原地不动地指着一个不存在的东西，读回来仍是一个像模
+/// 像样的字符串，于是渲染层认定「已经选好了」，自动补齐那一路（ensureDefaultModel 的
+/// 第一行判的是 chosenModel === null）永远不会触发，代价推迟到用户下一次发消息时的
+/// Authentication required。
 ///
 /// 只读受控 home，不像 `agent_key_tails` 那样退回用户全局 home：模式 B 下 ACP
 /// 会话读的就是这一份，拿全局那一份来显示等于报一个 agent 根本不会用的值。
@@ -499,7 +529,7 @@ pub async fn agent_default_model(app: AppHandle, agent_id: String) -> Option<Str
     std::fs::read_to_string(home.join("config.toml"))
         .ok()
         .as_deref()
-        .and_then(default_model_from_config)
+        .and_then(usable_default_model)
 }
 
 /// 改写受控 home 里顶层的 `default_model`。
@@ -557,12 +587,7 @@ pub async fn agent_set_default_model(
             Error::AgentCli(format!("{agent_id} 的配置不是合法的 TOML：{error}"))
         })?;
 
-        let known = document
-            .get("models")
-            .and_then(|models| models.as_table_like())
-            .is_some_and(|models| models.contains_key(&alias));
-
-        if !known {
+        if !alias_is_declared(&document, &alias) {
             return Err(Error::AgentCli(format!(
                 "{agent_id} 的配置里没有 {alias} 这个模型"
             )));

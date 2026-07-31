@@ -288,6 +288,11 @@ export function agentDefaultModel(): string | null {
  * 里按 provider id 排过序，同一份配置每次挑到的是同一个。
  *
  * 挑出来的这个只是个起点，不是偏好 —— 人在选择器里拨一下它就变了。
+ *
+ * 「配置里那个别名已经死了」也走这一路，不需要第二条支路：原生侧读回 default_model 时
+ * 用的是闸门自己的判据（别名在 models 表里、那一家有可用凭据），指不到东西的别名读回来
+ * 就是 null。删掉一家 provider 之后这里因此照常触发，而不是让一个看着有值、实际开不了
+ * 会话的别名一直挂在那儿，直到用户发出下一条消息才在 Authentication required 里撞见。
  */
 function ensureDefaultModel(): void {
   const save = defaultSource?.save
@@ -339,7 +344,17 @@ interface DefaultModelSource {
 
 let defaultSource: DefaultModelSource | undefined
 
-let askedDefault = false
+/*
+ * 已经问过的那一份来源。
+ *
+ * 此前这里是一个布尔：问过就永久置位。可这份来源是按 agent 接进来的（组合根那个
+ * effect 依赖 agentConfig 与 agentId），换一家 agent 会重新 install —— 布尔挡在门口，
+ * 新那家的 default_model 一次都不会被读，屏幕继续显示上一家选中的别名，而自动补齐
+ * 还会拿那个旧值当真。
+ *
+ * 问错的是问题本身：要记的不是「问过没有」，是「问的是哪一份」。
+ */
+let askedFor: DefaultModelSource | undefined
 
 /*
  * 那一次读取回来过没有。
@@ -354,31 +369,51 @@ let defaultKnown = false
  * default_model 从哪里读。
  *
  * 这个包不认识 AgentConfigStore，也不该认识 —— 它只要一个"问一次，给我一个别名"
- * 的函数。装上就问，因为装上的时机已经晚于第一个订阅者；问过就不再问，失败则把
- * 标志放回去，下一次装载会重试。
+ * 的函数。装上就问，因为装上的时机已经晚于第一个订阅者；同一份来源不重复问，失败则
+ * 把它放回去，下一次装载会重试。
  */
 function loadDefaultOnce(): void {
-  const load = defaultSource?.load
+  const source = defaultSource
 
-  if (askedDefault || load === undefined) {
+  if (source === undefined || askedFor === source) {
     return
   }
 
-  askedDefault = true
-  load()
+  askedFor = source
+  source
+    .load()
     .then((alias) => {
+      /* 问的时候还是这一家，答回来已经换了人：这个答案不是给现在这一格的。 */
+      if (defaultSource !== source) {
+        return
+      }
+
       defaultKnown = true
       setAgentDefaultModel(alias)
       ensureDefaultModel()
     })
     .catch(() => {
-      askedDefault = false
+      if (askedFor === source) {
+        askedFor = undefined
+      }
     })
 }
 
 /** 接线时交进来：怎么读、怎么写 agent 配置里的 default_model。 */
 export function installAgentDefaultModelSource(source: DefaultModelSource): void {
+  if (defaultSource === source) {
+    return
+  }
+
+  /*
+   * 换了一家 agent。
+   *
+   * 上一家的选中值和「已经问到了」两件事都不再成立 —— 留着它们，屏幕会用上一家的别名
+   * 冒充这一家的选中项，而自动补齐会以为无事可做。先归零，再问。
+   */
   defaultSource = source
+  defaultKnown = false
+  setAgentDefaultModel(null)
   loadDefaultOnce()
 }
 
