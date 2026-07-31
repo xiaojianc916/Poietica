@@ -1,4 +1,4 @@
-import { invoke } from '@poietica/platforms-desktop-ipc'
+import { commands } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 import type { Window } from '@tauri-apps/api/window'
 
 export interface MainWindowController {
@@ -134,7 +134,7 @@ export function createMainWindowController(): MainWindowController {
       await window.setTitle(title)
     },
 
-    // devtools 是唯一没有 JavaScript 对应物的窗口操作。
-    openDeveloperTools: () => invoke('window_open_devtools', { label: MAIN_WINDOW_LABEL }),
+    // devtools 是唯一没有 JavaScript 对应物的窗口操作。命令名与参数都由生成绑定给出。
+    openDeveloperTools: () => commands.windowOpenDevtools(MAIN_WINDOW_LABEL),
   }
 }

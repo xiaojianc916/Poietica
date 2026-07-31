@@ -1,4 +1,4 @@
-import { invoke } from '@poietica/platforms-desktop-ipc'
+import { commands } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 
 /**
  * 外链归系统浏览器。
@@ -66,7 +66,7 @@ export function installExternalLinks(): () => void {
 
     event.preventDefault()
 
-    void invoke('window_open_external_url', { url: href }).catch((cause: unknown) => {
+    void commands.windowOpenExternalUrl(href).catch((cause: unknown) => {
       console.error('[Poietica] Failed to open an external link', cause)
     })
   }

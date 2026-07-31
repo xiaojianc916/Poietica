@@ -1,4 +1,11 @@
-import { invoke } from './invoke'
+import { throughIpc } from './error'
+import {
+  type AgentCliResult,
+  type AgentConfigSnapshot,
+  commands,
+  type JsonValue,
+  type AgentCliRequest as NativeAgentCliRequest,
+} from './generated/ipc-bindings'
 
 /*
  * 同一个 agent 的配置调用排成一列。
@@ -37,48 +44,32 @@ function inOrder<T>(agentId: string, work: () => Promise<T>): Promise<T> {
   return next
 }
 
-/** 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。 */
-export interface AgentCliRequest {
-  readonly agentId: string
-  /** 完整的子命令序列，例如 ['provider', 'list', '--json']。 */
-  readonly args: readonly string[]
-  /** 要注入的凭据环境变量名。留空表示这次调用不注入凭据。 */
-  readonly secretVar: string
-  /** 凭据本身。只在这一次调用里用一趟，两端都不保存。 */
-  readonly secretValue: string
-  /**
-   * api.json 形状的目录文档，只在 catalog add 时携带。
-   * 原生侧把它绑在一次性 loopback 服务上，经官方 --url 喂给对方的目录命令。
-   */
-  readonly catalogDocument?: string
-  /** 读用户全局 home 而不是受控 home。只为一次性导入的只读探测使用。 */
-  readonly useGlobalHome?: boolean
-  /**
-   * 从用户全局配置里取哪家 provider 的密钥来注入。只为一次性导入使用：
-   * 密钥由原生侧取出直达子进程，不进渲染层。与 secretValue 互斥。
-   */
-  readonly secretFromGlobalProvider?: string
-}
-
-export interface AgentCliResult {
-  readonly status: number
-  readonly stdout: string
-  readonly stderr: string
-}
+/*
+ * 线上的形状只有一份，它在生成绑定里。
+ *
+ * 这个文件此前手抄了三份：AgentCliRequest、AgentCliResult、AgentConfigSnapshot ——
+ * 而 export_bindings.rs 的文件头逐字写着 renderer code must not redefine native DTOs。
+ *
+ * 抄本已经抄错了一处，还是有后果的那种：密钥尾号在 Rust 侧是 BTreeMap，线上因此是
+ * Partial<Record<string, string>>（任何一个键都可能缺席），抄本写的是
+ * Record<string, string>。读一个没配过的 provider，运行期拿到 undefined，类型却说
+ * 那是 string。
+ */
+export type { AgentCliResult, AgentConfigSnapshot }
 
 /**
- * 完整的 agent 配置快照。
+ * 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。
  *
- * agents 是不透明对象，由 @poietica/agent-registry 在 TS 侧校验；Rust 侧只
- * 负责原样存取。
+ * 只覆写一格：args 对调用方是只读的，而线上要一个可变数组。其余原样取自生成绑定，
+ * 字段说明也在那边 —— 与 agent.ts 的 nativeLaunch 是同一手法。
  */
-export interface AgentConfigSnapshot {
-  readonly agents: readonly unknown[]
-  readonly defaultAgentId: string
-  /** 旧版顶层 provider 列表，仅供一次性迁移使用。 */
-  readonly legacyProviders: readonly unknown[]
-  /** agents.json 中解析失败、已被丢弃的条目。 */
-  readonly issues: readonly string[]
+export interface AgentCliRequest extends Omit<NativeAgentCliRequest, 'args'> {
+  readonly args: readonly string[]
+}
+
+/* readonly string[] 与线上要的 string[] 是两个类型，所以数组在这里复制一次。 */
+function nativeCliRequest(request: AgentCliRequest): NativeAgentCliRequest {
+  return { ...request, args: [...request.args] }
 }
 
 export interface AgentConfigBridge {
@@ -89,44 +80,43 @@ export interface AgentConfigBridge {
   ) => Promise<AgentConfigSnapshot>
   readonly clearLegacyProviders: () => Promise<AgentConfigSnapshot>
   readonly execCli: (request: AgentCliRequest) => Promise<AgentCliResult>
-  /** 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。 */
-  readonly loadKeyTails: (agentId: string) => Promise<Record<string, string>>
   /**
-   * 受控 home 里当前的默认模型；没设过就是 null。
+   * 每个已配置 provider 的密钥尾号。只读现算，尽力而为：取不到就是空表。
    *
-   * 它是 ACP 鉴权闸门的第一个条件，也是对方 `provider list --json` 唯一不给的
-   * 那一项（非 json 分支才打印 Default model）。模型清单仍然来自 provider list。
+   * 缺席的 provider 没有这一格，不是空字符串 —— 线上就是这么说的，这一层不替它撒谎。
    */
+  readonly loadKeyTails: (agentId: string) => Promise<Partial<Record<string, string>>>
+  /** 受控 home 里当前的默认模型；没设过就是 null。为什么它是闸门，见生成绑定里 agentDefaultModel。 */
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>
-  /**
-   * 改写受控 home 里的 default_model。
-   *
-   * 原地改一个键，不经 agent 的 CLI：官方那条 catalog add 是为换整份模型清单设计的，
-   * 先删后建。agent 自己 watch 着配置文件，所以改完不需要重启它。
-   */
+  /** 改写受控 home 里的 default_model。为什么不借 agent 的 CLI，见生成绑定里 agentSetDefaultModel。 */
   readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
   return {
-    load: () => invoke<AgentConfigSnapshot>('agent_config_get'),
+    load: () => throughIpc(() => commands.agentConfigGet()),
 
+    /*
+     * agents 是不透明 JSON —— Rust 侧把它声明成 JsonValue 就是这个意思，校验在
+     * @poietica/agent-registry。断言只发生在这一行，不外泄给任何调用方。
+     */
     saveAgents: (agents, defaultAgentId) =>
-      invoke<AgentConfigSnapshot>('agent_config_save_agents', {
-        agents,
-        defaultAgentId,
-      }),
+      throughIpc(() => commands.agentConfigSaveAgents(agents as JsonValue[], defaultAgentId)),
 
-    clearLegacyProviders: () => invoke<AgentConfigSnapshot>('agent_config_clear_legacy_providers'),
+    clearLegacyProviders: () => throughIpc(() => commands.agentConfigClearLegacyProviders()),
 
     execCli: (request) =>
-      inOrder(request.agentId, () => invoke<AgentCliResult>('agent_cli_exec', { request })),
+      inOrder(request.agentId, () =>
+        throughIpc(() => commands.agentCliExec(nativeCliRequest(request))),
+      ),
 
-    loadKeyTails: (agentId) => invoke<Record<string, string>>('agent_key_tails', { agentId }),
+    loadKeyTails: (agentId) => throughIpc(() => commands.agentKeyTails(agentId)),
 
-    loadDefaultModel: (agentId) => invoke<string | null>('agent_default_model', { agentId }),
+    loadDefaultModel: (agentId) => throughIpc(() => commands.agentDefaultModel(agentId)),
 
     saveDefaultModel: (agentId, alias) =>
-      inOrder(agentId, () => invoke<void>('agent_set_default_model', { agentId, alias })),
+      inOrder(agentId, async () => {
+        await throughIpc(() => commands.agentSetDefaultModel(agentId, alias))
+      }),
   }
 }

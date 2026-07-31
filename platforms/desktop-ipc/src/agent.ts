@@ -1,5 +1,5 @@
 import type { AgentCommandBridge } from '@poietica/agent-transport'
-import { IpcInvocationError, isIpcError } from './error'
+import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
   type AgentConfigControl,
@@ -137,19 +137,6 @@ export function createAgentEventSource({
   }
 }
 
-/** Turns a thrown IPC error into the package's error type. */
-async function call<T>(operation: () => Promise<T>): Promise<T> {
-  try {
-    return await operation()
-  } catch (error) {
-    if (isIpcError(error)) {
-      throw new IpcInvocationError(error)
-    }
-
-    throw error
-  }
-}
-
 /*
  * 线上的形状。
  *
@@ -178,7 +165,7 @@ function nativeLaunch(launch: AgentLaunchDescription): {
 export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): AgentCommandBridge {
   return {
     prompt: async (request) => {
-      const result = await call(() =>
+      const result = await throughIpc(() =>
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
@@ -191,18 +178,18 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
     },
 
     cancel: async (threadId) => {
-      await call(() => commands.agentCancel({ threadId }))
+      await throughIpc(() => commands.agentCancel({ threadId }))
     },
 
     resolvePermission: async (requestId, optionId) => {
-      await call(() => commands.agentResolvePermission({ requestId, optionId }))
+      await throughIpc(() => commands.agentResolvePermission({ requestId, optionId }))
     },
   }
 }
 
 /** Ends the session and lets the agent process exit. */
 export async function shutdownAgent(): Promise<void> {
-  await call(() => commands.agentShutdown())
+  await throughIpc(() => commands.agentShutdown())
 }
 
 /*
@@ -311,7 +298,9 @@ export function createAgentSessionConfigBridge({
 }: AgentEventSourceOptions = {}): AgentSessionConfigBridge {
   return {
     select: async (threadId, configId, value) => {
-      const offered = await call(() => commands.agentSetConfigOption({ threadId, configId, value }))
+      const offered = await throughIpc(() =>
+        commands.agentSetConfigOption({ threadId, configId, value }),
+      )
 
       return offered.map(controlOf)
     },
@@ -348,7 +337,7 @@ export function createAgentCapabilityBridge({
 }: AgentBridgeOptions): AgentCapabilityBridge {
   return {
     read: async () => {
-      const offered = await call(() =>
+      const offered = await throughIpc(() =>
         commands.agentCapabilities({ launch: nativeLaunch(launch), cwd: cwd ?? null }),
       )
 
@@ -400,10 +389,10 @@ export interface AgentThreadBridge {
 
 export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): AgentThreadBridge {
   return {
-    list: () => call(() => commands.agentThreads()),
+    list: () => throughIpc(() => commands.agentThreads()),
 
     open: async (threadId) => {
-      const opened = await call(() =>
+      const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
           launch: nativeLaunch(launch),
@@ -420,15 +409,15 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Ag
     },
 
     rename: async (threadId, title) => {
-      await call(() => commands.agentRenameThread({ threadId, title }))
+      await throughIpc(() => commands.agentRenameThread({ threadId, title }))
     },
 
     remove: async (threadId) => {
-      await call(() => commands.agentDeleteThread({ threadId }))
+      await throughIpc(() => commands.agentDeleteThread({ threadId }))
     },
 
     setPinned: async (threadId, pinned) => {
-      await call(() => commands.agentPinThread({ threadId, pinned }))
+      await throughIpc(() => commands.agentPinThread({ threadId, pinned }))
     },
   }
 }
