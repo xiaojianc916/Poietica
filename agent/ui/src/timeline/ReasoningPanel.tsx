@@ -1,7 +1,7 @@
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { Prose } from './Prose'
-import { useScrollFade } from './use-scroll-fade'
+import { useStickToBottom } from './use-stick-to-bottom'
 
 export interface ReasoningPanelProps {
   readonly text: string
@@ -27,13 +27,17 @@ export interface ReasoningPanelProps {
  * content is out of reach of the keyboard and of a screen reader.
  *
  * A long chain scrolls within a capped box rather than pushing the answer down
- * the page. The cap is a maximum, so a short chain has no scroller and no faded
- * edge; the fade itself is the stylesheet's business, from the edges this hook
- * measures.
+ * the page. The cap is a maximum, so a short chain has no scroller and no
+ * scrollbar at all.
+ *
+ * 这个盒子此前没有任何人拥有它的滚动位置 —— 唯一碰它的 use-scroll-fade 只读不写。
+ * 于是思考一越过上限，新到的字就在视口外面继续长，读者盯着的是一段已经过去的话。
+ * 贴底跟随因此不是一个装饰，是这个盒子缺的那个所有者；判据与转录那一层同一套：
+ * 内容长高时若人还贴在末端就跟随，人往上滚就放手，滚回末端就重新接管。
  */
 export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
   const { isOpen, toggle } = useDisclosure(isStreaming)
-  const scrollFadeRef = useScrollFade()
+  const viewportRef = useStickToBottom()
 
   return (
     <div className="timeline-reasoning" data-open={isOpen ? 'true' : undefined}>
@@ -51,7 +55,7 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
       </button>
 
       <DisclosureBody block="timeline-reasoning" isOpen={isOpen}>
-        <div className="timeline-reasoning__scroll" ref={scrollFadeRef}>
+        <div className="timeline-reasoning__scroll" ref={viewportRef}>
           <Prose className="timeline-reasoning__body" isStreaming={isStreaming} text={text} />
         </div>
       </DisclosureBody>

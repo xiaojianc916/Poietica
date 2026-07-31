@@ -103,9 +103,30 @@ const readMetrics = (scroller: Element): Metrics => {
   }
 }
 
-/** 某些区域（比如标签条）自己管溢出，用一行令牌退出，而不是靠选择器名单。 */
-const optedOut = (scroller: Element): boolean =>
-  getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
+/**
+ * 某些盒子不要浮层滑块：标签条自己管溢出，思考过程用引擎自己的滚动条。两者都用同
+ * 一行令牌退出，而不是靠选择器名单 —— 判定点因此只有一个，也就不会出现同一个盒子
+ * 上两根滑块同时在动。
+ *
+ * 答案按元素缓存。reveal() 由 document 上的捕获型 scroll 监听调用，也就是每一个滚动
+ * 事件都要问一次：一次滚轮手势几十个事件，每个都去解析一次计算样式。这个令牌来自
+ * 静态规则，一个元素的答案不会中途改变，问一次就够。WeakMap 不拖住已被移除的节点。
+ */
+const optOut = new WeakMap<Element, boolean>()
+
+const optedOut = (scroller: Element): boolean => {
+  const known = optOut.get(scroller)
+
+  if (known !== undefined) {
+    return known
+  }
+
+  const answer = getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
+
+  optOut.set(scroller, answer)
+
+  return answer
+}
 
 /**
  * 一个元素自己是不是滚动容器。

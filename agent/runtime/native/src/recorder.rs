@@ -489,11 +489,7 @@ mod tests {
 
         frames.deliver(&shaped);
 
-        assert_eq!(
-            frames.shape(ending()).seq,
-            2,
-            "投递之后位置才前进"
-        );
+        assert_eq!(frames.shape(ending()).seq, 2, "投递之后位置才前进");
         assert_eq!(*seen.lock().expect("the sink is readable"), vec![1]);
     }
 }

@@ -295,7 +295,6 @@
   grid-area: 2 / 1 / 3 / 3;
   max-block-size: var(--cp-timeline-code-cap);
   overflow: auto;
-  overscroll-behavior: contain;
   padding: 0.75rem;
   border: 0;
   border-radius: 0;
@@ -504,45 +503,92 @@
 }
 
 /*
- * A long chain scrolls in place; a short one is untouched.
+ * 长思考在原地滚动；短思考一如既往。
  *
- * The cap is a maximum, so anything under it has no scroller, no scrollbar and
- * no faded edge — the treatment appears only once there is something to hide.
+ * 上限是一个最大值：短于它的内容没有滚动区，也就没有滚动条 —— 这正是「文字不高
+ * 就不出现滚动条」，不需要任何额外判断。
  *
- * The fade is a mask, never an overlay. An overlay has to be painted in some
- * colour, and that colour is a guess about what sits behind it; guess wrong and
- * a band appears, which is exactly what happened last time. A mask removes the
- * pixels instead, so it is correct on any background and in any theme. The same
- * reasoning already governs the clamped user bubble above.
+ * 这一处，而且只有这一处，用引擎自己的滚动条，不走 chrome/scrollbar-activity.ts
+ * 那层 fixed 浮层。规则是一条，不是两套：
  *
- * Which edge fades comes from use-scroll-fade as data-fade, because CSS cannot
- * ask a box whether it has been scrolled: scrolled to the end, the bottom fade
- * is gone rather than lingering over the last line.
+ *   临时出现的滚动条不能占布局    → 浮层；
+ *   常驻的滚动条按定义就占布局，而布局是引擎的事 → 引擎。
+ *
+ * 浮层撑不起常驻，是几何决定的：那层滑块是 position: fixed，而这个盒子嵌在虚拟化
+ * 的转录里，随 translateY 一起移动 —— 一个常驻滑块因此必须每一帧重测一次几何，等
+ * 于用一个永不停止的 rAF 去模拟引擎免费提供的东西。三角同理：
+ * ::-webkit-scrollbar-button 的单步与长按连发由引擎实现，手绘一对三角就得自己写
+ * pointerdown 计时器、自己补无障碍。VS Code 的 ScrollableElement 自绘并带 arrows
+ * 选项，前提是它连内容排版都不交给引擎；这里的内容是普通文档流，没有那个前提。
+ *
+ * 两根滑块同时在动的旧事故（见本文件末尾那一节）由 --overlay-scrollbar: none 挡住：
+ * 浮层读这个令牌决定要不要接管，判定点仍然只有一个，没有第二套契约。
+ *
+ * scrollbar-gutter: stable 常驻留出车道：流式输出越过上限的那一刻，正文不会横向跳
+ * 一次。没有溢出时车道是空的，屏幕上什么都看不到。
+ *
+ * 边缘淡出遮罩连同 use-scroll-fade 一起退场。它存在的唯一理由是「这里没有滚动条，
+ * 得有别的东西提示还有内容」；现在有了。而且 mask-image 打在滚动容器上会连自绘的
+ * 滚动条一并吃掉 —— 留着它，三角会淡出。
  */
 .timeline-reasoning__scroll {
-  --cp-fade: var(--cp-timeline-thought-fade);
+  --overlay-scrollbar: none;
+  --cp-thought-lane: 10px;
+  --cp-thought-ink: var(--cp-timeline-quiet-text);
 
   max-block-size: var(--cp-timeline-thought-cap);
   overflow: auto;
-  overscroll-behavior: contain;
+  scrollbar-width: auto;
+  scrollbar-gutter: stable;
 }
 
-.timeline-reasoning__scroll[data-fade="bottom"] {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--cp-fade)), transparent);
+/* 这几个伪元素不认逻辑属性，只认 width / height。 */
+.timeline-reasoning__scroll::-webkit-scrollbar {
+  width: var(--cp-thought-lane);
+  height: var(--cp-thought-lane);
 }
 
-.timeline-reasoning__scroll[data-fade="top"] {
-  mask-image: linear-gradient(to bottom, transparent, #000 var(--cp-fade));
+.timeline-reasoning__scroll::-webkit-scrollbar-track,
+.timeline-reasoning__scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-.timeline-reasoning__scroll[data-fade="both"] {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 var(--cp-fade),
-    #000 calc(100% - var(--cp-fade)),
-    transparent
-  );
+/* 3px 透明边 + padding-box 裁剪：可见 4px，命中区仍是整条车道 —— 与浮层那一版逐像素同宽。 */
+.timeline-reasoning__scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-color: var(--cp-thought-ink);
+  background-clip: padding-box;
+}
+
+/*
+ * 两端各一个三角。Chromium 还会为「双按钮」布局准备 start:increment 与
+ * end:decrement 两个盒子，不关掉就是四个按钮 —— 那是引擎的历史包袱，不是这里的设计。
+ */
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement,
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment {
+  display: block;
+  height: var(--cp-thought-lane);
+  background-color: var(--cp-thought-ink);
+}
+
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement {
+  clip-path: polygon(50% 28%, 82% 68%, 18% 68%);
+}
+
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment {
+  clip-path: polygon(50% 72%, 82% 32%, 18% 32%);
+}
+
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:start:increment,
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:end:decrement {
+  display: none;
+}
+
+.timeline-reasoning__scroll::-webkit-scrollbar-thumb:hover,
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:decrement:hover,
+.timeline-reasoning__scroll::-webkit-scrollbar-button:vertical:increment:hover {
+  background-color: var(--cp-ink);
 }
 
 /* 外框归 [data-surface]；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */
@@ -648,7 +694,6 @@
   margin: 0;
   max-block-size: var(--cp-timeline-output-max);
   overflow: auto;
-  overscroll-behavior: contain;
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
@@ -1007,9 +1052,16 @@
   color: var(--cp-ink);
 }
 
-/* 滚动盒交出边框，只留滚动，并接手圆角裁剪。 */
+/*
+ * 滚动盒交出边框，只留滚动，并接手圆角裁剪。
+ *
+ * 轴写死成「横向 auto、纵向 hidden」：上游给的是 overflow-auto，两个轴都成了
+ * 滚动容器，而表格在这条流里从来没有纵向上限、也就从来没有纵向溢出。一个不会
+ * 滚的滚动容器不是中性的 —— 它会被浮层当成一条候选轨道，此前还配着
+ * overscroll-behavior: contain，于是指针停在表格上时滚轮整个失效。
+ */
 .timeline-prose [data-streamdown="table-wrapper"] > div:last-child {
-  overscroll-behavior: contain;
+  overflow: auto hidden;
   border: 0;
   border-radius: inherit;
   background: transparent;
@@ -1109,9 +1161,20 @@
  * 互不知情。要么全走原生，要么全走浮层；这个应用因为上面那条几何限制选了浮层，那
  * 么这张表就不能再自己画一根。
  *
- * 内层滚动盒在这张表里只声明两件事，也只该声明这两件事：overflow —— 它自己会滚；
- * overscroll-behavior: contain —— 滚到尽头不把滚动链交给外面那条会话流。外观归浮
- * 层，而浮层认盒子自己的边缘作轨道。
+ * 内层滚动盒在这张表里只声明一件事：overflow —— 它自己会滚，以及会滚哪个轴。外观
+ * 归浮层，而浮层认盒子自己的边缘作轨道。
+ *
+ * overscroll-behavior: contain 此前写在这里的每一个内层盒子上（六处），那是一次
+ * 手搓，而且拦错了东西。它按轴阻断滚动链，不问这个轴上有没有可滚的距离：表格的
+ * 滚动盒纵向从来没有溢出，contain 却让指针停在表格上时滚轮完全失效；代码块则是
+ * 滚到顶或底之后再也出不去。
+ *
+ * 而「到边界先顿一下、手势松开后再滚就带走外层」本来就是引擎的行为 —— Chromium
+ * 的滚动闩锁把一次手势锁在起始的滚动盒上，手势结束后才重新选目标。删掉 contain，
+ * 那段阻滞感是免费的，而且与系统里其它应用一致；留着它，等于用一段拦截去覆盖一段
+ * 做得更好的原生实现。
+ *
+ * 唯一的例外是思考过程：它自己就用引擎的滚动条，那一节在上面单独说明。
  */
 
 /* ── 公式与图表 ───────────────────────────────────────────────
@@ -1143,7 +1206,6 @@
   margin-block: var(--cp-prose-flow) 0;
   overflow-x: auto;
   overflow-y: hidden;
-  overscroll-behavior: contain;
 }
 
 .timeline-prose > .katex-display:first-child,
@@ -1166,7 +1228,6 @@
 .timeline-prose.timeline-tool__prose {
   max-block-size: var(--cp-timeline-output-max);
   overflow: auto;
-  overscroll-behavior: contain;
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface);
   font-size: var(--ui-prose-size-aux);
