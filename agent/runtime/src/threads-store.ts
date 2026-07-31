@@ -5,7 +5,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
-import { learnAgentControls, preferredAgentControl } from './agent-capability-store'
+import { learnAgentControls } from './agent-capability-store'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -256,18 +256,17 @@ export class ThreadsStore {
       })
 
       /*
-       * 入口那一格选的值在这里落地。
+       * 这里曾经有一段循环：拿 localStorage 里那份偏好，逐项把刚开出来的会话"补"
+       * 成它的样子。
        *
-       * 它是在没有会话的时候选的（选择器画的是偏好），所以会话一开出来就得把
-       * 差异补上，否则那个选择器只是装饰。只补真的不一致的项。
+       * 它是三处显示不一致里最狠的一处 —— 因为它不只是显示，它真的改了会话。人在
+       * 设置页看到 default_model 是甲，实际回复他的却是 localStorage 里那个乙，而
+       * 那个乙可能只是他前一分钟点开过一条旧对话留下的。
+       *
+       * 现在不需要任何补差：新会话由 agent 按它自己配置里的 default_model 开，而
+       * default_model 就是选择器拨动时写下去的那个值。同一个真相，没有第二处需要
+       * 对齐。
        */
-      for (const control of opened.selectors) {
-        const wanted = preferredAgentControl(control.id)
-
-        if (wanted !== undefined && wanted !== control.current) {
-          this.selectControl(threadId, control.id, wanted)
-        }
-      }
 
       return threadId
     } catch (reason) {

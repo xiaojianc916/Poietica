@@ -57,15 +57,28 @@ function store(): Storage | null {
  *
  * 有一处不合规就整份作废：半张表比没有表更难查，这与此前的取舍一致。
  */
-const ControlSchema = v.object({
+const ShapeSchema = v.object({
   id: v.string(),
   label: v.string(),
   purpose: v.picklist(['model', 'thought', 'mode', 'other']),
-  current: v.string(),
   choices: v.array(v.object({ value: v.string(), label: v.string() })),
 })
 
-const TableSchema = v.array(ControlSchema)
+const TableSchema = v.array(ShapeSchema)
+
+/*
+ * 缓存里的一项：没有 current。
+ *
+ * 这不是精简，是纠正。shapeOf 从来就没把 current 算进这张表的身份 —— 也就是说
+ * 代码自己早就认定它不属于这张表，只是当初仍然把它一起写进了 localStorage。
+ * 后果是「人选了哪个模型」有了第二个家，而那个家跨启动、有两个写入口、谁都不校验：
+ * 打开一条记着别的模型的旧对话，就会顺着 learnAgentControls 的整份换表把它覆盖掉，
+ * 而配置里的 default_model 一动不动。于是入口那一格与设置页各说各的，两个都"忠实
+ * 显示"，只是显示的不是同一个东西。
+ */
+type ControlShape = v.InferOutput<typeof ShapeSchema>
+
+const NO_SHAPES: readonly ControlShape[] = []
 
 /** 解析一段落盘的 JSON；坏了就当没有。 */
 function revive<TSchema extends v.GenericSchema>(
@@ -89,11 +102,28 @@ function revive<TSchema extends v.GenericSchema>(
   return checked.success ? checked.output : undefined
 }
 
-function parseTable(raw: string | null): readonly SessionConfigControl[] {
-  return revive(TableSchema, raw) ?? NO_CONTROLS
+function parseTable(raw: string | null): readonly ControlShape[] {
+  return revive(TableSchema, raw) ?? NO_SHAPES
 }
 
-let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_KEY) ?? null)
+let table: readonly ControlShape[] = parseTable(store()?.getItem(TABLE_KEY) ?? null)
+
+/*
+ * 每一项此刻是什么值 —— 模型那一项除外。
+ *
+ * 只在内存里。这些值的权威是 agent，它每开一条会话就报一次；跨启动留着上一次的
+ * 残留没有意义，反而会在 agent 那边被人改过之后继续显示旧值。
+ */
+const reported = new Map<string, string>()
+
+/*
+ * 模型那一项选中什么。它的家是 agent 自己配置里的 default_model，这里只是那个值
+ * 的一份内存镜像，由 installAgentDefaultModelSource 问回来、由选择器拨动时更新。
+ *
+ * 不落 localStorage：落了就又是第二个家。还没问到之前是 null，那时退回 agent 报
+ * 过的值或第一个候选，只为让首帧有东西可画。
+ */
+let chosenModel: string | null = null
 
 /*
  * 现有那张表的形状签名。
@@ -108,20 +138,43 @@ let table: readonly SessionConfigControl[] = parseTable(store()?.getItem(TABLE_K
 let signature = JSON.stringify(table.map(shapeOf))
 
 /*
- * 画出去的就是那张表本身，没有投影。
+ * 这一项现在该显示什么值。
  *
- * 此前这里把一份 localStorage 偏好覆盖到 current 上，于是同一个问题有两个答案：
- * agent 报回来的 current（它读的是自己配置里的 default_model），和我们自己存的
- * 那一份。两者一分叉，界面就会出现图标是这家、模型是那家。
+ * 模型那一项只认 default_model 的镜像：入口与新建对话那一格问的是"下一条对话从
+ * 哪个模型起步"，那个问题的答案只写在配置文件里。agent 为某一条旧对话报回来的值
+ * 不参与 —— 那是那条对话的历史，不是全局的起点。这一行就是"点进旧对话，回到新建
+ * 对话却变成了旧对话那个模型"的正面回答。
  *
- * 现在选择器一改就写 default_model，agent 报回来的就是我们刚写下去的那个值。
+ * 其余各项没有落盘的家，仍以 agent 最近一次报的为准。
  */
-let snapshot: readonly SessionConfigControl[] = table
+function currentOf(shape: ControlShape): string {
+  const fallback = reported.get(shape.id) ?? shape.choices[0]?.value ?? ''
+
+  if (shape.purpose !== 'model') {
+    return fallback
+  }
+
+  return chosenModel ?? fallback
+}
+
+/*
+ * 画出去的表是投影：形状来自缓存，值来自上面那两处。
+ *
+ * 投影本身是廉价的，而且只在 publish 时算一次，不在每次读取时算 —— useSyncExternalStore
+ * 要求快照引用稳定，每次现算会让它认定"状态一直在变"而无限重渲染。
+ */
+function project(): readonly SessionConfigControl[] {
+  return table.length === 0
+    ? NO_CONTROLS
+    : table.map((shape) => ({ ...shape, current: currentOf(shape) }))
+}
+
+let snapshot: readonly SessionConfigControl[] = project()
 
 const listeners = new Set<() => void>()
 
 function publish(): void {
-  snapshot = table
+  snapshot = project()
 
   for (const listener of listeners) {
     listener()
@@ -136,7 +189,7 @@ function persist(key: string, value: unknown): void {
   }
 }
 
-function shapeOf(control: SessionConfigControl): unknown {
+function shapeOf(control: ControlShape | SessionConfigControl): ControlShape {
   return {
     id: control.id,
     label: control.label,
@@ -155,46 +208,58 @@ export function learnAgentControls(offered: readonly SessionConfigControl[]): vo
     return
   }
 
-  const offeredSignature = JSON.stringify(offered.map(shapeOf))
+  const shapes = offered.map(shapeOf)
+  const offeredSignature = JSON.stringify(shapes)
+  let changed = false
 
-  if (offeredSignature === signature) {
-    return
+  if (offeredSignature !== signature) {
+    table = shapes
+    signature = offeredSignature
+    persist(TABLE_KEY, table)
+    changed = true
   }
 
-  table = offered.map((control) => ({ ...control }))
-  signature = offeredSignature
-  persist(TABLE_KEY, table)
-  publish()
+  /*
+   * 报回来的值只进内存，而且模型那一项一个字都不写。
+   *
+   * 打开一条旧对话就是一次 learnAgentControls。那条对话记着的模型是它自己的事实,
+   * 不是"下一条新对话从哪起步"。此前这两件事共用 localStorage 里同一格，于是仅仅
+   * 浏览一条旧对话就会永久改掉入口那一格的选中值 —— 而且那条路径一个字都没写
+   * default_model，所以设置页与入口从此各说各的。
+   *
+   * 要改 default_model 只有一条路：人自己在选择器里拨动（setAgentDefaultModel 加
+   * 一次落盘）。被动打开一条旧对话不算拨动。
+   */
+  for (const control of offered) {
+    if (control.purpose === 'model' || reported.get(control.id) === control.current) {
+      continue
+    }
+
+    reported.set(control.id, control.current)
+    changed = true
+  }
+
+  if (changed) {
+    publish()
+  }
 }
 
 /**
- * 人选了一个值：就地记下它，界面立刻改。
+ * 人拨动了模型选择器，或者刚从配置里读到 default_model。
  *
  * 这是一次乐观更新，不是一份偏好。真值在 agent 自己的 config.toml 里（顶层
  * default_model），写它的是调用方；agent watch 着那个文件，但 watcher 有延迟，
- * 所以这里不等它、也不回读，先把屏幕上那一格改对。下一次 agent 报表回来，报的
- * 就是我们刚写下去的同一个值。
+ * 所以这里不等它、也不回读，先把屏幕上那一格改对。
  *
- * 形状签名不受影响：shapeOf 不含 current，所以这次改动不会被误当成"表变了"。
+ * 不落 localStorage。整个问题的病根就是这个值曾经有一份自己的落盘副本。
  */
-export function chooseAgentControl(controlId: string, value: string): void {
-  const index = table.findIndex((control) => control.id === controlId)
-  const control = table[index]
-
-  if (control === undefined || control.current === value) {
+export function setAgentDefaultModel(alias: string | null): void {
+  if (chosenModel === alias) {
     return
   }
 
-  const next = [...table]
-  next[index] = { ...control, current: value }
-  table = next
-  persist(TABLE_KEY, table)
+  chosenModel = alias
   publish()
-}
-
-/** 这一项现在是什么值；表里没有这一项就是 undefined。 */
-export function preferredAgentControl(controlId: string): string | undefined {
-  return table.find((control) => control.id === controlId)?.current
 }
 
 /*
@@ -213,6 +278,40 @@ let source: AgentCapabilityPort | undefined
 let asked = false
 
 let report: ((cause: unknown) => void) | undefined
+
+let loadDefault: (() => Promise<string | null>) | undefined
+
+let askedDefault = false
+
+/*
+ * default_model 从哪里读。
+ *
+ * 这个包不认识 AgentConfigStore，也不该认识 —— 它只要一个"问一次，给我一个别名"
+ * 的函数。装上就问，因为装上的时机已经晚于第一个订阅者；问过就不再问，失败则把
+ * 标志放回去，下一次装载会重试。
+ */
+function loadDefaultOnce(): void {
+  const load = loadDefault
+
+  if (askedDefault || load === undefined) {
+    return
+  }
+
+  askedDefault = true
+  load()
+    .then((alias) => {
+      setAgentDefaultModel(alias)
+    })
+    .catch(() => {
+      askedDefault = false
+    })
+}
+
+/** 接线时交进来：怎么问 agent 配置里的 default_model。 */
+export function installAgentDefaultModelSource(load: () => Promise<string | null>): void {
+  loadDefault = load
+  loadDefaultOnce()
+}
 
 /** 接线时装上能力端口。装上不问，问在第一个订阅者出现时。 */
 export function installAgentCapabilityPort(
@@ -245,6 +344,7 @@ function loadOnce(): void {
 function subscribeAgentControls(listener: () => void): () => void {
   listeners.add(listener)
   loadOnce()
+  loadDefaultOnce()
 
   return () => {
     listeners.delete(listener)

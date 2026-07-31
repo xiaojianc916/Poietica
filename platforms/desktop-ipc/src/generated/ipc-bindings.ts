@@ -14,8 +14,8 @@ export const commands = {
  * 
  * # Errors
  * 
- * Fails when the prompt is empty, the agent cannot be started, or the log
- * cannot be written.
+ * Fails when the prompt is empty, the agent cannot be started, or the
+ * conversation's name cannot be written.
  */
 async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
     return await TAURI_INVOKE("agent_prompt", { request });
@@ -191,13 +191,11 @@ async agentRenameThread(request: AgentRenameThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_rename_thread", { request });
 },
 /**
- * Deletes a conversation and every frame recorded under it.
+ * Deletes a conversation, on this side and on the agent's.
  * 
- * 本地那一份删得干净：runs 挂在 threads 上，`run_events`、`tool_calls`、
- * permissions 各自挂在 runs 上，全是 ON DELETE CASCADE，而外键在
- * `open_encrypted` 里是开着的。一句 DELETE 就够。
+ * 本地那一份是一行索引，一句 DELETE 就没了：这张表底下已经不挂任何东西。
  * 
- * 但一条对话有两份。agent 自己也存着它的全文，此前从没有人告诉过它这条
+ * 真正的那一份在 agent 手里。它存着这条对话的全文，此前从没有人告诉过它这条
  * 对话被删了 —— 屏幕上没了、对面完整留着，那不是删除，是隐藏。ACP 为此
  * 有 session/delete，而它可不可用由 agent 在握手时自己说。
  * 

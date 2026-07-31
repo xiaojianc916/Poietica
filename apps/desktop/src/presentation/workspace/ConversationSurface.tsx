@@ -1,7 +1,12 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
-import { chooseAgentControl, useAgentControls } from '@poietica/agent-runtime'
+import {
+  installAgentDefaultModelSource,
+  setAgentDefaultModel,
+  useAgentControls,
+} from '@poietica/agent-runtime'
 import { AssistantSurface } from '@poietica/agent-ui'
 import type { AgentConfigStore } from '@poietica/features-settings'
+import { useEffect } from 'react'
 import { useSharedThreads } from '../../application/ai/threads-context'
 import { reportFailure } from '../../application/failures/failure-policy'
 
@@ -43,6 +48,16 @@ export function ConversationSurface({
   threadId,
 }: ConversationSurfaceProps) {
   const threads = useSharedThreads()
+
+  /*
+   * 告诉能力表怎么问 default_model。
+   *
+   * 交的是一个函数而不是一个值：那一次读取该在有人真要看选择器时才发生，而这里
+   * 是渲染层，不该替它决定时机。装上是幂等的，问只会问一次。
+   */
+  useEffect(() => {
+    installAgentDefaultModelSource(() => agentConfig.loadDefaultModel(agentId))
+  }, [agentConfig, agentId])
 
   /*
    * 手伸向一条已有的对话，才为它开一个 ACP 会话。
@@ -111,7 +126,9 @@ export function ConversationSurface({
          * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读
          * 只会读到旧值。写失败会自己说出来，而不是让人以为换过了。
          */
-        chooseAgentControl(controlId, value)
+        if (controlId === MODEL_CONTROL_ID) {
+          setAgentDefaultModel(value)
+        }
 
         if (threadId !== null) {
           threads.selectControl(threadId, controlId, value)
