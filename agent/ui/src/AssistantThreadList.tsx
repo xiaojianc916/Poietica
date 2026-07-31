@@ -11,7 +11,7 @@ import {
 import { memo, useCallback, useMemo, useState } from 'react'
 
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
-import { nextChangeIn, sectionsOf, useNow } from './time'
+import { nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
 
 /*
  * 会话列表。
@@ -322,8 +322,11 @@ export function AssistantThreadList({
    *
    * 同时告诉它这一屏下一次会变的时刻：它不按拍子轮询，睡到那一刻为止。
    */
-  const now = useNow((at) => nextChangeIn(threads, at))
+  const now = useNow()
   const groups = useMemo(() => sectionsOf(threads, now), [now, threads])
+
+  /* 期限从分好段的结果上求 —— 时刻在上面那一趟里已经解析过了。 */
+  useHorizon(nextChangeIn(groups, now))
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*

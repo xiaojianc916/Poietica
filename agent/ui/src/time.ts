@@ -40,11 +40,19 @@ const view = typeof document === 'undefined' ? undefined : document
 const listeners = new Set<() => void>()
 
 /*
- * 各消费者的期限。存的是函数不是时刻：一次唤醒之后、React 重画之前，就要
- * 用新的 now 重算下一个期限，函数做得到，数字做不到。这也让调用点不必
- * useCallback —— 正确性不该依赖记忆化纪律。
+ * 各消费者的期限，一个时刻。
+ *
+ * 此前这里存的是函数，理由写着「一次唤醒之后、React 重画之前，就要用新的 now
+ * 重算下一个期限，函数做得到，数字做不到」。那件事确实要发生，但发生的地方不
+ * 在这里：唤醒会通知每个 listener，useSyncExternalStore 让消费者重画，重画之后
+ * useHorizon 本来就带着新的 now 重报一次。存函数换来的不是新鲜度 —— 换来的是
+ * soonest() 每次结算都要把每个消费者的整张表重算一遍。
+ *
+ * 还有一笔反向代价，那段注释没提：函数每次渲染都是新引用，依赖数组无从写起，
+ * 于是报期限的那个 effect 只能裸奔，每一次渲染都 set 一遍、plan 一遍。存时刻，
+ * 表上的值就是可比较的，[at] 立刻成立：期限没变就不排表。
  */
-const horizons = new Map<object, (at: number) => number>()
+const horizons = new Map<object, number>()
 
 let now = Date.now()
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -63,9 +71,7 @@ function soonest(): number {
 
   let found = Number.POSITIVE_INFINITY
 
-  for (const horizon of horizons.values()) {
-    const at = horizon(now)
-
+  for (const at of horizons.values()) {
     if (Number.isFinite(at) && at < found) {
       found = at
     }
@@ -160,30 +166,33 @@ function subscribe(listen: () => void): () => void {
 
 const readNow = () => now
 
+/** 当前时刻。订阅这口时钟，它跳一次，这一屏就重画一次。 */
+export function useNow(): number {
+  return useSyncExternalStore(subscribe, readNow, readNow)
+}
+
 /**
- * 当前时刻。
+ * 报出「这一屏下一次会变的时刻」，时钟睡到那一刻为止。
  *
- * horizon 说的是「这一屏下一次会变的时刻」，时钟睡到那时才醒。每次渲染后
- * 重报一次：它由这次渲染的数据算出，缓存在闭包里就会过期。
+ * 与 useNow 分开，不是为了拆得细，是因为期限算得出来的前提是这一帧的投影已经
+ * 做完，而投影要先拿到 now。合在一个 hook 里，期限就只能以回调的形式先交出去、
+ * 等结算时再倒过来求值 —— soonest() 每次都要重扫全表，根子就在那个倒序上。
+ * 分成两步，顺序就是渲染本身的顺序：取时刻、做投影、报期限。
+ *
+ * 期限是个数，所以依赖数组管得住它：同一个期限重报多少次都不排表。
  */
-export function useNow(horizon: (at: number) => number): number {
+export function useHorizon(at: number): void {
   const key = useRef({}).current
-  const moment = useSyncExternalStore(subscribe, readNow, readNow)
 
   useEffect(() => {
-    horizons.set(key, horizon)
+    horizons.set(key, at)
     plan()
-  })
 
-  useEffect(
-    () => () => {
+    return () => {
       horizons.delete(key)
       plan()
-    },
-    [key],
-  )
-
-  return moment
+    }
+  }, [at, key])
 }
 
 /* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
@@ -300,21 +309,26 @@ export function nextChangeOf(instant: number, reference: number): number {
  *
  * 午夜无条件算进去：分段按本地日历日切，「今天」到点就得改叫「昨天」，哪
  * 怕没有任何一行到达自己的边界，哪怕列表是空的。
+ *
+ * 入参是已经分好段的结果，不是原始会话。sectionsOf 那一趟已经把每一行的
+ * updatedAt 解析成 instant 了；此前这里从原始字符串重新 Date.parse 一遍，于是
+ * 同一批字符串每帧被解析两次，而这一次还没有 useMemo 挡着 —— 改个名、按个键、
+ * 父组件动一下，整张会话表就重新解析一轮。时刻是投影的产物，不该再算第二遍。
  */
-export function nextChangeIn(threads: readonly DatedThread[], reference: number): number {
+export function nextChangeIn<T>(sections: readonly ThreadSection<T>[], reference: number): number {
   let found = nextMidnight(reference)
 
-  for (const thread of threads) {
-    const instant = Date.parse(thread.updatedAt)
+  for (const section of sections) {
+    for (const member of section.members) {
+      if (Number.isNaN(member.instant)) {
+        continue
+      }
 
-    if (Number.isNaN(instant)) {
-      continue
-    }
+      const at = nextChangeOf(member.instant, reference)
 
-    const at = nextChangeOf(instant, reference)
-
-    if (at < found) {
-      found = at
+      if (at < found) {
+        found = at
+      }
     }
   }
 

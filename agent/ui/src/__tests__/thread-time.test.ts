@@ -89,18 +89,18 @@ describe('会话时间', () => {
     const fresh = now - 90_000
     const stale = at('2026-07-01T09:00:00')
 
-    expect(nextChangeIn([{ updatedAt: new Date(stale).toISOString() }], now)).toBe(
-      at('2026-07-30T00:00:00'),
-    )
-    expect(
+    /* 走真实管线：期限由分段的结果求得，而不是绕过投影的旁路入口。 */
+    const horizon = (...instants: readonly number[]) =>
       nextChangeIn(
-        [
-          { updatedAt: new Date(stale).toISOString() },
-          { updatedAt: new Date(fresh).toISOString() },
-        ],
+        sectionsOf(
+          instants.map((instant) => ({ updatedAt: new Date(instant).toISOString() })),
+          now,
+        ),
         now,
-      ),
-    ).toBe(nextChangeOf(fresh, now))
+      )
+
+    expect(horizon(stale)).toBe(at('2026-07-30T00:00:00'))
+    expect(horizon(stale, fresh)).toBe(nextChangeOf(fresh, now))
   })
 
   it('无法解析的时刻归入更早，且不参与排序', () => {
