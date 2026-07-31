@@ -6,14 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest, LoadSessionRequest,
-    NewSessionRequest, PromptRequest, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionId, SessionNotification,
-    SessionUpdate, SetSessionConfigOptionRequest, TextContent,
+    CancelNotification, ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest,
+    LoadSessionRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome, SessionId,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
-use futures::future::{Either, select};
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
@@ -35,7 +34,6 @@ use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
 
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
-const CANCELLED: &str = "cancelled";
 
 /// 主循环这一步在处理什么。
 enum Step {
@@ -86,9 +84,10 @@ struct Started {
 
 /// 一轮是怎么结束的。
 ///
-/// 协议的类型到这里为止：往后走的是已经读得懂的三种结局。
+/// 协议的类型到这里为止：往后走的是已经读得懂的两种结局。被停下的那一轮不在
+/// 其中 —— 它照样由 agent 答复，带着协议自己的 `cancelled` 停止原因，所以它是
+/// `Finished` 的一种，而不是第三种结局。
 enum Ended {
-    Cancelled,
     Finished(String),
     Failed(String),
 }
@@ -354,8 +353,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 let mut jobs: FuturesUnordered<Pin<Box<dyn Future<Output = Settled> + Send + '_>>> =
                     FuturesUnordered::new();
 
-                /* 每条会话上正在飞的那一轮，以及叫停它的那根线。线一断就是取消。 */
-                let mut flying: HashMap<String, oneshot::Sender<()>> = HashMap::new();
+                /* 此刻有几轮在飞。它只服务一件事：错误流是整条连接共有的，
+                独自在飞的那一轮才有资格拿它解释自己。取消不看它 —— 停的是
+                哪一轮，是 agent 自己知道的事。 */
+                let mut in_flight: usize = 0;
 
                 let mut stopping = false;
 
@@ -379,12 +380,24 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(None | Some(Command::Shutdown)) => {
                             stopping = true;
 
-                            /* 每根叫停线一断，那一轮就收到取消。丢掉请求正是
-                            SDK 发出协议取消通知的方式，所以 agent 是被告知的。 */
-                            flying.clear();
+                            /* 每条会话都收到一次停止。打在没有轮次在飞的会话
+                            上是无害的：协议把取消定为一条通知而不是一次请求，正是
+                            因为发出者不必知道对面此刻在做什么。 */
+                            for (named, _offered) in sessions.values() {
+                                let _told = connection
+                                    .send_notification(CancelNotification::new(named.clone()));
+                            }
                         }
                         Step::Asked(Some(Command::Cancel { session_id })) => {
-                            let _halted = flying.remove(&session_id);
+                            /* 停一轮就是发一条 session/cancel，ACP 为这件事准备的
+                            正是它。此前这里断掉的是一根自己拉的线，而线一断 SDK
+                            发出的是 $/cancel_request —— 传输层的「这次调用的结果
+                            我不要了」，按请求号寻址；SDK 自己写明了不认识它的对端
+                            会直接忽略。agent 该收到的是会话层那一句。 */
+                            if let Some((named, _offered)) = sessions.get(&session_id) {
+                                let _told = connection
+                                    .send_notification(CancelNotification::new(named.clone()));
+                            }
                         }
                         Step::Asked(Some(Command::NewSession { cwd, reply })) => {
                             jobs.push(Box::pin(open_session(
@@ -498,7 +511,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             /* 错误流是整个进程的，不是某一轮的。此刻没有别的轮
                             在飞，这一轮才有资格把它清空并当成自己的。 */
-                            if flying.is_empty() {
+                            if in_flight == 0 {
                                 diagnostics.clear();
                             }
 
@@ -511,9 +524,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 }
                             });
 
-                            let (halt, halted) = oneshot::channel::<()>();
-
-                            flying.insert(session_id.clone(), halt);
+                            in_flight = in_flight.saturating_add(1);
 
                             jobs.push(Box::pin(run_turn(
                                 &connection,
@@ -521,7 +532,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 named,
                                 text,
                                 turn,
-                                halted,
                                 reply,
                             )));
                         }
@@ -581,7 +591,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             slot: turn,
                             reply,
                         }) => {
-                            let _halted = flying.remove(&asked);
+                            in_flight = in_flight.saturating_sub(1);
 
                             let Ok(Some(Listening::Turn(mut recorder))) = turn.take() else {
                                 let _ignored = reply.send(Err(AcpError::Poisoned));
@@ -599,16 +609,11 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             /* 错误流是整条连接共有的：几轮同时在飞时，它不属于
                             其中任何一轮，于是谁也不拿它来解释自己。 */
-                            if flying.is_empty() {
+                            if in_flight == 0 {
                                 recorder.set_diagnostics(diagnostics.tail());
                             }
 
                             let settled = match ended {
-                                Ended::Cancelled => {
-                                    recorder.record_run_cancelled();
-
-                                    Ok(CANCELLED.to_owned())
-                                }
                                 Ended::Failed(message) => {
                                     recorder.record_run_failed(&message);
 
@@ -889,43 +894,34 @@ async fn change_selector(
 
 /// Walks one turn from the prompt to its end.
 ///
-/// 这一轮的取消是它自己的一根线，不是整条连接的一个状态。
+/// 取消不在这里。一轮怎么结束由 agent 的答复说了算：被停下的那一轮照样答复，
+/// 带着协议自己的 `cancelled` 停止原因。此前这里守着一根叫停线，线赢了就丢掉
+/// 请求并写死「已取消」—— 于是恰好在按下停止那一刻答完的一轮，本地记的是取消
+/// 而 agent 那侧记的是完成，`session/load` 把历史交回来时，两份对不上。
 async fn run_turn(
     connection: &ConnectionTo<Agent>,
     asked: String,
     named: SessionId,
     text: String,
     slot: RunSlot,
-    halted: oneshot::Receiver<()>,
     reply: oneshot::Sender<Result<String>>,
 ) -> Settled {
-    let pending = Box::pin(
-        connection
-            .send_request(PromptRequest::new(
-                named,
-                vec![ContentBlock::Text(TextContent::new(text))],
-            ))
-            .block_task(),
-    );
+    let answered = connection
+        .send_request(PromptRequest::new(
+            named,
+            vec![ContentBlock::Text(TextContent::new(text))],
+        ))
+        .block_task()
+        .await;
 
-    let ended = match select(pending, halted).await {
-        Either::Left((answered, _stop)) => match answered {
-            Err(error) => Ended::Failed(error.to_string()),
-            // The wire form is the contract, so the stop reason is taken from
-            // serialisation rather than from a hand-written mapping.
-            Ok(response) => match serde_json::to_value(response.stop_reason) {
-                Ok(Value::String(reason)) => Ended::Finished(reason),
-                _unreadable => Ended::Failed(UNREADABLE.to_owned()),
-            },
+    let ended = match answered {
+        Err(error) => Ended::Failed(error.to_string()),
+        // The wire form is the contract, so the stop reason is taken from
+        // serialisation rather than from a hand-written mapping.
+        Ok(response) => match serde_json::to_value(response.stop_reason) {
+            Ok(Value::String(reason)) => Ended::Finished(reason),
+            _unreadable => Ended::Failed(UNREADABLE.to_owned()),
         },
-        // Dropping the request handle before the response arrives is how the
-        // SDK sends the protocol's cancellation notification, so the agent is
-        // told rather than abandoned.
-        Either::Right((_asked_to_stop, in_flight)) => {
-            drop(in_flight);
-
-            Ended::Cancelled
-        }
     };
 
     Settled::Turn {

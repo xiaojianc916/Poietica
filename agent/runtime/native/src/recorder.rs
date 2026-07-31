@@ -15,9 +15,6 @@ use crate::error::{AcpError, Result};
 use crate::frame::{RunFrame, acp_update, prune};
 use crate::permission::Decision;
 
-/// The stop reason for a turn the user stopped, as the interface spells it.
-const CANCELLED: &str = "cancelled";
-
 /// 一帧，已经成形，可以交出去了。
 ///
 /// `frame` 就是界面读的那一份，也是装载一条旧会话时重播回来的那一份 —— 两者
@@ -273,18 +270,6 @@ impl Recorder {
     pub fn record_run_finished(&mut self, stop_reason: &str) {
         let outcome = self.finish(RunFrame::RunFinished {
             stop_reason: stop_reason.to_owned(),
-            diagnostics: None,
-        });
-        self.remember(outcome);
-    }
-
-    /// Records that the user stopped the run.
-    ///
-    /// The frame is a normal end of turn carrying the protocol's own cancelled
-    /// stop reason.
-    pub fn record_run_cancelled(&mut self) {
-        let outcome = self.finish(RunFrame::RunFinished {
-            stop_reason: CANCELLED.to_owned(),
             diagnostics: None,
         });
         self.remember(outcome);
