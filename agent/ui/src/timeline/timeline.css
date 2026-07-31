@@ -4,6 +4,19 @@
  */
 
 /*
+ * 关于 --sd-* 与 --sdm-* 上的兜底不是债。
+ *
+ * 这两族不是本仓声明的令牌，是 Streamdown 在运行时逐元素注入的自定义属性：
+ * Shiki 给每个 token span 写 --sdm-c，只有自带底色的 token 才写 --sdm-tbg；
+ * animate 插件只给正在揭示的那些词写 --sd-animation / --sd-duration /
+ * --sd-easing / --sd-delay。绝大多数元素上它们并不存在，逗号后面那一半正是
+ * "没有被注入时该长什么样"——它是这套 API 的用法，不是一个忘了删的默认值。
+ *
+ * 本仓自己的令牌一律不带兜底：名字在 composer-metrics.css 里，取不到值应当
+ * 看得见，而不是被一个凑合的默认值糊过去。
+ */
+
+/*
  * The person's own words, in a bubble that hugs them.
  *
  * Aligned to the end of the column so a glance tells who said what without a
@@ -193,7 +206,7 @@
 }
 
 .timeline-prose a {
-  color: var(--cp-accent, currentcolor);
+  color: var(--cp-accent);
   text-decoration: underline;
   text-underline-offset: 0.15em;
   text-decoration-thickness: from-font;
@@ -425,7 +438,7 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
-  transition: color 120ms var(--cp-motion-ease, ease);
+  transition: color 120ms var(--cp-motion-ease);
 }
 
 /* The line answers the pointer, so it reads as something you can open. */
@@ -453,7 +466,7 @@
   inline-size: 0.875rem;
   block-size: 0.875rem;
   transform: rotate(-90deg);
-  transition: transform var(--cp-motion-drawer, 260ms)
+  transition: transform var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
@@ -462,7 +475,7 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows var(--cp-motion-drawer, 260ms)
+    grid-template-rows var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
     opacity 160ms linear;
 }
@@ -542,7 +555,7 @@
   align-items: center;
   gap: 0.5rem;
   inline-size: 100%;
-  min-block-size: var(--ui-control-height-sm, 2rem);
+  min-block-size: var(--ui-control-height-sm);
   padding-inline: 0.75rem;
   border: 0;
   background: none;
@@ -563,7 +576,7 @@
 
 .timeline-tool__chevron {
   transform: rotate(-90deg);
-  transition: transform var(--cp-motion-drawer, 260ms)
+  transition: transform var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1));
 }
 
@@ -573,7 +586,7 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows var(--cp-motion-drawer, 260ms)
+    grid-template-rows var(--cp-motion-drawer)
     var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
     opacity 160ms linear;
 }
@@ -706,7 +719,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-block: var(--cp-timeline-error-gap, 1rem);
+  margin-block: var(--cp-timeline-error-gap);
   margin-inline: 0;
 }
 
@@ -743,7 +756,7 @@
   font-size: var(--ui-prose-size-meta);
   line-height: 1.4;
   cursor: pointer;
-  transition: color 120ms var(--cp-motion-ease, ease);
+  transition: color 120ms var(--cp-motion-ease);
 }
 
 .timeline-error__action:hover {
@@ -978,8 +991,8 @@
   border-radius: 0.375rem;
   color: var(--cp-timeline-quiet-text);
   transition:
-    background-color 120ms var(--cp-motion-ease, ease),
-    color 120ms var(--cp-motion-ease, ease);
+    background-color 120ms var(--cp-motion-ease),
+    color 120ms var(--cp-motion-ease);
 }
 
 .timeline-prose
