@@ -413,7 +413,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             offered,
                         })) => {
                             if let Some(held) = sessions.get_mut(&session_id) {
-                                held.1 = offered.clone();
+                                held.1.clone_from(&offered);
                             }
 
                             let _sent = reports.unbounded_send(SelectorReport {

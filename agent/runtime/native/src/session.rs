@@ -69,6 +69,19 @@ impl SelectorReports {
     }
 }
 
+/// 一个通道没有可展示的内容，但它长在一个公共结构上。
+///
+/// 本仓库要求每个公共类型都印得出来，所以这里手写一个而不是 derive：
+/// derive 会把这个要求转嫁给通道自己的类型参数，而那是一件与这里无关
+/// 的事。
+impl fmt::Debug for SelectorReports {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SelectorReports")
+            .finish_non_exhaustive()
+    }
+}
+
 /// A connected session, before anything has been spawned onto a runtime.
 ///
 /// The crate stays runtime-agnostic on purpose: it hands back a future and the

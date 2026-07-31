@@ -66,7 +66,7 @@ pub(crate) enum Command {
         session_id: String,
         reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
     },
-    /// agent 自己报的选择器表（ACP config_option_update）。
+    /// agent 自己报的选择器表（ACP `config_option_update`）。
     ///
     /// 协议里这是通知，不是答复：选择器在我们没问的时候也会变 —— 导入配置、
     /// 终端里的 CLI、agent 自己的热重载都会推一条过来。载荷恒为整张表，
