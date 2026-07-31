@@ -26,7 +26,8 @@ use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::run_slot::RunSlot;
 use crate::session::{
-    AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReports, SessionEntry,
+    AgentConnection, AgentSpawn, Handshake, OpenedSession, SelectorReport, SelectorReports,
+    SessionEntry,
 };
 use crate::sessions::SessionBook;
 use crate::stderr::StderrLog;
@@ -390,7 +391,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         /* agent 推的整表：先落账（这条会话的那一份换成最新），
                         再推进通道（桌面 seam 在那里把它变成界面事件）。通道的接收
                         端跟着连接走，连接一断发送自然失败 —— 那时已没人要看了。 */
-                        Step::Asked(Some(Command::Reported { session_id, offered })) => {
+                        Step::Asked(Some(Command::Reported {
+                            session_id,
+                            offered,
+                        })) => {
                             if let Some(held) = sessions.get_mut(&session_id) {
                                 held.1 = offered.clone();
                             }
@@ -399,7 +403,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                 session_id,
                                 controls: offered,
                             });
-                                                    }
+                        }
                         // 读一份列表不需要问 agent，就地答。
                         Step::Asked(Some(Command::Selectors { session_id, reply })) => {
                             let answer = match sessions.get(&session_id) {
