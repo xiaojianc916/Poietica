@@ -36,6 +36,16 @@ export interface TranscriptSink {
   readonly failed: (threadId: string, cause: unknown) => void
   /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void
+  /**
+   * 这条对话此刻有没有一轮在飞。
+   *
+   * 权威是转录自己的 status（RunStatus 的 running / awaiting_permission），不另记
+   * 一张在飞表：同一个事实两处维护，迟早各说各的。转录已经逐帧维护着它，输入框
+   * 那一侧读的也是同一格（useAssistantSession 的 toChatStatus）。
+   */
+  readonly busy: (threadId: string) => boolean
+  /** 某条对话从忙变闲的那一刻。参数是那条对话。 */
+  readonly onIdle: (listener: (threadId: string) => void) => () => void
 }
 
 /** Cuts a stand in title down to something a tab can show. */
@@ -194,9 +204,20 @@ export class ThreadsStore {
       this.#realign()
     })
 
+    /*
+     * 一条对话空下来了：那是它欠着的那次切换唯一该补发的时刻。
+     *
+     * 不需要队列，也不需要新状态。#switchModel 自己比对 #reportedModel 与全局值，
+     * 忙的时候直接跳过，空下来再问一次即可 —— 已经对上了就什么都不做。
+     */
+    const settled = this.#transcripts?.onIdle((threadId) => {
+      this.#switchModel(threadId)
+    })
+
     return () => {
       stop?.()
       release()
+      settled?.()
     }
   }
 
@@ -363,9 +384,16 @@ export class ThreadsStore {
       return
     }
 
+    /* 按对话记的那几格跟着走。此前它们只增不减，删一条对话会在五处各留一格。 */
+    this.#asked.delete(threadId)
+    this.#reportedModel.delete(threadId)
+    this.#switchTried.delete(threadId)
+
     this.#commit({
       threads: this.#held.threads.filter((thread) => thread.threadId !== threadId),
       pending: this.#held.pending.filter((thread) => thread.threadId !== threadId),
+      selectors: this.#without(this.#held.selectors, threadId),
+      selectorFailure: this.#without(this.#held.selectorFailure, threadId),
     })
 
     await this.#settle(act(threadId))
@@ -611,6 +639,18 @@ export class ThreadsStore {
     const actual = this.#reportedModel.get(threadId)
 
     if (wanted === null || actual === undefined || actual === wanted) {
+      return
+    }
+
+    /*
+     * 这一轮已经发给旧模型了，中途改人不会让它换个人重答。
+     *
+     * 上游 TUI 在这里直接拒绝用户（performModelSwitch 第一行判 streamingPhase），
+     * 那是单会话终端的前提：一个进程只有一条会话。我们能同时开多条，而选中的模型
+     * 是全局那一份，不该被某一条的忙碌绑架 —— 所以拦的不是人的动作，是这一条下发。
+     * 空下来时由 start() 里订阅的 onIdle 补上，闸在这里不消耗 #switchTried。
+     */
+    if (this.#transcripts?.busy(threadId) === true) {
       return
     }
 

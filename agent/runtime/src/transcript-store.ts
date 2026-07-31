@@ -86,6 +86,16 @@ const EMPTY: Transcript = {
   owned: false,
 }
 
+/*
+ * 「还没轮到下一句」的全部两种形态。
+ *
+ * 判据是 RunStatus 本身（run-contract.ts 的六档），不是另立一个布尔或另记一张表：
+ * 转录已经逐帧维护着这一格，useAssistantSession 的 toChatStatus 读的也是它。
+ */
+function running(status: TimelineState['status']): boolean {
+  return status === 'running' || status === 'awaiting_permission'
+}
+
 function describeFailure(cause: unknown): string {
   if (cause instanceof Error && cause.message.length > 0) {
     return cause.message
@@ -168,6 +178,9 @@ export class TranscriptStore {
    */
   #routes = new Map<string, string>()
 
+  /** 想知道「某条对话空下来了」的人。 */
+  #idle = new Set<(threadId: string) => void>()
+
   #attachedTo: AgentSessionPort | null = null
 
   #detach: (() => void) | null = null
@@ -204,6 +217,18 @@ export class TranscriptStore {
    */
   route = (sessionId: string, key: string): void => {
     this.#routes.set(sessionId, key)
+  }
+
+  /** 这条对话此刻有没有一轮在飞。 */
+  busy = (key: string): boolean => running(this.read(key).timeline.status)
+
+  /** 某条对话从忙变闲的那一刻；交回取消订阅的办法。 */
+  onIdle = (listener: (threadId: string) => void): (() => void) => {
+    this.#idle.add(listener)
+
+    return () => {
+      this.#idle.delete(listener)
+    }
   }
 
   /* ================= 一段历史送到 ================= */
@@ -432,12 +457,26 @@ export class TranscriptStore {
 
   #put(key: string, next: Transcript): void {
     const real = this.#resolveKey(key)
+    const was = running(this.#held.get(real)?.timeline.status ?? 'idle')
 
     /* delete + set 把它挪到末尾：Map 的插入序就是 LRU 的顺序。 */
     this.#held.delete(real)
     this.#held.set(real, next)
     this.#evict()
     this.#notify(real)
+
+    /*
+     * 从忙变闲只有这一刻。
+     *
+     * 挂在这里而不是挂在某一种帧上：run_finished、run_failed、取消、以及本地事故
+     * （noteOn 的 endsTurn）走的是四条不同的路，但它们改的都是同一格 status，而
+     * #put 是这个文件唯一的写入口。四条路一个汇合点，不需要状态机。
+     */
+    if (was && !running(next.timeline.status)) {
+      for (const listener of this.#idle) {
+        listener(real)
+      }
+    }
   }
 
   /*

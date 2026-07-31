@@ -121,30 +121,30 @@ export function ConversationSurface({
       }}
       onSelectControl={(controlId, value) => {
         /*
-         * 屏幕先改，会话跟上，最后写进 agent 自己的配置。
+         * 模型只有一条下发路径。
          *
-         * 顺序照上游的 performModelSwitch：会话级先生效，再落盘。三步各自的
-         * 家不同 —— 第一步是这一帧的显示，第二步是这条会话，第三步是"下次开
-         * 会话从哪个模型起步"，也就是顶层 default_model。
+         * 此前这里做了两件事：改全局值，以及自己再 selectControl 一次。而改全局值
+         * 本来就会经由 observeAgentControls → ThreadsStore.#realign() → #switchModel()
+         * 下发 —— 两条路各打一次 set_config，而「这一条正在跑就先别下发」那道闸只装
+         * 在投影那一条上，于是它形同虚设。这里只留改全局值。
          *
-         * 换模型就是换默认模型，没有第二个概念：人在选择器里选的那个，就是
-         * 下一条新对话会用的那个。上游的 /model 也是这么做的（第四个参数
-         * persist 恒为 true），只有它的次要入口才只管当前会话。
+         * thought / mode 仍然直接下发：它们没有全局那一份，投影管不着。
          *
-         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读
-         * 只会读到旧值。写失败会自己说出来，而不是让人以为换过了。
+         * 换模型就是换默认模型，没有第二个概念：人在选择器里选的那个，就是下一条新
+         * 对话会用的那个。上游的 /model 也是这么做的（第四个参数 persist 恒为 true）。
+         *
+         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读到
+         * 旧值。写失败会自己说出来，而不是让人以为换过了。
          */
-        if (controlId === MODEL_CONTROL_ID) {
-          setAgentDefaultModel(value)
-        }
-
-        if (threadId !== null) {
-          threads.selectControl(threadId, controlId, value)
-        }
-
         if (controlId !== MODEL_CONTROL_ID) {
+          if (threadId !== null) {
+            threads.selectControl(threadId, controlId, value)
+          }
+
           return
         }
+
+        setAgentDefaultModel(value)
 
         void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
           reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {
