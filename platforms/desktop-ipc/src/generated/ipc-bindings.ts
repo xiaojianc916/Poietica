@@ -507,6 +507,56 @@ legacyProviders: JsonValue[];
  */
 issues: string[] }
 /**
+ * 这一次打开，屏幕上应该出现什么。
+ * 
+ * 加这一格是因为四种截然不同的处境此前长得一模一样：`events` 都是空数组。
+ * 刚建的对话是空的，理所应当；而一条聊过两小时的对话在换了 agent 之后也是
+ * 空的 —— 界面分不出来，就只能默不作声地给一块白板。那不是"没有历史"，那
+ * 是"有历史但拿不到"，两件事对人的意义完全不同。
+ * 
+ * 内部标签，所以线上是一个判别联合：`{ state: "live" }`、
+ * `{ state: "unavailable", reason: …, owner: … }`。
+ */
+export type AgentHistory = 
+/**
+ * 这条对话刚刚建出来，本来就没有经过。
+ */
+{ state: "fresh" } | 
+/**
+ * 它的会话一直没离开过本次连接，屏幕上的东西还在。
+ */
+{ state: "live" } | 
+/**
+ * agent 把它装载回来了，`events` 就是它交出来的那一整段。
+ */
+{ state: "loaded" } | 
+/**
+ * 打不开。说清是为什么，以及它在谁手里。
+ */
+{ state: "unavailable"; reason: AgentHistoryLoss; owner: string | null }
+/**
+ * 一段历史打不开的时候，是因为什么。
+ * 
+ * 三种，都不是这一侧的故障，也都不是可以重试的：会话在对面手里，而对面
+ * 要么不是同一个 agent，要么不做这件事，要么自己也不留着了。
+ */
+export type AgentHistoryLoss = 
+/**
+ * 这条对话是另一个 agent 开的。
+ * 
+ * sessionId 活在各自 agent 的命名空间里，把 A 的号发给 B 只会换回一句
+ * UnknownSession —— 所以这里根本不发。
+ */
+"otherAgent" | 
+/**
+ * 这个 agent 在握手时说了它不装载旧会话。
+ */
+"notSupported" | 
+/**
+ * 号发过去了，agent 说它这边已经没有这条会话。
+ */
+"forgotten"
+/**
  * 起一个 agent 进程要说清的三件事。
  * 
  * 三条命令都要它，所以它是一个结构而不是三份平铺字段。此前这里是一个
@@ -591,7 +641,14 @@ selectors: AgentConfigControl[];
  * 空的有两种：这条对话刚建、或者它的会话一直没离开过本次连接。后者屏幕上
  * 的东西本来就还在。
  */
-events: JsonValue[] }
+events: JsonValue[]; 
+/**
+ * 上面那格为什么是它现在的样子。
+ * 
+ * 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
+ * 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
+ */
+history: AgentHistory }
 /**
  * A conversation being held at the top of the list, or released.
  */

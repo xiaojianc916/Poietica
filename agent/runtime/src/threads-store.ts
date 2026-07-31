@@ -5,7 +5,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
-import { learnAgentControls } from './agent-capability-store'
+import { agentDefaultModel, learnAgentControls } from './agent-capability-store'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
@@ -250,23 +250,8 @@ export class ThreadsStore {
        * 发生过的对话。
        */
       this.#asked.add(threadId)
-      this.#commit({
-        selectors: this.#with(this.#held.selectors, threadId, opened.selectors),
-        failure: null,
-      })
-
-      /*
-       * 这里曾经有一段循环：拿 localStorage 里那份偏好，逐项把刚开出来的会话"补"
-       * 成它的样子。
-       *
-       * 它是三处显示不一致里最狠的一处 —— 因为它不只是显示，它真的改了会话。人在
-       * 设置页看到 default_model 是甲，实际回复他的却是 localStorage 里那个乙，而
-       * 那个乙可能只是他前一分钟点开过一条旧对话留下的。
-       *
-       * 现在不需要任何补差：新会话由 agent 按它自己配置里的 default_model 开，而
-       * default_model 就是选择器拨动时写下去的那个值。同一个真相，没有第二处需要
-       * 对齐。
-       */
+      this.#remember(threadId, opened.selectors)
+      this.#commit({ failure: null })
 
       return threadId
     } catch (reason) {
@@ -473,14 +458,72 @@ export class ThreadsStore {
     this.#remember(threadId, report.controls)
   }
 
+  /*
+   * 一张表到了。这是三条路（open / select / agent 主动上报）唯一的汇合处。
+   *
+   * 模型那一项不归这条对话管。一条旧对话记着的模型是它自己的历史，而"现在选中哪个"
+   * 全局只有一个答案，写在 agent 配置的 default_model 里。所以这里先把它对齐，再存。
+   *
+   * 光改显示是撒谎：那条会话内部仍然握着旧模型，下一句话就会由旧模型来答。所以对齐
+   * 是两步 —— 先乐观地把屏幕改对（不然要等一整趟往返才不闪），再向 agent 发一次真实
+   * 的切换。递归会自己停：切完之后 agent 报回来的就是 wanted，判据不再成立。
+   */
   #remember(threadId: string, offered: readonly SessionConfigControl[]): void {
     /* 这张表属于这个 agent，不属于这一条对话；入口那一格靠它才有东西可画。 */
     learnAgentControls(offered)
 
+    const wanted = agentDefaultModel()
+    const aligned = this.#aligned(offered, wanted)
+
     this.#commit({
-      selectors: this.#with(this.#held.selectors, threadId, offered),
+      selectors: this.#with(this.#held.selectors, threadId, aligned),
       selectorFailure: this.#without(this.#held.selectorFailure, threadId),
     })
+
+    if (aligned === offered || wanted === null) {
+      return
+    }
+
+    for (const control of aligned) {
+      if (control.purpose === 'model') {
+        this.selectControl(threadId, control.id, wanted)
+      }
+    }
+  }
+
+  /*
+   * 把模型那一项换成全局选中的那个。没有可换的就原样交回同一个引用 —— 调用方靠这个
+   * 引用是否变化来判断"要不要真去切一次"，也靠它避免一次没有内容的提交。
+   *
+   * 那个别名不在这条会话的候选里就不动：agent 会拒绝一次它不认识的值，届时 catch
+   * 里那次重读只会把同一件事再走一遍。宁可这条会话继续用它自己的，也不发一次注定失败
+   * 的调用。
+   */
+  #aligned(
+    offered: readonly SessionConfigControl[],
+    wanted: string | null,
+  ): readonly SessionConfigControl[] {
+    if (wanted === null) {
+      return offered
+    }
+
+    let changed = false
+
+    const next = offered.map((control) => {
+      if (control.purpose !== 'model' || control.current === wanted) {
+        return control
+      }
+
+      if (!control.choices.some((choice) => choice.value === wanted)) {
+        return control
+      }
+
+      changed = true
+
+      return { ...control, current: wanted }
+    })
+
+    return changed ? next : offered
   }
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {

@@ -56,7 +56,10 @@ export function ConversationSurface({
    * 是渲染层，不该替它决定时机。装上是幂等的，问只会问一次。
    */
   useEffect(() => {
-    installAgentDefaultModelSource(() => agentConfig.loadDefaultModel(agentId))
+    installAgentDefaultModelSource({
+      load: () => agentConfig.loadDefaultModel(agentId),
+      save: (alias) => agentConfig.saveDefaultModel(agentId, alias),
+    })
   }, [agentConfig, agentId])
 
   /*

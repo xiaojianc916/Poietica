@@ -242,6 +242,9 @@ export function learnAgentControls(offered: readonly SessionConfigControl[]): vo
   if (changed) {
     publish()
   }
+
+  /* 候选可能是这一刻才第一次到达的：那正是"该不该替他挑一个"重新有答案的时刻。 */
+  ensureDefaultModel()
 }
 
 /**
@@ -262,6 +265,51 @@ export function setAgentDefaultModel(alias: string | null): void {
   publish()
 }
 
+/**
+ * 此刻选中的是哪个模型。
+ *
+ * 会话那一侧要拿它把自己对齐过来：一条旧对话记着别的模型是它自己的历史，不是"现在
+ * 选中什么"的答案。这个函数就是那个答案唯一的产地。
+ */
+export function agentDefaultModel(): string | null {
+  return chosenModel
+}
+
+/*
+ * 一个模型都没选中时，替他挑一个。
+ *
+ * 这是「配好了密钥、模型也列出来了，一发消息却说 Authentication required」的根治：
+ * 上游 hasUsableConfiguredDefaultModel 第一行就是 config.defaultModel === undefined
+ * 时 return false，于是配置文件里的 api_key 整条不算数 —— 而屏幕上模型列得好好的，
+ * 故障现场与病因之间没有任何可见的联系。
+ *
+ * 它属于这里，不属于设置页。此前那一版写在 ModelsSettings 里，意思是"不打开设置页
+ * 就不补"，可开不了会话的是主界面。挑第一个候选是稳定的：快照在 agent-provider-state
+ * 里按 provider id 排过序，同一份配置每次挑到的是同一个。
+ *
+ * 挑出来的这个只是个起点，不是偏好 —— 人在选择器里拨一下它就变了。
+ */
+function ensureDefaultModel(): void {
+  const save = defaultSource?.save
+
+  if (!defaultKnown || chosenModel !== null || save === undefined) {
+    return
+  }
+
+  const first = table.find((shape) => shape.purpose === 'model')?.choices[0]?.value
+
+  if (first === undefined) {
+    return
+  }
+
+  setAgentDefaultModel(first)
+
+  void save(first).catch(() => {
+    /* 没写进去就当没挑过：下一条会话报表时会再试一次，而不是让屏幕显示一个文件里没有的值。 */
+    setAgentDefaultModel(null)
+  })
+}
+
 /*
  * 能力表从哪里来，以及什么时候去问。
  *
@@ -279,9 +327,28 @@ let asked = false
 
 let report: ((cause: unknown) => void) | undefined
 
-let loadDefault: (() => Promise<string | null>) | undefined
+/*
+ * default_model 从哪里读、往哪里写。
+ *
+ * 这个包不认识 AgentConfigStore，也不该认识 —— 它只要两个函数：问一次，和写一次。
+ */
+interface DefaultModelSource {
+  readonly load: () => Promise<string | null>
+  readonly save: (alias: string) => Promise<unknown>
+}
+
+let defaultSource: DefaultModelSource | undefined
 
 let askedDefault = false
+
+/*
+ * 那一次读取回来过没有。
+ *
+ * 不能拿 chosenModel === null 当这个问题的答案：还没问到的时候它也是 null，而自动
+ * 补齐正是靠这个判断决定要不要写入 —— 分不清「确实没有」与「还不知道」，就会拿第一个
+ * 候选盖掉人原本配好的那个。只在读取成功时置位。
+ */
+let defaultKnown = false
 
 /*
  * default_model 从哪里读。
@@ -291,7 +358,7 @@ let askedDefault = false
  * 标志放回去，下一次装载会重试。
  */
 function loadDefaultOnce(): void {
-  const load = loadDefault
+  const load = defaultSource?.load
 
   if (askedDefault || load === undefined) {
     return
@@ -300,16 +367,18 @@ function loadDefaultOnce(): void {
   askedDefault = true
   load()
     .then((alias) => {
+      defaultKnown = true
       setAgentDefaultModel(alias)
+      ensureDefaultModel()
     })
     .catch(() => {
       askedDefault = false
     })
 }
 
-/** 接线时交进来：怎么问 agent 配置里的 default_model。 */
-export function installAgentDefaultModelSource(load: () => Promise<string | null>): void {
-  loadDefault = load
+/** 接线时交进来：怎么读、怎么写 agent 配置里的 default_model。 */
+export function installAgentDefaultModelSource(source: DefaultModelSource): void {
+  defaultSource = source
   loadDefaultOnce()
 }
 
