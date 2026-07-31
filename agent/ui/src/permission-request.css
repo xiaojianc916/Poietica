@@ -152,7 +152,7 @@
  *
  * 留下的是盒子：上限、滚动、圆角、底色 —— 一份长文档在这张卡里滚，不把卡撑爆。
  */
-.assistant-permission__command {
+.timeline-prose.assistant-permission__command {
   max-block-size: var(--cp-permission-command-max);
   margin: 0;
   padding: 0.5rem 0.625rem;
@@ -164,6 +164,6 @@
 }
 
 /* 同 .timeline-tool__prose：块自己已是那个灰，行内代码得再退一档才看得见。 */
-.assistant-permission__command :not(pre) > code {
+.timeline-prose.assistant-permission__command :not(pre) > code {
   background: var(--cp-hover);
 }

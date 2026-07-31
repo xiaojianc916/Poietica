@@ -1163,7 +1163,7 @@
  * 一次输出既不封顶也没有底色，白底一直铺到底。上限归 --cp-timeline-output-max，
  * 与两侧 diff 同一个 token：同一张卡里的三种输出不该有三个高度。
  */
-.timeline-tool__prose {
+.timeline-prose.timeline-tool__prose {
   max-block-size: var(--cp-timeline-output-max);
   overflow: auto;
   overscroll-behavior: contain;
@@ -1180,6 +1180,6 @@
  * 这个作用域里往上挪一档，用 hover 那一层：仍是同一套灰阶，只是不再和自己的
  * 背景撞在一起。
  */
-.timeline-tool__prose :not(pre) > code {
+.timeline-prose.timeline-tool__prose :not(pre) > code {
   background: var(--cp-hover);
 }

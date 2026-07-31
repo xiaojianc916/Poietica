@@ -25,15 +25,35 @@
   padding: 0.875rem 1rem;
 }
 
-/* 题面是上下文，不是主行：小半档、淡一档。 */
-.assistant-outcome__prompt {
+/*
+ * 题面是上下文，不是主行：小半档、淡一档 —— 但它现在是 markdown。
+ *
+ * white-space 与 line-height 都交回给 .timeline-prose：换行归 markdown 的块结构
+ * 所有，pre-wrap 会让文档里的空行再显示一遍。节奏取安静那一档，和思维链同源，
+ * 因为它在这张卡里的地位就是"背景交代"。
+ *
+ * 两个类连写不是为了好看，是为了不看 import 顺序：Prose 自带 .timeline-prose，
+ * 它和单写一个 __prompt 特异性相同且分属两个文件，谁生效会随打包顺序漂移。连写
+ * 之后是 0,2,0，稳定压过基础规则。
+ *
+ * 封顶再滚动：一份两千字的计划是这张卡的上下文，不该让这条记录本身长成一屏。
+ */
+.timeline-prose.assistant-outcome__prompt {
+  --cp-prose-flow: var(--ui-prose-flow-quiet);
+
+  max-block-size: var(--cp-outcome-prompt-max);
+  overflow: auto;
+  overscroll-behavior: contain;
   margin: 0;
-  font-size: var(--ui-prose-size-meta);
+  font-size: var(--ui-prose-size-aux);
   font-weight: 400;
-  line-height: var(--ui-prose-line-height);
   color: var(--cp-timeline-quiet-text);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 题面这一档更淡，行内代码跟着退，不要在灰字里砸出一块正色。 */
+.timeline-prose.assistant-outcome__prompt :not(pre) > code {
+  background: var(--cp-hover);
 }
 
 /* 结局是这张卡片的主行：比题面大半档、重一点，正文墨色，不带底色也不带框。 */

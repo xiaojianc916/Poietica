@@ -1,6 +1,7 @@
 import './outcome-card.css'
 
 import { Surface } from '../primitives/surface'
+import { Prose } from './Prose'
 
 /**
  * 一件落定的事，和它的结局。
@@ -23,7 +24,15 @@ export interface OutcomeCardProps {
 export function OutcomeCard({ answer, answered, note, prompt }: OutcomeCardProps) {
   return (
     <Surface className="assistant-outcome" data-answered={answered === true ? 'true' : undefined}>
-      <p className="assistant-outcome__prompt">{prompt}</p>
+      {/*
+       * 题面可能是一整份文档。
+       *
+       * 权限那边答复之后传进来的 prompt 是 askedOf()，它的第一条分支就是这次
+       * 调用自己说的那段话 —— 计划模式下那是一份完整的 markdown。所以题面和
+       * 流里其它任何一段 markdown 走同一个组件，而不是被塞进一个 <p> 里当作
+       * 一行纯文本。结局与附注不走：它们是一个选项的名字，不是文档。
+       */}
+      <Prose className="assistant-outcome__prompt" isStreaming={false} text={prompt} />
 
       {answer === undefined ? null : <p className="assistant-outcome__answer">{answer}</p>}
 
