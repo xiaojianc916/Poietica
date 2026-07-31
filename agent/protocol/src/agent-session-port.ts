@@ -1,5 +1,5 @@
 import type { AcpSessionId } from './acp-session-contract'
-import type { RunEvent, RunId, ThreadId } from './run-contract'
+import type { RunEvent, ThreadId } from './run-contract'
 
 /**
  * The agent session port.
@@ -19,10 +19,15 @@ export interface AgentPromptRequest {
   readonly attachmentPaths?: readonly string[]
 }
 
+/**
+ * 这一轮发到了哪条会话。
+ *
+ * 只剩一格。此前它还带着一个轮次号和一个取消闭包 —— 号是本仓库自己发明的
+ * 地址，闭包则让「停止」变成一件要先存住、过一会儿再找回来的东西：上层为此
+ * 维护了一张对话 → 闭包的表。取消本来只需要点名一条对话，见下面的 cancel。
+ */
 export interface AgentPromptHandle {
-  readonly runId: RunId
   readonly sessionId: AcpSessionId
-  readonly cancel: () => Promise<void>
 }
 
 export interface AgentSessionPort {
@@ -41,5 +46,13 @@ export interface AgentSessionPort {
    */
   readonly subscribe: (listener: (event: RunEvent, sessionId: AcpSessionId) => void) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
+  /**
+   * 停掉这条对话上正在跑的那一轮。
+   *
+   * 点名一条对话，不是一轮。ACP 的取消发给一条会话，而一条对话持有一条会话，
+   * 这条对应关系在打开这条对话时就已经写下 —— 取消因此不需要在它之外再记住
+   * 任何东西，也就没有什么会过期。
+   */
+  readonly cancel: (threadId: ThreadId) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }

@@ -39,7 +39,6 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
 
   const listeners = new Set<(event: RunEvent, sessionId: AcpSessionId) => void>()
   let pending: Array<() => void> = []
-  let runCounter = 0
 
   const clearPending = () => {
     for (const cancel of pending) {
@@ -64,21 +63,19 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
 
     prompt: (_request: AgentPromptRequest): Promise<AgentPromptHandle> => {
       clearPending()
-      runCounter += 1
-      const runId = `run_replay_${String(runCounter)}`
 
       events.forEach((event, index) => {
         pending.push(scheduler(() => emit(event), stepMs * index))
       })
 
-      return Promise.resolve({
-        runId,
-        sessionId: SESSION,
-        cancel: () => {
-          clearPending()
-          return Promise.resolve()
-        },
-      })
+      return Promise.resolve({ sessionId: SESSION })
+    },
+
+    /* 录像里只有一条对话，所以停的就是它 —— 点名哪一条不改变要做的事。 */
+    cancel: () => {
+      clearPending()
+
+      return Promise.resolve()
     },
 
     resolvePermission: () => Promise.resolve(),

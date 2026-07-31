@@ -34,7 +34,7 @@ describe('ipc session', () => {
 
     const session = createIpcSession({
       bridge: {
-        prompt: () => Promise.resolve({ runId: 'r', sessionId: 's' }),
+        prompt: () => Promise.resolve({ sessionId: 's' }),
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
       },

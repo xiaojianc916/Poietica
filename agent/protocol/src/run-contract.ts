@@ -10,7 +10,6 @@ import type {
 } from './acp-session-contract'
 
 export type ThreadId = string
-export type RunId = string
 
 export type RunStatus =
   | 'idle'

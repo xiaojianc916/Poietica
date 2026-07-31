@@ -4,7 +4,6 @@ import type {
   AgentPromptRequest,
   AgentSessionPort,
   RunEvent,
-  RunId,
 } from '@poietica/agent-protocol'
 
 /**
@@ -32,10 +31,8 @@ export interface AgentEventSource {
 }
 
 export interface AgentCommandBridge {
-  readonly prompt: (
-    request: AgentPromptRequest,
-  ) => Promise<{ readonly runId: RunId; readonly sessionId: string }>
-  readonly cancel: (runId: RunId) => Promise<void>
+  readonly prompt: (request: AgentPromptRequest) => Promise<{ readonly sessionId: string }>
+  readonly cancel: (threadId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }
 
@@ -52,10 +49,12 @@ export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSe
       }),
 
     prompt: async (request): Promise<AgentPromptHandle> => {
-      const { runId, sessionId } = await bridge.prompt(request)
+      const { sessionId } = await bridge.prompt(request)
 
-      return { runId, sessionId, cancel: () => bridge.cancel(runId) }
+      return { sessionId }
     },
+
+    cancel: (threadId) => bridge.cancel(threadId),
 
     resolvePermission: (requestId, optionId) => bridge.resolvePermission(requestId, optionId),
   }

@@ -38,6 +38,9 @@ import {
 /** 留住多少条对话的转录。淘汰策略属于 store，这是它的本职。 */
 const HELD_KEYS = 8
 
+/** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
+const DRAFT = 'draft:'
+
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
 const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
@@ -141,9 +144,6 @@ export class TranscriptStore {
 
   #listeners = new Map<string, Set<() => void>>()
 
-  /** 每条对话最近一轮的取消口。 */
-  #cancels = new Map<string, () => Promise<void>>()
-
   /**
    * 草稿键 → 真对话 id。
    *
@@ -176,7 +176,7 @@ export class TranscriptStore {
   newDraft = (): string => {
     this.#drafts += 1
 
-    return `draft:${String(this.#drafts)}`
+    return `${DRAFT}${String(this.#drafts)}`
   }
 
   read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
@@ -308,8 +308,6 @@ export class TranscriptStore {
         onUserMessage?.(threadId, text)
 
         return port.prompt({ threadId, text }).then((handle) => {
-          this.#cancels.set(threadId, handle.cancel)
-
           /*
            * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *
@@ -326,8 +324,23 @@ export class TranscriptStore {
       })
   }
 
+  /**
+   * 停掉这条对话上正在跑的那一轮。
+   *
+   * 点名一条对话就够了，地址在端口那一侧。此前这里存着上一次 prompt 交回来的
+   * 取消闭包：一张只增不减的表，一轮跑完之后闭包还留着，停止键按在一条早已
+   * 结束的对话上仍然会照着它发一次取消 —— 指向一个已经翻篇的轮次。
+   *
+   * 入口那一格在开口之前还不是任何一条对话。它没有轮次在飞，也没有会话可发。
+   */
   cancel = (key: string): void => {
-    void this.#cancels.get(this.#resolveKey(key))?.()
+    const threadId = this.#resolveKey(key)
+
+    if (threadId.startsWith(DRAFT)) {
+      return
+    }
+
+    void this.#attachedTo?.cancel(threadId)
   }
 
   resolvePermission = (
@@ -489,23 +502,6 @@ export class TranscriptStore {
     }
 
     this.#handOver(owner, event)
-
-    if (event.kind !== 'run_finished' && event.kind !== 'run_failed') {
-      return
-    }
-
-    /*
-     * 这一轮的取消口跟着这一轮走。
-     *
-     * 此前 #cancels 只增不减，是这个类里唯一没有上界的表：held 有 #evict，
-     * alias 跟着 held 走，只有它谁都不跟。（#routes 是按会话记的，一条会话
-     * 跨越它上面的每一轮，本来就不该随一轮结束而删。）
-     *
-     * 而它留下的不只是内存。一轮跑完之后那个闭包还在，停止键按在一条早已
-     * 结束的对话上，仍然会照着旧 handle 发一次取消 —— 指向一个已经翻篇的
-     * 会话。能取消的只有在飞的那一轮，所以表里也只该有在飞的那一轮。
-     */
-    this.#cancels.delete(owner)
   }
 
   /* 一个 store 订着一条线路。此前这道守卫是进程级的。 */

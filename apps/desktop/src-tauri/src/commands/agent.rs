@@ -14,7 +14,7 @@
 //! against the options the agent actually offered before anything is recorded
 //! or sent.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
@@ -62,10 +62,10 @@ const NO_READ: &str = "the database read did not finish";
 /// 与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
 const NO_CONVERSATION: &str = "no conversation was named";
 
-/// 要停的那一轮已经不在飞了。
+/// 要停的那条对话此刻没有会话可发。
 ///
-/// 这不是兜底：一轮结束就把地址删掉，所以查不到恰好是「没有什么可停的」。
-const NO_TURN: &str = "that turn is not running";
+/// 这不是兜底：会话是在打开这条对话时才握上的，查不到恰好是「没有什么可停的」。
+const NOTHING_TO_STOP: &str = "that conversation is not running";
 
 /// The live connection, if one has been started.
 ///
@@ -104,12 +104,6 @@ pub struct AgentRuntime {
     /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
     /// 的会话号。库里存着的那一个因此不是主键而是缓存，寻址之前必须先问这里。
     live: Mutex<HashSet<String>>,
-    /// 每一轮飞在哪条会话上。
-    ///
-    /// 取消要点名一条会话，而界面手里只有 runId —— 它拿到的就是这个。这张
-    /// 表是两者之间唯一的对应关系：一轮开始时写入，结束时删除。Arc 是因为
-    /// 删除发生在那一轮自己的任务里，而托管状态借不进 'static。
-    turns: Arc<Mutex<HashMap<String, String>>>,
     /// The one connection to the encrypted index, opened on first use.
     ///
     /// Every command used to open one of its own: a credential store
@@ -144,7 +138,6 @@ impl AgentRuntime {
             desk: PermissionDesk::new(),
             connection: Mutex::new(None),
             live: Mutex::new(HashSet::new()),
-            turns: Arc::new(Mutex::new(HashMap::new())),
             store: OnceLock::new(),
         })
     }
@@ -187,9 +180,7 @@ pub struct AgentPromptRequest {
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptResult {
-    /// The run every frame of this turn is tagged with.
-    pub run_id: String,
-    /// The session the run belongs to.
+    /// 这一轮发到了哪条会话。它的每一帧都带着同一个号。
     pub session_id: String,
 }
 
@@ -243,10 +234,6 @@ pub async fn agent_prompt(
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 
-    // 轮次号是这一侧铸的，不再由数据库发。它只用来把这一轮的帧路由到界面，
-    // 一轮结束就没人再提起 —— 一个活几十秒的路由标签，不值一次写事务。
-    let run_id = Uuid::now_v7();
-
     // The first thing said names the conversation, which is what a
     // conversation in a list should read as. Recorded as coming from the
     // message, so a name the user types later outranks it and this one does
@@ -276,14 +263,6 @@ pub async fn agent_prompt(
         .prompt(addressed.clone(), text, frames)
         .map_err(translate)?;
 
-    /* 这一轮的地址。取消点名一条会话，而界面手里只有 runId。 */
-    let run = run_id.to_string();
-    let turns = Arc::clone(&state.turns);
-
-    open_turn(&turns, &run, &addressed)?;
-
-    let ended = run.clone();
-
     async_runtime::spawn(async move {
         match answer.await {
             // A turn that ends without a word looks, from the outside, exactly
@@ -296,13 +275,9 @@ pub async fn agent_prompt(
             Ok(Err(error)) => log::error!("the agent turn failed: {error}"),
             Err(_dropped) => log::warn!("the agent turn ended without an answer"),
         }
-
-        /* 停一个已经停了的东西，应该找不到。 */
-        close_turn(&turns, &ended);
     });
 
     Ok(AgentPromptResult {
-        run_id: run,
         session_id: addressed,
     })
 }
@@ -329,39 +304,63 @@ pub fn agent_resolve_permission(
     Ok(())
 }
 
-/// 要停的那一轮。
+/// 要停的那条对话。
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCancelRequest {
-    /// The run to stop.
-    pub run_id: String,
+    /// The conversation whose turn should stop.
+    pub thread_id: String,
 }
 
-/// Asks the agent to stop one turn.
+/// Asks the agent to stop the turn running on one conversation.
 ///
-/// 取消点名一轮。ACP 的取消是发给一条会话的，而一条连接上同时有多条会话：
-/// 不点名就只能停「此刻恰好在飞的那一轮」，那可能是另一条对话的。
+/// 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
+/// 这条对应关系在打开这条对话时就写进了库（attach_session），提问走的也是它。
+/// 此前这里点名的是一个轮次号，为它在内存里另养了一张 runId → sessionId 的表，
+/// 一轮开始时写、结束时删：那张表回答的问题，库里本来就有答案。
+///
+/// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 session_for 会为一条
+/// 还没开过口的对话新开一个会话，那是纯副作用。
+///
+/// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读是一次凭据
+/// 库查询加一次 SQLCipher attach，窗口会在那段时间里停止应答（见 on_store）。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
 ///
 /// # Errors
 ///
-/// Fails when that turn is not running, when no session is running, or when
-/// the driver has stopped.
+/// Fails when that conversation holds no live session, when no session is
+/// running, or when the driver has stopped.
 #[tauri::command]
 #[specta::specta]
-pub fn agent_cancel(
+pub async fn agent_cancel(
     state: State<'_, AgentRuntime>,
     request: AgentCancelRequest,
 ) -> AgentCommandResult<()> {
-    let addressed = turn_session(&state.turns, &request.run_id)?
-        .ok_or_else(|| Error::NotFound(NO_TURN.to_owned()))?;
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
-    let guard = lock(&state.connection)?;
-    let live = guard
-        .as_ref()
-        .ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+    let id = conversation(&request.thread_id)?;
+    let stored = on_store(&state, move |store| store.thread(id).map_err(persistence)).await?;
+
+    /* 持有者对不上就不发：会话号活在各自 agent 的命名空间里，把 A 的号发给 B
+    停的可能是 B 的东西。与 session_for 和 agent_delete_thread 同一条规矩。 */
+    let held = stored.and_then(|thread| {
+        let owner = thread.agent_id;
+
+        thread
+            .session_id
+            .filter(|_| owner.as_deref().is_none_or(|agent| agent == live.agent_id))
+    });
+
+    let Some(addressed) = held else {
+        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
+    };
+
+    /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。 */
+    if !recognised(&state, &addressed)? {
+        return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
+    }
 
     live.client.cancel(addressed).map_err(translate)?;
 
@@ -389,11 +388,6 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
     /* 连接走了，它开出来的会话号也就不再指向任何东西。 */
     if let Ok(mut known) = state.live.lock() {
         known.clear();
-    }
-
-    /* 那些会话上的轮次也一样：没有连接可发，地址就不该继续存在。 */
-    if let Ok(mut open) = state.turns.lock() {
-        open.clear();
     }
 
     Ok(())
@@ -1288,35 +1282,6 @@ struct Held {
     events: Vec<Value>,
     /// 上面那格为什么是它现在的样子。
     history: AgentHistory,
-}
-
-/// 记下这一轮飞在哪条会话上。
-fn open_turn(turns: &Mutex<HashMap<String, String>>, run_id: &str, session_id: &str) -> Result<()> {
-    turns
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
-        .insert(run_id.to_owned(), session_id.to_owned());
-
-    Ok(())
-}
-
-/// 这一轮结束了，它的地址不再指向任何东西。
-///
-/// 结束是一定会发生的事，为它失败一次没有意义：锁坏了说明别处已经 panic，
-/// 那件事由持锁的那一路去报。
-fn close_turn(turns: &Mutex<HashMap<String, String>>, run_id: &str) {
-    if let Ok(mut open) = turns.lock() {
-        let _ended = open.remove(run_id);
-    }
-}
-
-/// 这一轮飞在哪条会话上，如果它还在飞。
-fn turn_session(turns: &Mutex<HashMap<String, String>>, run_id: &str) -> Result<Option<String>> {
-    Ok(turns
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
-        .get(run_id)
-        .cloned())
 }
 
 /// 记下一个本次连接开出来的会话号。

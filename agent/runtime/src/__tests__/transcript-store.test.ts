@@ -18,8 +18,8 @@ function fakePort(): {
           listeners.delete(listener)
         }
       },
-      prompt: () =>
-        Promise.resolve({ runId: 'run_1', sessionId: 'sess_a', cancel: () => Promise.resolve() }),
+      prompt: () => Promise.resolve({ sessionId: 'sess_a' }),
+      cancel: () => Promise.resolve(),
       resolvePermission: () => Promise.resolve(),
     },
     emit: (event, sessionId) => {

@@ -22,7 +22,6 @@ export type {
   PermissionOption,
   PermissionToolCall,
   RunEvent,
-  RunId,
   RunStatus,
   ThreadId,
 } from './run-contract'

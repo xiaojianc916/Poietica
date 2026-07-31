@@ -85,8 +85,9 @@ export interface AgentCommandBridge {
     readonly text: string
     /** The conversation the turn belongs to, where the interface named one. */
     readonly threadId?: string
-  }) => Promise<{ readonly runId: string; readonly sessionId: string }>
-  readonly cancel: (runId: string) => Promise<void>
+  }) => Promise<{ readonly sessionId: string }>
+  /** 停掉这条对话上正在跑的那一轮。原生侧按它查出对话握着哪条会话。 */
+  readonly cancel: (threadId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
 }
 
@@ -176,10 +177,10 @@ function nativeLaunch(launch: AgentLaunchDescription): {
 /**
  * The command half of the port.
  *
- * Cancellation names the run it stops. 「一条会话同时只飞一轮」曾经被当成
- * 不必点名的理由，可地址要区分的从来不是同一条会话上的两轮，而是同一条连接
- * 上的两条会话：在 A 里按停止，停掉的是此刻在飞的 B。原生侧按 runId 查出它
- * 属于哪条会话，再把取消发给那一条。
+ * Cancellation names the conversation it stops. 地址要区分的从来不是同一条
+ * 会话上的两轮，而是同一条连接上的两条会话：在 A 里按停止，不该停掉此刻在飞
+ * 的 B。这一层因此点名对话，原生侧按它查出握着哪条会话 —— 那条对应关系在打开
+ * 对话时就写下了，此前那个轮次号是为同一件事另造的第二个地址。
  *
  * Answering a permission request is checked natively: an answer naming an
  * option the agent never offered is refused rather than acted on.
@@ -196,11 +197,11 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
         }),
       )
 
-      return { runId: result.runId, sessionId: result.sessionId }
+      return { sessionId: result.sessionId }
     },
 
-    cancel: async (runId) => {
-      await call(() => commands.agentCancel({ runId }))
+    cancel: async (threadId) => {
+      await call(() => commands.agentCancel({ threadId }))
     },
 
     resolvePermission: async (requestId, optionId) => {
