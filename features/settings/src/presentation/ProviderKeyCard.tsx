@@ -68,7 +68,7 @@ export function ProviderKeyCard({
   const [waited, setWaited] = useState(false)
 
   /*
-   * 没有 mounted 守卫。
+   * 这里没有「卸载后不 setState」那道守卫。
    *
    * React 18 起「卸载后 setState」不再是错误，那条警告本身已被官方删掉
    * （facebook/react#22114）。而它真该防的那件事它也防不住：这张卡的 key 是
