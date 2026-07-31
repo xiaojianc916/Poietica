@@ -78,19 +78,23 @@ export function useAssistantSession({
   )
 
   /*
-   * 打开一条对话就是取它。
+   * 接上帧流。就这一件事。
    *
-   * 取过没有、要不要重取、晚到的结果算不算，全部由 store 判断，所以这里只是
-   * 把"这一格现在看着哪条"报过去。它不再依赖转录本身，于是取回来那一刻不会
-   * 反过来再触发一次这个效应。
+   * 这里此前还负责"打开一条对话就把它取回来"。历史现在随打开那条对话一起回来
+   * （见 ThreadsStore 与 agent_open_thread），取过没有、要不要重取、晚到的算不
+   * 算，这几个问题连同那条取数路径一起没有了。
+   *
+   * 条件因此只剩线路：接不接得上帧流，与这一格现在看着哪条对话无关。入口那一
+   * 格也接 —— 它在说第一句话之前就该听着了，此前要等它变成一条真对话，靠 send
+   * 里那次 attach 补救才没漏帧。
    */
   useEffect(() => {
-    if (session === undefined || endpoint === null) {
+    if (session === undefined) {
       return
     }
 
-    transcripts.ensure(session, endpoint)
-  }, [endpoint, session])
+    transcripts.ensure(session)
+  }, [session])
 
   const send = useCallback(
     (submission: AssistantSubmission) => {
