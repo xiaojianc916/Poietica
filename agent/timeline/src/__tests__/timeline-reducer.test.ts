@@ -3,11 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
 import { applyRunEvent, createTimelineState, replayRunEvents } from '../timeline-reducer'
 
-const runId = 'run_test'
-
 describe('timeline reducer', () => {
   it('projects a recorded run into a flat timeline', () => {
-    const state = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
+    const state = replayRunEvents(SAMPLE_RUN_EVENTS)
 
     expect(state.status).toBe('completed')
     expect(state.items.map((item) => item.type)).toEqual([
@@ -29,7 +27,7 @@ describe('timeline reducer', () => {
   })
 
   it('keeps tool output inside the protocol envelope', () => {
-    const state = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
+    const state = replayRunEvents(SAMPLE_RUN_EVENTS)
     const tool = state.items.find((item) => item.type === 'tool_call')
 
     /* A bare content block here would mean either the boundary reshaped the
@@ -40,8 +38,8 @@ describe('timeline reducer', () => {
   })
 
   it('is idempotent under duplicated events', () => {
-    const once = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
-    const twice = replayRunEvents(runId, [...SAMPLE_RUN_EVENTS, ...SAMPLE_RUN_EVENTS])
+    const once = replayRunEvents(SAMPLE_RUN_EVENTS)
+    const twice = replayRunEvents([...SAMPLE_RUN_EVENTS, ...SAMPLE_RUN_EVENTS])
 
     expect(twice.items).toEqual(once.items)
     expect(twice.status).toBe(once.status)
@@ -58,7 +56,7 @@ describe('timeline reducer', () => {
       },
     }
 
-    const state = applyRunEvent(createTimelineState(runId), orphan)
+    const state = applyRunEvent(createTimelineState(), orphan)
     const tool = state.items.at(0)
 
     expect(tool && tool.type === 'tool_call' && tool.toolCallId).toBe('call_x')
@@ -79,7 +77,7 @@ describe('timeline reducer', () => {
       },
     })
 
-    const state = replayRunEvents(runId, [plan(1, 'first'), plan(2, 'second')])
+    const state = replayRunEvents([plan(1, 'first'), plan(2, 'second')])
     const plans = state.items.filter((item) => item.type === 'plan')
 
     expect(plans).toHaveLength(1)

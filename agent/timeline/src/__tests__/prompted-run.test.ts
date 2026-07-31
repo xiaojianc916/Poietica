@@ -9,8 +9,6 @@ import { applyRunEvent, createTimelineState } from '../timeline-reducer'
  * 一个改名的字段会让这里的投影落空，而不是让屏幕上的对话悄悄变空。
  */
 
-const runId = 'run_test'
-
 describe('a run that carries its prompt', () => {
   it('opens the timeline with what the user said', () => {
     const started: RunEvent = {
@@ -21,7 +19,7 @@ describe('a run that carries its prompt', () => {
       prompt: '读取 README',
     }
 
-    const state = applyRunEvent(createTimelineState(runId), started)
+    const state = applyRunEvent(createTimelineState(), started)
     const first = state.items.at(0)
 
     expect(state.status).toBe('running')
@@ -36,6 +34,6 @@ describe('a run that carries its prompt', () => {
       sessionId: 'sess_alpha',
     }
 
-    expect(applyRunEvent(createTimelineState(runId), started).items).toEqual([])
+    expect(applyRunEvent(createTimelineState(), started).items).toEqual([])
   })
 })

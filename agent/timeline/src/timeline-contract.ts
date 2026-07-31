@@ -7,7 +7,6 @@ import type {
   AcpToolKind,
   PermissionOption,
   PermissionToolCall,
-  RunId,
   RunStatus,
 } from '@poietica/agent-protocol'
 
@@ -98,14 +97,15 @@ export type TimelineItem =
 /**
  * The conversation, as the feed reads it.
  *
- * runId names the turn in flight; runIndex counts the turns this transcript
- * has opened. The count exists because every run numbers its frames from one,
- * so a sequence number identifies a frame only within its own turn, and entry
- * identities have to be namespaced by turn to stay unique across a whole
- * conversation.
+ * 它没有轮次号，因为它不是一轮：它是一条对话，由若干段组成。段号（runIndex）
+ * 是从这段日志里数出来的，不是从外面交进来的 —— 它只用来给条目身份分命名
+ * 空间，因为每一轮的帧都从一号开始编，光看 seq 分不出这是第几轮的第三帧。
+ *
+ * 此前这里还挂着一个 runId。它由 prompt 的答复事后补进来（transcript-store
+ * 的 send），在那之前的值是字符串 'run_pending'，而从头到尾没有一个 selector
+ * 或组件读过它。
  */
 export interface TimelineState {
-  readonly runId: RunId
   readonly status: RunStatus
   readonly items: readonly TimelineItem[]
   /**

@@ -65,14 +65,14 @@ function saidIn(state: TimelineState): readonly string[] {
 
 describe('a conversation of several turns', () => {
   it('shows the question before a single frame has come back', () => {
-    const state = appendUserMessage(createTimelineState('run_pending'), '读取 README', 5)
+    const state = appendUserMessage(createTimelineState(), '读取 README', 5)
 
     expect(saidIn(state)).toEqual(['读取 README'])
     expect(state.status).toBe('running')
   })
 
   it('shows it once when the run reports the prompt back', () => {
-    const asked = appendUserMessage(createTimelineState('run_pending'), '读取 README', 5)
+    const asked = appendUserMessage(createTimelineState(), '读取 README', 5)
     const running = applyRunEvent(asked, started(1, '读取 README'))
 
     /* The live entry and the recorded one are the same question. */
@@ -80,7 +80,7 @@ describe('a conversation of several turns', () => {
   })
 
   it('keeps the question when the run never starts', () => {
-    const asked = appendUserMessage(createTimelineState('run_pending'), '读取 README', 5)
+    const asked = appendUserMessage(createTimelineState(), '读取 README', 5)
     const failed = applyRunEvent(asked, {
       kind: 'run_failed',
       seq: asked.lastSeq + 1,
@@ -92,7 +92,7 @@ describe('a conversation of several turns', () => {
   })
 
   it('keeps the first turn when a second one begins', () => {
-    const first = turn(createTimelineState('run_pending'), '第一个问题', [
+    const first = turn(createTimelineState(), '第一个问题', [
       started(1, '第一个问题'),
       spoke(2, '好'),
       finished(3),
@@ -111,7 +111,7 @@ describe('a conversation of several turns', () => {
   })
 
   it('gives each turn its own tool call, however the agent numbers them', () => {
-    const first = turn(createTimelineState('run_pending'), '第一个问题', [
+    const first = turn(createTimelineState(), '第一个问题', [
       started(1, '第一个问题'),
       called(2, '0:Read_0'),
       finished(3),

@@ -3,7 +3,6 @@ import type {
   AcpSessionUpdate,
   AcpStopReason,
   RunEvent,
-  RunId,
   RunStatus,
 } from '@poietica/agent-protocol'
 import type {
@@ -47,7 +46,6 @@ import type {
  */
 
 interface Draft {
-  readonly runId: RunId
   status: RunStatus
   readonly items: TimelineItem[]
   /** id → 下标；没人按 id 找过就还没有。 */
@@ -56,9 +54,8 @@ interface Draft {
   runIndex: number
 }
 
-export function createTimelineState(runId: RunId): TimelineState {
+export function createTimelineState(): TimelineState {
   return {
-    runId,
     status: 'idle',
     items: [],
     lastSeq: 0,
@@ -66,8 +63,8 @@ export function createTimelineState(runId: RunId): TimelineState {
   }
 }
 
-export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
-  const draft = draftOf(createTimelineState(runId))
+export function replayRunEvents(events: readonly RunEvent[]): TimelineState {
+  const draft = draftOf(createTimelineState())
 
   for (const event of events) {
     apply(draft, event)
@@ -84,8 +81,8 @@ export function replayRunEvents(runId: RunId, events: readonly RunEvent[]): Time
  * opens a new segment, which is what stops the second turn from being
  * discarded frame by frame as a duplicate of the first.
  */
-export function replayThreadEvents(runId: RunId, events: readonly RunEvent[]): TimelineState {
-  const draft = draftOf(createTimelineState(runId))
+export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
+  const draft = draftOf(createTimelineState())
 
   /*
    * 段号从末端倒着编，所以它不随读取宽度变化。
@@ -217,7 +214,6 @@ export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineSt
 
 function draftOf(state: TimelineState): Draft {
   return {
-    runId: state.runId,
     status: state.status,
     items: state.items.slice(),
     index: null,
@@ -228,7 +224,6 @@ function draftOf(state: TimelineState): Draft {
 
 function freeze(draft: Draft): TimelineState {
   return {
-    runId: draft.runId,
     status: draft.status,
     items: draft.items,
     lastSeq: draft.lastSeq,

@@ -24,7 +24,7 @@ const events: readonly RunEvent[] = recordedTurn.map(
   (captured) => captured.frame as unknown as RunEvent,
 )
 
-const state = replayRunEvents('run-permission-turn', events)
+const state = replayRunEvents(events)
 
 const requests = events.filter(
   (event): event is Extract<RunEvent, { kind: 'permission_requested' }> =>
@@ -87,9 +87,7 @@ describe('a recorded permission turn', () => {
     const askedAt = requests.at(0)?.seq ?? 0
     const upToTheQuestion = events.filter((event) => event.seq <= askedAt)
 
-    expect(replayRunEvents('run-permission-prefix', upToTheQuestion).status).toBe(
-      'awaiting_permission',
-    )
+    expect(replayRunEvents(upToTheQuestion).status).toBe('awaiting_permission')
     expect(state.status).not.toBe('awaiting_permission')
   })
 

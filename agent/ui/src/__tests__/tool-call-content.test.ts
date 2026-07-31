@@ -17,7 +17,7 @@ const events: readonly RunEvent[] = recordedToolTurn.map(
   (captured) => captured.frame as unknown as RunEvent,
 )
 
-const state = replayRunEvents('run-tool-card', events)
+const state = replayRunEvents(events)
 
 const toolItems = state.items.filter(
   (item): item is ToolCallTimelineItem => item.type === 'tool_call',

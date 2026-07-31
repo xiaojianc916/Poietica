@@ -26,7 +26,7 @@ const events: readonly RunEvent[] = recordedTurn.map(
   (captured) => captured.frame as unknown as RunEvent,
 )
 
-const state = replayRunEvents('run-tool-turn', events)
+const state = replayRunEvents(events)
 
 const toolUpdates = events.flatMap((event) => {
   if (event.kind !== 'acp_update') {

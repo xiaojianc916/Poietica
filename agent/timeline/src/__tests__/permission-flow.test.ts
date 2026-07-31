@@ -28,7 +28,7 @@ const RESOLVED: RunEvent = {
 
 describe('permission flow', () => {
   it('blocks the run on an unanswered question', () => {
-    const state = replayRunEvents('run-1', [REQUESTED])
+    const state = replayRunEvents([REQUESTED])
     const pending = selectPendingPermission(state)
 
     expect(state.status).toBe('awaiting_permission')
@@ -40,7 +40,7 @@ describe('permission flow', () => {
   })
 
   it('stops pending once the answer is recorded', () => {
-    const state = replayRunEvents('run-1', [REQUESTED, RESOLVED])
+    const state = replayRunEvents([REQUESTED, RESOLVED])
 
     expect(selectPendingPermission(state)).toBeUndefined()
     expect(state.status).toBe('running')
@@ -48,8 +48,8 @@ describe('permission flow', () => {
   })
 
   it('ignores a replayed answer', () => {
-    const once = replayRunEvents('run-1', [REQUESTED, RESOLVED])
-    const twice = replayRunEvents('run-1', [REQUESTED, RESOLVED, RESOLVED])
+    const once = replayRunEvents([REQUESTED, RESOLVED])
+    const twice = replayRunEvents([REQUESTED, RESOLVED, RESOLVED])
 
     expect(twice.items).toStrictEqual(once.items)
     expect(twice.lastSeq).toBe(once.lastSeq)

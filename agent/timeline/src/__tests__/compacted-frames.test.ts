@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
 import { replayRunEvents } from '../timeline-reducer'
 
-const runId = 'run_test'
-
 /**
  * The same run, with its two adjacent thought fragments already joined.
  *
@@ -113,8 +111,8 @@ describe('compacted frames', () => {
      holding, a conversation reopened would differ from having watched it, and
      the compaction has to go rather than the assertion. */
   it('replays to exactly what the unfolded frames replay to', () => {
-    const fromLog = replayRunEvents(runId, SAMPLE_RUN_EVENTS)
-    const fromSnapshot = replayRunEvents(runId, COMPACTED_RUN_EVENTS)
+    const fromLog = replayRunEvents(SAMPLE_RUN_EVENTS)
+    const fromSnapshot = replayRunEvents(COMPACTED_RUN_EVENTS)
 
     expect(fromSnapshot.items).toEqual(fromLog.items)
     expect(fromSnapshot.status).toBe(fromLog.status)
@@ -145,7 +143,7 @@ describe('compacted frames', () => {
       },
     ]
 
-    expect(replayRunEvents(runId, across).items.map((item) => item.type)).toEqual([
+    expect(replayRunEvents(across).items.map((item) => item.type)).toEqual([
       'agent_thought',
       'agent_text',
     ])

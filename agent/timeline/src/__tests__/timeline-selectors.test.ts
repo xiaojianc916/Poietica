@@ -6,7 +6,7 @@ import { selectFeedRows, selectIsBusy } from '../timeline-selectors'
 
 describe('timeline selectors', () => {
   it('marks no streaming tail once the run has finished', () => {
-    const state = replayRunEvents('run', SAMPLE_RUN_EVENTS)
+    const state = replayRunEvents(SAMPLE_RUN_EVENTS)
     const rows = selectFeedRows(state)
 
     expect(rows.length).toBeGreaterThan(0)
@@ -16,7 +16,7 @@ describe('timeline selectors', () => {
 
   it('marks the growing tail while the run is live', () => {
     const partial = SAMPLE_RUN_EVENTS.filter((event) => event.kind !== 'run_finished')
-    const rows = selectFeedRows(replayRunEvents('run', partial))
+    const rows = selectFeedRows(replayRunEvents(partial))
 
     expect(rows.at(-1)?.isStreamingTail).toBe(true)
   })

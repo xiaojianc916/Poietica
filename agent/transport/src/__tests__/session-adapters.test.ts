@@ -24,7 +24,7 @@ describe('replay session', () => {
     }
 
     expect(received).toEqual(SAMPLE_RUN_EVENTS)
-    expect(replayRunEvents('run', received).status).toBe('completed')
+    expect(replayRunEvents(received).status).toBe('completed')
   })
 })
 

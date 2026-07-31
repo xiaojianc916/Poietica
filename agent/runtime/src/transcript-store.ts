@@ -35,9 +35,6 @@ import {
  * 上限，只为等一个本来就已经在手里的东西。
  */
 
-/** 还没有真 run 之前，转录的占位轮次。 */
-export const RUN_PLACEHOLDER = 'run_pending'
-
 /** 留住多少条对话的转录。淘汰策略属于 store，这是它的本职。 */
 const HELD_KEYS = 8
 
@@ -80,7 +77,7 @@ export interface SendOptions {
  * 会让它认为状态每帧都在变。
  */
 const EMPTY: Transcript = {
-  timeline: createTimelineState(RUN_PLACEHOLDER),
+  timeline: createTimelineState(),
   restoring: false,
   loaded: false,
   owned: false,
@@ -253,7 +250,7 @@ export class TranscriptStore {
    * 对应的帧。endsTurn 为假：这不是某一轮失败了，这是这段历史没回来。
    */
   adopt = (threadId: string, events: readonly unknown[], history: ThreadHistory): void => {
-    const replayed = replayThreadEvents(RUN_PLACEHOLDER, events as readonly RunEvent[])
+    const replayed = replayThreadEvents(events as readonly RunEvent[])
     const lost = lossOf(history)
 
     this.#put(threadId, {
@@ -321,15 +318,6 @@ export class TranscriptStore {
            * 号可登记。它是幂等的，不是补救。
            */
           this.route(handle.sessionId, threadId)
-
-          const latest = this.read(threadId)
-
-          if (latest.timeline.runId !== handle.runId) {
-            this.#put(threadId, {
-              ...latest,
-              timeline: { ...latest.timeline, runId: handle.runId },
-            })
-          }
         })
       })
       .catch((cause: unknown) => {

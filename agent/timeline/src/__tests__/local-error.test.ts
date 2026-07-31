@@ -7,8 +7,6 @@ import {
   createTimelineState,
 } from '../timeline-reducer'
 
-const runId = 'run_test'
-
 const chunk = (seq: number, text: string): RunEvent => ({
   kind: 'acp_update',
   seq,
@@ -21,7 +19,7 @@ const chunk = (seq: number, text: string): RunEvent => ({
 
 describe('a local failure is not a frame', () => {
   it('takes no sequence number, so the real frame still lands', () => {
-    const opened = applyRunEvent(createTimelineState(runId), chunk(1, '在'))
+    const opened = applyRunEvent(createTimelineState(), chunk(1, '在'))
     const noted = appendLocalError(opened, { message: '答复没送出去。', at: 5, endsTurn: false })
 
     /* 状态里没有第二本序号账，lastSeq 就是那道窗口。此前这里还比对过一个早已
@@ -36,7 +34,7 @@ describe('a local failure is not a frame', () => {
   })
 
   it('only declares the turn failed when it ended it', () => {
-    const asked = appendUserMessage(createTimelineState(runId), '在吗', 1)
+    const asked = appendUserMessage(createTimelineState(), '在吗', 1)
     const running = applyRunEvent(asked, chunk(1, '在'))
 
     const aside = appendLocalError(running, { message: 'x', at: 5, endsTurn: false })

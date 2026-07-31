@@ -19,7 +19,7 @@ const LIVE = SAMPLE_RUN_EVENTS.filter((event) => event.kind !== 'run_finished')
 
 describe('turn identity', () => {
   it('从样例会话里读出一轮,标题与预览各就各位', () => {
-    const turns = selectTurns(selectFeedRows(replayRunEvents('run', SAMPLE_RUN_EVENTS)))
+    const turns = selectTurns(selectFeedRows(replayRunEvents(SAMPLE_RUN_EVENTS)))
 
     expect(turns).toHaveLength(1)
     expect(turns[0]?.rowIndex).toBe(0)
@@ -29,7 +29,7 @@ describe('turn identity', () => {
   })
 
   it('只有末尾那一行的角色变了时,轮次连数组带对象一起复用', () => {
-    const live = replayRunEvents('run', LIVE)
+    const live = replayRunEvents(LIVE)
 
     /*
      * 用展开构造下一帧,而不是重放第二遍。
@@ -61,7 +61,7 @@ describe('turn identity', () => {
   })
 
   it('同一个行数组反复读,给的是同一份', () => {
-    const rows = selectFeedRows(replayRunEvents('run', SAMPLE_RUN_EVENTS))
+    const rows = selectFeedRows(replayRunEvents(SAMPLE_RUN_EVENTS))
 
     expect(selectTurns(rows)).toBe(selectTurns(rows))
   })
