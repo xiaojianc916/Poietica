@@ -51,15 +51,8 @@ export interface AssistantSession {
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, optionId: string) => void
-  /** True while a conversation is still being read out of the log. */
+  /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
-  /**
-   * 人读到了这段历史的上边界。
-   *
-   * 界面报告的是位置，不是意图：上面还有没有、要不要现在去读、读多少，全部
-   * 由 store 回答。滚动每一帧都可能报一次，所以它是幂等的，调用方不必节流。
-   */
-  readonly reachStart: () => void
 }
 
 export function useAssistantSession({
@@ -85,18 +78,19 @@ export function useAssistantSession({
   )
 
   /*
-   * 打开一条对话就是读它。
+   * 打开一条对话就是取它。
    *
-   * 读到多宽、读过没有、要不要重读、晚到的结果算不算，全部由 store 判断，
-   * 所以这里只是把"这一格现在看着哪条、要多宽"报过去。
+   * 取过没有、要不要重取、晚到的结果算不算，全部由 store 判断，所以这里只是
+   * 把"这一格现在看着哪条"报过去。它不再依赖转录本身，于是取回来那一刻不会
+   * 反过来再触发一次这个效应。
    */
   useEffect(() => {
     if (session === undefined || endpoint === null) {
       return
     }
 
-    transcripts.ensure(session, endpoint, transcript.width)
-  }, [endpoint, session, transcript.width])
+    transcripts.ensure(session, endpoint)
+  }, [endpoint, session])
 
   const send = useCallback(
     (submission: AssistantSubmission) => {
@@ -123,14 +117,6 @@ export function useAssistantSession({
     [key, session],
   )
 
-  const reachStart = useCallback(() => {
-    if (session === undefined || endpoint === null) {
-      return
-    }
-
-    transcripts.reachStart(session, endpoint)
-  }, [endpoint, session])
-
   /* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
   const status = toChatStatus(transcript.timeline.status)
 
@@ -141,7 +127,6 @@ export function useAssistantSession({
     cancel,
     resolvePermission,
     isRestoring: transcript.restoring,
-    reachStart,
   }
 }
 

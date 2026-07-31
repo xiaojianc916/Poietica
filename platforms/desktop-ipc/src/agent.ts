@@ -81,14 +81,6 @@ export interface AgentBridgeOptions {
   readonly cwd?: string
 }
 
-/** 一条对话读回来的一段，以及它一共有多少轮。 */
-export interface AgentThreadWindow {
-  /** 窗口内的帧，按发生顺序。 */
-  readonly events: readonly unknown[]
-  /** 这条对话一共有多少轮；窗口外面还有没有，看它。 */
-  readonly totalRuns: number
-}
-
 export interface AgentCommandBridge {
   readonly prompt: (request: {
     readonly text: string
@@ -98,7 +90,7 @@ export interface AgentCommandBridge {
   readonly cancel: (runId: string) => Promise<void>
   readonly resolvePermission: (requestId: string, optionId: string) => Promise<void>
   readonly loadRun: (runId: string) => Promise<readonly unknown[]>
-  readonly loadThread: (threadId: string, recentRuns?: number) => Promise<AgentThreadWindow>
+  readonly loadThread: (threadId: string) => Promise<readonly unknown[]>
 }
 
 /**
@@ -224,12 +216,11 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
       return snapshot.events
     },
 
-    loadThread: async (threadId, recentRuns) => {
-      const transcript = await call(() =>
-        commands.agentLoadThread({ threadId, recentRuns: recentRuns ?? null }),
-      )
+    loadThread: async (threadId) => {
+      /* null 就是整条。轮数上限属于窗口，而窗口已经不在了。 */
+      const transcript = await call(() => commands.agentLoadThread({ threadId, recentRuns: null }))
 
-      return { events: transcript.events, totalRuns: transcript.totalRuns }
+      return transcript.events
     },
   }
 }

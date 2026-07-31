@@ -41,24 +41,15 @@ export interface AgentSessionPort {
   /** Replays a persisted run out of the encrypted event log. */
   readonly loadRun: (runId: RunId) => Promise<readonly RunEvent[]>
   /**
-   * Replays a window of a conversation out of the encrypted event log.
+   * Replays a conversation, whole.
    *
-   * A window rather than the whole thing: a conversation that has seen real
-   * use holds tens of thousands of frames, and reading all of them lands on
-   * the click that opened it. How wide is the caller's decision, and the total
-   * comes back with it so the caller can tell whether it is looking at the
-   * beginning of the conversation or only at the part it asked for.
+   * 整条而不是一段。一条会话的重播由 agent 一次给全（ACP 的 session/load 期间，
+   * 历史就是普通的 session/update 通知），所以调用方没有"要多宽"可问，也没有
+   * "上面还有没有"可判 —— 那两个问题只在本地持有一份可切片的日志时才存在。
    *
-   * Optional because a port that has no log behind it — a recorded replay,
-   * a fixture — has no conversation to read, and a surface built against
+   * Optional because a port that has no conversation behind it — a recorded
+   * replay, a fixture — has nothing to replay, and a surface built against
    * one must still render.
    */
-  readonly loadThread?: (
-    threadId: ThreadId,
-    recentRuns?: number,
-  ) => Promise<{
-    readonly events: readonly RunEvent[]
-    /** 这条对话一共有多少轮。 */
-    readonly totalRuns: number
-  }>
+  readonly loadThread?: (threadId: ThreadId) => Promise<readonly RunEvent[]>
 }

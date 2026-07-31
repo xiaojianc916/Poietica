@@ -38,10 +38,6 @@ import {
 /** 还没有真 run 之前，转录的占位轮次。 */
 export const RUN_PLACEHOLDER = 'run_pending'
 
-/** 一条对话打开时读多少轮，以及向上续读一次往前推多少。 */
-export const WINDOW_RUNS = 40
-const WINDOW_STEP = 40
-
 /** 留住多少条对话的转录。淘汰策略属于 store，这是它的本职。 */
 const HELD_KEYS = 8
 
@@ -57,15 +53,11 @@ const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
 
 export interface Transcript {
   readonly timeline: TimelineState
-  /** 还在从日志里读。 */
+  /** 还在把这条对话取回来。 */
   readonly restoring: boolean
-  /** 这条对话一共有多少轮，由原生那侧数出来。 */
-  readonly totalRuns: number
-  /** 这份转录是按多少轮读出来的。 */
-  readonly width: number
-  /** 读过了。没读过的时候 totalRuns 不可信。 */
+  /** 取回来过。 */
   readonly loaded: boolean
-  /** 这条对话是这个进程刚开出来的：日志里没有它没有的东西，不必去读。 */
+  /** 这条对话是这个进程刚开出来的：没有它这里没有的东西，不必去取。 */
   readonly owned: boolean
 }
 
@@ -89,8 +81,6 @@ export interface SendOptions {
 const EMPTY: Transcript = {
   timeline: createTimelineState(RUN_PLACEHOLDER),
   restoring: false,
-  totalRuns: 0,
-  width: WINDOW_RUNS,
   loaded: false,
   owned: false,
 }
@@ -128,8 +118,8 @@ export class TranscriptStore {
 
   #listeners = new Map<string, Set<() => void>>()
 
-  /** 正在读的宽度，按对话。一个对话同一时刻只读一次。 */
-  #reading = new Map<string, number>()
+  /** 正在取回来的那几条。一条对话同一时刻只取一次。 */
+  #reading = new Set<string>()
 
   /** 每条对话最近一轮的取消口。 */
   #cancels = new Map<string, () => Promise<void>>()
@@ -229,7 +219,17 @@ export class TranscriptStore {
 
   /* ================= 读一段历史 ================= */
 
-  ensure = (port: AgentSessionPort, key: string, width: number): void => {
+  /**
+   * 打开一条对话，就是把它整条取回来。
+   *
+   * 一次，整条。此前这里带着一个宽度：读最近 40 轮，人往上滚就再要 40 轮 ——
+   * 那套东西的前提是本地握着一份可以按轮切片的日志。会话的历史属于 agent，
+   * 它一次给全，所以这里没有"要多宽"可问，也没有"上面还有没有"可判。
+   *
+   * 三道闸门都是事实：自己刚开的那条没什么可取；取过了不再取第二遍；已经在
+   * 飞的不叠着再发一次。
+   */
+  ensure = (port: AgentSessionPort, key: string): void => {
     this.#attach(port)
 
     const loadThread = port.loadThread
@@ -240,73 +240,40 @@ export class TranscriptStore {
 
     const current = this.read(key)
 
-    /* 自己刚开出来的那条，日志里没有它没有的东西。 */
-    if (current.owned) {
+    if (current.owned || current.loaded || this.#reading.has(key)) {
       return
     }
 
-    /* 读过、而且读得够宽了，就不再读第二遍。 */
-    if (current.loaded && current.width >= width) {
-      return
-    }
+    this.#reading.add(key)
+    this.#put(key, { ...current, restoring: true })
 
-    /* 同一个宽度已经在飞。竞态守卫是 store 的一张表，不是每个界面各揣一个计数器。 */
-    if (this.#reading.get(key) === width) {
-      return
-    }
-
-    this.#reading.set(key, width)
-    this.#put(key, { ...current, restoring: !current.loaded, width })
-
-    void loadThread(key, width)
-      .then((window) => {
-        if (this.#reading.get(key) !== width) {
+    void loadThread(key)
+      .then((events) => {
+        if (!this.#reading.delete(key)) {
           return
         }
 
-        this.#reading.delete(key)
-
         this.#put(key, {
-          timeline: replayThreadEvents(RUN_PLACEHOLDER, window.events),
+          timeline: replayThreadEvents(RUN_PLACEHOLDER, events),
           restoring: false,
-          totalRuns: window.totalRuns,
-          width,
           loaded: true,
           owned: false,
         })
       })
       .catch((cause: unknown) => {
-        if (this.#reading.get(key) !== width) {
+        if (!this.#reading.delete(key)) {
           return
         }
 
-        this.#reading.delete(key)
-
         const latest = this.read(key)
 
-        /* 读完了和读失败了是同一次改变，所以只发一次通知。 */
+        /* 取回来了和取失败了是同一次改变，所以只发一次通知。 */
         this.#put(key, {
           ...latest,
           restoring: false,
           timeline: noteOn(latest.timeline, cause, false),
         })
       })
-  }
-
-  /**
-   * 人读到了这段历史的上边界：把窗口往前推一段。
-   *
-   * 三道闸门都是事实而不是标志位：没读出来过就不知道上面有没有；totalRuns 是原生
-   * 那侧数出来的；有一段还在飞的时候不叠着再要一段。所以滚动每一帧都调它是安全的。
-   */
-  reachStart = (port: AgentSessionPort, key: string): void => {
-    const current = this.read(key)
-
-    if (!current.loaded || current.totalRuns <= current.width || this.#reading.has(key)) {
-      return
-    }
-
-    this.ensure(port, key, current.width + WINDOW_STEP)
   }
 
   /* ================= 说一句话 ================= */
@@ -431,7 +398,7 @@ export class TranscriptStore {
    *
    * 此前是"插入序最早的那条"，不问有没有界面正订阅着它。8 条的上限、每帧调一次，
    * 于是一个正在看的转录会被挤掉，而代价是它下一帧重新去读日志（loaded 回到
-   * false，ensure 重放 40 轮），界面上是一次 restoring 闪回。引用优先于时序，
+   * false，ensure 重新取一次整条），界面上是一次 restoring 闪回。引用优先于时序，
    * 是浏览器与编辑器缓存的通行判据。
    *
    * 没人看的都淘汰完了还超，就让它超：内存上限不该以让屏幕上的东西重读为代价。

@@ -35,15 +35,6 @@ const ESTIMATED_FALLBACK_PX = 120
 const BOTTOM_THRESHOLD_PX = 48
 
 /**
- * 距顶端多远就去读更早的一段。
- *
- * 比一屏还早。等滚到顶再去读,人一定会撞上一段等待 —— 那就是"突兀"的全部来源。
- * 提前一屏发起,读回来时它落在视口之上,人只是继续往上滚,看不到任何边界,也没有
- * 任何东西需要他去点。
- */
-const PREFETCH_START_PX = 800
-
-/**
  * 视口之外预留的行数。
  *
  * 会话行远高于表格行,预留少了会在快速滚动时露白,多了则白白测量。
@@ -109,13 +100,6 @@ export interface AgentActivityFeedProps {
    * 不是 null。
    */
   readonly footer?: ReactNode
-  /**
-   * 人读到了内容的上边界。
-   *
-   * 滚动区只报告位置:它不知道上面还有没有东西,也不知道该去读什么 —— 那是数据
-   * 的事。它会被反复报告,所以约定由实现方保证幂等。
-   */
-  readonly onReachStart?: (() => void) | undefined
   /** 画在滚动区之上,位于一切会滚的东西之外。 */
   readonly overlay?: (port: FeedPort) => ReactNode
 }
@@ -125,7 +109,6 @@ export function AgentActivityFeed({
   renderRow,
   isBusy,
   footer,
-  onReachStart,
   overlay,
 }: AgentActivityFeedProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
@@ -195,15 +178,6 @@ export function AgentActivityFeed({
   const opened = useRef(false)
 
   /*
-   * 上边界已经报过了。
-   *
-   * 判据成立期间每一个 scroll 事件都会命中,一次向上滚动就是几十次调用。位置
-   * 只有这一层知道,所以"进入阈值区"也只能在这一层判一次 —— 把幂等寄望于调用
-   * 方,是把这一层自己制造的重复推给别人。离开之后才重新武装。
-   */
-  const reported = useRef(false)
-
-  /*
    * 本帧已经排好的那次几何读取。
    *
    * 0 表示没有。一次滚轮滚动派发几十个事件,而它们读的是同一帧的同一份布局:
@@ -227,23 +201,6 @@ export function AgentActivityFeed({
 
       setIsPinnedToEnd(distance <= BOTTOM_THRESHOLD_PX)
 
-      /*
-       * 上边界在同一次读取里回答,不另开一个观察者。
-       *
-       * 通行的写法是在流的顶部挂一个哨兵元素配一个 IntersectionObserver。那
-       * 要多一个 DOM 节点、多一条生命周期,而哨兵在虚拟化列表里本来就难摆 ——
-       * 它必须落在转录之外,否则会被虚拟器算进总高。而 scrollTop 已经在手上,
-       * 判据就是一个减法,和上面那个贴底判据是同一句话的两头。
-       */
-      if (viewport.scrollTop <= PREFETCH_START_PX) {
-        if (!reported.current) {
-          reported.current = true
-          onReachStart?.()
-        }
-      } else {
-        reported.current = false
-      }
-
       const spans = spansRef.current
       const reading = rowAtAnchor(
         spans,
@@ -261,7 +218,7 @@ export function AgentActivityFeed({
         settleReveal(top)
       }
     },
-    [onReachStart, settleReveal],
+    [settleReveal],
   )
 
   /*
@@ -373,8 +330,8 @@ export function AgentActivityFeed({
      * 真高的全部落差都会在那里结算。从顶部量起,这些落差发生在视口之外;从末端
      * 反推,它们会推着落点走 —— 那就是"跳过去之后又滑一下"。
      *
-     * 历史回填仍然安全：它只发生在人向上读的时候，而那时增长在视口之上，由
-     * 稳定的 getItemKey 认回同一条并保持它的视觉位置。
+     * 打开一条对话时整条一次到齐，所以不存在向上补一段历史这回事，也就没有
+     * 视口之上的增长需要考虑。
      */
     anchorTo: !revealing && isBusy && isPinnedToEnd ? 'end' : 'start',
     /* 人正在别处看的时候,新消息不夺取视口。 */

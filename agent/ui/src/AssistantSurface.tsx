@@ -363,7 +363,6 @@ export function AssistantSurface({
         <AgentActivityFeed
           footer={renderFooter(footer)}
           isBusy={isBusy}
-          onReachStart={assistant.reachStart}
           overlay={(port) =>
             turns.length === 0 ? null : (
               <ConversationMinimap
