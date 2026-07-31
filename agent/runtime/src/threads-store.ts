@@ -2,6 +2,7 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  ThreadHistory,
   ThreadPort,
   ThreadRecord,
 } from '@poietica/agent-protocol'
@@ -27,7 +28,7 @@ const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
  */
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
-  readonly adopt: (threadId: string, events: readonly unknown[]) => void
+  readonly adopt: (threadId: string, events: readonly unknown[], history: ThreadHistory) => void
   readonly failed: (threadId: string, cause: unknown) => void
 }
 
@@ -240,7 +241,7 @@ export class ThreadsStore {
       this.#hold(opened.thread)
 
       /* 刚建的一条没有经过。说出来，好过让它停在"还在取"上。 */
-      this.#transcripts?.adopt(threadId, opened.events)
+      this.#transcripts?.adopt(threadId, opened.events, opened.history)
 
       /*
        * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一
@@ -413,7 +414,7 @@ export class ThreadsStore {
       .then((opened) => {
         this.#hold(opened.thread)
         this.#remember(threadId, opened.selectors)
-        this.#transcripts?.adopt(threadId, opened.events)
+        this.#transcripts?.adopt(threadId, opened.events, opened.history)
       })
       .catch((reason: unknown) => {
         this.#noteSelectorFailure(threadId, reason)

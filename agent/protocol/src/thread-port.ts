@@ -27,6 +27,34 @@ export interface ThreadRecord {
   readonly pinned?: boolean
 }
 
+/**
+ * 一段经过要不回来时，是哪一种要不回来。
+ *
+ * 三种，原生侧报不出第四种：这条对话的会话在别的 agent 手里、当前 agent 根本
+ * 不装载旧会话、以及 agent 那侧已经不认得这个会话号了。
+ */
+export type ThreadHistoryLoss = 'otherAgent' | 'notSupported' | 'forgotten'
+
+/**
+ * 打开一条对话之后，它的经过处在什么状态。
+ *
+ * 判别联合，不是一个可空的字符串：坏消息带着理由和持有者，好消息什么都不带，
+ * 于是「有理由却是好消息」这种状态在类型里无法被写出来。
+ *
+ * fresh 是刚建的一条，live 是会话一直没离开过本次连接（屏幕上的东西本来就还
+ * 在），loaded 是刚从 agent 那侧装载回来。这三种的空是真的空。
+ */
+export type ThreadHistory =
+  | { readonly state: 'fresh' }
+  | { readonly state: 'live' }
+  | { readonly state: 'loaded' }
+  | {
+      readonly state: 'unavailable'
+      readonly reason: ThreadHistoryLoss
+      /** 那条会话在谁手里，报得出来的时候。 */
+      readonly owner: string | null
+    }
+
 /** A conversation that was just opened, and what its session offers. */
 export interface OpenedThread {
   readonly thread: ThreadRecord
@@ -37,10 +65,16 @@ export interface OpenedThread {
    * unknown 是故意的：帧的形状由平台那一侧定义，这里不重新定义它，也不在这
    * 一层校验 —— 与运行帧走同一条规矩。收窄只发生在转录 store 的入口一处。
    *
-   * 空的有两种：刚建的对话，以及会话一直没离开过本次连接的对话。后者屏幕上
-   * 的东西本来就还在。
+   * 空不代表什么都没发生过。空有六种由来，下面那一格说的就是哪一种。
    */
   readonly events: readonly unknown[]
+  /**
+   * 这段经过为什么是现在这个样子。
+   *
+   * events 为空时，它是唯一能说清缘由的东西。此前六种情况在这一层全部长得
+   * 一模一样——一个空数组——于是界面除了画一片空白之外无话可说。
+   */
+  readonly history: ThreadHistory
 }
 
 /**

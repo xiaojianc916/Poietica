@@ -3,6 +3,7 @@ import {
   type AgentConfigChoice,
   type AgentConfigControl,
   type AgentConfigPurpose,
+  type AgentHistory,
   type AgentThread,
   commands,
 } from './generated/ipc-bindings'
@@ -389,6 +390,13 @@ export interface AgentOpenedThreadDescription {
   readonly selectors: readonly AgentConfigControlDescription[]
   /** 这条对话的经过，由持有它的 agent 交回来。形状不在这里定义。 */
   readonly events: readonly unknown[]
+  /**
+   * 上面那一格为什么是这个样子。
+   *
+   * 原样转交，一个字都不翻译：判别联合的形状由原生侧的 AgentHistory 定义，
+   * 这一层再抄一遍就是给同一个形状起第二个名字。
+   */
+  readonly history: AgentHistory
 }
 
 export interface AgentThreadBridge {
@@ -417,6 +425,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Ag
         thread: opened.thread,
         selectors: opened.selectors.map(controlOf),
         events: opened.events,
+        history: opened.history,
       }
     },
 

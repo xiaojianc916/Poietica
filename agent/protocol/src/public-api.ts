@@ -32,4 +32,11 @@ export type {
   SessionConfigPurpose,
 } from './session-config-contract'
 export type { SessionConfigPort, SessionConfigReport } from './session-config-port'
-export type { OpenedThread, ThreadPort, ThreadRecord, ThreadTitleSource } from './thread-port'
+export type {
+  OpenedThread,
+  ThreadHistory,
+  ThreadHistoryLoss,
+  ThreadPort,
+  ThreadRecord,
+  ThreadTitleSource,
+} from './thread-port'
