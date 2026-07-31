@@ -10,9 +10,7 @@ import type { SessionConfigControl } from '@poietica/agent-protocol'
  * 空串与没有是同一件事：两者都表示"读不出供应商"，交给 ProviderIcon 去画中性
  * 标记。让调用处各自判一次空，就是把这个决定散出去。
  */
-export function modelProviderOf(
-  controls: readonly SessionConfigControl[],
-): string | undefined {
+export function modelProviderOf(controls: readonly SessionConfigControl[]): string | undefined {
   const model = controls.find((control) => control.purpose === 'model')
 
   const provider = model?.current.split('/')[0]

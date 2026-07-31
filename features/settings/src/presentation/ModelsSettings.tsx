@@ -109,6 +109,45 @@ function reasonOf(outcome: {
   return spoken ?? `退出码 ${String(outcome.status)}`
 }
 
+/*
+ * 导入一家 provider。
+ *
+ * 它是模块级函数而不是 runImport 里的一段：那个回调本来同时管着「谁来定
+ * default_model」「逐家串行」「失败逐条记名」三件事，挤在一处读不出层次 —— lint
+ * 报的复杂度只是这件事的一个读数。
+ *
+ * 这里只回答一个问题：这一家成了没有。成了是 undefined，没成是一条带着对方原话的
+ * 失败 —— 不抛异常，因为「一家没导进去」是调用方要逐条说给用户听的结果，不是意外。
+ */
+async function importOne(input: {
+  readonly agentId: string
+  readonly defaultModelId: string | undefined
+  readonly provider: AgentProviderSnapshot['providers'][number]
+  readonly registryKeyVar: string
+  readonly store: AgentConfigStore
+}): Promise<ImportFailure | undefined> {
+  const { agentId, defaultModelId, provider, registryKeyVar, store } = input
+
+  try {
+    const outcome = await store.execCli({
+      agentId,
+      args: agentProviderCatalogAddArgs({
+        providerId: provider.id,
+        ...(defaultModelId === undefined ? {} : { defaultModelId }),
+        ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
+      }),
+      secretVar: registryKeyVar,
+      secretValue: '',
+      catalogDocument: agentProviderImportDocument(provider),
+      secretFromGlobalProvider: provider.id,
+    })
+
+    return outcome.status === 0 ? undefined : { id: provider.id, reason: reasonOf(outcome) }
+  } catch (cause: unknown) {
+    return { id: provider.id, reason: describeAgentCliFailure(cause, '调用失败') }
+  }
+}
+
 export interface ModelsSettingsProps {
   readonly store: AgentConfigStore
 }
@@ -277,30 +316,22 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
     const importAll = async (): Promise<readonly ImportFailure[]> => {
       const failed: ImportFailure[] = []
 
+      /*
+       * 串行而不是并发：每一次都在改 agent 同一个 config.toml，而那个文件没有跨
+       * 进程锁。一家失败也不中断 —— 逐家记名，最后一次说清楚。
+       */
       for (const provider of usable) {
-        try {
-          const defaultModelId =
-            provider === defaultModelOwner ? agentProviderDefaultModelId(provider) : undefined
+        const failure = await importOne({
+          agentId,
+          defaultModelId:
+            provider === defaultModelOwner ? agentProviderDefaultModelId(provider) : undefined,
+          provider,
+          registryKeyVar,
+          store,
+        })
 
-          const outcome = await store.execCli({
-            agentId,
-            args: agentProviderCatalogAddArgs({
-              providerId: provider.id,
-              ...(defaultModelId === undefined ? {} : { defaultModelId }),
-              ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-            }),
-            secretVar: registryKeyVar,
-            secretValue: '',
-            catalogDocument: agentProviderImportDocument(provider),
-            secretFromGlobalProvider: provider.id,
-          })
-
-          if (outcome.status !== 0) {
-            failed.push({ id: provider.id, reason: reasonOf(outcome) })
-          }
-        } catch (cause: unknown) {
-          /* 一家失败不该让后面几家不再尝试。逐家记名，最后一次说清楚。 */
-          failed.push({ id: provider.id, reason: describeAgentCliFailure(cause, '调用失败') })
+        if (failure !== undefined) {
+          failed.push(failure)
         }
       }
 
