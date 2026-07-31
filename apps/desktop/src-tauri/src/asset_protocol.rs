@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tauri::http::{
     Request, Response, StatusCode,
-    header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, X_CONTENT_TYPE_OPTIONS},
+    header::{
+        ACCEPT_RANGES, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE,
+        X_CONTENT_TYPE_OPTIONS,
+    },
 };
 
 pub const ASSET_PROTOCOL_SCHEME: &str = "poietica-asset";
@@ -499,7 +502,7 @@ impl AssetProtocolRegistry {
 
     pub fn response<B>(&self, request: &Request<B>) -> Response<Vec<u8>> {
         match self.resolve_request(request) {
-            Ok(asset) => asset_response(&asset),
+            Ok(asset) => asset_response(&asset, requested_range(request)),
             Err(AssetProtocolError::NotFound) => empty_response(StatusCode::NOT_FOUND),
             Err(
                 AssetProtocolError::InvalidToken
@@ -636,14 +639,127 @@ fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
     Err(AssetProtocolError::UnsupportedContentType)
 }
 
-fn asset_response(asset: &RegisteredAsset) -> Response<Vec<u8>> {
-    Response::builder()
-        .status(StatusCode::OK)
+/// 请求里那个字节区间，以 `bytes=` 的两个端点原样交回；没提 Range 就是 None。
+///
+/// 只认单区间。多区间要回 multipart/byteranges，而没有任何浏览器会对
+/// <video> 或 <img> 发多区间请求 —— 支持它等于为一条不存在的路径写一个解析器。
+/// 认不出的写法退成 None，也就是整份交付：这是 RFC 9110 允许的行为
+/// （`An origin server MUST ignore a Range header field that contains a
+/// range unit it does not understand`），比回 416 更不容易把一个本来能播的
+/// 资源变成播不了。
+fn requested_range<B>(request: &Request<B>) -> Option<(Option<u64>, Option<u64>)> {
+    let value = request.headers().get(RANGE)?.to_str().ok()?;
+    let spec = value.trim().strip_prefix("bytes=")?.trim();
+
+    if spec.contains(',') {
+        return None;
+    }
+
+    let (first, last) = spec.split_once('-')?;
+
+    let start = match first.trim() {
+        "" => None,
+        text => Some(text.parse::<u64>().ok()?),
+    };
+
+    let end = match last.trim() {
+        "" => None,
+        text => Some(text.parse::<u64>().ok()?),
+    };
+
+    // `bytes=-` 两端都空，不是一个区间。
+    if start.is_none() && end.is_none() {
+        return None;
+    }
+
+    Some((start, end))
+}
+
+/// 把请求的区间落到这份资源的实际长度上，得到一个闭区间 `[start, end]`。
+///
+/// 三种写法都要认，因为浏览器三种都会发：`bytes=500-999` 取一段、
+/// `bytes=500-` 从某处到末尾（seek 之后的续播）、`bytes=-500` 取末尾若干字节
+/// （取容器尾部的索引，mp4 的 moov 在尾部时就是这样）。
+///
+/// 落不到有效区间时返回 None，由调用方回 416 并带上真实长度。
+fn resolve_range(
+    requested: (Option<u64>, Option<u64>),
+    length: u64,
+) -> Option<(u64, u64)> {
+    if length == 0 {
+        return None;
+    }
+
+    let last = length - 1;
+
+    match requested {
+        (Some(start), Some(end)) if start <= last => Some((start, end.min(last))),
+        (Some(start), None) if start <= last => Some((start, last)),
+        (None, Some(suffix)) if suffix > 0 => Some((length.saturating_sub(suffix), last)),
+        _unsatisfiable => None,
+    }
+}
+
+/// 交付这份资源，整份或其中一段。
+///
+/// 无论对方有没有提 Range，都发 Accept-Ranges：那是「可以对我发 Range」这件事
+/// 唯一的宣告方式，媒体元素据此决定进度条能不能拖。
+fn asset_response(
+    asset: &RegisteredAsset,
+    requested: Option<(Option<u64>, Option<u64>)>,
+) -> Response<Vec<u8>> {
+    let length = asset.bytes.len() as u64;
+
+    let common = Response::builder()
         .header(CONTENT_TYPE, asset.content_type.as_str())
-        .header(CONTENT_LENGTH, asset.bytes.len().to_string())
+        .header(ACCEPT_RANGES, "bytes")
         .header(X_CONTENT_TYPE_OPTIONS, "nosniff")
-        .header(CACHE_CONTROL, "private, max-age=31536000, immutable")
-        .body(asset.bytes.as_ref().clone())
+        // 身份是内容摘要，所以同一条 URL 的字节永远不会变。
+        .header(CACHE_CONTROL, "private, max-age=31536000, immutable");
+
+    let Some(requested) = requested else {
+        return common
+            .status(StatusCode::OK)
+            .header(CONTENT_LENGTH, length.to_string())
+            .body(asset.bytes.as_ref().clone())
+            .unwrap_or_else(|_| empty_response(StatusCode::INTERNAL_SERVER_ERROR));
+    };
+
+    let Some((start, end)) = resolve_range(requested, length) else {
+        /*
+         * 416 必须带上真实长度，否则对方无从修正自己的请求。RFC 9110 为这个
+         * 状态码规定的 Content-Range 形式就是 `bytes * /<length>`。
+         */
+        return Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header(CONTENT_RANGE, format!("bytes */{length}"))
+            .header(ACCEPT_RANGES, "bytes")
+            .header(CONTENT_LENGTH, "0")
+            .header(X_CONTENT_TYPE_OPTIONS, "nosniff")
+            .header(CACHE_CONTROL, "no-store")
+            .body(Vec::new())
+            .unwrap_or_else(|_| empty_response(StatusCode::RANGE_NOT_SATISFIABLE));
+    };
+
+    /*
+     * 这里是唯一一次拷贝，而且只拷对方要的那一段。此前出口处是
+     * `asset.bytes.as_ref().clone()`：一次完整的 memcpy，上限 MAX_ASSET_BYTES
+     * （32 MB），每个请求一次。
+     */
+    let slice = asset
+        .bytes
+        .get(usize::try_from(start).unwrap_or(usize::MAX)..=usize::try_from(end).unwrap_or(0))
+        .map(<[u8]>::to_vec);
+
+    let Some(slice) = slice else {
+        return empty_response(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+
+    common
+        .status(StatusCode::PARTIAL_CONTENT)
+        .header(CONTENT_RANGE, format!("bytes {start}-{end}/{length}"))
+        .header(CONTENT_LENGTH, slice.len().to_string())
+        .body(slice)
         .unwrap_or_else(|_| empty_response(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
@@ -726,6 +842,115 @@ mod tests {
             Some(&"image/png".parse().expect("header value")),
         );
         assert_eq!(response.body(), &vec![1, 2, 3, 4]);
+    }
+
+    fn range_request(uri: &str, range: &str) -> Request<()> {
+        Request::builder()
+            .uri(uri)
+            .header(RANGE, range)
+            .body(())
+            .expect("request should be valid")
+    }
+
+    /*
+     * 允许清单里有 video/mp4 与 application/pdf，而媒体元素靠 206 做 seek。
+     * 这几条用例把「可以对我发 Range」从一句注释变成一个会失败的断言。
+     */
+    #[test]
+    fn serves_the_three_range_forms_browsers_actually_send() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let bytes: Vec<u8> = (0..10_u8).collect();
+        let asset = insert(&registry, "session-1", "video/mp4", &bytes);
+        let uri = format!("poietica-asset://asset/session-1/{asset}");
+
+        for (spec, expected_body, expected_content_range) in [
+            ("bytes=2-4", vec![2, 3, 4], "bytes 2-4/10"),
+            ("bytes=7-", vec![7, 8, 9], "bytes 7-9/10"),
+            ("bytes=-3", vec![7, 8, 9], "bytes 7-9/10"),
+            // 越界的上端点收敛到最后一个字节，不是一个错误。
+            ("bytes=8-100", vec![8, 9], "bytes 8-9/10"),
+        ] {
+            let response = registry.response(&range_request(&uri, spec));
+
+            assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{spec}");
+            assert_eq!(response.body(), &expected_body, "{spec}");
+            assert_eq!(
+                response.headers().get(CONTENT_RANGE),
+                Some(&expected_content_range.parse().expect("header value")),
+                "{spec}",
+            );
+        }
+    }
+
+    #[test]
+    fn announces_range_support_even_without_a_range_header() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let asset = insert(&registry, "session-1", "video/mp4", &[1, 2, 3]);
+
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/session-1/{asset}"
+        )));
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get(ACCEPT_RANGES),
+            Some(&"bytes".parse().expect("header value")),
+        );
+    }
+
+    #[test]
+    fn an_unsatisfiable_range_reports_the_real_length() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let asset = insert(&registry, "session-1", "video/mp4", &[1, 2, 3]);
+
+        let response = registry.response(&range_request(
+            &format!("poietica-asset://asset/session-1/{asset}"),
+            "bytes=99-",
+        ));
+
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        assert_eq!(
+            response.headers().get(CONTENT_RANGE),
+            Some(&"bytes */3".parse().expect("header value")),
+        );
+    }
+
+    /*
+     * 认不出的 Range 退成整份交付，不是 416：RFC 9110 要求源服务器忽略它读不懂
+     * 的 range unit。回 416 会把一个本来能播的资源变成播不了的。
+     */
+    #[test]
+    fn an_unreadable_range_falls_back_to_the_whole_asset() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let asset = insert(&registry, "session-1", "video/mp4", &[1, 2, 3]);
+        let uri = format!("poietica-asset://asset/session-1/{asset}");
+
+        for spec in ["items=0-1", "bytes=0-1,5-6", "bytes=-", "bytes=abc-"] {
+            let response = registry.response(&range_request(&uri, spec));
+
+            assert_eq!(response.status(), StatusCode::OK, "{spec}");
+            assert_eq!(response.body(), &vec![1, 2, 3], "{spec}");
+        }
     }
 
     #[test]

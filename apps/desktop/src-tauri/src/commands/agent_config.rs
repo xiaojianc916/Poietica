@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, command};
 use tauri_plugin_store::StoreExt;
@@ -594,10 +595,29 @@ fn write_config_atomically(path: &Path, text: &str) -> Result<()> {
         .parent()
         .ok_or_else(|| Error::Internal("配置文件没有父目录".to_owned()))?;
 
-    let temporary = directory.join("config.toml.poietica-tmp");
+    // 名字里带上进程号：一份崩溃残留的临时文件不该被下一次写入静默复用。
+    let temporary = directory.join(format!("config.toml.poietica-{}", std::process::id()));
 
-    std::fs::write(&temporary, text)
+    /*
+     * 落盘之后才 rename。std::fs::write 返回只说明字节进了页缓存 —— 那之后
+     * 掉电，文件系统可以先落 rename 的元数据、再落数据块，于是重启后
+     * config.toml 是零长度或半截的，agent 判整份配置无效。这个文件装着用户
+     * 的 API 密钥和默认模型,丢了要他重配一遍。
+     *
+     * 只 sync 文件本身，不 sync 目录：这一步管的是「rename 生效时数据一定
+     * 在盘上」，那是 sync_all 的职责；目录项本身丢了只是回到改动前，不会
+     * 留下一份坏文件。
+     */
+    let mut file = std::fs::File::create(&temporary)
+        .map_err(|error| Error::AgentCli(format!("建不了临时配置：{error}")))?;
+
+    file.write_all(text.as_bytes())
         .map_err(|error| Error::AgentCli(format!("写不进临时配置：{error}")))?;
+
+    file.sync_all()
+        .map_err(|error| Error::AgentCli(format!("临时配置落盘失败：{error}")))?;
+
+    drop(file);
 
     std::fs::rename(&temporary, path)
         .map_err(|error| Error::AgentCli(format!("替换配置失败：{error}")))
