@@ -40,14 +40,6 @@ type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";
 
-/// 界面听这条来知道某条会话的选择器变了。
-///
-/// 选择器是会话的状态，它变化的时刻多半不在任何一轮里：终端里用 CLI 换了
-/// 模型、导入了一份配置、agent 自己切了推理档。所以它不搭运行帧的车 ——
-/// 帧过了轮次就不录，那是本仓库刻意的设计，保护的是日志；而这里要送的也
-/// 不是对话内容，是设置。
-pub const AGENT_SELECTORS: &str = "ai-selectors";
-
 /// 会话自己报来的选择器表走这一条。
 ///
 /// 与 [`AGENT_EVENT`] 分开，因为它们说的不是一件事：那一条是某一轮里的一帧，
@@ -578,7 +570,7 @@ pub async fn agent_load_thread(
 ///
 /// These are the categories the protocol defines. A category the agent
 /// invents beyond them arrives as other and is still shown.
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentConfigPurpose {
     /// How much freedom the agent takes during a turn.
@@ -592,7 +584,7 @@ pub enum AgentConfigPurpose {
 }
 
 /// One value a selector will accept.
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigChoice {
     /// The value sent back when this one is picked.
@@ -604,7 +596,7 @@ pub struct AgentConfigChoice {
 }
 
 /// One selector the running session offers.
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConfigControl {
     /// The identifier the agent answers to when the value is changed.
@@ -634,22 +626,6 @@ pub struct AgentSelectorReport {
     /// 报这张表的那条会话。
     pub session_id: String,
     /// 那条会话上现在的整张选择器表。
-    pub selectors: Vec<AgentConfigControl>,
-}
-
-/// agent 自己报过来的一张新表，以及它属于哪条会话。
-///
-/// 会话号是它唯一的地址 —— 帧不带别的。界面按它找到那条对话，同一条连接
-/// 上的其他对话不受影响。
-///
-/// 载荷是整张表而不是差量：agent 报的本来就是整张，重报无害，而一份差量
-/// 要求两边各存一份状态并保持一致。
-#[derive(Debug, Clone, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentSelectorsChanged {
-    /// 这张表属于哪条会话。
-    pub session_id: String,
-    /// 整张表，如 agent 所报。
     pub selectors: Vec<AgentConfigControl>,
 }
 

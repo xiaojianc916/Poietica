@@ -43,6 +43,12 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
      * 这里只是把端口交出去，不起进程。
      */
     installDesktopAgentCapabilities()
+
+    /*
+     * 听 agent 自己报选择器。订阅与退订在同一个 effect 里成对出现，所以这
+     * 个 Provider 装载几次就配平几次。
+     */
+    return store.start()
   }, [store])
 
   return <ThreadsContext.Provider value={store}>{children}</ThreadsContext.Provider>

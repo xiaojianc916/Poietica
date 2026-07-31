@@ -118,23 +118,32 @@ export class ThreadsStore {
   /* 会话号 → 对话。推送只带前者，而这一侧的一切都按后者记。 */
   #sessions = new Map<string, string>()
 
-  /* 推送那一路的退订句柄；端口没有这一路时就是 undefined。 */
-  #stop: (() => void) | undefined
-
   constructor(port?: ThreadPort, config?: SessionConfigPort) {
     this.#port = port
     this.#config = config
-
-    /* 听 agent 自己说话。它什么时候说不由这一侧决定，所以只能一直听着。 */
-    this.#stop = config?.subscribe?.((report) => {
-      this.#reported(report)
-    })
   }
 
-  /** 不再听。窗口关掉时调用；不调用也只是多留一个监听器。 */
-  dispose = (): void => {
-    this.#stop?.()
-    this.#stop = undefined
+  /**
+   * 开始听 agent 自己说话，并交回停下来的办法。
+   *
+   * 订阅此前发生在构造函数里，退订是另一个方法（dispose），而那个方法全仓
+   * 一个调用点都没有。这两件事一旦分家就修不好：谁来调 dispose？唯一合理的
+   * 地方是 Provider 的 effect 清理，可 store 是 useMemo 造的 —— React 在开发
+   * 模式下会装载、卸载、再装载一次，那一趟会把订阅退掉，而构造函数不会跑第
+   * 二遍。于是「不调」只是漏一个监听器，「调了」反而让推送在开发模式下永久
+   * 失聪，且没有任何报错。
+   *
+   * 订阅与退订成对地交给 effect，是 React 对这件事自己的答案：装载几次就订
+   * 阅几次、退订几次，不可能配不平。
+   */
+  start = (): (() => void) => {
+    const stop = this.#config?.subscribe?.((report) => {
+      this.#reported(report)
+    })
+
+    return () => {
+      stop?.()
+    }
   }
 
   subscribe = (listener: () => void): (() => void) => {
