@@ -21,8 +21,8 @@ import { describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..', '..')
-const tokensDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles', 'tokens')
-const stylesDir = join(repoRoot, 'foundations', 'design-system', 'src', 'styles')
+const tokensDir = join(repoRoot, 'packages', 'ui', 'src', 'styles', 'tokens')
+const stylesDir = join(repoRoot, 'packages', 'ui', 'src', 'styles')
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -67,7 +67,14 @@ const declarationsIn = (...segments: string[]) =>
 const light = declarationsIn(tokensDir, 'light.css')
 const dark = declarationsIn(tokensDir, 'dark.css')
 const surface = declarationsIn(stylesDir, 'surface.css')
-const metrics = declarationsIn(repoRoot, 'agent', 'ui', 'src', 'composer-metrics.css')
+const metrics = declarationsIn(
+  repoRoot,
+  'packages',
+  'agent-ui',
+  'src',
+  'styles',
+  'composer-metrics.css',
+)
 
 /* 基底取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
 const GROUND = { light: 0xf8, dark: 0x14 }

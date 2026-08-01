@@ -12,5 +12,13 @@
   "dependencies": {
     "@poietica/acp": "workspace:*",
     "@tauri-apps/api": "catalog:tauri"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

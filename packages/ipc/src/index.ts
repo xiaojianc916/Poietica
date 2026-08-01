@@ -13,7 +13,6 @@ export {
   type AgentConfigChoiceDescription,
   type AgentConfigControlDescription,
   type AgentConfigPurposeName,
-  type AgentEventSource,
   type AgentEventSourceOptions,
   type AgentSelectorReport,
   /*

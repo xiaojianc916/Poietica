@@ -1,4 +1,4 @@
-import type { AgentCommandBridge } from './acp-session'
+import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import {
   type AgentConfigChoice,
@@ -49,16 +49,6 @@ interface AgentEventEnvelope {
 export interface AgentEventSourceOptions {
   /** Reports a transport failure; listening is best-effort by design. */
   readonly onListenFailure?: (error: unknown) => void
-}
-
-export interface AgentEventSource {
-  /**
-   * Hands out the frame together with the session it belongs to.
-   *
-   * 信封不是帧契约，但信封上的会话号是这批帧唯一的地址。它在打开一条对话时
-   * 就已经在上层手里了，所以认领是一次查表，而不是一场等待。
-   */
-  readonly listen: (handler: (payload: unknown, sessionId: string) => void) => () => void
 }
 
 /** 起一个 agent 进程要说清的三件事。与原生侧的 AgentLaunch 同形。 */
