@@ -54,16 +54,17 @@ const SLOW_WRITE_MS = 8000
  * 一种都无法排除「密钥其实是对的」，说死了就是软件在撒谎。所以其余四种一律说
  * 「未验证」，并把真正的怀疑对象指出来（端点、网络、权限）。
  *
- * 每一句都以「已写入」开头：写入确实成功了，这一点不能被验证结论盖掉。
+ * 只有 rejected 那一句说的是「没写」—— 它是唯一一个在写入之前就把这次提交拦下来的
+ * 结论。其余四句都以「已写入」开头，因为它们都不构成拒绝的理由。
  */
 function describeKeyVerdict(probe: ProviderKeyProbe, vendor: string): string {
   switch (probe.verdict) {
     case 'accepted':
-      return '已写入 agent 自己的配置，密钥已验证。'
+      return '密钥已验证，并写入 agent 自己的配置。'
     case 'rejected':
-      return `已写入，但这把密钥 ${vendor} 不认（HTTP 401）。请核对后重新填写。`
+      return `${vendor} 不认这把密钥（HTTP 401），没有写入。请核对后重新填写。`
     case 'forbidden':
-      return `已写入，密钥有效，但这个账号在 ${vendor} 没有访问权限（HTTP 403）。`
+      return `密钥有效，已写入；但这个账号在 ${vendor} 没有访问权限（HTTP 403）。`
     case 'unsupported':
       return '已写入 agent 自己的配置。这家没有提供可用于校验的端点，密钥未验证。'
     default:
@@ -91,15 +92,6 @@ export function ProviderKeyCard({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [waited, setWaited] = useState(false)
-
-  /*
-   * 与 busy 分开的第二个忙碌态。
-   *
-   * 它们不是同一件事：busy 期间配置还没写成，按钮该锁；verifying 期间配置已经写好、
-   * onSaved 已经发出，用户完全可以继续做别的。合成一个变量就得在两处各判一次「这次
-   * 是哪一半」，那比两个布尔更难读。
-   */
-  const [verifying, setVerifying] = useState(false)
 
   /*
    * 上一次的回执不该压在下一次的输入上：一动密钥，那句话就作废。
@@ -145,6 +137,91 @@ export function ProviderKeyCard({
     }
   }, [busy])
 
+  /*
+   * 写入这一半。
+   *
+   * probe 是它的入参而不是它的后续：调用它的时候结论已经有了，这里只是把结论跟着
+   * 一起说出来。此前反过来 —— 先写再验 —— 那个顺序下，一把厂商当场就否掉的密钥
+   * 照样落进了 config.toml，界面只是事后补一句「不过它是错的」，下次启动它还会
+   * 拿着这把钥匙去连。验证放在写入之后，等于验了也白验。
+   */
+  const write = useCallback(
+    (keyVar: string, secret: string, probe: ProviderKeyProbe) => {
+      /*
+       * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
+       *
+       * 为什么必须写：上游 hasUsableConfiguredDefaultModel 第一行是 defaultModel 缺席
+       * 即 return false（packages/acp-adapter/src/server.ts）。顶层没有这一行，配置里
+       * 的 api_key 整条不算数，session/new 一律 authRequired。
+       *
+       * 为什么不无条件写：--default-model 是覆盖。已经配过一家、默认模型也选好了的人，
+       * 再给第二家填个密钥，默认模型会被无声换掉。读不到就当它已经有了：宁可这一次
+       * 不带，也不要盖掉人自己选好的那个。
+       */
+      void store
+        .loadDefaultModel(agentId)
+        .catch(() => '')
+        .then((existing) => {
+          const seed = existing === null ? builtinProviderDefaultModelId(provider) : undefined
+
+          let args: readonly string[]
+
+          /*
+           * 条件展开而不是传 undefined：exactOptionalPropertyTypes 下，可选属性收不了一个
+           * 显式的 undefined。
+           */
+          try {
+            args = agentProviderCatalogAddArgs({
+              providerId: provider.id,
+              ...(seed === undefined ? {} : { defaultModelId: seed }),
+              ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
+            })
+          } catch (cause: unknown) {
+            setBusy(false)
+            setMessage(describeAgentCliFailure(cause, '这组参数没法安全地交给命令行。'))
+            return
+          }
+
+          return store
+            .execCli({
+              agentId,
+              args,
+              secretVar: keyVar,
+              secretValue: secret,
+              catalogDocument: agentProviderCatalogDocument([provider]),
+            })
+            .then(
+              (outcome) => {
+                setBusy(false)
+
+                if (outcome.status !== 0) {
+                  setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
+                  return
+                }
+
+                setApiKey('')
+                onSaved()
+                setMessage(describeKeyVerdict(probe, provider.displayName))
+              },
+              (cause: unknown) => {
+                setBusy(false)
+                setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
+              },
+            )
+        })
+    },
+    [agentId, onSaved, provider, store],
+  )
+
+  /*
+   * 提交这一半：先问厂商认不认，再决定要不要写。
+   *
+   * 只有 401 拦得住写入。这不是措辞谨慎，是判据本身 —— 401 之外没有任何一种结论能
+   * 排除「密钥其实是对的」：404 说的是这家没有可校验的端点，连不上说的是网络或代理，
+   * 403 说的是权限不是身份。拿这些去拒绝一个人配置软件，是让用户替我们的无知买单。
+   *
+   * 探测这条路自己抛了，同样按连不上处理：验证机制坏掉不能连累写入。
+   */
   const submit = useCallback(() => {
     if (registryKeyVar === undefined) {
       setMessage('这个 agent 没有声明该往哪个环境变量注入密钥，无法从这里写入。')
@@ -164,101 +241,22 @@ export function ProviderKeyCard({
     const keyVar: string = registryKeyVar
 
     setBusy(true)
-    setMessage(null)
+    setMessage('正在验证密钥…')
 
-    /*
-     * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
-     *
-     * 为什么必须写：上游 hasUsableConfiguredDefaultModel 第一行是 defaultModel 缺席
-     * 即 return false（packages/acp-adapter/src/server.ts）。顶层没有这一行，配置里
-     * 的 api_key 整条不算数，session/new 一律 authRequired。
-     *
-     * 此前这条路只写 provider、从不写 default_model —— 手填密钥写出的是一份当场不能
-     * 用的配置，要等 agent-capability-store 的 ensureDefaultModel 事后再改一次
-     * config.toml 才活过来。那一刀有两个代价：保存成功到补写落盘之间发消息就是
-     * Authentication required；而且补写是我们自己原地改对方的 TOML，正是 agent_cli
-     * 模块头明令不做的那件事。写对一次，好过写错再补。
-     *
-     * 为什么不无条件写：--default-model 是覆盖。已经配过一家、默认模型也选好了的人，
-     * 再给第二家填个密钥，默认模型会被无声换掉。
-     *
-     * 读不到就当它已经有了：宁可这一次不带，也不要盖掉人自己选好的那个。
-     */
     void store
-      .loadDefaultModel(agentId)
-      .catch(() => '')
-      .then((existing) => {
-        const seed = existing === null ? builtinProviderDefaultModelId(provider) : undefined
-
-        let args: readonly string[]
-
-        /*
-         * 条件展开而不是传 undefined：exactOptionalPropertyTypes 下，可选属性收不了一个
-         * 显式的 undefined。
-         */
-        try {
-          args = agentProviderCatalogAddArgs({
-            providerId: provider.id,
-            ...(seed === undefined ? {} : { defaultModelId: seed }),
-            ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
-          })
-        } catch (cause: unknown) {
+      .verifyProviderKey({ baseUrl: provider.baseUrl, secret })
+      .catch((): ProviderKeyProbe => ({ verdict: 'unreachable', status: 0, modelIds: [] }))
+      .then((probe) => {
+        if (probe.verdict === 'rejected') {
           setBusy(false)
-          setMessage(describeAgentCliFailure(cause, '这组参数没法安全地交给命令行。'))
+          setMessage(describeKeyVerdict(probe, provider.displayName))
           return
         }
 
-        return store
-          .execCli({
-            agentId,
-            args,
-            secretVar: keyVar,
-            secretValue: secret,
-            catalogDocument: agentProviderCatalogDocument([provider]),
-          })
-          .then(
-            (outcome) => {
-              setBusy(false)
-
-              if (outcome.status !== 0) {
-                setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
-                return
-              }
-
-              setApiKey('')
-              onSaved()
-
-              /*
-               * 到这里写入已经成功了。下面这一步回答的是另一个问题：那家认不认这把钥匙。
-               *
-               * 它在 onSaved 之后，而且刻意不挡任何东西 —— 模型清单该刷新就刷新，密钥该在
-               * 配置里就在配置里。探测只改这张卡上那一行字。
-               *
-               * 之所以非做不可：在此之前，这张卡对「成功」的全部判据是 outcome.status 为 0，
-               * 而 catalog add 从头到尾没有联系过厂商。填错一个字符照样是 0。
-               */
-              setVerifying(true)
-              setMessage('已写入 agent 自己的配置，正在验证密钥…')
-
-              void store.verifyProviderKey({ baseUrl: provider.baseUrl, secret }).then(
-                (probe) => {
-                  setVerifying(false)
-                  setMessage(describeKeyVerdict(probe, provider.displayName))
-                },
-                () => {
-                  /* 探测这条路自己坏了，同样不能推断密钥有问题。 */
-                  setVerifying(false)
-                  setMessage('已写入 agent 自己的配置。没能验证这把密钥。')
-                },
-              )
-            },
-            (cause: unknown) => {
-              setBusy(false)
-              setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
-            },
-          )
+        setMessage(null)
+        write(keyVar, secret, probe)
       })
-  }, [agentId, apiKey, onSaved, provider, registryKeyVar, store])
+  }, [apiKey, provider, registryKeyVar, store, write])
 
   return (
     <div aria-busy={busy} className="models-card">
@@ -315,7 +313,7 @@ export function ProviderKeyCard({
         </span>
 
         <div className="models-row__control">
-          {busy || verifying ? <InlineSpinner /> : null}
+          {busy ? <InlineSpinner /> : null}
 
           <Button
             disabled={busy || apiKey.trim().length === 0}

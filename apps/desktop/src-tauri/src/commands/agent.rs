@@ -114,7 +114,7 @@ pub struct AgentRuntime {
     ///
     /// 这道闸把昂贵的那一段圈进临界区：排在后面的人在闸前等，等到的是前面
     /// 那位建好的连接，而不是自己再起一个进程。它自己不记任何状态，所以
-    /// agent_shutdown 之后重新起一条连接照样成立 —— 这是它比 OnceCell 合适
+    /// `agent_shutdown` 之后重新起一条连接照样成立 —— 这是它比 `OnceCell` 合适
     /// 的地方，后者一次成型，没有回头路。
     starting: tokio::sync::Mutex<()>,
     /// 本次连接开出来的会话号。
@@ -304,7 +304,7 @@ pub async fn agent_prompt(
 /// 这里让前者服从后者：一拍之内的帧攒成一批，一次上线。
 ///
 /// 不需要定时器，也就没有第二条时间线要管。「一拍之内不会再有下一帧」的处境
-/// 只有两种，两种都不是流：一轮的最后一帧必然是 run_finished 或 run_failed，
+/// 只有两种，两种都不是流：一轮的最后一帧必然是 `run_finished` 或 `run_failed`，
 /// 而权限请求之后 agent 就闭嘴等人答话。所以流以外的每一种帧都立刻发，连同
 /// 它前面攒着的那些，顺序原样 —— 攒着的批不可能卡在谁的手里。
 fn batched(app: AppHandle) -> FrameSink {

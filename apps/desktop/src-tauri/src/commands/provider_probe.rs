@@ -5,8 +5,8 @@
 //! 「那一格不是空的」。填错一个字符照样保存成功、照样点亮模型选择器，真相要等到
 //! 几分钟后发第一条消息时，从一条来自完全另一条管线（ACP 会话）的 401 里反推。
 //!
-//! 业界标杆都在保存那一刻验：Zed 的 ApiKeyConfiguration 保存时调
-//! authenticate() 并回退卡片；VS Code Copilot 与 Continue 打 /models；
+//! 业界标杆都在保存那一刻验：Zed 的 `ApiKeyConfiguration` 保存时调
+//! `authenticate()` 并回退卡片；VS Code Copilot 与 Continue 打 /models；
 //! Postman 与 Docker Desktop 有显式的 Test connection。
 //!
 //! 为什么在原生侧发，两条理由，第二条是硬的：
@@ -15,7 +15,7 @@
 //!      api.deepseek.com 会被直接拦掉。原生请求不经 webview，不受这条约束。
 //!      也就是说「在渲染层做」这个选项根本不存在。
 //!
-//! 地址白名单写死在这里，理由与 agent_cli.rs 不接受渲染层传程序路径同源：这个
+//! 地址白名单写死在这里，理由与 `agent_cli.rs` 不接受渲染层传程序路径同源：这个
 //! 应用会渲染 AI 输出，渲染层不是可信输入源，而一条「把用户密钥发到渲染层指定
 //! 地址」的命令是现成的外泄原语。名单是三个字符串，不是把 TS 那张厂商表抄一份。
 //!
@@ -77,9 +77,9 @@ pub struct ProviderProbeOutcome {
     pub model_ids: Vec<String>,
 }
 
-/// OpenAI 规格的 /models 响应里我们唯一要的那一格。
+/// `OpenAI` 规格的 /models 响应里我们唯一要的那一格。
 ///
-/// 只声明 id：规格本身只保证 id / created / owned_by，上下文长度那类字段各家是否
+/// 只声明 id：规格本身只保证 `id` / `created` / `owned_by`，上下文长度那类字段各家是否
 /// 提供是未知的，这里不去猜也不去依赖。
 #[derive(Deserialize)]
 struct ModelEntry {
@@ -93,8 +93,8 @@ struct ModelList {
 
 /// 地址必须恰好是白名单里某个主机下的 https 地址。
 ///
-/// 不引 URL 解析器：前缀必须是 https://host，其后要么到头、要么紧跟一个斜杠 ——
-/// 这就排除了 https://api.deepseek.com.evil.tld 与 userinfo 里塞主机名这两类写法。
+/// 不引 URL 解析器：前缀必须是 `https://主机名`，其后要么到头、要么紧跟一个斜杠 ——
+/// 这就排除了 `https://api.deepseek.com.evil.tld` 与 userinfo 里塞主机名这两类写法。
 fn is_allowed_base_url(base_url: &str) -> bool {
     ALLOWED_HOSTS.iter().any(|host| {
         let prefix = format!("https://{host}");
