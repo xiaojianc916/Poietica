@@ -140,10 +140,6 @@ struct ControlledHome {
 /// `agent_set_default_model` 甚至会在那里凭空造一个只有一行、它永远不会读的文件。
 /// 用户看到的是「填了两遍密钥，一发消息却说要登录」，与他刚做的任何一个动作都对
 /// 不上号。现在这个问题只有这一个答案处。
-///
-/// # Errors
-///
-/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
 fn controlled_home(
     app: &AppHandle,
     agent_id: &str,
@@ -163,10 +159,6 @@ fn controlled_home(
 ///
 /// 写入只认它。往一个我们不确定对方会不会读的文件里写，比什么都不做更糟 ——
 /// 什么都不做至少不会让屏幕说「改好了」。
-///
-/// # Errors
-///
-/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
 fn controlled_config_file(app: &AppHandle, agent_id: &str) -> Result<Option<PathBuf>> {
     let profile = profile_of(app, agent_id)?;
 
@@ -252,10 +244,6 @@ fn declared_env_of(agent: &Value) -> BTreeMap<String, String> {
 /// home 是模式 B 的地基：provider 写到哪个 config.toml、CLI 与 ACP 会话看不看得见
 /// 同一份配置，全靠它。从安装那天起它一直是这么静默降级的，因为在此之前没有任何
 /// 代码路径往 agents.json 里写过东西。
-///
-/// # Errors
-///
-/// store 无法打开、档案不存在、或受控 home 无法创建时返回错误。
 pub fn launch_env(app: &AppHandle, agent_id: &str) -> Result<Vec<(String, String)>> {
     launch_env_inner(app, agent_id, true)
 }

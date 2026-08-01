@@ -231,6 +231,26 @@ string_add = "warn"
 string_slice = "warn"
 verbose_file_reads = "warn"
 
+# 文档写作风格：不再当作缺陷。
+#
+# doc_markdown 就是「英文单词要加反引号」那一条：凡是它认为像标识符的词
+# （驼峰、带点、带下划线、全大写）出现在文档注释里没被反引号包住，就报一条。
+# 它属于上面打开的 pedantic 组，而 package.json 里 clippy 跑的是 -D warnings ——
+# 一条写作风格建议在这个仓库里等价于构建失败。它也没有 biome 那种保存即修的
+# 自动修复：TS 侧的同类规则 pnpm lint:fix 一跑就没了，这一条只能人手补反引号。
+# 它还会误判：普通英文专有名词一样中招。
+#
+# missing_errors_doc / missing_panics_doc 与本文件上面的 missing_docs = "allow"
+# 直接矛盾：完全不写文档是合法的，一旦写了 /// 就必须补一节 # Errors。两条合起来
+# 的净效果是「不写文档没事，写了反而挨罚」，方向是反的。它逼出来的产物是可以数
+# 出来的：一批逐字相同、贴在互不相干函数上的 # Errors 样板，没有告诉读者任何签名
+# 里看不到的东西。那不是文档，是为了过 lint 生成的填充物。
+#
+# 闸门本身不放松：-D warnings 保留。放松的是闸门后面放什么 —— 只放真缺陷，
+# 不放排版偏好。unwrap_used / expect_used / panic / indexing_slicing 一条没动。
+doc_markdown = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
 # 刻意关闭：收益低于噪音成本。
 #
 # as_conversions 一刀切禁止 `as`，而 pedantic 已提供更精确的

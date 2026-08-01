@@ -69,10 +69,6 @@ impl Default for PrivacySettings {
     }
 }
 
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> {
@@ -94,10 +90,6 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
     .map_err(IpcError::from)
 }
 
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsCommandResult<()> {
@@ -110,10 +102,6 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
     .map_err(IpcError::from)
 }
 
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 #[command]
 #[specta::specta]
 pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings> {

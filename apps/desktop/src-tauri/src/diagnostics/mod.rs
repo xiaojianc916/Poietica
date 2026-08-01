@@ -38,11 +38,6 @@ pub struct NativeCrashReport {
 /// A Rust panic can terminate the native process before the `WebView` is able to
 /// render anything. The panic hook therefore writes a local crash report that
 /// is consumed on the next launch.
-///
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 #[allow(
     clippy::print_stderr,
     reason = "the panic hook must still reach stderr when the logger is already down"
@@ -71,11 +66,6 @@ pub fn install(app: &AppHandle) -> Result<()> {
 ///
 /// Reports are removed after a successful read so reloading the renderer does
 /// not display the same historical crash indefinitely.
-///
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashReport>> {
     let report_path = crash_report_path(app)?;
 
@@ -197,9 +187,6 @@ mod tests {
         clippy::unwrap_used,
         clippy::panic,
         clippy::indexing_slicing,
-        clippy::missing_panics_doc,
-        clippy::missing_errors_doc,
-        clippy::too_many_lines,
         clippy::shadow_unrelated,
         reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
     )]

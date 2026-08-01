@@ -84,10 +84,6 @@ impl AgentStore {
     /// a week ago is still a week old after being looked at. Touching the
     /// column here sent whatever was opened to the top of the list, which
     /// is the opposite of what opening it was for.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the update is rejected.
     pub fn attach_session(&self, id: Uuid, session_id: &str, agent_id: &str) -> Result<()> {
         self.write(
             "UPDATE threads
@@ -139,10 +135,6 @@ impl AgentStore {
     /// conversation that has none yet is named: the statement refuses the
     /// update otherwise, so the opening line of a later turn cannot displace
     /// the name the conversation is already known by.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the update is rejected.
     pub fn name_from_message(&self, id: Uuid, title: &str) -> Result<()> {
         let timestamp = now()?;
 
@@ -167,10 +159,6 @@ impl AgentStore {
     /// Recorded as its own source because it outranks the opening message it
     /// replaces: someone has answered this question by hand, so nothing
     /// derived from the text gets to answer it again.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the update is rejected.
     pub fn name_by_user(&self, id: Uuid, title: &str) -> Result<()> {
         self.write(
             "UPDATE threads
@@ -186,10 +174,6 @@ impl AgentStore {
     ///
     /// Pinning is not activity, so the timestamp is left alone: a
     /// conversation pinned today does not become today's conversation.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the update is rejected.
     pub fn set_pinned(&self, id: Uuid, pinned: bool) -> Result<()> {
         self.write(
             "UPDATE threads SET pinned = ?2 WHERE id = ?1",

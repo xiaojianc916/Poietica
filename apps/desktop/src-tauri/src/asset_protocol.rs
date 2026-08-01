@@ -51,11 +51,6 @@ impl AssetSessionSnapshotEntry {
     ///
     /// This is the constructor to reach for unless the digest has demonstrably
     /// already been computed over these exact bytes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn verify(
         content_hash: String,
         content_type: String,
@@ -94,11 +89,6 @@ impl AssetSessionSnapshotEntry {
     ///
     /// Identity format and content type are still validated. Only the digest,
     /// the one check whose cost scales with the asset, is skipped.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn from_verified_container(
         content_hash: String,
         content_type: String,
@@ -175,10 +165,6 @@ pub enum AssetProtocolError {
 }
 
 impl AssetProtocolRegistry {
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn open_session(&self, session_token: &str) -> Result<(), AssetProtocolError> {
         validate_token(session_token)?;
 
@@ -198,10 +184,6 @@ impl AssetProtocolRegistry {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn insert(
         &self,
         session_token: &str,
@@ -304,10 +286,6 @@ impl AssetProtocolRegistry {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn remove(
         &self,
         session_token: &str,
@@ -343,10 +321,6 @@ impl AssetProtocolRegistry {
         Ok(true)
     }
 
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn remove_session(&self, session_token: &str) -> Result<bool, AssetProtocolError> {
         validate_token(session_token)?;
 
@@ -383,11 +357,6 @@ impl AssetProtocolRegistry {
     /// decoder that produced these entries, and once again on arrival. Only the
     /// registry's own budgets, which the entry knows nothing about, are
     /// enforced below.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn restore_session(
         &self,
         session_token: &str,
@@ -455,10 +424,6 @@ impl AssetProtocolRegistry {
         Ok(())
     }
 
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn snapshot_session(
         &self,
         session_token: &str,
@@ -493,10 +458,6 @@ impl AssetProtocolRegistry {
         Ok(snapshot)
     }
 
-    /// # Errors
-    ///
-    /// Returns an error when the underlying operation fails; the message handed
-    /// to the caller is the redacted IPC message, never native detail.
     pub fn contains(
         &self,
         session_token: &str,
@@ -583,10 +544,6 @@ impl AssetProtocolRegistry {
     }
 }
 
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 pub fn asset_protocol_url(
     session_token: &str,
     asset_token: &str,
@@ -805,9 +762,6 @@ mod tests {
         clippy::unwrap_used,
         clippy::panic,
         clippy::indexing_slicing,
-        clippy::missing_panics_doc,
-        clippy::missing_errors_doc,
-        clippy::too_many_lines,
         clippy::shadow_unrelated,
         reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
     )]

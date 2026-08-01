@@ -45,10 +45,6 @@ impl SessionBook {
     }
 
     /// The slot of a session, opened on first mention.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn open(&self, session_id: &str) -> Result<RunSlot> {
         let mut ledger = self.book()?;
         let opened = ledger
@@ -62,37 +58,21 @@ impl SessionBook {
     ///
     /// A frame naming a session this client never opened is not ours to
     /// record, so the caller is told plainly instead of being handed a slot.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn slot(&self, session_id: &str) -> Result<Option<RunSlot>> {
         Ok(self.book()?.get(session_id).cloned())
     }
 
     /// Forgets a session, reporting whether it was open.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn close(&self, session_id: &str) -> Result<bool> {
         Ok(self.book()?.remove(session_id).is_some())
     }
 
     /// How many sessions are open.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn open_count(&self) -> Result<usize> {
         Ok(self.book()?.len())
     }
 
     /// The identifiers of the open sessions, in no order worth relying on.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn ids(&self) -> Result<Vec<String>> {
         Ok(self.book()?.keys().cloned().collect())
     }
@@ -103,10 +83,6 @@ impl SessionBook {
     /// was handed its slot before any name existed to file it under. The
     /// book adopts that slot instead of making a second one, so there is
     /// still exactly one place a frame can be recorded.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
     pub fn adopt(&self, session_id: &str, slot: RunSlot) -> Result<()> {
         let mut ledger = self.book()?;
         let _replaced = ledger.insert(session_id.to_owned(), slot);

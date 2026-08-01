@@ -213,3 +213,5 @@ trace.txt
 refactor-report.json
 
 dist-release/
+
+release.mjs

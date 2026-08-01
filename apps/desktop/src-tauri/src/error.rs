@@ -240,9 +240,6 @@ mod tests {
         clippy::unwrap_used,
         clippy::panic,
         clippy::indexing_slicing,
-        clippy::missing_panics_doc,
-        clippy::missing_errors_doc,
-        clippy::too_many_lines,
         clippy::shadow_unrelated,
         reason = "tests operate on known-good fixtures; a broken assumption must fail the test loudly"
     )]

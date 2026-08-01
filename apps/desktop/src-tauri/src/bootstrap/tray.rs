@@ -25,11 +25,6 @@ const MENU_FORCE_QUIT: &str = "poietica-tray-force-quit";
 pub const TERMINATION_REQUESTED_EVENT: &str = "poietica://termination-requested";
 
 /// Installs the tray icon and its menu. Called once from the composition root.
-///
-/// # Errors
-///
-/// Returns an error when the underlying operation fails; the message handed
-/// to the caller is the redacted IPC message, never native detail.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, MENU_SHOW, "显示窗口", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, MENU_HIDE, "隐藏到托盘", true, None::<&str>)?;

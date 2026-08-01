@@ -190,10 +190,6 @@ impl AgentClient {
     /// sink long before that, which is what the interface consumes.
     ///
     /// 一条会话同时只走一轮，那是它的记录槽的规矩；别的会话不受影响。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the driver is no longer running.
     pub fn prompt(
         &self,
         session_id: String,
@@ -218,19 +214,11 @@ impl AgentClient {
     /// the turn's own answer reports which of the two happened.
     ///
     /// 停哪一条必须说出来。一条连接上有多条会话，而它们可以同时在飞。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the driver is no longer running.
     pub fn cancel(&self, session_id: String) -> Result<()> {
         self.send(Command::Cancel { session_id })
     }
 
     /// Ends every session and lets the agent process exit.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the driver is no longer running.
     pub fn shutdown(&self) -> Result<()> {
         self.send(Command::Shutdown)
     }
@@ -239,10 +227,6 @@ impl AgentClient {
     ///
     /// The list is whatever the agent reported. This crate never adds a
     /// model, a reasoning level or a mode of its own.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the driver is no longer running.
     pub fn selectors(
         &self,
         session_id: String,
@@ -259,10 +243,6 @@ impl AgentClient {
     /// The answer is the whole list again, because changing one selector
     /// may add or remove another: a model with no reasoning levels takes
     /// that selector away with it.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the driver is no longer running.
     pub fn select(
         &self,
         session_id: String,
