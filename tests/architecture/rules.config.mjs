@@ -80,7 +80,9 @@ const nativeAllowed = new Set(['desktop', 'desktop-runtime', 'ipc'])
 
 const directoryOf = (pkg) => {
   for (const root of sourceRoots) {
-    if (existsSync(path.join(repositoryRoot, root, pkg, 'package.json'))) return `${root}/${pkg}`
+    if (existsSync(path.join(repositoryRoot, root, pkg, 'package.json'))) {
+      return `${root}/${pkg}`
+    }
   }
   throw new Error(`architecture: 分层表里的 "${pkg}" 在磁盘上不存在`)
 }
@@ -91,7 +93,9 @@ const declaredNameOf = (directory) =>
 const placed = new Map()
 for (const [index, tier] of tiers.entries()) {
   for (const pkg of tier.packages) {
-    if (placed.has(pkg)) throw new Error(`architecture: "${pkg}" 被放进了不止一层`)
+    if (placed.has(pkg)) {
+      throw new Error(`architecture: "${pkg}" 被放进了不止一层`)
+    }
     placed.set(pkg, index)
   }
 }
@@ -102,8 +106,12 @@ for (const [index, tier] of tiers.entries()) {
  */
 for (const root of sourceRoots) {
   for (const entry of readdirSync(path.join(repositoryRoot, root), { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    if (!existsSync(path.join(repositoryRoot, root, entry.name, 'package.json'))) continue
+    if (!entry.isDirectory()) {
+      continue
+    }
+    if (!existsSync(path.join(repositoryRoot, root, entry.name, 'package.json'))) {
+      continue
+    }
     if (!placed.has(entry.name)) {
       throw new Error(
         `architecture: ${root}/${entry.name} 没有出现在分层表里。` +
@@ -135,7 +143,9 @@ const tierRules = [...placed].map(([pkg, index]) => {
   const allowed = tiers.slice(0, index + 1).flatMap((tier) => tier.packages)
   const forbidden = [`${SPECIFIER}@poietica/(?!(?:${alternation(allowed)})['"/])[\\w-]+`]
 
-  if (!nativeAllowed.has(pkg)) forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
+  if (!nativeAllowed.has(pkg)) {
+    forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
+  }
 
   return {
     id: `${pkg}-depends-downward`,
