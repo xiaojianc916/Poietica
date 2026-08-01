@@ -11,9 +11,7 @@ use rusqlite::Connection;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::connection::open_or_convert;
 use crate::error::Result;
-use crate::key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 use crate::migrations::migrate;
 
 /// Owns the database.
@@ -31,26 +29,20 @@ pub(crate) fn now() -> Result<String> {
 }
 
 impl AgentStore {
-    /// Opens the store with the key held in the operating system credential
-    /// store.
+    /// Opens the store.
+    ///
+    /// 一个入口。此前是两个：一个去钥匙串取密钥，另一个收调用者给的一把 ——
+    /// 后者存在的唯一理由，是让测试不必碰真的钥匙串。库不再加密，那个理由
+    /// 随之消失，两个入口塌回一个。
+    ///
+    /// 调用的是 `crate::connection::open` 的全名而不是 import 进来：这个类型
+    /// 自己的方法也叫 open，写全了就没有人需要在脑子里做一次消歧。
     ///
     /// # Errors
     ///
-    /// Fails when the credential store is unavailable, the key does not fit
-    /// the file, or a migration is rejected.
+    /// Fails when the file cannot be opened or a migration is rejected.
     pub fn open(path: &Path) -> Result<Self> {
-        let key = DatabaseKey::load_or_create(KEY_SERVICE, KEY_ACCOUNT)?;
-        Self::open_with_key(path, &key)
-    }
-
-    /// Opens the store with a caller supplied key, which is how the tests run
-    /// without touching a real credential store.
-    ///
-    /// # Errors
-    ///
-    /// Fails when the key does not fit the file or a migration is rejected.
-    pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
-        let mut connection = open_or_convert(path, key)?;
+        let mut connection = crate::connection::open(path)?;
         migrate(&mut connection)?;
         Ok(Self { connection })
     }

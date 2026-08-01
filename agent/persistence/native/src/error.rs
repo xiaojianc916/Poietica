@@ -1,27 +1,15 @@
 use thiserror::Error;
 
 /// Everything that can go wrong when reading or writing agent state.
+///
+/// 每一个变体对应一个真实且不同的失败源，没有一个万能兜底格。此前有七个，
+/// 其中四个（凭据库、密钥编码、密钥长度、密钥不对）只为加密而存在；库不再
+/// 加密，它们描述的处境也就不会再发生了。
 #[derive(Debug, Error)]
 pub enum StoreError {
     /// The database rejected a statement.
     #[error("database error: {0}")]
     Sqlite(#[from] rusqlite::Error),
-
-    /// The operating system credential store could not be reached.
-    #[error("credential store error: {0}")]
-    Keyring(#[from] keyring::v1::Error),
-
-    /// The credential store held something that is not hexadecimal.
-    #[error("the stored database key is not valid hexadecimal")]
-    KeyEncoding(#[from] hex::FromHexError),
-
-    /// The credential store held a key of the wrong size.
-    #[error("the stored database key has {0} bytes, expected 32")]
-    KeyLength(usize),
-
-    /// The file exists but this key does not open it.
-    #[error("the database could not be opened with the stored key")]
-    WrongKey,
 
     /// A payload could not be encoded or decoded.
     #[error("payload error: {0}")]

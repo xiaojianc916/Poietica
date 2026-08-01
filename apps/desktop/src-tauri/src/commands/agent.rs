@@ -122,12 +122,11 @@ pub struct AgentRuntime {
     /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
     /// 的会话号。库里存着的那一个因此不是主键而是缓存，寻址之前必须先问这里。
     live: Mutex<HashSet<String>>,
-    /// The one connection to the encrypted index, opened on first use.
+    /// The one connection to the index, opened on first use.
     ///
-    /// Every command used to open one of its own: a credential store
-    /// read, a `SQLCipher` attach and a full migrate, all of it again for
-    /// something as ordinary as refreshing the sidebar. The single writer
-    /// this file claims to have had never actually existed.
+    /// Every command used to open one of its own: a full migrate, all of
+    /// it again for something as ordinary as refreshing the sidebar. The
+    /// single writer this file claims to have had never actually existed.
     store: OnceLock<Arc<Mutex<AgentStore>>>,
 }
 
@@ -372,8 +371,9 @@ pub struct AgentCancelRequest {
 /// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
 /// 还没开过口的对话新开一个会话，那是纯副作用。
 ///
-/// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读是一次凭据
-/// 库查询加一次 `SQLCipher` attach，窗口会在那段时间里停止应答（见 `on_store`）。
+/// 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读可能要等
+/// 写锁，最长等满 `DEFAULT_BUSY_TIMEOUT`，窗口会在那段时间里停止应答
+/// （见 `on_store`）。
 ///
 /// Cancellation is cooperative: the agent may still finish normally, and the
 /// recorded stop reason reports which of the two happened.
@@ -810,9 +810,9 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
 
 /// The one connection, opened the first time anything needs it.
 ///
-/// Not at boot: opening it reads the operating system credential store, and
-/// a launch that never opens the assistant should not pay for that. Once,
-/// though, and not once per command.
+/// Not at boot: opening it runs the migrations, and a launch that never
+/// opens the assistant should not pay for that. Once, though, and not once
+/// per command.
 fn shared_store(state: &State<'_, AgentRuntime>) -> Result<Arc<Mutex<AgentStore>>> {
     if let Some(held) = state.store.get() {
         return Ok(Arc::clone(held));
@@ -840,9 +840,9 @@ fn borrow_store(shared: &Arc<Mutex<AgentStore>>) -> Result<MutexGuard<'_, AgentS
 
 /// Reads or writes the log without standing on the main thread.
 ///
-/// A command that is not `async` runs on the main thread, and even a read of
-/// the index is a credential store lookup and a `SQLCipher` attach before a
-/// single row comes back. Put that on the main thread and the window stops
+/// A command that is not `async` runs on the main thread, and a read of the
+/// index may wait on the write lock for as long as `DEFAULT_BUSY_TIMEOUT`
+/// before a single row comes back. Put that on the main thread and the window stops
 /// answering: the sidebar does not highlight, the click does not land, and
 /// the conversation looks broken rather than slow.
 ///

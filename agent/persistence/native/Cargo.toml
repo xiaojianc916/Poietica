@@ -6,19 +6,15 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-hex.workspace = true
-keyring.workspace = true
-rand.workspace = true
+log.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 time.workspace = true
 uuid.workspace = true
-zeroize.workspace = true
 
 [dev-dependencies]
-rusqlite.workspace = true
 tempfile.workspace = true
 
 [lints]
