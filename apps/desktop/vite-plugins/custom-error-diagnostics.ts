@@ -41,6 +41,24 @@ function getNumber(record: UnknownRecord, property: string): number | undefined 
   return typeof value === 'number' ? value : undefined
 }
 
+function getProperty(record: UnknownRecord, property: string): unknown {
+  return record[property]
+}
+
+/*
+ * 这些字段的唯一去向是 WebSocket 上的 JSON 载荷，而 JSON.stringify 本来就会
+ * 丢弃值为 undefined 的键——「键存在但值是 undefined」和「键不存在」在线上是
+ * 同一件事。所以按 exactOptionalPropertyTypes 的语义直接省略这些键，而不是把
+ * 接口放宽成 `?: string | undefined` 去迁就构造方式。
+ */
+function compact<Shape extends object>(
+  shape: Shape,
+): { [Key in keyof Shape]?: Exclude<Shape[Key], undefined> } {
+  return Object.fromEntries(Object.entries(shape).filter(([, value]) => value !== undefined)) as {
+    [Key in keyof Shape]?: Exclude<Shape[Key], undefined>
+  }
+}
+
 function serializeLocation(value: unknown): SerializableLocation | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -56,11 +74,7 @@ function serializeLocation(value: unknown): SerializableLocation | undefined {
     return undefined
   }
 
-  return {
-    file,
-    line,
-    column,
-  }
+  return compact({ file, line, column })
 }
 
 function serializeViteError(value: unknown): SerializableViteError {
@@ -70,12 +84,14 @@ function serializeViteError(value: unknown): SerializableViteError {
     return {
       name: value.name || 'Error',
       message: value.message || '未知 Vite 错误',
-      stack: value.stack,
-      plugin: getString(errorRecord, 'plugin'),
-      id: getString(errorRecord, 'id'),
-      frame: getString(errorRecord, 'frame'),
-      pluginCode: getString(errorRecord, 'pluginCode'),
-      location: serializeLocation(errorRecord.loc),
+      ...compact({
+        stack: value.stack,
+        plugin: getString(errorRecord, 'plugin'),
+        id: getString(errorRecord, 'id'),
+        frame: getString(errorRecord, 'frame'),
+        pluginCode: getString(errorRecord, 'pluginCode'),
+        location: serializeLocation(getProperty(errorRecord, 'loc')),
+      }),
     }
   }
 
@@ -89,12 +105,14 @@ function serializeViteError(value: unknown): SerializableViteError {
   return {
     name: getString(value, 'name') ?? 'ViteError',
     message: getString(value, 'message') ?? getString(value, 'msg') ?? '未知 Vite 错误',
-    stack: getString(value, 'stack'),
-    plugin: getString(value, 'plugin'),
-    id: getString(value, 'id'),
-    frame: getString(value, 'frame'),
-    pluginCode: getString(value, 'pluginCode'),
-    location: serializeLocation(value.loc),
+    ...compact({
+      stack: getString(value, 'stack'),
+      plugin: getString(value, 'plugin'),
+      id: getString(value, 'id'),
+      frame: getString(value, 'frame'),
+      pluginCode: getString(value, 'pluginCode'),
+      location: serializeLocation(getProperty(value, 'loc')),
+    }),
   }
 }
 
@@ -102,7 +120,7 @@ function isViteErrorPayload(payload: unknown): payload is UnknownRecord & {
   readonly type: 'error'
   readonly err: unknown
 } {
-  return isRecord(payload) && payload.type === 'error' && 'err' in payload
+  return isRecord(payload) && getString(payload, 'type') === 'error' && 'err' in payload
 }
 
 /**

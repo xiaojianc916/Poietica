@@ -3,6 +3,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics'
 
+/*
+ * Tauri 在构建时注入这两个变量。process.env 的类型是索引签名，而仓库开了
+ * noPropertyAccessFromIndexSignature，点号访问是被禁止的；在这里一次性解构，
+ * 好过在下面三处各写一遍方括号访问。
+ */
+const { TAURI_ENV_PLATFORM, TAURI_ENV_DEBUG } = process.env
+
 export default defineConfig({
   plugins: [
     // 必须最先注册，确保捕获后续插件及 import-analysis 错误。
@@ -25,7 +32,7 @@ export default defineConfig({
   build: {
     // Tauri v2 renamed these: TAURI_PLATFORM/TAURI_DEBUG are v1 names, and
     // reading them silently downgraded the target and killed debug sourcemaps.
-    target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    target: TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
     /*
      * 压缩器是 oxc，因为打包器已经是 rolldown。
      *
@@ -34,7 +41,7 @@ export default defineConfig({
      * 一个 esbuild 也不对——那是在 rolldown 旁边再养一条平行的转换实现，产物的
      * 语义来源就有了两个。降级仍由下面的 target 决定，oxc 照它工作。
      */
-    minify: process.env.TAURI_ENV_DEBUG ? false : 'oxc',
-    sourcemap: Boolean(process.env.TAURI_ENV_DEBUG),
+    minify: TAURI_ENV_DEBUG ? false : 'oxc',
+    sourcemap: Boolean(TAURI_ENV_DEBUG),
   },
 })
