@@ -50,24 +50,26 @@ AI 对用户作品的提案必须提供预览或显式应用操作；一旦应�
 
 ## 包结构与依赖方向
 
-```text
-apps ───────────────► agent + features + platforms
-features ───────────► agent public API + foundations
-packages/agent-ui ───────────► packages/agent-session
-packages/agent-session ──────► packages/acp + packages/agent-timeline + packages/agent-registry + agent/transport
-packages/acp ─────► foundations
-platforms ──────────► application-defined ports
-foundations ────────► no product packages
+依赖方向由 `tests/architecture/rules.config.mjs` 定义并由 `pnpm test:architecture`
+强制执行。那张表是唯一事实来源；下表是它的说明，两者不一致时以配置为准。
 
-apps/desktop/src-tauri ──► crates/agent-runtime + crates/persistence
+| 层 | 包 | 允许依赖 |
+|----|----|----------|
+| 0 foundations | `core` `observability` `serialization` `test-kit` `ui` | 仅同层 |
+| 1 protocol | `acp` | foundations |
+| 2 domain | `agent-registry` `agent-session` `agent-timeline` | protocol 及以下 |
+| 3 transport | `ipc` | domain 及以下 |
+| 4 features | `agent-ui` `settings` `workspace` | transport 及以下 |
+| 5 composition | `desktop-runtime` | features 及以下 |
+| 6 application | `apps/desktop` | 全部 |
+
+```text
+apps/desktop/src-tauri ──► crates/agent-runtime + crates/desktop-runtime + crates/persistence
 ```
 
-- `agent/*` 拥有 AI 会话、协议、时间线、工具注册、传输与本地加密持久化。
-- `agent/persistence` 只有 Rust crate（`crates/persistence`），没有 `package.json`，不在 TypeScript 包图里；它依赖 `rusqlite`、`serde`、`uuid`。
-- `packages/workspace` 拥有工作台、命令、面板、标签页与产品外壳。
-- `platforms/*` 只实现平台能力，不拥有产品规则。
-- `apps/*` 是 agent、features 与 platforms 的最终组合位置。
-- `foundations/*` 不得依赖 `apps`、`features` 或 `platforms`。
+- 只有 `ipc`、`desktop-runtime` 与 `apps/desktop` 允许直连 `@tauri-apps/*`，其余包出现原生宿主导入即为违规。
+- 每个包的目录名必须等于 `@poietica/<目录名>`，新增包必须先在分层表中定层，否则架构检查直接失败。
+- `crates/persistence` 只有 Rust crate，没有 `package.json`，不在 TypeScript 包图里。
 - 跨包访问必须使用公开 exports，禁止 deep import。
 - 禁止创建根级 `components`、`services`、`utils`、`stores`、`types` 或 `managers` 等无边界目录。
 
@@ -128,6 +130,7 @@ pnpm test
 cargo fmt --check
 pnpm clippy
 pnpm test:rust
+pnpm ipc:check
 ```
 
 涉及 AI 时，还必须验证取消、超时、异常模型输出、过期结果、用户确认，以及敏感数据与密钥保护。

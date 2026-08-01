@@ -4,7 +4,6 @@
     "includes": [
       "**",
       "!**/node_modules",
-      "!**/.refactor-backup",
       "!**/.turbo",
       "!**/dist",
       "!**/build",
@@ -19,8 +18,7 @@
       "!**/*.min.js",
       "!**/*.snap",
       "!**/*.svg",
-      "!refactor.mjs",
-      "!release.mjs"
+      "!refactor.mjs"
     ],
     "maxSize": 2097152
   },
@@ -239,12 +237,7 @@
       }
     },
     {
-      "includes": [
-        "apps/desktop/vite.config.ts",
-        "**/vitest.config.ts",
-        "**/playwright.config.ts",
-        "tooling/**/*.ts"
-      ],
+      "includes": ["apps/desktop/vite.config.ts", "**/vitest.config.ts", "**/playwright.config.ts"],
       "linter": {
         "rules": {
           "style": {
@@ -257,7 +250,7 @@
       }
     },
     {
-      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "tooling/**/*.mjs"],
+      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs"],
       "linter": {
         "rules": {
           "suspicious": {

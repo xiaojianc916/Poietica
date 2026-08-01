@@ -1,10 +1,15 @@
 [package]
-name = "poietica-platforms-desktop-runtime-native"
-version = "0.1.0"
-edition = "2021"
+name = "poietica-desktop-runtime-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

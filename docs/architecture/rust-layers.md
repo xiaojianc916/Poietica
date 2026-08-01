@@ -1,70 +1,45 @@
-# Rust Three-Layer Architecture
+# Rust Crate 分层
 
-## Layer 1: `domains/*/native/` — 能力实现
+工作区成员见根 `Cargo.toml`。三个 crate 加一个组合根，依赖单向向下。
 
-负责可测试、不绑定 Tauri 的领域原生能力。
+## crates/agent-runtime — `poietica-agent-runtime-native`
 
-| Crate | 职责 |
-|-------|------|
-| `editor/assets/native` | 内容寻址、完整性校验、存储后端 |
-| `editor/persistence/native` | 原子写入、容器解析、文件锁、崩溃恢复、变更监听 |
-| `editor/extensions/native` | 包解析、签名验证、完整性、信任存储 |
+拥有 agent 进程的驱动：会话生命周期、运行槽、权限请求、帧编解码、
+事件记录与 stderr 归集。
 
-规则：
-- 不依赖 `tauri` crate
-- 只依赖纯 Rust 库（`serde`、`blake3`、`zip`、`chrono` 等）
-- 可通过普通 `cargo test` 运行单元测试
-- 不引用 IPC DTO、Tauri Command、AppState
+- 依赖 `agent-client-protocol`、`futures`、`serde`、`serde_json`、
+  `thiserror`、`uuid`、`which`。
+- **不依赖 `tauri`**，可用普通 `cargo test` 单独测试。
 
-## Layer 2: `crates/desktop-runtime/` — 桌面平台能力
+## crates/persistence — `poietica-agent-persistence-native`
 
-负责通用桌面平台能力，与具体业务领域无关。
+拥有本地 SQLite 存储：连接管理、迁移、schema 与线程记录。
 
-| 模块 | 职责 |
-|------|------|
-| `window.rs` | 窗口管理（最小化/最大化/关闭） |
-| `opener.rs` | 外部打开文件/URI |
-| `lifecycle.rs` | 应用生命周期 |
-| `theme.rs` | 系统主题检测 |
-| `runtime_info.rs` | 平台/架构/版本信息 |
+- 依赖 `rusqlite`、`serde`、`serde_json`、`time`、`uuid`、`log`。
+- **不依赖 `tauri`**。
 
-规则：
-- 可以依赖 `tauri`（因为 Windows 操作需要 `webview` 句柄）
-- 不依赖任何 `domains/*/native` crate
-- 不被 `domains/*/native` 依赖（单向：平台→领域禁止）
+## crates/desktop-runtime — `poietica-desktop-runtime-native`
 
-## Layer 3: `apps/desktop/src-tauri/` — 组合根
+拥有与业务无关的桌面平台能力：窗口、外部打开、生命周期、系统主题、
+运行时信息。
 
-只负责：
-- 初始化 Tauri 和全部插件
-- 创建窗口（main / settings / recovery）
-- 注册 Tauri Command（薄封装）
-- 用 AppState 持有 native crate 服务
-- 把 IPC DTO 转为领域类型
-- 把错误映射为稳定 IPC Error
+- 依赖仅 `serde` 与 `thiserror`。**不依赖 `tauri`**，也不依赖另外两个 crate。
 
-规则：
-- Command 函数不得超过 10 行实质性逻辑
-- 禁止在 Command 中直接实现业务算法
-- 禁止 Command 绕过 native crate 直接调用 OS API
-- 不在 src-tauri 中定义领域实体（领域实体在 domains/*/native 中）
+## apps/desktop/src-tauri — `poietica`
 
-## 依赖方向
+唯一的组合根：初始化 Tauri 与插件、建窗、注册命令、持有 native 服务、
+在边界上把 IPC DTO 与领域类型互转、把错误映射为稳定的 IPC 错误。
 
-```
-apps/desktop/src-tauri
-  ├── domains/*/native
-  └── crates/desktop-runtime
+## 规则
 
-domains/*/native
-  └── pure Rust libraries
+- 三个 native crate 都不得依赖 `tauri`，也不得互相依赖。
+- 命令函数是薄封装，业务分支应下沉到 native crate。
+- 领域实体定义在 native crate，不在 `src-tauri`。
+- 每个 crate 都必须写 `[lints] workspace = true`，否则工作区的
+  `unsafe_code = "deny"` 与 `non_ascii_idents = "forbid"` 对它不生效。
 
-crates/desktop-runtime
-  └── tauri (limited)
-```
+## 已知偏差
 
-禁止：
-- `domains/*/native → tauri`
-- `domains/*/native → crates/desktop-runtime`
-- `crates/desktop-runtime → domains/*/native`
-- `src-tauri commands` 包含业务分支（应委托给 native crate）
+`src-tauri/src/commands/` 下的 `agent.rs`、`agent_config.rs`、
+`agent_install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
+`asset_protocol.rs` 同样过大。这些是待偿还的债，不是本文档认可的做法。

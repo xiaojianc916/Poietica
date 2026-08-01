@@ -2987,7 +2987,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-platforms-desktop-runtime-native"
+name = "poietica-desktop-runtime-native"
 version = "0.1.0"
 dependencies = [
  "serde",
