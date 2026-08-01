@@ -12,10 +12,17 @@ use std::time::Duration;
 
 use serde::Serialize;
 use specta::Type;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, command};
 use tauri_plugin_updater::UpdaterExt;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, IpcError};
+
+/// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`。
+///
+/// 后者没有、也不该有 `specta::Type`：它的变体里带着路径、系统错误串和 agent
+/// 原话，那些东西经由 `error.rs` 的 `public_message` 表脱敏之后才是契约。与
+/// `commands/provider_probe.rs` 的 `ProviderProbeCommandResult` 同一个范式。
+type UpdateCommandResult<T> = Result<T, IpcError>;
 
 /// 只罩住检查请求。
 ///
@@ -43,27 +50,33 @@ pub struct UpdateProgress {
     pub total: Option<u64>,
 }
 
-fn as_plugin_error(error: &tauri_plugin_updater::Error) -> Error {
-    Error::Plugin(error.to_string())
+/// 更新器的失败原因不外带。
+///
+/// 它的错误串里可能有更新源地址、代理、以及安装包的本机落盘路径。界面要说的那
+/// 句话不需要它们，日志里有完整的一份。这与 `error.rs` 那张脱敏表是同一条纪律。
+fn plugin_failure(error: &tauri_plugin_updater::Error) -> IpcError {
+    log::warn!("updater failed: {error}");
+
+    Error::Plugin("update failed".to_owned()).into()
 }
 
-async fn fetch(app: &AppHandle) -> Result<Option<tauri_plugin_updater::Update>> {
-    let updater = app.updater().map_err(|error| as_plugin_error(&error))?;
+async fn fetch(app: &AppHandle) -> UpdateCommandResult<Option<tauri_plugin_updater::Update>> {
+    let updater = app.updater().map_err(|error| plugin_failure(&error))?;
 
     tokio::time::timeout(CHECK_TIMEOUT, updater.check())
         .await
-        .map_err(|_elapsed| Error::Plugin("update check timed out".to_owned()))?
-        .map_err(|error| as_plugin_error(&error))
+        .map_err(|_elapsed| IpcError::from(Error::Plugin("update check timed out".to_owned())))?
+        .map_err(|error| plugin_failure(&error))
 }
 
 /// 是否存在比当前版本更新的发布。
 ///
 /// # Errors
 ///
-/// 更新源不可达、清单无法解析或签名校验失败时返回错误。
-#[tauri::command]
+/// 更新源不可达、超时、清单无法解析或签名校验失败时返回错误。
+#[command]
 #[specta::specta]
-pub async fn update_check(app: AppHandle) -> Result<Option<UpdateRelease>> {
+pub async fn update_check(app: AppHandle) -> UpdateCommandResult<Option<UpdateRelease>> {
     Ok(fetch(&app).await?.map(|update| UpdateRelease {
         version: update.version.clone(),
         notes: update.body.clone(),
@@ -81,11 +94,11 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateRelease>> {
 /// # Errors
 ///
 /// 没有可安装的版本、下载失败、签名不匹配或安装器启动失败时返回错误。
-#[tauri::command]
+#[command]
 #[specta::specta]
-pub async fn update_install(app: AppHandle) -> Result<()> {
+pub async fn update_install(app: AppHandle) -> UpdateCommandResult<()> {
     let Some(update) = fetch(&app).await? else {
-        return Err(Error::NotFound("no update is available".to_owned()));
+        return Err(Error::NotFound("no update is available".to_owned()).into());
     };
 
     let emitter = app.clone();
@@ -105,7 +118,7 @@ pub async fn update_install(app: AppHandle) -> Result<()> {
             || log::info!("update downloaded; handing over to the installer"),
         )
         .await
-        .map_err(|error| as_plugin_error(&error))?;
+        .map_err(|error| plugin_failure(&error))?;
 
     Ok(())
 }

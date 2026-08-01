@@ -262,17 +262,25 @@ function megabytes(downloaded: number, total: number): string {
 }
 
 /*
- * 原生侧的错误在 IPC 上是一个 IpcError，它的 message 已经过脱敏。任何别的东西
- * 都不该被原样贴到界面上。
+ * 原生侧的错误在 IPC 上是一个 IpcError，它的 message 已经按 error.rs 那张表脱敏。
+ * 正因为脱敏，它不适合直接贴到这里：更新失败落在 Plugin 变体上，那张表给它的话
+ * 是"插件操作失败"——对着一个更新对话框说这五个字，等于什么都没说。所以这里按
+ * code 分类，把它翻译成这个场景里说得通的一句话；具体原因在原生日志里。
  */
 function reasonOf(cause: unknown): string {
-  if (typeof cause === 'object' && cause !== null && 'message' in cause) {
-    const message = (cause as { readonly message?: unknown }).message
-
-    if (typeof message === 'string' && message.length > 0) {
-      return message
-    }
+  if (codeOf(cause) === 'not-found') {
+    return '这个版本已经不在更新源上了，请稍后再试。'
   }
 
-  return '下载或安装失败，请稍后重试。'
+  return '下载或安装失败，当前版本没有被改动。'
+}
+
+function codeOf(cause: unknown): string | undefined {
+  if (typeof cause !== 'object' || cause === null || !('code' in cause)) {
+    return undefined
+  }
+
+  const code = (cause as { readonly code?: unknown }).code
+
+  return typeof code === 'string' ? code : undefined
 }
