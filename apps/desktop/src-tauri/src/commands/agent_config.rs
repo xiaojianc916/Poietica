@@ -363,6 +363,9 @@ fn is_npm_package_name(name: &str) -> bool {
         .all(|glyph| glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-/".contains(glyph))
 }
 
+/// # Errors
+///
+/// 当 `agent_id` 对应的配置缺失、无法读取，或其中没有可解析的程序路径时返回错误。
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
     let profile = profile_of(app, agent_id)?;
 

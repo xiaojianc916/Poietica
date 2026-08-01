@@ -1,6 +1,6 @@
 //! agent 运行时的安装与更新。
 //!
-//! 这不是 agent_cli_exec 的放宽版，也永远不该并进去。那条管线的白名单说的是
+//! 这不是 `agent_cli_exec` 的放宽版，也永远不该并进去。那条管线的白名单说的是
 //! 「provider 子命令」；把一次全局安装塞进那张表，等于把一个受控入口改成通用执行
 //! 入口。这里是第二条同样封闭的管线：包名由 agents.json 的档案声明，程序只可能是
 //! pnpm 或 npm 两者之一，渲染层能说的只有「装哪个 agent」。
@@ -25,7 +25,7 @@
 //! 与企业证书全在它的配置里，绕过去就是在国内镜像下必然检测失败。结果缓存 24 小时，
 //! 落在 agents.json。打开设置页读缓存（零网络零进程），过期才问一次，安装成功后强制
 //! 失效。不轮询 —— 这是 npm update-notifier 的默认间隔与 Homebrew
-//! HOMEBREW_AUTO_UPDATE_SECS 的同一个量级。全局 bin 目录只查一次，一次会话内不变。
+//! `HOMEBREW_AUTO_UPDATE_SECS` 的同一个量级。全局 bin 目录只查一次，一次会话内不变。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -346,8 +346,7 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
 
     let state = match (installed.as_deref(), latest.as_deref()) {
         /* 文件在，只是它的 --version 读不懂。这不是「没装」。 */
-        (None, _) => AgentInstallState::Unknown,
-        (Some(_), None) => AgentInstallState::Unknown,
+        (None, _) | (Some(_), None) => AgentInstallState::Unknown,
         (Some(current), Some(newest)) => {
             match (
                 semver::Version::parse(current),

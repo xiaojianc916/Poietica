@@ -11,7 +11,7 @@ use crate::paths::SETTINGS_STORE;
 /// 检查间隔。只在启动时查一次，等于"一直开着的机器永远收不到更新"——桌面应用
 /// 连开一周是常态。VS Code 每小时、Chrome 每五小时；六小时对一个桌面客户端
 /// 足够，也不会把 GitHub 端点当成心跳接口。
-const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
+const CHECK_EVERY: Duration = Duration::from_hours(6);
 
 /// 后台检查不该在网络不通时挂住一个任务。
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);

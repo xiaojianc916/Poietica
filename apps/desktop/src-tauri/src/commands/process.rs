@@ -1,7 +1,7 @@
 //! 起子进程时的那一处平台细节。
 //!
-//! Windows 上一个 GUI 进程起控制台程序会闪一个黑窗，唯一的解法是 CREATE_NO_WINDOW。
-//! 这件事此前只写在 agent_cli.rs 里。安装那条管线同样要起子进程，照抄一遍就会有
+//! Windows 上一个 GUI 进程起控制台程序会闪一个黑窗，唯一的解法是 `CREATE_NO_WINDOW`。
+//! 这件事此前只写在 `agent_cli.rs` 里。安装那条管线同样要起子进程，照抄一遍就会有
 //! 第二个说法；同一个平台细节只该有一处。
 
 use std::process::Command;
