@@ -6,7 +6,8 @@
     "paths": {
       "@poietica/ui": ["../../packages/ui/src/index.ts"],
       "@poietica/observability": ["../../packages/observability/src/index.ts"]
-    }
+    },
+    "types": ["node", "react", "react-dom"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
 }

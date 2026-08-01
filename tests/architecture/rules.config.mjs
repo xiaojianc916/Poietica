@@ -5,7 +5,32 @@
  * Adding a rule means adding an object here; it never means adding a script.
  */
 
-export const sourceRoots = ['agent', 'apps', 'editor', 'features', 'foundations', 'platforms']
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
+/*
+ * 扫描根必须是真实存在的顶层目录。
+ *
+ * 这份配置曾经声明 agent / editor / features / foundations / platforms，
+ * 而重构后这五个目录一个都不剩，packages/ 又从未被列进来 —— 于是十四个包
+ * 一行都没被扫过，Architecture rules passed. 是空转出来的绿。
+ *
+ * run.mjs 自己有一条 no-task-scoped-guards，理由是"守卫会随迁移过期然后无声
+ * 腐烂"。它的配置正是这么烂掉的。所以这里不再只列名字，还要当场断言：
+ * 声明了不存在的根，立刻抛错，而不是安静地少扫一片。
+ */
+export const sourceRoots = ['apps', 'packages']
+
+const repositoryRoot = path.resolve(import.meta.dirname, '../..')
+
+for (const root of sourceRoots) {
+  if (!existsSync(path.join(repositoryRoot, root))) {
+    throw new Error(
+      `architecture: sourceRoots 声明了不存在的目录 "${root}"。` +
+        '目录被移动或删除后，这份配置必须同步更新，否则规则会静默失效。',
+    )
+  }
+}
 
 export const ignoredDirectories = new Set([
   '.git',
@@ -21,8 +46,6 @@ export const sourceExtensions = new Set(['.ts', '.tsx'])
 
 const isProductionSource = (file) =>
   !/\.(?:test|spec)\.[jt]sx?$/.test(file) && !file.includes('/__tests__/')
-
-const inLayer = (layer) => (file) => isProductionSource(file) && file.startsWith(`${layer}/`)
 
 const inDirectory = (directory) => (file) =>
   isProductionSource(file) && file.startsWith(`${directory}/`)
@@ -45,64 +68,6 @@ const restrictedUtilityClasses = [
   { token: 'shadow-2xl', replacement: 'shadow-[var(--ui-shadow-xl)]' },
 ]
 
-/*
- * What each layer may depend on, besides foundations and itself.
- *
- * Package names are regular — @poietica/<layer>-<name>, plus the single
- * application package @poietica/desktop — so direction can be read off the
- * specifier. The blacklists this replaces still named @poietica/workspace and
- * @poietica/settings after those packages became @poietica/features-*, and
- * never learnt the agent tier existed. A table of layers cannot rot that way:
- * a renamed package keeps its prefix, and a new layer must be added here
- * before its files are allowed to import anything at all.
- *
- * native: may reach for @tauri-apps directly. Only platform packages may.
- *
- * platforms: 适配器实现的是别人声明的端口，所以它必须看得见那些端口。
- * createDesktopSettingsStore 的返回类型就是 features-settings 的 SettingsStore，
- * 这个 import 删不掉 —— 删了函数就没有类型可标注。agents.json 读回来的不透明
- * 对象要由 agent-registry 校验成 AcpAgentProfile，同理。这两条边是依赖倒置的
- * 落点，不是抄近路。
- *
- * 真正要防的是反向那条：platforms 依赖应用入口包 @poietica/desktop。它仍然禁着。
- */
-const layers = {
-  agent: { may: [], native: false },
-  editor: { may: [], native: false },
-  features: { may: ['agent', 'editor'], native: false },
-  foundations: { may: [], native: false },
-  platforms: { may: ['agent', 'features'], native: true },
-}
-
-/*
- * 依赖方向的判据是 import 说明符，不是包名在文本里出现过。
- *
- * 此前这条规则在全文里搜包名，于是一句「agents 是不透明对象，由
- * @poietica/agent-registry 在 TS 侧校验」的注释也被记成一次跨层依赖。注释不是
- * 依赖：它不进构建产物，删掉它不会改变任何一条边。改用与 public-package-exports
- * 相同的判据，只认 from / import 后面引号里的那一段。
- *
- * 用后行断言而不是把 from 一起吃进匹配：断言零宽，match.index 仍然落在包名上，
- * 报出来的列号才继续指着出问题的那个字。
- */
-const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
-
-const layerRules = Object.entries(layers).map(([layer, { may, native }]) => {
-  const allowed = ['foundations', layer, ...may]
-  const forbidden = [`${SPECIFIER}@poietica/(?!(?:${allowed.join('|')})-)[\\w-]+`]
-
-  if (!native) {
-    forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
-  }
-
-  return {
-    id: `${layer}-depends-downward`,
-    appliesTo: inLayer(layer),
-    pattern: new RegExp(forbidden.join('|'), 'g'),
-    message: `${layer} may depend only on ${allowed.join(', ')}`,
-  }
-})
-
 export const rules = [
   {
     id: 'public-package-exports',
@@ -113,10 +78,9 @@ export const rules = [
   {
     id: 'no-cross-boundary-relative-imports',
     appliesTo: isProductionSource,
-    pattern: /from\s+['"](?:\.\.\/){2,}(?:agent|apps|editor|features|foundations|platforms)\//g,
+    pattern: /from\s+['"](?:\.\.\/){2,}(?:apps|packages)\//g,
     message: 'relative imports must not cross top-level package boundaries',
   },
-  ...layerRules,
   {
     id: 'design-system-token-authority',
     appliesTo: inDirectory('packages/ui/src/components'),
