@@ -303,6 +303,22 @@ pub async fn agent_cli_exec(
         command.args(&final_args);
         command.envs(env);
 
+        // 目录服务绑在 127.0.0.1 上，而子进程继承了我们这个进程的全部环境变量，
+        // 其中很可能有 HTTP_PROXY / HTTPS_PROXY / ALL_PROXY。
+        //
+        // 这不是杞人忧天：会走到这条导入路径的人，正是因为上面那句「默认目录是
+        // models.dev，部分网络下不可达」才需要它 —— 也就最可能挂着代理。一旦对方
+        // 的 HTTP 客户端认这几个变量，这次本机取文档就会被送进代理然后失败，而
+        // 报出来的仍然只是一句 fetch failed，看不出是被谁劫走的。
+        //
+        // no_proxy 是这件事的通用答案（curl、npm、git、Node 生态都认它）。两种
+        // 大小写都设，不同客户端读的不是同一个；只在真的起了目录服务时设，不去
+        // 影响别的调用。
+        if catalog_server.is_some() {
+            command.env("NO_PROXY", "127.0.0.1,localhost");
+            command.env("no_proxy", "127.0.0.1,localhost");
+        }
+
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;

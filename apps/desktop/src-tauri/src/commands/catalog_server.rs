@@ -132,9 +132,19 @@ fn serve_once(
             Ok((stream, _)) => {
                 // 答过一次这条地址就没有用处了，不论那一次是 200 还是 404：
                 // 凭据错了说明来的不是我们喂出去的那个 URL。
-                let _served = serve_connection(stream, document, expected);
-
-                return;
+                //
+                // 但「没能答上」不叫「答过」。此前这里不看结果就 return，于是一次
+                // 读失败就把整个服务连同端口一起收掉：对方拿到一个没有任何响应就被
+                // 关掉的连接，重试又只剩 ECONNREFUSED —— 两种都是同一句 fetch
+                // failed，而我们这边一个字都没留下。
+                //
+                // 失败继续等，上界仍然是 deadline，所以本机上的其他进程也拖不长它。
+                match serve_connection(stream, document, expected) {
+                    Ok(()) => return,
+                    Err(error) => {
+                        log::warn!("目录服务没能答上一次请求：{error}");
+                    }
+                }
             }
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
                 thread::sleep(POLL_INTERVAL);
@@ -149,6 +159,20 @@ fn serve_connection(
     document: &str,
     expected: &Expected,
 ) -> std::io::Result<()> {
+    // 监听套接字是非阻塞的，而 accept 出来的连接会继承这个属性 —— 除了 Linux
+    // （rust-lang/rust#67027：那里用的是 accept4，不继承；MSDN 对 accept 的说法
+    // 是新套接字 "has the same properties as socket s"）。
+    //
+    // 也就是说在 Windows 上，这条连接一落地就是非阻塞的：TCP 握手一完成 accept
+    // 就返回，而请求头还在路上，下面第一个 read 立刻返回 WouldBlock，? 把它当成
+    // 致命错误 —— 连接就这么被关掉了，一个字节的响应都没写。对方看到的是「连上了
+    // 然后被挂断」，在 Node 那边就是一句 fetch failed。
+    //
+    // 顺带，set_read_timeout 设的是 SO_RCVTIMEO，对非阻塞套接字根本不起作用：
+    // 那两秒时限从来没有生效过，它只是看起来在那儿。
+    //
+    // 这一条连接上我们要的语义就是「等，最多两秒」，所以先切回阻塞，时限才作数。
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(READ_TIMEOUT))?;
 
     // 先把请求头读完再回答：带着未读数据 close，Windows 会用 RST 把还没被取走
