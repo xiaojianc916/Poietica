@@ -6,7 +6,7 @@ import {
 } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentConfigStore } from '../ports/agent-config-store'
+import type { AgentConfigStore, ProviderKeyProbe } from '../ports/agent-config-store'
 import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
 import { SubField } from './models-fields'
 
@@ -47,6 +47,30 @@ import { SubField } from './models-fields'
  */
 const SLOW_WRITE_MS = 8000
 
+/*
+ * 一次探测的结论怎么说。
+ *
+ * 五种结论，只有一种说「密钥不对」。这不是措辞讲究，是判据本身：401 之外的任何
+ * 一种都无法排除「密钥其实是对的」，说死了就是软件在撒谎。所以其余四种一律说
+ * 「未验证」，并把真正的怀疑对象指出来（端点、网络、权限）。
+ *
+ * 每一句都以「已写入」开头：写入确实成功了，这一点不能被验证结论盖掉。
+ */
+function describeKeyVerdict(probe: ProviderKeyProbe, vendor: string): string {
+  switch (probe.verdict) {
+    case 'accepted':
+      return '已写入 agent 自己的配置，密钥已验证。'
+    case 'rejected':
+      return `已写入，但这把密钥 ${vendor} 不认（HTTP 401）。请核对后重新填写。`
+    case 'forbidden':
+      return `已写入，密钥有效，但这个账号在 ${vendor} 没有访问权限（HTTP 403）。`
+    case 'unsupported':
+      return '已写入 agent 自己的配置。这家没有提供可用于校验的端点，密钥未验证。'
+    default:
+      return '已写入 agent 自己的配置。没能连上厂商接口（可能是网络或代理），密钥未验证。'
+  }
+}
+
 export interface ProviderKeyCardProps {
   readonly store: AgentConfigStore
   readonly agentId: string
@@ -67,6 +91,15 @@ export function ProviderKeyCard({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [waited, setWaited] = useState(false)
+
+  /*
+   * 与 busy 分开的第二个忙碌态。
+   *
+   * 它们不是同一件事：busy 期间配置还没写成，按钮该锁；verifying 期间配置已经写好、
+   * onSaved 已经发出，用户完全可以继续做别的。合成一个变量就得在两处各判一次「这次
+   * 是哪一半」，那比两个布尔更难读。
+   */
+  const [verifying, setVerifying] = useState(false)
 
   /*
    * 上一次的回执不该压在下一次的输入上：一动密钥，那句话就作废。
@@ -193,8 +226,31 @@ export function ProviderKeyCard({
               }
 
               setApiKey('')
-              setMessage('已写入 agent 自己的配置。')
               onSaved()
+
+              /*
+               * 到这里写入已经成功了。下面这一步回答的是另一个问题：那家认不认这把钥匙。
+               *
+               * 它在 onSaved 之后，而且刻意不挡任何东西 —— 模型清单该刷新就刷新，密钥该在
+               * 配置里就在配置里。探测只改这张卡上那一行字。
+               *
+               * 之所以非做不可：在此之前，这张卡对「成功」的全部判据是 outcome.status 为 0，
+               * 而 catalog add 从头到尾没有联系过厂商。填错一个字符照样是 0。
+               */
+              setVerifying(true)
+              setMessage('已写入 agent 自己的配置，正在验证密钥…')
+
+              void store.verifyProviderKey({ baseUrl: provider.baseUrl, secret }).then(
+                (probe) => {
+                  setVerifying(false)
+                  setMessage(describeKeyVerdict(probe, provider.displayName))
+                },
+                () => {
+                  /* 探测这条路自己坏了，同样不能推断密钥有问题。 */
+                  setVerifying(false)
+                  setMessage('已写入 agent 自己的配置。没能验证这把密钥。')
+                },
+              )
             },
             (cause: unknown) => {
               setBusy(false)
@@ -259,7 +315,7 @@ export function ProviderKeyCard({
         </span>
 
         <div className="models-row__control">
-          {busy ? <InlineSpinner /> : null}
+          {busy || verifying ? <InlineSpinner /> : null}
 
           <Button
             disabled={busy || apiKey.trim().length === 0}

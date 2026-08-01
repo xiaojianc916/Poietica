@@ -57,6 +57,27 @@ export interface AgentCliOutcome {
   readonly stderr: string
 }
 
+/**
+ * 一次密钥探测的结论。
+ *
+ * 分成五种而不是成功/失败两种，是因为这五种里只有一种能说出「密钥不对」。把超时
+ * 或 404 渲染成「你的密钥错了」，会让用户去改一把本来是对的钥匙 —— 那比不验证更糟。
+ */
+export type ProviderKeyVerdict =
+  | 'accepted'
+  | 'rejected'
+  | 'forbidden'
+  | 'unsupported'
+  | 'unreachable'
+
+export interface ProviderKeyProbe {
+  readonly verdict: ProviderKeyVerdict
+  /** HTTP 状态码；没拿到响应时为 0。 */
+  readonly status: number
+  /** 那家报回的模型 id。只有 accepted 时才可能非空。 */
+  readonly modelIds: readonly string[]
+}
+
 export interface AgentConfigSnapshot {
   readonly agents: readonly AcpAgentProfile[]
   readonly defaultAgentId: string
@@ -137,6 +158,20 @@ export interface AgentConfigStore {
    * 不要在返回后立刻回读 —— 界面该用乐观更新。
    */
   readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
+  /*
+   * 拿刚收到的密钥问那家厂商认不认。
+   *
+   * 这不是保存的一部分：写入在它之前就已经完成，它的结论只决定界面上那一行说什么，
+   * 任何结论都不回滚已经落盘的配置。写入成功而验证没成，是一个完全正常的组合 ——
+   * 用户在飞机上配好密钥，下飞机照样能用。
+   *
+   * 密钥不经由这一层的任何存储：它随这一次调用去原生侧，发完即弃。地址由原生侧
+   * 按白名单校验，不在名单里就回 unsupported，不会把密钥发出去。
+   */
+  readonly verifyProviderKey: (args: {
+    readonly baseUrl: string
+    readonly secret: string
+  }) => Promise<ProviderKeyProbe>
   /*
    * 「刚才那次调用改了 agent 自己的配置。」
    *

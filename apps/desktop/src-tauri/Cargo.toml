@@ -64,6 +64,8 @@ tauri-plugin-store.workspace = true
 tauri-plugin-updater.workspace = true
 tauri-plugin-window-state.workspace = true
 
+reqwest.workspace = true
+
 specta.workspace = true
 specta-typescript.workspace = true
 tauri-specta.workspace = true

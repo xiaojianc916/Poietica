@@ -96,6 +96,8 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
 
     saveDefaultModel: (agentId, alias) => bridge.saveDefaultModel(agentId, alias),
 
+    verifyProviderKey: ({ baseUrl, secret }) => bridge.verifyProviderKey(baseUrl, secret),
+
     notifyConfigChanged() {
       for (const listener of listeners) {
         listener()

@@ -5,6 +5,7 @@ import {
   commands,
   type JsonValue,
   type AgentCliRequest as NativeAgentCliRequest,
+  type ProviderProbeOutcome,
 } from './generated/ipc-bindings'
 
 /*
@@ -55,7 +56,7 @@ function inOrder<T>(agentId: string, work: () => Promise<T>): Promise<T> {
  * Record<string, string>。读一个没配过的 provider，运行期拿到 undefined，类型却说
  * 那是 string。
  */
-export type { AgentCliResult, AgentConfigSnapshot }
+export type { AgentCliResult, AgentConfigSnapshot, ProviderProbeOutcome }
 
 /**
  * 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。
@@ -90,6 +91,11 @@ export interface AgentConfigBridge {
   readonly loadDefaultModel: (agentId: string) => Promise<string | null>
   /** 改写受控 home 里的 default_model。为什么不借 agent 的 CLI，见生成绑定里 agentSetDefaultModel。 */
   readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
+  /**
+   * 拿一把刚收到的密钥问那家厂商认不认。不写任何东西，所以不进 inOrder 的队列 ——
+   * 它既不改 config.toml，也不该被一次几秒的写入挡在后面。
+   */
+  readonly verifyProviderKey: (baseUrl: string, secret: string) => Promise<ProviderProbeOutcome>
 }
 
 export function createAgentConfigBridge(): AgentConfigBridge {
@@ -118,5 +124,8 @@ export function createAgentConfigBridge(): AgentConfigBridge {
       inOrder(agentId, async () => {
         await throughIpc(() => commands.agentSetDefaultModel(agentId, alias))
       }),
+
+    verifyProviderKey: (baseUrl, secret) =>
+      throughIpc(() => commands.providerProbeKey(baseUrl, secret)),
   }
 }

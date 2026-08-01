@@ -28,6 +28,7 @@ use crate::commands::{
         AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
         AssetUploadResult,
     },
+    provider_probe::ProviderProbeOutcome,
     settings::{AppSettings, PrivacySettings},
 };
 use crate::diagnostics::NativeCrashReport;
@@ -70,6 +71,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent_config::agent_config_save_agents,
             crate::commands::agent_config::agent_config_clear_legacy_providers,
             crate::commands::agent_cli::agent_cli_exec,
+            crate::commands::provider_probe::provider_probe_key,
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
@@ -93,4 +95,5 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentConfigSnapshot>()
         .typ::<AgentCliRequest>()
         .typ::<AgentCliResult>()
+        .typ::<ProviderProbeOutcome>()
 }
