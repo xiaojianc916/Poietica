@@ -160,41 +160,55 @@ export function UpdateCapsule({ controller, settings }: UpdateCapsuleProps) {
     return null
   }
 
-  const percent = state.phase === 'downloading' ? percentOf(state.downloaded, state.total) : null
+  /*
+   * 下载中的胶囊不是一个按钮，所以它也不该是一个 <button>。
+   *
+   * 此前这三态共用一个 <button>，靠 role 与 disabled 来回切——那既被 biome 的
+   * useAriaPropsSupportedByRole 拦下，本身也是错的：ARIA 规定 button 的子元素是
+   * presentational 的，进度信息塞在按钮内部根本不会被读屏暴露。按状态分成两种
+   * 元素之后，语义各归各位，disabled 那道补丁也不需要了。
+   *
+   * 两者共用同一串 class，视觉上仍然是原地变化的同一枚胶囊。
+   */
+  if (state.phase === 'downloading') {
+    const percent = percentOf(state.downloaded, state.total)
 
-  return (
-    <>
-      <button
+    return (
+      <div
         aria-label={labelOf(state)}
+        aria-valuemax={100}
+        aria-valuemin={0}
         aria-valuenow={percent ?? undefined}
         className={CAPSULE_CLASS}
-        disabled={state.phase === 'downloading'}
-        onClick={() => {
-          if (state.phase === 'available') {
-            startDownload()
-          }
-
-          if (state.phase === 'ready') {
-            setConfirming(true)
-          }
-        }}
-        role={state.phase === 'downloading' ? 'progressbar' : undefined}
-        type="button"
+        role="progressbar"
       >
         {/*
           进度就是胶囊自己被填满的过程，不额外占一行也不改变布局宽度。
           总长未知时（服务端没给 Content-Length）保持在 0：一根乱跳的假进度条
           比没有进度条更糟，那时靠文字说"下载中"。
         */}
-        <span
-          aria-hidden="true"
-          className="absolute inset-y-0 left-0 bg-foreground/10 transition-[width] duration-200 ease-out"
-          style={{ width: widthOf(percent) }}
-        />
+        <span aria-hidden="true" className={FILL_CLASS} style={{ width: widthOf(percent) }} />
 
-        {state.phase === 'downloading' ? null : (
-          <RefreshAlt aria-hidden="true" className="relative size-3.5" />
-        )}
+        <span className="relative">{labelOf(state)}</span>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <button
+        className={CLICKABLE_CLASS}
+        onClick={() => {
+          if (state.phase === 'available') {
+            startDownload()
+            return
+          }
+
+          setConfirming(true)
+        }}
+        type="button"
+      >
+        <RefreshAlt aria-hidden="true" className="relative size-3.5" />
 
         <span className="relative">{labelOf(state)}</span>
       </button>
@@ -218,8 +232,13 @@ const CAPSULE_CLASS = [
   'relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden',
   'rounded-full border border-divider px-2.5',
   'font-medium text-foreground text-xs',
-  'transition-colors hover:bg-sidebar-accent',
-  'disabled:cursor-default',
+].join(' ')
+
+const CLICKABLE_CLASS = [CAPSULE_CLASS, 'transition-colors hover:bg-sidebar-accent'].join(' ')
+
+const FILL_CLASS = [
+  'absolute inset-y-0 left-0 bg-foreground/10',
+  'transition-[width] duration-200 ease-out',
 ].join(' ')
 
 function labelOf(state: Exclude<CapsuleState, { phase: 'hidden' }>): string {

@@ -52,8 +52,13 @@ export function createAppUpdateController(): AppUpdateController {
       }
     },
 
-    relaunch() {
-      return commands.updateRelaunch()
+    async relaunch() {
+      /*
+       * 命令的成功值在 Rust 那边是 ()，导出到 TypeScript 就是 null。这个 null
+       * 不是契约的一部分，只是"没有返回值"的一种编码，所以在边界上吞掉，不让
+       * 它渗进 AppUpdateController。
+       */
+      await commands.updateRelaunch()
     },
   }
 }
