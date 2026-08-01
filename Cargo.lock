@@ -2924,7 +2924,7 @@ dependencies = [
 
 [[package]]
 name = "poietica"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "hex",
  "log",
@@ -2973,7 +2973,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-runtime-native"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "agent-client-protocol",
  "futures",
