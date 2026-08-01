@@ -1,4 +1,4 @@
-import { IpcInvocationError, isIpcError } from '@poietica/platforms-desktop-ipc'
+import { throughIpc } from '@poietica/platforms-desktop-ipc'
 import {
   commands,
   type NativeCrashReport as GeneratedNativeCrashReport,
@@ -18,14 +18,6 @@ export type NativeCrashReport = GeneratedNativeCrashReport
  * The Native command removes a valid report after reading it, so a
  * renderer reload cannot repeatedly present the same historical crash.
  */
-export async function takePreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
-  try {
-    return await commands.diagnosticsTakePreviousCrash()
-  } catch (error: unknown) {
-    if (isIpcError(error)) {
-      throw new IpcInvocationError(error)
-    }
-
-    throw error
-  }
+export function takePreviousNativeCrashReport(): Promise<NativeCrashReport | null> {
+  return throughIpc(() => commands.diagnosticsTakePreviousCrash())
 }

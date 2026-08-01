@@ -80,6 +80,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::updates::update_download,
             crate::commands::updates::update_relaunch,
         ])
+        .events(tauri_specta::collect_events![UpdateProgress])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()
@@ -106,5 +107,4 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentCliResult>()
         .typ::<ProviderProbeOutcome>()
         .typ::<UpdateRelease>()
-        .typ::<UpdateProgress>()
 }

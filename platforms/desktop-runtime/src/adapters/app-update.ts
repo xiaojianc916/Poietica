@@ -1,17 +1,14 @@
-import { commands } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
+import {
+  commands,
+  events,
+  type UpdateProgress,
+  type UpdateRelease,
+} from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
 
 export type {
   UpdateProgress,
   UpdateRelease,
 } from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
-
-import type {
-  UpdateProgress,
-  UpdateRelease,
-} from '@poietica/platforms-desktop-ipc/generated/ipc-bindings'
-
-/* 与原生侧 commands/updates.rs 的 UPDATE_PROGRESS_EVENT 同名同值。 */
-const UPDATE_PROGRESS_EVENT = 'poietica://update-progress'
 
 export interface AppUpdateController {
   /** 有没有比当前版本更新的发布。没有则为 null。 */
@@ -29,8 +26,10 @@ export interface AppUpdateController {
  * passive 模式下会在下载完成的瞬间拉起安装器并杀掉当前进程，于是"下完了，等你
  * 点重启"这个状态根本不存在——用户会在进度条跑满的同一刻被强制关掉。
  *
- * 事件监听按 native-window.ts 的既有做法动态引入 @tauri-apps/api/event：这个包
- * 在 web 构建里不该被静态求值。
+ * 进度走生成的事件面。此前这里手抄了一份 'poietica://update-progress'，和
+ * commands/updates.rs 里的常量各写一遍、靠人眼保持一致；payload 则由
+ * listen<UpdateProgress>() 人肉断言，抄错不会有任何编译期反馈。现在事件名与
+ * payload 类型都从 Rust 一次生成，改名即编译失败。
  */
 export function createAppUpdateController(): AppUpdateController {
   return {
@@ -39,9 +38,7 @@ export function createAppUpdateController(): AppUpdateController {
     },
 
     async download(onProgress) {
-      const { listen } = await import('@tauri-apps/api/event')
-
-      const stopListening = await listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, (event) => {
+      const stopListening = await events.updateProgress.listen((event) => {
         onProgress(event.payload)
       })
 

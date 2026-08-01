@@ -97,7 +97,14 @@ pub fn build() -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .setup(|app| {
+        .invoke_handler(ipc.invoke_handler())
+        .setup(move |app| {
+            /*
+             * 生成的事件面必须在这里挂一次，否则 collect_events! 产出的类型化
+             * 通道在运行期不存在。命令面走上面的 invoke_handler，两者同源。
+             */
+            ipc.mount_events(app);
+
             app.store(SETTINGS_STORE)?;
             app.store(AGENTS_STORE)?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
@@ -152,7 +159,6 @@ pub fn build() -> tauri::Builder<Wry> {
 
             Ok(())
         })
-        .invoke_handler(ipc.invoke_handler())
 }
 
 /// 把窗口约束回它所在显示器的可视范围内。

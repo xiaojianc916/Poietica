@@ -6,10 +6,11 @@
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Emitter, command};
+use tauri::{AppHandle, command};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use tauri_specta::Event;
 
 use crate::error::{Error, IpcError};
 
@@ -24,9 +25,6 @@ type UpdateCommandResult<T> = Result<T, IpcError>;
 /// 成了**下载**的上限：检查只需几百毫秒，安装包却是几十 MB，网络稍慢下载就在第
 /// 20 秒被掐断。检查要有超时，下载不能有。
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
-
-/// 下载进度事件。渲染层的常量与这里同名同值。
-pub const UPDATE_PROGRESS_EVENT: &str = "poietica://update-progress";
 
 /// 已经下完、等着人点重启的那一个。
 ///
@@ -60,7 +58,9 @@ pub struct UpdateRelease {
 /// 开关可以放开，但那是一道对的闸门，放开之后以后谁往 IPC 上放 `u64` 都不会再被
 /// 拦下。于是收窄的责任落在这里：内部累加仍是 `u64`，只有跨 IPC 这一步饱和截断。
 /// 4 GiB 以上的桌面安装包不存在，而这两个数唯一的用途是算一个百分比。
-#[derive(Clone, Copy, Debug, Serialize, Type)]
+/// 事件名与 payload 类型由 `collect_events!` 一并导出，渲染层不再手抄任何一个。
+/// `Event` 派生要求 `Deserialize`，它只服务于这条生成通道。
+#[derive(Clone, Copy, Debug, Deserialize, Event, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProgress {
     pub downloaded: u32,
@@ -115,7 +115,7 @@ pub async fn update_check(app: AppHandle) -> UpdateCommandResult<Option<UpdateRe
     }))
 }
 
-/// 下载最新发布并留在内存里，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
+/// 下载最新发布并留在内存里，期间以 `UpdateProgress` 事件广播进度。
 ///
 /// 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
 ///
@@ -142,7 +142,7 @@ pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
                     total: total.map(as_ipc_bytes),
                 };
 
-                if let Err(error) = emitter.emit(UPDATE_PROGRESS_EVENT, progress) {
+                if let Err(error) = progress.emit(&emitter) {
                     log::warn!("could not emit update progress: {error}");
                 }
             },

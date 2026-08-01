@@ -1,9 +1,13 @@
-export interface IpcError {
-  readonly code: string
-  readonly message: string
-  readonly operation: string
-  readonly recoverable: boolean
-}
+import type { IpcError } from './generated/ipc-bindings'
+
+/**
+ * 原生错误契约的唯一来源是 Rust 的 error.rs。
+ *
+ * code 与 operation 在那边是 #[serde(rename_all = "kebab-case")] 枚举，跨 IPC
+ * 之后是字面量联合。此前这里手抄成了 string，于是拼错的 code 编译器一个字也不会
+ * 说 —— 同包 agent-config.ts 的注释里已经记过一次手抄 DTO 抄错的账。
+ */
+export type { IpcError }
 
 export function isIpcError(value: unknown): value is IpcError {
   if (typeof value !== 'object' || value === null) {

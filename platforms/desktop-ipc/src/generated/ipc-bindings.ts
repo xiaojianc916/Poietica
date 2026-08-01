@@ -544,7 +544,7 @@ async updateCheck() : Promise<UpdateRelease | null> {
     return await TAURI_INVOKE("update_check");
 },
 /**
- * 下载最新发布并留在内存里，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
+ * 下载最新发布并留在内存里，期间以 `UpdateProgress` 事件广播进度。
  * 
  * 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
  * 
@@ -572,6 +572,11 @@ async updateRelaunch() : Promise<null> {
 /** user-defined events **/
 
 
+export const events = __makeEvents__<{
+updateProgress: UpdateProgress
+}>({
+updateProgress: "update-progress"
+})
 
 /** user-defined constants **/
 
@@ -1120,6 +1125,8 @@ export type ThemePreference = "light" | "dark" | "system"
  * 开关可以放开，但那是一道对的闸门，放开之后以后谁往 IPC 上放 `u64` 都不会再被
  * 拦下。于是收窄的责任落在这里：内部累加仍是 `u64`，只有跨 IPC 这一步饱和截断。
  * 4 GiB 以上的桌面安装包不存在，而这两个数唯一的用途是算一个百分比。
+ * 事件名与 payload 类型由 `collect_events!` 一并导出，渲染层不再手抄任何一个。
+ * `Event` 派生要求 `Deserialize`，它只服务于这条生成通道。
  */
 export type UpdateProgress = { downloaded: number; total: number | null }
 /**
