@@ -66,7 +66,7 @@ export interface AgentProviderPreset {
 const DEEPSEEK: AgentProviderPreset = {
   id: 'deepseek',
   displayName: 'DeepSeek',
-  description: '填入 DeepSeek 平台密钥，按用量直接计费到该账号。',
+  description: '填入 DeepSeek 平台密钥，按用量直接计费到该账号',
   wire: 'openai',
   baseUrl: 'https://api.deepseek.com',
   apiKeysUrl: 'https://platform.deepseek.com/api_keys',
@@ -106,7 +106,7 @@ const DEEPSEEK: AgentProviderPreset = {
 const ZHIPU: AgentProviderPreset = {
   id: 'zhipu',
   displayName: '智谱 GLM',
-  description: '填入智谱开放平台密钥，走 OpenAI 兼容接口。',
+  description: '填入智谱开放平台密钥，走 OpenAI 兼容接口',
   wire: 'openai',
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
   apiKeysUrl: 'https://bigmodel.cn/usercenter/proj-mgmt/apikeys',
@@ -154,7 +154,7 @@ const ZHIPU: AgentProviderPreset = {
 const MOONSHOT: AgentProviderPreset = {
   id: 'moonshot-cn',
   displayName: 'Kimi（China）',
-  description: '填入 Kimi 开放平台密钥。托管账号请用 agent 自己的登录，不走这里。',
+  description: '填入 Kimi 开放平台密钥，托管账号请用 agent 自己的登录',
   wire: 'kimi',
   baseUrl: 'https://api.moonshot.cn/v1',
   apiKeysUrl: 'https://platform.moonshot.cn/console/api-keys',

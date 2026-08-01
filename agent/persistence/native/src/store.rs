@@ -1,4 +1,4 @@
-//! The encrypted store itself.
+//! The store itself.
 //!
 //! Opening the file is all this module does. What can be asked of it lives
 //! next to the thing being asked about: threads.rs extends this same type
@@ -11,12 +11,12 @@ use rusqlite::Connection;
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
-use crate::connection::open_encrypted;
+use crate::connection::open_or_convert;
 use crate::error::Result;
 use crate::key::{DatabaseKey, KEY_ACCOUNT, KEY_SERVICE};
 use crate::migrations::migrate;
 
-/// Owns the encrypted database.
+/// Owns the database.
 ///
 /// A single writer is intentional. The log is the contention point and its
 /// ordering is what everything else relies on, so serialising writes here is
@@ -50,7 +50,7 @@ impl AgentStore {
     ///
     /// Fails when the key does not fit the file or a migration is rejected.
     pub fn open_with_key(path: &Path, key: &DatabaseKey) -> Result<Self> {
-        let mut connection = open_encrypted(path, key)?;
+        let mut connection = open_or_convert(path, key)?;
         migrate(&mut connection)?;
         Ok(Self { connection })
     }
