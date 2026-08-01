@@ -106,6 +106,17 @@ pub struct AgentRuntime {
     slot: RunSlot,
     desk: PermissionDesk,
     connection: Mutex<Option<Connection>>,
+    /// 起一条连接这件事的排队处。
+    ///
+    /// 上面那把锁护的是"连接现在是谁"，护不住"谁正在把它建起来"：建连接要
+    /// 起进程、要等握手，中间全是 await，而一把 std 的锁不能跨 await 持有。
+    /// 于是此前的双重检查发生在握手之后 —— 检查过了，钱已经花完了。
+    ///
+    /// 这道闸把昂贵的那一段圈进临界区：排在后面的人在闸前等，等到的是前面
+    /// 那位建好的连接，而不是自己再起一个进程。它自己不记任何状态，所以
+    /// agent_shutdown 之后重新起一条连接照样成立 —— 这是它比 OnceCell 合适
+    /// 的地方，后者一次成型，没有回头路。
+    starting: tokio::sync::Mutex<()>,
     /// 本次连接开出来的会话号。
     ///
     /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
@@ -144,6 +155,7 @@ impl AgentRuntime {
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
             connection: Mutex::new(None),
+            starting: tokio::sync::Mutex::new(()),
             live: Mutex::new(HashSet::new()),
             store: OnceLock::new(),
         })
@@ -421,6 +433,22 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
         let _ignored = live.client.shutdown();
     }
 
+    /* 槽里那位听众也要收走。
+     *
+     * 一轮在飞的时候退出，driver 的 future 被丢掉，那一轮的 Settled::Turn
+     * 永远走不完，于是 slot.take() 永远不会被调用 —— 而 RunSlot 活得比连接长
+     * （每次 connect 交出去的是 state.slot.clone()）。槽里那个 Recorder 就此
+     * 长住，下一次连接的第一轮在 RunSlot::install 那里撞上 Refusal::Busy，
+     * 屏幕上是"这条对话正在回答，请等它结束再改设置"—— 一句答错了问题的话，
+     * 而且不会自己好转：清空这个槽的地方只有 take，没有别人会来调它。只有
+     * 重启进程能救。
+     *
+     * 拿出来就丢掉。take 的文档写的是"把这一位交回去，好让它自己收尾"，
+     * 丢掉正是让它收尾。更完整的做法是给那半轮补一帧 run_failed，让屏幕上
+     * 那一轮显式地失败而不是无声消失 —— 那要先读 recorder.rs，这里不猜。
+     */
+    let _abandoned = state.slot.take().map_err(translate)?;
+
     state.desk.clear();
 
     /* 连接走了，它开出来的会话号也就不再指向任何东西。 */
@@ -651,6 +679,16 @@ async fn ensure_session(
         return Ok(live);
     }
 
+    /* 闸前的那一次检查是快路：连接已经在了就不必排队。下面这一段要起进程、
+    要等握手，两件都很贵，所以它们在闸里边做。 */
+    let _gate = state.starting.lock().await;
+
+    /* 排在前面那位可能刚好把连接建起来了。这一次的"没有"是可信的：写
+    state.connection 的地方只有这个函数，而这一刻拿着闸的人只有一个。 */
+    if let Some(live) = borrow(state)? {
+        return Ok(live);
+    }
+
     // The agent reads and writes relative to the directory the session was
     // created against, so the fallback has to be somewhere the user actually
     // keeps files. Asking the process where it is answers a different
@@ -733,23 +771,11 @@ async fn ensure_session(
     let can_load_session = handshake.can_load_session;
     let can_delete_session = handshake.can_delete_session;
 
-    let mut guard = lock(&state.connection)?;
-
-    // Two prompts can race to be the first. The loser hands its process back
-    // rather than leaving an orphan behind.
-    if let Some(live) = guard.as_ref() {
-        let _ignored = client.shutdown();
-
-        return Ok(Handle {
-            client: live.client.clone(),
-            agent_id: live.agent_id.clone(),
-            anchor: live.anchor.clone(),
-            can_load_session: live.can_load_session,
-            can_delete_session: live.can_delete_session,
-        });
-    }
-
-    *guard = Some(Connection {
+    /* 没有第二个人可以到这里，所以也没有谁需要认输：闸还在手里，而写
+    这把锁的地方整个模块只有这一处。此前这里有一条"输家把自己起的进程还
+    回去"的分支，它记的是一笔已经花掉的账 —— 两个人各起了一个 agent 进程、
+    各做了一次握手，然后杀掉一个。闸把那笔账取消了，分支随之不可达。 */
+    *lock(&state.connection)? = Some(Connection {
         client: client.clone(),
         agent_id: agent_id.clone(),
         anchor: session_id.clone(),
