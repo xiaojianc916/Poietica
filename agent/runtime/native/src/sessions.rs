@@ -114,34 +114,6 @@ impl SessionBook {
         Ok(())
     }
 
-    /// 这一帧该记到哪个槽里。
-    ///
-    /// 先按名字找。找不到的名字不等于错的名字：Kimi Code 与 Claude Code 的子代理
-    /// 在它自己的会话号下汇报（父会话只留一条 tool_call），而那个号不是本客户端
-    /// 开出来的 —— `slot` 对它一律交回 None，于是子代理的每一帧、连同它的每一次
-    /// 授权请求，都在到达的那一刻消失，屏幕上只剩一张永远转圈的卡片。
-    ///
-    /// 回落的去处是此刻唯一在听的那条会话。两条以上同时在飞时宁可不认：一帧只有
-    /// 在归属明确时才该被认领，猜错归属比丢掉更糟。Zed 在
-    /// `crates/agent_servers/src/acp.rs` 里同样坚持"到达的通知必须有归属"，
-    /// 它的办法是装载前先登记；我们这一侧登记不了对面自己开的号，所以在这里回落。
-    ///
-    /// # Errors
-    ///
-    /// Fails when the lock was poisoned by a panic elsewhere.
-    pub fn route(&self, session_id: &str) -> Result<Option<RunSlot>> {
-        let ledger = self.book()?;
-
-        if let Some(known) = ledger.get(session_id) {
-            return Ok(Some(known.clone()));
-        }
-
-        let mut listening = ledger.values().filter(|slot| slot.is_listening());
-        let sole = listening.next().filter(|_only| listening.next().is_none());
-
-        Ok(sole.cloned())
-    }
-
     fn book(&self) -> Result<MutexGuard<'_, HashMap<String, RunSlot>>> {
         self.slots.lock().map_err(|_poisoned| AcpError::Protocol {
             message: POISONED.to_owned(),
@@ -151,44 +123,10 @@ impl SessionBook {
 
 #[cfg(test)]
 mod tests {
-    // 与 recorder.rs 的 mod tests 同一条纪律、同一个理由：仓库根没有 clippy.toml，
-    // 放开一直是逐处写出来的。
-    #![allow(
-        clippy::expect_used,
-        reason = "a test proves itself by panicking, so a failed step must fail the test"
-    )]
-
     use super::SessionBook;
-    use crate::recorder::Recorder;
-    use crate::run_slot::{Listening, RunSlot};
+    use crate::run_slot::RunSlot;
 
     const NAME: &str = "session_33333333-3333-4333-8333-333333333333";
-
-    #[test]
-    fn a_frame_from_an_unopened_session_routes_to_the_only_run_in_flight() {
-        let book = SessionBook::new();
-        let slot = book.open(NAME).expect("the book is writable");
-
-        slot.install(Listening::Turn(Recorder::new(
-            NAME.to_owned(),
-            slot.seq(),
-            Box::new(|_event| {}),
-        )))
-        .expect("the slot is empty");
-
-        assert!(
-            matches!(book.route("session_child"), Ok(Some(_))),
-            "子代理的会话号不在册子里，但这一刻只有一轮在飞，它有归属"
-        );
-    }
-
-    #[test]
-    fn a_frame_from_an_unopened_session_is_not_guessed_at_when_nobody_is_listening() {
-        let book = SessionBook::new();
-
-        assert!(book.open(NAME).is_ok());
-        assert!(matches!(book.route("session_child"), Ok(None)));
-    }
 
     #[test]
     fn an_adopted_slot_answers_under_its_session_name() {

@@ -67,6 +67,17 @@ export type AcpAgentProfileParse =
 export interface AcpAgentProfileSetParse {
   readonly value: AcpAgentProfileSet
   readonly issues: readonly string[]
+  /**
+   * value 不是从输入里解析出来的，是内置档案顶上去的。
+   *
+   * 没有这一格的时候，value 同时承担两种含义 ——「磁盘上写着这些」和「磁盘没说，
+   * 我替你编了这些」—— 而调用方分不出来。下游因此拿一个自己编的值去跟内置档案
+   * 比对、问「变了吗」，答案恒为「没变」，于是首次启动的物化一次都没发生过：
+   * 渲染层用着内存里的内置档案，原生层读磁盘只读到空文件，两半各说各话。
+   *
+   * 为真表示磁盘上那份还不作数，调用方应当把 value 物化下去。
+   */
+  readonly fallback: boolean
 }
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
@@ -217,6 +228,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     return {
       value: builtinAcpAgentProfileSet(),
       issues: ['agent 配置无法解析，已回退到内置档案'],
+      fallback: true,
     }
   }
 
@@ -242,9 +254,23 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   const first = profiles[0]
 
   if (!first) {
+    /*
+     * 「磁盘上一条都没有」和「有，但全都用不了」是两件事，此前共用一句话。
+     *
+     * 前者是每一台新电脑的第一次启动 —— 不是配置出了问题，是还没开始。把它报成
+     * issue，设置页第一屏就会挂一句「没有可用的 agent 档案」，而用户什么都没做错。
+     * 后者是真的坏了，必须说出来，而且措辞要说清坏的是磁盘上那份。
+     *
+     * 两条路都要 fallback: true —— 内置档案得落到磁盘上，原生侧才查得到它。
+     */
+    const nothingOnDisk = envelope.output.profiles.length === 0
+
     return {
       value: builtinAcpAgentProfileSet(),
-      issues: [...issues, '没有可用的 agent 档案，已回退到内置档案'],
+      issues: nothingOnDisk
+        ? issues
+        : [...issues, '配置里的 agent 档案都无法使用，已回退到内置档案'],
+      fallback: true,
     }
   }
 
@@ -256,7 +282,7 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     issues.push(`默认 agent 指向了不存在的档案，已改用 ${defaultProfileId}`)
   }
 
-  return { value: { profiles, defaultProfileId }, issues }
+  return { value: { profiles, defaultProfileId }, issues, fallback: false }
 }
 
 /** 说得出一次启动的东西：内置描述符有这三格，用户档案也有这三格。 */

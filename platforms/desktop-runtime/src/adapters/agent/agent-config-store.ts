@@ -41,7 +41,22 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
        */
       const writable = dto.agents.length === 0 || parsed.issues.length === 0
 
-      if (reconciled.changed && writable) {
+      /*
+       * 光看 reconciled.changed 是不够的，而且在最要紧的那一次上恰好是错的。
+       *
+       * 磁盘为空时 parseAcpAgentProfileSet 已经把内置档案顶上来了，reconcile 于是
+       * 拿内置跟内置比：sameLaunchIdentity 恒真、missing 为空、changed 为 false ——
+       * 首次启动一个字都不写。渲染层用着内存里那份照常显示，原生层读磁盘只读到空
+       * 文件，屏幕上就是「没有可用的 agent 档案」加「agents.json 里没有 kimi 的接入
+       * 档案」：同一个缺失，被两层用各自的说法讲了两遍。
+       *
+       * parsed.fallback 说的正是「这份 value 是编出来的，磁盘上还没有」。它与
+       * changed 是两个不同的问题，缺一个都会漏掉一整类情形。
+       *
+       * writable 那道闸继续管它原来的事：一份被手改坏的档案解析后会少条目，写回去
+       * 等于替用户删文件。磁盘本来就空则不存在这个风险。
+       */
+      if ((parsed.fallback || reconciled.changed) && writable) {
         return fromDto(await bridge.saveAgents(reconciled.profiles, parsed.value.defaultProfileId))
       }
 

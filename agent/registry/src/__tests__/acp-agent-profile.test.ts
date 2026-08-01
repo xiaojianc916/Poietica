@@ -62,6 +62,33 @@ describe('parseAcpAgentProfileSet', () => {
     const result = parseAcpAgentProfileSet(null)
 
     expect(result.value.profiles).toEqual(builtinAcpAgentProfileSet().profiles)
+    expect(result.fallback).toBe(true)
+  })
+
+  /*
+   * 每一台新电脑的第一次启动。磁盘上一条都没有不是配置出了问题，所以一条 issue
+   * 都不该有 —— 但 fallback 必须为真，调用方据此把内置档案物化到 agents.json，
+   * 否则原生侧按 agentId 去查永远查不到。
+   */
+  it('磁盘为空时回退且不报问题，但要求物化', () => {
+    const result = parseAcpAgentProfileSet({ profiles: [], defaultProfileId: '' })
+
+    expect(result.value.profiles).toEqual(builtinAcpAgentProfileSet().profiles)
+    expect(result.issues).toEqual([])
+    expect(result.fallback).toBe(true)
+  })
+
+  it('档案都在但全都用不了时，照实报问题', () => {
+    const result = parseAcpAgentProfileSet({ profiles: [{ id: 'BROKEN' }] })
+
+    expect(result.fallback).toBe(true)
+    expect(result.issues.length).toBeGreaterThan(0)
+  })
+
+  it('磁盘上有可用档案时不要求物化', () => {
+    const result = parseAcpAgentProfileSet({ profiles: [valid], defaultProfileId: 'kimi' })
+
+    expect(result.fallback).toBe(false)
   })
 })
 
