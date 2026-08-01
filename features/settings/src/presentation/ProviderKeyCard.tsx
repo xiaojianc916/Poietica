@@ -7,7 +7,7 @@ import {
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentConfigStore, ProviderKeyProbe } from '../ports/agent-config-store'
-import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
+import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'
 import { SubField } from './models-fields'
 
 /*
@@ -195,7 +195,7 @@ export function ProviderKeyCard({
                 setBusy(false)
 
                 if (outcome.status !== 0) {
-                  setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
+                  setMessage(describeAgentCliOutcome(outcome))
                   return
                 }
 
