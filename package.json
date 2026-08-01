@@ -40,6 +40,7 @@
     "version:set": "node scripts/release/set-version.mjs",
     "check:versions": "node scripts/release/check-versions.mjs",
     "verify:channel": "node scripts/release/verify-channel.mjs",
+    "release": "node release.mjs",
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build:release",
     "tauri": "node scripts/tauri.mjs",
     "clean": "node scripts/clean.mjs",
