@@ -11,15 +11,15 @@
 
 ## 缺陷 1：流式通道没有地址位（根因）
 
-- `agent/protocol/src/run-contract.ts`：`RunEvent` 六个变体全是 `{ kind, seq, at, ... }`,
+- `packages/acp/src/run-contract.ts`：`RunEvent` 六个变体全是 `{ kind, seq, at, ... }`,
   没有 `threadId`,没有 `runId` —— 尽管同一文件就定义了 `ThreadId` 与 `RunId`。
-- `agent/protocol/src/agent-session-port.ts`：
+- `packages/acp/src/agent-session-port.ts`：
   `subscribe: (listener: (event: RunEvent) => void) => () => void`，订阅端不接收
   threadId,端口层面不存在"按对话订阅"这件事。
-- `platforms/desktop-ipc/src/agent.ts`：信封是 `{ runId, seq, kind, frame }`,注释写着
+- `packages/ipc/src/agent.ts`：信封是 `{ runId, seq, kind, frame }`,注释写着
   "the run identifier rides outside it because it is routing, not content",
   然后 `handler(event.payload.frame)` 把路由丢掉。
-- `agent/runtime/src/useAssistantSession.ts`：
+- `packages/agent-session/src/use-assistant-session.ts`：
   `session.subscribe((event) => setTimeline(c => applyRunEvent(c, event)))`,无过滤。
   结果是 N 个挂载的界面 × 所有帧。
 
@@ -35,14 +35,14 @@ JSON-RPC 有 id,LSP 有 request id,gRPC 有 stream。多路复用的流必须带
 
 ## 缺陷 2：会话状态放在组件本地 state,并手搓了缓存与渲染期修复
 
-`agent/runtime/src/useAssistantSession.ts`：`timeline` 是 `useState`（每个界面各存一份）;
+`packages/agent-session/src/use-assistant-session.ts`：`timeline` 是 `useState`（每个界面各存一份）;
 模块级 `restored` Map + `RESTORED_LIMIT = 8` 是手搓 LRU;`WINDOW_RUNS / WINDOW_STEP`
 是手搓分页游标;`claimed / shown / reading` 是手搓竞态守卫;渲染期
 `if (shown !== endpoint) { setTimeline(opening(endpoint)) }` 是在渲染函数里改状态。
 
 行业对照：转录是后端状态（真源是原生侧的加密事件日志）,应当放在框架之外、按
 threadId 归一化的存储里,视图只做投影 —— TanStack Query / Zustand / Redux Toolkit /
-`useSyncExternalStore`。本仓库自己就有样板：`agent/ui/src/time.ts` 正是
+`useSyncExternalStore`。本仓库自己就有样板：`packages/agent-ui/src/time.ts` 正是
 `useSyncExternalStore` + 外部 store。
 
 后果：状态的生存期绑在组件挂载上,而排版又派生自这个状态,于是重挂载或 endpoint
@@ -50,7 +50,7 @@ threadId 归一化的存储里,视图只做投影 —— TanStack Query / Zustan
 
 ## 缺陷 3：排版由内容反推,且判据可回退
 
-`agent/ui/src/AssistantSurface.tsx`：`started = visibleRows.length > 0` → `settled`
+`packages/agent-ui/src/AssistantSurface.tsx`：`started = visibleRows.length > 0` → `settled`
 → `data-started` → `assistant.css` 的 flex-grow 补间与 `grid-template-rows: 1fr → 0fr`。
 "输入框在中间还是在底部"是导航状态,却派生自内容状态,而且可以来回翻。
 
@@ -66,23 +66,23 @@ VS Code 的 chat welcome 与 chat session）,切换是导航;退一步至少是�
 `field-sizing: content` 与"要补间"自相矛盾：计算 block-size 恒为 auto,过渡永不启动。
 
 行业对照：位移相关时长或弹簧;Web 上用 WAAPI（Framer Motion 内部即是）或 CSS
-`linear()` 导入弹簧曲线。`features/workspace` 已在用 motion 做布局动画,能力就在依赖里。
+`linear()` 导入弹簧曲线。`packages/workspace` 已在用 motion 做布局动画,能力就在依赖里。
 
 现状：已改为 WAAPI,时长跟位移走,新的一次从当前渲染高度接管。
 
 ## 推倒重做的范围
 
-跨 `agent/protocol`、`platforms/desktop-ipc`（含 Rust 广播载荷）、`agent/runtime`、
-`agent/ui`：帧带地址 → 端口按对话订阅 → 转录搬进外部归一化存储 → 入口态与会话态
+跨 `packages/acp`、`packages/ipc`（含 Rust 广播载荷）、`packages/agent-session`、
+`packages/agent-ui`：帧带地址 → 端口按对话订阅 → 转录搬进外部归一化存储 → 入口态与会话态
 分成两个视图。
 
 ## 缺陷 5：身份由交互副作用产生
 
 - `apps/desktop/src/presentation/workspace/ConversationSurface.tsx`：
   `engage()` 在 `threadId === null` 时 `void onIdentify?.()` —— 认领一条真的对话。
-- `agent/ui/src/AssistantSurface.tsx`：该回调接在
+- `packages/agent-ui/src/AssistantSurface.tsx`：该回调接在
   `onFocusCapture={onEngage}` 与 `onPointerEnter={onEngage}` 上。
-- `agent/runtime/src/useAssistantSession.ts`：endpoint 一变，渲染期即
+- `packages/agent-session/src/use-assistant-session.ts`：endpoint 一变，渲染期即
   `setTimeline(opening(endpoint))` 并 `setIsRestoring(true)`。
 
 链条：鼠标碰一下输入框 → 认领对话 → endpoint 变化 → 转录被覆盖、isRestoring 置真
@@ -103,7 +103,7 @@ hovercard）。而且预热多余：身份在发言时本来就会取到（send 
 
 ## 缺陷 2 已修：转录搬出组件，帧有了唯一的归属方
 
-搬走之前，`agent/runtime/src/useAssistantSession.ts` 一个 Hook 里同时是：
+搬走之前，`packages/agent-session/src/use-assistant-session.ts` 一个 Hook 里同时是：
 
 | 源码 | 它其实是什么 |
 |---|---|
@@ -117,15 +117,15 @@ hovercard）。而且预热多余：身份在发言时本来就会取到（send 
 
 行业标准：转录是后端状态，归组件外的规范化 store；React 官方原语是
 `useSyncExternalStore`，成熟依赖是 TanStack Query / Zustand / Redux。
-本仓库自己的正确范例：`agent/ui/src/time.ts`。
+本仓库自己的正确范例：`packages/agent-ui/src/time.ts`。
 
-现状：`agent/runtime/src/transcript-store.ts` 是全进程唯一的帧订阅者和唯一的
+现状：`packages/agent-session/src/transcript-store.ts` 是全进程唯一的帧订阅者和唯一的
 run 发起者，因此也是唯一有资格路由帧的人。组件不再接收帧 —— "帧落进别人的
 转录"在新结构里没有语法可以表达。
 
 ## 缺陷 1 仍欠：线路上的地址
 
-`platforms/desktop-ipc/src/agent.ts`：
+`packages/ipc/src/agent.ts`：
 
     module.listen<AgentEventEnvelope>(AGENT_EVENT, (event) => { handler(event.payload.frame) })
 
@@ -141,9 +141,9 @@ routing, not content），在这一行被丢弃。所以 store 的归属依据�
 
 - `apps/desktop/src/presentation/workspace/ConversationSurface.tsx`：
   `const controls = threadId === null ? NO_CONTROLS : ...` —— 入口那一格恒为空。
-- `agent/runtime/src/threads-store.ts`：`selectorsOf(threadId)`，表按 threadId 存；
+- `packages/agent-session/src/threads-store.ts`：`selectorsOf(threadId)`，表按 threadId 存；
   唯一到达口是 `port.open(threadId)`（`#read` / `create`）。
-- `agent/protocol/src/session-config-contract.ts` 文件头：
+- `packages/acp/src/session-config-contract.ts` 文件头：
   "What the running session lets us change."
 
 后果：新建会话界面没有模型选择器；每条对话各问一遍同一张表；并且有人为绕开它，
@@ -162,9 +162,9 @@ per-session。
 
 ## 缺陷 1 已修：帧在线路上有了地址
 
-- `platforms/desktop-ipc/src/agent.ts`：`handler(event.payload.frame)` —— 信封里的
+- `packages/ipc/src/agent.ts`：`handler(event.payload.frame)` —— 信封里的
   `runId` 被一句 "the envelope is not the contract" 说服自己扔掉了。
-- `agent/protocol/src/run-contract.ts`：六个帧变体全是 `{ kind, seq, at, ... }`，
+- `packages/acp/src/run-contract.ts`：六个帧变体全是 `{ kind, seq, at, ... }`，
   帧本身没有地址。
 - 因此 `AgentSessionPort.subscribe` 交出的是一封没有收件人的信，接收方只能猜
   "大概是当前那一轮"；而 `seq` 按 run 计数，两轮都有 seq 3，按 seq 去重分不开。
@@ -188,8 +188,8 @@ per-session。
 
 ## 缺陷 4 已修：长高的时长为一段不存在的路计费
 
-- `agent/ui/src/assistant.css`：`max-block-size: var(--cp-editor-max)`（八行）。
-- `agent/ui/src/composer/prompt-input.tsx`：`settle` 把替身量出的完整文本高度直接
+- `packages/agent-ui/src/assistant.css`：`max-block-size: var(--cp-editor-max)`（八行）。
+- `packages/agent-ui/src/composer/prompt-input.tsx`：`settle` 把替身量出的完整文本高度直接
   当终点，`duration = min(400, max(130, delta * 1.7))` 按这个未经钳制的位移算。
 - 于是粘进一大段时元素在八行处到底，动画还在为剩下的两千多像素走时间：观感是
   动一小段、然后原地不动 —— 这才是"不自然"的成因，不是曲线选得不好。
@@ -209,10 +209,10 @@ per-session。
 
 ## 缺陷 3 已修：位置不再是一个可以被补间的数字
 
-- `agent/ui/src/feed/agent-activity-feed.css`：`::before / ::after { flex: 1 1 0;
+- `packages/agent-ui/src/feed/agent-activity-feed.css`：`::before / ::after { flex: 1 1 0;
   transition: flex-grow ... }`，配 `[data-started="true"] { flex-grow: 0 }`，
   以及 `__viewport` 的 `flex: 0 1 auto` → `flex-grow: 1`。
-- `agent/ui/src/assistant.css`：`__intro / __starters` 的 `grid-template-rows`
+- `packages/agent-ui/src/assistant.css`：`__intro / __starters` 的 `grid-template-rows`
   从 `1fr` 补间到 `0fr`。
 - 于是"输入框在中间还是在底部"是一串可插值的数字，由一个 DOM 属性驱动。上一刀
   （显式相位）拿掉了触发源，但没有拿掉表达能力：中间态仍然是一个可以进入的状态，
@@ -246,7 +246,7 @@ per-session。
   `live.client.selectors(held.session_id)`。两者都要先有一个会话，而会话的归属由
   `session_for` 按 thread UUID 决定；`agent_set_config_option` 更是直接
   `ok_or(NO_CONVERSATION)`。
-- `agent/protocol/src/session-config-port.ts` 的注释写明了这件事："这里没有'读'。
+- `packages/acp/src/session-config-port.ts` 的注释写明了这件事："这里没有'读'。
   选择器随会话一起交回来。"
 - 于是入口界面（没有对话、没有会话）在结构上拿不到模型清单，渲染层只能靠
   localStorage 里上一次学到的表 —— 那是替一条不存在的取数路径打掩护，不是修复。
@@ -261,12 +261,12 @@ per-session。
 
 ## 下一刀（TS 半刀，必须排在绑定导出之后）
 
-`platforms/desktop-ipc/src/generated/ipc-bindings.ts` 是 specta 生成物，
+`packages/ipc/src/generated/ipc-bindings.ts` 是 specta 生成物，
 `commands.agentCapabilities` 在导出跑过之前不存在，所以这半刀编译不过：
 
-1. `platforms/desktop-ipc/src/agent.ts`：在会话配置桥上加 `capabilities()`。
+1. `packages/ipc/src/agent.ts`：在会话配置桥上加 `capabilities()`。
 2. 入口界面装载时学一次，把 `learnAgentControls` 从"会话开出来才学"改成"连上就学"。
-3. `agent/runtime/src/agent-capability-store.ts` 的 localStorage 从唯一来源降级为
+3. `packages/agent-session/src/agent-capability-store.ts` 的 localStorage 从唯一来源降级为
    离线兜底，并搬进真正的 preferences 端口。
 
 ## 还欠着

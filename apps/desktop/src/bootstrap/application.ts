@@ -1,10 +1,4 @@
-import type { AgentSessionPort } from '@poietica/agent-protocol'
-import {
-  type CommandRegistry,
-  createCommandRegistry,
-  createWorkbenchSessionController,
-} from '@poietica/features-workspace/application'
-import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
+import type { AgentSessionPort } from '@poietica/acp'
 import {
   type AgentConfigStore,
   type AppUpdateController,
@@ -15,7 +9,13 @@ import {
   type MainWindowController,
   readAppVersion,
   type SettingsStore,
-} from '@poietica/platforms-desktop-runtime'
+} from '@poietica/desktop-runtime'
+import {
+  type CommandRegistry,
+  createCommandRegistry,
+  createWorkbenchSessionController,
+} from '@poietica/workspace/application'
+import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
 import { createDesktopAgentSession } from '../application/ai/agent-session'
 
 export interface ApplicationRuntime {

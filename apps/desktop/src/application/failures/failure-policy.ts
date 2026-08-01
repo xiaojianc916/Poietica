@@ -1,4 +1,4 @@
-import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/foundations-kernel'
+import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/core'
 import { type FailureIncident, type FailureSignal, failureCoordinator } from './failure-coordinator'
 
 export const APPLICATION_FAILURE_CODES = [

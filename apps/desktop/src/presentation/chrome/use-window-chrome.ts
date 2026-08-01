@@ -1,4 +1,4 @@
-import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
+import type { MainWindowController } from '@poietica/desktop-runtime'
 import { useCallback, useEffect, useState } from 'react'
 import { reportFailure } from '../../application/failures/failure-policy'
 

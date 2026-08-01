@@ -36,7 +36,7 @@
     "audit": "pnpm audit --audit-level high",
     "audit:rust": "cargo deny check --all-features",
     "ipc:generate": "cargo run -p poietica --bin export-ipc-bindings",
-    "ipc:check": "pnpm ipc:generate && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
+    "ipc:check": "pnpm ipc:generate && git diff --exit-code -- packages/ipc/src/generated/ipc-bindings.ts",
     "version:set": "node scripts/release/set-version.mjs",
     "check:versions": "node scripts/release/check-versions.mjs",
     "verify:channel": "node scripts/release/verify-channel.mjs",

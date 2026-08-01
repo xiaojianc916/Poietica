@@ -119,7 +119,7 @@ export const rules = [
   ...layerRules,
   {
     id: 'design-system-token-authority',
-    appliesTo: inDirectory('foundations/design-system/src/components'),
+    appliesTo: inDirectory('packages/ui/src/components'),
     pattern: new RegExp(
       '(?<![\\w-])(?:' +
         alternation(restrictedUtilityClasses.map((rule) => rule.token)) +

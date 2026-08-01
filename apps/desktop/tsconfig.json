@@ -3,15 +3,15 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop.tsbuildinfo",
     "paths": {
-      "@poietica/features-workspace": ["../../features/workspace/src/public-api.ts"],
-      "@poietica/foundations-design-system": ["../../foundations/design-system/src/public-api.ts"],
-      "@poietica/kernel": ["../../foundations/kernel/src/public-api.ts"],
-      "@poietica/geometry": ["../../foundations/geometry/src/public-api.ts"],
-      "@poietica/foundations-observability": ["../../foundations/observability/src/public-api.ts"],
-      "@poietica/features-settings": ["../../features/settings/src/public-api.ts"],
-      "@poietica/serialization": ["../../foundations/serialization/src/public-api.ts"],
-      "@poietica/test-kit": ["../../foundations/test-kit/src/public-api.ts"],
-      "@poietica/platforms-desktop-ipc": ["../../platforms/desktop-ipc/src/public-api.ts"]
+      "@poietica/workspace": ["../../packages/workspace/src/index.ts"],
+      "@poietica/ui": ["../../packages/ui/src/index.ts"],
+      "@poietica/kernel": ["../../packages/core/src/index.ts"],
+      "@poietica/geometry": ["../../foundations/geometry/src/index.ts"],
+      "@poietica/observability": ["../../packages/observability/src/index.ts"],
+      "@poietica/settings": ["../../packages/settings/src/index.ts"],
+      "@poietica/serialization": ["../../packages/serialization/src/index.ts"],
+      "@poietica/test-kit": ["../../packages/test-kit/src/index.ts"],
+      "@poietica/ipc": ["../../packages/ipc/src/index.ts"]
     }
   },
   "include": ["src", "src/css.d.ts"],

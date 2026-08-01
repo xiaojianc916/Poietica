@@ -2,7 +2,7 @@ import {
   type DiagnosticLogEntry,
   formatDiagnosticLogs,
   getRecentLogEntries,
-} from '@poietica/foundations-observability'
+} from '@poietica/observability'
 
 export interface FailureDiagnosticHint {
   readonly componentStack?: string | null

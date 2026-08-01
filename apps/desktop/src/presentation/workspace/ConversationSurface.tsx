@@ -1,12 +1,12 @@
-import type { AgentSessionPort } from '@poietica/agent-protocol'
+import type { AgentSessionPort } from '@poietica/acp'
 import {
   chooseAgentControl,
   installAgentCapabilityPort,
   installAgentDefaultModelSource,
   useAgentControls,
-} from '@poietica/agent-runtime'
+} from '@poietica/agent-session'
 import { AssistantSurface } from '@poietica/agent-ui'
-import type { AgentConfigStore } from '@poietica/features-settings'
+import type { AgentConfigStore } from '@poietica/settings'
 import { useEffect } from 'react'
 import { desktopAgentCapabilities } from '../../application/ai/agent-session'
 import { useSharedThreads } from '../../application/ai/threads-context'

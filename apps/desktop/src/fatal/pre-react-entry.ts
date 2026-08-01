@@ -47,7 +47,7 @@ function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
  * 永远不会挂载，所以崩溃屏必须自己把窗口叫出来。
  */
 function presentWindow(): void {
-  void import('@poietica/platforms-desktop-runtime')
+  void import('@poietica/desktop-runtime')
     .then(({ createMainWindowController }) => createMainWindowController().present())
     .catch(() => {
       // 窗口无法呈现时没有可用的补救界面；原生日志里仍然留有记录。

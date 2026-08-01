@@ -1,0 +1,52 @@
+{
+  "name": "@poietica/workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./application": {
+      "types": "./src/application/index.ts",
+      "default": "./src/application/index.ts"
+    },
+    "./contracts": {
+      "types": "./src/contracts/index.ts",
+      "default": "./src/contracts/index.ts"
+    },
+    "./react": {
+      "types": "./src/presentation/index.ts",
+      "default": "./src/presentation/index.ts"
+    }
+  },
+  "scripts": {
+    "check": "tsc --project tsconfig.json --noEmit",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@mynaui/icons-react": "catalog:",
+    "@poietica/acp": "workspace:*",
+    "@poietica/agent-session": "workspace:*",
+    "@poietica/ui": "workspace:*",
+    "motion": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  }
+}

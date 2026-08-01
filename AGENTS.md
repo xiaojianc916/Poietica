@@ -53,18 +53,18 @@ AI 对用户作品的提案必须提供预览或显式应用操作；一旦应�
 ```text
 apps ───────────────► agent + features + platforms
 features ───────────► agent public API + foundations
-agent/ui ───────────► agent/runtime
-agent/runtime ──────► agent/protocol + agent/timeline + agent/registry + agent/transport
-agent/protocol ─────► foundations
+packages/agent-ui ───────────► packages/agent-session
+packages/agent-session ──────► packages/acp + packages/agent-timeline + packages/agent-registry + agent/transport
+packages/acp ─────► foundations
 platforms ──────────► application-defined ports
 foundations ────────► no product packages
 
-apps/desktop/src-tauri ──► agent/runtime/native + agent/persistence/native
+apps/desktop/src-tauri ──► crates/agent-runtime + crates/persistence
 ```
 
 - `agent/*` 拥有 AI 会话、协议、时间线、工具注册、传输与本地加密持久化。
-- `agent/persistence` 只有 Rust crate（`agent/persistence/native`），没有 `package.json`，不在 TypeScript 包图里；它依赖 `rusqlite`、`serde`、`uuid`。
-- `features/workspace` 拥有工作台、命令、面板、标签页与产品外壳。
+- `agent/persistence` 只有 Rust crate（`crates/persistence`），没有 `package.json`，不在 TypeScript 包图里；它依赖 `rusqlite`、`serde`、`uuid`。
+- `packages/workspace` 拥有工作台、命令、面板、标签页与产品外壳。
 - `platforms/*` 只实现平台能力，不拥有产品规则。
 - `apps/*` 是 agent、features 与 platforms 的最终组合位置。
 - `foundations/*` 不得依赖 `apps`、`features` 或 `platforms`。

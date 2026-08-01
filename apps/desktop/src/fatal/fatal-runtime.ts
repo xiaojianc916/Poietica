@@ -1,4 +1,4 @@
-import type { FailureRecovery, TerminalFailureImpact } from '@poietica/foundations-kernel'
+import type { FailureRecovery, TerminalFailureImpact } from '@poietica/core'
 import {
   type FailureIncident,
   failureCoordinator,

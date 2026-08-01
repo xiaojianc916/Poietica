@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/settings.tsbuildinfo",
+    "paths": {
+      "@poietica/kernel": ["../../packages/core/src/index.ts"],
+      "@poietica/ui": ["../../packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

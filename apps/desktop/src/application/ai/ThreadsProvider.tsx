@@ -1,4 +1,4 @@
-import { ThreadsStore, transcripts } from '@poietica/agent-runtime'
+import { ThreadsStore, transcripts } from '@poietica/agent-session'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo } from 'react'
 

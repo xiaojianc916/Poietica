@@ -14,10 +14,10 @@ primitive to have exactly one authority.
 
 | Capability | Authority |
 | --- | --- |
-| Semantic colors, typography, radii, shadows, focus, motion | `foundations/design-system` |
-| Reusable accessible interaction primitives | `foundations/design-system` |
-| Workspace grid, sidebar and main-region layout | `features/workspace` |
-| Settings content and settings workflow | `features/settings` |
+| Semantic colors, typography, radii, shadows, focus, motion | `packages/ui` |
+| Reusable accessible interaction primitives | `packages/ui` |
+| Workspace grid, sidebar and main-region layout | `packages/workspace` |
+| Settings content and settings workflow | `packages/settings` |
 | Native window chrome and Tauri-specific presentation | `apps/desktop` |
 | Failure classification and recovery policy | application composition |
 | Generic toast presentation | design-system |
@@ -30,7 +30,7 @@ primitive to have exactly one authority.
 - Feature packages may compose primitives but must not recreate generic dialog,
   menu, tooltip, select, combobox or toast interaction kernels.
 - Product-layout dimensions do not belong to global design-system tokens.
-- Public consumers import only from `@poietica/foundations-design-system`.
+- Public consumers import only from `@poietica/ui`.
 
 ## Migration rule
 

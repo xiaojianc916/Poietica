@@ -1,10 +1,6 @@
 packages:
-  - "agent/*"
   - "apps/*"
-  - "features/*"
-  - "foundations/*"
-  - "platforms/*"
-  - "tooling/*"
+  - "packages/*"
   - "tests"
 
 allowBuilds:

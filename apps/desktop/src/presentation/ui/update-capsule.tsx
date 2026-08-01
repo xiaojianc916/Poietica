@@ -1,7 +1,7 @@
 import { RefreshAlt } from '@mynaui/icons-react'
-import type { SettingsStore } from '@poietica/features-settings'
-import { ConfirmationDialog } from '@poietica/foundations-design-system'
-import type { AppUpdateController, UpdateRelease } from '@poietica/platforms-desktop-runtime'
+import type { AppUpdateController, UpdateRelease } from '@poietica/desktop-runtime'
+import type { SettingsStore } from '@poietica/settings'
+import { ConfirmationDialog } from '@poietica/ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { reportFailure } from '../../application/failures/failure-policy'

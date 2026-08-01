@@ -16,7 +16,7 @@
 - 可通过普通 `cargo test` 运行单元测试
 - 不引用 IPC DTO、Tauri Command、AppState
 
-## Layer 2: `platforms/desktop-runtime/native/` — 桌面平台能力
+## Layer 2: `crates/desktop-runtime/` — 桌面平台能力
 
 负责通用桌面平台能力，与具体业务领域无关。
 
@@ -54,17 +54,17 @@
 ```
 apps/desktop/src-tauri
   ├── domains/*/native
-  └── platforms/desktop-runtime/native
+  └── crates/desktop-runtime
 
 domains/*/native
   └── pure Rust libraries
 
-platforms/desktop-runtime/native
+crates/desktop-runtime
   └── tauri (limited)
 ```
 
 禁止：
 - `domains/*/native → tauri`
-- `domains/*/native → platforms/desktop-runtime/native`
-- `platforms/desktop-runtime/native → domains/*/native`
+- `domains/*/native → crates/desktop-runtime`
+- `crates/desktop-runtime → domains/*/native`
 - `src-tauri commands` 包含业务分支（应委托给 native crate）

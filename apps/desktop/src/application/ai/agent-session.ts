@@ -5,16 +5,14 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
-} from '@poietica/agent-protocol'
+} from '@poietica/acp'
+import { createIpcSession } from '@poietica/acp'
 import {
   acpAgentById,
   acpAgentLaunch,
   defaultAcpAgent,
   parseAgentProviderListOutput,
 } from '@poietica/agent-registry'
-import { createIpcSession } from '@poietica/agent-transport'
-import type { AgentConfigStore } from '@poietica/features-settings'
-import { error as reportError } from '@poietica/foundations-observability'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,
@@ -22,7 +20,9 @@ import {
   createAgentSessionConfigBridge,
   createAgentThreadBridge,
   shutdownAgent,
-} from '@poietica/platforms-desktop-ipc'
+} from '@poietica/ipc'
+import { error as reportError } from '@poietica/observability'
+import type { AgentConfigStore } from '@poietica/settings'
 
 /*
  * Where the agent session port is actually built.

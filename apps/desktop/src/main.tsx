@@ -4,7 +4,7 @@ import {
   type MainWindowController,
   type NativeCrashReport,
   takePreviousNativeCrashReport,
-} from '@poietica/platforms-desktop-runtime'
+} from '@poietica/desktop-runtime'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
 import { installExternalLinks } from './presentation/chrome/external-links'

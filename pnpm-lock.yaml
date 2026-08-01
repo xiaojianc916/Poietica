@@ -106,7 +106,80 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
-  agent/protocol:
+  apps/desktop:
+    dependencies:
+      '@mynaui/icons-react':
+        specifier: 'catalog:'
+        version: 0.4.11(react@19.2.7)
+      '@poietica/acp':
+        specifier: workspace:*
+        version: link:../../packages/acp
+      '@poietica/agent-registry':
+        specifier: workspace:*
+        version: link:../../packages/agent-registry
+      '@poietica/agent-session':
+        specifier: workspace:*
+        version: link:../../packages/agent-session
+      '@poietica/agent-ui':
+        specifier: workspace:*
+        version: link:../../packages/agent-ui
+      '@poietica/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@poietica/desktop-runtime':
+        specifier: workspace:*
+        version: link:../../packages/desktop-runtime
+      '@poietica/ipc':
+        specifier: workspace:*
+        version: link:../../packages/ipc
+      '@poietica/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@poietica/settings':
+        specifier: workspace:*
+        version: link:../../packages/settings
+      '@poietica/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@poietica/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.3(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+      '@tauri-apps/cli':
+        specifier: catalog:tauri
+        version: 2.11.4
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.0.3(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.3
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.1.4(@types/node@24.0.15)(jiti@2.7.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  packages/acp:
     dependencies:
       '@agentclientprotocol/sdk':
         specifier: 1.3.0
@@ -119,11 +192,11 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  agent/registry:
+  packages/agent-registry:
     dependencies:
-      '@poietica/agent-protocol':
+      '@poietica/acp':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../acp
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
@@ -135,20 +208,17 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  agent/runtime:
+  packages/agent-session:
     dependencies:
-      '@poietica/agent-protocol':
+      '@poietica/acp':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../acp
       '@poietica/agent-registry':
         specifier: workspace:*
-        version: link:../registry
+        version: link:../agent-registry
       '@poietica/agent-timeline':
         specifier: workspace:*
-        version: link:../timeline
-      '@poietica/agent-transport':
-        specifier: workspace:*
-        version: link:../transport
+        version: link:../agent-timeline
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
@@ -166,11 +236,11 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  agent/timeline:
+  packages/agent-timeline:
     dependencies:
-      '@poietica/agent-protocol':
+      '@poietica/acp':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../acp
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -179,42 +249,26 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  agent/transport:
-    dependencies:
-      '@poietica/agent-protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@poietica/agent-timeline':
-        specifier: workspace:*
-        version: link:../timeline
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  agent/ui:
+  packages/agent-ui:
     dependencies:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
-      '@poietica/agent-protocol':
+      '@poietica/acp':
         specifier: workspace:*
-        version: link:../protocol
-      '@poietica/agent-runtime':
+        version: link:../acp
+      '@poietica/agent-session':
         specifier: workspace:*
-        version: link:../runtime
+        version: link:../agent-session
       '@poietica/agent-timeline':
         specifier: workspace:*
-        version: link:../timeline
-      '@poietica/agent-transport':
+        version: link:../agent-timeline
+      '@poietica/core':
         specifier: workspace:*
-        version: link:../transport
-      '@poietica/foundations-design-system':
+        version: link:../core
+      '@poietica/ui':
         specifier: workspace:*
-        version: link:../../foundations/design-system
+        version: link:../ui
       '@streamdown/cjk':
         specifier: 'catalog:'
         version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.0)(micromark@4.0.0)(react@19.2.7)(unified@11.0.5)
@@ -265,109 +319,95 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  apps/desktop:
+  packages/core:
     dependencies:
-      '@mynaui/icons-react':
+      uuid:
         specifier: 'catalog:'
-        version: 0.4.11(react@19.2.7)
-      '@poietica/agent-protocol':
-        specifier: workspace:*
-        version: link:../../agent/protocol
-      '@poietica/agent-registry':
-        specifier: workspace:*
-        version: link:../../agent/registry
-      '@poietica/agent-runtime':
-        specifier: workspace:*
-        version: link:../../agent/runtime
-      '@poietica/agent-transport':
-        specifier: workspace:*
-        version: link:../../agent/transport
-      '@poietica/agent-ui':
-        specifier: workspace:*
-        version: link:../../agent/ui
-      '@poietica/features-settings':
-        specifier: workspace:*
-        version: link:../../features/settings
-      '@poietica/features-workspace':
-        specifier: workspace:*
-        version: link:../../features/workspace
-      '@poietica/foundations-design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
-      '@poietica/foundations-kernel':
-        specifier: workspace:*
-        version: link:../../foundations/kernel
-      '@poietica/foundations-observability':
-        specifier: workspace:*
-        version: link:../../foundations/observability
-      '@poietica/platforms-desktop-ipc':
-        specifier: workspace:*
-        version: link:../../platforms/desktop-ipc
-      '@poietica/platforms-desktop-runtime':
-        specifier: workspace:*
-        version: link:../../platforms/desktop-runtime
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.7(react@19.2.7)
+        version: 14.0.1
     devDependencies:
-      '@tailwindcss/vite':
-        specifier: 'catalog:'
-        version: 4.3.3(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-      '@tauri-apps/cli':
-        specifier: catalog:tauri
-        version: 2.11.4
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 6.0.3(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-      tailwindcss:
-        specifier: 'catalog:'
-        version: 4.3.3
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: 8.1.4(@types/node@24.0.15)(jiti@2.7.0)
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  features/settings:
+  packages/desktop-runtime:
+    dependencies:
+      '@poietica/agent-registry':
+        specifier: workspace:*
+        version: link:../agent-registry
+      '@poietica/ipc':
+        specifier: workspace:*
+        version: link:../ipc
+      '@poietica/settings':
+        specifier: workspace:*
+        version: link:../settings
+      '@tauri-apps/api':
+        specifier: catalog:tauri
+        version: 2.11.1
+
+  packages/ipc:
+    dependencies:
+      '@poietica/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@tauri-apps/api':
+        specifier: catalog:tauri
+        version: 2.11.1
+
+  packages/observability:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  packages/serialization:
+    dependencies:
+      uuid:
+        specifier: 'catalog:'
+        version: 14.0.1
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
+
+  packages/settings:
     dependencies:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.7)
       '@poietica/agent-registry':
         specifier: workspace:*
-        version: link:../../agent/registry
+        version: link:../agent-registry
       '@poietica/agent-timeline':
         specifier: workspace:*
-        version: link:../../agent/timeline
-      '@poietica/foundations-design-system':
+        version: link:../agent-timeline
+      '@poietica/core':
         specifier: workspace:*
-        version: link:../../foundations/design-system
-      '@poietica/foundations-kernel':
+        version: link:../core
+      '@poietica/ipc':
         specifier: workspace:*
-        version: link:../../foundations/kernel
-      '@poietica/platforms-desktop-ipc':
+        version: link:../ipc
+      '@poietica/ui':
         specifier: workspace:*
-        version: link:../../platforms/desktop-ipc
+        version: link:../ui
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
-      '@poietica/foundations-test-kit':
+      '@poietica/test-kit':
         specifier: workspace:*
-        version: link:../../foundations/test-kit
+        version: link:../test-kit
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.17
@@ -387,39 +427,12 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  features/workspace:
+  packages/test-kit:
     dependencies:
-      '@mynaui/icons-react':
-        specifier: 'catalog:'
-        version: 0.4.11(react@19.2.7)
-      '@poietica/agent-protocol':
+      '@poietica/core':
         specifier: workspace:*
-        version: link:../../agent/protocol
-      '@poietica/agent-runtime':
-        specifier: workspace:*
-        version: link:../../agent/runtime
-      '@poietica/foundations-design-system':
-        specifier: workspace:*
-        version: link:../../foundations/design-system
-      motion:
-        specifier: 'catalog:'
-        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      valibot:
-        specifier: 'catalog:'
-        version: 1.4.2(typescript@7.0.2)
+        version: link:../core
     devDependencies:
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.7(react@19.2.7)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -427,7 +440,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
 
-  foundations/design-system:
+  packages/ui:
     dependencies:
       '@base-ui/react':
         specifier: ^1.6.0
@@ -467,80 +480,45 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
 
-  foundations/kernel:
+  packages/workspace:
     dependencies:
-      uuid:
+      '@mynaui/icons-react':
         specifier: 'catalog:'
-        version: 14.0.1
-    devDependencies:
-      typescript:
+        version: 0.4.11(react@19.2.7)
+      '@poietica/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@poietica/agent-session':
+        specifier: workspace:*
+        version: link:../agent-session
+      '@poietica/ui':
+        specifier: workspace:*
+        version: link:../ui
+      motion:
         specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  foundations/observability:
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  foundations/serialization:
-    dependencies:
-      uuid:
-        specifier: 'catalog:'
-        version: 14.0.1
+        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  foundations/test-kit:
-    dependencies:
-      '@poietica/foundations-kernel':
-        specifier: workspace:*
-        version: link:../kernel
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.0.15)(vite@8.1.4(@types/node@24.0.15)(jiti@2.7.0))
-
-  platforms/desktop-ipc:
-    dependencies:
-      '@poietica/agent-transport':
-        specifier: workspace:*
-        version: link:../../agent/transport
-      '@tauri-apps/api':
-        specifier: catalog:tauri
-        version: 2.11.1
-
-  platforms/desktop-runtime:
-    dependencies:
-      '@poietica/agent-registry':
-        specifier: workspace:*
-        version: link:../../agent/registry
-      '@poietica/features-settings':
-        specifier: workspace:*
-        version: link:../../features/settings
-      '@poietica/platforms-desktop-ipc':
-        specifier: workspace:*
-        version: link:../desktop-ipc
-      '@tauri-apps/api':
-        specifier: catalog:tauri
-        version: 2.11.1
 
   tests:
     devDependencies:

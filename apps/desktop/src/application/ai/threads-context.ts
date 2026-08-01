@@ -1,4 +1,4 @@
-import type { ThreadsList, ThreadsStore } from '@poietica/agent-runtime'
+import type { ThreadsList, ThreadsStore } from '@poietica/agent-session'
 import { createContext, useContext, useSyncExternalStore } from 'react'
 
 /*

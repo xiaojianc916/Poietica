@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/workspace.tsbuildinfo",
+    "paths": {
+      "@poietica/ui": ["../../packages/ui/src/index.ts"],
+      "@poietica/kernel": ["../../packages/core/src/index.ts"],
+      "@poietica/geometry": ["../../foundations/geometry/src/index.ts"],
+      "@poietica/observability": ["../../packages/observability/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
+}

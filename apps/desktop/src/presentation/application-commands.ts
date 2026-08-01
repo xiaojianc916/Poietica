@@ -1,6 +1,6 @@
-import type { CommandRegistry } from '@poietica/features-workspace/application'
-import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
-import { workspaceLayoutStore } from '@poietica/features-workspace/react'
+import type { CommandRegistry } from '@poietica/workspace/application'
+import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
+import { workspaceLayoutStore } from '@poietica/workspace/react'
 
 /**
  * 应用命令的唯一声明表。

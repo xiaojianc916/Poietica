@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynaui/icons-react'
-import { Button } from '@poietica/foundations-design-system'
+import { Button } from '@poietica/ui'
 import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
 import './desktop-title-bar.css'

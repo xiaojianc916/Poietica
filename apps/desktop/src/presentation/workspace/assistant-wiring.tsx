@@ -1,7 +1,7 @@
-import type { AgentSessionPort } from '@poietica/agent-protocol'
+import type { AgentSessionPort } from '@poietica/acp'
 import { defaultAcpAgent } from '@poietica/agent-registry'
-import type { AgentConfigStore } from '@poietica/features-settings'
-import type { WorkspaceSurfaceRenderers } from '@poietica/features-workspace/contracts'
+import type { AgentConfigStore } from '@poietica/settings'
+import type { WorkspaceSurfaceRenderers } from '@poietica/workspace/contracts'
 import type { ReactNode } from 'react'
 
 import { AssistantPane } from './AssistantPane'
@@ -10,7 +10,7 @@ import { ConversationSurface } from './ConversationSurface'
 /**
  * AI 接入工作区的全部接线。
  *
- * features/workspace 只认识插槽和 surface 种类,agent 那边只认识会话端口,
+ * packages/workspace 只认识插槽和 surface 种类,agent 那边只认识会话端口,
  * 两者互不认识;会话端口在这里、且只在这里交出去。
  *
  * 为什么是「全部」而不只是表面插槽:助手界面有两个入口 —— AI 那一格

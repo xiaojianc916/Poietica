@@ -1,23 +1,23 @@
-import type { AgentSessionPort } from '@poietica/agent-protocol'
-import type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
+import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
 import {
   SettingsContentRegion,
   SettingsNavigationRegion,
   SettingsProvider,
-} from '@poietica/features-settings/react'
+} from '@poietica/settings/react'
 import {
   CONVERSATION_ENTRY_TITLE,
   type WorkbenchSessionStore,
   type WorkbenchTabId,
   type WorkbenchTabViewModel,
   type WorkspaceShellActions,
-} from '@poietica/features-workspace/contracts'
+} from '@poietica/workspace/contracts'
 import {
   SidebarFooter,
   WorkbenchTabs,
   WorkspaceShell,
   WorkspaceSurface,
-} from '@poietica/features-workspace/react'
+} from '@poietica/workspace/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../../application/ai/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'

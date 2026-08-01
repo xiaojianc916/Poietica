@@ -35,8 +35,8 @@ rebuildable from the log, a later version can backfill them.
 ## The frame is the interface contract
 
 The recorder does not invent a shape of its own. Every frame it writes is
-exactly the shape declared in `agent/protocol/src/run-contract.ts` and
-validated by `agent/timeline/src/acp-event-schema.ts`, and the same value
+exactly the shape declared in `packages/acp/src/run-contract.ts` and
+validated by `packages/agent-timeline/src/acp-event-schema.ts`, and the same value
 is what goes into the log. Replaying a stored run and watching a live one
 therefore cannot drift apart, and there is no translation layer to keep in sync.
 
@@ -296,7 +296,7 @@ two scroll positions, and two answers to "where did my run go".
 Ctrl+J therefore opens the workspace surface rather than a floating panel. The
 shortcut is a way to reach the seat, not a seat of its own.
 
-The renderer is a factory, not a constant. `features/workspace` declares the
+The renderer is a factory, not a constant. `packages/workspace` declares the
 slot, `features/ai` declares the port, and neither imports the other; the
 application root is the only module that has both, so it is the only module
 that can join them. A module-level constant could not do this, because the

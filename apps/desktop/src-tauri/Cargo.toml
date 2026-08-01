@@ -34,8 +34,8 @@ thiserror.workspace = true
 time = { version = "0.3", features = ["formatting"] }
 toml_edit.workspace = true
 uuid.workspace = true
-poietica-agent-runtime-native = { path = "../../../agent/runtime/native" }
-poietica-agent-persistence-native = { path = "../../../agent/persistence/native" }
+poietica-agent-runtime-native = { path = "../../../crates/agent-runtime" }
+poietica-agent-persistence-native = { path = "../../../crates/persistence" }
 
 # 除 opener 外，这份清单与 bootstrap/app.rs 里注册的插件一一对应。
 #

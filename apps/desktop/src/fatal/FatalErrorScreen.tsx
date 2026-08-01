@@ -1,5 +1,5 @@
 import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
-import { createMainWindowController } from '@poietica/platforms-desktop-runtime'
+import { createMainWindowController } from '@poietica/desktop-runtime'
 import { useEffect, useMemo, useState } from 'react'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
 import { useWindowChrome } from '../presentation/chrome/use-window-chrome'

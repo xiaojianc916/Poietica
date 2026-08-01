@@ -7,8 +7,8 @@ import {
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
-} from '@poietica/foundations-kernel'
-import { error as reportDiagnosticError } from '@poietica/foundations-observability'
+} from '@poietica/core'
+import { error as reportDiagnosticError } from '@poietica/observability'
 import {
   createFailureDiagnostic,
   type FailureDiagnostic,

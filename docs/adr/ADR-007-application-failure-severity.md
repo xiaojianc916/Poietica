@@ -25,7 +25,7 @@ Poietica defines four failure impacts:
 
 Failure impact, scope and recovery are separate concepts.
 
-The canonical model belongs to foundations/kernel. It contains no React, Tauri
+The canonical model belongs to packages/core. It contains no React, Tauri
 or presentation dependency.
 
 Non-terminal failures are owned by FailureRuntime. Terminal failures are owned

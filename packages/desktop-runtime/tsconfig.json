@@ -1,0 +1,11 @@
+﻿{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop-runtime.tsbuildinfo",
+    "paths": {
+      "@poietica/ipc": ["../desktop-ipc/src/index.ts"],
+      "@poietica/settings": ["../../packages/settings/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
