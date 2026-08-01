@@ -13,12 +13,25 @@ use tauri::{AppHandle, Manager, command};
 /// 它不返回 `Result`。此前返回的唯一理由是「这张 `invoke_handler` 上的命令共用
 /// 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
 /// 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
+///
+/// 发行构建里它什么也不做。`open_devtools` 被 tauri 的 devtools feature 门控，
+/// 而那个 feature 只在 debug 构建里自动开 —— 发行版里这个方法根本不存在。要让它
+/// 存在，就得把整套开发者工具打进发给用户的包：一个 decorations: false 的成品
+/// 应用，不该让用户能翻前端、改 DOM、看 IPC 流量。
+///
+/// 命令本身两种构建都在。用 `#[cfg]` 把它从 `invoke_handler` 上摘掉的话，生成的
+/// 绑定会随构建种类变形状，渲染层就得分支去猜自己跑在哪一种里。IPC 契约不随构建
+/// 种类变。
 #[command]
 #[specta::specta]
 pub async fn window_open_devtools(app: AppHandle, label: String) {
+    #[cfg(debug_assertions)]
     if let Some(window) = app.get_webview_window(&label) {
         window.open_devtools();
     }
+
+    #[cfg(not(debug_assertions))]
+    drop((app, label));
 }
 
 /// 把一个外部 URL 交给系统默认浏览器。没有 `JavaScript` 对应物的两个之二。

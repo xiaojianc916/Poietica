@@ -8,8 +8,6 @@
 //!
 //! 关闭按钮也不再被这里拦截。拦截权归渲染层，唯一。
 
-use std::time::Duration;
-
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};

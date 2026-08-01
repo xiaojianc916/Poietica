@@ -254,8 +254,8 @@ impl Recorder {
     /// 一轮结束时要从权限桌上放掉的就是这些。请求号是这个记录器自己发的，
     /// 答复也从它手上过，所以这份清单本来就在它这里。此前它绕道去问日志，
     /// 唯一的理由是日志恰好也存了一份。
-    pub fn outstanding_permissions(&mut self) -> Vec<String> {
-        self.pending.clone()
+    pub fn outstanding_permissions(&self) -> &[String] {
+        &self.pending
     }
 
     /// Settles every request still outstanding when the turn ended.
@@ -287,35 +287,31 @@ impl Recorder {
         self.updates = self.updates.saturating_add(1);
 
         self.append(acp_update(notification)?);
+        self.project(&notification.update);
 
-        self.project(&notification.update)
+        Ok(())
     }
 
-    fn project(&mut self, update: &SessionUpdate) -> Result<()> {
+    fn project(&mut self, update: &SessionUpdate) {
         match update {
             SessionUpdate::ToolCall(call) => {
                 self.titles
                     .insert(call.tool_call_id.to_string(), call.title.clone());
             }
             SessionUpdate::ToolCallUpdate(change) => {
-                let tool_call_id = change.tool_call_id.to_string();
-
-                // 认不认得这次调用，就看这一轮宣告过它没有。此前这个答案由
-                // 一次 UPDATE 影响了几行给出 —— 同一个问题，绕了一趟数据库。
-                let Some(title) = self.titles.get_mut(&tool_call_id) else {
-                    return Err(AcpError::UnknownToolCall { tool_call_id });
-                };
-
+                // 一次更新可以先于它的宣告到达：子代理在自己的会话号下发起的调用、
+                // 装载回来的历史、以及 agent 把首帧直接合并进更新，都是协议允许的。
+                // 界面侧的 upsertToolCall 一直是这么读的（"a tool_call_update for
+                // an unknown id creates a placeholder"），而此前这里把同一件事判成
+                // 整轮失败 —— 同一个协议事实在两条管线上有两种语义。
                 if let Some(renamed) = change.fields.title.clone() {
-                    *title = renamed;
+                    let _upserted = self.titles.insert(change.tool_call_id.to_string(), renamed);
                 }
             }
             // 协议还会长出新的更新种类。它们照样成帧交出去，只是这一轮的
             // 工作内存里没有它们的位置。
             _ => {}
         }
-
-        Ok(())
     }
 
     fn persist_request(

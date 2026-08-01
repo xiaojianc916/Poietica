@@ -184,7 +184,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     录；而选择器表本身走主循环 —— 它是那张表唯一的持有者，别的
                     地方更新它就是第二个事实来源。载荷恒为整表，重报无害。 */
                     if let SessionUpdate::ConfigOptionUpdate(update) = &notification.update
-                        && let Ok(Some(_slot)) = updates.slot(&named)
+                        && let Ok(Some(_slot)) = updates.route(&named)
                     {
                         let offered = controls(&update.config_options);
                         let _sent = reported.unbounded_send(Command::Reported {
@@ -196,7 +196,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     // A frame naming a session this client never opened is
                     // not ours to record, so it is dropped here rather than
                     // written against whichever session happens to be open.
-                    if let Ok(Some(slot)) = updates.slot(&named) {
+                    if let Ok(Some(slot)) = updates.route(&named) {
                         let _routed = slot.record(|listening| {
                             listening.session_update(&notification);
                         });
@@ -213,7 +213,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                     // A question belongs to the session that asked it, and
                     // is recorded there or nowhere.
-                    if let Ok(Some(slot)) = permissions.slot(&named) {
+                    if let Ok(Some(slot)) = permissions.route(&named) {
                         let _routed = slot.record(|listening| {
                             if let Some(recorder) = listening.turn_mut() {
                                 opened = Some(recorder.record_permission_requested(&request));
@@ -239,7 +239,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                     // The answer belongs to the same session as the
                     // question, and is recorded there or nowhere.
-                    if let Ok(Some(slot)) = permissions.slot(&named) {
+                    if let Ok(Some(slot)) = permissions.route(&named) {
                         let _routed = slot.record(|listening| {
                             if let Some(recorder) = listening.turn_mut() {
                                 recorder.record_permission_resolved(&request_id, &decision);
@@ -598,7 +598,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                             此前这里清的是整张桌子 —— 那是"一条连接只可能有
                             一轮"时代的写法，几轮同时在飞时它会替别人把问题
                             也一并取消掉。 */
-                            desk.abandon(&recorder.outstanding_permissions());
+                            desk.abandon(recorder.outstanding_permissions());
                             recorder.record_pending_cancelled();
 
                             /* 错误流是整条连接共有的：几轮同时在飞时，它不属于

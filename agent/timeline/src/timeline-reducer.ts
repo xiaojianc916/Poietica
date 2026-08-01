@@ -329,6 +329,7 @@ function apply(draft: Draft, event: RunEvent): void {
          account, that account is the entry, and our own wording never
          appears at all. */
       sealTail(draft)
+      settleToolCalls(draft, event.at)
       draft.status = finalStatus(event.stopReason)
 
       const said = event.diagnostics?.trim() ?? ''
@@ -347,6 +348,7 @@ function apply(draft: Draft, event: RunEvent): void {
 
     case 'run_failed': {
       sealTail(draft)
+      settleToolCalls(draft, event.at)
       draft.status = 'failed'
       push(draft, {
         type: 'error',
@@ -653,6 +655,27 @@ function positionOf(draft: Draft, id: string): number {
   }
 
   return index.get(id) ?? -1
+}
+
+/**
+ * 一轮结束时，仍在飞的工具调用就此收尾。
+ *
+ * 协议不保证每一次 tool_call 都等得到它的终态：子代理在自己的会话号下汇报、
+ * agent 被停下、连接断在半路，都会留下一次没有结局的调用。此前这一支只 sealTail，
+ * 于是那张卡片一直转下去 —— 屏幕上说"正在进行"，而这一轮早就结束了。
+ *
+ * replayThreadEvents 对被打断的运行已经是这个判断（"a run that never reached a
+ * terminal event was interrupted"）；实时这一侧此前没有，同一件事因此有两种画法。
+ * 结束时刻取这一帧的时刻：这次调用确实到此为止，只是没人说它是怎么结束的。
+ */
+function settleToolCalls(draft: Draft, at: number): void {
+  for (const [position, item] of draft.items.entries()) {
+    if (item.type !== 'tool_call' || isTerminal(item.status)) {
+      continue
+    }
+
+    draft.items[position] = { ...item, status: 'failed', endedAt: item.endedAt ?? at }
+  }
 }
 
 function isTerminal(status: ToolCallTimelineItem['status']): boolean {
