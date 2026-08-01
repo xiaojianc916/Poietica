@@ -161,17 +161,62 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
 }
 
 #[test]
-fn an_update_for_an_unannounced_call_is_surfaced() {
+fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
     let mut fixture = fixture();
 
     fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
         "call_404",
-        ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+        ToolCallUpdateFields::new()
+            .title("Reading main.rs")
+            .status(ToolCallStatus::Completed),
     )));
 
-    assert!(
-        fixture.recorder.take_failure().is_some(),
-        "the driver has to learn about this once the turn ends"
+    /* 更新先于宣告到达是协议允许的：子代理在自己的会话号下发起的调用、
+    session/load 重播回来的历史、以及 agent 把首帧合并进更新，都会这样。
+    界面侧 upsertToolCall 对未知 id 建占位卡，原生侧必须是同一种语义 ——
+    此前这里把它判成整轮失败，同一个协议事实在两条管线上有两种结局。 */
+    assert!(fixture.recorder.take_failure().is_none());
+
+    let frames = fixture.frames();
+
+    assert_eq!(frames.len(), 1, "更新照常成帧交出去，不是被吞掉");
+
+    let inner = frames
+        .first()
+        .and_then(|frame| frame.get("notification"))
+        .and_then(|notification| notification.get("update"))
+        .expect("an update");
+
+    assert_eq!(text_of(inner, "sessionUpdate"), "tool_call_update");
+    assert_eq!(text_of(inner, "toolCallId"), "call_404");
+    assert_eq!(text_of(inner, "status"), "completed");
+
+    // 「没有失败」是个弱断言 —— 把 project 整个删掉它也能过。占位真的建起
+    // 来了，要由一个不带标题的权限请求来证明：界面要求有标题，而这个标题
+    // 只能来自那次未宣告的更新。
+    let request = RequestPermissionRequest::new(
+        "sess_alpha",
+        ToolCallUpdate::new("call_404", ToolCallUpdateFields::new()),
+        vec![PermissionOption::new(
+            "reject",
+            "Reject",
+            PermissionOptionKind::RejectOnce,
+        )],
+    );
+
+    let request_id = fixture.recorder.record_permission_requested(&request);
+
+    assert!(fixture.recorder.take_failure().is_none());
+
+    let frames = fixture.frames();
+    let requested = frames.get(1).expect("the request frame");
+
+    assert_eq!(text_of(requested, "kind"), "permission_requested");
+    assert_eq!(text_of(requested, "requestId"), request_id);
+    assert_eq!(
+        text_of(requested, "title"),
+        "Reading main.rs",
+        "占位卡上的名字来自那次未宣告的更新，不是回头去查日志"
     );
 }
 
