@@ -299,6 +299,15 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
  * 它不返回 `Result`。此前返回的唯一理由是「这张 `invoke_handler` 上的命令共用
  * 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
  * 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
+ * 
+ * 发行构建里它什么也不做。`open_devtools` 被 tauri 的 devtools feature 门控，
+ * 而那个 feature 只在 debug 构建里自动开 —— 发行版里这个方法根本不存在。要让它
+ * 存在，就得把整套开发者工具打进发给用户的包：一个 decorations: false 的成品
+ * 应用，不该让用户能翻前端、改 DOM、看 IPC 流量。
+ * 
+ * 命令本身两种构建都在。用 `#[cfg]` 把它从 `invoke_handler` 上摘掉的话，生成的
+ * 绑定会随构建种类变形状，渲染层就得分支去猜自己跑在哪一种里。IPC 契约不随构建
+ * 种类变。
  */
 async windowOpenDevtools(label: string) : Promise<void> {
     await TAURI_INVOKE("window_open_devtools", { label });
@@ -485,6 +494,20 @@ async agentConfigClearLegacyProviders() : Promise<AgentConfigSnapshot> {
  */
 async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
     return await TAURI_INVOKE("agent_cli_exec", { request });
+},
+/**
+ * 用刚收到的密钥向厂商问一次模型清单。
+ * 
+ * 不写任何配置。调用方在写入成功之后才调它，所以无论结论如何都不影响已经落盘的
+ * 那份配置 —— 这条命令只决定界面上那一行说什么。
+ * 
+ * # Errors
+ * 
+ * 密钥为空时返回参数错误。网络层的任何失败都不是错误，而是一个 Unreachable 的
+ * 结论 —— 「没连上」是这次探测的正常输出之一，不该让调用方去 catch。
+ */
+async providerProbeKey(baseUrl: string, secret: string) : Promise<ProviderProbeOutcome> {
+    return await TAURI_INVOKE("provider_probe_key", { baseUrl, secret });
 }
 }
 
@@ -962,6 +985,47 @@ export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "plat
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
+export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict; 
+/**
+ * HTTP 状态码。没有拿到响应时为 0。
+ */
+status: number; 
+/**
+ * 那家在 /models 里报回的模型 id。只有 Accepted 时才可能非空。
+ * 
+ * 现在没有消费方 —— 拿它去比对内置模型表是下一刀的事。放在这里是因为它就在
+ * 同一个响应里，为它再打一次请求没有道理。
+ */
+modelIds: string[] }
+/**
+ * 探测的结论。
+ * 
+ * 刻意把「密钥不对」和「没能验证」分成两类，而不是笼统的成功/失败：把一次网络
+ * 抖动渲染成「你的密钥错了」，比根本不验证更糟 —— 那是软件在撒谎，用户会去改一
+ * 把本来是对的钥匙。只有 401 才落到 Rejected。
+ */
+export type ProviderProbeVerdict = 
+/**
+ * 那家接受了这把密钥。注意它不等于「能用」：余额、配额、以及这把密钥对某个
+ * 具体模型的权限，都不在 /models 的回答范围内。
+ */
+"accepted" | 
+/**
+ * HTTP 401。密钥错、被吊销，或格式不对。
+ */
+"rejected" | 
+/**
+ * HTTP 403。密钥有效，但这个账号没有访问权限。
+ */
+"forbidden" | 
+/**
+ * 这家没有可用于校验的端点（404），或地址不在白名单里。不是失败。
+ */
+"unsupported" | 
+/**
+ * 超时、连不上、或其它状态码。关于密钥本身什么都不能下结论。
+ */
+"unreachable"
 /**
  * 颜色模式是一个闭集，不是一段自由文本。
  * 

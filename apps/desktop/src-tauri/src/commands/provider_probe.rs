@@ -31,7 +31,7 @@ use specta::Type;
 use std::time::Duration;
 use tauri::command;
 
-type ProviderProbeCommandResult<T> = std::result::Result<T, IpcError>;
+type ProviderProbeCommandResult<T> = Result<T, IpcError>;
 
 /// 一次探测最多等多久。这是一个保存动作的附属步骤，不是主线，宁可说「没能验证」
 /// 也不要让用户对着转圈等下去。
