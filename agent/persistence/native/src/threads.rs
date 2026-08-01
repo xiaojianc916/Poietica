@@ -8,6 +8,20 @@ use crate::error::Result;
 use crate::store::{AgentStore, now};
 
 impl AgentStore {
+    /// 一条写语句，走和读一样的那个语句缓存。
+    ///
+    ///  `读那两条（list_threads、thread）一直用`  `prepare_cached，写这六条用的是 `
+    ///  `Connection::execute ` —— 它内部每次都重新 prepare，也就是把同一段 SQL
+    /// 重新 parse 一遍、重新 plan 一遍。同一个文件里两套约定，不是取舍，是漏了。
+    ///
+    /// 省下的是微秒：这六条都由人的动作触发，不在任何热路径上。真正的收益是
+    /// 只剩一条写路径 —— 下一个人照着抄的时候，抄到的是对的那一种。
+    fn write(&self, sql: &str, params: &[&dyn ToSql]) -> Result<()> {
+        self.connection.prepare_cached(sql)?.execute(params)?;
+
+        Ok(())
+    }
+
     /// Creates a thread and returns its identifier.
     ///
     /// # Errors
@@ -17,7 +31,7 @@ impl AgentStore {
         let id = Uuid::now_v7();
         let timestamp = now()?;
 
-        self.connection.execute(
+        self.write(
             "INSERT INTO threads (id, title, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?3)",
             rusqlite::params![id.to_string(), title, timestamp],
@@ -75,7 +89,7 @@ impl AgentStore {
     ///
     /// Fails when the update is rejected.
     pub fn attach_session(&self, id: Uuid, session_id: &str, agent_id: &str) -> Result<()> {
-        self.connection.execute(
+        self.write(
             "UPDATE threads
                 SET session_id = ?2, agent_id = ?3
               WHERE id = ?1",
@@ -132,7 +146,7 @@ impl AgentStore {
     pub fn name_from_message(&self, id: Uuid, title: &str) -> Result<()> {
         let timestamp = now()?;
 
-        self.connection.execute(
+        self.write(
             "UPDATE threads
                 SET title = ?2, title_source = ?3, updated_at = ?4
               WHERE id = ?1 AND title_source = ?5",
@@ -158,7 +172,7 @@ impl AgentStore {
     ///
     /// Fails when the update is rejected.
     pub fn name_by_user(&self, id: Uuid, title: &str) -> Result<()> {
-        self.connection.execute(
+        self.write(
             "UPDATE threads
                 SET title = ?2, title_source = ?3
               WHERE id = ?1",
@@ -177,7 +191,7 @@ impl AgentStore {
     ///
     /// Fails when the update is rejected.
     pub fn set_pinned(&self, id: Uuid, pinned: bool) -> Result<()> {
-        self.connection.execute(
+        self.write(
             "UPDATE threads SET pinned = ?2 WHERE id = ?1",
             rusqlite::params![id.to_string(), i64::from(pinned)],
         )?;
@@ -194,7 +208,7 @@ impl AgentStore {
     ///
     /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
-        self.connection.execute(
+        self.write(
             "DELETE FROM threads WHERE id = ?1",
             rusqlite::params![id.to_string()],
         )?;

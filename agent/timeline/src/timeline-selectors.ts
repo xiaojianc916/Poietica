@@ -38,6 +38,10 @@ export interface FeedRow {
    *
    * 按轮次划，不是按整条对话划：上一轮留下的没有结局的调用，不会因为下一轮
    * 开始跑而重新转起来。
+   *
+   * 只有工具调用这一行会是 true。别的条目不读这一格，就不该因为它换身份 ——
+   * 行的身份是 TimelineRow 的 memo 判据，一轮结束时把整轮的行全换一遍，等于
+   * 白重渲染一整轮，其中包括每一段 Prose。turn-identity.test.ts 守着这条。
    */
   readonly isInFlight: boolean
 }
@@ -128,10 +132,25 @@ function projectRows(
     }
 
     rowOf.push(rows.length)
-    rows.push(toRow(item, false, index >= turnStart))
+    rows.push(toRow(item, false, inFlightAt(item, index, turnStart)))
   }
 
   return { rowOf, rows }
+}
+
+/**
+ * 这一条此刻还在飞吗。
+ *
+ * 只有工具调用回答得了这个问题，也只有它在读这一格。别的条目一律 false ——
+ * 上一版把当前轮次的每一行都标了，于是一轮结束时那一轮所有行的身份一起翻新，
+ * 而其中绝大多数根本不看这一格。行的身份是 TimelineRow 的 memo 判据，那等于
+ * 白重渲染一整轮。turn-identity.test.ts 当场把它抓了出来。
+ *
+ * 类型判断同时消掉了另一处错：index >= turnStart 是闭区间，而 turnStart 正是
+ * 提问那一条自己的下标 —— 一个用户消息「还在飞」本来就不成立。
+ */
+function inFlightAt(item: TimelineItem, index: number, turnStart: number): boolean {
+  return item.type === 'tool_call' && index >= turnStart
 }
 
 /** 会长大的只有末尾那一条，而且只在一轮还在跑的时候。 */
