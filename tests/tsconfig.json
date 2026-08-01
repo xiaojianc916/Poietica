@@ -4,6 +4,6 @@
     "tsBuildInfoFile": "./node_modules/.cache/typescript/tests.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["unit/**/*.ts", "integration/**/*.ts"],
+  "include": ["unit/**/*.ts"],
   "exclude": ["node_modules", "coverage", "dist"]
 }

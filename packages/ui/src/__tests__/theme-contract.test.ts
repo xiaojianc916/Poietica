@@ -17,12 +17,15 @@ import { describe, expect, it } from 'vitest'
  *     卡框比窗格线淡是常态而非缺陷。换成绝对墨量的上下限。
  *
  * 三、卡片不许自己造背景，也不许自己开宽度档。
+ *
+ * 这个文件曾经住在根 tests/unit/ 并用 join(repoRoot, 'packages', 'ui', …)
+ * 从包外面伸手读 CSS，目录一动就 ENOENT，连断三次。现在它读的是自己包里的
+ * 相对路径：被测物搬到哪，它跟到哪。
  */
 
 const here = dirname(fileURLToPath(import.meta.url))
-const repoRoot = join(here, '..', '..', '..')
-const tokensDir = join(repoRoot, 'packages', 'ui', 'src', 'styles', 'tokens')
-const stylesDir = join(repoRoot, 'packages', 'ui', 'src', 'styles')
+const stylesDir = join(here, '..', 'styles')
+const tokensDir = join(stylesDir, 'tokens')
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -67,14 +70,6 @@ const declarationsIn = (...segments: string[]) =>
 const light = declarationsIn(tokensDir, 'light.css')
 const dark = declarationsIn(tokensDir, 'dark.css')
 const surface = declarationsIn(stylesDir, 'surface.css')
-const metrics = declarationsIn(
-  repoRoot,
-  'packages',
-  'agent-ui',
-  'src',
-  'styles',
-  'composer-metrics.css',
-)
 
 /* 基底取值来自 tokens/palette.css：neutral-50 ≈ #f8f8f8，dark-975 = #141414。 */
 const GROUND = { light: 0xf8, dark: 0x14 }
@@ -161,10 +156,9 @@ describe('two-tier border scale', () => {
     expect(surface).not.toContain('--ui-surface-frame-width')
   })
 
-  it('外框、卡内线、表格行线各读对档位', () => {
+  it('外框与卡内线各读对档位', () => {
     expect(declOf(surface, '--surface-line')).toBe('var(--ui-surface-frame)')
     expect(declOf(surface, '--surface-rule')).toBe('var(--ui-divider-subtle)')
-    expect(declOf(metrics, '--cp-hairline')).toBe('var(--ui-divider-subtle)')
   })
 
   it('--ui-border 归控件，跟随区域线', () => {

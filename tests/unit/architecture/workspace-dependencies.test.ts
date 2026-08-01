@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest'
  * holding as packages are added.
  */
 
-const ROOT = join(import.meta.dirname, '..', '..')
+const ROOT = join(import.meta.dirname, '..', '..', '..')
 const SCOPE = '@poietica/'
 const SOURCE = /\.(?:tsx?|mts|cts|jsx?|mjs|cjs)$/
 const IGNORED = new Set(['node_modules', 'dist', 'build', 'coverage', '.turbo', 'target', 'gen'])
