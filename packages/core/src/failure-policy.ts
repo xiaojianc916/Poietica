@@ -1,3 +1,5 @@
+import { optionalProperty } from './object'
+
 export const FAILURE_IMPACTS = [
   'recoverable',
   'feature-degraded',
@@ -185,17 +187,4 @@ function createFailureId(): string {
   const randomPart = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)
 
   return ['failure', Date.now().toString(36), failureSequence.toString(36), randomPart].join('-')
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }

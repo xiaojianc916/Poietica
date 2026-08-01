@@ -80,6 +80,7 @@ export function assertUnreachable(value: never, context?: Record<string, unknown
   throw new InternalInvariantError(`Unreachable code reached: ${JSON.stringify(value)}`, context)
 }
 
-// NOTE: Domain-specific errors (FileConflict, Plugin, Collaboration, Permission,
-// Compatibility, ResourceLimit) are intentionally NOT defined here. They belong to
-// their respective bounded contexts under domains/*.
+// NOTE: Domain-specific errors are intentionally NOT defined here. Foundations
+// owns only error shapes that every layer shares; anything that names a product
+// concept belongs to the package that owns that concept (see
+// tests/architecture/rules.config.mjs for the layering).

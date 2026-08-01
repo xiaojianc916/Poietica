@@ -1,4 +1,5 @@
 import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/core'
+import { optionalProperty } from '@poietica/core'
 import { type FailureIncident, type FailureSignal, failureCoordinator } from './failure-coordinator'
 
 export const APPLICATION_FAILURE_CODES = [
@@ -276,17 +277,4 @@ function readOptionalNumber(
   const value = context[key]
 
   return typeof value === 'number' ? value : undefined
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }

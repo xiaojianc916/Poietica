@@ -1,3 +1,4 @@
+import { optionalProperty } from '@poietica/core'
 import {
   type DiagnosticLogEntry,
   formatDiagnosticLogs,
@@ -264,17 +265,4 @@ function redactText(value: string): string {
     .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
     .replace(WINDOWS_USER_PATH_PATTERN, `C:\\Users\\${REDACTED}`)
     .replace(UNIX_USER_PATH_PATTERN, `/Users/${REDACTED}`)
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }

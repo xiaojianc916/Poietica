@@ -1,4 +1,5 @@
 import type { FailureRecovery, TerminalFailureImpact } from '@poietica/core'
+import { optionalProperty } from '@poietica/core'
 import {
   type FailureIncident,
   failureCoordinator,
@@ -102,17 +103,4 @@ function createDefaultCode(kind: FailureKind, phase: FailurePhase): string {
     '_' +
     phase.replaceAll('-', '_').toUpperCase()
   )
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }

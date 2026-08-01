@@ -6,6 +6,7 @@ import {
   type FailureScope,
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
+  optionalProperty,
   type TerminalFailureImpact,
 } from '@poietica/core'
 import { error as reportDiagnosticError } from '@poietica/observability'
@@ -345,17 +346,4 @@ function hideScopedNotice(
   }
 
   return false
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }

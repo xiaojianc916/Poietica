@@ -55,6 +55,7 @@ export {
   type TransactionId,
   type WindowId,
 } from './id'
+export { optionalProperty } from './object'
 export type { Err, Ok, Result } from './result'
 export {
   all,
