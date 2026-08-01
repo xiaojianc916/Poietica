@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Poietica Dev",
+  "identifier": "com.poietica.Poietica.dev",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Poietica Dev"
+      }
+    ]
+  }
+}

@@ -41,7 +41,7 @@
     "ipc:check": "pnpm ipc:generate && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
     "check:versions": "node scripts/release/check-versions.mjs",
     "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build",
-    "tauri": "pnpm --filter @poietica/desktop exec tauri",
+    "tauri": "node scripts/tauri.mjs",
     "clean": "node scripts/clean.mjs",
     "prepare": "node scripts/git-hooks/install.mjs",
     "build:release": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
