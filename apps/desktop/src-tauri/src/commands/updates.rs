@@ -86,10 +86,7 @@ fn plugin_failure(error: &tauri_plugin_updater::Error) -> IpcError {
 }
 
 fn take_staged() -> Option<StagedUpdate> {
-    STAGED
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .take()
+    STAGED.lock().unwrap_or_else(PoisonError::into_inner).take()
 }
 
 fn put_staged(staged: StagedUpdate) {

@@ -924,7 +924,13 @@ mod tests {
         let asset = insert(&registry, "session-1", "video/mp4", &[1, 2, 3]);
         let uri = format!("poietica-asset://asset/session-1/{asset}");
 
-        for spec in ["items=0-1", "bytes=0-1,5-6", "bytes=-", "bytes=abc-", "bytes=5-2"] {
+        for spec in [
+            "items=0-1",
+            "bytes=0-1,5-6",
+            "bytes=-",
+            "bytes=abc-",
+            "bytes=5-2",
+        ] {
             let response = registry.response(&range_request(&uri, spec));
 
             assert_eq!(response.status(), StatusCode::OK, "{spec}");
@@ -1053,7 +1059,13 @@ mod tests {
 
         let declared = hash(&[1, 2, 3]);
 
-        let result = registry.insert("session-1", &declared, &declared, "image/png", vec![9, 9, 9]);
+        let result = registry.insert(
+            "session-1",
+            &declared,
+            &declared,
+            "image/png",
+            vec![9, 9, 9],
+        );
 
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash));
     }

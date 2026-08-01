@@ -236,39 +236,15 @@ async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
 async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async assetRemove(request: AssetRemoveRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_remove", { request });
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
@@ -277,11 +253,6 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
  * 
  * The renderer receives a bounded DTO, not an arbitrary filesystem path or
  * unrestricted native error object.
- * 
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
  */
 async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
@@ -329,30 +300,12 @@ async windowOpenDevtools(label: string) : Promise<void> {
 async windowOpenExternalUrl(url: string) : Promise<void> {
     await TAURI_INVOKE("window_open_external_url", { url });
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async settingsGet() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_get");
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async settingsSet(settings: AppSettings) : Promise<null> {
     return await TAURI_INVOKE("settings_set", { settings });
 },
-/**
- * # Errors
- * 
- * Returns an error when the underlying operation fails; the message handed
- * to the caller is the redacted IPC message, never native detail.
- */
 async settingsReset() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_reset");
 },
