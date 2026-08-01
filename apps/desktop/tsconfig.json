@@ -1,21 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop.tsbuildinfo",
-    "paths": {
-      "@poietica/workspace": ["../../packages/workspace/src/index.ts"],
-      "@poietica/ui": ["../../packages/ui/src/index.ts"],
-      "@poietica/observability": ["../../packages/observability/src/index.ts"],
-      "@poietica/settings": ["../../packages/settings/src/index.ts"],
-      "@poietica/serialization": ["../../packages/serialization/src/index.ts"],
-      "@poietica/test-kit": ["../../packages/test-kit/src/index.ts"],
-      "@poietica/ipc": ["../../packages/ipc/src/index.ts"]
-    }
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop.tsbuildinfo"
   },
-  "include": ["src", "src/css.d.ts"],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ]
+  "include": ["src"]
 }

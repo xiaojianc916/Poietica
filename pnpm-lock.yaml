@@ -157,6 +157,9 @@ importers:
       '@tauri-apps/cli':
         specifier: catalog:tauri
         version: 2.11.4
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.0.15
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.17

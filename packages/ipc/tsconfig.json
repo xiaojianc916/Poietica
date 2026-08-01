@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.cache/typescript/desktop-ipc.tsbuildinfo"
+    "tsBuildInfoFile": "./node_modules/.cache/typescript/ipc.tsbuildinfo"
   },
   "include": ["src/**/*.ts"]
 }

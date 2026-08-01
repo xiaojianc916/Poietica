@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test"
   },
@@ -31,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:tauri",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
