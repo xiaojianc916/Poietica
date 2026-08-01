@@ -1,5 +1,6 @@
 export type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
 export { createDesktopAgentConfigStore } from './adapters/agent/agent-config-store'
+export { readAppVersion } from './adapters/app-release'
 export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,

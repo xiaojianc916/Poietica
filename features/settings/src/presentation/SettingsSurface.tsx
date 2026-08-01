@@ -20,6 +20,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -126,6 +127,7 @@ function findSection(id: SettingsSection): SectionDefinition {
 interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly appVersion: () => Promise<string>
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -146,6 +148,13 @@ function useSettingsSurface(): SettingsSurfaceContextValue {
 export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
+  /**
+   * 这个可执行文件自己的版本号，由组合根注入。
+   *
+   * 不在这里直接问 Tauri：功能层认识桌面传输层，就是 ports/settings-store.ts
+   * 那段注释记着的老账。这个包的依赖里也确实没有 @tauri-apps/api。
+   */
+  readonly appVersion: () => Promise<string>
   /** 离开设置。控制器会先把尚未落盘的草稿刷完再回调，所以退出不会丢改动。 */
   readonly onDismiss: () => void
   readonly children: ReactNode
@@ -154,6 +163,7 @@ export interface SettingsProviderProps {
 export function SettingsProvider({
   store,
   agentConfigStore,
+  appVersion,
   onDismiss,
   children,
 }: SettingsProviderProps) {
@@ -179,11 +189,12 @@ export function SettingsProvider({
     () => ({
       controller,
       agentConfigStore,
+      appVersion,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, controller, section],
+    [agentConfigStore, appVersion, controller, section],
   )
 
   return <SettingsSurfaceContext.Provider value={value}>{children}</SettingsSurfaceContext.Provider>
@@ -208,7 +219,7 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, section } = useSettingsSurface()
+  const { controller, agentConfigStore, appVersion, section } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -239,6 +250,7 @@ export function SettingsContentRegion() {
 
             <SettingsSectionContent
               agentConfigStore={agentConfigStore}
+              appVersion={appVersion}
               controller={controller}
               section={section}
               settings={controller.settings}
@@ -320,6 +332,7 @@ interface SettingsSectionContentProps {
   readonly settings: AppSettings
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
+  readonly appVersion: () => Promise<string>
 }
 
 function SettingsSectionContent({
@@ -327,6 +340,7 @@ function SettingsSectionContent({
   settings,
   controller,
   agentConfigStore,
+  appVersion,
 }: SettingsSectionContentProps) {
   switch (section) {
     case 'general':
@@ -353,7 +367,7 @@ function SettingsSectionContent({
       return <PrivacySettings controller={controller} settings={settings} />
 
     case 'about':
-      return <AboutSettings />
+      return <AboutSettings readVersion={appVersion} />
   }
 }
 
@@ -440,13 +454,48 @@ const PrivacySettings = memo(function PrivacySettings({
   )
 })
 
-const AboutSettings = memo(function AboutSettings() {
+interface AboutSettingsProps {
+  readonly readVersion: () => Promise<string>
+}
+
+const AboutSettings = memo(function AboutSettings({ readVersion }: AboutSettingsProps) {
+  const [version, setVersion] = useState<string>()
+
+  /*
+   * 版本号问的是这个可执行文件自己。
+   *
+   * 此前这里是写死的 "Version 0.1.0" —— 版本号的第四个真相来源，而
+   * scripts/release/check-versions.mjs 只对齐 package.json、Cargo.toml 与
+   * tauri.conf.json 那三个，扫不到一段 JSX 里的字符串。发到 0.1.1 之后这里会
+   * 一直说 0.1.0，而更新器比对的是另一个数：用户看到的版本，和软件认为自己是
+   * 的版本，从此不是同一个东西。
+   *
+   * 读不出来就不写出一个数。一个说错了的版本号比一个没说出来的有害得多 ——
+   * 这正是这段代码在修的那个 bug 的教训。
+   */
+  useEffect(() => {
+    let active = true
+
+    void readVersion().then(
+      (value) => {
+        if (active) {
+          setVersion(value)
+        }
+      },
+      () => undefined,
+    )
+
+    return () => {
+      active = false
+    }
+  }, [readVersion])
+
   return (
     <SettingsPage>
       <div className="settings-about-card">
         <div className="settings-about-card__copy">
           <strong>Poietica</strong>
-          <span>Version 0.1.0</span>
+          <span>Version {version ?? '…'}</span>
           <p>使用 React、Tauri 与 Rust 构建。</p>
         </div>
       </div>

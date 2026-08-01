@@ -11,6 +11,7 @@ import {
   createDesktopSettingsStore,
   createMainWindowController,
   type MainWindowController,
+  readAppVersion,
   type SettingsStore,
 } from '@poietica/platforms-desktop-runtime'
 import { createDesktopAgentSession } from '../application/ai/agent-session'
@@ -22,6 +23,8 @@ export interface ApplicationRuntime {
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
+  /** 这个可执行文件自己的版本号。关于页面此前写死了它。 */
+  readonly appVersion: () => Promise<string>
   readonly dispose: () => Promise<void>
 }
 
@@ -55,6 +58,7 @@ export function createApplicationRuntime(): ApplicationRuntime {
     settings,
     agentConfig,
     agentSession: agent.port,
+    appVersion: readAppVersion,
 
     async dispose() {
       await agent.dispose()

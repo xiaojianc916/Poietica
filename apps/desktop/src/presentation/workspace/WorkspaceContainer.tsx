@@ -39,6 +39,7 @@ export interface AppCapabilities {
 
 export interface WorkspaceContainerProps {
   readonly agentSession: AgentSessionPort
+  readonly appVersion: () => Promise<string>
   readonly workspace: WorkbenchSessionStore
   readonly capabilities: AppCapabilities
   readonly isSettingsOpen: boolean
@@ -56,6 +57,7 @@ export interface WorkspaceContainerProps {
 
 export function WorkspaceContainer({
   agentSession,
+  appVersion,
   workspace,
   capabilities,
   isSettingsOpen,
@@ -239,6 +241,7 @@ export function WorkspaceContainer({
   return (
     <SettingsProvider
       agentConfigStore={agentConfigStore}
+      appVersion={appVersion}
       onDismiss={onSettingsClose}
       store={settingsStore}
     >

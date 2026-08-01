@@ -41,6 +41,7 @@ export interface AppShellRuntime {
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
+  readonly appVersion: () => Promise<string>
 }
 
 export interface AppShellProps {
@@ -184,6 +185,7 @@ export function AppShell({ runtime }: AppShellProps) {
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
           agentSession={runtime.agentSession}
+          appVersion={runtime.appVersion}
           capabilities={capabilities}
           isSettingsOpen={isSettingsOpen && capabilities.settings}
           isWindowMaximized={isWindowMaximized}
