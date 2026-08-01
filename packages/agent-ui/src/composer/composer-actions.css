@@ -38,8 +38,8 @@
 }
 
 [data-assistant-skin] .assistant-plus-menu__item svg {
-  block-size: var(--cp-icon-2xs);
-  inline-size: var(--cp-icon-2xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
   flex: none;
   color: var(--cp-ink-muted);
 }
@@ -146,8 +146,8 @@
 /* 这颗按钮恒定可交互：只有它显示哪个图标随指针变，可点与否从不变。 */
 .assistant-mode-pill__mark {
   display: grid;
-  block-size: var(--cp-icon-2xs);
-  inline-size: var(--cp-icon-2xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
   flex: none;
   place-items: center;
   border: 0;

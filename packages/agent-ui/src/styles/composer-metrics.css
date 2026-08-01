@@ -54,16 +54,22 @@
   --cp-icon: var(--ui-icon-size-md);
   --cp-optical: 6px;
 
-  --cp-mark: calc(var(--ui-icon-unit) * 2);
-  --cp-row: calc(var(--cp-control) + 2px);
+  --cp-mark: calc(var(--cp-control) - 2px);
+  /*
+   * 容器高度也受网格约束，而且约束比图标本身更紧。
+   *
+   * 图标在容器里居中时，偏移量是 (容器高 - 图标尺寸) / 2，它乘 dpr 之后同样
+   * 必须落在整数上，否则整个字形偏半个物理像素 —— 描边宽度对了也依然发虚。
+   * 图标为 --ui-icon-unit 时，该条件即「容器高能被 4 整除」。
+   *
+   * 34px 与 22px 此前都不满足，各偏 0.5 个物理像素。
+   */
+  --cp-row: calc(var(--cp-control) + 4px);
   --cp-header: calc(var(--cp-control) - 4px);
-  --cp-control-sm: calc(var(--cp-control) - 10px);
+  --cp-control-sm: calc(var(--cp-control) - 8px);
   --cp-control-xs: calc(var(--cp-control) - 12px);
 
-  --cp-icon-sm: var(--ui-icon-size-md);
-  --cp-icon-xs: var(--ui-icon-size-md);
-  --cp-icon-2xs: var(--ui-icon-size-md);
-  --cp-dot: calc(var(--ui-icon-unit) / 4);
+  --cp-dot: calc(var(--cp-icon) * 3 / 8);
 
   --cp-inset: 10px;
   --cp-pad-x: calc(var(--cp-inset) + var(--cp-optical));
@@ -191,8 +197,10 @@
   --cp-edge-weight: calc(var(--ui-hairline) * 2);
 
   /* 顶部高光由表面色推出:浅色下偏白,深色下只是比表面亮一档,不再是纯白。 */
-  --cp-gloss: inset 0 1px 0 color-mix(in srgb, var(--ui-surface) 85%, white);
-  --cp-seat: inset 0 -1px 0 color-mix(in srgb, var(--ui-foreground) 3%, transparent);
-  --cp-lift-near: 0 1px 1px color-mix(in srgb, var(--ui-foreground) 6%, transparent);
+  --cp-gloss: inset 0 var(--ui-hairline) 0 color-mix(in srgb, var(--ui-surface) 85%, white);
+  --cp-seat: inset 0 calc(var(--ui-hairline) * -1) 0
+    color-mix(in srgb, var(--ui-foreground) 3%, transparent);
+  --cp-lift-near: 0 var(--ui-hairline) var(--ui-hairline)
+    color-mix(in srgb, var(--ui-foreground) 6%, transparent);
   --cp-lift-far: 0 6px 16px -12px color-mix(in srgb, var(--ui-foreground) 16%, transparent);
 }

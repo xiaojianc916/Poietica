@@ -1,3 +1,9 @@
+@property --ui-dpr {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 :root {
   --ui-control-height-xs: 1.75rem;
   --ui-control-height-sm: 2rem;
@@ -20,8 +26,7 @@
    * 真要两档小图标，正确做法是引入一套 16 网格字形（VS Code 的 codicon、Fluent
    * 的六套独立绘制都是这个思路），而不是继续缩放 24 网格。
    */
-  --ui-icon-unit: calc(24px / var(--ui-dpr, 1));
-  --ui-icon-size-sm: var(--ui-icon-unit);
+  --ui-icon-unit: calc(24px / var(--ui-dpr));
   --ui-icon-size-md: var(--ui-icon-unit);
   --ui-icon-size-lg: calc(var(--ui-icon-unit) * 2);
 
@@ -32,7 +37,7 @@
    * 发丝线：恰好 1 个物理像素。写 1px 在 dpr 1.5 下是 1.5 个物理像素，那条边
    * 会被摊成两列半透明灰 —— 界面上所有分隔线与卡片描边发虚都是这么来的。
    */
-  --ui-hairline: calc(1px / var(--ui-dpr, 1));
+  --ui-hairline: calc(1px / var(--ui-dpr));
 
   --ui-hit-target-min: 2.25rem;
   --ui-region-divider-width: 1px;

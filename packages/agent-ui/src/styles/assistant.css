@@ -199,8 +199,8 @@
 }
 
 [data-slot="prompt-input-submit"] svg {
-  block-size: var(--cp-icon-sm);
-  inline-size: var(--cp-icon-sm);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
   stroke-width: 2.25;
 }
 
@@ -300,8 +300,8 @@
 }
 
 .assistant-attachment__remove svg {
-  block-size: var(--cp-icon-2xs);
-  inline-size: var(--cp-icon-2xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
 }
 
 .assistant-quick-actions {
@@ -430,8 +430,8 @@
 
 /* Keep the Plus library glyph optically aligned with the group caption. */
 .assistant-threads__create svg {
-  block-size: var(--cp-icon-xs);
-  inline-size: var(--cp-icon-xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
   stroke-width: 1.75;
 }
 
@@ -567,8 +567,8 @@
 }
 
 .assistant-thread__action svg {
-  block-size: var(--cp-icon-xs);
-  inline-size: var(--cp-icon-xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
 }
 
 .assistant-thread__action:hover {
@@ -967,8 +967,8 @@
 }
 
 .assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
-  block-size: var(--cp-icon-2xs);
-  inline-size: var(--cp-icon-2xs);
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
 }
 
 .assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__separator {
@@ -1178,8 +1178,8 @@
 
 .assistant-composer__alert svg {
   flex: none;
-  inline-size: var(--cp-icon-xs);
-  block-size: var(--cp-icon-xs);
+  inline-size: var(--cp-icon);
+  block-size: var(--cp-icon);
   color: var(--ui-destructive);
 }
 
