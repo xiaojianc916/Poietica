@@ -19,7 +19,8 @@
       "!**/*.min.js",
       "!**/*.snap",
       "!**/*.svg",
-      "!refactor.mjs"
+      "!refactor.mjs",
+      "!release.mjs"
     ],
     "maxSize": 2097152
   },
