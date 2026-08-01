@@ -35,7 +35,7 @@
     "valibot": "catalog:"
   },
   "peerDependencies": {
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

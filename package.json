@@ -46,10 +46,10 @@
     "prepare": "node scripts/git-hooks/install.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.5",
+    "@biomejs/biome": "catalog:",
     "@types/node": "catalog:",
-    "@typescript/typescript6": "6.0.2",
-    "turbo": "2.10.7",
+    "@typescript/typescript6": "catalog:",
+    "turbo": "catalog:",
     "typescript": "catalog:"
   }
 }

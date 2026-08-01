@@ -11,6 +11,7 @@ allowBuilds:
   leveldown: true
 
 catalog:
+  "@biomejs/biome": "2.5.5"
   "@mynaui/icons-react": "0.4.11"
   "@streamdown/cjk": "1.0.3"
   "@streamdown/code": "1.1.1"
@@ -21,6 +22,7 @@ catalog:
   "@types/node": "24.0.15"
   "@types/react": "19.2.17"
   "@types/react-dom": "19.2.3"
+  "@typescript/typescript6": "6.0.2"
   "@vitejs/plugin-react": "6.0.3"
   diff: 8.0.2
   katex: 0.16.47
@@ -30,6 +32,7 @@ catalog:
   "streamdown": "2.5.0"
   "tailwind-merge": "3.6.0"
   "tailwindcss": "4.3.3"
+  "turbo": "2.10.7"
   "typescript": "7.0.2"
   "uuid": "14.0.1"
   "valibot": "1.4.2"
@@ -55,5 +58,7 @@ catalogs:
     "@testing-library/user-event": "^14.6.1"
     jsdom: "^27.0.0"
     vitest: "4.1.10"
+
+includeWorkspaceRoot: true
 
 saveExact: true

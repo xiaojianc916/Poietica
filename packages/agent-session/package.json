@@ -25,6 +25,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "react": "19.2.7"
+    "react": "^19.2.0"
   }
 }
