@@ -23,6 +23,8 @@ type UpdateState =
   | { readonly phase: 'restarting'; readonly release: UpdateRelease }
   | { readonly phase: 'failed'; readonly release: UpdateRelease; readonly reason: string }
 
+type ActiveUpdateState = Exclude<UpdateState, { phase: 'idle' }>
+
 export interface UpdateNoticeProps {
   readonly controller: AppUpdateController
   readonly settings: SettingsStore
@@ -161,7 +163,7 @@ export function UpdateNotice({ controller, settings }: UpdateNoticeProps) {
       className="!max-w-[28rem]"
       closeOnOverlayClick={false}
       description={descriptionOf(state)}
-      footer={<footer className="flex justify-end gap-2.5">{actionsOf(state, install, dismiss)}</footer>}
+      footer={<div className="flex justify-end gap-2.5">{actionsOf(state, install, dismiss)}</div>}
       onOpenChange={(open) => {
         if (!open) {
           dismiss()
@@ -169,14 +171,18 @@ export function UpdateNotice({ controller, settings }: UpdateNoticeProps) {
       }}
       open
       showCloseButton={false}
-      title={\`Poietica \${state.release.version} 可以更新\`}
+      title={titleOf(state.release)}
     >
       <div className="px-5 pb-2">{bodyOf(state)}</div>
     </Dialog>
   )
 }
 
-function descriptionOf(state: Exclude<UpdateState, { phase: 'idle' }>): string {
+function titleOf(release: UpdateRelease): string {
+  return ['Poietica', release.version, '可以更新'].join(' ')
+}
+
+function descriptionOf(state: ActiveUpdateState): string {
   switch (state.phase) {
     case 'available':
       return '安装完成后应用会自动重启。'
@@ -185,11 +191,11 @@ function descriptionOf(state: Exclude<UpdateState, { phase: 'idle' }>): string {
     case 'restarting':
       return '下载完成，安装器已接手。'
     case 'failed':
-      return '这次更新没有完成，当前版本未被改动。'
+      return '这次更新没有完成，当前版本没有被改动。'
   }
 }
 
-function bodyOf(state: Exclude<UpdateState, { phase: 'idle' }>) {
+function bodyOf(state: ActiveUpdateState) {
   switch (state.phase) {
     case 'available':
       return state.release.notes === null || state.release.notes === undefined ? null : (
@@ -215,11 +221,7 @@ function bodyOf(state: Exclude<UpdateState, { phase: 'idle' }>) {
   }
 }
 
-function actionsOf(
-  state: Exclude<UpdateState, { phase: 'idle' }>,
-  onInstall: () => void,
-  onDismiss: () => void,
-) {
+function actionsOf(state: ActiveUpdateState, onInstall: () => void, onDismiss: () => void) {
   if (state.phase === 'installing' || state.phase === 'restarting') {
     return null
   }
@@ -251,14 +253,14 @@ function percentOf(downloaded: number, total: number | null): number | null {
 }
 
 function percentLabel(percent: number | null): string {
-  return percent === null ? '' : \`\${percent}%\`
+  return percent === null ? '' : [String(percent), '%'].join('')
 }
 
 function megabytes(downloaded: number, total: number): string {
   const done = (downloaded / BYTES_PER_MEGABYTE).toFixed(1)
   const all = (total / BYTES_PER_MEGABYTE).toFixed(1)
 
-  return \`\${done} / \${all} MB\`
+  return [done, '/', all, 'MB'].join(' ')
 }
 
 /*

@@ -43,11 +43,25 @@ pub struct UpdateRelease {
 }
 
 /// 下载进度。`total` 在服务端未给出 Content-Length 时为空。
+///
+/// 字节数是 `u32`，不是 `u64`。specta 的 TypeScript 导出默认拒绝一切 64 位整数
+/// （`BigIntForbidden`），因为 JSON 里的数字到了 JavaScript 就是双精度浮点，超过
+/// 2^53 会静默丢精度。它提供了放开这条限制的全局开关，但那是一道对的闸门：放开
+/// 之后，以后任何人往 IPC 上放一个 `u64` 都不会再被拦下。
+///
+/// 于是收窄的责任落在这里。内部累加仍然是 `u64`，只有跨 IPC 的这一步饱和截断。
+/// 代价说清楚：超过 4 GiB 的部分会停在 `u32::MAX` 上，而一个 4 GiB 的桌面安装包
+/// 不存在，这两个数唯一的用途也只是算出一个百分比。
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProgress {
-    pub downloaded: u64,
-    pub total: Option<u64>,
+    pub downloaded: u32,
+    pub total: Option<u32>,
+}
+
+/// 把一个字节计数收窄到 IPC 能表达的范围。
+fn as_ipc_bytes(bytes: u64) -> u32 {
+    u32::try_from(bytes).unwrap_or(u32::MAX)
 }
 
 /// 更新器的失败原因不外带。
@@ -109,7 +123,10 @@ pub async fn update_install(app: AppHandle) -> UpdateCommandResult<()> {
             move |chunk, total| {
                 downloaded = downloaded.saturating_add(u64::try_from(chunk).unwrap_or(u64::MAX));
 
-                let progress = UpdateProgress { downloaded, total };
+                let progress = UpdateProgress {
+                    downloaded: as_ipc_bytes(downloaded),
+                    total: total.map(as_ipc_bytes),
+                };
 
                 if let Err(error) = emitter.emit(UPDATE_PROGRESS_EVENT, progress) {
                     log::warn!("could not emit update progress: {error}");
