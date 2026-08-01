@@ -115,12 +115,7 @@ fn one_time_token() -> String {
     format!("{high:016x}{low:016x}")
 }
 
-fn serve_once(
-    listener: &TcpListener,
-    document: &str,
-    expected: &Expected,
-    stop: &AtomicBool,
-) {
+fn serve_once(listener: &TcpListener, document: &str, expected: &Expected, stop: &AtomicBool) {
     let deadline = Instant::now() + LIFETIME;
 
     while !stop.load(Ordering::Relaxed) {
@@ -204,7 +199,12 @@ fn serve_connection(
             document,
         )
     } else {
-        write_response(&mut stream, "404 Not Found", "text/plain; charset=utf-8", "")
+        write_response(
+            &mut stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            "",
+        )
     }
 }
 

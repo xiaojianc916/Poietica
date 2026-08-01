@@ -103,7 +103,11 @@ fn is_allowed_base_url(base_url: &str) -> bool {
     })
 }
 
-fn outcome(verdict: ProviderProbeVerdict, status: u16, model_ids: Vec<String>) -> ProviderProbeOutcome {
+fn outcome(
+    verdict: ProviderProbeVerdict,
+    status: u16,
+    model_ids: Vec<String>,
+) -> ProviderProbeOutcome {
     ProviderProbeOutcome {
         verdict,
         status,
@@ -153,12 +157,22 @@ pub async fn provider_probe_key(
     match status {
         401 => return Ok(outcome(ProviderProbeVerdict::Rejected, status, Vec::new())),
         403 => return Ok(outcome(ProviderProbeVerdict::Forbidden, status, Vec::new())),
-        404 => return Ok(outcome(ProviderProbeVerdict::Unsupported, status, Vec::new())),
+        404 => {
+            return Ok(outcome(
+                ProviderProbeVerdict::Unsupported,
+                status,
+                Vec::new(),
+            ));
+        }
         _ => {}
     }
 
     if !(200..300).contains(&status) {
-        return Ok(outcome(ProviderProbeVerdict::Unreachable, status, Vec::new()));
+        return Ok(outcome(
+            ProviderProbeVerdict::Unreachable,
+            status,
+            Vec::new(),
+        ));
     }
 
     // 响应体读不到、或者不是我们认得的形状，都不改变结论：那家已经用 2xx 接受了

@@ -27,7 +27,7 @@ use crate::error::{AcpError, Result};
 ///
 /// 而这不是异常路径，这是**每一台新电脑上的必经之路**。安装包里没有
 /// externalBin 也没有 resources，agent CLI 从来就不在里面 —— 它是用户要自己
-/// 装的一个命令行程序。同一份 tauri.conf.json 对 WebView2 是认真的
+/// 装的一个命令行程序。同一份 tauri.conf.json 对 `WebView2` 是认真的
 /// （embedBootstrapper + silent），对这个真正的核心依赖一个字都没说。
 ///
 /// 装包这件事这一轮不动。能立刻不撒谎的是这句话：说清缺的是什么、以及装完

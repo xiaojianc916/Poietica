@@ -93,7 +93,9 @@ async fn check(app: AppHandle) -> tauri_plugin_updater::Result<()> {
         return Ok(());
     }
 
-    update.download_and_install(|_chunk, _total| {}, || {}).await?;
+    update
+        .download_and_install(|_chunk, _total| {}, || {})
+        .await?;
 
     Ok(())
 }

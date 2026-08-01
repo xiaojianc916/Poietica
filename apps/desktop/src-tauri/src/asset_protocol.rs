@@ -682,10 +682,7 @@ fn requested_range<B>(request: &Request<B>) -> Option<(Option<u64>, Option<u64>)
 /// （取容器尾部的索引，mp4 的 moov 在尾部时就是这样）。
 ///
 /// 落不到有效区间时返回 None，由调用方回 416 并带上真实长度。
-fn resolve_range(
-    requested: (Option<u64>, Option<u64>),
-    length: u64,
-) -> Option<(u64, u64)> {
+fn resolve_range(requested: (Option<u64>, Option<u64>), length: u64) -> Option<(u64, u64)> {
     if length == 0 {
         return None;
     }
