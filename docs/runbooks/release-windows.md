@@ -52,7 +52,7 @@ SHA256SUMS → 静默安装冒烟 + PE 子系统回归检查 → 建草稿 relea
 ## 本地出一个安装包
 
 ```bash
-pnpm build          # target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+pnpm build:release          # target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
 ```
 
 不带 updater 产物，也不需要签名密钥。

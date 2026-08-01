@@ -18,11 +18,10 @@
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
-    "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "dev": "turbo run dev --filter=@poietica/desktop",
-    "build": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc",
-    "build:debug": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --debug --no-bundle",
     "build:web": "turbo run build",
+    "build:debug": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --debug --no-bundle",
+    "build:release": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
     "check": "pnpm check:web && pnpm check:rust",
     "check:web": "biome ci . && node tests/architecture/run.mjs && turbo run typecheck test --continue",
     "check:rust": "cargo fmt --check && pnpm clippy && pnpm test:rust",
@@ -30,6 +29,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "turbo run typecheck --continue",
+    "clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "test": "turbo run test --continue",
     "test:architecture": "node tests/architecture/run.mjs",
     "test:rust": "cargo test --workspace --all-features",
@@ -37,14 +37,13 @@
     "audit:rust": "cargo deny check --all-features",
     "ipc:generate": "cargo run -p poietica --bin export-ipc-bindings",
     "ipc:check": "pnpm ipc:generate && git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts",
+    "version:set": "node scripts/release/set-version.mjs",
     "check:versions": "node scripts/release/check-versions.mjs",
     "verify:channel": "node scripts/release/verify-channel.mjs",
-    "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build",
+    "verify:release": "pnpm check:versions && pnpm check && pnpm ipc:check && pnpm audit && pnpm audit:rust && pnpm build:release",
     "tauri": "node scripts/tauri.mjs",
     "clean": "node scripts/clean.mjs",
-    "prepare": "node scripts/git-hooks/install.mjs",
-    "build:release": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
-    "version:set": "node scripts/release/set-version.mjs"
+    "prepare": "node scripts/git-hooks/install.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.5",
