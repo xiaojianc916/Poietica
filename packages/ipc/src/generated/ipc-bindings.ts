@@ -236,15 +236,50 @@ async agentDeleteThread(request: AgentThreadRequest) : Promise<null> {
 async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
+/**
+ * Opens an asset session and returns its opaque token.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the registry refuses to open the session. The caller
+ * receives the redacted IPC message, never native detail.
+ */
 async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
+/**
+ * Hashes one payload and stores it inside an open asset session.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the payload length exceeds `u32`, when the hashing
+ * task is cancelled, when the registry rejects the asset, or when the asset
+ * protocol URL cannot be built — in that last case the stored asset is rolled
+ * back before the error is returned.
+ */
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
 },
+/**
+ * Removes one asset from an open session.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the registry rejects the request, and when the asset
+ * is not present in that session.
+ */
 async assetRemove(request: AssetRemoveRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_remove", { request });
 },
+/**
+ * Closes an asset session and releases everything it still holds.
+ * 
+ * # Errors
+ * 
+ * Returns an error only when the registry itself fails. A session that is
+ * already gone is a success, not a failure: document close may have released
+ * it first, and no caller should have to tell the two apart.
+ */
 async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
@@ -253,6 +288,10 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
  * 
  * The renderer receives a bounded DTO, not an arbitrary filesystem path or
  * unrestricted native error object.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the stored crash report cannot be read or consumed.
  */
 async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
     return await TAURI_INVOKE("diagnostics_take_previous_crash");
@@ -300,12 +339,37 @@ async windowOpenDevtools(label: string) : Promise<void> {
 async windowOpenExternalUrl(url: string) : Promise<void> {
     await TAURI_INVOKE("window_open_external_url", { url });
 },
+/**
+ * Reads the persisted application settings.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the settings store cannot be opened. A store that
+ * opens but holds a value of an older shape is not an error: it falls back to
+ * defaults so the panel stays usable.
+ */
 async settingsGet() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_get");
 },
+/**
+ * Persists the application settings.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened, when the settings cannot
+ * be serialized, or when the write does not reach disk.
+ */
 async settingsSet(settings: AppSettings) : Promise<null> {
     return await TAURI_INVOKE("settings_set", { settings });
 },
+/**
+ * Restores the default application settings and persists them.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened or the write does not
+ * reach disk.
+ */
 async settingsReset() : Promise<AppSettings> {
     return await TAURI_INVOKE("settings_reset");
 },

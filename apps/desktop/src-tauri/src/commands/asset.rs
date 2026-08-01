@@ -51,6 +51,12 @@ pub struct AssetSessionCloseRequest {
     pub session_token: String,
 }
 
+/// Opens an asset session and returns its opaque token.
+///
+/// # Errors
+///
+/// Returns an error when the registry refuses to open the session. The caller
+/// receives the redacted IPC message, never native detail.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_open(
@@ -65,6 +71,14 @@ pub async fn asset_session_open(
     Ok(AssetSessionResult { session_token })
 }
 
+/// Hashes one payload and stores it inside an open asset session.
+///
+/// # Errors
+///
+/// Returns an error when the payload length exceeds `u32`, when the hashing
+/// task is cancelled, when the registry rejects the asset, or when the asset
+/// protocol URL cannot be built — in that last case the stored asset is rolled
+/// back before the error is returned.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_upload(
@@ -127,6 +141,12 @@ pub async fn asset_upload(
     })
 }
 
+/// Removes one asset from an open session.
+///
+/// # Errors
+///
+/// Returns an error when the registry rejects the request, and when the asset
+/// is not present in that session.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_remove(
@@ -144,6 +164,13 @@ pub async fn asset_remove(
     Ok(())
 }
 
+/// Closes an asset session and releases everything it still holds.
+///
+/// # Errors
+///
+/// Returns an error only when the registry itself fails. A session that is
+/// already gone is a success, not a failure: document close may have released
+/// it first, and no caller should have to tell the two apart.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_session_close(

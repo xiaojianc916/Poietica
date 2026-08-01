@@ -69,6 +69,13 @@ impl Default for PrivacySettings {
     }
 }
 
+/// Reads the persisted application settings.
+///
+/// # Errors
+///
+/// Returns an error when the settings store cannot be opened. A store that
+/// opens but holds a value of an older shape is not an error: it falls back to
+/// defaults so the panel stays usable.
 #[command]
 #[specta::specta]
 pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> {
@@ -90,6 +97,12 @@ pub async fn settings_get(app: AppHandle) -> SettingsCommandResult<AppSettings> 
     .map_err(IpcError::from)
 }
 
+/// Persists the application settings.
+///
+/// # Errors
+///
+/// Returns an error when the store cannot be opened, when the settings cannot
+/// be serialized, or when the write does not reach disk.
 #[command]
 #[specta::specta]
 pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsCommandResult<()> {
@@ -102,6 +115,12 @@ pub async fn settings_set(app: AppHandle, settings: AppSettings) -> SettingsComm
     .map_err(IpcError::from)
 }
 
+/// Restores the default application settings and persists them.
+///
+/// # Errors
+///
+/// Returns an error when the store cannot be opened or the write does not
+/// reach disk.
 #[command]
 #[specta::specta]
 pub async fn settings_reset(app: AppHandle) -> SettingsCommandResult<AppSettings> {
