@@ -69,8 +69,17 @@ impl PackageManager {
         poietica_agent_runtime_native::resolve_program(self.program()).ok()
     }
 
-    fn install_args(self, package: &str) -> Vec<String> {
-        let target = format!("{package}@latest");
+    /// 装到一个具体版本，而不是把 latest 这个标签交回去。
+    ///
+    /// latest 由谁解析是有分歧的：我们这一侧 view 出来是 0.31.1，包管理器自己再解析
+    /// 一次可能因为元数据缓存落到 0.31.0 —— 退出码 0，版本却没到位，界面只好把同一个
+    /// 按钮再画一次。这一次流程里已经解析过最新版，就把那个具体版本号交下去；查不到
+    /// 时才退回 latest，让包管理器自己决定。
+    fn install_args(self, package: &str, version: Option<&str>) -> Vec<String> {
+        let target = match version {
+            Some(version) => format!("{package}@{version}"),
+            None => format!("{package}@latest"),
+        };
 
         match self {
             Self::Pnpm => vec!["add".to_owned(), "--global".to_owned(), target],
@@ -235,9 +244,8 @@ fn latest_version(manager: PackageManager, package: &str) -> Result<String> {
         .resolved()
         .ok_or_else(|| Error::AgentCli(format!("这台电脑上没有找到 {}", manager.program())))?;
 
-    let spoken = output_of(&program, &manager.view_args(package)).ok_or_else(|| {
-        Error::AgentCli(format!("{} 没有执行成功", manager.program()))
-    })?;
+    let spoken = output_of(&program, &manager.view_args(package))
+        .ok_or_else(|| Error::AgentCli(format!("{} 没有执行成功", manager.program())))?;
 
     /*
      * --json 下给的是一个字符串，多版本匹配时是一个数组。两家的实现都可能在前面先
@@ -396,13 +404,16 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
         .resolved()
         .ok_or_else(|| Error::AgentCli(format!("这台电脑上没有找到 {}", manager.program())))?;
 
+    /* 目标版本与检测同源。查不到（离线、镜像不通）才退回 latest。 */
+    let target = latest_version(manager, &spec.package_name).ok();
+
     let mut command = Command::new(&program);
-    command.args(manager.install_args(&spec.package_name));
+    command.args(manager.install_args(&spec.package_name, target.as_deref()));
     hide_console(&mut command);
 
-    let output = command.output().map_err(|error| {
-        Error::AgentCli(format!("{} 没有执行成功：{error}", manager.program()))
-    })?;
+    let output = command
+        .output()
+        .map_err(|error| Error::AgentCli(format!("{} 没有执行成功：{error}", manager.program())))?;
 
     if !output.status.success() {
         let spoken = String::from_utf8_lossy(&output.stderr);
@@ -416,7 +427,28 @@ fn install(app: &AppHandle, agent_id: &str) -> Result<AgentInstallStatus> {
     }
 
     /* 装完那一刻缓存必然过期：强制重算，调用方拿到的就是新状态，不用再问一次。 */
-    compute(app, agent_id, true)
+    let status = compute(app, agent_id, true)?;
+
+    /*
+     * 退出码 0 不等于装到位了 —— 这一版就发生过：包管理器报成功，落地的是上一个版本。
+     * 不比对的话，界面只会把同一个「更新到 X」再画一次，而一个点了没反应的按钮比一句
+     * 错误难排查得多。
+     */
+    if let (Some(target), Some(installed)) =
+        (target.as_deref(), status.installed_version.as_deref())
+        && target != installed
+    {
+        return Err(Error::AgentCli(format!(
+            "{program} 报告安装成功，但落地的是 {installed}，目标是 {target}。多半是包管理器的元数据缓存过旧，可在终端里执行：{command}",
+            program = manager.program(),
+            command = std::iter::once(manager.program().to_owned())
+                .chain(manager.install_args(&spec.package_name, Some(target)))
+                .collect::<Vec<String>>()
+                .join(" "),
+        )));
+    }
+
+    Ok(status)
 }
 
 /// 当前这个 agent 装了没有、是不是最新。
@@ -475,9 +507,13 @@ mod tests {
     #[test]
     fn each_manager_installs_globally_with_its_own_verb() {
         assert_eq!(
-            PackageManager::Pnpm.install_args("pkg"),
-            vec!["add", "--global", "pkg@latest"]
+            PackageManager::Pnpm.install_args("pkg", Some("1.2.3")),
+            vec!["add", "--global", "pkg@1.2.3"]
         );
-        assert!(PackageManager::Npm.install_args("pkg").contains(&"install".to_owned()));
+        assert!(
+            PackageManager::Npm
+                .install_args("pkg", None)
+                .contains(&"pkg@latest".to_owned())
+        );
     }
 }
