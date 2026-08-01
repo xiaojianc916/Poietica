@@ -96,6 +96,12 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
 
     saveDefaultModel: (agentId, alias) => bridge.saveDefaultModel(agentId, alias),
 
+    /* 原生 DTO 与端口的形状逐格相同，翻一遍只会多一个出错的地方。 */
+    loadInstallStatus: (agentId, options) =>
+      bridge.loadInstallStatus(agentId, options?.force ?? false),
+
+    runInstall: (agentId) => bridge.runInstall(agentId),
+
     verifyProviderKey: ({ baseUrl, secret }) => bridge.verifyProviderKey(baseUrl, secret),
 
     notifyConfigChanged() {

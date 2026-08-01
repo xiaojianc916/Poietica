@@ -23,6 +23,8 @@ workspace = true
 tauri-build.workspace = true
 
 [dependencies]
+# 版本比较交给 cargo 自己用的那个实现，不手搓字符串比大小。
+semver = "1"
 hex.workspace = true
 log.workspace = true
 serde.workspace = true

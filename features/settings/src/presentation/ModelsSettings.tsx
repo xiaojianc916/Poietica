@@ -1,6 +1,7 @@
 import { type AcpAgentProfile, acpAgents, defaultAcpAgent } from '@poietica/agent-registry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
+import { AgentInstallAction } from './AgentInstallAction'
 import { AgentModels } from './AgentModels'
 import { describeAgentCliFailure } from './agentCliText'
 import { OptionSelect } from './models-fields'
@@ -143,6 +144,8 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
             </div>
 
             <div className="models-row__control">
+              <AgentInstallAction agentId={agentId} store={store} />
+
               <OptionSelect
                 ariaLabel="ACP Agent"
                 onChange={selectAgent}

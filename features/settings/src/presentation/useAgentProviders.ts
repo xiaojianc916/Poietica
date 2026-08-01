@@ -5,7 +5,7 @@ import {
 } from '@poietica/agent-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
-import { describeAgentCliExit, describeAgentCliFailure } from './agentCliText'
+import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'
 
 /*
  * 向 agent 问一次「你配了哪些 provider、哪些模型」。
@@ -125,7 +125,7 @@ export function useAgentProviders(store: AgentConfigStore, agentId: string): Age
 
             setLoading(false)
 
-            const reason = describeAgentCliExit(outcome.status, outcome.stderr)
+            const reason = describeAgentCliOutcome(outcome)
 
             if (cached === undefined) {
               setSnapshot(undefined)

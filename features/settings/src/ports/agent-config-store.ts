@@ -110,6 +110,22 @@ export interface AgentConfigSnapshot {
  * agent 自己的配置文件之后就与我们无关 —— 那份文件里它是明文，所以我们再存一份
  * 副本换不到安全，只换来一个要同步的第二处真相。
  */
+/**
+ * 这个 agent 的运行时在这台机器上处于什么状态。
+ *
+ * unmanaged：档案没说怎么装（用户自带的 agent）。
+ * unknown：装着，但问不到最新版（离线、镜像不通）——「不知道」不是「该更新」。
+ */
+export type AgentInstallState = 'unmanaged' | 'missing' | 'outdated' | 'current' | 'unknown'
+
+export interface AgentInstallStatus {
+  readonly state: AgentInstallState
+  readonly installedVersion: string | null
+  readonly latestVersion: string | null
+  readonly checkedAt: number | null
+  readonly packageName: string | null
+}
+
 export interface AgentConfigStore {
   readonly load: () => Promise<AgentConfigSnapshot>
   readonly saveAgents: (args: {
@@ -188,6 +204,18 @@ export interface AgentConfigStore {
    * 某一个组件。此前这件事是 useAgentProviders 实例上的 reload 方法，只有设置页
    * 那棵子树够得着，主界面因此要等到下次启动。
    */
+  /**
+   * 装了没有、是不是最新。
+   *
+   * 默认读缓存（原生侧 24 小时 TTL），所以界面挂载时调它既不起进程也不走网络。
+   * 只有用户明确要求刷新时才传 force。
+   */
+  readonly loadInstallStatus: (
+    agentId: string,
+    options?: { readonly force?: boolean },
+  ) => Promise<AgentInstallStatus>
+  /** 安装或更新这个 agent 的运行时，完成后返回新的状态。 */
+  readonly runInstall: (agentId: string) => Promise<AgentInstallStatus>
   readonly notifyConfigChanged: () => void
   /** 听「配置变了」。返回退订。 */
   readonly subscribeConfigChanged: (listener: () => void) => () => void

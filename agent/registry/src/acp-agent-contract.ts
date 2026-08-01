@@ -34,6 +34,22 @@ export interface AcpQuestionDialect {
   readonly skip: RegExp
 }
 
+/**
+ * 这个 agent 的运行时怎么装。
+ *
+ * 它是一个用户要自己装的外部 CLI，安装包里既没有 externalBin 也没有 resources。
+ * 各家不同的只是「包名」与「问版本的参数」两个值，不是算法 —— 按本文件的判据，
+ * 声明字段，不加钩子。
+ *
+ * 缺席表示我们说不出该怎么装它：界面于是什么都不画，而不是画一个点了会失败的按钮。
+ */
+export interface AcpAgentInstall {
+  /** npm 包名。安装与查最新版都只认它。 */
+  readonly packageName: string
+  /** 问已装版本的参数。输出里第一个 semver 就是答案。 */
+  readonly versionArgs: readonly string[]
+}
+
 export interface AcpAgentDescriptor {
   readonly id: string
   readonly displayName: string
@@ -106,6 +122,7 @@ export interface AcpAgentDescriptor {
    * 需要知道「这一条不该给编辑与删除入口」。同样是值，所以是声明。
    */
   readonly syntheticProviderId?: string | undefined
+  readonly install?: AcpAgentInstall | undefined
   readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: AcpQuestionDialect | undefined

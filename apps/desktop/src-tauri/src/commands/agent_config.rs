@@ -304,6 +304,64 @@ fn launch_env_inner(
 /// # Errors
 ///
 /// store 无法打开、档案不存在、或档案里没有可用的 command 时返回错误。
+/// 档案里声明的安装方式。缺席表示这个 agent 不由我们管安装。
+pub struct AgentInstallSpec {
+    pub package_name: String,
+    pub version_args: Vec<String>,
+}
+
+/// 读出这个 agent 的安装声明。
+///
+/// 校验在渲染层的 valibot 模式里已经做过一次，但 agents.json 可以被手改，而这一格
+/// 会被交给 npm install —— 所以包名的字符集在这里再判一次，判据与那边同一条。
+///
+/// # Errors
+///
+/// 读不到档案时返回错误。档案里没有 install 一格不是错误，是 Ok(None)。
+pub fn agent_install_spec(app: &AppHandle, agent_id: &str) -> Result<Option<AgentInstallSpec>> {
+    let profile = profile_of(app, agent_id)?;
+
+    let Some(install) = profile.get("install").and_then(Value::as_object) else {
+        return Ok(None);
+    };
+
+    let Some(package_name) = install
+        .get("packageName")
+        .and_then(Value::as_str)
+        .filter(|name| is_npm_package_name(name))
+    else {
+        return Ok(None);
+    };
+
+    let version_args = install
+        .get("versionArgs")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_owned))
+                .collect::<Vec<String>>()
+        })
+        .filter(|args| !args.is_empty())
+        .unwrap_or_else(|| vec!["--version".to_owned()]);
+
+    Ok(Some(AgentInstallSpec {
+        package_name: package_name.to_owned(),
+        version_args,
+    }))
+}
+
+fn is_npm_package_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > 214 {
+        return false;
+    }
+
+    let body = name.strip_prefix('@').map_or(name, |scoped| scoped);
+
+    body.chars()
+        .all(|glyph| glyph.is_ascii_lowercase() || glyph.is_ascii_digit() || "._-/".contains(glyph))
+}
+
 pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
     let profile = profile_of(app, agent_id)?;
 

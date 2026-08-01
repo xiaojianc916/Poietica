@@ -35,6 +35,7 @@ export {
   type AgentCliResult,
   type AgentConfigBridge,
   type AgentConfigSnapshot,
+  type AgentInstallStatus,
   createAgentConfigBridge,
 } from './agent-config'
 export {

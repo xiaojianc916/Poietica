@@ -2,6 +2,7 @@ import { throughIpc } from './error'
 import {
   type AgentCliResult,
   type AgentConfigSnapshot,
+  type AgentInstallStatus,
   commands,
   type JsonValue,
   type AgentCliRequest as NativeAgentCliRequest,
@@ -56,7 +57,36 @@ function inOrder<T>(agentId: string, work: () => Promise<T>): Promise<T> {
  * Record<string, string>。读一个没配过的 provider，运行期拿到 undefined，类型却说
  * 那是 string。
  */
-export type { AgentCliResult, AgentConfigSnapshot, ProviderProbeOutcome }
+export type { AgentCliResult, AgentConfigSnapshot, AgentInstallStatus, ProviderProbeOutcome }
+
+/*
+ * 安装那条路不进 inOrder。
+ *
+ * 那个队列排的是 config.toml 的写者；安装动的是全局 node_modules，两者没有共享资源，
+ * 排在一起只会让「装一下」被一次几秒的密钥写入挡住。它自己的问题是另一个：用户会连点，
+ * 而每一次点都是一个 npm 进程。同一把钥匙上已经在飞的那次直接复用 —— 这是 single-flight，
+ * 不是节流：调用方拿到的仍然是真实那一次的结果。
+ */
+const flights = new Map<string, Promise<AgentInstallStatus>>()
+
+function singleFlight(
+  key: string,
+  work: () => Promise<AgentInstallStatus>,
+): Promise<AgentInstallStatus> {
+  const flying = flights.get(key)
+
+  if (flying !== undefined) {
+    return flying
+  }
+
+  const started = work().finally(() => {
+    flights.delete(key)
+  })
+
+  flights.set(key, started)
+
+  return started
+}
 
 /**
  * 受控 CLI 调用的请求。受控 home 与可执行文件都由原生侧按 agentId 现算。
@@ -95,6 +125,14 @@ export interface AgentConfigBridge {
    * 拿一把刚收到的密钥问那家厂商认不认。不写任何东西，所以不进 inOrder 的队列 ——
    * 它既不改 config.toml，也不该被一次几秒的写入挡在后面。
    */
+  /**
+   * 这个 agent 的运行时装了没有、是不是最新。
+   *
+   * force 为假时命中原生侧 24 小时内的缓存，既不起进程也不走网络，界面可以随便调。
+   */
+  readonly loadInstallStatus: (agentId: string, force: boolean) => Promise<AgentInstallStatus>
+  /** 安装或更新这个 agent 的运行时，完成后返回新的状态。 */
+  readonly runInstall: (agentId: string) => Promise<AgentInstallStatus>
   readonly verifyProviderKey: (baseUrl: string, secret: string) => Promise<ProviderProbeOutcome>
 }
 
@@ -124,6 +162,14 @@ export function createAgentConfigBridge(): AgentConfigBridge {
       inOrder(agentId, async () => {
         await throughIpc(() => commands.agentSetDefaultModel(agentId, alias))
       }),
+
+    loadInstallStatus: (agentId, force) =>
+      singleFlight(`status:${agentId}:${String(force)}`, () =>
+        throughIpc(() => commands.agentInstallStatus(agentId, force)),
+      ),
+
+    runInstall: (agentId) =>
+      singleFlight(`install:${agentId}`, () => throughIpc(() => commands.agentInstallRun(agentId))),
 
     verifyProviderKey: (baseUrl, secret) =>
       throughIpc(() => commands.providerProbeKey(baseUrl, secret)),

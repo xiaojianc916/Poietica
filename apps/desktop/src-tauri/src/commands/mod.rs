@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod agent_cli;
 pub mod agent_config;
+pub mod agent_install;
 pub mod asset;
 pub mod catalog_server;
 pub mod diagnostics;

@@ -45,8 +45,6 @@ const FORBIDDEN_FLAGS: [&str; 2] = ["--api-key", "--apikey"];
 /// GUI 进程 spawn 一个控制台程序时，Windows 会给它开一个窗口：刷新一次模型清单就闪一
 /// 次黑框，添加一次 provider 再闪一次。Zed 的 crates/util/src/command.rs 对每一条命令
 /// 都设这个标志，理由相同。
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -319,12 +317,7 @@ pub async fn agent_cli_exec(
             command.env("no_proxy", "127.0.0.1,localhost");
         }
 
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-
-            command.creation_flags(CREATE_NO_WINDOW);
-        }
+        crate::commands::process::hide_console(&mut command);
 
         if !request.secret_var.is_empty() && !secret.is_empty() {
             command.env(&request.secret_var, &secret);

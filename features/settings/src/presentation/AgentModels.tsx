@@ -12,7 +12,7 @@ import {
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
-import { describeAgentCliFailure } from './agentCliText'
+import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'
 import { ProviderKeyCard } from './ProviderKeyCard'
 import { useAgentProviders } from './useAgentProviders'
 
@@ -63,18 +63,6 @@ interface ImportFailure {
  * stderr 空就退回 stdout —— 有些失败是 commander 层打印的；两样都空时只剩退出码，那也
  * 比不说强。
  */
-function reasonOf(outcome: {
-  readonly status: number
-  readonly stdout: string
-  readonly stderr: string
-}): string {
-  const spoken = [outcome.stderr, outcome.stdout]
-    .flatMap((stream) => stream.split('\n'))
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
-
-  return spoken ?? `退出码 ${String(outcome.status)}`
-}
 
 /*
  * 导入一家 provider。
@@ -104,7 +92,9 @@ async function importOne(input: {
       secretFromGlobalProvider: provider.id,
     })
 
-    return outcome.status === 0 ? undefined : { id: provider.id, reason: reasonOf(outcome) }
+    return outcome.status === 0
+      ? undefined
+      : { id: provider.id, reason: describeAgentCliOutcome(outcome) }
   } catch (cause: unknown) {
     return { id: provider.id, reason: describeAgentCliFailure(cause, '调用失败') }
   }
@@ -446,7 +436,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             setConfirmId(null)
 
             if (outcome.status !== 0) {
-              setKeyError(reasonOf(outcome))
+              setKeyError(describeAgentCliOutcome(outcome))
               return
             }
 

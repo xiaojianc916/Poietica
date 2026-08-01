@@ -1,4 +1,4 @@
-export type { AcpQuestionDialect } from './acp-agent-contract'
+export type { AcpAgentInstall, AcpQuestionDialect } from './acp-agent-contract'
 export type {
   AcpAgentLaunch,
   AcpAgentLaunchSource,

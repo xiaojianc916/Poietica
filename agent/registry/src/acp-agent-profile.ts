@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import type { AcpAgentInstall } from './acp-agent-contract'
 import { acpAgents, defaultAcpAgent } from './acp-agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
@@ -51,6 +52,12 @@ export interface AcpAgentProfile {
    * 只记名字：用户 home 由原生侧现算。缺席表示我们说不出它把配置放在哪。
    */
   readonly ownHomeDirectory?: string | undefined
+  /**
+   * 这个 agent 的运行时怎么装。身份归二进制，与 command / registryKeyVar 同一条规则。
+   *
+   * 缺席表示不由我们管安装 —— 用户自带的 agent 就是这一类。
+   */
+  readonly install?: AcpAgentInstall | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -86,6 +93,8 @@ const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
  * 于是 .. 与任何带分隔符的路径都进不来 —— 这一格会被接在用户 home 后面去读文件。 */
 const HOME_DIRECTORY_PATTERN = /^\.?[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const SHELL_METACHARACTERS = /[;&|<>$`\n\r"']/
+/* npm 的合法包名。这一格会被交给 npm install，所以它和 command 一样不可信。 */
+const NPM_PACKAGE_PATTERN = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 
 const MAX_ARGS = 32
 const MAX_TEXT = 512
@@ -155,6 +164,21 @@ const ProfileSchema = v.object({
       v.regex(HOME_DIRECTORY_PATTERN, '自有 home 只能是一个目录名，不能是路径'),
     ),
   ),
+  install: v.nullish(
+    v.object({
+      packageName: v.pipe(
+        text(214, 'npm 包名必须是非空字符串'),
+        v.regex(NPM_PACKAGE_PATTERN, 'npm 包名不合法'),
+      ),
+      versionArgs: v.optional(
+        v.pipe(
+          v.array(text(MAX_TEXT, '参数必须是非空字符串'), '参数必须是数组'),
+          v.maxLength(MAX_ARGS, `参数不超过 ${MAX_ARGS} 项`),
+        ),
+        ['--version'],
+      ),
+    }),
+  ),
   defaultConfigOptions: v.optional(
     v.record(
       text(64, '会话配置项 id 必须是非空字符串'),
@@ -195,6 +219,7 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
     homeVar: parsed.homeVar ?? undefined,
     registryKeyVar: parsed.registryKeyVar ?? undefined,
     ownHomeDirectory: parsed.ownHomeDirectory ?? undefined,
+    install: parsed.install ?? undefined,
     defaultConfigOptions: parsed.defaultConfigOptions,
   }
 }
@@ -335,6 +360,7 @@ export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
       homeVar: agent.homeVar,
       registryKeyVar: agent.registryKeyVar,
       ownHomeDirectory: agent.ownHomeDirectory,
+      install: agent.install,
       defaultConfigOptions: {},
     }
   })
@@ -365,7 +391,21 @@ function sameLaunchIdentity(profile: AcpAgentProfile, builtin: AcpAgentProfile):
     profile.args.every((arg, index) => arg === builtin.args[index]) &&
     profile.homeVar === builtin.homeVar &&
     profile.registryKeyVar === builtin.registryKeyVar &&
-    profile.ownHomeDirectory === builtin.ownHomeDirectory
+    profile.ownHomeDirectory === builtin.ownHomeDirectory &&
+    sameInstall(profile.install, builtin.install)
+  )
+}
+
+/* 安装方式也归二进制：改了包名只会让界面装一个东西、进程起另一个东西。 */
+function sameInstall(profile?: AcpAgentInstall, builtin?: AcpAgentInstall): boolean {
+  if (profile === undefined || builtin === undefined) {
+    return profile === builtin
+  }
+
+  return (
+    profile.packageName === builtin.packageName &&
+    profile.versionArgs.length === builtin.versionArgs.length &&
+    profile.versionArgs.every((arg, index) => arg === builtin.versionArgs[index])
   )
 }
 
@@ -404,6 +444,7 @@ export function reconcileAcpAgentProfiles(
       homeVar: builtin.homeVar,
       registryKeyVar: builtin.registryKeyVar,
       ownHomeDirectory: builtin.ownHomeDirectory,
+      install: builtin.install,
     }
   })
 

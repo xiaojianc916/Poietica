@@ -24,6 +24,7 @@ use crate::commands::{
     },
     agent_cli::{AgentCliRequest, AgentCliResult},
     agent_config::AgentConfigSnapshot,
+    agent_install::{AgentInstallState, AgentInstallStatus},
     asset::{
         AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult, AssetUploadRequest,
         AssetUploadResult,
@@ -71,6 +72,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent_config::agent_config_save_agents,
             crate::commands::agent_config::agent_config_clear_legacy_providers,
             crate::commands::agent_cli::agent_cli_exec,
+            crate::commands::agent_install::agent_install_status,
+            crate::commands::agent_install::agent_install_run,
             crate::commands::provider_probe::provider_probe_key,
         ])
         .typ::<AgentPromptRequest>()
@@ -94,6 +97,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PrivacySettings>()
         .typ::<AgentConfigSnapshot>()
         .typ::<AgentCliRequest>()
+        .typ::<AgentInstallState>()
+        .typ::<AgentInstallStatus>()
         .typ::<AgentCliResult>()
         .typ::<ProviderProbeOutcome>()
 }

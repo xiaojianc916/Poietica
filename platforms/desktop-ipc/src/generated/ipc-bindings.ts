@@ -31,8 +31,9 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
  * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
  * 还没开过口的对话新开一个会话，那是纯副作用。
  * 
- * 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读是一次凭据
- * 库查询加一次 `SQLCipher` attach，窗口会在那段时间里停止应答（见 `on_store`）。
+ * 它是 async 的，因为它要读一次库。同步命令跑在主线程上，而一次库读可能要等
+ * 写锁，最长等满 `DEFAULT_BUSY_TIMEOUT`，窗口会在那段时间里停止应答
+ * （见 `on_store`）。
  * 
  * Cancellation is cooperative: the agent may still finish normally, and the
  * recorded stop reason reports which of the two happened.

@@ -73,6 +73,7 @@ export const kimiCode = {
   providerListArgs: ['provider', 'list', '--json'],
   // 上游用一个固定 id 把 KIMI_MODEL_API_KEY 之类的变量合成成一个 provider，落盘时剥掉。
   syntheticProviderId: '__kimi_env__',
+  install: { packageName: '@moonshotai/kimi-code', versionArgs: ['--version'] },
   optionLabels: OPTION_LABELS,
   questionDialect: QUESTION_DIALECT,
 } as const satisfies AcpAgentDescriptor
