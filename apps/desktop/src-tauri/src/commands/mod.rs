@@ -8,4 +8,5 @@ pub mod diagnostics;
 pub mod process;
 pub mod provider_probe;
 pub mod settings;
+pub mod updates;
 pub mod window;

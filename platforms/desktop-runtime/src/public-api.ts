@@ -2,6 +2,12 @@ export type { AgentConfigStore, SettingsStore } from '@poietica/features-setting
 export { createDesktopAgentConfigStore } from './adapters/agent/agent-config-store'
 export { readAppVersion } from './adapters/app-release'
 export {
+  type AppUpdateController,
+  createAppUpdateController,
+  type UpdateProgress,
+  type UpdateRelease,
+} from './adapters/app-update'
+export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
 } from './adapters/native-crash-report'

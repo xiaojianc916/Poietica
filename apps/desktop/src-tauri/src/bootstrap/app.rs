@@ -2,7 +2,7 @@ use tauri::{Manager, Wry, async_runtime};
 use tauri_plugin_store::StoreExt;
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
-use super::{logging, tray, updates};
+use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
 use crate::paths::{AGENTS_STORE, SETTINGS_STORE};
@@ -103,7 +103,6 @@ pub fn build() -> tauri::Builder<Wry> {
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
-            updates::spawn(app.handle());
 
             /*
              * 承接 skip_initial_state：初始几何恢复的责任在这里，不在插件。

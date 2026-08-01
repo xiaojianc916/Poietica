@@ -7,6 +7,8 @@ import {
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import {
   type AgentConfigStore,
+  type AppUpdateController,
+  createAppUpdateController,
   createDesktopAgentConfigStore,
   createDesktopSettingsStore,
   createMainWindowController,
@@ -20,6 +22,7 @@ export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
+  readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
@@ -32,6 +35,7 @@ export function createApplicationRuntime(): ApplicationRuntime {
   const workspace = createWorkbenchSessionController()
   const commands = createCommandRegistry()
   const mainWindow = createMainWindowController()
+  const appUpdate = createAppUpdateController()
   const settings = createDesktopSettingsStore()
   const agentConfig = createDesktopAgentConfigStore()
 
@@ -55,6 +59,7 @@ export function createApplicationRuntime(): ApplicationRuntime {
     workspace,
     commands,
     mainWindow,
+    appUpdate,
     settings,
     agentConfig,
     agentSession: agent.port,

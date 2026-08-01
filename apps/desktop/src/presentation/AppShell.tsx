@@ -8,7 +8,7 @@ import type { CommandRegistry } from '@poietica/features-workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/features-workspace/contracts'
 import { CommandPalette, useCommandKeybindings } from '@poietica/features-workspace/react'
 import { applyThemePreference } from '@poietica/foundations-design-system'
-import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
+import type { AppUpdateController, MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThreadsProvider } from '../application/ai/ThreadsProvider'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
@@ -16,6 +16,7 @@ import { reportFailure } from '../application/failures/failure-policy'
 import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
 import { useWindowChrome } from './chrome/use-window-chrome'
 import { UiFeedbackRegion } from './ui/ui-feedback'
+import { UpdateNotice } from './ui/update-notice'
 import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 /**
@@ -39,6 +40,7 @@ export interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly mainWindow: MainWindowController
+  readonly appUpdate: AppUpdateController
   readonly settings: SettingsStore
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
@@ -222,6 +224,8 @@ export function AppShell({ runtime }: AppShellProps) {
         />
 
         <UiFeedbackRegion />
+
+        <UpdateNotice controller={runtime.appUpdate} settings={runtime.settings} />
       </ThreadsProvider>
     </AgentDialectProvider>
   )

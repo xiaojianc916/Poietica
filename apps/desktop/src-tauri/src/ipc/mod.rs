@@ -31,6 +31,7 @@ use crate::commands::{
     },
     provider_probe::ProviderProbeOutcome,
     settings::{AppSettings, PrivacySettings},
+    updates::{UpdateProgress, UpdateRelease},
 };
 use crate::diagnostics::NativeCrashReport;
 
@@ -75,6 +76,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent_install::agent_install_status,
             crate::commands::agent_install::agent_install_run,
             crate::commands::provider_probe::provider_probe_key,
+            crate::commands::updates::update_check,
+            crate::commands::updates::update_install,
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
@@ -101,4 +104,6 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentInstallStatus>()
         .typ::<AgentCliResult>()
         .typ::<ProviderProbeOutcome>()
+        .typ::<UpdateRelease>()
+        .typ::<UpdateProgress>()
 }
