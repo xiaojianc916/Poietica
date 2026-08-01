@@ -1,4 +1,4 @@
-import type { AgentCommandBridge } from '@poietica/acp'
+import type { AgentCommandBridge } from './acp-session'
 import { throughIpc } from './error'
 import {
   type AgentConfigChoice,

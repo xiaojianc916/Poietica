@@ -5,7 +5,7 @@ import type {
   AgentSessionPort,
   RunEvent,
 } from '@poietica/acp'
-import { SAMPLE_RUN_EVENTS } from '@poietica/agent-timeline/fixtures'
+import { SAMPLE_RUN_EVENTS } from './__fixtures__'
 
 /**
  * A session port that replays a recorded run.

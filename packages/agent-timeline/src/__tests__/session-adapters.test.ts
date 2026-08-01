@@ -1,7 +1,7 @@
 import type { RunEvent } from '@poietica/acp'
-import { replayRunEvents } from '@poietica/agent-timeline'
-import { SAMPLE_RUN_EVENTS } from '@poietica/agent-timeline/fixtures'
 import { describe, expect, it } from 'vitest'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__'
+import { replayRunEvents } from '../index'
 import { createIpcSession } from '../ipc-session'
 import { createReplaySession } from '../replay-session'
 

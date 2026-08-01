@@ -1,7 +1,6 @@
 import './styles/assistant.css'
 
 import { Edit, ExternalLink, Trash } from '@mynaui/icons-react'
-import { nextChangeIn, sectionsOf, useHorizon, useNow } from '@poietica/core'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +10,7 @@ import {
 } from '@poietica/ui'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+import { nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
 
 /*
  * 会话列表。

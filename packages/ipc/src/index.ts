@@ -1,3 +1,5 @@
+export type { AgentCommandBridge, AgentEventSource, IpcSessionOptions } from './acp-session'
+export { createIpcSession } from './acp-session'
 export type {
   AgentCapabilityBridge,
   AgentOpenedThreadDescription,

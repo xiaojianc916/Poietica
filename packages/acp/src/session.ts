@@ -1,3 +1,4 @@
+import type { SessionId as AcpSessionId } from '@agentclientprotocol/sdk'
 import type { RunEvent, ThreadId } from './run'
 
 // ── from acp-session-contract.ts ──

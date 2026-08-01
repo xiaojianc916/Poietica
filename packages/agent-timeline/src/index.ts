@@ -1,3 +1,5 @@
+export type { ReplayScheduler, ReplaySessionOptions } from './replay-session'
+export { createReplaySession } from './replay-session'
 export type {
   AgentTextItem,
   AgentThoughtItem,

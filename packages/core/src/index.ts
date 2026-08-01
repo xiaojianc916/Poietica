@@ -72,4 +72,3 @@ export {
   unwrap,
   unwrapErr,
 } from './result'
-export * from './time'

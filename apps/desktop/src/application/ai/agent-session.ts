@@ -6,7 +6,6 @@ import type {
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/acp'
-import { createIpcSession } from '@poietica/acp'
 import {
   acpAgentById,
   acpAgentLaunch,
@@ -19,6 +18,7 @@ import {
   createAgentEventSource,
   createAgentSessionConfigBridge,
   createAgentThreadBridge,
+  createIpcSession,
   shutdownAgent,
 } from '@poietica/ipc'
 import { error as reportError } from '@poietica/observability'
