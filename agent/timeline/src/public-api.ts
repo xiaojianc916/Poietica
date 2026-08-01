@@ -21,7 +21,6 @@ export {
 } from './timeline-reducer'
 export type { ConversationTurn, FeedRow, TurnFooter, TurnOutcome } from './timeline-selectors'
 export {
-  selectActiveToolCalls,
   selectFeedRows,
   selectIsBusy,
   selectPendingPermission,
