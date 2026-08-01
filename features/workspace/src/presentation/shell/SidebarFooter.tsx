@@ -21,9 +21,18 @@ import {
   TooltipTrigger,
 } from '@poietica/foundations-design-system'
 
+import type { ReactNode } from 'react'
+
 import type { SurfaceIcon } from './surface-registry'
 
 export interface SidebarFooterProps {
+  /**
+   * 底部行左端的插槽，排在帮助按钮之前。
+   *
+   * 是插槽而不是一个具体控件：这一层不认识"更新"这件事，正如它不认识助手面板
+   * （见 shell-contract.ts 里 sidebarPanel 那段）。具体节点由 apps 组合根注入。
+   */
+  readonly leading?: ReactNode
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
   /**
@@ -43,6 +52,7 @@ export interface SidebarFooterProps {
  * 底部，rail 移除后由这里承接，入口数量不变。
  */
 export function SidebarFooter({
+  leading,
   onSettingsOpen,
   onDeveloperToolsOpen,
   settingsActive = false,
@@ -50,6 +60,8 @@ export function SidebarFooter({
   return (
     <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
       <div aria-hidden="true" className="flex-1" />
+
+      {leading}
 
       <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />
 

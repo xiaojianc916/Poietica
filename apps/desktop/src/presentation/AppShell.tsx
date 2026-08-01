@@ -16,7 +16,7 @@ import { reportFailure } from '../application/failures/failure-policy'
 import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
 import { useWindowChrome } from './chrome/use-window-chrome'
 import { UiFeedbackRegion } from './ui/ui-feedback'
-import { UpdateNotice } from './ui/update-notice'
+import { UpdateCapsule } from './ui/update-capsule'
 import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 /**
@@ -214,6 +214,9 @@ export function AppShell({ runtime }: AppShellProps) {
           onWindowMaximize={maximizeWindow}
           onWindowMinimize={minimizeWindow}
           settingsStore={runtime.settings}
+          sidebarFooterSlot={
+            <UpdateCapsule controller={runtime.appUpdate} settings={runtime.settings} />
+          }
           workspace={runtime.workspace}
         />
 
@@ -224,8 +227,6 @@ export function AppShell({ runtime }: AppShellProps) {
         />
 
         <UiFeedbackRegion />
-
-        <UpdateNotice controller={runtime.appUpdate} settings={runtime.settings} />
       </ThreadsProvider>
     </AgentDialectProvider>
   )

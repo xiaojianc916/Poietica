@@ -46,6 +46,14 @@ export interface WorkspaceShellProps {
    * 设置界面用它接管第 1 列：宽度来源仍然只有 workspaceLayoutStore，
    * 所以进出设置不会跳宽度，分隔条在设置界面里照样能拖。
    */
+  /**
+   * 侧边栏底部行左端的插槽。
+   *
+   * 与 sidebarOverride 互不相关：设置界面接管侧边栏时，底部行仍然是同一个
+   * SidebarFooter，这个插槽因此在两种形态里都要在——否则进一趟设置，挂在那里
+   * 的东西就凭空消失了。
+   */
+  readonly sidebarFooterSlot?: ReactNode
   readonly sidebarOverride?: ReactNode
   /*
    * 主区域不再是标签面板时的无障碍名称（例如设置界面）。

@@ -18,7 +18,7 @@ import {
   WorkspaceShell,
   WorkspaceSurface,
 } from '@poietica/features-workspace/react'
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../../application/ai/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
@@ -46,6 +46,7 @@ export interface WorkspaceContainerProps {
   readonly onSettingsClose: () => void
   readonly settingsStore: SettingsStore
   readonly agentConfigStore: AgentConfigStore
+  readonly sidebarFooterSlot: ReactNode
   readonly isWindowMaximized: boolean
   readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
@@ -64,6 +65,7 @@ export function WorkspaceContainer({
   onSettingsClose,
   settingsStore,
   agentConfigStore,
+  sidebarFooterSlot,
   isWindowMaximized,
   onCommandPaletteOpen,
   onDeveloperToolsOpen,
@@ -206,11 +208,13 @@ export function WorkspaceContainer({
           )}
         </DesktopTitleBar>
       )}
+      sidebarFooterSlot={sidebarFooterSlot}
       sidebarOverride={
         isSettingsOpen ? (
           <SettingsNavigationRegion
             footer={
               <SidebarFooter
+                leading={sidebarFooterSlot}
                 onDeveloperToolsOpen={onDeveloperToolsOpen}
                 onSettingsOpen={onSettingsClose}
                 settingsActive

@@ -1,38 +1,49 @@
 //! 更新能力。策略与呈现不在这里。
 //!
-//! 此前这整件事长在 `bootstrap/updates.rs`：一个后台任务自己判权限、自己检查、
-//! 自己用 `tauri_plugin_dialog` 弹一个系统 message box 问人、再自己下载。那个
-//! 对话框拿不到应用的设计令牌与主题，也没有地方放进度 —— 下载进度只写进日志，
-//! 于是用户点完"安装"看到的是一个什么都不发生的界面。
-//!
-//! 现在原生侧只回答两个问题："有没有新版本"和"把它装上"，进度以事件广播。
-//! 何时检查、要不要提示、长什么样，全部归渲染层，与设置页读的是同一份设置。
+//! 原生侧只回答三件事：有没有新版本、把它下下来、装上并重启。何时检查、要不要
+//! 提示、长什么样，全部归渲染层，与设置页读的是同一份设置。
 
+use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
 use serde::Serialize;
 use specta::Type;
 use tauri::{AppHandle, Emitter, command};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::error::{Error, IpcError};
 
-/// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`。
-///
-/// 后者没有、也不该有 `specta::Type`：它的变体里带着路径、系统错误串和 agent
-/// 原话，那些东西经由 `error.rs` 的 `public_message` 表脱敏之后才是契约。与
-/// `commands/provider_probe.rs` 的 `ProviderProbeCommandResult` 同一个范式。
+/// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`。后者没有、也不该有
+/// `specta::Type`：它的变体里带着路径与系统错误串，那些东西经 `error.rs` 的
+/// `public_message` 表脱敏之后才是契约。范式同 `commands/provider_probe.rs`。
 type UpdateCommandResult<T> = Result<T, IpcError>;
 
 /// 只罩住检查请求。
 ///
-/// 此前这个值通过 `updater_builder().timeout()` 交给底层 HTTP 客户端，于是它
-/// 同时成了**下载**的上限：检查只需几百毫秒，而安装包是几十 MB，网络稍慢下载
-/// 就在第 20 秒被掐断。检查要有超时，下载不能有。
+/// 此前这个值通过 `updater_builder().timeout()` 交给底层 HTTP 客户端，于是它同时
+/// 成了**下载**的上限：检查只需几百毫秒，安装包却是几十 MB，网络稍慢下载就在第
+/// 20 秒被掐断。检查要有超时，下载不能有。
 const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// 下载进度事件。渲染层的常量与这里同名同值。
 pub const UPDATE_PROGRESS_EVENT: &str = "poietica://update-progress";
+
+/// 已经下完、等着人点重启的那一个。
+///
+/// 上一版的注释里写过"刻意不缓存 Update"，理由是省下的只是一次几 KB 的清单请求，
+/// 却引入了版本漂移。那个判断在当时成立——当时没有中间态，下载完就直接重装。
+///
+/// 现在中间态是需求本身：胶囊要在"下完了"和"重启吧"之间停住，等人点。而
+/// `Update::install` 要的正是 `download` 吐出的那些字节和产出它们的那个
+/// `Update`，两者必须一起活到人点下去为止。缓存不再是优化，是唯一的实现路径。
+///
+/// 代价照实说：这期间那几十 MB 待在内存里。这是这套 API 的形状决定的。
+static STAGED: Mutex<Option<StagedUpdate>> = Mutex::new(None);
+
+struct StagedUpdate {
+    update: Update,
+    bytes: Vec<u8>,
+}
 
 /// 一个可安装的新版本。
 #[derive(Clone, Debug, Serialize, Type)]
@@ -44,14 +55,11 @@ pub struct UpdateRelease {
 
 /// 下载进度。`total` 在服务端未给出 Content-Length 时为空。
 ///
-/// 字节数是 `u32`，不是 `u64`。specta 的 TypeScript 导出默认拒绝一切 64 位整数
-/// （`BigIntForbidden`），因为 JSON 里的数字到了 JavaScript 就是双精度浮点，超过
-/// 2^53 会静默丢精度。它提供了放开这条限制的全局开关，但那是一道对的闸门：放开
-/// 之后，以后任何人往 IPC 上放一个 `u64` 都不会再被拦下。
-///
-/// 于是收窄的责任落在这里。内部累加仍然是 `u64`，只有跨 IPC 的这一步饱和截断。
-/// 代价说清楚：超过 4 GiB 的部分会停在 `u32::MAX` 上，而一个 4 GiB 的桌面安装包
-/// 不存在，这两个数唯一的用途也只是算出一个百分比。
+/// 字节数是 `u32` 而不是 `u64`：specta 的 TypeScript 导出默认拒绝一切 64 位整数
+/// （`BigIntForbidden`），因为 JSON 数字到了 JavaScript 就是双精度浮点。它有全局
+/// 开关可以放开，但那是一道对的闸门，放开之后以后谁往 IPC 上放 `u64` 都不会再被
+/// 拦下。于是收窄的责任落在这里：内部累加仍是 `u64`，只有跨 IPC 这一步饱和截断。
+/// 4 GiB 以上的桌面安装包不存在，而这两个数唯一的用途是算一个百分比。
 #[derive(Clone, Copy, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateProgress {
@@ -59,22 +67,32 @@ pub struct UpdateProgress {
     pub total: Option<u32>,
 }
 
-/// 把一个字节计数收窄到 IPC 能表达的范围。
 fn as_ipc_bytes(bytes: u64) -> u32 {
     u32::try_from(bytes).unwrap_or(u32::MAX)
 }
 
 /// 更新器的失败原因不外带。
 ///
-/// 它的错误串里可能有更新源地址、代理、以及安装包的本机落盘路径。界面要说的那
-/// 句话不需要它们，日志里有完整的一份。这与 `error.rs` 那张脱敏表是同一条纪律。
+/// 它的错误串里可能有更新源地址、代理、以及安装包的本机落盘路径。界面要说的那句
+/// 话不需要它们，日志里有完整的一份。与 `error.rs` 那张脱敏表同一条纪律。
 fn plugin_failure(error: &tauri_plugin_updater::Error) -> IpcError {
     log::warn!("updater failed: {error}");
 
     Error::Plugin("update failed".to_owned()).into()
 }
 
-async fn fetch(app: &AppHandle) -> UpdateCommandResult<Option<tauri_plugin_updater::Update>> {
+fn take_staged() -> Option<StagedUpdate> {
+    STAGED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take()
+}
+
+fn put_staged(staged: StagedUpdate) {
+    *STAGED.lock().unwrap_or_else(PoisonError::into_inner) = Some(staged);
+}
+
+async fn fetch(app: &AppHandle) -> UpdateCommandResult<Option<Update>> {
     let updater = app.updater().map_err(|error| plugin_failure(&error))?;
 
     tokio::time::timeout(CHECK_TIMEOUT, updater.check())
@@ -97,20 +115,16 @@ pub async fn update_check(app: AppHandle) -> UpdateCommandResult<Option<UpdateRe
     }))
 }
 
-/// 下载并安装最新发布，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
+/// 下载最新发布并留在内存里，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
 ///
-/// 成功返回后安装器已经接手，应用即将被替换并重启。
-///
-/// 刻意不在 `update_check` 与这里之间缓存 `Update`：那需要一份带锁的原生状态，
-/// 而它唯一省下的是一次几 KB 的清单请求，却会引入"缓存里的版本和现在的发布不是
-/// 同一个"这一类只在发布当口出现的问题。
+/// 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
 ///
 /// # Errors
 ///
-/// 没有可安装的版本、下载失败、签名不匹配或安装器启动失败时返回错误。
+/// 没有可安装的版本、下载失败或签名不匹配时返回错误。
 #[command]
 #[specta::specta]
-pub async fn update_install(app: AppHandle) -> UpdateCommandResult<()> {
+pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
     let Some(update) = fetch(&app).await? else {
         return Err(Error::NotFound("no update is available".to_owned()).into());
     };
@@ -118,8 +132,8 @@ pub async fn update_install(app: AppHandle) -> UpdateCommandResult<()> {
     let emitter = app.clone();
     let mut downloaded: u64 = 0;
 
-    update
-        .download_and_install(
+    let bytes = update
+        .download(
             move |chunk, total| {
                 downloaded = downloaded.saturating_add(u64::try_from(chunk).unwrap_or(u64::MAX));
 
@@ -132,10 +146,34 @@ pub async fn update_install(app: AppHandle) -> UpdateCommandResult<()> {
                     log::warn!("could not emit update progress: {error}");
                 }
             },
-            || log::info!("update downloaded; handing over to the installer"),
+            || log::info!("update downloaded; waiting for the user to restart"),
         )
         .await
         .map_err(|error| plugin_failure(&error))?;
 
+    put_staged(StagedUpdate { update, bytes });
+
     Ok(())
+}
+
+/// 安装已经下好的那一个，然后重启。
+///
+/// 这个函数正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
+///
+/// # Errors
+///
+/// 没有下好的版本（例如中途重启过应用），或安装器启动失败。
+#[command]
+#[specta::specta]
+pub async fn update_relaunch(app: AppHandle) -> UpdateCommandResult<()> {
+    let Some(staged) = take_staged() else {
+        return Err(Error::NotFound("no downloaded update is waiting".to_owned()).into());
+    };
+
+    staged
+        .update
+        .install(staged.bytes)
+        .map_err(|error| plugin_failure(&error))?;
+
+    app.restart()
 }

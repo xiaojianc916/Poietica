@@ -6,6 +6,7 @@ import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'
 
 export interface WorkspaceSidebarProps {
+  readonly footerLeading?: ReactNode
   readonly activeNavigationId: WorkspaceSurfaceId | null
   readonly panel: ReactNode
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
@@ -29,6 +30,7 @@ export interface WorkspaceSidebarProps {
  */
 export function WorkspaceSidebar({
   activeNavigationId,
+  footerLeading,
   panel,
   onSurfaceActivate,
   onCreateConversation,
@@ -45,7 +47,11 @@ export function WorkspaceSidebar({
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{panel}</div>
 
-      <SidebarFooter onDeveloperToolsOpen={onDeveloperToolsOpen} onSettingsOpen={onSettingsOpen} />
+      <SidebarFooter
+        leading={footerLeading}
+        onDeveloperToolsOpen={onDeveloperToolsOpen}
+        onSettingsOpen={onSettingsOpen}
+      />
     </section>
   )
 }

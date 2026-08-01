@@ -544,20 +544,28 @@ async updateCheck() : Promise<UpdateRelease | null> {
     return await TAURI_INVOKE("update_check");
 },
 /**
- * 下载并安装最新发布，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
+ * 下载最新发布并留在内存里，期间以 `UPDATE_PROGRESS_EVENT` 广播进度。
  * 
- * 成功返回后安装器已经接手，应用即将被替换并重启。
- * 
- * 刻意不在 `update_check` 与这里之间缓存 `Update`：那需要一份带锁的原生状态，
- * 而它唯一省下的是一次几 KB 的清单请求，却会引入"缓存里的版本和现在的发布不是
- * 同一个"这一类只在发布当口出现的问题。
+ * 只下载，不安装：安装是 `update_relaunch` 的事，中间隔着人的一次点击。
  * 
  * # Errors
  * 
- * 没有可安装的版本、下载失败、签名不匹配或安装器启动失败时返回错误。
+ * 没有可安装的版本、下载失败或签名不匹配时返回错误。
  */
-async updateInstall() : Promise<null> {
-    return await TAURI_INVOKE("update_install");
+async updateDownload() : Promise<null> {
+    return await TAURI_INVOKE("update_download");
+},
+/**
+ * 安装已经下好的那一个，然后重启。
+ * 
+ * 这个函数正常路径上不返回：Windows 的 NSIS 安装器在 passive 模式下会接管进程。
+ * 
+ * # Errors
+ * 
+ * 没有下好的版本（例如中途重启过应用），或安装器启动失败。
+ */
+async updateRelaunch() : Promise<null> {
+    return await TAURI_INVOKE("update_relaunch");
 }
 }
 
@@ -1107,14 +1115,11 @@ export type ThemePreference = "light" | "dark" | "system"
 /**
  * 下载进度。`total` 在服务端未给出 Content-Length 时为空。
  * 
- * 字节数是 `u32`，不是 `u64`。specta 的 TypeScript 导出默认拒绝一切 64 位整数
- * （`BigIntForbidden`），因为 JSON 里的数字到了 JavaScript 就是双精度浮点，超过
- * 2^53 会静默丢精度。它提供了放开这条限制的全局开关，但那是一道对的闸门：放开
- * 之后，以后任何人往 IPC 上放一个 `u64` 都不会再被拦下。
- * 
- * 于是收窄的责任落在这里。内部累加仍然是 `u64`，只有跨 IPC 的这一步饱和截断。
- * 代价说清楚：超过 4 GiB 的部分会停在 `u32::MAX` 上，而一个 4 GiB 的桌面安装包
- * 不存在，这两个数唯一的用途也只是算出一个百分比。
+ * 字节数是 `u32` 而不是 `u64`：specta 的 TypeScript 导出默认拒绝一切 64 位整数
+ * （`BigIntForbidden`），因为 JSON 数字到了 JavaScript 就是双精度浮点。它有全局
+ * 开关可以放开，但那是一道对的闸门，放开之后以后谁往 IPC 上放 `u64` 都不会再被
+ * 拦下。于是收窄的责任落在这里：内部累加仍是 `u64`，只有跨 IPC 这一步饱和截断。
+ * 4 GiB 以上的桌面安装包不存在，而这两个数唯一的用途是算一个百分比。
  */
 export type UpdateProgress = { downloaded: number; total: number | null }
 /**

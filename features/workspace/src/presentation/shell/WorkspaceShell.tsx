@@ -22,6 +22,7 @@ import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layou
 export function WorkspaceShell({
   model,
   sidebarPanel,
+  sidebarFooterSlot,
   sidebarOverride,
   mainContentLabel,
   actions,
@@ -111,6 +112,7 @@ export function WorkspaceShell({
             {sidebarOverride ?? (
               <WorkspaceSidebar
                 activeNavigationId={activeNavigationId}
+                footerLeading={sidebarFooterSlot}
                 onCreateConversation={() => {
                   openConversationEntry()
                   setSidebarOpen(true)

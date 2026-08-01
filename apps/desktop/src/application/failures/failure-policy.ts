@@ -12,6 +12,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_DEFAULT_MODEL_SAVE_FAILED',
   'AGENT_CAPABILITIES_UNREADABLE',
+  'UPDATE_DOWNLOAD_FAILED',
 ] as const
 
 export type ApplicationFailureCode = (typeof APPLICATION_FAILURE_CODES)[number]
@@ -162,6 +163,25 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('read-capabilities'),
+  },
+  /*
+   * 更新没能下下来。
+   *
+   * 不是"功能受限"：应用一切照旧，装着的这一版一个字节都没被改动，失手的只是
+   * 一次可以随时再来的下载。所以 impact 是 recoverable、recovery 是 retry，
+   * 作用域是一次操作而不是一个功能——feature 作用域会把控件变灰，而这里没有
+   * 任何控件需要变灰。
+   *
+   * 具体原因（网络、签名、更新源）不进这句话：它们在原生日志里，而脱敏之后
+   * 能说出口的那句是"插件操作失败"，对着用户说等于什么都没说。
+   */
+  UPDATE_DOWNLOAD_FAILED: {
+    impact: 'recoverable',
+    userMessage: '更新没能下载完成，当前版本没有被改动。',
+
+    recovery: 'retry',
+
+    scope: operationScope('download-update'),
   },
 } as const satisfies Readonly<Record<ApplicationFailureCode, ApplicationFailurePolicy>>
 

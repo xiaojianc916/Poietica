@@ -77,7 +77,8 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent_install::agent_install_run,
             crate::commands::provider_probe::provider_probe_key,
             crate::commands::updates::update_check,
-            crate::commands::updates::update_install,
+            crate::commands::updates::update_download,
+            crate::commands::updates::update_relaunch,
         ])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
