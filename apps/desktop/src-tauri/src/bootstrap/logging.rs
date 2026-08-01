@@ -3,8 +3,8 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 
 /// 不归我们管的 crate。
 ///
-/// 它们的 debug 讲的是自己的内部机制 —— keyring_core 每次启动都把凭据的
-/// target_name、service、user 念一遍 —— 对读日志的人没有信息量，还把真正
+/// 它们的 debug 讲的是自己的内部机制 ——  `keyring_core` 每次启动都把凭据的
+///  `target_name、service、user` 念一遍 —— 对读日志的人没有信息量，还把真正
 /// 属于本应用的那几行冲掉，凭据元数据常态落盘本身也不体面。
 ///
 /// 全局阈值只定我们自己的下限，第三方按 target 单独压到 warn：出事照样喊，
