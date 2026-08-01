@@ -19,7 +19,7 @@ import {
   isQuestionRequest,
   readQuestionPrompt,
 } from './domain/ask-user-question'
-import { AgentActivityFeed } from './feed/AgentActivityFeed'
+import { AgentActivityFeed, type FeedPort } from './feed/AgentActivityFeed'
 import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { PermissionRequest } from './PermissionRequest'
@@ -274,6 +274,24 @@ export function AssistantSurface({
   )
 
   /*
+   * 浮层的身份跟着轮次走，不跟着每一帧走。
+   *
+   * 写成内联箭头，滚动区每帧拿到的都是新函数，于是每帧调用一次、把缩略导航的
+   * 整棵元素树重建一遍 —— 而它真正依赖的只有 turns，以及滚动区当场交回来的那
+   * 两个值。流式输出每个 token 一帧，那就是每个 token 重建一次上百个轮次标记。
+   *
+   * 这里的 turns 是真稳定的：它由 useMemo 按 visibleRows 记住，不是那种把每帧
+   * 都在换的数组写进依赖数组、看起来 memo 了其实没有的写法。
+   */
+  const overlay = useCallback(
+    (port: FeedPort) =>
+      turns.length === 0 ? null : (
+        <ConversationMinimap activeRow={port.activeRow} onSelect={port.scrollToRow} turns={turns} />
+      ),
+    [turns],
+  )
+
+  /*
    * 输入框只挂一处。
    *
    * 两个相位各挂各的东西,但输入框不属于任何一个相位:它是这一层的孩子,相位切换
@@ -344,15 +362,7 @@ export function AssistantSurface({
         <AgentActivityFeed
           footer={renderFooter(footer)}
           isBusy={isBusy}
-          overlay={(port) =>
-            turns.length === 0 ? null : (
-              <ConversationMinimap
-                activeRow={port.activeRow}
-                onSelect={port.scrollToRow}
-                turns={turns}
-              />
-            )
-          }
+          overlay={overlay}
           renderRow={renderRow}
           rows={visibleRows}
         />

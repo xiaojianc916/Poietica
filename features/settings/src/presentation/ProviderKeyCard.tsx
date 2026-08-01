@@ -2,6 +2,7 @@ import {
   type AgentProviderPreset,
   agentProviderCatalogAddArgs,
   agentProviderCatalogDocument,
+  builtinProviderDefaultModelId,
 } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/foundations-design-system'
 import { useCallback, useEffect, useState } from 'react'
@@ -123,51 +124,84 @@ export function ProviderKeyCard({
       return
     }
 
-    let args: readonly string[]
-
     /*
-     * 条件展开而不是传 undefined：exactOptionalPropertyTypes 下，可选属性收不了一个
-     * 显式的 undefined。
+     * 早退之后 registryKeyVar 已经不是 undefined 了，但那次收窄未必跟得进下面的
+     * 闭包。落成一个本地 const，不指望编译器替我们记住。
      */
-    try {
-      args = agentProviderCatalogAddArgs({
-        providerId: provider.id,
-        ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
-      })
-    } catch (cause: unknown) {
-      setMessage(describeAgentCliFailure(cause, '这组参数没法安全地交给命令行。'))
-      return
-    }
+    const keyVar: string = registryKeyVar
 
     setBusy(true)
     setMessage(null)
 
+    /*
+     * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
+     *
+     * 为什么必须写：上游 hasUsableConfiguredDefaultModel 第一行是 defaultModel 缺席
+     * 即 return false（packages/acp-adapter/src/server.ts）。顶层没有这一行，配置里
+     * 的 api_key 整条不算数，session/new 一律 authRequired。
+     *
+     * 此前这条路只写 provider、从不写 default_model —— 手填密钥写出的是一份当场不能
+     * 用的配置，要等 agent-capability-store 的 ensureDefaultModel 事后再改一次
+     * config.toml 才活过来。那一刀有两个代价：保存成功到补写落盘之间发消息就是
+     * Authentication required；而且补写是我们自己原地改对方的 TOML，正是 agent_cli
+     * 模块头明令不做的那件事。写对一次，好过写错再补。
+     *
+     * 为什么不无条件写：--default-model 是覆盖。已经配过一家、默认模型也选好了的人，
+     * 再给第二家填个密钥，默认模型会被无声换掉。
+     *
+     * 读不到就当它已经有了：宁可这一次不带，也不要盖掉人自己选好的那个。
+     */
     void store
-      .execCli({
-        agentId,
-        args,
-        secretVar: registryKeyVar,
-        secretValue: secret,
-        catalogDocument: agentProviderCatalogDocument([provider]),
+      .loadDefaultModel(agentId)
+      .catch(() => '')
+      .then((existing) => {
+        const seed = existing === null ? builtinProviderDefaultModelId(provider) : undefined
+
+        let args: readonly string[]
+
+        /*
+         * 条件展开而不是传 undefined：exactOptionalPropertyTypes 下，可选属性收不了一个
+         * 显式的 undefined。
+         */
+        try {
+          args = agentProviderCatalogAddArgs({
+            providerId: provider.id,
+            ...(seed === undefined ? {} : { defaultModelId: seed }),
+            ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
+          })
+        } catch (cause: unknown) {
+          setBusy(false)
+          setMessage(describeAgentCliFailure(cause, '这组参数没法安全地交给命令行。'))
+          return
+        }
+
+        return store
+          .execCli({
+            agentId,
+            args,
+            secretVar: keyVar,
+            secretValue: secret,
+            catalogDocument: agentProviderCatalogDocument([provider]),
+          })
+          .then(
+            (outcome) => {
+              setBusy(false)
+
+              if (outcome.status !== 0) {
+                setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
+                return
+              }
+
+              setApiKey('')
+              setMessage('已写入 agent 自己的配置。')
+              onSaved()
+            },
+            (cause: unknown) => {
+              setBusy(false)
+              setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
+            },
+          )
       })
-      .then(
-        (outcome) => {
-          setBusy(false)
-
-          if (outcome.status !== 0) {
-            setMessage(describeAgentCliExit(outcome.status, outcome.stderr))
-            return
-          }
-
-          setApiKey('')
-          setMessage('已写入 agent 自己的配置。')
-          onSaved()
-        },
-        (cause: unknown) => {
-          setBusy(false)
-          setMessage(describeAgentCliFailure(cause, '写入失败，请重试。'))
-        },
-      )
   }, [agentId, apiKey, onSaved, provider, registryKeyVar, store])
 
   return (

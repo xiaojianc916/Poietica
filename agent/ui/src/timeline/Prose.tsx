@@ -3,6 +3,7 @@ import { code } from '@streamdown/code'
 import { math } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
+import { memo } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -124,8 +125,17 @@ export interface ProseProps {
  * A sealed entry is told so as well. Streaming mode exists to survive text that
  * is still arriving — block splitting, repair, a deferred transition — and none
  * of that is work a finished message needs done to it again on every render.
+ *
+ * 而「不必再做一遍」要成立，得先有人拦住那一次调用。上一版没有：虚拟器同屏
+ * 铺着十几行，renderRow 每帧对每个可见行各调用一次，于是十几段早已封口的文本
+ * 连同它们的代码高亮、KaTeX 与 mermaid 在每一帧里被重新解析一遍 —— 而其中只有
+ * 末尾那一段真的变了。这一层的重渲染不是一次 diff，是一次完整的 markdown 解析，
+ * 所以拦住它是正确性预算的一部分，不是一句可选的优化。
+ *
+ * 三个 prop 全是原始值，默认的浅比较因此就是精确比较：变了的那一行照常重画，
+ * 没变的那些一次都不动。
  */
-export function Prose({ className, isStreaming, text }: ProseProps) {
+export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
   return (
     <div
       className={cx('timeline-prose', className)}
@@ -143,4 +153,4 @@ export function Prose({ className, isStreaming, text }: ProseProps) {
       </Streamdown>
     </div>
   )
-}
+})

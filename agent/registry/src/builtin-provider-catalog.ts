@@ -401,3 +401,21 @@ export function agentProviderDefaultModelId(provider: AgentProviderState): strin
 
   return first === undefined ? undefined : bareModelId(first.alias, provider.id)
 }
+
+/*
+ * 同一个问题的另一半：手上只有内置预设（这一家还没配过，provider list 里根本没有
+ * 它）时，该拿哪个模型当 default_model。
+ *
+ * 判据与上面那个函数逐字相同，而且必须相同：没有正整数上下文的模型，
+ * agentProviderCatalogDocument 写出的条目就没有 limit.context，对方的
+ * catalogModelToCapability 会把它整条丢掉，随后 handleCatalogAdd 的
+ * models.some((m) => m.id === opts.defaultModel) 落空，整次写入以 exit 1 收场。
+ * 两处过滤是同一条，所以这里不另写判据，只换一种输入。
+ *
+ * 之所以不是同一个函数：那一个吃 provider list 的快照（AgentProviderState，别名带
+ * provider/ 前缀，要剥），这一个吃内置预设（AgentProviderPreset，id 本来就是裸的）。
+ * 合并只能靠再加一层参数，那比两行贵。
+ */
+export function builtinProviderDefaultModelId(preset: AgentProviderPreset): string | undefined {
+  return preset.models.find((model) => model.maxContextSize !== undefined)?.id
+}

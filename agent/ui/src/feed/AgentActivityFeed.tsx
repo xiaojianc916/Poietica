@@ -119,6 +119,26 @@ export function AgentActivityFeed({
   footer,
   overlay,
 }: AgentActivityFeedProps) {
+  /*
+   * 本帧的行表，给虚拟器的选项函数同步读。
+   *
+   * 官方对 getItemKey 与 estimateSize 的要求是把函数 memo 住 —— 它们是虚拟器
+   * 判断测量缓存要不要作废的依据。而把 rows 写进依赖数组等于没有 memo：转录
+   * 每帧重投影（reducer 的 freeze 交出新 items，选择器据此重排 rows），rows
+   * 于是恒定每帧换引用，[rows] 这个依赖数组永远不命中。上一版把内联箭头换成
+   * useCallback 时行为一个字节都没变，只多了一次依赖比较 —— 注释说自己 memo
+   * 住了，依赖数组说没有。
+   *
+   * 结果是流式输出的每一个 token 都换一次身份函数，测量缓存整表作废，虚拟化
+   * 的收益被反转成每帧全表重测。
+   *
+   * 镜像进 ref 之后两个函数的身份恒定，而读到的仍是本帧的行。赋值只能发生在
+   * 渲染期：虚拟器就是在渲染期调用它们的，推迟到效应里就晚了一帧。
+   */
+  const rowsRef = useRef(rows)
+
+  rowsRef.current = rows
+
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const tailRef = useRef<HTMLDivElement | null>(null)
@@ -323,19 +343,21 @@ export function AgentActivityFeed({
    * 会在那之后落到别的条目上。官方同样点名过这一条 ——「Index keys cannot distinguish
    * prepends from appends after items shift」。
    */
-  const getItemKey = useCallback((index: number) => rows[index]?.item.id ?? index, [rows])
+  const getItemKey = useCallback((index: number) => rowsRef.current[index]?.item.id ?? index, [])
+
+  const estimateSize = useCallback((index: number) => {
+    const type = rowsRef.current[index]?.item.type
+
+    return type === undefined
+      ? ESTIMATED_FALLBACK_PX
+      : (ESTIMATED_ROW_PX[type] ?? ESTIMATED_FALLBACK_PX)
+  }, [])
 
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => viewportRef.current,
-    estimateSize: (index) => {
-      const type = rows[index]?.item.type
-
-      return type === undefined
-        ? ESTIMATED_FALLBACK_PX
-        : (ESTIMATED_ROW_PX[type] ?? ESTIMATED_FALLBACK_PX)
-    },
-    /* 身份函数见上方 getItemKey 的定义。 */
+    /* 两个选项函数的身份恒定，定义与理由见上方 rowsRef。 */
+    estimateSize,
     getItemKey,
     scrollMargin,
     paddingEnd: tailSize,
@@ -453,9 +475,8 @@ export function AgentActivityFeed({
    */
   useLayoutEffect(() => {
     const viewport = viewportRef.current
-    const transcript = transcriptRef.current
 
-    if (viewport === null || transcript === null) {
+    if (viewport === null) {
       return
     }
 
@@ -464,6 +485,15 @@ export function AgentActivityFeed({
      * 的偏移。后者此前不在这里 —— 注释说「容器变了下面那个 ResizeObserver 会说」，
      * 而这个回调从头到尾没碰过 offsetTop。于是面板被拖窄却没有行数变化时，偏移
      * 停在旧值，虚拟器算出来的位置整体错开那么多。
+     *
+     * 但转录本身不在观察名单里，而它此前在。转录的高度就是 getTotalSize()，流式
+     * 输出时每一帧都在长 —— 观察它等于给每一帧接上一条回路：尺寸变化叫醒回调，
+     * 回调量一次边界、排一次同步、写两次 state，重渲染又把高度改一次。那也正是
+     * 「ResizeObserver loop completed with undelivered notifications」的成因。
+     *
+     * 而这个回调要的两个量，一个都不来自转录的高度：偏移由滚动区的内边距与页眉
+     * 决定，随滚动区一起变；尾部的高度由尾部自己报，它就在下面的名单上。转录
+     * 唯一能贡献的是宽度变化，而宽度变化必然伴随滚动区的尺寸变化。
      */
     const observer = new ResizeObserver(() => {
       measureBounds()
@@ -471,7 +501,6 @@ export function AgentActivityFeed({
     })
 
     observer.observe(viewport)
-    observer.observe(transcript)
 
     /* 等待指示器出现与消失都改变末端的位置，而它们不产生滚动事件。 */
     if (tailRef.current !== null) {
