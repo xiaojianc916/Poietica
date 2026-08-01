@@ -1118,17 +1118,19 @@ export type ProviderProbeVerdict =
  */
 export type ThemePreference = "light" | "dark" | "system"
 /**
- * 下载进度。`total` 在服务端未给出 Content-Length 时为空。
+ * 下载进度，以百分比表达。总长未知（服务端没给 Content-Length）时为空。
  * 
- * 字节数是 `u32` 而不是 `u64`：specta 的 TypeScript 导出默认拒绝一切 64 位整数
- * （`BigIntForbidden`），因为 JSON 数字到了 JavaScript 就是双精度浮点。它有全局
- * 开关可以放开，但那是一道对的闸门，放开之后以后谁往 IPC 上放 `u64` 都不会再被
- * 拦下。于是收窄的责任落在这里：内部累加仍是 `u64`，只有跨 IPC 这一步饱和截断。
- * 4 GiB 以上的桌面安装包不存在，而这两个数唯一的用途是算一个百分比。
+ * 跨 IPC 的是这一个标量，不是两个字节数。此前这里是 `downloaded` 与 `total` 两个
+ * `u32`：内部累加是 `u64`，跨 IPC 前饱和截断（specta 默认 `BigIntForbidden` 拒绝
+ * 64 位整数），并为此写了六行注释论证 4 GiB 以上的安装包不存在。
+ * 
+ * 而渲染层拿到这两个数之后唯一做的事，是 `Math.round(downloaded / total * 100)`
+ * —— 界面上从来没有出现过任何一个字节数。既然比值是唯一的消费形式，比值就该是
+ * IPC 上的东西：截断连同它的论证一起不存在了，渲染层也不再重复一份算术。
  * 事件名与 payload 类型由 `collect_events!` 一并导出，渲染层不再手抄任何一个。
  * `Event` 派生要求 `Deserialize`，它只服务于这条生成通道。
  */
-export type UpdateProgress = { downloaded: number; total: number | null }
+export type UpdateProgress = { percent: number | null }
 /**
  * 一个可安装的新版本。
  */

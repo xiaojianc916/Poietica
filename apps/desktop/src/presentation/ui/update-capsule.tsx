@@ -18,8 +18,7 @@ type CapsuleState =
   | {
       readonly phase: 'downloading'
       readonly release: UpdateRelease
-      readonly downloaded: number
-      readonly total: number | null
+      readonly percent: number | null
     }
   | { readonly phase: 'ready'; readonly release: UpdateRelease }
 
@@ -115,16 +114,11 @@ export function UpdateCapsule({ controller, settings }: UpdateCapsuleProps) {
 
     const release = current.release
 
-    setState({ phase: 'downloading', release, downloaded: 0, total: null })
+    setState({ phase: 'downloading', release, percent: null })
 
     void controller
       .download((progress) => {
-        setState({
-          phase: 'downloading',
-          release,
-          downloaded: progress.downloaded,
-          total: progress.total ?? null,
-        })
+        setState({ phase: 'downloading', release, percent: progress.percent ?? null })
       })
       .then(
         () => {
@@ -171,7 +165,7 @@ export function UpdateCapsule({ controller, settings }: UpdateCapsuleProps) {
    * 两者共用同一串 class，视觉上仍然是原地变化的同一枚胶囊。
    */
   if (state.phase === 'downloading') {
-    const percent = percentOf(state.downloaded, state.total)
+    const percent = state.percent
 
     return (
       <div
@@ -246,23 +240,12 @@ function labelOf(state: Exclude<CapsuleState, { phase: 'hidden' }>): string {
     case 'available':
       return ['更新到', state.release.version].join(' ')
 
-    case 'downloading': {
-      const percent = percentOf(state.downloaded, state.total)
-
-      return percent === null ? '下载中' : [String(percent), '%'].join('')
-    }
+    case 'downloading':
+      return state.percent === null ? '下载中' : [String(state.percent), '%'].join('')
 
     case 'ready':
       return '重启以完成更新'
   }
-}
-
-function percentOf(downloaded: number, total: number | null): number | null {
-  if (total === null || total <= 0) {
-    return null
-  }
-
-  return Math.min(100, Math.round((downloaded / total) * 100))
 }
 
 function widthOf(percent: number | null): string {

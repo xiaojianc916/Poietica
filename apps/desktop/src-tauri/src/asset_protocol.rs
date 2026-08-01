@@ -228,6 +228,21 @@ impl AssetProtocolRegistry {
             return Err(AssetProtocolError::AssetTooLarge);
         }
 
+        /*
+         * 摘要在这里付一次，而且在拿写锁之前付。
+         *
+         * 这条入口此前只核对了 asset_token 与 content_hash 两个字符串相等，从未对
+         * 字节本身做过摘要 —— 身份完全由调用方声明。而 snapshot_session 用结构体
+         * 字面量直接产出 AssetSessionSnapshotEntry，绕开了 verify，于是一个谎报的
+         * 身份会原样写进保存的文档：容器索引说这段字节是 A，它其实是 B。
+         *
+         * AssetSessionSnapshotEntry 的文档说"字段私有是因为这个保证就是这个类型的
+         * 全部价值"。那个保证此前在这条路径上并不成立，现在成立。
+         */
+        if hex::encode(Sha256::digest(bytes.as_slice())) != content_hash {
+            return Err(AssetProtocolError::InvalidContentHash);
+        }
+
         let mut state = self
             .state
             .write()
@@ -246,13 +261,14 @@ impl AssetProtocolRegistry {
             .ok_or(AssetProtocolError::NotFound)?;
 
         if let Some(existing) = session.get_mut(asset_token) {
-            if existing.content_type != content_type
-                || existing.bytes.as_slice() != bytes.as_slice()
-            {
-                /*
-                 * A SHA-256 identity must never resolve to different bytes or
-                 * metadata within one session.
-                 */
+            /*
+             * 只比 content_type。字节不必再比：两侧的摘要都已经对着各自的字节验过，
+             * 相同的 SHA-256 就是相同的字节 —— 这本来就是整套内容寻址的前提。
+             *
+             * 此前这里在持有写锁的情况下做一次最多 32 MB 的 memcmp，每一次重复插入
+             * 都要付，而它试图给出的保证，上面那次摘要已经给了。
+             */
+            if existing.content_type != content_type {
                 return Err(AssetProtocolError::DuplicateAsset);
             }
 
@@ -672,6 +688,18 @@ fn requested_range<B>(request: &Request<B>) -> Option<(Option<u64>, Option<u64>)
         return None;
     }
 
+    /*
+     * last-pos 小于 first-pos 的 range-spec 是无效的（RFC 9110 §14.1.1），按本文件
+     * 一贯的做法退成整份交付。此前它会一路走到 asset_response，在那里
+     * `bytes.get(5..=2)` 取不到切片，回一个 500 —— 一个畸形的请求头不该被报成
+     * 服务端内部错误。
+     */
+    if let (Some(start), Some(end)) = (start, end)
+        && start > end
+    {
+        return None;
+    }
+
     Some((start, end))
 }
 
@@ -942,7 +970,7 @@ mod tests {
         let asset = insert(&registry, "session-1", "video/mp4", &[1, 2, 3]);
         let uri = format!("poietica-asset://asset/session-1/{asset}");
 
-        for spec in ["items=0-1", "bytes=0-1,5-6", "bytes=-", "bytes=abc-"] {
+        for spec in ["items=0-1", "bytes=0-1,5-6", "bytes=-", "bytes=abc-", "bytes=5-2"] {
             let response = registry.response(&range_request(&uri, spec));
 
             assert_eq!(response.status(), StatusCode::OK, "{spec}");
@@ -1055,6 +1083,25 @@ mod tests {
         );
 
         assert_eq!(result, Err(AssetProtocolError::InvalidContentHash),);
+    }
+
+    /*
+     * 这条路径此前只比对两个字符串，字节从未被摘要过：谎报身份的插入会成功，
+     * 并经 snapshot_session 原样写进保存的文档。
+     */
+    #[test]
+    fn rejects_bytes_that_do_not_match_their_declared_identity() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let declared = hash(&[1, 2, 3]);
+
+        let result = registry.insert("session-1", &declared, &declared, "image/png", vec![9, 9, 9]);
+
+        assert_eq!(result, Err(AssetProtocolError::InvalidContentHash));
     }
 
     #[test]
