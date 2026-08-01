@@ -2,8 +2,8 @@
 /**
  * 由已构建的 NSIS 产物生成 updater 清单。
  *
- * tauri build 只产出 <installer>.exe 与它的 .sig，latest.json 是 tauri-action
- * 的产物 —— 我们不用那个 action，所以这一步得自己有，而不是没有。
+ * 仓库地址不在这里重复声明：它从 tauri.conf.json 的 updater 端点反推 —— 那正是
+ * 客户端真正会去拉的地址，两边不可能再各写各的。
  *
  *   node scripts/release/latest-json.mjs <bundleDir> <outDir> <tag>
  */
@@ -12,6 +12,14 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
+const CONF = 'apps/desktop/src-tauri/tauri.conf.json'
+const ENDPOINT = /^(https:\/\/github\.com\/[^/]+\/[^/]+)\/releases\/latest\/download\/latest\.json$/
+
+function fail(message) {
+  console.error(message)
+  process.exit(1)
+}
+
 const [bundleDir, outDir, tag] = process.argv.slice(2)
 
 if (!bundleDir || !outDir || !tag) {
@@ -19,37 +27,42 @@ if (!bundleDir || !outDir || !tag) {
   process.exit(2)
 }
 
-const entries = await readdir(bundleDir)
-const installer = entries.find((name) => name.endsWith('-setup.exe'))
+const conf = JSON.parse(await readFile(CONF, 'utf8'))
+const version = tag.replace(/^v/, '')
+
+if (conf.version !== version) {
+  fail(`tag ${tag} does not match the bundled version ${conf.version}`)
+}
+
+const base = conf.plugins?.updater?.endpoints?.[0]?.match(ENDPOINT)?.[1]
+
+if (!base) {
+  fail(`${CONF}: updater endpoint is not a GitHub latest-release endpoint`)
+}
+
+const installer = (await readdir(bundleDir)).find((name) => name.endsWith('-setup.exe'))
 
 if (!installer) {
-  console.error(`No *-setup.exe under ${bundleDir}`)
-  process.exit(1)
+  fail(`No *-setup.exe under ${bundleDir}`)
 }
 
-const signaturePath = path.join(bundleDir, `${installer}.sig`)
-let signature
+const signature = await readFile(path.join(bundleDir, `${installer}.sig`), 'utf8').catch(() =>
+  fail(
+    `Missing ${installer}.sig. Build with pnpm build:release and TAURI_SIGNING_PRIVATE_KEY set.`,
+  ),
+)
 
-try {
-  signature = (await readFile(signaturePath, 'utf8')).trim()
-} catch {
-  console.error(
-    `Missing ${signaturePath}. Build with pnpm build:release and TAURI_SIGNING_PRIVATE_KEY set.`,
-  )
-  process.exit(1)
-}
+const url = `${base}/releases/download/${tag}/${encodeURIComponent(installer)}`
 
 const manifest = {
-  version: tag.replace(/^v/, ''),
+  version,
   pub_date: new Date().toISOString(),
+  notes: `${base}/releases/tag/${tag}`,
   platforms: {
-    'windows-x86_64': {
-      signature,
-      url: `https://github.com/xiaojianc916/poietica/releases/download/${tag}/${encodeURIComponent(installer)}`,
-    },
+    'windows-x86_64': { signature: signature.trim(), url },
   },
 }
 
 await writeFile(path.join(outDir, 'latest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
-console.log(`latest.json written for ${installer}`)
+console.log(`latest.json -> ${url}`)

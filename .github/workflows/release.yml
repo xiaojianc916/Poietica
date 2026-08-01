@@ -1,15 +1,14 @@
 name: Release
 
+# 一个 v* tag 必须确定地产出：已签名安装包 + latest.json + 正式 release。
+# 刻意没有人工 Publish 步骤 —— 客户端端点是 releases/latest/download/latest.json，
+# 一个忘了点发布的 draft 等于整条更新通道静默断掉。
+
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Build installers without publishing a release
-        type: boolean
-        default: true
 
 concurrency:
   group: release-${{ github.ref }}
@@ -30,7 +29,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
-      contents: write # required to create the draft release
+      contents: write # required to publish the release
 
     steps:
       - name: Checkout
@@ -47,6 +46,8 @@ jobs:
 
       - name: Release preflight
         shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           $ErrorActionPreference = "Stop"
 
@@ -57,11 +58,17 @@ jobs:
             throw "updater pubkey is still the placeholder. Run: pnpm tauri signer generate -w ~/.tauri/poietica.key"
           }
 
-      - name: Verify version consistency
-        run: pnpm check:versions
+          # 没有私钥就没有 .sig，没有 .sig 就没有 latest.json，通道发不出去。
+          # 这一条在第 10 秒失败，而不是在 40 分钟的构建之后。
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            throw "secrets.TAURI_SIGNING_PRIVATE_KEY is not set"
+          }
 
-      # 发布必须来自绿灯提交。此前 release 只跑版本检查与依赖策略，
-      # 一个 lint 全红的 tag 照样能发出去。
+      # tag 也是版本的一处声明：tag 与包内版本不符，客户端会陷入无限更新提示。
+      - name: Verify version consistency
+        run: pnpm check:versions ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+
+      # 发布必须来自绿灯提交。
       - name: Quality gate
         run: pnpm check
 
@@ -151,10 +158,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Create draft release
+      # 直接发布，并且必须带上产物：一个没有 latest.json 的 release 就是一条
+      # 断掉的更新通道，它不该以"成功"收场。
+      - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          draft: false
+          make_latest: true
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: dist-release/*
+
+      # 发布之后，用客户端那条 URL 亲自验证一遍。
+      - name: Verify update channel
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/release/verify-channel.mjs "${{ github.ref_name }}"

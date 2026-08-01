@@ -129,18 +129,22 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
   const providers = useAgentProviders(store, agentId)
 
   /*
-   * 动过 agent 的配置之后要做的两件事。
+   * 动过 agent 的配置之后，把「我改了」说出去，仅此一句。
    *
-   * 一件是本页重读，另一件是告诉进程里其他照着同一份配置建了内存副本的地方 ——
-   * 主界面工具条上那个模型选择器就是其中之一，而它此前一个进程只读一次，于是
-   * 导入完成、这一页立刻列出五个模型，主界面却要等到下次启动才长出选择器。
+   * 听众里包括进程里其他照着同一份配置建了内存副本的地方 —— 主界面工具条上那个模型
+   * 选择器就是其中之一，它此前一个进程只读一次，于是导入完成、这一页立刻列出五个模型，
+   * 主界面却要等到下次启动才长出选择器 —— 也包括这一页自己（下面那个订阅）。
    *
-   * 这一页不认识那个选择器，也不该认识：它只是把「我改了」说出去。
+   * 此前这里是「本页重读 + 广播」两件事并排做的，于是重读只发生在记得调它的那几个调用
+   * 点上。ACP Agent 那一行的安装 / 更新不在这棵子树里，够不着这个函数，装完新版 CLI 之后
+   * 清单还是旧版报回来的。改配置的地方只会越来越多，要求每一处都记得重读一次就是留债。
    */
-  const reloadAll = useCallback(() => {
-    providers.reload()
+  const announceConfigChanged = useCallback(() => {
     store.notifyConfigChanged()
-  }, [providers, store])
+  }, [store])
+
+  /* 本页也是听众之一 —— 不管这次改动是从这棵子树里发起的，还是从外面。 */
+  useEffect(() => store.subscribeConfigChanged(providers.reload), [providers.reload, store])
 
   /*
    * 一次性导入的第一步：对用户全局 home 跑一次只读的 provider list，把将导入的内容
@@ -288,14 +292,14 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
         )
         setGlobalSnapshot(undefined)
         setGlobalNote(null)
-        reloadAll()
+        announceConfigChanged()
       },
       (cause: unknown) => {
         setImporting(false)
         setImportNote(describeAgentCliFailure(cause, '导入失败，请重试。'))
       },
     )
-  }, [agentId, globalSnapshot, importing, reloadAll, registryKeyVar, store])
+  }, [agentId, globalSnapshot, importing, announceConfigChanged, registryKeyVar, store])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -440,7 +444,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
               return
             }
 
-            reloadAll()
+            announceConfigChanged()
           },
           (cause: unknown) => {
             setDeletingId(null)
@@ -448,7 +452,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
           },
         )
     },
-    [agentId, deletingId, reloadAll, store],
+    [agentId, deletingId, announceConfigChanged, store],
   )
 
   return (
@@ -557,7 +561,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             <ProviderKeyCard
               agentId={agentId}
               key={preset.id}
-              onSaved={reloadAll}
+              onSaved={announceConfigChanged}
               provider={preset}
               registryKeyVar={registryKeyVar}
               store={store}

@@ -1,44 +1,53 @@
 #!/usr/bin/env node
 /**
- * Fails when the release version drifts between the four places that declare it.
- * The Cargo workspace is the single source of truth.
+ * 版本的单一真相是 Cargo workspace。传入 tag 时，tag 也算一处声明。
+ *
+ * 少了 tag 这一条，v0.1.2 的 tag 可以发出一个内部版本号还是 0.1.1 的安装包：
+ * 客户端装完之后仍然认为 latest.json 比自己新，于是无限提示更新。
+ *
+ *   node scripts/release/check-versions.mjs [tag]
  */
 
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
 
-function cargoWorkspaceVersion(toml) {
-  const section = toml.split(/^\[workspace\.package\]$/m)[1]
-  const match = section?.match(/^version\s*=\s*"([^"]+)"/m)
-  return match?.[1] ?? null
-}
+const sources = [
+  [
+    'Cargo.toml [workspace.package]',
+    'Cargo.toml',
+    (text) => text.split(/^\[workspace\.package\]$/m)[1]?.match(/^version\s*=\s*"([^"]+)"/m)?.[1],
+  ],
+  ['package.json', 'package.json', (text) => JSON.parse(text).version],
+  ['apps/desktop/package.json', 'apps/desktop/package.json', (text) => JSON.parse(text).version],
+  ['tauri.conf.json', 'apps/desktop/src-tauri/tauri.conf.json', (text) => JSON.parse(text).version],
+]
 
-const [cargoToml, rootPkg, appPkg, tauriConf] = await Promise.all([
-  readFile('Cargo.toml', 'utf8'),
-  readFile('package.json', 'utf8'),
-  readFile('apps/desktop/package.json', 'utf8'),
-  readFile('apps/desktop/src-tauri/tauri.conf.json', 'utf8'),
-])
+const declared = await Promise.all(
+  sources.map(async ([label, file, read]) => [label, read(await readFile(file, 'utf8'))]),
+)
 
-const expected = cargoWorkspaceVersion(cargoToml)
+const expected = declared[0][1]
+
 if (!expected) {
   console.error('Could not read [workspace.package] version from Cargo.toml')
   process.exit(2)
 }
 
-const found = [
-  ['Cargo.toml [workspace.package]', expected],
-  ['package.json', JSON.parse(rootPkg).version],
-  ['apps/desktop/package.json', JSON.parse(appPkg).version],
-  ['tauri.conf.json', JSON.parse(tauriConf).version],
-]
+const tag = process.argv[2]
 
-const drifted = found.filter(([, version]) => version !== expected)
-for (const [where, version] of found) {
-  console.log(`${version === expected ? 'ok  ' : 'DRIFT'} ${where}: ${version}`)
+if (tag) {
+  declared.push([`tag ${tag}`, tag.replace(/^v/, '')])
 }
 
-if (drifted.length > 0) {
+let consistent = true
+
+for (const [label, version] of declared) {
+  const matches = version === expected
+  consistent = consistent && matches
+  console.log(`${matches ? 'ok   ' : 'DRIFT'} ${label}: ${version}`)
+}
+
+if (!consistent) {
   console.error(`\nRelease version must be ${expected} everywhere.`)
   process.exit(1)
 }
