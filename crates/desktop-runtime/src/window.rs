@@ -4,6 +4,7 @@
 
 use crate::Result;
 
+#[derive(Debug)]
 pub struct WindowHandle;
 
 /// Set the window frame decorations (native title bar vs. client-side).

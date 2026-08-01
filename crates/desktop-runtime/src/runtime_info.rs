@@ -16,10 +16,10 @@ pub struct RuntimeInfo {
 /// Gather runtime information from the OS.
 pub fn collect() -> Result<RuntimeInfo> {
     Ok(RuntimeInfo {
-        os: std::env::consts::OS.to_string(),
-        os_version: "unknown".to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        locale: "en-US".to_string(),
+        os: std::env::consts::OS.to_owned(),
+        os_version: "unknown".to_owned(),
+        arch: std::env::consts::ARCH.to_owned(),
+        locale: "en-US".to_owned(),
         hostname: None,
     })
 }
