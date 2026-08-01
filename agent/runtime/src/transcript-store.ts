@@ -585,16 +585,35 @@ export class TranscriptStore {
   }
 
   #put(key: string, next: Transcript): void {
-    this.#write(this.#resolveKey(key), next)
-    this.#notify(this.#resolveKey(key))
+    /*
+     * 一次解析，一次叫醒。
+     *
+     * 此前两行各解析一次同一个键，答案必然相同；而 #write 自己末尾还站着
+     * 一行 #notify，所以一次外部写入实际叫醒两遍。那一行已经删掉（见下方
+     * #write），叫醒因此从冗余变成必要 —— 这里是它的两个入口之一。
+     */
+    const real = this.#resolveKey(key)
+
+    this.#write(real, next)
+    this.#notify(real)
   }
 
   /*
    * 写下来，不惊动任何人。
    *
    * 「写」与「叫醒」此前是同一件事，于是「把攒下的帧折进去」这个动作本身也会
-   * 再约一拍，而那一拍没有任何新东西可看。分开之后，叫醒由收到帧的那一刻负责
-   * （#queue），折叠只管把状态改对。
+   * 再约一拍，而那一拍没有任何新东西可看。分开之后，叫醒由两个入口负责 ——
+   * 收到帧的那一刻（#queue）与外部写入的那一刻（#put）—— 折叠只管把状态改对。
+   *
+   * 而这一刀此前只落在注释里：函数体末尾一直站着一行 #notify(real)。接回调用
+   * 链就是一条闭合回路 —— #flush 第一行把 #waiting 放回 false，随后 #settle
+   * 折叠一次就 #write 一次、#notify 一次，于是必然再排得出一帧 rAF。那一帧里
+   * 没有任何待折的帧，#fire 却照样把所有监听器叫一遍：流式期间这条回路与帧率
+   * 同频空转，一轮结束还要多跑一拍才静默。
+   *
+   * 更要紧的是 read() 就是 useAssistantSession 交给 useSyncExternalStore 的
+   * getSnapshot。快照读取会走到这里，于是它会从 React 渲染期排出调度工作 ——
+   * 而那个契约要求 getSnapshot 是纯读取。这不是快不快的问题。
    */
   #write(real: string, next: Transcript): void {
     const was = running(this.#held.get(real)?.timeline.status ?? 'idle')

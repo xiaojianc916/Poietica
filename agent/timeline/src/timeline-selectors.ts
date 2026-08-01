@@ -334,11 +334,65 @@ function firstLine(text: string): string {
   return text.trim().split('\n', 1)[0] ?? ''
 }
 
+/** 空态交出同一个数组，与 NO_ROWS / NO_TURNS 同一条契约。 */
+const NO_TOOLS: readonly TimelineItem[] = []
+
+interface ToolProjection {
+  readonly items: readonly TimelineItem[]
+  readonly active: readonly TimelineItem[]
+}
+
+const ACTIVE = new WeakMap<TimelineItem, ToolProjection>()
+
+function isActiveToolCall(item: TimelineItem): boolean {
+  return item.type === 'tool_call' && (item.status === 'pending' || item.status === 'in_progress')
+}
+
+/**
+ * 这一刻还在跑的工具调用。
+ *
+ * 这个文件开头写着「派生是增量的，不是每帧重算的」，而这一个函数此前是那句
+ * 话在文件里唯一的反例：一次 filter 走完整条 items，并且每次都交出一个新
+ * 数组 —— 一个活动调用都没有的时候，交出的也是一个新的空数组。
+ *
+ * O(N) 不是它的罪：N 再大这一趟也只是几十微秒。问题是那个恒新的返回值会打掉
+ * 下游每一处按引用判等的记忆化，而这个文件其余每一个选择器都在花力气维护那条
+ * 契约 —— NO_ROWS 与 NO_TURNS 两个空态单例、isSettled 交还旧数组、buildTurns
+ * 结尾那句「轮次没变就必须是同一个数组」。一份契约在同一个文件里有一个例外，
+ * 那不是例外，是漏了。
+ *
+ * 投影按 items[0] 弱引用，与 FEEDS 同一个键：一条对话每一帧的首项都是同一个
+ * 对象，所以键天然按对话隔离，也随对话一起回收。
+ */
 export function selectActiveToolCalls(state: TimelineState): readonly TimelineItem[] {
-  return state.items.filter(
-    (item) =>
-      item.type === 'tool_call' && (item.status === 'pending' || item.status === 'in_progress'),
-  )
+  const items = state.items
+  const anchor = items[0]
+
+  if (anchor === undefined) {
+    return NO_TOOLS
+  }
+
+  const held = ACTIVE.get(anchor)
+
+  if (held !== undefined && held.items === items) {
+    return held.active
+  }
+
+  const found = items.filter(isActiveToolCall)
+
+  /* 内容没变就交还上一份数组。 */
+  const settled =
+    held !== undefined &&
+    found.length === held.active.length &&
+    sharedPrefix(held.active, found) === found.length
+      ? held.active
+      : found.length === 0
+        ? NO_TOOLS
+        : found
+
+  ACTIVE.set(anchor, { items, active: settled })
+
+  return settled
 }
 
 /**
