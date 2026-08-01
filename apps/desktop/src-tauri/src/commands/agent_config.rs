@@ -305,6 +305,7 @@ fn launch_env_inner(
 ///
 /// store 无法打开、档案不存在、或档案里没有可用的 command 时返回错误。
 /// 档案里声明的安装方式。缺席表示这个 agent 不由我们管安装。
+#[derive(Debug)]
 pub struct AgentInstallSpec {
     pub package_name: String,
     pub version_args: Vec<String>,

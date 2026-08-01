@@ -38,7 +38,7 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 use tauri_plugin_store::StoreExt;
 
-use crate::commands::agent_config::{AgentInstallSpec, agent_install_spec, agent_program};
+use crate::commands::agent_config::{agent_install_spec, agent_program};
 use crate::commands::process::hide_console;
 use crate::error::{Error, IpcError, Result};
 use crate::paths::AGENTS_STORE;
@@ -182,7 +182,6 @@ pub struct AgentInstallStatus {
     pub state: AgentInstallState,
     pub installed_version: Option<String>,
     pub latest_version: Option<String>,
-    pub checked_at: Option<i64>,
     pub package_name: Option<String>,
 }
 
@@ -192,7 +191,6 @@ impl AgentInstallStatus {
             state,
             installed_version: None,
             latest_version: None,
-            checked_at: None,
             package_name: None,
         }
     }
@@ -314,7 +312,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
             state: AgentInstallState::External,
             installed_version: installed,
             latest_version: None,
-            checked_at: None,
             package_name: Some(spec.package_name),
         });
     };
@@ -326,16 +323,16 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
             .filter(|(_version, at)| now_ms().saturating_sub(*at) < CHECK_TTL_MS)
     };
 
-    let (latest, checked_at) = match fresh {
-        Some((version, at)) => (Some(version), Some(at)),
+    /* 检查时刻只服务于 TTL 判定，留在这一侧。 */
+    let latest = match fresh {
+        Some((version, _at)) => Some(version),
         None => match latest_version(owner, &spec.package_name) {
             Ok(version) => {
-                let at = now_ms();
-                remember_latest(app, agent_id, &version, at);
-                (Some(version), Some(at))
+                remember_latest(app, agent_id, &version, now_ms());
+                Some(version)
             }
             /* 问不到最新版是一件可以发生的事，不是一次失败：装着的那份照样能用。 */
-            Err(_offline) => (None, None),
+            Err(_offline) => None,
         },
     };
 
@@ -359,7 +356,6 @@ fn compute(app: &AppHandle, agent_id: &str, force: bool) -> Result<AgentInstallS
         state,
         installed_version: installed,
         latest_version: latest,
-        checked_at,
         package_name: Some(spec.package_name),
     })
 }

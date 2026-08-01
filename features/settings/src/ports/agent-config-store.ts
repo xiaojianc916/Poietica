@@ -129,7 +129,6 @@ export interface AgentInstallStatus {
   readonly state: AgentInstallState
   readonly installedVersion: string | null
   readonly latestVersion: string | null
-  readonly checkedAt: number | null
   readonly packageName: string | null
 }
 

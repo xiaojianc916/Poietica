@@ -2931,6 +2931,7 @@ dependencies = [
  "poietica-agent-persistence-native",
  "poietica-agent-runtime-native",
  "reqwest 0.12.28",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

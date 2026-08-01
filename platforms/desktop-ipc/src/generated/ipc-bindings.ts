@@ -497,6 +497,29 @@ async agentCliExec(request: AgentCliRequest) : Promise<AgentCliResult> {
     return await TAURI_INVOKE("agent_cli_exec", { request });
 },
 /**
+ * 当前这个 agent 装了没有、是不是最新。
+ * 
+ * force 为假时命中 24 小时内的缓存就直接返回，不起网络。界面每次挂载都可以调它。
+ * 
+ * # Errors
+ * 
+ * 读不到 agent 档案时返回错误。「没装」「不归我们管」「问不到最新版」都不是错误，
+ * 它们是状态。
+ */
+async agentInstallStatus(agentId: string, force: boolean) : Promise<AgentInstallStatus> {
+    return await TAURI_INVOKE("agent_install_status", { agentId, force });
+},
+/**
+ * 安装或更新这个 agent 的运行时，完成后返回新的状态。
+ * 
+ * # Errors
+ * 
+ * 档案没有声明安装方式、这份运行时不归 pnpm/npm 管、包管理器缺席、或安装本身失败。
+ */
+async agentInstallRun(agentId: string) : Promise<AgentInstallStatus> {
+    return await TAURI_INVOKE("agent_install_run", { agentId });
+},
+/**
  * 用刚收到的密钥向厂商问一次模型清单。
  * 
  * 不写任何配置。调用方在写入成功之后才调它，所以无论结论如何都不影响已经落盘的
@@ -542,6 +565,13 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
+/**
+ * 不要给子进程开控制台窗口。
+ * 
+ * GUI 进程 spawn 一个控制台程序时，Windows 会给它开一个窗口：刷新一次模型清单就闪一
+ * 次黑框，添加一次 provider 再闪一次。Zed 的 crates/util/src/command.rs 对每一条命令
+ * 都设这个标志，理由相同。
+ */
 export type AgentCliRequest = { 
 /**
  * 用于算出受控 home，也用于从档案里查出该执行哪个程序。
@@ -726,6 +756,20 @@ export type AgentHistoryLoss =
  * 号发过去了，agent 说它这边已经没有这条会话。
  */
 "forgotten"
+export type AgentInstallState = 
+/**
+ * 档案没说这东西怎么装。界面什么都不画。
+ */
+"unmanaged" | "missing" | "outdated" | "current" | 
+/**
+ * 装着，但不是 pnpm 也不是 npm 装的。我们不碰别人的安装。
+ */
+"external" | 
+/**
+ * 装着，但问不到最新版（离线、镜像不通），或者它的 --version 读不懂。
+ */
+"unknown"
+export type AgentInstallStatus = { state: AgentInstallState; installedVersion: string | null; latestVersion: string | null; packageName: string | null }
 /**
  * 起一个 agent 进程要说清的三件事。
  * 
