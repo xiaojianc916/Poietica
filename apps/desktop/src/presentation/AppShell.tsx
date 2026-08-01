@@ -1,5 +1,4 @@
 import type { AgentSessionPort } from '@poietica/acp'
-import { defaultAcpAgent } from '@poietica/agent-registry'
 import { refreshAgentCapabilities } from '@poietica/agent-session'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectProvider } from '@poietica/agent-ui'
@@ -10,6 +9,7 @@ import type { CommandRegistry } from '@poietica/workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
 import { CommandPalette, useCommandKeybindings } from '@poietica/workspace/react'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { agentFor, currentAgentId, subscribeAgent } from '../application/ai/agent-session'
 import { ThreadsProvider } from '../application/ai/ThreadsProvider'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
@@ -24,17 +24,14 @@ import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceC
  *
  * 会话本来就是拿这份档案建起来的(见 application/ai/agent-session.ts),
  * 所以「跟谁说话」和「它怎么说话」出自同一个答案,不会各说各的。
- * 界面包不认识名单,名单只在这一行露面。
+ * 界面包不认识名单:这一层拿到的已经是一份档案,不是一次查名单。
  */
-function dialectOf(agent: ReturnType<typeof defaultAcpAgent>): AgentDialect {
+function dialectOf(agent: ReturnType<typeof agentFor>): AgentDialect {
   return {
     optionLabels: agent.optionLabels,
     questions: agent.questionDialect === undefined ? [] : [agent.questionDialect],
   }
 }
-
-/* 一个进程一份:每次渲染新建一个对象会让整棵子树的记忆化失效。 */
-const DIALECT = dialectOf(defaultAcpAgent())
 
 export interface AppShellRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -55,6 +52,16 @@ export function AppShell({ runtime }: AppShellProps) {
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false)
 
   const [isSettingsOpen, setSettingsOpen] = useState(false)
+
+  /*
+   * 方言跟着「现在用哪一家」走。
+   *
+   * 此前它是一个模块常量，取自注册表的第一行：设置页换了 agent，权限按钮上的
+   * 文案与认题的正则仍是上一家的 —— 画得出来，只是全错，而且不报任何错。
+   */
+  const agentId = useSyncExternalStore(subscribeAgent, currentAgentId, currentAgentId)
+
+  const dialect = useMemo(() => dialectOf(agentFor(agentId)), [agentId])
 
   const {
     isMaximized: isWindowMaximized,
@@ -197,7 +204,7 @@ export function AppShell({ runtime }: AppShellProps) {
      * 它比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的选择器读的是
      * 同一份，否则列表亮着一条而标签停在另一条。
      */
-    <AgentDialectProvider dialect={DIALECT}>
+    <AgentDialectProvider dialect={dialect}>
       <ThreadsProvider>
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}

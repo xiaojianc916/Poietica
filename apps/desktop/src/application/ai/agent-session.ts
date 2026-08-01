@@ -7,6 +7,7 @@ import type {
   ThreadPort,
 } from '@poietica/acp'
 import {
+  type AcpAgentDescriptor,
   acpAgentById,
   acpAgentLaunch,
   defaultAcpAgent,
@@ -38,6 +39,57 @@ import type { AgentConfigStore } from '@poietica/settings'
  */
 
 /*
+ * 用哪一家 agent —— 整个进程唯一的答案。
+ *
+ * 此前这个答案有五份：会话桥、对话端口、能力表的兜底、AppShell 的方言，以及
+ * 工作区接线里那个 AGENT_ID，五处各自去读注册表的第一行。而用户在设置里选的
+ * 那一家写在 agents.json 的 defaultAgentId 上 —— 落盘、校验、自愈一应俱全，却
+ * 没有任何一条对话路径读过它。今天两者恒等，只因为名单里只有一家；名单长到两
+ * 家的那天，会话起 A、方言说 B，而屏幕上一声不吭。
+ *
+ * 组合根在启动时认下它，设置页改完之后再认一次。名单里查不到就回落到第一家：
+ * 那是一份坏掉的配置，不是一个该让应用打不开的理由。
+ */
+let chosenAgentId: string | undefined
+
+const agentListeners = new Set<() => void>()
+
+/** 名单里的那一家；查不到说明配置指向了一份不存在的档案。 */
+export function agentFor(agentId: string | undefined): AcpAgentDescriptor {
+  return (agentId === undefined ? undefined : acpAgentById(agentId)) ?? defaultAcpAgent()
+}
+
+export function currentAgent(): AcpAgentDescriptor {
+  return agentFor(chosenAgentId)
+}
+
+export function currentAgentId(): string {
+  return agentFor(chosenAgentId).id
+}
+
+/** 组合根说了算：落盘的配置读回来是什么，就是什么。 */
+export function adoptAgent(agentId: string): void {
+  if (agentId === chosenAgentId) {
+    return
+  }
+
+  chosenAgentId = agentId
+
+  for (const listener of agentListeners) {
+    listener()
+  }
+}
+
+/** 听「换了一家」。返回退订。 */
+export function subscribeAgent(listener: () => void): () => void {
+  agentListeners.add(listener)
+
+  return () => {
+    agentListeners.delete(listener)
+  }
+}
+
+/*
  * 改会话设置的那一路，整个进程一份。
  *
  * 它是无状态的：一次改动就是一次往返，agent 把改完的整张表报回来。没有读，所以
@@ -53,7 +105,6 @@ export function desktopSessionConfig(): SessionConfigPort {
 }
 
 /*
- * /*
  * 「这一家 agent 提供哪些可调项」，一个 agent 一份。
  *
  * 两个产地一张表，因为两件事的前提不同：
@@ -90,7 +141,7 @@ export function desktopAgentCapabilities(
   }
 
   const anchor = createAgentCapabilityBridge({
-    launch: acpAgentLaunch(acpAgentById(agentId) ?? defaultAcpAgent()),
+    launch: () => acpAgentLaunch(agentFor(agentId)),
   })
 
   const source: AgentCapabilityPort = {
@@ -168,7 +219,7 @@ export interface DesktopAgentSession {
 
 export function createDesktopAgentSession(): DesktopAgentSession {
   const port = createIpcSession({
-    bridge: createAgentCommandBridge({ launch: acpAgentLaunch(defaultAcpAgent()) }),
+    bridge: createAgentCommandBridge({ launch: () => acpAgentLaunch(currentAgent()) }),
 
     source: createAgentEventSource({
       onListenFailure: (cause) => {
@@ -216,7 +267,7 @@ export function desktopThreads(): ThreadPort {
  * 读会话列表的地方各自问一遍，同一份列表被读了不止一次。
  */
 function buildThreadPort(): ThreadPort {
-  const bridge = createAgentThreadBridge({ launch: acpAgentLaunch(defaultAcpAgent()) })
+  const bridge = createAgentThreadBridge({ launch: () => acpAgentLaunch(currentAgent()) })
 
   /*
    * 原样交出去，这也是这个文件开头就声明过的事（Nothing is adapted here）。

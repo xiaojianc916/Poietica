@@ -71,8 +71,12 @@ export interface AgentBridgeOptions {
    *
    * 哪家 agent、哪个可执行文件、哪几个参数，全由 registry 的档案说了算，这一
    * 层不认识任何一家，也不再把它们拼成一行命令：拼起来再让对面切回去是有损的。
+   *
+   * 交的是一次求值，不是一个值。桥在启动时就建好，而「用哪一家」要等落盘的配置
+   * 读回来才知道，之后还会被设置页改掉：捕获建桥那一刻的答案，等于把第一帧的
+   * 猜测钉死一整个进程。
    */
-  readonly launch: AgentLaunchDescription
+  readonly launch: () => AgentLaunchDescription
   /** The working directory the session is created against. */
   readonly cwd?: string
 }
@@ -168,7 +172,7 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
-          launch: nativeLaunch(launch),
+          launch: nativeLaunch(launch()),
           cwd: cwd ?? null,
         }),
       )
@@ -337,7 +341,7 @@ export function createAgentCapabilityBridge({
   return {
     read: async () => {
       const offered = await throughIpc(() =>
-        commands.agentCapabilities({ launch: nativeLaunch(launch), cwd: cwd ?? null }),
+        commands.agentCapabilities({ launch: nativeLaunch(launch()), cwd: cwd ?? null }),
       )
 
       return offered.map(controlOf)
@@ -394,7 +398,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Ag
       const opened = await throughIpc(() =>
         commands.agentOpenThread({
           threadId: threadId ?? null,
-          launch: nativeLaunch(launch),
+          launch: nativeLaunch(launch()),
           cwd: cwd ?? null,
         }),
       )

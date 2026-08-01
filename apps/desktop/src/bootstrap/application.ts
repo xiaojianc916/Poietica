@@ -16,7 +16,7 @@ import {
   createWorkbenchSessionController,
 } from '@poietica/workspace/application'
 import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
-import { createDesktopAgentSession } from '../application/ai/agent-session'
+import { adoptAgent, createDesktopAgentSession } from '../application/ai/agent-session'
 
 export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore
@@ -46,7 +46,23 @@ export function createApplicationRuntime(): ApplicationRuntime {
    * The assistant reaches that path without ever opening the settings page, so
    * seeding only from there would leave it reading an empty file.
    */
-  void agentConfig.load().catch(() => undefined)
+  /*
+   * 读回来的 defaultAgentId 就是「用哪一家」的答案。此前这一行把它丢掉了，于是
+   * 对话那一路各自去读注册表的第一行 —— 用户在设置里选的那一家从来没有到达过
+   * 会话。设置页改完会喊一声，所以这个答案不会停在启动那一刻。
+   */
+  const adoptChosenAgent = () => {
+    void agentConfig
+      .load()
+      .then((snapshot) => {
+        adoptAgent(snapshot.defaultAgentId)
+      })
+      .catch(() => undefined)
+  }
+
+  adoptChosenAgent()
+
+  const releaseAgentChoice = agentConfig.subscribeConfigChanged(adoptChosenAgent)
 
   /*
    * The agent session is constructed eagerly but connects lazily: no agent
@@ -66,6 +82,7 @@ export function createApplicationRuntime(): ApplicationRuntime {
     appVersion: readAppVersion,
 
     async dispose() {
+      releaseAgentChoice()
       await agent.dispose()
     },
   }

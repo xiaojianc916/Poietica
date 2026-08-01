@@ -1,9 +1,9 @@
 import type { AgentSessionPort } from '@poietica/acp'
-import { defaultAcpAgent } from '@poietica/agent-registry'
 import type { AgentConfigStore } from '@poietica/settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace/contracts'
 import type { ReactNode } from 'react'
 
+import { currentAgentId } from '../../application/ai/agent-session'
 import { AssistantPane } from './AssistantPane'
 import { ConversationSurface } from './ConversationSurface'
 
@@ -32,15 +32,15 @@ export interface AssistantWiring {
 }
 
 /*
- * 写给哪一家 agent，和起哪一家 agent，是同一个答案。
+ * 写给哪一家 agent，和起哪一家 agent，现在真的是同一个答案。
  *
- * 会话是拿 defaultAcpAgent() 建起来的（application/ai/agent-session.ts 里三处
- * acpAgentLaunch 都用它），所以选择器要写的 default_model 也只能落在这一家的
- * 受控 home 上。取两次不同的来源，就会出现"改完了但会话没变"。
+ * 两边都读 currentAgentId()（application/ai/agent-session.ts），所以选择器要写的
+ * default_model 与会话 spawn 的那一家不可能对不上。此前这里是一个模块常量，取的
+ * 是注册表第一行，而用户选的那一家写在 agents.json 里 —— 名单长到两家的那天，
+ * "改完了但会话没变"就会成真。
  *
- * 一个进程一份：每次渲染重算会让下游的依赖数组每帧都变。
+ * 每次渲染现取。常量换来的是引用稳定，而换 agent 时那恰好是错的。
  */
-const AGENT_ID = defaultAcpAgent().id
 
 export function createAssistantWiring(
   session: AgentSessionPort,
@@ -52,7 +52,7 @@ export function createAssistantWiring(
       ai: () => (
         <AssistantPane
           agentConfig={agentConfig}
-          agentId={AGENT_ID}
+          agentId={currentAgentId()}
           onConversationStarted={onConversationStarted}
           session={session}
         />
@@ -62,7 +62,7 @@ export function createAssistantWiring(
     renderConversation: (threadId) => (
       <ConversationSurface
         agentConfig={agentConfig}
-        agentId={AGENT_ID}
+        agentId={currentAgentId()}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}

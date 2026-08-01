@@ -110,12 +110,21 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
       setAgentId(nextId)
       setAgentError(null)
 
-      void store
-        .saveAgents({ agents: profiles, defaultAgentId: nextId })
-        .then(applySnapshot, (cause: unknown) => {
+      void store.saveAgents({ agents: profiles, defaultAgentId: nextId }).then(
+        (snapshot) => {
+          applySnapshot(snapshot)
+
+          /*
+           * 换了 agent 是「agent 配置变了」里最大的一次。不喊这一声，主界面那半
+           * 边就还在跟上一家说话 —— 方言、会话桥与对话端口都在这个通道上重新认领。
+           */
+          store.notifyConfigChanged()
+        },
+        (cause: unknown) => {
           setAgentId(previousId)
           setAgentError(describeAgentCliFailure(cause, AGENT_ACTION_FAILED))
-        })
+        },
+      )
     },
     [agentId, applySnapshot, profiles, store],
   )
