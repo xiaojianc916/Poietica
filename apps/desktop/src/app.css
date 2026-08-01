@@ -169,8 +169,8 @@ body {
 
 .fatal-icon-button svg {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: var(--ui-icon-size-md);
+  height: var(--ui-icon-size-md);
 }
 
 .fatal-details,

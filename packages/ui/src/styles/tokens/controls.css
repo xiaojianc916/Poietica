@@ -4,9 +4,23 @@
   --ui-control-height-md: 2.25rem;
   --ui-control-height-lg: 2.5rem;
 
-  --ui-icon-size-sm: 0.875rem;
-  --ui-icon-size-md: 1rem;
-  --ui-icon-size-lg: 1.25rem;
+  /*
+   * 图标尺寸只取 16 的倍数。
+   *
+   * 字形是 24 网格。在 devicePixelRatio 为 1.5 时，16px 让 1 个网格单位恰好等于
+   * 1 个物理像素，字形里所有整数坐标都落在像素边界上；32px 则是 2 物理像素/单位。
+   * 其余尺寸（14 / 18 / 20 / 22 / 24）都得到分数单位，只能靠抗锯齿摊到相邻像素上，
+   * 观感就是描边发虚。容器高度取 4 的倍数，相减折半后同样落在整数上。
+   */
+  --ui-icon-size-sm: 1rem; /* 16px */
+  --ui-icon-size-md: 1rem; /* 16px */
+  --ui-icon-size-lg: 2rem; /* 32px */
+  /*
+   * 描边宽度以网格单位计。16px 图标在 devicePixelRatio 为 1.5 时，该数值即等于
+   * 物理像素数，因此只能取整数 —— 原先的 1.5 会得到 1.5 物理像素，是这套体系里
+   * 唯一必然踩空的取值。1 为纤细，2 为常规重量。
+   */
+  --ui-icon-stroke: 2;
 
   --ui-hit-target-min: 2.25rem;
   --ui-region-divider-width: 1px;

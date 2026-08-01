@@ -23,3 +23,13 @@
 @import "./tokens/semantic.css";
 @import "./surface.css";
 @import "./tokens/accessibility.css";
+
+/*
+ * 接管所有描边式图标的线宽，令本地字形与 @mynaui/icons-react 走同一个令牌。
+ *
+ * 两者都把 stroke-width 写成 SVG 表现属性，而表现属性在层叠中排在全部作者样式
+ * 之前，所以 :where() 的零特异性也足以覆盖，同时不会干扰调用方的显式覆写。
+ */
+:where(svg[stroke]:not([stroke="none"])) {
+  stroke-width: var(--ui-icon-stroke, 2);
+}

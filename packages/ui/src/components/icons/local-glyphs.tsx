@@ -28,7 +28,7 @@ function Glyph({ children, ...props }: GlyphProps) {
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
-      strokeWidth={1.5}
+      strokeWidth="var(--ui-icon-stroke, 2)"
       viewBox="0 0 24 24"
       width={24}
       xmlns="http://www.w3.org/2000/svg"
