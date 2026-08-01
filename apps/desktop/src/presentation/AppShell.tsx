@@ -10,7 +10,7 @@ import { CommandPalette, useCommandKeybindings } from '@poietica/features-worksp
 import { applyThemePreference } from '@poietica/foundations-design-system'
 import type { MainWindowController } from '@poietica/platforms-desktop-runtime'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
-import { ThreadsProvider } from '../application/ai/threads-context'
+import { ThreadsProvider } from '../application/ai/ThreadsProvider'
 import { failureCoordinator } from '../application/failures/failure-coordinator'
 import { reportFailure } from '../application/failures/failure-policy'
 import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'

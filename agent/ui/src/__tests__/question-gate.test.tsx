@@ -1,7 +1,8 @@
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { type AgentDialect, AgentDialectProvider } from '../domain/agent-dialect'
+import { AgentDialectProvider } from '../domain/AgentDialectProvider'
+import type { AgentDialect } from '../domain/agent-dialect'
 import { PermissionRequest } from '../PermissionRequest'
 
 /*

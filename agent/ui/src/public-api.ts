@@ -7,5 +7,5 @@ export type { AssistantThreadListProps, AssistantThreadSummary } from './Assista
 export { AssistantThreadList } from './AssistantThreadList'
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
+export { AgentDialectProvider } from './domain/AgentDialectProvider'
 export type { AgentDialect } from './domain/agent-dialect'
-export { AgentDialectProvider } from './domain/agent-dialect'

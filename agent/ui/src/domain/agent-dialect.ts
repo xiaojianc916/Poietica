@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext } from 'react'
+import { createContext, useContext } from 'react'
 import type { QuestionDialect } from './ask-user-question'
 
 /*
@@ -19,6 +19,10 @@ import type { QuestionDialect } from './ask-user-question'
  *
  * 类型在这里声明，不从 registry 引进来：UI 不该认识名单。registry 的档案在结构
  * 上满足它，两边在组合根那一行由类型系统对账。
+ *
+ * 组件不在这里，在 AgentDialectProvider.tsx。理由与 threads-context.ts 同：
+ * context 的身份是模块执行的产物，混合导出的模块在热更新时会被整个重跑，跑出
+ * 来的就是另一个 context。
  */
 
 export interface AgentDialect {
@@ -28,16 +32,7 @@ export interface AgentDialect {
   readonly questions: readonly QuestionDialect[]
 }
 
-const AgentDialectContext = createContext<AgentDialect | null>(null)
-
-export interface AgentDialectProviderProps {
-  readonly dialect: AgentDialect
-  readonly children: ReactNode
-}
-
-export function AgentDialectProvider({ children, dialect }: AgentDialectProviderProps) {
-  return <AgentDialectContext.Provider value={dialect}>{children}</AgentDialectContext.Provider>
-}
+export const AgentDialectContext = createContext<AgentDialect | null>(null)
 
 export function useAgentDialect(): AgentDialect {
   const dialect = useContext(AgentDialectContext)
