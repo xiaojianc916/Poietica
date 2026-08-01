@@ -733,11 +733,22 @@ export class ThreadsStore {
     })
   }
 
+  /*
+   * rename / remove / setPinned 三个动作的收尾，只有这一处。
+   *
+   * 它们都先改本地再落库。落库失败时本地那一改必须退回权威值，否则一次失败的
+   * 删除就是"行从屏幕上没了，东西还在盘上"——而下一次 refresh 之前没人会发现。
+   * 与 selectControl 的 catch 同一套办法：不本地猜一个旧值填回去，向权威重读。
+   *
+   * 先回滚再记原因：refresh 成功时会 commit 一次 failure: null，顺序反了就把
+   * 这句话抹掉了。
+   */
   async #settle(work: Promise<unknown>): Promise<void> {
     try {
       await work
       this.#commit({ failure: null })
     } catch (reason) {
+      await this.refresh()
       this.#commit({ failure: this.#reasonOf(reason) })
     }
   }

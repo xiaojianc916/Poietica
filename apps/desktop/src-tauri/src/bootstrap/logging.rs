@@ -9,7 +9,14 @@ use tauri_plugin_log::{RotationStrategy, Target, TargetKind, TimezoneStrategy};
 ///
 /// 全局阈值只定我们自己的下限，第三方按 target 单独压到 warn：出事照样喊，
 /// 平时闭嘴。
-const FOREIGN: &[&str] = &["h2", "hyper", "hyper_util", "keyring_core", "reqwest", "rustls"];
+const FOREIGN: &[&str] = &[
+    "h2",
+    "hyper",
+    "hyper_util",
+    "keyring_core",
+    "reqwest",
+    "rustls",
+];
 
 /// 日志落点。
 ///

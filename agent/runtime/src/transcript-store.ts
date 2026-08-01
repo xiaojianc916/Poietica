@@ -35,9 +35,6 @@ import {
  * 上限，只为等一个本来就已经在手里的东西。
  */
 
-/** 留住多少条对话的转录。淘汰策略属于 store，这是它的本职。 */
-const HELD_KEYS = 8
-
 /** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
 const DRAFT = 'draft:'
 
@@ -290,6 +287,7 @@ export class TranscriptStore {
     const draft = this.#aliased.get(real)
 
     this.#held.delete(real)
+    this.#pending.delete(real)
     this.#aliased.delete(real)
     this.#dirty.delete(real)
 
@@ -460,13 +458,11 @@ export class TranscriptStore {
     void this.#attachedTo?.cancel(threadId)
   }
 
-  resolvePermission = (
-    port: AgentSessionPort | undefined,
-    key: string,
-    requestId: string,
-    optionId: string,
-  ): void => {
-    if (port === undefined) {
+  /* 线路只有一条（#attachedTo），答复的地址不必由调用方再交一次 —— 与 cancel 同一个入口。 */
+  resolvePermission = (key: string, requestId: string, optionId: string): void => {
+    const port = this.#attachedTo
+
+    if (port === null) {
       return
     }
 
@@ -479,13 +475,6 @@ export class TranscriptStore {
 
   #resolveKey(key: string): string {
     return this.#alias.get(key) ?? key
-  }
-
-  /** 有界面正看着这条对话吗。草稿键上的订阅也算。 */
-  #watched(real: string): boolean {
-    const draft = this.#aliased.get(real)
-
-    return this.#listeners.has(real) || (draft !== undefined && this.#listeners.has(draft))
   }
 
   #fire(key: string): void {
@@ -543,47 +532,6 @@ export class TranscriptStore {
     }
   }
 
-  /*
-   * 淘汰只挑没人看着的。
-   *
-   * 此前是"插入序最早的那条"，不问有没有界面正订阅着它。8 条的上限、每帧调一次，
-   * 于是一个正在看的转录会被挤掉，而代价是它下一帧重新去读日志（loaded 回到
-   * false，ensure 重新取一次整条），界面上是一次 restoring 闪回。引用优先于时序，
-   * 是浏览器与编辑器缓存的通行判据。
-   *
-   * 没人看的都淘汰完了还超，就让它超：内存上限不该以让屏幕上的东西重读为代价。
-   * 订阅随组件卸载即解除，所以界面一关它立刻变成可淘汰，不会长期滞留。
-   */
-  #evict(): void {
-    if (this.#held.size <= HELD_KEYS) {
-      return
-    }
-
-    /* Map 的迭代器允许在遍历中删除已访问项，快照因此是白付的一次分配。 */
-    for (const key of this.#held.keys()) {
-      if (this.#held.size <= HELD_KEYS) {
-        return
-      }
-
-      if (this.#watched(key)) {
-        continue
-      }
-
-      this.#held.delete(key)
-
-      /* 攒着的帧跟着走：转录都不留了，等着折进它的那些帧也没有去处。 */
-      this.#pending.delete(key)
-
-      /* 别名跟着走。此前 alias 只增不减，进程活多久它就长多久。 */
-      const draft = this.#aliased.get(key)
-
-      if (draft !== undefined) {
-        this.#aliased.delete(key)
-        this.#alias.delete(draft)
-      }
-    }
-  }
-
   #put(key: string, next: Transcript): void {
     /*
      * 一次解析，一次叫醒。
@@ -618,11 +566,7 @@ export class TranscriptStore {
   #write(real: string, next: Transcript): void {
     const was = running(this.#held.get(real)?.timeline.status ?? 'idle')
 
-    /* delete + set 把它挪到末尾：Map 的插入序就是 LRU 的顺序。 */
-    this.#held.delete(real)
     this.#held.set(real, next)
-    this.#evict()
-    this.#notify(real)
 
     /*
      * 从忙变闲只有这一刻。

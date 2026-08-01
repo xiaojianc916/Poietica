@@ -116,9 +116,9 @@ export function useAssistantSession({
 
   const resolvePermission = useCallback(
     (requestId: string, optionId: string) => {
-      transcripts.resolvePermission(session, key, requestId, optionId)
+      transcripts.resolvePermission(key, requestId, optionId)
     },
-    [key, session],
+    [key],
   )
 
   /* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
