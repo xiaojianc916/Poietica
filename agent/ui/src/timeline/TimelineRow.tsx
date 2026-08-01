@@ -40,7 +40,7 @@ export const TimelineRow = memo(function TimelineRow({ row }: { readonly row: Fe
       return <ReasoningPanel isStreaming={row.isStreamingTail} text={item.text} />
 
     case 'tool_call':
-      return <ToolCallCard item={item} />
+      return <ToolCallCard isInFlight={row.isInFlight} item={item} />
 
     case 'plan':
       return <PlanPanel entries={item.entries} />

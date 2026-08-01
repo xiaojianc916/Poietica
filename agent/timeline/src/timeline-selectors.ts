@@ -29,6 +29,17 @@ export interface FeedRow {
   readonly item: TimelineItem
   /** The tail entry of a live run: the only row allowed to grow in place. */
   readonly isStreamingTail: boolean
+  /**
+   * 这一条属于此刻还在跑的那一轮。
+   *
+   * 工具卡片据此决定纺锤转不转。status 装的是协议值，也就是 agent 说过的话，
+   * 而 ACP 只有 pending/in_progress/completed/failed 四档 ——「这次调用还在不
+   * 在跑」它根本表达不了，那是这一层从轮次状态推出来的。
+   *
+   * 按轮次划，不是按整条对话划：上一轮留下的没有结局的调用，不会因为下一轮
+   * 开始跑而重新转起来。
+   */
+  readonly isInFlight: boolean
 }
 
 /** 空态交出同一个数组：下游按引用判等。 */
@@ -43,14 +54,18 @@ const NO_TURNS: readonly ConversationTurn[] = []
  */
 const ROWS = new WeakMap<TimelineItem, FeedRow>()
 
-function toRow(item: TimelineItem, isStreamingTail: boolean): FeedRow {
+function toRow(item: TimelineItem, isStreamingTail: boolean, isInFlight: boolean): FeedRow {
   const held = ROWS.get(item)
 
-  if (held !== undefined && held.isStreamingTail === isStreamingTail) {
+  if (
+    held !== undefined &&
+    held.isStreamingTail === isStreamingTail &&
+    held.isInFlight === isInFlight
+  ) {
     return held
   }
 
-  const row: FeedRow = { item, isStreamingTail }
+  const row: FeedRow = { item, isStreamingTail, isInFlight }
 
   ROWS.set(item, row)
 
@@ -75,6 +90,8 @@ interface FeedProjection {
   readonly rowOf: readonly number[]
   readonly rows: readonly FeedRow[]
   readonly live: boolean
+  /** 当前这一轮从哪一条开始。它之前的条目一律不在飞。 */
+  readonly turnStart: number
 }
 
 const FEEDS = new WeakMap<TimelineItem, FeedProjection>()
@@ -97,6 +114,7 @@ function projectRows(
   held: FeedProjection | undefined,
   items: readonly TimelineItem[],
   shared: number,
+  turnStart: number,
 ): { rowOf: number[]; rows: FeedRow[] } {
   const rowOf: number[] = held === undefined ? [] : held.rowOf.slice(0, shared)
   const rows: FeedRow[] = held === undefined ? [] : held.rows.slice(0, keptRows(held, shared))
@@ -110,7 +128,7 @@ function projectRows(
     }
 
     rowOf.push(rows.length)
-    rows.push(toRow(item, false))
+    rows.push(toRow(item, false, index >= turnStart))
   }
 
   return { rowOf, rows }
@@ -122,7 +140,7 @@ function growTail(rows: FeedRow[], live: boolean): void {
   const tail = rows[last]
 
   if (tail !== undefined) {
-    rows[last] = toRow(tail.item, live && isGrowable(tail.item))
+    rows[last] = toRow(tail.item, live && isGrowable(tail.item), tail.isInFlight)
   }
 }
 
@@ -151,6 +169,22 @@ function isSettled(
   return last < 0 || rows[last] === held.rows[last]
 }
 
+/**
+ * 当前这一轮从哪一条开始：人说的最后一句话。
+ *
+ * 反着走，与 selectPendingPermission 同一套办法：代价是这一轮的长度，不是整条
+ * 对话的长度。一条对话里没有人说过话时从头算起 —— 那种转录只可能来自回放。
+ */
+function turnStartOf(items: readonly TimelineItem[]): number {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (items[index]?.type === 'user_message') {
+      return index
+    }
+  }
+
+  return 0
+}
+
 export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   const items = state.items
   const anchor = items[0]
@@ -166,15 +200,31 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
     return held.rows
   }
 
-  const shared = held === undefined ? 0 : sharedPrefix(held.items, items)
-  const { rowOf, rows } = projectRows(held, items, shared)
+  /* 一轮从人说的最后一句话开始。没在跑就没有人在飞，整条对话都不在。 */
+  const turnStart = live ? turnStartOf(items) : items.length
+
+  /*
+   * 在飞的范围变了，共享前缀就不能一路沿用到底：那一段里的行还带着上一次的
+   * isInFlight，而 growTail 只修得了尾行。回退到两次范围里更靠前的那一个，
+   * 重投影的量因此以一轮为界，而不是整条对话。
+   *
+   * 它一轮只发生两次（开始、结束）。流式追加时范围没变，这里是 items.length，
+   * 增量那条路一个字节都没改。
+   */
+  const boundary =
+    held === undefined || (held.live === live && held.turnStart === turnStart)
+      ? items.length
+      : Math.min(held.turnStart, turnStart)
+
+  const shared = held === undefined ? 0 : Math.min(sharedPrefix(held.items, items), boundary)
+  const { rowOf, rows } = projectRows(held, items, shared, turnStart)
 
   growTail(rows, live)
 
   /* 内容没变就交还上一份数组：下游按引用判等。 */
   const settled = held !== undefined && isSettled(held, items, shared, rows) ? held.rows : rows
 
-  FEEDS.set(anchor, { items, rowOf, rows: settled, live })
+  FEEDS.set(anchor, { items, rowOf, rows: settled, live, turnStart })
 
   return settled
 }

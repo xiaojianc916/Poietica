@@ -50,10 +50,27 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * a grid row travels between 0fr and 1fr, so a card that opens by itself on
  * failure travels rather than jumps. Closed, the body is inert.
  */
-export function ToolCallCard({ item }: { readonly item: ToolCallTimelineItem }) {
+export function ToolCallCard({
+  isInFlight,
+  item,
+}: {
+  readonly isInFlight: boolean
+  readonly item: ToolCallTimelineItem
+}) {
   const { isOpen, toggle } = useDisclosure(item.status === 'failed')
   const { diffStat, parts } = toToolCallView(item.content)
-  const isRunning = item.status === 'pending' || item.status === 'in_progress'
+  /*
+   * 纺锤只在这次调用真的还在跑的时候转。
+   *
+   * 此前它只看 status，而 status 是 agent 说过的话：一次没等到终态的调用会
+   * 永远停在 in_progress，于是那张卡片在一轮早就结束之后还在转。reducer 此前
+   * 用「结束时把它盖成 failed」来止转，那是拿一句谎话换一个动画 —— 被取消的
+   * 一轮会亮出失败图标并自动展开。轮次是否还在飞现在由读模型说。
+   *
+   * 停住的那种既不转也不报错：一次被宣告过、而后再没有下文的调用，安静地待在
+   * 那里就是它最准确的样子。
+   */
+  const isRunning = isInFlight && (item.status === 'pending' || item.status === 'in_progress')
 
   return (
     <Surface
