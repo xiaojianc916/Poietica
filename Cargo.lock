@@ -2960,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "poietica-agent-persistence-native"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "log",
  "rusqlite",
@@ -2988,10 +2988,10 @@ dependencies = [
 
 [[package]]
 name = "poietica-desktop-runtime-native"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
