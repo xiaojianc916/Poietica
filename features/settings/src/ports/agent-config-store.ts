@@ -116,7 +116,14 @@ export interface AgentConfigSnapshot {
  * unmanaged：档案没说怎么装（用户自带的 agent）。
  * unknown：装着，但问不到最新版（离线、镜像不通）——「不知道」不是「该更新」。
  */
-export type AgentInstallState = 'unmanaged' | 'missing' | 'outdated' | 'current' | 'unknown'
+export type AgentInstallState =
+  | 'unmanaged'
+  | 'missing'
+  | 'outdated'
+  | 'current'
+  /** 装着，但不是 pnpm/npm 装的 —— 我们不碰别人的安装。 */
+  | 'external'
+  | 'unknown'
 
 export interface AgentInstallStatus {
   readonly state: AgentInstallState
