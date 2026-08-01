@@ -19,6 +19,15 @@ import {
 export function createDesktopAgentConfigStore(): AgentConfigStore {
   const bridge = createAgentConfigBridge()
 
+  /*
+   * 「agent 自己的配置被改过了」的听众。
+   *
+   * 存在这里而不是某个模块级单例：这个 store 一个进程一份，由组合根建起来并同时
+   * 交给设置页和助手那一路（AppShell 的 runtime.agentConfig）—— 通道的作用域就该
+   * 是它的作用域，多一个全局变量只会多一处生命周期不明的状态。
+   */
+  const listeners = new Set<() => void>()
+
   return {
     async load() {
       const dto = await bridge.load()
@@ -86,6 +95,20 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
     loadDefaultModel: (agentId) => bridge.loadDefaultModel(agentId),
 
     saveDefaultModel: (agentId, alias) => bridge.saveDefaultModel(agentId, alias),
+
+    notifyConfigChanged() {
+      for (const listener of listeners) {
+        listener()
+      }
+    },
+
+    subscribeConfigChanged(listener) {
+      listeners.add(listener)
+
+      return () => {
+        listeners.delete(listener)
+      }
+    },
   }
 }
 

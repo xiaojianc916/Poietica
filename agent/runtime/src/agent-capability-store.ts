@@ -250,6 +250,35 @@ export function installAgentCapabilityPort(
   }
 }
 
+/**
+ * agent 自己的配置被改过了：这张表不再作数，重问。
+ *
+ * 为什么需要一个显式入口：asked 只在「换了一家 agent」「自动补默认模型写盘成功」
+ * 「这一次读取失败」三种情形下放回 false。首次启动一个 provider 都没配时，
+ * readModels 得到空表，ensureDefaultModel 因为 offered 里根本没有模型那一格而
+ * 提前 return —— 三条路一条都没走到，asked 就此永远为真。人在设置页把 provider
+ * 导进去之后，进程里没有任何东西能让它再问一次。
+ *
+ * 不清空 offered：重问期间旧表继续画。它仍是 agent 片刻前的真实配置，把工具条
+ * 先闪成空的换不到任何正确性（stale-while-revalidate，与设置页那份同一套做法）。
+ *
+ * default_model 一起重读，这一条不能省。刚才那次导入很可能已经把它写进配置了
+ * （runImport 的 defaultModelOwner 特意挑了一家带上 --default-model）。若只放回
+ * asked，能力表回来时 chosen 里还没有模型，ensureDefaultModel 就会拿 choices[0]
+ * 写盘 —— 把人刚导进去的那个默认模型盖掉。
+ */
+export function refreshAgentCapabilities(): void {
+  asked = false
+  askedFor = undefined
+  defaultKnown = false
+
+  /* 没人在看就不问：下一个订阅者出现时 subscribeAgentControls 自会补上。 */
+  if (listeners.size > 0) {
+    loadOnce()
+    loadDefaultOnce()
+  }
+}
+
 function loadOnce(): void {
   const port = source
 

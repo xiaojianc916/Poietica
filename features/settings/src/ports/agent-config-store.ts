@@ -137,4 +137,23 @@ export interface AgentConfigStore {
    * 不要在返回后立刻回读 —— 界面该用乐观更新。
    */
   readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
+  /*
+   * 「刚才那次调用改了 agent 自己的配置。」
+   *
+   * 由发起写入的那一方说 —— 只有它知道自己写没写。放在 execCli 里自动判断就要在
+   * 这一层维护一张「哪些子命令算写」的清单，而那张清单会和对方的 CLI 一起走样；
+   * 更糟的是读也会触发失效，于是读→失效→读，转不停。
+   *
+   * 为什么需要它：模型清单的权威在 agent 自己的配置文件里，而进程内不止一处照着
+   * 它建了内存副本（设置页一份、主界面工具条一份）。写入方与读取方彼此不认识,
+   * 也不该认识 —— 它们只共用这一个端口，所以通道就开在这里。
+   *
+   * 这是 VS Code onDidChangeConfiguration、Zed SettingsStore::observe_global、
+   * TanStack Query invalidateQueries 的同一个形状：失效入口属于 store，不属于
+   * 某一个组件。此前这件事是 useAgentProviders 实例上的 reload 方法，只有设置页
+   * 那棵子树够得着，主界面因此要等到下次启动。
+   */
+  readonly notifyConfigChanged: () => void
+  /** 听「配置变了」。返回退订。 */
+  readonly subscribeConfigChanged: (listener: () => void) => () => void
 }

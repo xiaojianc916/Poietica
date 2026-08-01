@@ -1,5 +1,6 @@
 import type { AgentSessionPort } from '@poietica/agent-protocol'
 import { defaultAcpAgent } from '@poietica/agent-registry'
+import { refreshAgentCapabilities } from '@poietica/agent-runtime'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectProvider } from '@poietica/agent-ui'
 import type { AgentConfigStore, SettingsStore } from '@poietica/features-settings'
@@ -168,6 +169,20 @@ export function AppShell({ runtime }: AppShellProps) {
       active = false
     }
   }, [runtime.settings])
+
+  /*
+   * 设置页动过 agent 的配置，工具条上那张能力表就不再作数。
+   *
+   * 订阅落在这里而不是 ConversationSurface：设置页展开时那一格可能已经卸载，
+   * 通知会落空；而它重新挂载时 installAgentCapabilityPort 又会在 source === port
+   * 上提前返回 —— 等于什么都没发生，人只好去重启。
+   *
+   * 这一层与方言、会话列表同级，都是「一个进程一份、活到进程结束」的事实。
+   */
+  useEffect(
+    () => runtime.agentConfig.subscribeConfigChanged(refreshAgentCapabilities),
+    [runtime.agentConfig],
+  )
 
   useCommandKeybindings(runtime.commands)
 

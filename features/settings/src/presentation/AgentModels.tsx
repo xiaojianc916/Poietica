@@ -139,6 +139,20 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
   const providers = useAgentProviders(store, agentId)
 
   /*
+   * 动过 agent 的配置之后要做的两件事。
+   *
+   * 一件是本页重读，另一件是告诉进程里其他照着同一份配置建了内存副本的地方 ——
+   * 主界面工具条上那个模型选择器就是其中之一，而它此前一个进程只读一次，于是
+   * 导入完成、这一页立刻列出五个模型，主界面却要等到下次启动才长出选择器。
+   *
+   * 这一页不认识那个选择器，也不该认识：它只是把「我改了」说出去。
+   */
+  const reloadAll = useCallback(() => {
+    providers.reload()
+    store.notifyConfigChanged()
+  }, [providers, store])
+
+  /*
    * 一次性导入的第一步：对用户全局 home 跑一次只读的 provider list，把将导入的内容
    * 摆出来。确认后的写入在 runImport，按 provider 逐家走官方命令。
    */
@@ -284,14 +298,14 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
         )
         setGlobalSnapshot(undefined)
         setGlobalNote(null)
-        providers.reload()
+        reloadAll()
       },
       (cause: unknown) => {
         setImporting(false)
         setImportNote(describeAgentCliFailure(cause, '导入失败，请重试。'))
       },
     )
-  }, [agentId, globalSnapshot, importing, providers, registryKeyVar, store])
+  }, [agentId, globalSnapshot, importing, reloadAll, registryKeyVar, store])
 
   /* agent 报回来的模型，拍平成一列。分组信息留在每一行的右侧小字里。 */
   const allModels = useMemo(() => {
@@ -436,7 +450,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
               return
             }
 
-            providers.reload()
+            reloadAll()
           },
           (cause: unknown) => {
             setDeletingId(null)
@@ -444,7 +458,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
           },
         )
     },
-    [agentId, deletingId, providers, store],
+    [agentId, deletingId, reloadAll, store],
   )
 
   return (
@@ -553,7 +567,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
             <ProviderKeyCard
               agentId={agentId}
               key={preset.id}
-              onSaved={providers.reload}
+              onSaved={reloadAll}
               provider={preset}
               registryKeyVar={registryKeyVar}
               store={store}

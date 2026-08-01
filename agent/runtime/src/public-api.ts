@@ -3,6 +3,7 @@ export {
   chooseAgentControl,
   installAgentCapabilityPort,
   installAgentDefaultModelSource,
+  refreshAgentCapabilities,
   useAgentControls,
 } from './agent-capability-store'
 export type { ThreadListItem, ThreadsList, TranscriptSink } from './threads-store'
