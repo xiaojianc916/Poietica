@@ -91,4 +91,5 @@ export {
   TooltipTrigger,
 } from './components/ui/tooltip'
 export { cn } from './lib/utils'
+export { trackDevicePixelRatio } from './pixel-grid'
 export { applyThemePreference, type ThemePreference } from './theme-controller'

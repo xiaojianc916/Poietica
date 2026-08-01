@@ -12,7 +12,7 @@
  */
 
 [data-assistant-skin] {
-  --cp-px: 1px;
+  --cp-px: var(--ui-hairline);
 
   --cp-grid: 768px;
   --cp-gutter: 24px;
@@ -39,21 +39,31 @@
   --cp-editor-idle: calc(var(--cp-line) * var(--cp-rows-idle));
   --cp-editor-max: calc(var(--cp-line) * var(--cp-rows-max));
 
-  --cp-control: 32px;
+  /*
+   * 几何量接入设计系统的设备像素网格。
+   *
+   * 这一节此前是一串像素字面量，与 --ui-* 没有交点 —— 和本文件开头记录的那次
+   * 颜色事故同一个形状：两套系统各写各的，于是主题走不进来，像素网格也走不进来。
+   * 18px 图标在 dpr 1.5 下得到 1.125 个物理像素每网格单位，无论 stroke-width
+   * 取什么都不可能锐利。
+   *
+   * 派生一律改用乘除法：加减像素会把上游的对齐性质丢掉。
+   */
+  --cp-control: calc(var(--ui-icon-unit) * 2);
   --cp-control-gap: 6px;
-  --cp-icon: 18px;
+  --cp-icon: var(--ui-icon-size-md);
   --cp-optical: 6px;
 
-  --cp-mark: calc(var(--cp-control) - 2px);
+  --cp-mark: calc(var(--ui-icon-unit) * 2);
   --cp-row: calc(var(--cp-control) + 2px);
   --cp-header: calc(var(--cp-control) - 4px);
   --cp-control-sm: calc(var(--cp-control) - 10px);
   --cp-control-xs: calc(var(--cp-control) - 12px);
 
-  --cp-icon-sm: calc(var(--cp-icon) - 2px);
-  --cp-icon-xs: calc(var(--cp-icon) - 3px);
-  --cp-icon-2xs: calc(var(--cp-icon) - 4px);
-  --cp-dot: calc(var(--cp-icon) / 3);
+  --cp-icon-sm: var(--ui-icon-size-md);
+  --cp-icon-xs: var(--ui-icon-size-md);
+  --cp-icon-2xs: var(--ui-icon-size-md);
+  --cp-dot: calc(var(--ui-icon-unit) / 4);
 
   --cp-inset: 10px;
   --cp-pad-x: calc(var(--cp-inset) + var(--cp-optical));
@@ -178,7 +188,7 @@
 
   --cp-edge-top: color-mix(in srgb, var(--ui-foreground) 7%, transparent);
   --cp-edge-bottom: color-mix(in srgb, var(--ui-foreground) 11%, transparent);
-  --cp-edge-weight: 1.25px;
+  --cp-edge-weight: calc(var(--ui-hairline) * 2);
 
   /* 顶部高光由表面色推出:浅色下偏白,深色下只是比表面亮一档,不再是纯白。 */
   --cp-gloss: inset 0 1px 0 color-mix(in srgb, var(--ui-surface) 85%, white);

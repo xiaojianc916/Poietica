@@ -5,6 +5,7 @@ import {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
 } from '@poietica/desktop-runtime'
+import { trackDevicePixelRatio } from '@poietica/ui'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
 import { installExternalLinks } from './presentation/chrome/external-links'
@@ -13,6 +14,7 @@ import { installScrollbarActivity } from './presentation/chrome/scrollbar-activi
 void bootstrapApplication()
 
 async function bootstrapApplication(): Promise<void> {
+  trackDevicePixelRatio()
   installScrollbarActivity()
   installExternalLinks()
 
