@@ -1,3 +1,4 @@
+import { optionalProperty } from '@poietica/core'
 import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
 import { formatFailureDiagnostic } from '../application/failures/failure-diagnostic'
 
@@ -107,17 +108,4 @@ function createAdditionalIncidentMessage(count: number): string | undefined {
   }
 
   return `此后还捕获到 ${String(count)} 个相关异常。`
-}
-
-function optionalProperty<Key extends string, Value>(
-  key: Key,
-  value: Value | undefined,
-): Partial<Record<Key, Value>> {
-  if (value === undefined) {
-    return {}
-  }
-
-  return {
-    [key]: value,
-  } as Record<Key, Value>
 }
