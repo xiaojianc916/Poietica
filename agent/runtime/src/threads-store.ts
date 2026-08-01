@@ -374,10 +374,12 @@ export class ThreadsStore {
   }
 
   /*
-   * 三个动作：先改本地，再落库。
+   * 改名与置顶：先改本地，再落库。落库失败由 #settle 向权威重问一次回滚。
    *
    * 立刻可见是列表类界面的通行做法，而真相仍然只有一个来源；端口没有实现
    * 某个动作时什么都不做，界面不会假装做过。
+   *
+   * 删除不在这一类里，理由见 remove 自己那一段。
    */
   rename = async (threadId: string, title: string): Promise<void> => {
     const act = this.#port?.rename
@@ -406,6 +408,25 @@ export class ThreadsStore {
       return
     }
 
+    /*
+     * 删除先落库，再在本地生效。这一条与改名、置顶反过来，是有理由的。
+     *
+     * 那两个是可逆的属性变更：乐观更新失败了，向权威重问一次就回到原样。删除
+     * 不是。它同时作废这条对话的转录（forget）、并向 #removed 广播让工作台关掉
+     * 开着它的那一格 —— 两件事都不是一次 refresh 能复原的，于是「先删本地再落
+     * 库」在失败时留下的是一份谁都没认可的状态：屏幕上没有了，盘上还在。
+     *
+     * 破坏性动作等一次本地往返（落的是本机 SQLite，不是网络），换的是「屏幕上
+     * 没有的东西盘上也没有」。
+     */
+    try {
+      await act(threadId)
+    } catch (reason) {
+      this.#commit({ failure: this.#reasonOf(reason) })
+
+      return
+    }
+
     /* 按对话记的那几格跟着走。此前它们只增不减，删一条对话会在五处各留一格。 */
     this.#asked.delete(threadId)
     this.#actual.delete(threadId)
@@ -423,6 +444,7 @@ export class ThreadsStore {
       pending: this.#held.pending.filter((thread) => thread.threadId !== threadId),
       selectors: this.#without(this.#held.selectors, threadId),
       selectorFailure: this.#without(this.#held.selectorFailure, threadId),
+      failure: null,
     })
 
     /* 经过随对话一起作废：删掉的东西不该还能被读回来。 */
@@ -431,8 +453,6 @@ export class ThreadsStore {
     for (const listener of this.#removed) {
       listener(threadId)
     }
-
-    await this.#settle(act(threadId))
   }
 
   setPinned = async (threadId: string, pinned: boolean): Promise<void> => {
@@ -742,6 +762,15 @@ export class ThreadsStore {
    *
    * 先回滚再记原因：refresh 成功时会 commit 一次 failure: null，顺序反了就把
    * 这句话抹掉了。
+   */
+  /*
+   * 一次乐观写入的收尾。改名与置顶走这里，删除不走。
+   *
+   * 失败时先向权威重问一次，与 selectControl 的 catch 同一个办法：回滚是把真相
+   * 拉回来，不是在本地猜一个旧值填回去。此前这里只写一句 failure，于是改名失败
+   * 之后屏幕上留着的是那个没写进去的新名字。
+   *
+   * 顺序不能反：refresh 成功时自己会提交 failure: null，那句话必须排在它后面。
    */
   async #settle(work: Promise<unknown>): Promise<void> {
     try {

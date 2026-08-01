@@ -19,6 +19,8 @@ permissions:
   contents: read
 
 env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
   # 产物路径必须是确定的。构建脚本固定 --target，这里才敢写死这条路径。
   BUNDLE_DIR: target/x86_64-pc-windows-msvc/release/bundle/nsis
 
@@ -34,26 +36,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.15.0
-          run_install: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 26.2.0
-          cache: pnpm
+      - name: Setup JS toolchain
+        uses: ./.github/actions/setup-js
 
       - name: Install Rust
         run: rustup show # honours rust-toolchain.toml
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: Release preflight
         shell: pwsh
@@ -79,7 +69,7 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          arguments: --all-features # advisories included: a release must not ship known-vulnerable deps
 
       - name: Build installer
         run: pnpm build:release

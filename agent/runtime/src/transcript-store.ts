@@ -24,7 +24,7 @@ import {
  * 留痕，这也是 agent/runtime 至今零测试的结构性原因），而 attach 的那道
  * attachedTo === port 守卫会是进程级的 —— 它把"一个 store 订着一条线路"写成了
  * "一个进程订着一条线路"。held / alias / aliased / routes / orphans 本来就互相
- * 耦合（rename 同时写三张，evict 同时删三张），它们是一个对象的内部字段。
+ * 耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
  *
  * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的 RecordedEvent，
  * 六种帧无一例外），而"这条会话属于哪条对话"在打开这条对话时就登记好了（见
@@ -188,6 +188,19 @@ export class TranscriptStore {
     this.#paint = paint
   }
 
+  /**
+   * 对话 → 它的转录。这张表没有上限，也不需要有。
+   *
+   * 它此前带着一个 8 条的 LRU。那道上限封不住内存 —— 同一个进程里按对话记的
+   * 表另有四张（#alias / #aliased / #routes / #pending），加上 ThreadsStore 的
+   * 四张（#asked / #sessions / #actual / #tried），全部只随删除而缩。它唯一确
+   * 实做到的事是制造一条丢内容的路径：一条界面已经关掉的对话被淘汰之后，
+   * ThreadsStore.adopt 见 #asked 里有它就直接返回、永不重取，于是切回去是一片
+   * 空白，而 restoring 与 loaded 都是 false，连「正在取」都不显示。
+   *
+   * 转录的生命周期就是对话的生命周期。回收因此只有一个出口：forget，由
+   * ThreadsStore.remove 在这条对话真的不存在时调用。
+   */
   #held = new Map<string, Transcript>()
 
   #listeners = new Map<string, Set<() => void>>()
@@ -275,10 +288,11 @@ export class TranscriptStore {
   /**
    * 这条对话不存在了。
    *
-   * 删除是一条对话的终点，不是一次淘汰：转录、别名、以及指向它的每一条
-   * 路由都在这一刻作废。此前清理只有 LRU 一条路径（#evict），而那条路径
-   * 明确跳过有人正订阅着的键 —— 于是被删掉的那条对话，只要标签页还开着
-   * 就永远读得回来，屏幕上照旧是它的全文。
+   * 这是转录唯一的回收出口：转录的生命周期就是对话的生命周期。
+   *
+   * 攒着还没折进去的帧也在这里作废。漏掉它们不只是漏一格内存 —— 删掉一条正在
+   * 流式输出的对话之后，界面被叫醒、read 走到 #settle，那批帧会被折进一个空
+   * 转录再写回 #held，被删掉的东西就这么回到了屏幕上。
    *
    * 删完就通知：还挂着的界面下一帧读到的是 EMPTY，不是一份不存在的东西。
    */
@@ -553,11 +567,11 @@ export class TranscriptStore {
    * 再约一拍，而那一拍没有任何新东西可看。分开之后，叫醒由两个入口负责 ——
    * 收到帧的那一刻（#queue）与外部写入的那一刻（#put）—— 折叠只管把状态改对。
    *
-   * 而这一刀此前只落在注释里：函数体末尾一直站着一行 #notify(real)。接回调用
-   * 链就是一条闭合回路 —— #flush 第一行把 #waiting 放回 false，随后 #settle
-   * 折叠一次就 #write 一次、#notify 一次，于是必然再排得出一帧 rAF。那一帧里
-   * 没有任何待折的帧，#fire 却照样把所有监听器叫一遍：流式期间这条回路与帧率
-   * 同频空转，一轮结束还要多跑一拍才静默。
+   * 这一刀曾经只落在注释里：函数体末尾一直站着一行 #notify(real)。接回调用链
+   * 就是一条闭合回路 —— #flush 第一行把 #waiting 放回 false，随后 #settle 折叠
+   * 一次就 #write 一次、#notify 一次，于是必然再排得出一帧 rAF；那一帧里没有任何
+   * 待折的帧，#fire 却照样把所有监听器叫一遍。流式期间它与帧率同频空转，一轮结束
+   * 还要多跑一拍才静默。现在它真的只写。
    *
    * 更要紧的是 read() 就是 useAssistantSession 交给 useSyncExternalStore 的
    * getSnapshot。快照读取会走到这里，于是它会从 React 渲染期排出调度工作 ——

@@ -19,111 +19,32 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # 纯 JS 检查没有任何 Windows 依赖，Linux runner 更快且计费单价是 Windows 的一半。
   frontend:
     name: Frontend
-    runs-on: windows-latest
-    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.15.0
-          run_install: false
+      - name: Setup JS toolchain
+        uses: ./.github/actions/setup-js
 
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 26.2.0
-          cache: pnpm
-
-      - name: Verify JavaScript toolchain
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $expectedNode = "26.2.0"
-          $actualNode = (node --version).Trim().TrimStart("v")
-          $actualPnpm = (pnpm --version).Trim()
-
-          if ($actualNode -ne $expectedNode) {
-            throw "Expected Node.js $expectedNode, got $actualNode"
-          }
-
-          if ($actualPnpm -ne "11.15.0") {
-            throw "Expected pnpm 11.15.0, got $actualPnpm"
-          }
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: JavaScript dependency audit
-        run: pnpm audit --audit-level high
-
-      - name: Format
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
+      # biome ci 一次覆盖 format + lint + import sorting，并输出 GitHub
+      # annotation，红灯会直接标在 PR diff 的具体行上。
+      - name: Biome
+        run: pnpm exec biome ci .
 
       - name: Architecture
         run: pnpm test:architecture
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Typecheck and tests
+        run: pnpm exec turbo run typecheck test --continue
 
-      - name: JavaScript tests
-        run: pnpm test
-
-      # pnpm build 是整包 bundle（需要 Rust 与 NSIS），与 windows-desktop job
-      # 完全重复且这台机器没有 Rust 缓存。前端 job 构建前端。
       - name: Build web assets
         run: pnpm build:web
-
-  windows-desktop:
-    name: Windows Desktop
-    runs-on: windows-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.15.0
-          run_install: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 26.2.0
-          cache: pnpm
-
-      - name: Install Rust
-        run: rustup show # honours rust-toolchain.toml
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck workspace
-        run: pnpm typecheck
-
-      - name: Build desktop frontend
-        run: pnpm build
-
-      - name: Check Windows native target
-        run: cargo check -p poietica --all-targets --all-features
-
-      - name: Build Windows desktop binary
-        run: pnpm --filter @poietica/desktop exec tauri build --debug --no-bundle
 
   rust:
     name: Rust
@@ -140,64 +61,47 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify Rust toolchain
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          # rust-toolchain.toml pins the channel; Cargo.toml pins the floor.
-          # Assert the resolved compiler satisfies the Cargo rust-version floor
-          # instead of hardcoding a version that contradicts both files.
-          $pattern = '^rust-version\s*=\s*"([^"]+)"'
-          $found = Select-String -Path "Cargo.toml" -Pattern $pattern
-
-          if (-not $found) {
-            throw "Could not read rust-version from Cargo.toml"
-          }
-
-          $floor = [version]$found.Matches[0].Groups[1].Value
-          $actual = [version](((rustc --version).Trim() -split "\s+")[1])
-
-          if ($actual -lt $floor) {
-            throw "Rust $actual is below the required floor $floor"
-          }
-
       - name: Format
         run: cargo fmt --check
 
-      - name: Check
-        run: cargo check --workspace --all-targets --all-features
-
-      - name: Verify generated IPC bindings
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          # $ErrorActionPreference does not apply to native exit codes, so the
-          # generator needs its own check. Without it a generator that fails to
-          # build leaves the checked-in file untouched, git diff returns clean,
-          # and this step reports the bindings as up to date - green exactly when
-          # it matters most.
-          cargo run -p poietica --bin export-ipc-bindings
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not run the IPC bindings exporter."
-          }
-
-          git diff --exit-code -- platforms/desktop-ipc/src/generated/ipc-bindings.ts
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Generated IPC bindings are out of date. Run pnpm ipc:generate and commit the result."
-          }
-
+      # clippy-driver 就是一次完整编译，之前额外的 cargo check 是纯重复工作。
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Tests
         run: cargo test --workspace --all-features
 
+      # 只跑确定性子集。advisories 依赖外部数据库，会让无关 PR 随机变红，
+      # 它属于 security.yml 的定时任务与发布门禁。
       - name: Dependency policy
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          arguments: --all-features bans licenses sources
+
+  windows-desktop:
+    name: Windows Desktop
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JS toolchain
+        uses: ./.github/actions/setup-js
+
+      - name: Install Rust
+        run: rustup show # honours rust-toolchain.toml
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      # 这是唯一同时具备 Node 与 Rust 的 job，所以 IPC 校验放这里，
+      # 直接复用 pnpm ipc:check，不再维护第二份 PowerShell 实现。
+      - name: Verify generated IPC bindings
+        run: pnpm ipc:check
+
+      # turbo.json 中 build.dependsOn 已包含 typecheck，无需单独再跑一遍。
+      - name: Build Windows desktop binary
+        run: pnpm build:debug
