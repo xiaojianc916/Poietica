@@ -571,16 +571,16 @@ fn validate_token(value: &str) -> Result<(), AssetProtocolError> {
     Ok(())
 }
 
+/// 这个字符串是不是一个规范的 SHA-256 摘要。
+///
+/// 判定本身在 attachments.rs：那里是字节落盘的地方，而磁盘上的目录名就是摘要，
+/// 一个宽一格的判定在那边等于一次路径穿越。两处各写一份，迟早只有一处会被改。
 fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
-    if content_hash.len() != 64
-        || !content_hash
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-    {
-        return Err(AssetProtocolError::InvalidContentHash);
+    if crate::attachments::is_content_hash(content_hash) {
+        return Ok(());
     }
 
-    Ok(())
+    Err(AssetProtocolError::InvalidContentHash)
 }
 
 /// Whether the delivery protocol may serve this content type.

@@ -39,7 +39,7 @@ const STAGING_DIRECTORY: &str = "tmp";
 
 /// 一份已经躺在磁盘上的字节。
 #[derive(Clone, Debug)]
-pub struct Blob {
+pub(crate) struct Blob {
     /// 内容的 sha256，小写十六进制。它同时就是文件名。
     pub hash: String,
     /// 字节数。账本要存它，界面要用它显示大小。
@@ -51,7 +51,7 @@ pub struct Blob {
 /// 路径是从 hash 拼出来的，所以这不是格式洁癖，而是唯一挡住 `..` 的地方：
 /// 账本里的值终究来自某一次写入，而写入的上游是渲染层。
 #[must_use]
-pub fn is_content_hash(value: &str) -> bool {
+pub(crate) fn is_content_hash(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
@@ -65,7 +65,7 @@ pub fn is_content_hash(value: &str) -> bool {
 /// # Errors
 ///
 /// hash 不是 sha256 摘要时返回校验错误。
-pub fn blob_path(root: &Path, hash: &str) -> Result<PathBuf> {
+pub(crate) fn blob_path(root: &Path, hash: &str) -> Result<PathBuf> {
     let shard = hash
         .get(0..2)
         .filter(|_| is_content_hash(hash))
@@ -90,7 +90,7 @@ pub fn blob_path(root: &Path, hash: &str) -> Result<PathBuf> {
 /// # Errors
 ///
 /// 目录无法创建、暂存文件无法写入、或改名失败且目标仍不存在时返回错误。
-pub fn store_bytes(root: &Path, bytes: &[u8]) -> Result<Blob> {
+pub(crate) fn store_bytes(root: &Path, bytes: &[u8]) -> Result<Blob> {
     let hash = hex::encode(Sha256::digest(bytes));
     let byte_size = u64::try_from(bytes.len())
         .map_err(|_ignored| Error::Asset("attachment length overflow".into()))?;
@@ -142,7 +142,7 @@ pub fn store_bytes(root: &Path, bytes: &[u8]) -> Result<Blob> {
 /// # Errors
 ///
 /// hash 不合法、或删除被系统拒绝时返回错误。
-pub fn forget_blob(root: &Path, hash: &str) -> Result<()> {
+pub(crate) fn forget_blob(root: &Path, hash: &str) -> Result<()> {
     let path = blob_path(root, hash)?;
 
     match fs::remove_file(&path) {

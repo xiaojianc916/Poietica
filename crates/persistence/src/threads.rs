@@ -132,25 +132,46 @@ impl AgentStore {
     /// 命名仍然只发生一次：后一轮的开场白改不动一条已经有名字的对话，用户手
     /// 打的名字（`manual`）更不会被它顶掉。`list_threads` 用「标题源还是
     /// fallback」判断有没有人开过口，这条语句让那个判据继续成立。
-    pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<()> {
+    /// 返回的是这一句话在这条对话里的序号，从 0 数起。
+    ///
+    /// 附件挂在「第几条用户消息」上（见迁移 0010），而这里是这个程序里唯一
+    /// 记下一条用户消息的地方 —— 所以这个数只能由这条语句自己给出。让调用方
+    /// 去数，等于开出第二个真值来源，而两个来源迟早会分叉。
+    ///
+    /// `RETURNING` 让加一与读回落在同一条语句里，中间没有别人插得进来的缝。
+    ///
+    /// 点名一条不存在的对话现在是错误，此前是无声成功：一条 `UPDATE` 影响零行
+    /// 不算失败，于是渲染层送来一个陌生的 id 时，这一轮被安静地记进了虚空。
+    ///
+    /// # Errors
+    ///
+    /// 语句被拒、或这条对话不存在时返回错误。
+    pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<i64> {
         let timestamp = now()?;
 
-        self.write(
-            "UPDATE threads
-                SET title        = CASE WHEN title_source = ?4 THEN ?2 ELSE title END,
-                    title_source = CASE WHEN title_source = ?4 THEN ?5 ELSE title_source END,
-                    updated_at   = ?3
-              WHERE id = ?1",
-            rusqlite::params![
-                id.to_string(),
-                title,
-                timestamp,
-                TitleSource::Fallback,
-                TitleSource::Message,
-            ],
-        )?;
+        let turn = self
+            .connection
+            .prepare_cached(
+                "UPDATE threads
+                    SET title        = CASE WHEN title_source = ?4 THEN ?2 ELSE title END,
+                        title_source = CASE WHEN title_source = ?4 THEN ?5 ELSE title_source END,
+                        updated_at   = ?3,
+                        prompts      = prompts + 1
+                  WHERE id = ?1
+              RETURNING prompts - 1",
+            )?
+            .query_row(
+                rusqlite::params![
+                    id.to_string(),
+                    title,
+                    timestamp,
+                    TitleSource::Fallback,
+                    TitleSource::Message,
+                ],
+                |row| row.get(0),
+            )?;
 
-        Ok(())
+        Ok(turn)
     }
 
     /// Names a conversation on the user's say-so.
@@ -191,9 +212,6 @@ impl AgentStore {
     ///
     /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
-        // 链接行跟着对话一起消失，字节不删：留给启动时的回收去认领，
-        // 因为同一张图可能还挂在别的对话上。
-        self.release_attachments(id)?;
         /*
          * 链接由这里解，不指望外键。
          *

@@ -51,6 +51,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "attachments",
         include_str!("schema/0010_attachments.sql"),
     ),
+    (
+        11,
+        "thread_prompts",
+        include_str!("schema/0011_thread_prompts.sql"),
+    ),
 ];
 
 /// Brings the database up to the current schema version.

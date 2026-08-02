@@ -20,7 +20,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
-use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use poietica_agent_persistence_native::{AgentStore, StoreError, ThreadAttachment, TitleSource};
 use poietica_agent_runtime_native::{
     ACP_UPDATE, AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
     FrameSink, PermissionDesk, PromptImage, RecordedEvent, Refusal, RunSlot, connect,
@@ -31,9 +33,13 @@ use specta::Type;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use uuid::Uuid;
 
+use crate::asset_protocol::{
+    AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
+};
+use crate::attachments::{blob_path, forget_blob, store_bytes};
 use crate::commands::agent_config::launch_env;
 use crate::error::{Error, IpcError, Result};
-use crate::paths::agent_database;
+use crate::paths::{agent_database, attachments_root};
 
 type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -82,6 +88,14 @@ const IMAGE_TOO_LARGE: &str = "an attachment is too large";
 /// 四分之三。
 const MAX_IMAGE_CHARS: usize = 16 * 1024 * 1024;
 
+/// 送来的不是 base64。
+///
+/// 与「不是图片」分开：那一条说的是 MIME，这一条说的是这一格根本解不开。
+const NOT_BASE64: &str = "an attachment is not valid base64";
+
+/// 一句话里的图片多到序号装不下。实际到不了，但转换要有个说法。
+const TOO_MANY_IMAGES: &str = "too many attachments in one message";
+
 /// 一句话只有图片时，这条对话叫什么。
 ///
 /// 标题取自第一句话，而第一句话可以没有字。此前那一行直接 take 一个空串，
@@ -121,6 +135,8 @@ struct Connection {
 #[derive(Debug)]
 pub struct AgentRuntime {
     database: PathBuf,
+    /// 附件字节的根。与库文件同一个时刻解析：两者都是布局，不是某条命令的参数。
+    attachments: PathBuf,
     root: PathBuf,
     slot: RunSlot,
     desk: PermissionDesk,
@@ -169,6 +185,7 @@ impl AgentRuntime {
 
         Ok(Self {
             database: agent_database(handle)?,
+            attachments: attachments_root(handle)?,
             root,
             slot: RunSlot::new(),
             desk: PermissionDesk::new(),
@@ -338,27 +355,29 @@ pub async fn agent_prompt(
     //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
-    on_store(&state, move |store| {
+    let turn = on_store(&state, move |store| {
         store.record_prompt(thread_id, &opener).map_err(persistence)
     })
     .await?;
+
+    /* 先落盘，再记账，最后才上路。顺序见 attachments.rs 的模块头：反过来会
+    留下一条指着不存在字节的账，而那种残留不会自愈。 */
+    let (images, kept) = keep_bytes(state.attachments.clone(), images, turn).await?;
+
+    for attachment in kept {
+        on_store(&state, move |store| {
+            store
+                .remember_attachment(thread_id, &attachment)
+                .map_err(persistence)
+        })
+        .await?;
+    }
 
     let frames = batched(app);
 
     let answer = session
         .client
-        .prompt(
-            addressed.clone(),
-            text,
-            images
-                .into_iter()
-                .map(|image| PromptImage {
-                    data: image.data,
-                    mime_type: image.mime_type,
-                })
-                .collect(),
-            frames,
-        )
+        .prompt(addressed.clone(), text, images, frames)
         .map_err(translate)?;
 
     async_runtime::spawn(async move {
@@ -378,6 +397,59 @@ pub async fn agent_prompt(
     Ok(AgentPromptResult {
         session_id: addressed,
     })
+}
+
+/// 一句话带的图片：落盘、记账，再把它们原样交还给协议。
+///
+/// 整段在阻塞执行器上。base64 解码与 SHA-256 都要过一遍全部字节，单张最大
+/// 十六兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs 把摘要挪走是
+/// 同一条判据：命令体跑在异步运行时的 worker 上，别的命令全排在它后面。
+///
+/// base64 串移进去、移出来，中途不复制：协议要的就是它那一份，账本要的是解出
+/// 来的字节。两边各拿各的，没有一次多余的克隆。
+///
+/// 字节写进磁盘，账本行不在这里写：那要拿库的锁，而这里拿的是文件系统。
+/// 一个函数一件事，调用方按顺序把两件事串起来。
+async fn keep_bytes(
+    root: PathBuf,
+    images: Vec<AgentPromptImage>,
+    turn: i64,
+) -> Result<(Vec<PromptImage>, Vec<ThreadAttachment>)> {
+    if images.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    async_runtime::spawn_blocking(move || {
+        let mut carried = Vec::with_capacity(images.len());
+        let mut kept = Vec::with_capacity(images.len());
+
+        for (ordinal, image) in images.into_iter().enumerate() {
+            let bytes = BASE64
+                .decode(image.data.as_bytes())
+                .map_err(|_invalid| Error::Validation(NOT_BASE64.to_owned()))?;
+
+            let blob = store_bytes(&root, &bytes)?;
+
+            kept.push(ThreadAttachment {
+                hash: blob.hash,
+                turn,
+                ordinal: i64::try_from(ordinal)
+                    .map_err(|_overflow| Error::Internal(TOO_MANY_IMAGES.to_owned()))?,
+                mime: image.mime_type.clone(),
+                byte_size: i64::try_from(blob.byte_size)
+                    .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
+            });
+
+            carried.push(PromptImage {
+                data: image.data,
+                mime_type: image.mime_type,
+            });
+        }
+
+        Ok((carried, kept))
+    })
+    .await
+    .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
 }
 
 /// 帧攒着走，一拍一趟。
@@ -939,14 +1011,14 @@ fn borrow_store(shared: &Arc<Mutex<AgentStore>>) -> Result<MutexGuard<'_, AgentS
 async fn on_store<T, F>(state: &State<'_, AgentRuntime>, work: F) -> Result<T>
 where
     T: Send + 'static,
-    F: FnOnce(&AgentStore) -> Result<T> + Send + 'static,
+    F: FnOnce(&mut AgentStore) -> Result<T> + Send + 'static,
 {
     let shared = shared_store(state)?;
 
     async_runtime::spawn_blocking(move || {
-        let store = borrow_store(&shared)?;
+        let mut store = borrow_store(&shared)?;
 
-        work(&store)
+        work(&mut store)
     })
     .await
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
@@ -1163,6 +1235,25 @@ pub struct AgentThread {
     pub pinned: bool,
 }
 
+/// 这条对话挂着的一张附件，以及它该出现在哪里。
+///
+/// URL 由这一侧拼好交出去（`asset_protocol_url`），渲染层不自己拼：它的形状
+/// 是协议的事，多一个人知道就多一处会漂移。
+///
+/// 位置由「第几条用户消息、这条消息里的第几张」两个数给出，而不是消息 id ——
+/// 这个程序不存对话内容，历史由 agent 交还，那份历史里的 id 不归我们发。
+/// 能由两侧各自数出同一个答案的，只有序号（见迁移 0010 与 0011）。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentThreadAttachment {
+    /// `poietica-asset://asset/{thread}/{sha256}`，可以直接进 img 的 src。
+    pub url: String,
+    /// 这是这条对话里第几条用户消息，从 0 数起。
+    pub turn: i64,
+    /// 那条消息里的第几张，从 0 数起。
+    pub ordinal: i64,
+}
+
 /// A conversation that was just opened, and what its session offers.
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -1184,6 +1275,13 @@ pub struct AgentOpenedThread {
     /// 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
     /// 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
     pub history: AgentHistory,
+    /// 这条对话挂着的图片，字节已经装回交付注册表，URL 拿去就能用。
+    ///
+    /// 它不来自 agent。上面那段经过是 agent 交还的，而图片是这台机器上用户
+    /// 自己的文件：agent 收到的是一份 base64 副本，它没有义务交还，多数 CLI
+    /// 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
+    /// attachments.rs）。
+    pub attachments: Vec<AgentThreadAttachment>,
 }
 
 /// Lists the stored conversations, newest first.
@@ -1249,6 +1347,7 @@ pub struct AgentOpenThreadRequest {
 pub async fn agent_open_thread(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
+    assets: State<'_, AssetProtocolRegistry>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
@@ -1296,12 +1395,123 @@ pub async fn agent_open_thread(
     })
     .await?;
 
+    let attachments = deliver_attachments(&state, &assets, thread_id).await?;
+
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
         events,
         history,
+        attachments,
     })
+}
+
+/// 把这条对话挂着的字节装回交付注册表，并交出可以直接用的 URL。
+///
+/// 交付会话的令牌是**对话**，不是 ACP 的 sessionId：后者随连接生灭，而这些
+/// URL 要在重启之后仍然指向同一张图。
+///
+/// # Errors
+///
+/// 账本读不出、字节读不动（缺失除外）、或注册表拒绝这一批时返回错误。
+async fn deliver_attachments(
+    state: &State<'_, AgentRuntime>,
+    assets: &State<'_, AssetProtocolRegistry>,
+    thread_id: Uuid,
+) -> Result<Vec<AgentThreadAttachment>> {
+    let ledger = on_store(state, move |store| {
+        store.attachments_of(thread_id).map_err(persistence)
+    })
+    .await?;
+
+    let session = thread_id.to_string();
+
+    /* 上一次打开这条对话铺下的那一份先撤掉。restore_session 拒绝往一个已经
+    存在的会话上再铺一次，而这条命令本来就会被反复调用 —— 它自己的文档写着
+    「渲染层可以在连接还活着的时候整个重来，Ctrl+R 就是，开第二个窗口也是」。
+    撤了再铺，重入因此是它的常态而不是例外。 */
+    let _dropped = assets.remove_session(&session).map_err(asset)?;
+
+    if ledger.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    /* 按摘要去重。同一张图挂在两轮上是常事 —— 内容寻址的全部意义就在这里 ——
+    而 restore_session 收到两个相同的摘要会把整批拒掉。账本给的是链接行，不是
+    字节，两者的条数本来就不相等。 */
+    let mut seen = HashSet::new();
+    let mut wanted = Vec::new();
+
+    for attachment in &ledger {
+        if seen.insert(attachment.hash.clone()) {
+            wanted.push((attachment.hash.clone(), attachment.mime.clone()));
+        }
+    }
+
+    let root = state.attachments.clone();
+
+    let entries = async_runtime::spawn_blocking(move || {
+        let mut entries = Vec::with_capacity(wanted.len());
+
+        for (hash, mime) in wanted {
+            let path = blob_path(&root, &hash)?;
+
+            let bytes = match std::fs::read(&path) {
+                Ok(bytes) => bytes,
+                /* 少一张图不该让整条对话打不开。人可以手动清过那个目录，同步
+                软件也可能吞掉文件；那时候正确的行为是显示其余的，而不是把这
+                条对话变成一个打不开的东西。无主的账下一次回收会扫掉。 */
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    log::warn!("an attachment's bytes are missing: {hash}");
+                    continue;
+                }
+                Err(error) => return Err(Error::Io(error)),
+            };
+
+            /* verify，不是 from_verified_container：后者的契约要求调用方已经
+            在本进程里对这批字节做过摘要，而这些字节刚从磁盘读上来，没有人验过。
+            文件名就是摘要，所以这一次哈希同时就是一次完整性检查。 */
+            entries.push(
+                AssetSessionSnapshotEntry::verify(hash, mime, Arc::new(bytes))
+                    .map_err(asset)?,
+            );
+        }
+
+        Ok::<_, Error>(entries)
+    })
+    .await
+    .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))??;
+
+    /* 真正铺进去的那些。缺字节的那几张不在里面，所以也不该出现在答复里 ——
+    交出一条取不到东西的 URL，屏幕上就是一个破图标。 */
+    let delivered = entries
+        .iter()
+        .map(|entry| entry.content_hash().to_owned())
+        .collect::<HashSet<_>>();
+
+    assets.restore_session(&session, entries).map_err(asset)?;
+
+    ledger
+        .into_iter()
+        .filter(|attachment| delivered.contains(&attachment.hash))
+        .map(|attachment| {
+            Ok(AgentThreadAttachment {
+                url: asset_protocol_url(&session, &attachment.hash).map_err(asset)?,
+                turn: attachment.turn,
+                ordinal: attachment.ordinal,
+            })
+        })
+        .collect()
+}
+
+/// 交付失败，说给屏幕听的那一句。
+///
+/// 与 translate 同一条规矩：细节进日志，上屏的是固定文案。这里的细节是注册表
+/// 的内部判定（预算、令牌形状、摘要不符），对屏幕前的人没有一句是可行动的。
+fn asset(error: AssetProtocolError) -> Error {
+    log::error!("an attachment could not be delivered: {error:?}");
+
+    Error::Asset("an attachment could not be delivered".to_owned())
 }
 
 /// Restates one stored conversation in the shape the bindings carry.
@@ -1745,6 +1955,31 @@ pub async fn agent_delete_thread(
         store.delete_thread(id).map_err(persistence)
     })
     .await?;
+
+    /* 删对话正是垃圾产生的时刻，所以回收就在这里，不另立一条定时清理。
+    行先删、文件后删：反过来崩在中间会留下一条指着空文件的账，而这一个
+    方向留下的孤儿文件下一次删除时会被再扫出来。 */
+    let orphans = on_store(&state, |store| {
+        let orphans = store.unreferenced_attachments().map_err(persistence)?;
+
+        for hash in &orphans {
+            store.forget_attachment(hash).map_err(persistence)?;
+        }
+
+        Ok(orphans)
+    })
+    .await?;
+
+    /* 不 await：删几个文件不该让「删除对话」这个动作在屏幕上多停一会儿。 */
+    let root = state.attachments.clone();
+
+    let _detached = async_runtime::spawn_blocking(move || {
+        for hash in orphans {
+            if let Err(error) = forget_blob(&root, &hash) {
+                log::warn!("could not remove an unreferenced attachment: {error}");
+            }
+        }
+    });
 
     Ok(())
 }
