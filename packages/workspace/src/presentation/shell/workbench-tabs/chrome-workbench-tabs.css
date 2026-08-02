@@ -265,11 +265,24 @@
   outline-offset: -3px;
 }
 
+/*
+ * 15px / stroke-width 1.8 是肉眼调参的产物，两个数都不成立：
+ *
+ * 图标在 __content 里居中，__content 内容高 = 标签高 32 − 顶部内缩 2 = 30。
+ * 偏移 (30 − 15) / 2 = 7.5px —— 整个字形压在半个 CSS 像素上被重采样，这就是
+ * 「糊」。16px 得到偏移 7，整数。
+ *
+ * stroke-width 也不该由消费端声明：线宽是字形几何的一部分，字形按自己的网格
+ * 选定线宽才能与笔画坐标一起落在像素格上。在这里覆盖成 1.8，经 15/24 缩放后
+ * 实际渲染 1.125px，跨两列像素 —— 这就是「粗」。删掉，交回字形。
+ *
+ * 偶数尺寸是硬约束不是口味：容器高为偶数时，只有偶数图标能居中到整数偏移。
+ * VS Code 的标签图标 16px、Chrome 的 favicon 16px，都不是巧合。
+ */
 .chrome-workbench-tab__icon {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
-  stroke-width: 1.8;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
 }
 
 .chrome-workbench-tab__title {
