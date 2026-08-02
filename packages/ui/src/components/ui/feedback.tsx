@@ -37,7 +37,7 @@ export function EmptyState({
   return (
     <section className="grid min-h-40 place-items-center px-6 text-center">
       <div>
-        <Inbox aria-hidden="true" className="mx-auto size-5 text-muted-foreground" />
+        <Inbox aria-hidden="true" className="mx-auto size-8 text-muted-foreground" />
 
         <h3 className="mt-3 text-sm font-semibold">{title}</h3>
 
@@ -61,7 +61,7 @@ export function ErrorState({
   return (
     <section className="grid min-h-40 place-items-center px-6 text-center" role="alert">
       <div>
-        <DangerCircle aria-hidden="true" className="mx-auto size-5 text-destructive" />
+        <DangerCircle aria-hidden="true" className="mx-auto size-8 text-destructive" />
 
         <h3 className="mt-3 text-sm font-semibold">{title}</h3>
 

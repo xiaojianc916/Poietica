@@ -145,7 +145,7 @@ function HelpMenuItem({ label, icon: Icon, external = false, onClick }: HelpMenu
 
       {external ? (
         <DropdownMenuShortcut>
-          <ExternalLink aria-hidden="true" className="size-3.5" />
+          <ExternalLink aria-hidden="true" />
         </DropdownMenuShortcut>
       ) : null}
     </DropdownMenuItem>

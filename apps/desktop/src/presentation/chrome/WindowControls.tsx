@@ -20,6 +20,15 @@ export interface WindowControlsProps {
  * 非客户区，本来就不该随业务树一起死。
  *
  * 尺寸、原生红、禁用文案因此只有这一份。
+ *
+ * 字形尺寸不在这一份里：四枚字形一律走 :where(svg) 的 --ui-icon（16px），
+ * 这里不写 size-* 工具类。此前它们是 14 / 14 / 12 / 16 四个值，最大化按钮
+ * 在最大化与还原两个状态之间还会自己从 12 跳到 14 —— 那是三次各自独立的肉眼
+ * 调参，没有人把它们放在一起看过。Windows 与 macOS 的窗口控制区都是一个尺寸。
+ *
+ * 16 也不是口味：24 网格的字形渲染到边长 S 时一格 = S / 24 * dpr 个设备像素，
+ * dpr 1.5 下只有 S = 16 与 S = 32 能让它是整数。14 给出 0.875，12 给出 0.75，
+ * 描边因此跨两列像素。
  */
 export function WindowControls({
   isMaximized,
@@ -36,7 +45,7 @@ export function WindowControls({
         onClick={onMinimize}
         title="最小化"
       >
-        <Minus aria-hidden="true" className="size-3.5" />
+        <Minus aria-hidden="true" />
       </WindowControlButton>
 
       <WindowControlButton
@@ -45,15 +54,11 @@ export function WindowControls({
         onClick={onMaximize}
         title={isMaximized ? '还原窗口' : '最大化窗口'}
       >
-        {isMaximized ? (
-          <Copy aria-hidden="true" className="size-3.5" />
-        ) : (
-          <Square aria-hidden="true" className="size-3" />
-        )}
+        {isMaximized ? <Copy aria-hidden="true" /> : <Square aria-hidden="true" />}
       </WindowControlButton>
 
       <WindowControlButton ariaLabel="关闭" close onClick={onClose} title="关闭">
-        <X aria-hidden="true" className="size-4" />
+        <X aria-hidden="true" />
       </WindowControlButton>
     </div>
   )

@@ -202,7 +202,7 @@ export function UpdateCapsule({ controller, settings }: UpdateCapsuleProps) {
         }}
         type="button"
       >
-        <RefreshAlt aria-hidden="true" className="relative size-3.5" />
+        <RefreshAlt aria-hidden="true" className="relative" />
 
         <span className="relative">{labelOf(state)}</span>
       </button>

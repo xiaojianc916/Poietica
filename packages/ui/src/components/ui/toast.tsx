@@ -177,7 +177,7 @@ function ToastList() {
             )}
             type="button"
           >
-            <X aria-hidden="true" className="size-3.5" />
+            <X aria-hidden="true" />
           </BaseToast.Close>
         </BaseToast.Content>
       </BaseToast.Root>
