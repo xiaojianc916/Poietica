@@ -345,6 +345,40 @@ export function selectTurns(rows: readonly FeedRow[]): readonly ConversationTurn
   return built
 }
 
+/**
+ * 这一条在屏幕上留下东西了吗。
+ *
+ * 一格 = 一次留下过痕迹的往返。判据只有这一句,而且写成对 TimelineItem 的穷尽
+ * switch,不是「排除 error」的黑名单 —— 黑名单有个静默的结构性缺陷:以后新增
+ * 任何条目类型,它默认判成「发生过」,于是又一种空轮次被算成一站,而没有一个
+ * 地方会报错。这里的 never 让新类型必须先回答自己算不算一站,答不上来编译不过。
+ *
+ * 报错是讣告,不是目的地:断网、鉴权失败、额度耗尽、reducer 记下的空转,跨度里
+ * 都只有一条 error,人接着又问了一遍 —— 屏幕上那是挤在一起的两个气泡,轨道上
+ * 不该是两站。permission 本来就不渲染。空字符串的 agent_text 渲染出来什么都
+ * 没有,同理不算。
+ */
+function leavesAMark(item: TimelineItem): boolean {
+  switch (item.type) {
+    case 'agent_text':
+    case 'agent_thought':
+      return item.text.trim().length > 0
+    case 'tool_call':
+      return true
+    case 'plan':
+      return item.entries.length > 0
+    case 'error':
+    case 'permission':
+    case 'user_message':
+      return false
+    default: {
+      const exhaustive: never = item
+
+      return Boolean(exhaustive)
+    }
+  }
+}
+
 function buildTurns(
   rows: readonly FeedRow[],
   held: TurnProjection | undefined,
@@ -385,8 +419,9 @@ function buildTurns(
    * 第二趟：每一轮向后扫到下一轮为止，一趟回答两件事 —— 预览取哪一段，以及
    * 这一轮到底发生过什么没有。
    *
-   * 「发生过」= 跨度里出现过任何 agent 侧的条目。只有一条 error，或者一条都
-   * 没有，都不算 —— 那是一次没能开始的往返，不是一个可以跳过去的地方。
+   * 「发生过」由 leavesAMark 一句话回答，它是对条目类型的穷尽判断，不是一张
+   * 列举失败情形的名单 —— 断网、鉴权、空转、发了三条才等到回答、一个字没吐就
+   * 被打断，都落在同一条判据下，不需要各自加一个分支。
    *
    * 最后一轮永远不折叠：折叠要求后面还有人再问，而正在跑的那一轮没有下一问。
    */
@@ -407,7 +442,7 @@ function buildTurns(
     for (let index = entry.rowIndex + 1; index < until; index += 1) {
       const item = rows[index]?.item
 
-      if (item === undefined || item.type === 'error') {
+      if (item === undefined || !leavesAMark(item)) {
         continue
       }
 

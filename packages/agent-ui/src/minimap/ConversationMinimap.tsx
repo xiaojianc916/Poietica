@@ -2,7 +2,7 @@ import './conversation-minimap.css'
 
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { memo, useCallback } from 'react'
-import { railCapacity, useRailBudget } from './rail-budget'
+import { railSlots, useRailBudget } from './rail-budget'
 import { groupTurns } from './rail-groups'
 import { turnIndexAtRow } from './turn-index'
 import { useFisheye } from './use-fisheye'
@@ -69,7 +69,7 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
    * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
    */
   const focus = turnIndexAtRow(turns, activeRow)
-  const items = groupTurns(turns, railCapacity(available), focus)
+  const items = groupTurns(turns, railSlots(turns.length, available), focus)
 
   /*
    * 有序数组上求"最后一个不晚于当前行的一格",这是二分。
@@ -114,7 +114,6 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
             }
             data-card-label={item.label}
             data-card-reply={item.reply}
-            data-cluster={item.kind === 'cluster' ? '' : undefined}
             data-rail-id={item.id}
             key={item.id}
             /*

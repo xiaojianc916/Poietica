@@ -31,12 +31,15 @@ export type RailItem =
 /**
  * 焦点窗口的上下限。
  *
- * 窗口本来取 floor(slots / 3) —— 那是个拍出来的数,而且随面板高度线性膨胀:
- * 高屏上会展开二十几轮,远超"当前上下文"该有的范围;矮屏上又缩到两三轮,连
- * 前后各一轮都保不住。夹住它。
+ * 这两个数必须跟着 RAIL_SLOTS_MIN 走,不是独立可调的口味。窗口原本是 7–24:
+ * 总格数还有五六十的时候那没问题,而现在总数被钉在 8–10 —— 取 7 就意味着八
+ * 个格子里七个归焦点,远近上下文一格不剩,layout() 每一档都装不下,于是每次
+ * 都跌进 packEven 均匀切。focus+context 会名存实亡,而且没有任何报错。
+ *
+ * 一半给焦点、一半给上下文:8 根 → 4+4,10 根 → 5+5。
  */
-const MIN_FOCUS = 7
-const MAX_FOCUS = 24
+const MIN_FOCUS = 3
+const MAX_FOCUS = 5
 
 /** 距焦点这么多轮之内,保持最细一档。 */
 const SPREAD_TURNS = 6
@@ -205,7 +208,7 @@ export function groupTurns(
     return even
   }
 
-  const wanted = Math.max(MIN_FOCUS, Math.min(MAX_FOCUS, Math.floor(slots / 3)))
+  const wanted = Math.max(MIN_FOCUS, Math.min(MAX_FOCUS, Math.floor(slots / 2)))
   const focus = Math.min(turns.length, slots, wanted)
   const half = Math.floor((focus - 1) / 2)
   const start = Math.min(Math.max(0, activeIndex - half), turns.length - focus)

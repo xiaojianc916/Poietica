@@ -168,19 +168,8 @@
  * per-frame target still reads as one continuous pull rather than as steps.
  */
 .conversation-minimap__bar {
-  /*
-   * 长度的比例。并格的那一格用它,其余一律是 1。
-   *
-   * 写成比例而不是另一套 len/gain:比例在任何权重下都成立,静息和拉满是同一
-   * 个关系,而两套并列的数迟早会各自漂。调上面那两个 token 时这里自动跟上。
-   */
-  --cp-rail-scale: 1;
-
   block-size: var(--cp-rail-weight-line);
-  inline-size: calc(
-    (var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain)) *
-    var(--cp-rail-scale)
-  );
+  inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
   /*
    * 直角。
    *
@@ -289,35 +278,6 @@
   word-break: break-word;
 }
 
-/*
- * 减弱动效:关掉过渡本身。
- *
- * 这里原本写的是把 --cp-rail-weight 覆盖成 0 —— 而它的基态就是 0,所以那是把 0
- * 盖成 0,两条路径上都不做事:鱼眼在减弱动效下直接提前返回、根本不写内联值。
- * 真正没人管的是过渡,而同一个功能的另一份样式表(agent-activity-feed.css)在
- * 同样的媒体查询里写的就是 transition: none。按它统一。
- */
-/*
- * 并格之后的那一格:只短一截,不淡。
- *
- * 原先是双通道 —— 又短又淡。淡这一档是错的:静息墨色本就是 #d2d3d3,再乘
- * 0.72 就低到读不出是一根横条还是一道脏印;而 opacity 会把这一根单独提进一个
- * 合成层,它的抗锯齿从此和邻居不是同一套,这本身就是"静息态看着不一样"的一
- * 个来源。
- *
- * 一个通道说一件事 —— 而此前这句话是假的:长度里乘着鱼眼权重,厚度说的也是
- * 鱼眼权重,两条通道在说同一件事,反倒是「这一格管多宽」只能挤在长度里搭车。
- *
- * 现在:长度归鱼眼,墨色归阅读位置与手的位置,厚度恒定不发言,而这一格管多宽
- * 由下面那个比例乘在长度上 —— 静息时它是唯一改变长度的东西,一眼看得出。
- *
- * 三分之二是个整除得开的比例:静息 9 × 2/3 = 6px,不落在半像素上。到底代表
- * 几轮由卡片上的 kicker 直说,形状不必替它把话讲完。
- */
-.conversation-minimap__turn[data-cluster] .conversation-minimap__bar {
-  --cp-rail-scale: calc(2 / 3);
-}
-
 /* 这一格代表几轮。数字用等宽字形,免得逐格跳动。 */
 .conversation-minimap__card-kicker {
   margin: 0 0 2px;
@@ -326,6 +286,14 @@
   color: var(--cp-ink-subtle);
 }
 
+/*
+ * 减弱动效:关掉过渡本身。
+ *
+ * 这里原本写的是把 --cp-rail-weight 覆盖成 0 —— 而它的基态就是 0,所以那是把 0
+ * 盖成 0,两条路径上都不做事:鱼眼在减弱动效下直接提前返回、根本不写内联值。
+ * 真正没人管的是过渡,而同一个功能的另一份样式表(agent-activity-feed.css)在
+ * 同样的媒体查询里写的就是 transition: none。按它统一。
+ */
 @media (prefers-reduced-motion: reduce) {
   .conversation-minimap__bar,
   .conversation-minimap__card,

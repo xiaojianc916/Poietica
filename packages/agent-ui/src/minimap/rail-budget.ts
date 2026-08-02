@@ -41,6 +41,38 @@ export function railCapacity(availablePx: number): number {
 }
 
 /**
+ * 轨道上该有几根杠 —— 这与「放得下几根」是两个问题。
+ *
+ * railCapacity 回答的是物理上限，一块 800px 高的面板能塞六十多根。但六十根竖
+ * 在边上的短横不是目录，是噪声:没有哪个专业软件的导航条会这么干(Xcode 的
+ * jump bar、IDEA 的 structure 都在十几项封顶),而超出十来根之后,「一眼看见
+ * 全局」这个唯一的用途本身就没了 —— 再多的格子只是把眼睛的活变重。
+ *
+ * 所以密度另有上限,与物理上限取小:
+ *
+ *   常态 8 根。轮数每翻一番才准多一根,硬顶 10 根。
+ *
+ * 攀升是几何的,不是「多一轮就多一格」:15 轮时 8 根加并格绰绰有余,而 100 轮
+ * 时多两根买回来的是一整档折叠精度。翻番这个步长与 rail-groups 的 2^k 折叠是
+ * 同一套算术,不是又一个拍出来的数。
+ */
+export const RAIL_SLOTS_MIN = 8
+export const RAIL_SLOTS_MAX = 10
+
+/** 低于这个轮数一律最少那一档;之上每翻一番 +1。 */
+const RAIL_SLOTS_BASE = 16
+
+export function railSlots(turnCount: number, availablePx: number): number {
+  const grown =
+    turnCount < RAIL_SLOTS_BASE
+      ? RAIL_SLOTS_MIN
+      : RAIL_SLOTS_MIN + Math.floor(Math.log2(turnCount / RAIL_SLOTS_BASE))
+
+  /* 密度上限在前,物理上限在后:矮面板仍然说了算,它只会更小。 */
+  return Math.min(Math.min(grown, RAIL_SLOTS_MAX), railCapacity(availablePx))
+}
+
+/**
  * 轨道能用多高。
  *
  * 观测的是父容器而不是轨道自己：轨道的高度是它渲染的结果,观测它就是观测自己
