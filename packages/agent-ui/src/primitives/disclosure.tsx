@@ -4,10 +4,12 @@ import { useState } from 'react'
 /**
  * A section that opens.
  *
- * The default is the content's business — a live thought chain wants to be
- * open, a failed tool call wants to explain itself — and a click is an opinion
- * that outranks the default from then on. That is why the override is state and
- * the default is derived, rather than the two being synchronised in an effect.
+ * The default is the content's business, and in this product it is always the
+ * same question: is this still happening? A live thought chain and a running
+ * tool call are open; both close when they settle, however they settle. A click
+ * is an opinion that outranks the default from then on, which is why the
+ * override is state and the default is derived rather than synchronised in an
+ * effect — the default must be free to keep changing until someone disagrees.
  */
 export function useDisclosure(fallback: boolean): {
   readonly isOpen: boolean

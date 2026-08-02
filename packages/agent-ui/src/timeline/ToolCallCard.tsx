@@ -43,12 +43,13 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * "Read" and then "Reading README.md" — so it is displayed rather than
  * reconstructed from the arguments.
  *
- * Collapsed by default, because a finished read of a file is a fact and not a
- * story. A failure opens itself: nobody has to hunt for the reason.
+ * 运行时展开，落定后收起 —— 和思考链同一个抽屉、同一条判据，因为两者是同一
+ * 种东西：过程。过程值得看，结果不值得摊着。一次读完的文件是事实不是故事，
+ * 事实收在标题里就够了；失败同样收起，标题栏留一枚失败记号，点开才是原因。
  *
  * Opening is the same drawer the thought chain uses: the body stays mounted and
- * a grid row travels between 0fr and 1fr, so a card that opens by itself on
- * failure travels rather than jumps. Closed, the body is inert.
+ * a grid row travels between 0fr and 1fr, so a card that closes by itself when
+ * it settles travels rather than jumps. Closed, the body is inert.
  */
 export function ToolCallCard({
   isInFlight,
@@ -57,20 +58,42 @@ export function ToolCallCard({
   readonly isInFlight: boolean
   readonly item: ToolCallTimelineItem
 }) {
-  const { isOpen, toggle } = useDisclosure(item.status === 'failed')
-  const { diffStat, parts } = toToolCallView(item.content)
   /*
-   * 纺锤只在这次调用真的还在跑的时候转。
+   * 这次调用是否还在飞。纺锤和抽屉都读它，因为它们问的是同一件事。
    *
-   * 此前它只看 status，而 status 是 agent 说过的话：一次没等到终态的调用会
-   * 永远停在 in_progress，于是那张卡片在一轮早就结束之后还在转。reducer 此前
-   * 用「结束时把它盖成 failed」来止转，那是拿一句谎话换一个动画 —— 被取消的
-   * 一轮会亮出失败图标并自动展开。轮次是否还在飞现在由读模型说。
+   * 两个条件缺一不可：这一轮还在跑，并且这次调用还没有收到终态。后半句单独
+   * 用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
+   * in_progress，于是那张卡片在一轮早就结束之后还在转。reducer 此前用「结束
+   * 时把它盖成 failed」来止转，那是拿一句谎话换一个动画。轮次是否还在飞由
+   * 读模型说。
    *
-   * 停住的那种既不转也不报错：一次被宣告过、而后再没有下文的调用，安静地待在
-   * 那里就是它最准确的样子。
+   * 这也就是「异常结束」在这里的准确定义：轮次一停，无论这张卡片最后一句话
+   * 是什么 —— 报错、被取消、或者干脆没有下文 —— 它都不再是活的。停住的那种
+   * 既不转也不报错：安静地待在那里就是它最准确的样子。
    */
   const isRunning = isInFlight && (item.status === 'pending' || item.status === 'in_progress')
+
+  /*
+   * 展开与否问的是「它还在跑吗」，不是「它跑成了什么」。
+   *
+   * 此前这里传的是 item.status === 'failed'，判据落在结果轴上，于是两头都错：
+   * 正在跑的调用是收起的 —— 唯一有实时信息的那一段被藏起来；失败的调用则永远
+   * 摊开 —— 一句 not found、一句 aborted，此后每次回看这条对话它们都还摊在那
+   * 里，而它们恰恰是最不值得占版面的内容。
+   *
+   * 思考链传的是 isStreaming。同一个 useDisclosure、同一个 DisclosureBody、
+   * 同一段 0fr↔1fr，此前却喂着两种轴。现在两者读同一个轴：活着就开着，落定
+   * 就收起，异常落定也是落定。
+   *
+   * 失败不再自动摊开。理由不是不重要，是它不该由一张永久展开的卡片来承担：
+   * 标题栏上那枚失败图标是常驻记号，点开才是一次动作 —— Claude Code、Cursor、
+   * Zed 的工具卡片都是这么收的。
+   *
+   * 人点过之后就不再自动动：override 一旦落下就压过这个默认值。那是
+   * useDisclosure 的既定语义，不在这里重述第二遍。
+   */
+  const { isOpen, toggle } = useDisclosure(isRunning)
+  const { diffStat, parts } = toToolCallView(item.content)
 
   return (
     <Surface
