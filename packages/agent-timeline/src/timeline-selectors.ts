@@ -4,6 +4,7 @@ import type {
   TimelineItemId,
   TimelineState,
 } from '@poietica/agent-timeline'
+import { isRenderable } from './renderable'
 
 /**
  * Read models for the activity feed.
@@ -435,16 +436,6 @@ export function selectPendingPermission(state: TimelineState): PermissionItem | 
 
 export function selectIsBusy(state: TimelineState): boolean {
   return state.status === 'running' || state.status === 'awaiting_permission'
-}
-
-function isRenderable(item: TimelineItem): boolean {
-  if (item.type === 'agent_text' || item.type === 'agent_thought') {
-    return item.text.length > 0
-  }
-  if (item.type === 'plan') {
-    return item.entries.length > 0
-  }
-  return true
 }
 
 function isGrowable(item: TimelineItem): boolean {

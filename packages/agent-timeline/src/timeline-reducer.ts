@@ -12,6 +12,7 @@ import type {
   TimelineState,
   ToolCallTimelineItem,
 } from '@poietica/agent-timeline'
+import { isRenderable } from './renderable'
 
 /**
  * The timeline reducer.
@@ -335,13 +336,14 @@ function apply(draft: Draft, event: RunEvent): void {
       draft.status = finalStatus(event.stopReason)
 
       const said = event.diagnostics?.trim() ?? ''
+      const told = said.length > 0 ? said : silentTurn(draft, event.stopReason)
 
-      if (said.length > 0) {
+      if (told !== undefined) {
         push(draft, {
           type: 'error',
           id: `${namespace(draft)}agent-${String(event.seq)}`,
           at: event.at,
-          message: said,
+          message: told,
         })
       }
 
@@ -682,6 +684,41 @@ function preferAgent(message: string, diagnostics?: string): string {
   }
 
   return ours.length === 0 || said.includes(ours) ? said : `${message}\n${said}`
+}
+
+/**
+ * 一轮结束，却一个字都没有。
+ *
+ * 这是一个事实，不是一句话：自这一轮的提问以来，转录里没有任何可看的条目。
+ * 空转必须被说出来 —— 界面沉默等于把「我到底发出去了吗」丢给人自己猜。
+ *
+ * 但说出来的只能是协议自己的词：stopReason 的原值。此前这件事由派生层的一句
+ * 「助手结束了这一轮，但没有返回任何内容。」来报，它的输入只有一个状态枚举，
+ * 没有多说一个字的事实，却占掉了唯一那一行。措辞该删，事实不该跟着一起删。
+ *
+ * agent 自己留下了 diagnostics 时根本走不到这里：一件事只有一个说法。
+ *
+ * 判据向后扫到本轮的提问为止，代价是一轮的长度，不是整条对话的长度；
+ * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。
+ */
+function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined {
+  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
+    const item = draft.items[index]
+
+    if (item === undefined) {
+      continue
+    }
+
+    if (item.type === 'user_message') {
+      break
+    }
+
+    if (isRenderable(item)) {
+      return undefined
+    }
+  }
+
+  return `stopReason: ${stopReason}`
 }
 
 function finalStatus(stopReason: AcpStopReason): RunStatus {
