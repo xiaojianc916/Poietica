@@ -5,7 +5,7 @@ import type {
   WorkbenchTabViewModel,
   WorkbenchViewModel,
   WorkspaceSurfaceId,
-} from './index'
+} from './workbench'
 
 export interface WorkspaceShellActions {
   readonly activateTab: (tabId: WorkbenchTabId) => void
@@ -40,12 +40,6 @@ export interface WorkspaceShellProps {
    * 具体面板由 apps 组合根注入，packages/workspace 不依赖 features/ai。
    */
   readonly sidebarPanel: ReactNode
-  /*
-   * 替换侧边栏内容，但不改变它的列宽、拖拽与开合行为。
-   *
-   * 设置界面用它接管第 1 列：宽度来源仍然只有 workspaceLayoutStore，
-   * 所以进出设置不会跳宽度，分隔条在设置界面里照样能拖。
-   */
   /**
    * 侧边栏底部行左端的插槽。
    *
@@ -54,6 +48,12 @@ export interface WorkspaceShellProps {
    * 的东西就凭空消失了。
    */
   readonly sidebarFooterSlot?: ReactNode
+  /**
+   * 替换侧边栏内容，但不改变它的列宽、拖拽与开合行为。
+   *
+   * 设置界面用它接管第 1 列：宽度来源仍然只有 workspaceLayoutStore，
+   * 所以进出设置不会跳宽度，分隔条在设置界面里照样能拖。
+   */
   readonly sidebarOverride?: ReactNode
   /*
    * 主区域不再是标签面板时的无障碍名称（例如设置界面）。

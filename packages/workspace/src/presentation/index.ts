@@ -1,4 +1,4 @@
-export type { WorkspaceShellProps } from '../contracts/shell-contract'
+export type { WorkspaceShellProps } from '../contracts/shell'
 
 export {
   CommandPalette,

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import type { WorkspaceSurfaceId } from './workbench-contract'
+import type { WorkspaceSurfaceId } from './workbench'
 
 /**
  * 表面渲染扩展点。

@@ -1,7 +1,7 @@
 import './sidebar-rows.css'
 
-import type { WorkspaceSurfaceId } from '@poietica/workspace/contracts'
 import type { ReactNode } from 'react'
+import type { WorkspaceSurfaceId } from '../../contracts/workbench'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarNav } from './SidebarNav'
 

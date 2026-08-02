@@ -1,7 +1,5 @@
 'use client'
 
-import { type CommandRegistry, createCommandRegistry } from '@poietica/workspace/application'
-import type { RegisteredCommand } from '@poietica/workspace/contracts'
 import {
   createContext,
   type ReactNode,
@@ -10,6 +8,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
+import { type CommandRegistry, createCommandRegistry } from '../../application/command-registry'
+import type { RegisteredCommand } from '../../contracts/command'
 
 interface CommandContextValue {
   readonly commands: readonly RegisteredCommand[]

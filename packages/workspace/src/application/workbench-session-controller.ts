@@ -1,21 +1,19 @@
-import type {
-  OpenWorkspaceSurfaceRequest,
-  WorkbenchSessionStore,
-  WorkbenchSurfaceViewModel,
-  WorkbenchTabId,
-  WorkbenchTabViewModel,
-  WorkbenchViewModel,
-  WorkspaceSurfaceId,
-  WorkspaceSurfaceViewModel,
-  WorkspaceTabViewModel,
-} from '@poietica/workspace/contracts'
-import { CONVERSATION_ENTRY_TITLE } from '@poietica/workspace/contracts'
-import type {
-  ActiveConversationViewModel,
-  ConversationId,
-  ConversationTabViewModel,
-  OpenConversationRequest,
-} from '../../contracts/workbench-contract'
+import {
+  type ActiveConversationViewModel,
+  CONVERSATION_ENTRY_TITLE,
+  type ConversationId,
+  type ConversationTabViewModel,
+  type OpenConversationRequest,
+  type OpenWorkspaceSurfaceRequest,
+  type WorkbenchSessionStore,
+  type WorkbenchSurfaceViewModel,
+  type WorkbenchTabId,
+  type WorkbenchTabViewModel,
+  type WorkbenchViewModel,
+  type WorkspaceSurfaceId,
+  type WorkspaceSurfaceViewModel,
+  type WorkspaceTabViewModel,
+} from '../contracts/workbench'
 
 type WorkbenchEntry = ConversationEntry | WorkspaceEntry
 

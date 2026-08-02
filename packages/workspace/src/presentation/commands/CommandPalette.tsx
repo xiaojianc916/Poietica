@@ -1,8 +1,8 @@
 import { Command } from '@mynaui/icons-react'
 import { CommandMenu, type CommandMenuItem, Dialog } from '@poietica/ui'
-import type { RegisteredCommand } from '@poietica/workspace'
-import type { CommandRegistry } from '@poietica/workspace/application'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import type { CommandRegistry } from '../../application/command-registry'
+import type { RegisteredCommand } from '../../contracts/command'
 import { formatKeybinding } from './keybinding'
 
 export interface CommandPaletteProps {

@@ -1,16 +1,9 @@
 import { X } from '@mynaui/icons-react'
-import type { WorkbenchTabId } from '@poietica/workspace'
-import type { WorkbenchTabViewModel } from '@poietica/workspace/contracts'
-import type { ComponentType, KeyboardEvent } from 'react'
-import { describeWorkspaceSurface } from '../surface-registry'
+import type { KeyboardEvent } from 'react'
+import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench'
+import { describeWorkspaceSurface, type SurfaceIcon } from '../surface-registry'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
-
-type TabIcon = ComponentType<{
-  readonly className?: string
-
-  readonly 'aria-hidden'?: boolean | 'true' | 'false'
-}>
 
 interface WorkbenchTabProps {
   readonly model: WorkbenchTabViewModel
@@ -182,7 +175,7 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
   )
 }
 
-function resolveTabIcon(model: WorkbenchTabViewModel): TabIcon {
+function resolveTabIcon(model: WorkbenchTabViewModel): SurfaceIcon {
   /* 对话标签沿用 AI 表面的图标：同一个目标只允许有一个样子。 */
   if (model.kind === 'conversation') {
     return describeWorkspaceSurface('ai').icon

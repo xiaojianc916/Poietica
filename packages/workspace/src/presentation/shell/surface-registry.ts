@@ -4,9 +4,8 @@ import { Box, Search } from '@mynaui/icons-react'
  * 它们与库图标同框同粗细，原因见 components/icons/local-glyphs.tsx。
  */
 import { AiSurfaceIcon, ClockTenIcon, WebhookIcon } from '@poietica/ui'
-import { CONVERSATION_ENTRY_TITLE } from '@poietica/workspace'
-import type { WorkspaceSurfaceId } from '@poietica/workspace/contracts'
 import type { ComponentType } from 'react'
+import { CONVERSATION_ENTRY_TITLE, type WorkspaceSurfaceId } from '../../contracts/workbench'
 
 export type SurfaceIcon = ComponentType<{
   readonly className?: string

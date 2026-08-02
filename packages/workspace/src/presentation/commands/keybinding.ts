@@ -1,5 +1,5 @@
-import type { CommandRegistry } from '@poietica/workspace/application'
 import { useEffect } from 'react'
+import type { CommandRegistry } from '../../application/command-registry'
 
 /*
  * 快捷键的唯一真相源是命令自身声明的 shortcut，写作与平台无关的逻辑形式

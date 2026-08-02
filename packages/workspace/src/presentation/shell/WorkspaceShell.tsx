@@ -1,6 +1,6 @@
 import { TooltipProvider } from '@poietica/ui'
-import type { WorkbenchSurfaceViewModel, WorkspaceSurfaceId } from '@poietica/workspace/contracts'
-import type { WorkspaceShellProps } from '../../contracts/shell-contract'
+import type { WorkspaceShellProps } from '../../contracts/shell'
+import type { WorkbenchSurfaceViewModel, WorkspaceSurfaceId } from '../../contracts/workbench'
 import { SidebarRegion } from './SidebarRegion'
 import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'

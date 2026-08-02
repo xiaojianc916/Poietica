@@ -30,7 +30,7 @@ export interface SidebarFooterProps {
    * 底部行左端的插槽，排在帮助按钮之前。
    *
    * 是插槽而不是一个具体控件：这一层不认识"更新"这件事，正如它不认识助手面板
-   * （见 shell-contract.ts 里 sidebarPanel 那段）。具体节点由 apps 组合根注入。
+   * （见 contracts/shell.ts 里 sidebarPanel 那段）。具体节点由 apps 组合根注入。
    */
   readonly leading?: ReactNode
   readonly onSettingsOpen: () => void

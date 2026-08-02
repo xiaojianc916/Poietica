@@ -2,13 +2,13 @@ export type {
   RegisteredCommand,
   UICommand,
   UICommandHandler,
-} from './command-contract'
+} from './command'
 export type {
   WorkspaceChromeRenderProps,
   WorkspaceShellActions,
   WorkspaceShellProps,
-} from './shell-contract'
-export type { WorkspaceSurfaceRenderers } from './surface-contract'
+} from './shell'
+export type { WorkspaceSurfaceRenderers } from './surface'
 export {
   type ActiveConversationViewModel,
   CONVERSATION_ENTRY_TITLE,
@@ -26,4 +26,4 @@ export {
   type WorkspaceSurfaceId,
   type WorkspaceSurfaceViewModel,
   type WorkspaceTabViewModel,
-} from './workbench-contract'
+} from './workbench'

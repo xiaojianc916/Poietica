@@ -1,5 +1,2 @@
-export {
-  type CommandRegistry,
-  createCommandRegistry,
-} from './commands/command-registry'
-export { createWorkbenchSessionController } from './session/workbench-session-controller'
+export { type CommandRegistry, createCommandRegistry } from './command-registry'
+export { createWorkbenchSessionController } from './workbench-session-controller'

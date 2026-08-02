@@ -1,5 +1,5 @@
-import type { WorkbenchTabId } from '@poietica/workspace/contracts'
 import { describe, expect, it } from 'vitest'
+import type { WorkbenchTabId } from '../../../contracts/workbench'
 import {
   encodeWorkbenchTabDomId,
   resolveWorkbenchTabCloseTarget,
