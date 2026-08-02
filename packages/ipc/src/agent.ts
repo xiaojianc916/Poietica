@@ -1,20 +1,30 @@
+import type {
+  AgentCapabilityPort,
+  SessionConfigChoice,
+  SessionConfigControl,
+  SessionConfigPort,
+  ThreadPort,
+} from '@poietica/acp'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
-import {
-  type AgentConfigChoice,
-  type AgentConfigControl,
-  type AgentConfigPurpose,
-  type AgentHistory,
-  type AgentThread,
-  commands,
-} from './generated/ipc-bindings'
+import { type AgentConfigChoice, type AgentConfigControl, commands } from './generated/ipc-bindings'
 
 /**
- * The desktop implementation of the agent session port's two dependencies.
+ * The desktop implementation of the ports the feature layer declares.
  *
  * It lives here rather than in the feature package because the feature layer
  * declares ports and must stay free of a desktop runtime. The application
  * composes the two.
+ *
+ * 端口不在这一层重新声明一遍。ThreadPort / SessionConfigPort / AgentCapabilityPort
+ * 就是下面几个工厂的返回类型，所以「桥」与「端口」是同一个名字下的同一样东西。
+ *
+ * 此前这里另立了一整套 *Description 与 *Bridge：字段与端口逐格相同，组合层因此
+ * 编译得过 —— 靠的是两份手写接口今天恰好一样，而不是同一个定义。同一个形状有了
+ * 第二个名字，注释立刻就分叉了：那份 AgentThreadDescription 说 titleSource 有
+ * official 一档，而 ThreadTitleSource 与生成绑定的 AgentTitleSource 都只有三档,
+ * 后者的文档还专门写着 official 是被删掉的那一档。抄本没有承担任何转换，它只是
+ * 一份会过期的说明。
  *
  * Frame shapes are never redefined here. Command payloads come from the
  * generated bindings, and the frames themselves are handed onwards as unknown
@@ -35,8 +45,7 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
  *
  * 帧此前被套在一个 frame 字段里，而外面那层另抄了一份 seq 与 kind。两份都
  * 没有任何人读过：下面这个 listen 只取 frame 与 sessionId，而 RunEvent
- * （run-contract.ts）压根没有 sessionId 这一格。它们只是每一帧都要在线上
- * 多走一趟。
+ * 压根没有 sessionId 这一格。它们只是每一帧都要在线上多走一趟。
  *
  * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent.rs
  * 的 batched），所以跨进程往返的次数不再随 agent 说得多快而涨。信封本身的形状
@@ -199,31 +208,8 @@ export async function shutdownAgent(): Promise<void> {
  * 改一项会话设置，一个命令。
  *
  * 没有"读"的那一路：选择器随会话一起回来（见下面的 open），改完之后 agent 又把
- * 整张表报回来。协议定义的东西不在这里重新定义，类别由 agent 说了算。 */
-
-/**
- * What a selector is for, as far as the interface is concerned.
- *
- * 端口保留自己的名字，但集合只有一个定义：Rust 的 AgentConfigPurpose。agent
- * 自己发明的类别在原生侧就已经归入 other（见生成绑定里该类型的说明），这一层
- * 不再把同一个决定重做一遍。
+ * 整张表报回来。协议定义的东西不在这里重新定义，类别由 agent 说了算。
  */
-export type AgentConfigPurposeName = AgentConfigPurpose
-
-export interface AgentConfigChoiceDescription {
-  readonly value: string
-  readonly label: string
-  readonly detail?: string
-}
-
-export interface AgentConfigControlDescription {
-  readonly id: string
-  readonly label: string
-  readonly detail?: string
-  readonly purpose: AgentConfigPurposeName
-  readonly current: string
-  readonly choices: readonly AgentConfigChoiceDescription[]
-}
 
 /*
  * 线上那条推送的形状。
@@ -235,28 +221,6 @@ export interface AgentConfigControlDescription {
 interface AgentSelectorEnvelope {
   readonly sessionId: string
   readonly selectors: AgentConfigControl[]
-}
-
-/** 一条会话报来的整张表，以及它是哪条会话。 */
-export interface AgentSelectorReport {
-  readonly sessionId: string
-  readonly controls: readonly AgentConfigControlDescription[]
-}
-
-export interface AgentSessionConfigBridge {
-  readonly select: (
-    threadId: string | null,
-    configId: string,
-    value: string,
-  ) => Promise<readonly AgentConfigControlDescription[]>
-  /**
-   * agent 自己改了设置时，它会说。
-   *
-   * ACP 的 session/update 里有 config_option_update 这一档，agent 在一轮里换模型
-   * 或换推理档位时走它。没有这一路，屏幕上的选择器只反映人最后点过的值，而真正
-   * 在答话的是另一个 —— 那不是过时，那是界面在撒谎。
-   */
-  readonly subscribe: (handler: (report: AgentSelectorReport) => void) => () => void
 }
 
 /*
@@ -271,21 +235,23 @@ function detailOf(detail: string | null): { detail?: string } {
 }
 
 /*
- * 入参就是线上的类型本身。
+ * 进来的是线上的类型本身，出去的是端口的类型本身。
  *
  * 这里曾经手抄着 NativeChoice 与 NativeControl，而这个文件开头写着 "Frame shapes
  * are never redefined here"。抄本还抄漏了一格：purpose 被写成 string，于是需要一个
  * purposeOf 把它再窄回四选一 —— 那段小写化防的是协议产生不了的值，那段 other 兜底
  * 则是把原生侧已经做过的决定又做了一遍。
  *
- * 出参仍然是端口自己的类型：防腐层不把生成类型泄给 feature 包。进来的用正本，
- * 出去的用端口，两边各只有一个定义。
+ * 出参此前也是抄本（AgentConfigControlDescription），与 SessionConfigControl 逐格
+ * 相同。今天两头都只有一个定义：线上一个，端口一个，中间只剩 detail 那一格真正的
+ * 转换。purpose 不需要任何处理 —— AgentConfigPurpose 与 SessionConfigPurpose 是同
+ * 一个四值集，原生侧已经把 agent 自己发明的类别归进了 other。
  */
-function choiceOf(native: AgentConfigChoice): AgentConfigChoiceDescription {
+function choiceOf(native: AgentConfigChoice): SessionConfigChoice {
   return { value: native.value, label: native.label, ...detailOf(native.detail) }
 }
 
-function controlOf(native: AgentConfigControl): AgentConfigControlDescription {
+function controlOf(native: AgentConfigControl): SessionConfigControl {
   return {
     id: native.id,
     label: native.label,
@@ -298,7 +264,7 @@ function controlOf(native: AgentConfigControl): AgentConfigControlDescription {
 
 export function createAgentSessionConfigBridge({
   onListenFailure,
-}: AgentEventSourceOptions = {}): AgentSessionConfigBridge {
+}: AgentEventSourceOptions = {}): SessionConfigPort {
   return {
     select: async (threadId, configId, value) => {
       const offered = await throughIpc(() =>
@@ -328,16 +294,13 @@ export function createAgentSessionConfigBridge({
  * 这一路要的是模式与推理档位 —— 那两项只有 agent 说得出来，ACP 的 session/new
  * 是它们唯一的权威。
  *
- * 形状不在这里重新定义：请求体来自生成绑定，答复复用 controlOf。
+ * 形状不在这里重新定义：请求体来自生成绑定，答复复用 controlOf，返回的就是
+ * 组合层要的那个端口。
  */
-export interface AgentCapabilityBridge {
-  readonly read: () => Promise<readonly AgentConfigControlDescription[]>
-}
-
 export function createAgentCapabilityBridge({
   cwd,
   launch,
-}: AgentBridgeOptions): AgentCapabilityBridge {
+}: AgentBridgeOptions): AgentCapabilityPort {
   return {
     read: async () => {
       const offered = await throughIpc(() =>
@@ -355,42 +318,12 @@ export function createAgentCapabilityBridge({
  * A conversation and an agent session are opened together, so no
  * identifier is invented here: both come back from the native side, and a
  * tab therefore always stands for something the agent knows about.
- */
-
-/**
- * One conversation as the native side reports it.
  *
- * 这一格不做转换：list() 把生成绑定的 AgentThread 原样交出去，所以再手抄一份
- * "端口自己的类型"只是给同一个形状起了第二个名字。两份注释已经开始分叉了 ——
- * 这边写 titleSource 有 official 一档，生成绑定那边只列了 manual、message、
- * fallback。哪一份对要看 Rust 的 TitleSource；根源是同一件事被写了两遍。
+ * 一条对话长什么样、它的经过为什么是现在这个样子，两个形状都由端口定义
+ * （ThreadRecord 与 ThreadHistory）。生成绑定的 AgentThread 与 AgentHistory
+ * 逐格与它们相同，所以这里原样交出去，不复制、不改名、也不再抄一份说明。
  */
-export type AgentThreadDescription = AgentThread
-
-export interface AgentOpenedThreadDescription {
-  readonly thread: AgentThreadDescription
-  readonly selectors: readonly AgentConfigControlDescription[]
-  /** 这条对话的经过，由持有它的 agent 交回来。形状不在这里定义。 */
-  readonly events: readonly unknown[]
-  /**
-   * 上面那一格为什么是这个样子。
-   *
-   * 原样转交，一个字都不翻译：判别联合的形状由原生侧的 AgentHistory 定义，
-   * 这一层再抄一遍就是给同一个形状起第二个名字。
-   */
-  readonly history: AgentHistory
-}
-
-export interface AgentThreadBridge {
-  readonly list: () => Promise<readonly AgentThreadDescription[]>
-  /** 不点名就新开一条；点名就让那一条握住一个本次连接认得的会话。 */
-  readonly open: (threadId?: string) => Promise<AgentOpenedThreadDescription>
-  readonly rename: (threadId: string, title: string) => Promise<void>
-  readonly remove: (threadId: string) => Promise<void>
-  readonly setPinned: (threadId: string, pinned: boolean) => Promise<void>
-}
-
-export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): AgentThreadBridge {
+export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): ThreadPort {
   return {
     list: () => throughIpc(() => commands.agentThreads()),
 
