@@ -456,12 +456,10 @@ function isGrowable(item: TimelineItem): boolean {
  *
  * 转录里没有条目能表示这段空档，所以它由派生回答，交给等待指示器。
  *
- * 这里此前还回答另一件事：一轮结束却没有产出任何条目时，footer 换成一句
- * 「助手结束了这一轮，但没有返回任何内容。」。那是第二条报错通道，而它的
- * 输入只有 status 一个枚举 —— 它不知道发生了什么，是凭状态码编出来的。真正
- * 的经过（run_failed.message、run_finished.diagnostics、本地事故）早已是流里
- * 的 error 条目。一件事只留一个说法，那句猜出来的话连同 TurnOutcome /
- * TurnFooter 一起没有了。
+ * 这里此前还回答另一件事：一轮结束却没有产出任何条目时，footer 换成一句凭
+ * status 枚举编出来的说明。那是第二条报错通道，而它的输入里根本没有「发生了
+ * 什么」。真正的经过（run_failed.message、run_finished.diagnostics、本地事故）
+ * 早已是流里的 error 条目。一件事只留一个说法，那条通道整个没有了。
  */
 export function selectIsWaiting(state: TimelineState): boolean {
   if (state.status !== 'running' && state.status !== 'awaiting_permission') {
@@ -471,7 +469,7 @@ export function selectIsWaiting(state: TimelineState): boolean {
   return lastRenderable(state.items)?.type === 'user_message'
 }
 
-function lastRenderable(function lastRenderable(items: readonly TimelineItem[]): TimelineItem | undefined {
+function lastRenderable(items: readonly TimelineItem[]): TimelineItem | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index]
 

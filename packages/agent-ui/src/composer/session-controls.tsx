@@ -123,9 +123,8 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
       {/*
         连不上 agent 这件事不在这里说了。
       
-        它归输入框顶上那条横幅：写它的是整条连接的失败路径，不是某一个选择器；
-        而它此前待的地方要点开才看得见，偏偏这个失败会让提问也发不出去。留在
-        这里还有第三重坏处 —— 紧挨着 Model 和 Thinking 两行，读起来就是这两项
+        它归转录里那条横线：报错只有那一种形态，不因为它从哪条路来而换长相。
+        留在这里还有第二重坏处 —— 紧挨着 Model 和 Thinking 两行，读起来就是这两项
         坏了。下面那个空态分支仍然用 failure：那是一格什么都没有的时候，唯一的
         出口。
       */}
@@ -142,7 +141,7 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
         side="top"
         sideOffset={6}
       >
-        {rows.map((control) => (        {rows.map((control) => (
+        {rows.map((control) => (
           <DropdownMenuSub key={control.id}>
             <DropdownMenuSubTrigger className="assistant-config-menu__row">
               <span className="assistant-config-menu__row-label">{control.label}</span>

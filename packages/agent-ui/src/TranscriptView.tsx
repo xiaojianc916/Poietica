@@ -22,7 +22,7 @@ import { ThinkingIndicator } from './timeline/ThinkingIndicator'
  * 这里不量任何几何，也不持有任何状态：滚动归虚拟器，答复归上层。
  */
 
-export interface TranscriptViewPropsexport interface TranscriptViewProps {
+export interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
   /** 已经被输入框接管的那一道题：它不再进流，否则同一道题长在两个地方。 */

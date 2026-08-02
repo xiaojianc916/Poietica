@@ -7,17 +7,13 @@ import type {
   ThreadRecord,
 } from '@poietica/acp'
 import { agentChosen, observeAgentControls } from './agent-capability-store'
+import { describeFailure } from './describe-failure'
 
 /** Shown for a conversation nothing has named yet: the words of the entry. */
 const FALLBACK_TITLE = '新建对话'
 
 /** How much of a stand in title a tab can carry. */
 const TITLE_LIMIT = 24
-
-const FAILURE_FALLBACK = '读取会话记录失败。'
-
-/** 说的是选择器那一路，和上面那句不是同一件事。 */
-const SELECTOR_FAILURE_FALLBACK = '这条对话没能连上 agent。'
 
 /**
  * 转录那一侧，只要这四句话。
@@ -303,7 +299,7 @@ export class ThreadsStore {
 
       this.#commit({ threads: found, failure: null, isLoading: false })
     } catch (reason) {
-      this.#commit({ failure: this.#reasonOf(reason), isLoading: false })
+      this.#commit({ failure: describeFailure(reason), isLoading: false })
     }
   }
 
@@ -336,7 +332,7 @@ export class ThreadsStore {
 
       return threadId
     } catch (reason) {
-      this.#commit({ failure: this.#reasonOf(reason) })
+      this.#commit({ failure: describeFailure(reason) })
 
       return null
     }
@@ -422,7 +418,7 @@ export class ThreadsStore {
     try {
       await act(threadId)
     } catch (reason) {
-      this.#commit({ failure: this.#reasonOf(reason) })
+      this.#commit({ failure: describeFailure(reason) })
 
       return
     }
@@ -745,11 +741,7 @@ export class ThreadsStore {
 
   #noteSelectorFailure(threadId: string, reason: unknown): void {
     this.#commit({
-      selectorFailure: this.#with(
-        this.#held.selectorFailure,
-        threadId,
-        reason instanceof Error ? reason.message : SELECTOR_FAILURE_FALLBACK,
-      ),
+      selectorFailure: this.#with(this.#held.selectorFailure, threadId, describeFailure(reason)),
     })
   }
 
@@ -778,12 +770,8 @@ export class ThreadsStore {
       this.#commit({ failure: null })
     } catch (reason) {
       await this.refresh()
-      this.#commit({ failure: this.#reasonOf(reason) })
+      this.#commit({ failure: describeFailure(reason) })
     }
-  }
-
-  #reasonOf(reason: unknown): string {
-    return reason instanceof Error ? reason.message : FAILURE_FALLBACK
   }
 
   #with<T>(map: ReadonlyMap<string, T>, key: string, value: T): ReadonlyMap<string, T> {

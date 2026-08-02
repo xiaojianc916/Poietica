@@ -7,6 +7,7 @@ import {
   createTimelineState,
   replayThreadEvents,
 } from '@poietica/agent-timeline'
+import { describeFailure } from './describe-failure'
 
 /*
  * 转录归这里，不归组件。
@@ -93,35 +94,6 @@ function running(status: TimelineState['status']): boolean {
 }
 
 /*
- * 原样交出去。
- *
- * 此前这里有第三条分支：既不是 Error 也不是字符串时交出一句 FAILURE_FALLBACK,
- * 把 cause 整个丢掉。而 Tauri 的 invoke 在命令返回 Err 时抛的是序列化后的负载,
- * 多数情况下正是一个对象 —— 也就是说真正说明了出什么事的那一份,恰好走被丢掉
- * 的那条分支。Error.cause 那条链也从头到尾没有人读过,而末端那一环往往才是原因。
- *
- * 报错是给人排查用的。改写它等于替人决定他不需要知道。
- */
-function describeFailure(cause: unknown): string {
-  if (cause instanceof Error) {
-    const head = cause.message.length > 0 ? `${cause.name}: ${cause.message}` : cause.name
-
-    return cause.cause === undefined ? head : `${head}\n← ${describeFailure(cause.cause)}`
-  }
-
-  if (typeof cause === 'string') {
-    return cause
-  }
-
-  try {
-    return JSON.stringify(cause) ?? String(cause)
-  } catch {
-    return String(cause)
-  }
-}
-
-/*
- * 本地的事故记在本地。/*
  * 本地的事故记在本地。
  *
  * 起不来的 agent、送不出去的权限答复、读不回来的历史，都发生在任何持久化之前
@@ -529,7 +501,7 @@ export class TranscriptStore {
     })
   }
 
-  /* ================= 内部 ================= */ /* ================= 内部 ================= */
+  /* ================= 内部 ================= */
 
   #resolveKey(key: string): string {
     return this.#alias.get(key) ?? key
@@ -681,7 +653,6 @@ export class TranscriptStore {
   }
 
   /*
-   * 攒一帧，并说一声  /*
    * 攒一帧，并说一声「这条对话变了」。
    *
    * 说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻才折出来。

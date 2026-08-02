@@ -163,7 +163,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
   return (
     <PromptInput handle={handle} multiple onSubmit={onSubmit}>
-      <PromptInputBody>      <PromptInputBody>
+      <PromptInputBody>
         <PromptInputAttachments />
 
         <PromptInputTextarea placeholder={placeholder} />
