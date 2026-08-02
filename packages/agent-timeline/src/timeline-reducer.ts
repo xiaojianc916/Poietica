@@ -667,16 +667,21 @@ function textOf(content: AcpContentBlock): string {
 }
 
 /**
- * The account the agent gave, or ours if it gave none.
+ * 两份说法，都留下。
  *
- * Ours is a description of a silence: it exists so that a turn nobody can
- * explain is still visible. The moment the agent explains itself, ours is not
- * context, it is noise, so it is not shown alongside — it is not shown.
+ * message 是运行时报的（连接断了、进程没了），diagnostics 是 agent 自己说的
+ * （Authentication required、配额用尽）。此前有后者时就把前者丢掉 —— 而排查
+ * 一次失败要的恰好是两者的关系。重复的不写两遍，不重复的一句不删。
  */
-function preferAgent(message: string, diagnostics?: string): string {
+function preferAgent(function preferAgent(message: string, diagnostics?: string): string {
   const said = diagnostics?.trim() ?? ''
+  const ours = message.trim()
 
-  return said.length === 0 ? message : said
+  if (said.length === 0) {
+    return message
+  }
+
+  return ours.length === 0 || said.includes(ours) ? said : `${message}\n${said}`
 }
 
 function finalStatus(stopReason: AcpStopReason): RunStatus {

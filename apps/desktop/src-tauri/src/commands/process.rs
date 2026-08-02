@@ -4,6 +4,9 @@
 //! 这件事此前只写在 `agent_cli.rs` 里。安装那条管线同样要起子进程，照抄一遍就会有
 //! 第二个说法；同一个平台细节只该有一处。
 //!
+//! GUI 进程 spawn 一个控制台程序时，Windows 会给它开一个窗口：刷新一次模型清单就
+//! 闪一次黑框，添加一次 provider 再闪一次。
+//!
 //! Zed 的 crates/util/src/command.rs 对每一条命令都设这个标志，理由相同。
 
 use std::process::Command;

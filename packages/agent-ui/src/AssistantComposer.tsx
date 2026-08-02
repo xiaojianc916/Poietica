@@ -19,7 +19,7 @@ import {
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
 import type { QuestionAnswer, QuestionDeck } from './domain/ask-user-question'
-import { FailureIcon, MicIcon } from './primitives/icons'
+import { MicIcon } from './primitives/icons'
 
 /*
  * The composer, declared rather than driven.
@@ -163,33 +163,7 @@ export const AssistantComposer = memo(function AssistantComposer({
 
   return (
     <PromptInput handle={handle} multiple onSubmit={onSubmit}>
-      {/*
-        连不上 agent，说在这里。
-      
-        输入框顶上是这句话唯一说得通的位置：这个失败会让下面那个框里打的字发不
-        出去,所以它必须在打字之前就被看见。原文直接出,不改写 —— agent 说的是
-        「Authentication required」,屏幕上就该是这一句,而不是一句读着体面、
-        指不到任何地方的话。
-      */}
-      {toolbar.controlsFailure === undefined ? null : (
-        <div className="assistant-composer__alert" role="alert">
-          <FailureIcon aria-hidden="true" />
-
-          <span className="assistant-composer__alert-text">{toolbar.controlsFailure}</span>
-
-          {toolbar.onRetryControls === undefined ? null : (
-            <button
-              className="assistant-composer__alert-retry"
-              onClick={toolbar.onRetryControls}
-              type="button"
-            >
-              重试
-            </button>
-          )}
-        </div>
-      )}
-
-      <PromptInputBody>
+      <PromptInputBody>      <PromptInputBody>
         <PromptInputAttachments />
 
         <PromptInputTextarea placeholder={placeholder} />

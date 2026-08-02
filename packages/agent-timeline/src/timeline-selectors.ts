@@ -451,44 +451,27 @@ function isGrowable(item: TimelineItem): boolean {
   return item.type === 'agent_text' || item.type === 'agent_thought'
 }
 
-/** How a turn ended, for a turn that ended without saying anything. */
-export interface TurnOutcome {
-  readonly status: 'completed' | 'cancelled' | 'failed'
-}
-
-/** What the end of the transcript says when it has no entry to say it with. */
-export type TurnFooter = { readonly kind: 'waiting' } | ({ readonly kind: 'ended' } & TurnOutcome)
-
 /**
- * The two ends of a turn that the entries alone cannot show.
+ * 一轮已经问出口，第一帧还没到。
  *
- * A live run whose transcript still ends on the question is the gap before the
- * first frame of the answer. A finished run in the same shape produced nothing
- * of its own — an agent may end its turn having said nothing, and a refusal
- * ends a run without ever sending a failure.
+ * 转录里没有条目能表示这段空档，所以它由派生回答，交给等待指示器。
  *
- * One derivation owns both, so the wait and the ending cannot disagree about
- * which turn they belong to.
+ * 这里此前还回答另一件事：一轮结束却没有产出任何条目时，footer 换成一句
+ * 「助手结束了这一轮，但没有返回任何内容。」。那是第二条报错通道，而它的
+ * 输入只有 status 一个枚举 —— 它不知道发生了什么，是凭状态码编出来的。真正
+ * 的经过（run_failed.message、run_finished.diagnostics、本地事故）早已是流里
+ * 的 error 条目。一件事只留一个说法，那句猜出来的话连同 TurnOutcome /
+ * TurnFooter 一起没有了。
  */
-export function selectTurnFooter(state: TimelineState): TurnFooter | null {
-  if (lastRenderable(state.items)?.type !== 'user_message') {
-    return null
+export function selectIsWaiting(state: TimelineState): boolean {
+  if (state.status !== 'running' && state.status !== 'awaiting_permission') {
+    return false
   }
 
-  switch (state.status) {
-    case 'running':
-    case 'awaiting_permission':
-      return { kind: 'waiting' }
-    case 'completed':
-    case 'cancelled':
-    case 'failed':
-      return { kind: 'ended', status: state.status }
-    default:
-      return null
-  }
+  return lastRenderable(state.items)?.type === 'user_message'
 }
 
-function lastRenderable(items: readonly TimelineItem[]): TimelineItem | undefined {
+function lastRenderable(function lastRenderable(items: readonly TimelineItem[]): TimelineItem | undefined {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index]
 

@@ -142,13 +142,7 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
         side="top"
         sideOffset={6}
       >
-        {failure === undefined ? null : (
-          <div className="assistant-config-menu__row" role="alert">
-            <span className="assistant-config-menu__row-label">{failure}</span>
-          </div>
-        )}
-
-        {rows.map((control) => (
+        {rows.map((control) => (        {rows.map((control) => (
           <DropdownMenuSub key={control.id}>
             <DropdownMenuSubTrigger className="assistant-config-menu__row">
               <span className="assistant-config-menu__row-label">{control.label}</span>

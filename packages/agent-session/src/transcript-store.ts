@@ -40,7 +40,6 @@ const DRAFT = 'draft:'
 
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
-const FAILURE_FALLBACK = '助手无法启动，或与它的连接已中断。'
 
 /* 经过要不回来的三种说法。它们写进转录，因为人是在转录里找这段经过的。 */
 const OTHER_AGENT = '这段对话由另一个 agent 保管，当前这个打不开它。'
@@ -93,19 +92,36 @@ function running(status: TimelineState['status']): boolean {
   return status === 'running' || status === 'awaiting_permission'
 }
 
+/*
+ * 原样交出去。
+ *
+ * 此前这里有第三条分支：既不是 Error 也不是字符串时交出一句 FAILURE_FALLBACK,
+ * 把 cause 整个丢掉。而 Tauri 的 invoke 在命令返回 Err 时抛的是序列化后的负载,
+ * 多数情况下正是一个对象 —— 也就是说真正说明了出什么事的那一份,恰好走被丢掉
+ * 的那条分支。Error.cause 那条链也从头到尾没有人读过,而末端那一环往往才是原因。
+ *
+ * 报错是给人排查用的。改写它等于替人决定他不需要知道。
+ */
 function describeFailure(cause: unknown): string {
-  if (cause instanceof Error && cause.message.length > 0) {
-    return cause.message
+  if (cause instanceof Error) {
+    const head = cause.message.length > 0 ? `${cause.name}: ${cause.message}` : cause.name
+
+    return cause.cause === undefined ? head : `${head}\n← ${describeFailure(cause.cause)}`
   }
 
-  if (typeof cause === 'string' && cause.length > 0) {
+  if (typeof cause === 'string') {
     return cause
   }
 
-  return FAILURE_FALLBACK
+  try {
+    return JSON.stringify(cause) ?? String(cause)
+  } catch {
+    return String(cause)
+  }
 }
 
 /*
+ * 本地的事故记在本地。/*
  * 本地的事故记在本地。
  *
  * 起不来的 agent、送不出去的权限答复、读不回来的历史，都发生在任何持久化之前
@@ -485,11 +501,35 @@ export class TranscriptStore {
     }
 
     port.resolvePermission(requestId, optionId).catch((cause: unknown) => {
-      this.#note(key, cause)
+      this.note(key, describeFailure(cause))
     })
   }
 
-  /* ================= 内部 ================= */
+  /**
+   * 一件本地事故，记进这条对话的转录。
+   *
+   * 它是本地事故唯一的公开入口：界面层此前把「连不上 agent」画在输入框顶上,
+   * 那是第二条报错通道 —— 同一类事实按它从哪儿来决定长什么样。报错只有一种
+   * 形态,就是转录里的那一条横线。
+   *
+   * endsTurn 为假：这不是某一轮失败了。同一句话不重复记 —— 一次连接失败会随
+   * 渲染反复交进来。
+   */
+  note = (key: string, message: string): void => {
+    const current = this.#now(key)
+    const tail = current.timeline.items.at(-1)
+
+    if (tail?.type === 'error' && tail.message === message) {
+      return
+    }
+
+    this.#put(key, {
+      ...current,
+      timeline: appendLocalError(current.timeline, { message, at: Date.now(), endsTurn: false }),
+    })
+  }
+
+  /* ================= 内部 ================= */ /* ================= 内部 ================= */
 
   #resolveKey(key: string): string {
     return this.#alias.get(key) ?? key
@@ -641,19 +681,7 @@ export class TranscriptStore {
   }
 
   /*
-   * 事故发生在那一轮之外。
-   *
-   * 权限答复送不出去 —— 那一轮还在跑。此前这里也走 #fail，于是一次送不出去的
-   * 答复会把正在流式输出的一轮标成失败：toChatStatus 把它变成 error，输入框
-   * 收摊、停止按钮消失，紧接着下一帧到达又把它翻回 running。
-   */
-  #note(key: string, cause: unknown): void {
-    const current = this.#now(key)
-
-    this.#put(key, { ...current, timeline: noteOn(current.timeline, cause, false) })
-  }
-
-  /*
+   * 攒一帧，并说一声  /*
    * 攒一帧，并说一声「这条对话变了」。
    *
    * 说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻才折出来。

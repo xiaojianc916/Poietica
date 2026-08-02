@@ -1,9 +1,9 @@
 import { useAssistantTimeline } from '@poietica/agent-session'
-import type { FeedRow, PermissionItem, TurnFooter } from '@poietica/agent-timeline'
+import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
 import {
   selectFeedRows,
   selectIsBusy,
-  selectTurnFooter,
+  selectIsWaiting,
   selectTurns,
 } from '@poietica/agent-timeline'
 import { type ReactNode, useCallback, useMemo } from 'react'
@@ -11,7 +11,6 @@ import { AgentActivityFeed, type FeedPort } from './feed/AgentActivityFeed'
 import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
-import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
 
 /*
  * 转录，以及只随转录变化的那些东西。
@@ -23,26 +22,7 @@ import { TurnOutcomeNotice } from './timeline/TurnOutcomeNotice'
  * 这里不量任何几何，也不持有任何状态：滚动归虚拟器，答复归上层。
  */
 
-/*
- * What the feed shows when the transcript has nothing to show.
- *
- * Two states have no entries to render and are not nothing: the wait before
- * the first frame, and a turn that ended without producing anything. Both are
- * derived, and both live outside the virtualised transcript.
- */
-function renderFooter(footer: TurnFooter | null): ReactNode {
-  if (footer === null) {
-    return undefined
-  }
-
-  return footer.kind === 'waiting' ? (
-    <ThinkingIndicator />
-  ) : (
-    <TurnOutcomeNotice outcome={{ status: footer.status }} />
-  )
-}
-
-export interface TranscriptViewProps {
+export interface TranscriptViewPropsexport interface TranscriptViewProps {
   readonly sessionKey: string
   readonly isRestoring: boolean
   /** 已经被输入框接管的那一道题：它不再进流，否则同一道题长在两个地方。 */
@@ -106,7 +86,7 @@ export function TranscriptView({
       <RestoreSpinner active={isRestoring && rows.length === 0} />
 
       <AgentActivityFeed
-        footer={renderFooter(selectTurnFooter(timeline))}
+        footer={selectIsWaiting(timeline) ? <ThinkingIndicator /> : undefined}
         isBusy={selectIsBusy(timeline)}
         overlay={overlay}
         renderRow={renderRow}

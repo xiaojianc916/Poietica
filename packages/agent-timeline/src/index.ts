@@ -21,11 +21,11 @@ export {
   replayRunEvents,
   replayThreadEvents,
 } from './timeline-reducer'
-export type { ConversationTurn, FeedRow, TurnFooter, TurnOutcome } from './timeline-selectors'
+export type { ConversationTurn, FeedRow } from './timeline-selectors'
 export {
   selectFeedRows,
   selectIsBusy,
+  selectIsWaiting,
   selectPendingPermission,
-  selectTurnFooter,
   selectTurns,
 } from './timeline-selectors'

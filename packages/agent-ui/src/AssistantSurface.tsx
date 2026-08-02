@@ -4,7 +4,7 @@ import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
 import type { AssistantSubmission } from '@poietica/agent-session'
 import { useAssistantPending, useAssistantSession } from '@poietica/agent-session'
 import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -86,6 +86,21 @@ export const AssistantSurface = memo(function AssistantSurface({
   session,
 }: AssistantSurfaceProps) {
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
+
+  /*
+   * 连不上 agent 这件事，走转录那条唯一的通道。
+   *
+   * 它此前画在输入框顶上（assistant-composer__alert），于是同一类事实有两种
+   * 长相：来自帧流的失败是流里一条横线，来自会话配置的失败是一块横幅。报错
+   * 长什么样，不该由它从哪条路来的决定。
+   */
+  useEffect(() => {
+    if (controlsFailure === undefined) {
+      return
+    }
+
+    assistant.note(controlsFailure)
+  }, [assistant.note, controlsFailure])
 
   /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
   const dialect = useAgentDialect()

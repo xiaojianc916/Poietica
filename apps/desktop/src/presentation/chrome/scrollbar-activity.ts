@@ -142,6 +142,30 @@ const optedOut = (scroller: Element): boolean => {
     return known
   }
 
+  /*
+   * 单行输入框不是一片可以浏览的内容。
+   *
+   * scroll 监听挂在 document 的捕获阶段，所以它接住的是页面上任何元素的滚动 ——
+   * 包括 <input>。往密钥框里粘一段长文本，插入符跳到末尾，浏览器为此派发一个
+   * scroll 事件，这里就认领它、量出 scrollWidth > clientWidth、在框底画出一根
+   * 横条，停留 linger 再淡出 fade —— 一秒二百四十毫秒之后自己消失。那就是「粘
+   * 贴之后底部闪一下」的全部经过。
+   *
+   * 输入框的横向位移是插入符跟随光标，不是阅读位置：没有人会去拖那根条来读一
+   * 段密钥。而这层浮层存在的理由（见文件顶上）是原生条在 Windows 上占布局宽度、
+   * 让列表横向跳动 —— 输入框根本不在那个场景里。
+   *
+   * 判定写在这里而不是给某个类加一行退出令牌：令牌是给「这一片区域另有安排」用
+   * 的，而这是一整类元素的性质。按类名一个个加，下一个输入框还会再中一次。
+   *
+   * textarea 不在此列：多行编辑区的纵向滚动是真的在浏览内容。
+   */
+  if (scroller instanceof HTMLInputElement) {
+    optOut.set(scroller, true)
+
+    return true
+  }
+
   const answer = getComputedStyle(scroller).getPropertyValue(OPT_OUT_TOKEN).trim() === 'none'
 
   optOut.set(scroller, answer)
