@@ -260,8 +260,21 @@ export interface ReplayedAttachment {
  * （见迁移 0011）。正着数在任何一条早于 0011 的对话上都是错的 —— 那些话发生
  * 在计数存在之前，第 0 轮并不是第一条消息。
  *
+ * 数的是「消息」，不是「帧」。协议按 content block 发 chunk，一句「文字加一
+ * 张图」是两帧；把帧当消息数，这两个数就永远不等，而不等的后果是整批不认领。
+ * 并帧的规矩只有一处（appendSaid），这条对齐能不能成立全靠它。
+ *
+ * 数的是「消息」，不是「帧」。协议按 content block 发 chunk，一句「文字加一张
+ * 图」是两帧，一句纯图片在有些 agent 的回放里一帧都没有 —— 把帧当消息数，这
+ * 两个数就没有一次会相等。并帧的规矩只有一处（appendSaid），这条对齐成不成立
+ * 全靠它。
+ *
  * 对不齐就整批不认领。历史比账本还短（换过 agent、只交回了一段），这时候硬挂
  * 就是把图挂到别人的话上；一张不显示，好过显示在错的地方 —— 后者人看不出来。
+ *
+ * 但不认领要说出来。此前这两条路径是光秃秃的 return state：图没了，屏幕上没有
+ * 任何痕迹，连排查的入口都没有 —— 这个文件自己的原则是「空本身不是问题，不作声
+ * 才是」，那条原则此前只写给了历史，没写给附件。
  *
  * 顺序不在这里定：账本按 (turn, ordinal) 排好了才交过来（见 attachments_of
  * 的 ORDER BY），这里再排一遍就是第二份排序规则。
@@ -287,7 +300,7 @@ export function attachImages(
   const offset = said.length - prompts
 
   if (offset < 0) {
-    return state
+    return unclaimed(state, attachments, prompts, said.length)
   }
 
   const carried = new Map<number, MessageImage[]>()
@@ -297,7 +310,7 @@ export function attachImages(
 
     /* 一格对不上，整批都不能信：说明这两侧数出来的不是同一件事。 */
     if (position === undefined) {
-      return state
+      return unclaimed(state, attachments, prompts, said.length)
     }
 
     const held = carried.get(position)
@@ -328,6 +341,30 @@ export function attachImages(
   return { ...state, items }
 }
 
+/**
+ * 这批图没能挂回原处，说一声。
+ *
+ * 走的是本地事故那条既有通道（appendLocalError），与「历史取不回来」同一条
+ * 横线：两者都发生在任何一帧之外，日志里都没有对应的帧。endsTurn 为假 ——
+ * 这不是某一轮失败了。
+ *
+ * 两个数字写进这句话里，因为它们正是判断出在哪一侧的全部依据：账本多，说明
+ * agent 没把那几句话回放出来；屏幕多，说明一句话被拆成了几条。
+ *
+ * 时间取末尾那一条的，这一层不持有时钟（见文件头）。
+ */
+function unclaimed(
+  state: TimelineState,
+  attachments: readonly ReplayedAttachment[],
+  prompts: number,
+  said: number,
+): TimelineState {
+  return appendLocalError(state, {
+    message: `这条对话有 ${String(attachments.length)} 张图没能挂回原处：账本记着 ${String(prompts)} 句话，重放出来 ${String(said)} 句。`,
+    at: state.items.at(-1)?.at ?? 0,
+    endsTurn: false,
+  })
+}
 /* -------------------------------------------------------------- */
 
 function draftOf(state: TimelineState): Draft {
@@ -477,12 +514,7 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
 
   switch (update.sessionUpdate) {
     case 'user_message_chunk': {
-      push(draft, {
-        type: 'user_message',
-        id: `${scope}user-${String(seq)}`,
-        at,
-        text: textOf(update.content),
-      })
+      appendSaid(draft, scope, seq, at, textOf(update.content))
 
       return
     }
@@ -702,6 +734,43 @@ function appendChunk(
     /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
     ...(messageId === undefined ? {} : { messageId }),
   } as AgentTextItem | AgentThoughtItem)
+}
+
+/**
+ * 用户说的那一句，由若干块拼成。
+ *
+ * 协议发的是 chunk：一句话里的每一个 content block 各来一帧 —— 文字一帧，
+ * 每张图各一帧。此前这里每收到一帧就推一条 user_message，于是「文字加一张图」
+ * 在屏幕上是两条消息，其中一条永远是空的（textOf 对 image block 交回空串）。
+ *
+ * 更要紧的是它让「屏幕上有几条用户消息」与「这条对话问过几句话」成了两个数。
+ * 附件的位置正是照着后者记的（见 attachImages 与迁移 0011），两个数一旦不等，
+ * 整批图对不上位，一张都挂不上去 —— 那正是重启之后图片消失的原因。
+ *
+ * 所以连着来的 chunk 并成一条，与 agent 那半边（appendChunk）同一条规矩：
+ * 中间插进任何别的条目，相邻就断了，那就是下一句话。
+ *
+ * 只并这条路径自己产的那些（id 前缀 user-）。发送时本地先上屏的那一条是
+ * said-，agent 若把它原样回声一遍，那是两个来源说同一件事，不是一句话的
+ * 两半 —— 并进去会把文字接成两遍。
+ */
+function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk: string): void {
+  const tail = draft.items.at(-1)
+
+  if (tail?.type === 'user_message' && tail.id.startsWith(`${scope}user-`)) {
+    const grown: UserMessageItem = { ...tail, text: tail.text + chunk }
+
+    draft.items[draft.items.length - 1] = grown
+
+    return
+  }
+
+  push(draft, {
+    type: 'user_message',
+    id: `${scope}user-${String(seq)}`,
+    at,
+    text: chunk,
+  })
 }
 
 /** 号缺席时不表态，退回相邻续写；号在，就必须是同一个号。 */
