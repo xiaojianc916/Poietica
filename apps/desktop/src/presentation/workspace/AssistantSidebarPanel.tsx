@@ -1,5 +1,5 @@
 import { AssistantThreadList } from '@poietica/agent-ui'
-import { useCallback } from 'react'
+import { memo, useCallback } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../../application/ai/threads-context'
 
@@ -22,7 +22,19 @@ export interface AssistantSidebarPanelProps {
   readonly onOpenInNewTab: (threadId: string, title: string) => void
 }
 
-export function AssistantSidebarPanel({
+/*
+ * 记住不重建。
+ *
+ * 上面那段注释说的是为什么行组件能比：store 保持列表项引用，下面五个回调各自
+ * 钉住标识。但那道护城河到这一层为止都没有城门 —— WorkspaceContainer 订的是
+ * 整份工作台快照，切一次标签、关一次标签、拖动一次标签都让它重渲，而侧栏是它
+ * JSX 里的一个裸组件。于是整张列表连同每一行的元素对象重建一遍，memo(ThreadRow)
+ * 的浅比较照跑 N 次，每次都返回「相等」—— 代价全付，收益一点不取。
+ *
+ * 这一层的入参只有一个会真的变：activeThreadId。它变的时候列表本来就该重画
+ * 高亮，其余时候这里应当一动不动。
+ */
+export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   activeThreadId,
   onCreate,
   onOpen,
@@ -79,4 +91,4 @@ export function AssistantSidebarPanel({
       threads={items}
     />
   )
-}
+})

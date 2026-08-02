@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 import { nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
 
@@ -100,7 +100,25 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
     node?.select()
   }, [])
 
+  /*
+   * 一次重命名只算一次。
+   *
+   * Enter 和失焦是同一个动作的两条出口，不是两个动作：按下 Enter 走 onSubmit，
+   * 提交把这一行切回非重命名分支，输入框因此卸载，浏览器紧跟着派发一次 blur ——
+   * 于是 rename 落两遍库、发两遍通知、列表刷两遍。上层那句 trim().length > 0
+   * 拦不住它，两次的标题一模一样，都非空。
+   *
+   * 闩在这里而不是在 store 里去重：这一层知道这两条出口通向同一次提交，store
+   * 不知道，它只会看到两条合法的重命名。
+   */
+  const settled = useRef(false)
+
   const commit = () => {
+    if (settled.current) {
+      return
+    }
+
+    settled.current = true
     onCommit(draft)
   }
 
