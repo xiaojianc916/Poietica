@@ -38,6 +38,7 @@ catalog:
   "valibot": "1.4.2"
   "vite": "8.2.0"
   "vitest": "4.1.10"
+  yet-another-react-lightbox: ^3.25.0
 
 catalogs:
   tauri:

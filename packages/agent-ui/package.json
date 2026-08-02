@@ -28,7 +28,8 @@
     "katex": "catalog:",
     "motion": "catalog:",
     "streamdown": "catalog:",
-    "tailwind-merge": "catalog:"
+    "tailwind-merge": "catalog:",
+    "yet-another-react-lightbox": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
