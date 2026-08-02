@@ -161,8 +161,8 @@
 
 .models-input {
   inline-size: 100%;
-  min-block-size: 26px;
-  block-size: 26px;
+  min-block-size: 28px;
+  block-size: 28px;
   padding-inline: 8px;
   border: 0;
   border-radius: 8px;
@@ -226,8 +226,8 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: 26px;
-  block-size: 26px;
+  inline-size: 28px;
+  block-size: 28px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -246,11 +246,6 @@
 .models-icon-button:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: -2px;
-}
-
-.models-icon {
-  inline-size: 14px;
-  block-size: 14px;
 }
 
 /* 触发器高度与字号来自 size="sm"，这里只限制宽度上限。 */

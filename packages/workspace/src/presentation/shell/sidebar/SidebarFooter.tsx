@@ -91,7 +91,7 @@ function FooterButton({ label, icon: Icon, onClick, active = false }: FooterButt
           type="button"
           variant="ghost"
         >
-          <Icon aria-hidden="true" className="size-4" />
+          <Icon aria-hidden="true" />
         </Button>
       </TooltipTrigger>
 
@@ -139,7 +139,7 @@ interface HelpMenuItemProps {
 function HelpMenuItem({ label, icon: Icon, external = false, onClick }: HelpMenuItemProps) {
   return (
     <DropdownMenuItem onClick={onClick}>
-      <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
+      <Icon aria-hidden="true" className="text-muted-foreground" />
 
       <span className="flex-1">{label}</span>
 

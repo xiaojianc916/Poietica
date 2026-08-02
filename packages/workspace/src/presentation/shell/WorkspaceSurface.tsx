@@ -35,7 +35,7 @@ export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps
 
       <div className="relative max-w-md text-center">
         <div className="mx-auto grid size-12 place-items-center rounded-xl border border-divider bg-background shadow-sm">
-          <Icon aria-hidden="true" className="size-5 text-muted-foreground" />
+          <Icon aria-hidden="true" className="text-muted-foreground" />
         </div>
 
         <h1

@@ -5,20 +5,34 @@
   --ui-control-height-lg: 2.5rem;
 
   /*
-   * 图标尺寸档位。
+   * 图标档位。
    *
-   * 单位是 CSS 像素，且与 devicePixelRatio 无关 —— 这是操作系统缩放的定义：
-   * 缩放改变的是「一个 CSS 像素对应几个设备像素」，界面元素的 CSS 尺寸保持
-   * 不变。把尺寸除以 dpr 会让图标在高 DPI 屏上物理变小，与系统语义相反。
+   * 只有两档，因为只有两档站得住。本仓图标一律是 24 网格描边字形，渲染到边长
+   * S 时，网格一格占
    *
-   * 三档各自对应一套按该尺寸绘制的字形，不是同一套几何的缩放结果：
-   * VS Code 的 codicon（16 网格）、Fluent UI System Icons（16/20/24 独立绘制）、
-   * GitHub Octicons（16 与 24 两套）都是这个结构。缩放 24 网格字形去画 16px，
-   * 描边宽度必然落在 1.333px 这种非整数上，任何缩放率下都发虚。
+   *     (S / 24) × dpr = (S / 24) × 1.5 = S / 16   个设备像素
+   *
+   * 要让字形的每条边落在设备像素边界上，S / 16 必须是整数 —— 于是 S 只能取
+   * 16 或 32。曾经的 20px 一格占 1.25 个设备像素，24px 占 1.5 个，两档从定义
+   * 上就画不清楚，不是调参能救的，所以删掉而不是留着。
+   *
+   * S = 16 是最优解：一格恰好一个设备像素，24 网格与设备栅格严格 1:1。
    */
   --ui-icon-size-sm: 16px;
-  --ui-icon-size-md: 20px;
-  --ui-icon-size-lg: 24px;
+  --ui-icon-size-lg: 32px;
+
+  /*
+   * 描边宽度，单位是网格格数。
+   *
+   * 承上：S = 16 时一格 = 一个设备像素，所以描边格数就是设备像素数，必须取
+   * 整数。本仓图标库的作者值是 1.5 格 —— 在 dpr 1.5 下解出 1.5 个设备像素，
+   * 半个像素只能以 50% 覆盖率画成灰边，这是全站发虚的直接成因。实测 30 个
+   * SVG 中唯二清晰的两个，正是被局部改成 2 的那两个。
+   *
+   * 2 也是 Lucide / Feather / Tabler / Heroicons outline 的作者值，原因相同。
+   * CSS 的 stroke-width 优先级高于 SVG 表现属性，所以一条声明即可统一全部。
+   */
+  --ui-icon-stroke: 2;
 
   /*
    * 当前语境的图标档位。容器改这一个变量，档位就整片跟着走；调用点不声明
@@ -29,23 +43,6 @@
    * 两条并行的尺寸管线，本条把它们并成一条。
    */
   --ui-icon: var(--ui-icon-size-sm);
-}
-
-/*
- * 图标的默认几何，特异性为 0。
- *
- * :where() 让任何组件规则都能无痛覆盖，所以这是默认值而不是强制值 —— 与
- * Tailwind preflight、Fluent、Primer 给基础元素设默认几何的做法同构。
- *
- * display: block 是必需的：inline 的 svg 会参与行盒基线对齐，行高一旦不是整数
- * （本仓 13px × 1.5 = 19.5px 就是），图标的 y 会被基线推到半个像素上。
- */
-:where(svg) {
-  display: block;
-  flex: none;
-  inline-size: var(--ui-icon);
-  block-size: var(--ui-icon);
-
   /*
    * 发丝线 1 CSS 像素。
    *
@@ -59,4 +56,24 @@
   --ui-region-divider-width: 1px;
   --ui-focus-ring-width: 2px;
   --ui-focus-ring-offset: 2px;
+}
+
+/*
+ * 图标的默认几何，特异性为 0。
+ *
+ * :where() 让任何组件规则都能无痛覆盖，所以这是默认值而不是强制值 —— 与
+ * Tailwind preflight、Fluent、Primer 给基础元素设默认几何的做法同构。
+ *
+ * display: block 是必需的：inline 的 svg 参与行盒基线对齐，而本仓存在 19.5px
+ * 这类非整数行高，基线会把图标的 y 推到半个设备像素上。
+ *
+ * 自绘图形（如 restore-spinner）在自己的类规则里声明 stroke-width，特异性高于
+ * :where()，不受这里影响 —— 线宽属于它自己的几何，本来就该它自己说了算。
+ */
+:where(svg) {
+  display: block;
+  flex: none;
+  inline-size: var(--ui-icon);
+  block-size: var(--ui-icon);
+  stroke-width: var(--ui-icon-stroke);
 }
