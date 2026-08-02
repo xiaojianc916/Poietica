@@ -26,14 +26,17 @@
 @import "./tokens/accessibility.css";
 
 /*
- * 接管图标的线宽，令本地字形与 @mynaui/icons-react 走同一个令牌。
+ * 图标盒。
  *
- * 两者都把 stroke-width 写成 SVG 表现属性，而表现属性在层叠中排在全部作者样式
- * 之前，所以 :where() 的零特异性也足以覆盖，同时不会干扰调用方的显式覆写。
+ * SVG 默认是 display: inline，会参与行内布局：baseline 对齐把元素推到一个
+ * 由 line-height 决定的小数 y 偏移上，整张位图随之被重采样。尺寸再怎么对齐
+ * 设备像素也救不回来，因为糊的是「起点」不是「大小」。block 让它退出行内
+ * 布局，flex: none 阻止弹性容器把它压成小数宽度。
  *
- * 选择器刻意不写成 svg[stroke]：那会连插图和图表一起接管，而它们的线宽是画出
- * 来的，不是排版参数。
+ * 这里不设 stroke-width：描边宽度是字形绘制时的属性，由字形集决定。此前那条
+ * :where(button > svg, a > svg) 会连 spinner、logo、图表一起改写。
  */
-:where(.ui-icon, [data-slot] > svg, button > svg, a > svg) {
-  stroke-width: var(--ui-icon-stroke, 2);
+.ui-icon {
+  display: block;
+  flex: none;
 }

@@ -90,7 +90,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   /*
    * 连不上 agent 这件事，走转录那条唯一的通道。
    *
-   * 它此前画在输入框顶上（assistant-composer__alert），于是同一类事实有两种
+   * 它此前画在输入框顶上一块横幅里，于是同一类事实有两种
    * 长相：来自帧流的失败是流里一条横线，来自会话配置的失败是一块横幅。报错
    * 长什么样，不该由它从哪条路来的决定。
    */
