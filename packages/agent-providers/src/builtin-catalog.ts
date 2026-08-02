@@ -1,4 +1,4 @@
-import type { AgentModelState, AgentProviderState } from './agent-provider-state'
+import type { AgentModelState, AgentProviderState } from './provider-state'
 
 /*
  * 内置厂商清单。
@@ -323,7 +323,7 @@ export function agentModelDisplayName(model: AgentModelState): string {
 /*
  * 把一家已配置的 provider 序列化成 agent 目录命令认的 api.json 形状。
  *
- * 从 agent-provider-state 搬到这里：它需要查内置表补显示名，而内置表查快照类型
+ * 从 provider-state 搬到这里：它需要查内置表补显示名，而内置表查快照类型
  * 是单向的 —— 倒过来就环了。与 agentProviderModelOptions 同模块：两个都是
  * 「内置表 × 快照」的消费者。
  *

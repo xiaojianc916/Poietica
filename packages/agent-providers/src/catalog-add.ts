@@ -3,12 +3,12 @@
  *
  * 读取那一半（catalog list 的参数与输出解析）删了：第三十一版之后它没有一个调用点，
  * 而它本来也要现拉 models.dev —— 那个域名在部分网络下不可达。一条死了没人用的管线
- * 留着，只会让人以为它还活着。候选模型来自 builtin-provider-catalog 的内置表。
+ * 留着，只会让人以为它还活着。候选模型来自 builtin-catalog 的内置表。
  *
  * 写入走 agent 官方 CLI 的 provider catalog add。目录从哪来不归这里管：调用方随
  * execCli 带上 api.json 形状的内置目录，原生侧起一次性 loopback 服务并把官方的
  * --url 指过去。对方只读 `type`/`api`/`models.*.id` 与 `limit.context`
- * （@moonshot-ai/kosong 的 src/catalog.ts），形状由 builtin-provider-catalog 的
+ * （@moonshot-ai/kosong 的 src/catalog.ts），形状由 builtin-catalog 的
  * agentProviderCatalogDocument 保证。
  *
  * 密钥永远不出现在这里返回的任何一个 arg 里。原生侧的 FORBIDDEN_FLAGS 会拒掉

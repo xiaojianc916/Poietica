@@ -3,7 +3,7 @@ import {
   agentProviderCatalogAddArgs,
   agentProviderCatalogDocument,
   builtinProviderDefaultModelId,
-} from '@poietica/agent-registry'
+} from '@poietica/agent-providers'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentConfigStore, ProviderKeyProbe } from '../ports/agent-config-store'

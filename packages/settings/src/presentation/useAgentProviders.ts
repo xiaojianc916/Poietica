@@ -1,8 +1,5 @@
-import {
-  type AgentProviderSnapshot,
-  acpAgentById,
-  parseAgentProviderListOutput,
-} from '@poietica/agent-registry'
+import { type AgentProviderSnapshot, parseAgentProviderListOutput } from '@poietica/agent-providers'
+import { acpAgentById } from '@poietica/agent-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'

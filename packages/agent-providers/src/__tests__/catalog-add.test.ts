@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agentProviderCatalogAddArgs } from '../agent-provider-catalog'
+import { agentProviderCatalogAddArgs } from '../catalog-add'
 
 describe('agentProviderCatalogAddArgs', () => {
   it('只给厂商时不带任何可选参数', () => {

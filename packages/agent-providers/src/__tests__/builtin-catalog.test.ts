@@ -4,7 +4,7 @@ import {
   agentProviderCatalogDocument,
   builtinAgentProviderById,
   builtinAgentProviders,
-} from '../builtin-provider-catalog'
+} from '../builtin-catalog'
 
 /*
  * 内置表喂给对方目录命令时必须具备的形状。

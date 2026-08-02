@@ -1,14 +1,14 @@
 import {
   type AgentModelState,
   type AgentProviderSnapshot,
-  acpAgentById,
   agentModelDisplayName,
   agentProviderCatalogAddArgs,
   agentProviderDefaultModelId,
   agentProviderImportDocument,
   builtinAgentProviders,
   parseAgentProviderListOutput,
-} from '@poietica/agent-registry'
+} from '@poietica/agent-providers'
+import { acpAgentById } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigStore } from '../ports/agent-config-store'

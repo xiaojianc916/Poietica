@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentProviderState } from '../agent-provider-state'
 import {
   agentModelDisplayName,
   agentProviderDefaultModelId,
   agentProviderImportDocument,
-} from '../builtin-provider-catalog'
+} from '../builtin-catalog'
+import type { AgentProviderState } from '../provider-state'
 
 const provider: AgentProviderState = {
   id: 'moonshot-cn',

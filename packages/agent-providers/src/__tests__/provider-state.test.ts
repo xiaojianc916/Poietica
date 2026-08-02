@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { parseAgentProviderList, parseAgentProviderListOutput } from '../agent-provider-state'
-import { kimiCode } from '../agents/kimi'
+import { parseAgentProviderList, parseAgentProviderListOutput } from '../provider-state'
 
 /*
- * 合成 provider 的 id 由调用方从 agent 档案给，解析层不认识任何一家，所以
- * 这里也当调用方传。取 kimi 的那一个 —— 下面这份样本本来就照它的输出写的。
+ * 合成 provider 的 id 由调用方从 agent 档案给，解析层不认识任何一家 —— 这个包
+ * 连 agent 名单都不认识，所以这里写字面量。它与 kimi 档案里那一格对得上，由
+ * agent-registry 自己的 agent-descriptor.test.ts 钉住；两边走样时那一条先响。
  */
-const SYNTHETIC = kimiCode.syntheticProviderId
+const SYNTHETIC = '__kimi_env__'
 
 /*
  * 形状照 apps/kimi-code/test/cli/provider.test.ts 里断言过的那一份：providers 与
@@ -158,19 +158,5 @@ describe('parseAgentProviderListOutput', () => {
   it('空输出与坏 JSON 各记一条 issue', () => {
     expect(parseAgentProviderListOutput('   ', SYNTHETIC).issues).toHaveLength(1)
     expect(parseAgentProviderListOutput('{ not json', SYNTHETIC).issues).toHaveLength(1)
-  })
-})
-
-describe('档案里的 provider list 子命令', () => {
-  /*
-   * 两条断言各拦一件事：形状必须是分好的数组（不是一行待切的命令行），第一
-   * 项必须是子命令名（原生侧的白名单只看 args[0]）。第二条是回归护栏 —— 它
-   * 拦的正是「把可执行文件与子命令搞混」那次。
-   *
-   * 常量搬去了 agents/kimi.ts：问什么是每一家自己的事，护栏跟着搬。
-   */
-  it('是完整的子命令序列', () => {
-    expect(kimiCode.providerListArgs).toEqual(['provider', 'list', '--json'])
-    expect(kimiCode.providerListArgs[0]).toBe('provider')
   })
 })

@@ -1,18 +1,16 @@
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
+  acpAgentById,
+  acpAgentLaunch,
+  defaultAcpAgent,
   SessionConfigChoice,
   SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/acp'
-import {
-  type AcpAgentDescriptor,
-  acpAgentById,
-  acpAgentLaunch,
-  defaultAcpAgent,
-  parseAgentProviderListOutput,
-} from '@poietica/agent-registry'
+import type { parseAgentProviderListOutput } from '@poietica/agent-providers'
+import type { AcpAgentDescriptor } from '@poietica/agent-registry'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,

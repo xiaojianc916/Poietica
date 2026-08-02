@@ -304,4 +304,4 @@ export function parseAgentProviderListOutput(
 }
 
 /* agentProviderImportDocument 曾在这里。它需要查内置表补显示名，搬到
- * builtin-provider-catalog.ts —— 与 agentProviderModelOptions 同模块，依赖保持单向。 */
+ * builtin-catalog.ts —— 与 agentProviderModelOptions 同模块，依赖保持单向。 */
