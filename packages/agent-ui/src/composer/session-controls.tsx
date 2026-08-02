@@ -111,8 +111,6 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
         title={failure}
         type="button"
       >
-        <ProviderIcon />
-
         <span className="assistant-model-select__label">{UNAVAILABLE}</span>
       </button>
     )
@@ -128,9 +126,14 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
         坏了。下面那个空态分支仍然用 failure：那是一格什么都没有的时候，唯一的
         出口。
       */}
-      <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
-        <ProviderIcon {...(provider === undefined ? {} : { provider })} />
+      {/*
+        这颗胶囊只说一件事：下一轮由谁来答。
 
+        厂商标此前挂在名字左边，而名字本身已经把厂商说清楚了 —— 一个标记只在它
+        补充了文字没说的东西时才值一格宽度。空态那一支同去：同一颗控件不该因为
+        连不上就多长出一枚图标。开场那枚大标记不受影响，它是另一处。
+      */}
+      <DropdownMenuTrigger aria-label="会话设置" className="assistant-model-select__button">
         <span className="assistant-model-select__label">{chosen(model ?? firstRow)}</span>
       </DropdownMenuTrigger>
 

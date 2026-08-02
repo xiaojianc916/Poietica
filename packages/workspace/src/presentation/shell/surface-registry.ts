@@ -1,9 +1,9 @@
-import { Box, Search } from '@mynaui/icons-react'
+import { Box, Message, Search } from '@mynaui/icons-react'
 /*
- * ai / clock-10 / webhook 不在图标库里，是设计系统的本地字形；
+ * clock-10 / webhook 不在图标库里，是设计系统的本地字形；
  * 它们与库图标同框同粗细，原因见 components/icons/local-glyphs.tsx。
  */
-import { AiSurfaceIcon, ClockTenIcon, WebhookIcon } from '@poietica/ui'
+import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
 import type { ComponentType } from 'react'
 import { CONVERSATION_ENTRY_TITLE, type WorkspaceSurfaceId } from '../../contracts/workbench'
 
@@ -36,7 +36,15 @@ export const WORKSPACE_SURFACE_REGISTRY: Record<WorkspaceSurfaceId, WorkspaceSur
   ai: {
     title: CONVERSATION_ENTRY_TITLE,
     description: '与 AI 协作，驱动工具完成任务。',
-    icon: AiSurfaceIcon,
+    /*
+     * 对话那一枚，全应用就这一个定义处。
+     *
+     * 侧边栏的「新建对话」与标签条上的对话标签读的都是这一格；此前它们各自
+     * 写死一枚（Message 与 Planet），于是同一个表面在两个地方长着两张脸，而
+     * 表里这第三枚谁也没在用。标题一直老实读表，图标却不 —— 一半读一半写死，
+     * 是最难看出来的那种分叉。
+     */
+    icon: Message,
   },
   tools: {
     title: 'Tool',

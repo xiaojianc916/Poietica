@@ -1,4 +1,4 @@
-import { Planet, X } from '@mynaui/icons-react'
+import { X } from '@mynaui/icons-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench'
 import { describeWorkspaceSurface, type SurfaceIcon } from '../surface-registry'
@@ -176,18 +176,20 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
 }
 
 /*
- * 对话在标签条上有自己的一枚字形。
+ * 标签条上的对话，用的就是对话那一枚。
  *
- * 其余表面仍然从注册表取图 —— 那里是标题、描述与图标的唯一事实来源，侧边栏与
- * 入口都读它，所以这里不去改它，只在标签条这一处做例外，并且把例外写明白。
+ * 这里此前写死一枚 Planet，理由写着「对话在标签条上有自己的一枚字形」——
+ * 但那不是一条设计规则，是一处分叉：同一个表面在侧边栏是气泡、在标签条是
+ * 地球，而注册表里存的又是第三枚。一个表面只该有一张脸，那张脸在注册表里。
  *
- * 两条分支都算「AI 对话标签」：kind === 'conversation' 是一条具体的对话，
- * surfaceId === 'ai' 是那张还没开口的入口页。它们在标签条上是同一种东西，
- * 只认其中一条会让两张标签长得不一样。
+ * 剩下的分支不是例外，是取值来源不同：kind === 'conversation' 的标签是一条
+ * 具体的对话，它没有 surfaceId 可查，所以直接点名 'ai'；surfaceId === 'ai'
+ * 是那张还没开口的入口页。两者在标签条上是同一种东西，只认其中一条会让两张
+ * 标签长得不一样。
  */
 function resolveTabIcon(model: WorkbenchTabViewModel): SurfaceIcon {
   if (model.kind === 'conversation' || model.surfaceId === 'ai') {
-    return Planet
+    return describeWorkspaceSurface('ai').icon
   }
 
   return describeWorkspaceSurface(model.surfaceId).icon

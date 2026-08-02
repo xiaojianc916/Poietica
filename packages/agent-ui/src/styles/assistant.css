@@ -733,12 +733,13 @@
  * agent and could not be clicked.
  *
  * It keeps that pill's metrics, which were the right ones: the control
- * height, the optical inset, a label at caption size. The mark is sized in em
- * so it rides the text baseline instead of dictating a box of its own.
+ * height, the optical inset, a label at caption size. It carries the name and
+ * nothing else: the provider mark that used to lead it said what the name
+ * already says, and the leading inset is optical rather than cut for a glyph,
+ * so the capsule closes up on its own with the mark gone.
  *
  * Two states are worth showing and no more: the pointer is over it, and its
- * menu is open. Both are painted on the capsule; nothing inside reacts on
- * its own, because nothing inside can be aimed at separately.
+ * menu is open. Both are painted on the capsule.
  */
 .assistant-model-select__button {
   display: inline-flex;
