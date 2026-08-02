@@ -732,26 +732,43 @@
  * send key, and the place it now occupies was held by a pill that named the
  * agent and could not be clicked.
  *
- * It keeps that pill's metrics, which were the right ones: the control
- * height, the optical inset, a label at caption size. It carries the name and
- * nothing else: the provider mark that used to lead it said what the name
- * already says, and the leading inset is optical rather than cut for a glyph,
- * so the capsule closes up on its own with the mark gone.
+ * 它是一枚 chip，所以它用 chip 的尺子。
+ *
+ * 此前这里写着「it keeps that pill's metrics, which were the right ones: the
+ * control height, the optical inset」—— 那句话自称继承了一颗胶囊的度量，实际
+ * 继承的是按钮的高度令牌（--cp-control，32px）加图标按钮的光学内缩
+ * （--cp-optical，6px）。32px 高、左右各 6px、全圆角，装一个 13px 的字：圆角
+ * 半径 16px 比整个横向留白还大，圆头咬进文字，上下各空 9.5px 的死气。三个数
+ * 各有出处，凑起来不是一个形状。
+ *
+ * 正确的一族就在 composer-metrics.css，且已经写明了它为什么存在：「它不是按钮，
+ * 所以不借 --cp-control」。26px 的壳给出上下各 5px，是 Fluent chip / Material
+ * assist chip / GitHub Label 那一档的内容留白比例。这一族此前只有模式胶囊在用，
+ * 而这里和它是同一种东西。
+ *
+ * 左右取同一个数。--cp-pill-lead 比 --cp-pill-trail 紧 4px，那是为了补偿一枚
+ * 圆形字形的光学重心比外接方框靠里；图标已经不在了，纯文字的 chip 两侧对称，
+ * 再留那 4px 差就是把补偿留给了一个不存在的东西。
+ *
+ * line-height 锁 1：壳高固定，字身若还带着继承来的 1.625，CJK 基线会被半行
+ * 间距顶偏，文字与胶囊差半个像素 —— 与模式胶囊同因，那里已经栽过一次。
  *
  * Two states are worth showing and no more: the pointer is over it, and its
  * menu is open. Both are painted on the capsule.
  */
 .assistant-model-select__button {
   display: inline-flex;
-  block-size: var(--cp-control);
+  block-size: var(--cp-pill);
+  /* 工具条挤时它不许被压扁：一枚 chip 被压窄就变成了另一个控件。 */
+  flex: none;
   align-items: center;
-  gap: var(--cp-control-gap);
   border: 0;
   border-radius: 9999px;
-  padding-inline: var(--cp-optical);
+  padding-inline: var(--cp-pill-trail);
   background: transparent;
   font-size: var(--cp-font-caption);
   font-weight: 500;
+  line-height: 1;
   color: var(--cp-ink-muted);
   cursor: pointer;
   transition:

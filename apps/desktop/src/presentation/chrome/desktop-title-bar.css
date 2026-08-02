@@ -46,10 +46,17 @@
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
-  border-inline-end: var(--ui-region-divider-width) solid var(--color-divider);
+  /*
+   * 墨色与粗细来自外壳根节点的 --workspace-divider-*，与 chrome 行以下那
+   * 一长段是同一条声明 —— 这两段本来就是一条线，此前只是各画各的。
+   * 不写兜底值：兜底值就是第二份真相，与本文件开头那条约定同一个理由。
+   */
+  border-inline-end: var(--workspace-divider-width) solid var(--workspace-divider-ink);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--workspace-layout-duration) ease;
+  transition:
+    opacity var(--workspace-layout-duration) ease,
+    border-color var(--workspace-layout-duration) ease;
 }
 
 .desktop-title-bar__edge[data-visible="true"] {

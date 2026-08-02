@@ -13,6 +13,44 @@
   grid-template-areas:
     "chrome chrome"
     "sidebar main";
+
+  /*
+   * 侧边栏与内容之间那条线的墨色与粗细。
+   *
+   * 它是一条线，不是两条。此前它有两个所有者：chrome 行里那一小段是
+   * desktop-title-bar 的一个绝对定位元素，chrome 行以下那一长段是
+   * SidebarRegion 上的一个 Tailwind border-r —— 两种机制、两处声明、
+   * 谁都改不动对方。所以拖拽反馈最后退化成在 8px 的命中区上刷一块主色
+   * 半透明：那是唯一一个两段都够不着、于是索性另画一层的位置。
+   *
+   * 现在两段读同一对变量，对齐是算出来的：两者的 inline-end 都取自
+   * --workspace-sidebar-column-width，边框都朝自己盒内长，x 坐标恒等。
+   */
+  --workspace-divider-ink: var(--color-divider);
+  --workspace-divider-width: var(--ui-region-divider-width);
+}
+
+/*
+ * 状态从分隔条身上读，不新增任何一处状态。
+ *
+ * data-resizing 本来就写在那个 <hr> 上（写入方是 useSidebarResize），:hover
+ * 与 :focus-visible 是它自己的伪类 —— :has() 把这三件事原地取走，因此不需要
+ * 新的 prop、不需要 store 里的第二个布尔，拖拽期间也不会有任何一次重渲染。
+ *
+ * 加粗只朝盒内长：栅格列宽由 grid-template-columns 定死，与项的边框无关；
+ * 侧栏内层是固定像素宽的盒，多吃的那 1px 落在行的 --ui-row-trail 内缩里。
+ * 主区域一格不动，所以这一档粗细可以是即时的，不需要过渡去掩饰位移。
+ */
+.workspace-shell:has(.workspace-sidebar-splitter:hover) {
+  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 20%, var(--color-divider));
+  --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
+}
+
+/* 正在拖，以及没有指针的键盘调整：同一档，比悬停再深一点。 */
+.workspace-shell:has(.workspace-sidebar-splitter:focus-visible),
+.workspace-shell:has(.workspace-sidebar-splitter[data-resizing="true"]) {
+  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 32%, var(--color-divider));
+  --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
 .workspace-shell__chrome {
@@ -36,10 +74,16 @@
 }
 
 /*
- * 分隔竖线跟着面板一起淡出，而不是在 1px 与 0 之间硬切。
- * 此前写作内联 borderRightWidth: docked ? 1 : 0，视觉上是瞬变。
+ * 线在这里画，不在 SidebarRegion 的 className 里。
+ *
+ * 那里此前是 border-r border-divider，与本规则同特异性 (0,1,0)，谁生效取决
+ * 于打包顺序 —— 已经删除，这条边现在只有这一处声明。
+ *
+ * 淡出仍然由 border-color 承担：宽度在 1px 与 0 之间只能硬切，所以收起态改
+ * 的是颜色而不是粗细。
  */
 .workspace-shell__sidebar {
+  border-inline-end: var(--workspace-divider-width) solid var(--workspace-divider-ink);
   transition: border-color var(--workspace-layout-duration) ease;
 }
 

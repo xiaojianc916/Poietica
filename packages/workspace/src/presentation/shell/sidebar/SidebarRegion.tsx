@@ -39,7 +39,7 @@ export function SidebarRegion({
     <>
       <div
         aria-hidden={!isDocked}
-        className="workspace-shell__sidebar relative z-20 min-h-0 min-w-0 overflow-visible border-r border-divider bg-sidebar"
+        className="workspace-shell__sidebar relative z-20 min-h-0 min-w-0 overflow-visible bg-sidebar"
       >
         {mode === 'narrow' ? null : (
           <div className="h-full min-h-0 w-full overflow-hidden">
