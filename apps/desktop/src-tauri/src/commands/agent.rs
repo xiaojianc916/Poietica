@@ -1282,6 +1282,15 @@ pub struct AgentOpenedThread {
     /// 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
     /// attachments.rs）。
     pub attachments: Vec<AgentThreadAttachment>,
+    /// 这条对话至今问过多少句话。
+    ///
+    /// 上面那些附件的 turn 是照着它量的,而且是从末尾量起:计数为 N,就表示
+    /// turn 盖住的是最后 N 条用户消息。渲染层拿它去减自己数出来的条数,得到
+    /// 的差就是要跳过的那一段前史(0011 之前的那些话)。
+    ///
+    /// 少了它,认领方就只能假定「第 0 轮就是第一条消息」—— 那对每一条迁移
+    /// 之前就存在的对话都是错的。
+    pub prompts: i64,
 }
 
 /// Lists the stored conversations, newest first.
@@ -1397,12 +1406,21 @@ pub async fn agent_open_thread(
 
     let attachments = deliver_attachments(&state, &assets, thread_id).await?;
 
+    /* 单独一次读,不并进上面那趟:一个是「有哪些图」,一个是「轮次号从哪儿
+    起算」,两个问题各自回答得清楚,合成一趟只会让那个函数多一个出参。走的是
+    同一条 on_store、同一把锁、同一个 prepare_cached。 */
+    let prompts = on_store(&state, move |store| {
+        store.prompt_count(thread_id).map_err(persistence)
+    })
+    .await?;
+
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
         events,
         history,
         attachments,
+        prompts,
     })
 }
 

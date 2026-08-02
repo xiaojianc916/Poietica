@@ -12,6 +12,7 @@ import type {
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
+  UserMessageItem,
 } from '@poietica/agent-timeline'
 import { isRenderable } from './renderable'
 
@@ -239,6 +240,92 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
 /** 一帧就是一批只有一帧的批。两条路径共用同一套判据，不是两份实现。 */
 export function applyRunEvent(state: TimelineState, event: RunEvent): TimelineState {
   return applyRunEvents(state, [event])
+}
+
+/** 账本里的一张图，以及它属于哪一句话。 */
+export interface ReplayedAttachment {
+  readonly url: string
+  readonly turn: number
+  readonly ordinal: number
+}
+
+/**
+ * 把账本里的图挂回它当初那句话上。
+ *
+ * 两份东西在这里合流：一段由 agent 交还的经过，和一张只存在于本机的账本。
+ * 它们没有共同的 id —— 这个程序不存对话内容，历史里的每一个 id 都是 agent
+ * 发的，本地账本不可能引用它们。能由两侧各自数出同一个答案的只有序号。
+ *
+ * 所以对齐靠数数，而且是**倒着数**：账本的计数 N 盖住的是最后 N 条用户消息
+ * （见迁移 0011）。正着数在任何一条早于 0011 的对话上都是错的 —— 那些话发生
+ * 在计数存在之前，第 0 轮并不是第一条消息。
+ *
+ * 对不齐就整批不认领。历史比账本还短（换过 agent、只交回了一段），这时候硬挂
+ * 就是把图挂到别人的话上；一张不显示，好过显示在错的地方 —— 后者人看不出来。
+ *
+ * 顺序不在这里定：账本按 (turn, ordinal) 排好了才交过来（见 attachments_of
+ * 的 ORDER BY），这里再排一遍就是第二份排序规则。
+ */
+export function attachImages(
+  state: TimelineState,
+  attachments: readonly ReplayedAttachment[],
+  prompts: number,
+): TimelineState {
+  if (attachments.length === 0) {
+    return state
+  }
+
+  const said: number[] = []
+
+  for (const [position, item] of state.items.entries()) {
+    if (item.type === 'user_message') {
+      said.push(position)
+    }
+  }
+
+  /* 账本盖不住的那一段前史，跳过它。负数意味着这段经过比账本还短。 */
+  const offset = said.length - prompts
+
+  if (offset < 0) {
+    return state
+  }
+
+  const carried = new Map<number, MessageImage[]>()
+
+  for (const attachment of attachments) {
+    const position = said[offset + attachment.turn]
+
+    /* 一格对不上，整批都不能信：说明这两侧数出来的不是同一件事。 */
+    if (position === undefined) {
+      return state
+    }
+
+    const held = carried.get(position)
+
+    if (held === undefined) {
+      carried.set(position, [{ url: attachment.url }])
+
+      continue
+    }
+
+    held.push({ url: attachment.url })
+  }
+
+  const items = state.items.slice()
+
+  for (const [position, images] of carried) {
+    const item = items[position]
+
+    if (item?.type !== 'user_message') {
+      return state
+    }
+
+    const grown: UserMessageItem = { ...item, images }
+
+    items[position] = grown
+  }
+
+  return { ...state, items }
 }
 
 /* -------------------------------------------------------------- */

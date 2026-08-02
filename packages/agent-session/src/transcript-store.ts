@@ -1,9 +1,16 @@
-import type { AgentSessionPort, PromptImage, RunEvent, ThreadHistory } from '@poietica/acp'
+import type {
+  AgentSessionPort,
+  PromptImage,
+  RunEvent,
+  ThreadAttachment,
+  ThreadHistory,
+} from '@poietica/acp'
 import type { TimelineState } from '@poietica/agent-timeline'
 import {
   appendLocalError,
   appendUserMessage,
   applyRunEvents,
+  attachImages,
   createTimelineState,
   replayThreadEvents,
 } from '@poietica/agent-timeline'
@@ -382,8 +389,17 @@ export class TranscriptStore {
    * 通道，和「权限答复送不出去」同一条——它同样发生在任何持久化之外，日志里没有
    * 对应的帧。endsTurn 为假：这不是某一轮失败了，这是这段历史没回来。
    */
-  adopt = (threadId: string, events: readonly unknown[], history: ThreadHistory): void => {
-    const replayed = replayThreadEvents(events as readonly RunEvent[])
+  adopt = (
+    threadId: string,
+    events: readonly unknown[],
+    history: ThreadHistory,
+    carried: readonly ThreadAttachment[],
+    prompts: number,
+  ): void => {
+    /* 经过由 agent 交还，图由本地账本交还，两者在这里合成一条时间线。
+       对齐规则只有一处（attachImages），因为它是一条会算错的规则。 */
+    const restored = replayThreadEvents(events as readonly RunEvent[])
+    const replayed = attachImages(restored, carried, prompts)
     const lost = lossOf(history)
 
     this.#put(threadId, {

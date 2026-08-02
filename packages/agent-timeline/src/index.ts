@@ -13,11 +13,13 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
+export type { ReplayedAttachment } from './timeline-reducer'
 export {
   appendLocalError,
   appendUserMessage,
   applyRunEvent,
   applyRunEvents,
+  attachImages,
   createTimelineState,
   replayRunEvents,
   replayThreadEvents,

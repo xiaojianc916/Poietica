@@ -108,6 +108,28 @@ impl AgentStore {
         Ok(found)
     }
 
+    /// 这条对话至今问过多少句话 —— 轮次号是照着它量出来的。
+    ///
+    /// 轮次号从末尾对齐:计数为 N,就表示它盖住的是最后 N 条用户消息
+    /// (见迁移 0011)。0011 之前写下的那些行计数是 0,它们的旧历史因此
+    /// 一张图都不认领 —— 这正是对的,那时候根本没有人记过。
+    ///
+    /// 认领方要的是这个计数,不是 `max(turn) + 1`:最后几句话可以一张图都
+    /// 没带,那时两者不相等,而差多少就会把每一张图挪多少格。
+    ///
+    /// # Errors
+    ///
+    /// 查询被拒、或这条对话不存在时返回错误。
+    pub fn prompt_count(&self, thread: Uuid) -> Result<i64> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT prompts FROM threads WHERE id = ?1")?;
+
+        let found = statement.query_row(rusqlite::params![thread.to_string()], |row| row.get(0))?;
+
+        Ok(found)
+    }
+
     /// 已经没有任何对话引用的字节。
     ///
     /// 标记清除,不是引用计数。计数要求每一条增减都不出错,而删对话、删轮次、

@@ -2,6 +2,7 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
+  ThreadAttachment,
   ThreadHistory,
   ThreadPort,
   ThreadRecord,
@@ -24,7 +25,13 @@ const TITLE_LIMIT = 24
  */
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
-  readonly adopt: (threadId: string, events: readonly unknown[], history: ThreadHistory) => void
+  readonly adopt: (
+    threadId: string,
+    events: readonly unknown[],
+    history: ThreadHistory,
+    attachments: readonly ThreadAttachment[],
+    prompts: number,
+  ) => void
   readonly failed: (threadId: string, cause: unknown) => void
   /** 运行帧按会话号到达，而这一侧的一切按对话记：这是两者之间唯一的那张表。 */
   readonly route: (sessionId: string, threadId: string) => void
@@ -339,7 +346,13 @@ export class ThreadsStore {
       this.#hold(opened.thread)
 
       /* 刚建的一条没有经过。说出来，好过让它停在"还在取"上。 */
-      this.#transcripts?.adopt(threadId, opened.events, opened.history)
+      this.#transcripts?.adopt(
+        threadId,
+        opened.events,
+        opened.history,
+        opened.attachments,
+        opened.prompts,
+      )
 
       /*
        * 会话是跟着这条对话一起开出来的，选择器就在同一个答复里。这是唯一
@@ -585,7 +598,13 @@ export class ThreadsStore {
       .then((opened) => {
         this.#hold(opened.thread)
         this.#remember(threadId, opened.selectors)
-        this.#transcripts?.adopt(threadId, opened.events, opened.history)
+        this.#transcripts?.adopt(
+          threadId,
+          opened.events,
+          opened.history,
+          opened.attachments,
+          opened.prompts,
+        )
       })
       .catch((reason: unknown) => {
         this.#noteSelectorFailure(threadId, reason)
