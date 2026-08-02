@@ -1,4 +1,6 @@
+import type { MessageImage } from '@poietica/agent-timeline'
 import { useState } from 'react'
+import { MessageAttachments } from './MessageAttachments'
 
 /*
  * A long message is clipped, and the clip can be released.
@@ -23,26 +25,45 @@ function isLong(text: string): boolean {
  *
  * Never markdown: rendering a user message would let their own text change how
  * it is displayed, and would let a pasted document rewrite the conversation.
+ *
+ * 附件排在气泡外面、气泡上面，两个兄弟节点。图片不是那句话的一部分：气泡的
+ * 宽度贴着文字，把一排图塞进去就是把气泡撑成一个图片框。行的高度不用谁来
+ * 声明 —— feed 用 measureElement 真量，估高只管首屏。
+ *
+ * 只有图、没有话时，气泡整个不出现。不是空气泡，也不是替人补一句「[图片]」：
+ * 没说的话不该由界面替他说。
  */
-export function UserMessage({ text }: { readonly text: string }) {
+export function UserMessage({
+  images,
+  text,
+}: {
+  readonly images?: readonly MessageImage[] | undefined
+  readonly text: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const long = isLong(text)
 
   return (
-    <div className="timeline-user" data-clamped={long && !expanded ? 'true' : undefined}>
-      <p className="timeline-user__text">{text}</p>
+    <>
+      {images === undefined || images.length === 0 ? null : <MessageAttachments images={images} />}
 
-      {long ? (
-        <button
-          className="timeline-user__more"
-          onClick={() => {
-            setExpanded(!expanded)
-          }}
-          type="button"
-        >
-          {expanded ? '收起' : '展开全部'}
-        </button>
-      ) : null}
-    </div>
+      {text.length === 0 ? null : (
+        <div className="timeline-user" data-clamped={long && !expanded ? 'true' : undefined}>
+          <p className="timeline-user__text">{text}</p>
+
+          {long ? (
+            <button
+              className="timeline-user__more"
+              onClick={() => {
+                setExpanded(!expanded)
+              }}
+              type="button"
+            >
+              {expanded ? '收起' : '展开全部'}
+            </button>
+          ) : null}
+        </div>
+      )}
+    </>
   )
 }

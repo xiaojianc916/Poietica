@@ -8,6 +8,7 @@ import type {
 import type {
   AgentTextItem,
   AgentThoughtItem,
+  MessageImage,
   TimelineItem,
   TimelineState,
   ToolCallTimelineItem,
@@ -130,10 +131,18 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
  * Opening a segment also resets the sequence window, because the run about to
  * start numbers its own frames from one.
  */
-export function appendUserMessage(state: TimelineState, text: string, at: number): TimelineState {
+export function appendUserMessage(
+  state: TimelineState,
+  text: string,
+  at: number,
+  images: readonly MessageImage[] = [],
+): TimelineState {
   const said = text.trim()
 
-  if (said.length === 0) {
+  /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句说过的话 ——
+     此前这里只看文字，那条消息连转录都进不去：图发出去了，屏幕上没有它。
+     缺省成空数组，所以既有的调用方一个字都不用改。 */
+  if (said.length === 0 && images.length === 0) {
     return state
   }
 
@@ -147,6 +156,8 @@ export function appendUserMessage(state: TimelineState, text: string, at: number
     id: `${namespace(draft)}said-${String(draft.items.length)}`,
     at,
     text: said,
+    /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
+    ...(images.length === 0 ? {} : { images }),
   })
 
   return freeze(draft)

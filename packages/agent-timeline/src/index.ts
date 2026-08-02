@@ -4,6 +4,7 @@ export type {
   AgentTextItem,
   AgentThoughtItem,
   ErrorItem,
+  MessageImage,
   PermissionItem,
   PlanItem,
   TimelineItem,

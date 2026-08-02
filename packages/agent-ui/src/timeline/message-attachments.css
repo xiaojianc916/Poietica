@@ -1,0 +1,68 @@
+/*
+ * 附件排在气泡上面，右对齐。
+ *
+ * 右对齐的办法与 .timeline-user 完全相同 —— margin-inline-start: auto 加一个
+ * 收缩到内容的宽度。两处同源，所以它们不可能各自漂移；换成外面包一层 flex
+ * 去管，气泡的对齐就有了第二个主人。
+ *
+ * 上限也取同一个：min(100%, 32rem)。一排图不该比它上面那句话更宽。
+ */
+.timeline-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  margin-inline-start: auto;
+  margin-block-end: 0.375rem;
+  inline-size: fit-content;
+  max-inline-size: min(100%, 32rem);
+}
+
+/*
+ * 一张缩略图是一个可以按的东西，所以它是 button —— 键盘能到、读屏能报。
+ * line-height: 0 去掉行内图片底下那条基线留白，否则圆角里会露出一条边。
+ */
+.timeline-attachments__item {
+  display: block;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  padding: 0;
+  background: none;
+  line-height: 0;
+  cursor: zoom-in;
+}
+
+.timeline-attachments__item:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * 方形裁切，等大成排。
+ *
+ * object-fit: cover 让长图和宽图排成同一列宽度 —— 一排参差不齐的矩形读起来
+ * 是一堆东西，等大的方块才读得出「这是若干个附件」。真实比例在大图里还它。
+ *
+ * 内描边用 outline 而不是 border：border 会参与盒子尺寸，与 cover 的裁切叠在
+ * 一起要多算一次；outline-offset 取负数把它画进圆角里面。
+ */
+.timeline-attachments__image {
+  display: block;
+  inline-size: 5.5rem;
+  block-size: 5.5rem;
+  object-fit: cover;
+  outline: 1px solid var(--cp-hairline);
+  outline-offset: -1px;
+  border-radius: inherit;
+  background: var(--cp-timeline-output-surface);
+}
+
+/* 只有一张时不裁：一张图不是一个列表。 */
+.timeline-attachments__item:only-of-type .timeline-attachments__image {
+  inline-size: auto;
+  block-size: auto;
+  max-inline-size: min(100%, 18rem);
+  max-block-size: 14rem;
+  object-fit: contain;
+}

@@ -402,7 +402,18 @@ export class TranscriptStore {
     const current = this.#now(key)
 
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。 */
-    this.#put(key, { ...current, timeline: appendUserMessage(current.timeline, text, at) })
+    this.#put(key, {
+      ...current,
+      timeline: appendUserMessage(
+        current.timeline,
+        text,
+        at,
+        /* 字节在这里变成能画的东西，只此一处：条目那一层只想知道往哪儿指。
+           data: URL 而不是 object URL —— 后者要配一次 revoke，而这些图的寿命
+           就是这条对话的寿命，多一条生命周期就多一处可以泄漏的地方。 */
+        images.map((image) => ({ url: `data:${image.mimeType};base64,${image.data}` })),
+      ),
+    })
 
     if (port === undefined) {
       this.#fail(key, new Error(NO_SESSION))

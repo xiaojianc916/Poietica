@@ -29,7 +29,7 @@ export const TimelineRow = memo(function TimelineRow({ row }: { readonly row: Fe
 
   switch (item.type) {
     case 'user_message':
-      return <UserMessage text={item.text} />
+      return <UserMessage images={item.images} text={item.text} />
 
     case 'agent_text':
       return (

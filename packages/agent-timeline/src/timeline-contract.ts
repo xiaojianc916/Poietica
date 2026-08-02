@@ -20,11 +20,33 @@ import type {
 
 export type TimelineItemId = string
 
+/**
+ * 一张随这句话发出去的图片，已经可以直接画。
+ *
+ * 存的是能进 \`<img src>\` 的东西，不是字节：条目是给读模型看的，而读模型只想
+ * 知道往哪儿指。base64 拼成 data: URL 在发送那一层做，那里本来就握着字节。
+ *
+ * 这也意味着它只活在本次会话里。历史是从日志重放出来的，而日志里没有图片帧 ——
+ * 读回一条旧对话时这一格是空的，那是事实，不是缺陷：要让它不空，得先有一份
+ * 持久化的图，而那是另一件事。
+ */
+export interface MessageImage {
+  /** 通常是一条 \`data:image/png;base64,...\`。 */
+  readonly url: string
+}
+
 export interface UserMessageItem {
   readonly type: 'user_message'
   readonly id: TimelineItemId
   readonly at: number
   readonly text: string
+  /**
+   * 这句话带的图片。
+   *
+   * 可选，而且是「整个键不写」而不是「值为 undefined」—— exactOptionalPropertyTypes
+   * 下两者不是一回事，而重放出来的条目本来就没有这一格。
+   */
+  readonly images?: readonly MessageImage[]
 }
 
 export interface AgentTextItem {
