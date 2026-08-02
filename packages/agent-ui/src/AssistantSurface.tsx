@@ -7,6 +7,7 @@ import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
+import { withAttachmentNotice } from './composer/attachment-notice'
 import type { PromptInputHandle } from './composer/prompt-input'
 import { useAgentDialect } from './domain/agent-dialect'
 import type { QuestionAnswer } from './domain/ask-user-question'
@@ -21,7 +22,6 @@ import { ProviderIcon } from './primitives/provider-icon'
 import { TranscriptView } from './TranscriptView'
 import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { TimelineRow } from './timeline/TimelineRow'
-
 export interface AssistantSurfaceProps {
   /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
   readonly endpoint: string | null
@@ -214,7 +214,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   const submit = useCallback(
     (message: AssistantSubmission) => {
       setPhase('live')
-      assistant.send(message)
+      assistant.send(withAttachmentNotice(message))
     },
     [assistant.send],
   )

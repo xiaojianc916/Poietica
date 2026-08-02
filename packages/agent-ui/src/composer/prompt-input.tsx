@@ -73,6 +73,57 @@ export interface PromptInputDraft {
 
 const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false }
 
+/* 剪贴板里的图片没有名字（截图就是一团 blob），给它一个带时刻的名字。 */
+function stampedName(file: File): string {
+  if (file.name.length > 0) {
+    return file.name
+  }
+
+  const extension = file.type.split('/')[1] ?? 'png'
+  const stamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
+
+  return `pasted-${stamp}.${extension}`
+}
+
+/*
+ * 粘贴进来的文件，和拖拽进来的是同一种东西：一个 FileList。
+ *
+ * 所以这里不另开一条收件路径 —— 交给同一个 addFiles，multiple 与 maxFiles
+ * 因此自动生效。没有文件就交回 null：粘贴文字一个字节都不该被这一层碰到。
+ * 只有确实存在没名字的那一张时才重建列表，其余情况原样交回。
+ */
+function pastedFiles(clipboard: DataTransfer): FileList | null {
+  const files = clipboard.files
+
+  if (files.length === 0) {
+    return null
+  }
+
+  let unnamed = false
+
+  for (let index = 0; index < files.length; index += 1) {
+    if (files.item(index)?.name.length === 0) {
+      unnamed = true
+    }
+  }
+
+  if (!unnamed) {
+    return files
+  }
+
+  const transfer = new DataTransfer()
+
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files.item(index)
+
+    if (file !== null) {
+      transfer.items.add(new File([file], stampedName(file), { type: file.type }))
+    }
+  }
+
+  return transfer.files
+}
+
 interface PromptInputActions {
   readonly setText: (text: string) => void
   readonly focusTextarea: () => void
@@ -275,6 +326,16 @@ export function PromptInput({
               }}
               onKeyDown={onFormKeyDown}
               onMouseDown={onFormMouseDown}
+              onPaste={(event) => {
+                const files = pastedFiles(event.clipboardData)
+
+                if (files === null) {
+                  return
+                }
+
+                event.preventDefault()
+                addFiles(files)
+              }}
               onSubmit={(event) => {
                 event.preventDefault()
 
