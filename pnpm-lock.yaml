@@ -123,6 +123,9 @@ importers:
       '@poietica/acp':
         specifier: workspace:*
         version: link:../../packages/acp
+      '@poietica/agent-providers':
+        specifier: workspace:*
+        version: link:../../packages/agent-providers
       '@poietica/agent-registry':
         specifier: workspace:*
         version: link:../../packages/agent-registry

@@ -15,6 +15,7 @@
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
     "@poietica/acp": "workspace:*",
+    "@poietica/agent-providers": "workspace:*",
     "@poietica/agent-registry": "workspace:*",
     "@poietica/agent-session": "workspace:*",
     "@poietica/agent-ui": "workspace:*",

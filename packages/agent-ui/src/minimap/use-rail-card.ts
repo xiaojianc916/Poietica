@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-/* poietica:conversation-minimap-card@v24 */
+/* poietica:conversation-minimap-card@v25 */
 
 const TURN = '.conversation-minimap__turn'
 const CARD = '.conversation-minimap__card'
@@ -48,6 +48,67 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
     let current: HTMLElement | null = null
 
     /*
+     * 一帧结算一次。
+     *
+     * 此前 settle 是 MutationObserver 的回调本身，而写 data-aimed 的是鱼眼在
+     * requestAnimationFrame 里干的活 —— 观察者回调跑在紧随其后的微任务里，于是
+     * 每一帧都是「rAF 写柱子长度 → 微任务读 offsetTop」，读的正是刚被写脏的那套
+     * 几何。两个文件各自看都干净，循环是在它们之间闭合的。
+     *
+     * 收进帧之后，读和写落在同一帧里，而且无论平台派发多少次事件都只结算一次。
+     * 这与 use-fisheye 是同一个范式，不是第二套。
+     */
+    let frame = 0
+
+    /*
+     * 指针和焦点自己记，不再问选择器。
+     *
+     * ':hover' 与 ':focus-visible' 用 querySelector 去匹配，要求浏览器先把当前的
+     * hover 链与焦点态解析出来 —— 每问一次强制一次样式重算，而这两句此前每帧至少
+     * 跑一遍。事件里 closest() 拿到的是同一个答案，代价是一次祖先遍历。
+     */
+    let hovered: HTMLElement | null = null
+    let focused: HTMLElement | null = null
+
+    /*
+     * 卡片的四个槽位。
+     *
+     * 整条轨道只有一张卡片，它那三层文字是 React 渲染的固定结构，在卡片活着的
+     * 期间不会变。isConnected 兜住 React 把它整个换掉的那一次。
+     */
+    type Slots = {
+      readonly box: HTMLElement
+      readonly kicker: HTMLElement | null
+      readonly question: HTMLElement | null
+      readonly reply: HTMLElement | null
+    }
+
+    let slots: Slots | null = null
+
+    const slotsOf = (): Slots | null => {
+      if (slots?.box.isConnected) {
+        return slots
+      }
+
+      const box = node.querySelector<HTMLElement>(CARD)
+
+      if (box === null) {
+        slots = null
+
+        return null
+      }
+
+      slots = {
+        box,
+        kicker: box.querySelector<HTMLElement>('.conversation-minimap__card-kicker'),
+        question: box.querySelector<HTMLElement>('.conversation-minimap__card-question'),
+        reply: box.querySelector<HTMLElement>('.conversation-minimap__card-reply'),
+      }
+
+      return slots
+    }
+
+    /*
      * 三个来源,一个答案。
      *
      * 键盘焦点压过指针:人按了 Tab 就是在用键盘,这时候鼠标停在哪里是历史遗留。
@@ -56,14 +117,9 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
      * :hover 兜底:粗指针和减弱动效两种情况下鱼眼直接提前返回,不写 data-aimed。
      */
     const targetOf = (): HTMLElement | null =>
-      node.querySelector<HTMLElement>(`${TURN}:focus-visible`) ??
-      node.querySelector<HTMLElement>(`${TURN}[data-aimed]`) ??
-      node.querySelector<HTMLElement>(`${TURN}:hover`)
+      focused ?? node.querySelector<HTMLElement>(`${TURN}[data-aimed]`) ?? hovered
 
-    const fill = (box: HTMLElement, turn: HTMLElement): void => {
-      const kicker = box.querySelector<HTMLElement>('.conversation-minimap__card-kicker')
-      const question = box.querySelector<HTMLElement>('.conversation-minimap__card-question')
-      const reply = box.querySelector<HTMLElement>('.conversation-minimap__card-reply')
+    const fill = ({ box, kicker, question, reply }: Slots, turn: HTMLElement): void => {
       const kickerText = turn.getAttribute('data-card-kicker')
       const replyText = turn.getAttribute('data-card-reply')
 
@@ -89,12 +145,13 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
     }
 
     const settle = (): void => {
-      const box = node.querySelector<HTMLElement>(CARD)
+      const found = slotsOf()
 
-      if (box === null) {
+      if (found === null) {
         return
       }
 
+      const { box } = found
       const turn = targetOf()
 
       if (turn === null) {
@@ -126,7 +183,7 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
       view.clearTimeout(leaveTimer)
       leaveTimer = 0
       current = turn
-      fill(box, turn)
+      fill(found, turn)
 
       /*
        * 已经显示着就到此为止:位置刚写完,CSS 会把它滑过去,零延迟、不淡出。
@@ -145,6 +202,45 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
       }, enterMs)
     }
 
+    const paint = (): void => {
+      frame = 0
+      settle()
+    }
+
+    const schedule = (): void => {
+      if (frame === 0) {
+        frame = view.requestAnimationFrame(paint)
+      }
+    }
+
+    /*
+     * pointerover 是冒泡的：指针每跨过一根柱子的边界就派发一次，扫过二十格就是
+     * 二十次。此前这二十次每次都跑完整个 settle，而跨格判断在那两次昂贵查询的
+     * 后面 —— 便宜的判断被排在贵的操作之后，等于没有判断。现在它只记一个元素。
+     */
+    const onPointerOver = (event: PointerEvent): void => {
+      hovered = (event.target as Element | null)?.closest<HTMLElement>(TURN) ?? null
+      schedule()
+    }
+
+    const onPointerLeave = (): void => {
+      hovered = null
+      schedule()
+    }
+
+    /* 键盘压过指针的语义不变；':focus-visible' 只在真的换焦点时问一次。 */
+    const onFocusIn = (event: FocusEvent): void => {
+      const turn = (event.target as Element | null)?.closest<HTMLElement>(TURN) ?? null
+
+      focused = turn?.matches(':focus-visible') ? turn : null
+      schedule()
+    }
+
+    const onFocusOut = (): void => {
+      focused = null
+      schedule()
+    }
+
     /*
      * 两个观察者,不是一个。
      *
@@ -154,26 +250,30 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
      * childList,而 fill() 写 textContent 恰恰就是 subtree 的 childList 变更 ——
      * 那是一个自己喂自己的循环。
      */
-    const structure = new view.MutationObserver(settle)
-    const aim = new view.MutationObserver(settle)
+    const structure = new view.MutationObserver(schedule)
+    const aim = new view.MutationObserver(schedule)
 
     structure.observe(node, { childList: true })
     aim.observe(node, { attributeFilter: ['data-aimed'], subtree: true })
 
-    node.addEventListener('pointerover', settle)
-    node.addEventListener('pointerleave', settle)
-    node.addEventListener('focusin', settle)
-    node.addEventListener('focusout', settle)
+    node.addEventListener('pointerover', onPointerOver, { passive: true })
+    node.addEventListener('pointerleave', onPointerLeave, { passive: true })
+    node.addEventListener('focusin', onFocusIn)
+    node.addEventListener('focusout', onFocusOut)
 
     return () => {
+      if (frame !== 0) {
+        view.cancelAnimationFrame(frame)
+      }
+
       view.clearTimeout(enterTimer)
       view.clearTimeout(leaveTimer)
       structure.disconnect()
       aim.disconnect()
-      node.removeEventListener('pointerover', settle)
-      node.removeEventListener('pointerleave', settle)
-      node.removeEventListener('focusin', settle)
-      node.removeEventListener('focusout', settle)
+      node.removeEventListener('pointerover', onPointerOver)
+      node.removeEventListener('pointerleave', onPointerLeave)
+      node.removeEventListener('focusin', onFocusIn)
+      node.removeEventListener('focusout', onFocusOut)
     }
   }, [])
 }
