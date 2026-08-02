@@ -31,8 +31,11 @@ function base64Of(buffer: ArrayBuffer): string {
  *
  * 读文件是异步的，所以这是发送路径上唯一需要等待的一步。等的是几毫秒的
  * arrayBuffer，不是一次往返。
+ *
+ * 这里不写 async：函数体交出去的本来就是 Promise.all 那一个 promise，加上
+ * async 只是把它拆开再包一遍，调用方等到的是同一个东西。
  */
-export async function toPromptImages(files: readonly File[]): Promise<readonly PromptImage[]> {
+export function toPromptImages(files: readonly File[]): Promise<readonly PromptImage[]> {
   return Promise.all(
     files.filter(isImage).map(async (file) => ({
       data: base64Of(await file.arrayBuffer()),

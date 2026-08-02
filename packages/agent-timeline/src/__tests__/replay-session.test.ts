@@ -16,7 +16,7 @@ describe('replay session', () => {
 
     const received: RunEvent[] = []
     session.subscribe((event) => received.push(event))
-    await session.prompt({ threadId: 't', text: 'hi' })
+    await session.prompt({ threadId: 't', text: 'hi', images: [] })
 
     for (const step of queue) {
       step()

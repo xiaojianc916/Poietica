@@ -49,7 +49,7 @@ describe('ipc session', () => {
       source: { listen: () => () => {} },
     })
 
-    await expect(session.prompt({ threadId: 't', text: 'hi' })).resolves.toEqual({
+    await expect(session.prompt({ threadId: 't', text: 'hi', images: [] })).resolves.toEqual({
       sessionId: 'sess_2',
     })
   })
