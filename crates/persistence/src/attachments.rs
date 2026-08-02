@@ -8,7 +8,6 @@
 //! **这台机器上的用户自己的文件**:agent 收到的是一份 base64 副本,它没有义务
 //! 交还,多数 CLI 也确实不交还。归属清楚,存放的地方才清楚。
 
-use rusqlite::ToSql;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -158,14 +157,5 @@ impl AgentStore {
             "DELETE FROM thread_attachments WHERE thread_id = ?1",
             rusqlite::params![thread.to_string()],
         )
-    }
-}
-
-/* 让 threads.rs 里那条唯一的写路径也能被这个模块用上。 */
-impl AgentStore {
-    fn write(&self, sql: &str, params: &[&dyn ToSql]) -> Result<()> {
-        self.connection.prepare_cached(sql)?.execute(params)?;
-
-        Ok(())
     }
 }

@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use rusqlite::Connection;
+use rusqlite::{Connection, ToSql};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
@@ -45,5 +45,26 @@ impl AgentStore {
         let mut connection = crate::connection::open(path)?;
         migrate(&mut connection)?;
         Ok(Self { connection })
+    }
+
+    /// 一条写语句，走和读一样的那个语句缓存。
+    ///
+    /// `Connection::execute` 内部每次都重新 prepare，也就是把同一段 SQL 重新
+    /// parse 一遍、重新 plan 一遍。省下的是微秒 —— 这些写都由人的动作触发，
+    /// 不在任何热路径上。真正的收益是只剩一条写路径：下一个人照着抄的时候，
+    /// 抄到的是对的那一种。
+    ///
+    /// 它此前住在 threads.rs 里。那里是它的第一个用户，不是它的家：Rust 的
+    /// 私有性按模块算，所以第二个模块要用它只有「再抄一份」这一条路 —— 而
+    /// 同一个类型上两个同名固有方法根本编译不过。一条写路径这句话，得由它
+    /// 住在这个类型自己的模块里来保证，不能靠下一个人自觉。
+    ///
+    /// # Errors
+    ///
+    /// 语句被拒时返回错误。
+    pub(crate) fn write(&self, sql: &str, params: &[&dyn ToSql]) -> Result<()> {
+        self.connection.prepare_cached(sql)?.execute(params)?;
+
+        Ok(())
     }
 }

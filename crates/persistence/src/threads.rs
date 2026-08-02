@@ -8,20 +8,6 @@ use crate::error::Result;
 use crate::store::{AgentStore, now};
 
 impl AgentStore {
-    /// 一条写语句，走和读一样的那个语句缓存。
-    ///
-    ///  `读那两条（list_threads、thread）一直用`  `prepare_cached，写这六条用的是 `
-    ///  `Connection::execute ` —— 它内部每次都重新 prepare，也就是把同一段 SQL
-    /// 重新 parse 一遍、重新 plan 一遍。同一个文件里两套约定，不是取舍，是漏了。
-    ///
-    /// 省下的是微秒：这六条都由人的动作触发，不在任何热路径上。真正的收益是
-    /// 只剩一条写路径 —— 下一个人照着抄的时候，抄到的是对的那一种。
-    fn write(&self, sql: &str, params: &[&dyn ToSql]) -> Result<()> {
-        self.connection.prepare_cached(sql)?.execute(params)?;
-
-        Ok(())
-    }
-
     /// Creates a thread and returns its identifier.
     ///
     /// # Errors
@@ -205,6 +191,18 @@ impl AgentStore {
     ///
     /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
+        /*
+         * 链接由这里解，不指望外键。
+         *
+         * SQLite 的外键约束默认是关的，要靠每条连接自己开 PRAGMA；0010 里那两个
+         * REFERENCES 因此只保证得了「写进去的引用是真的」，保证不了「删掉之后没
+         * 有悬空的引用」。把清理写在这里，一个删除动作一个主人，不依赖一个必须
+         * 逐连接确认的开关。
+         *
+         * 字节不在这一步删：它可能还挂在别的对话上，这正是内容寻址的意义。
+         * 没人要的那些由 unreferenced_attachments 一次扫出来。
+         */
+        self.release_attachments(id)?;
         self.write(
             "DELETE FROM threads WHERE id = ?1",
             rusqlite::params![id.to_string()],
