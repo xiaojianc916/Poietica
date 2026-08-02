@@ -352,8 +352,12 @@
 }
 
 /*
- * 行几何全部来自侧边栏声明的 --sidebar-* 令牌：会话行与上方五个导航行是同一
- * 种行，中线、内缩、行高、图标尺寸各只有一个所有者。
+ * 行几何全部来自设计系统的 --ui-row-* 一族：会话行与侧边栏上方五个导航行是
+ * 同一种行，中线、内缩、行高、图标尺寸各只有一个所有者。
+ *
+ * 这一族令牌曾经声明在 workspace 的 .workspace-sidebar 上，本包读得到它们靠的
+ * 是渲染树的巧合 —— 本包不依赖 workspace，两者同为特性层的平级包。现在它们在
+ * 第 0 层，这条依赖是名正言顺的。
  *
  * 此前这里把「中线 − 内缩 − 图标半宽」重算了一遍，并且给中线补了 24px 兜底 ——
  * 那是 workspace-layout.ts 里 navIconCenter 的影子副本，上游改了它不会跟，两段
@@ -374,7 +378,7 @@
   gap: var(--cp-pad-tile);
   overflow-y: auto;
   padding-block: var(--cp-mast-gap);
-  padding-inline: var(--sidebar-row-inset);
+  padding-inline: var(--ui-row-inset);
   --assistant-threads-action-size: 20px;
 }
 
@@ -384,8 +388,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-inline-start: var(--sidebar-row-lead);
-  padding-inline-end: var(--sidebar-row-trail);
+  padding-inline-start: var(--ui-row-lead);
+  padding-inline-end: var(--ui-row-trail);
 }
 
 /*
@@ -399,14 +403,14 @@
 }
 
 .assistant-threads__group > .assistant-threads__caption {
-  padding-inline-start: var(--sidebar-row-lead);
+  padding-inline-start: var(--ui-row-lead);
 }
 
 /* 读完之后才成立的一句话，说得和段标题一样轻。 */
 .assistant-threads__empty {
   margin: 0;
   padding-block: var(--cp-optical);
-  padding-inline-start: var(--sidebar-row-lead);
+  padding-inline-start: var(--ui-row-lead);
   font-size: var(--cp-font-caption);
   color: var(--cp-ink-subtle);
 }
@@ -468,12 +472,12 @@
 .assistant-thread {
   position: relative;
   display: flex;
-  block-size: var(--sidebar-row-height);
+  block-size: var(--ui-row-height);
   align-items: center;
-  border-radius: var(--sidebar-row-radius);
-  gap: var(--sidebar-row-gap);
-  padding-inline-start: var(--sidebar-row-lead);
-  padding-inline-end: var(--sidebar-row-trail);
+  border-radius: var(--ui-row-radius);
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--ui-row-lead);
+  padding-inline-end: var(--ui-row-trail);
   font-size: var(--cp-font-caption);
 }
 
@@ -497,7 +501,7 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: var(--sidebar-row-gap);
+  gap: var(--ui-row-gap);
   border: 0;
   padding: 0;
   background: transparent;
@@ -507,8 +511,8 @@
 }
 
 .assistant-thread__icon {
-  block-size: var(--sidebar-icon-size);
-  inline-size: var(--sidebar-icon-size);
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
   flex: none;
   color: var(--cp-ink-muted);
 }
@@ -1095,7 +1099,7 @@
   min-inline-size: 0;
   flex: 1;
   align-items: center;
-  gap: var(--sidebar-row-gap);
+  gap: var(--ui-row-gap);
 }
 
 .assistant-thread__rename-field {

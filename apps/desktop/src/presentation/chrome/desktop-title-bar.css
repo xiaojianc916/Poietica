@@ -1,7 +1,7 @@
 /*
  * 标题栏左上角开合区的几何。
  *
- * 只有一条中线：--workspace-sidebar-nav-icon-center，唯一真相在 packages/workspace
+ * 只有一条中线：--ui-row-icon-center，唯一真相在 packages/workspace
  * 的 workspace-layout.ts，由 WorkspaceFrame 挂到外壳根节点上，沿 DOM 继承到这里。
  * 本文件不写它的兜底值：兜底值就是第二份真相，上游改数它不跟，而且永远不报错。
  *
@@ -23,7 +23,7 @@
 .desktop-title-bar__toggle-zone {
   --titlebar-toggle-lead: max(
     0px,
-    calc(var(--workspace-sidebar-nav-icon-center) - var(--ui-control-height-sm) / 2)
+    calc(var(--ui-row-icon-center) - var(--ui-control-height-sm) / 2)
   );
 
   position: relative;

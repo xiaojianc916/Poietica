@@ -1,0 +1,46 @@
+/*
+ * 一行的形状。
+ *
+ * 会话列表的行与侧边栏导航项的行是同一种行，但它们分属 agent-ui 与 workspace
+ * 两个平级的特性包，而平级的包之间不得互相依赖 —— 所以「一行长什么样」这件事
+ * 只能由它们共同依赖的基座回答。
+ *
+ * 此前这一族令牌声明在 workspace 的 .workspace-sidebar 上，agent-ui 读得到它们
+ * 纯属渲染树的巧合：线程列表恰好被组合根挂进了那个子树。架构规则只扫 .ts/.tsx，
+ * 看不见这条 CSS 上的越界边，于是它一次也没有报过警。
+ *
+ * 中线不在这里：它是 workspace-layout.ts 的 navIconCenter，是产品版式而不是设计
+ * 系统的量（标题栏的开合按钮也要在 JS 里用到它），由 WorkspaceFrame 挂成
+ * --ui-row-icon-center。基座只提供把中线翻译成前导内缩的那一道公式，并且全仓只
+ * 翻译这一次。
+ *
+ * --ui-row-icon-center 刻意不给默认值。默认值就是第二份真相：它只在链子断掉时
+ * 生效，而链子断掉应当显形，不应当被一个陈旧的数字兜住。
+ */
+:root {
+  /*
+   * 内缩、行尾留白、栏间距与图标尺寸刻意保持字面像素，不接 --ui-space-* 那套
+   * rem 标尺：它们要和一个来自 JS 的像素中线做减法，一旦混用单位，图标能否对齐
+   * 就取决于根字号。等中线本身也变成 rem，这四个值才应当一起并入间距标尺。
+   *
+   * 16px 同理不写成 --ui-icon-unit 的推导式：那是一套 24 网格，只在 dpr 1.5 下
+   * 恰好等于 16px。要一档真正的 16 网格小图标，正确做法是引入一套 16 网格字形，
+   * 见 controls.css 里的同一段论证。
+   */
+  --ui-row-inset: 4px;
+  --ui-row-trail: 8px;
+  --ui-row-gap: 8px;
+  --ui-row-icon-size: 16px;
+
+  /* 行高与圆角是纯粹的控件度量，直接读既有标尺。 */
+  --ui-row-height: var(--ui-control-height-sm);
+  --ui-row-radius: var(--ui-radius-sm);
+
+  /* 图标格前的留白：中线 − 行背景内缩 − 图标半宽。 */
+  --ui-row-lead: calc(
+    var(--ui-row-icon-center) -
+    var(--ui-row-inset) -
+    var(--ui-row-icon-size) /
+    2
+  );
+}

@@ -44,7 +44,7 @@
   gap: 8px;
   inline-size: 100%;
   min-block-size: var(--ui-control-height-sm);
-  padding-inline: calc(var(--workspace-sidebar-nav-icon-center, 24px) - 12px) 8px;
+  padding-inline: calc(var(--ui-row-icon-center, 24px) - 12px) 8px;
   border: 0;
   border-radius: var(--ui-radius-md);
   background: transparent;

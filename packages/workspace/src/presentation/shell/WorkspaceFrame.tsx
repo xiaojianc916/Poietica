@@ -7,7 +7,7 @@ import './workspace-shell.css'
 type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
-  '--workspace-sidebar-nav-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
+  '--ui-row-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
 
   /*
    * 布局动画时长同时给 motion 的 transition 和 CSS 侧的过渡使用，两边共用
