@@ -39,6 +39,7 @@
     "perf:churn": "pnpm --filter @poietica/agent-timeline run churn",
     "perf:native": "cargo run --release -p poietica-agent-runtime-native --example frame_throughput",
     "perf:profile": "node scripts/perf/profile.mjs",
+    "perf:render": "node scripts/perf/render.mjs",
     "prepare": "node scripts/git-hooks/install.mjs",
     "release": "node release.mjs",
     "tauri": "node scripts/tauri.mjs",
