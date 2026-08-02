@@ -96,7 +96,7 @@ describe('transcript store', () => {
   })
 
   it('把帧交给持有这条会话的那条对话', () => {
-    const store = new TranscriptStore()
+    const { store, paint } = painted()
     const { port, emit } = fakePort()
 
     store.ensure(port)
@@ -106,13 +106,14 @@ describe('transcript store', () => {
     const untouched = store.read('thread_a')
 
     emit(started(1, 'sess_b'), 'sess_b')
+    paint()
 
     expect(store.read('thread_a')).toBe(untouched)
     expect(store.read('thread_b')).not.toBe(untouched)
   })
 
   it('没有登记过的会话，它的帧就地丢掉', () => {
-    const store = new TranscriptStore()
+    const { store, paint } = painted()
     const { port, emit } = fakePort()
 
     store.ensure(port)
@@ -121,13 +122,14 @@ describe('transcript store', () => {
     const untouched = store.read('thread_a')
 
     emit(started(1, 'sess_x'), 'sess_x')
+    paint()
 
     /* 不排队、不补投、不占内存：地址先于帧到达，等待没有意义。 */
     expect(store.read('thread_a')).toBe(untouched)
   })
 
   it('一轮结束不会带走这条会话的地址', () => {
-    const store = new TranscriptStore()
+    const { store, paint } = painted()
     const { port, emit } = fakePort()
 
     store.ensure(port)
@@ -135,11 +137,13 @@ describe('transcript store', () => {
 
     emit(started(1, 'sess_a'), 'sess_a')
     emit({ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }, 'sess_a')
+    paint()
 
     const ended = store.read('thread_a')
 
     /* 会话跨轮存活。此前这里是按轮次记的，第二轮的帧会变成无主的。 */
     emit(started(3, 'sess_a'), 'sess_a')
+    paint()
 
     expect(store.read('thread_a')).not.toBe(ended)
   })
@@ -155,18 +159,22 @@ describe('transcript store', () => {
       told += 1
     })
 
+    const before = store.read('thread_a')
+
     emit(started(1, 'sess_a'), 'sess_a')
 
     for (let seq = 2; seq <= 201; seq += 1) {
       emit(chunk(seq, '字'), 'sess_a')
     }
 
-    /* 一帧都没丢：两百零一帧全在状态里，而屏幕只被要求画一次。 */
-    expect(store.read('thread_a').timeline.lastSeq).toBe(201)
+    /* 读是纯的：这一拍还没到，快照就一动不动，界面也还没被叫醒。 */
+    expect(store.read('thread_a')).toBe(before)
     expect(told).toBe(0)
 
     paint()
 
+    /* 一帧都没丢：两百零一帧一趟折完，而屏幕只被要求画一次。 */
+    expect(store.read('thread_a').timeline.lastSeq).toBe(201)
     expect(told).toBe(1)
   })
 })

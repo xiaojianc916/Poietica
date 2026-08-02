@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import type { AcpAgentDescriptor } from './acp-agent-contract'
 import { acpAgents, defaultAcpAgent } from './acp-agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
@@ -92,10 +93,10 @@ const MAX_PROFILES = 32
  *
  * 每条规则都自带中文说法，因为这些话会出现在设置界面上。
  */
-const text = (max, message) =>
+const text = (max: number, message: string) =>
   v.pipe(v.string(message), v.minLength(1, message), v.maxLength(max, message))
 
-const envName = (message) => v.pipe(text(64, message), v.regex(ENV_NAME_PATTERN, message))
+const envName = (message: string) => v.pipe(text(64, message), v.regex(ENV_NAME_PATTERN, message))
 
 const ID_ISSUE = 'agent 标识只允许小写字母、数字与连字符，且以字母开头'
 const PROFILE_ISSUE = 'agent 档案无法解析'
@@ -142,7 +143,7 @@ const EnvelopeSchema = v.object({
  * 缺席与 null 在磁盘上都表示\"没有这一项\"，在类型里只留 undefined 一种：
  * 让两种空值一路往下走，就是让每个下游都判两次。
  */
-function shape(parsed) {
+function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
   return {
     id: parsed.id,
     cwd: parsed.cwd ?? undefined,
@@ -157,7 +158,7 @@ function shape(parsed) {
  * agents.json 可以被手改，所以它不可信 —— 但界面填不出档案：agent 名单是封闭的，
  * 用户在注册过的几家里选，选择本身只是一个 id。校验因此只面对磁盘这一个来源。
  */
-export function parseAcpAgentProfile(input) {
+export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
   const parsed = v.safeParse(ProfileSchema, input, { abortPipeEarly: true })
 
   if (!parsed.success) {
@@ -173,7 +174,7 @@ export function parseAcpAgentProfile(input) {
  * 单个坏档案只会被丢弃并记一条 issue，不会让整份 agents.json 解析失败——
  * 否则用户手滑一个字符就会丢掉全部 agent。这是 Zed 设置层的处理方式。
  */
-export function parseAcpAgentProfileSet(input) {
+export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse {
   const envelope = v.safeParse(EnvelopeSchema, input)
 
   if (!envelope.success) {
@@ -184,8 +185,8 @@ export function parseAcpAgentProfileSet(input) {
     }
   }
 
-  const issues = []
-  const profiles = []
+  const issues: string[] = []
+  const profiles: AcpAgentProfile[] = []
 
   for (const candidate of envelope.output.profiles.slice(0, MAX_PROFILES)) {
     const parsed = parseAcpAgentProfile(candidate)
@@ -259,7 +260,7 @@ export interface AcpAgentLaunch {
  * 进程的 protobuf（crates/proto/proto/ai.proto）都保持结构化，整个仓库一处都
  * 没有用 shell_words。
  */
-export function acpAgentLaunch(agent) {
+export function acpAgentLaunch(agent: AcpAgentDescriptor): AcpAgentLaunch {
   return { agentId: agent.id, program: agent.command, args: [...agent.args] }
 }
 
@@ -268,13 +269,13 @@ export function acpAgentLaunch(agent) {
  *
  * 它不再从描述符里抄七个字段过来 —— 那些字段现在只有一个产地。
  */
-export function builtinAcpAgentProfiles() {
+export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
   return acpAgents().map((agent) => {
     return { id: agent.id, cwd: undefined, env: {}, defaultConfigOptions: {} }
   })
 }
 
-export function builtinAcpAgentProfileSet() {
+export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
   return { profiles: builtinAcpAgentProfiles(), defaultProfileId: defaultAcpAgent().id }
 }
 
@@ -300,9 +301,11 @@ export interface AcpAgentProfileReconcile {
  *
  * 名单里有、磁盘上没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
  */
-export function reconcileAcpAgentProfiles(profiles) {
+export function reconcileAcpAgentProfiles(
+  profiles: readonly AcpAgentProfile[],
+): AcpAgentProfileReconcile {
   const known = new Set(acpAgents().map((agent) => agent.id))
-  const issues = []
+  const issues: string[] = []
 
   const kept = profiles.filter((profile) => {
     if (known.has(profile.id)) {
