@@ -1,6 +1,7 @@
 export {
   AiSurfaceIcon,
   ClockTenIcon,
+  GithubMark,
   LightbulbIcon,
   WebhookIcon,
 } from './components/icons/local-glyphs'

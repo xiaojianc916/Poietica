@@ -1,12 +1,4 @@
-import {
-  BookOpen,
-  Code,
-  CogFour,
-  ExternalLink,
-  Message,
-  QuestionCircle,
-  RefreshAlt,
-} from '@mynaui/icons-react'
+import { BookOpen, Code, CogFour, Download, QuestionCircle } from '@mynaui/icons-react'
 import {
   Button,
   DropdownMenu,
@@ -15,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  GithubMark,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -112,11 +105,13 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
       {/*
        * 不定宽：菜单由内容撑开，兜底是基元的 min-w-32。
        *
-       * 此前是 w-56（224px）。最长标签「开发者工具」5 个全角字 @ 14px 约 70px，
-       * 一行里确定的部分（popup padding 4×2 + item px 8×2 + 前导图标 16 + gap 8
-       * + 标签与尾标间 8 + 尾标 16）是 80px，合计约 150px —— 有 74px 是空的，就是
-       * 标签与右侧箭头之间那段空白。macOS 菜单、Fluent MenuFlyout、VS Code 的
-       * context menu 都是 min-width 兜底 + 内容撑开，没有一个定宽。
+       * 此前是 w-56（224px），空掉将近三分之一。macOS 菜单、Fluent MenuFlyout、
+       * VS Code 的 context menu 都是 min-width 兜底 + 内容撑开，没有一个定宽。
+       *
+       * 尾部箭头删掉之后，一行里确定的部分只剩 popup padding 4×2 + item px 8×2
+       * + 图标 16 + gap 8 = 48px，加最长标签「开发者工具」约 70px 是 118px ——
+       * 低于基元 min-w-32 的 128px。也就是说宽度现在由那条兜底决定，不由内容
+       * 决定；这条注释记的是事实，不是意图。
        *
        * sideOffset 也删了：基元默认 6，此处此前局部覆写成 8，没有理由。
        *
@@ -126,11 +121,16 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
        */}
       <DropdownMenuContent align="end" side="top">
         <DropdownMenuGroup>
-          <HelpMenuItem external icon={BookOpen} label="项目文档" />
+          <HelpMenuItem icon={BookOpen} label="项目文档" />
 
-          <HelpMenuItem external icon={RefreshAlt} label="检查更新" />
+          {/* Download 而不是 RefreshAlt：这一行的动作是取回，不是重载。 */}
+          <HelpMenuItem icon={Download} label="检查更新" />
 
-          <HelpMenuItem external icon={Message} label="Github" />
+          {/*
+           * 品牌标记，不是形近的 UI 字形。此前这里是 Message（对话气泡）—— 那不
+           * 是 GitHub 的图标，只是一个语义相近的字形在凑数。
+           */}
+          <HelpMenuItem icon={GithubMark} label="GitHub" />
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
@@ -146,28 +146,24 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
 interface HelpMenuItemProps {
   readonly label: string
   readonly icon: SurfaceIcon
-  readonly external?: boolean
   readonly onClick?: () => void
 }
 
-function HelpMenuItem({ label, icon: Icon, external = false, onClick }: HelpMenuItemProps) {
+function HelpMenuItem({ label, icon: Icon, onClick }: HelpMenuItemProps) {
   return (
     <DropdownMenuItem onClick={onClick}>
       <Icon aria-hidden="true" className="text-muted-foreground" />
 
-      <span className="flex-1">{label}</span>
-
       {/*
-       * 直接是一个图标，不套 DropdownMenuShortcut。
+       * 一行只有图标与标签。
        *
-       * 那个组件是给 ⌘K 这类键位文本准备的：text-xs 与 tracking-widest 作用在
-       * svg 上是空转，真正被用到的只有 ml-auto —— 而上面那个 flex-1 已经把尾标
-       * 推到右边了，连 ml-auto 都不需要。
+       * 此前每个外链行尾还挂一个 ExternalLink 箭头。连着三行都有同一个记号，等
+       * 于没有记号 —— macOS 的帮助菜单、Windows 设置里的链接项都不逐行打它。箭头
+       * 走了之后 external 只剩一个取值，prop 与分支一起走。
        *
-       * 尺寸仍是 16px：tokens/controls.css 只允许 16 / 32 两档，因为 S / 16 必须
-       * 在 dpr 1.5 下取整（14px → 21px 会糊）。减重交给 muted 色，不改尺寸。
+       * 标签上的 flex-1 也去掉了：它当初只是为了把箭头顶到右边。
        */}
-      {external ? <ExternalLink aria-hidden="true" className="text-muted-foreground" /> : null}
+      <span>{label}</span>
     </DropdownMenuItem>
   )
 }
