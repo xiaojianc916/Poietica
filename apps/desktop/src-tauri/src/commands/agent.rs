@@ -96,6 +96,12 @@ const NOT_BASE64: &str = "an attachment is not valid base64";
 /// 一句话里的图片多到序号装不下。实际到不了，但转换要有个说法。
 const TOO_MANY_IMAGES: &str = "too many attachments in one message";
 
+/// 账本里的一个计数，大到线上那一格装不下。
+///
+/// 同样到不了：四十亿条用户消息，或者一句话里四十亿张图。但静默截断是
+/// 不能接受的，所以它有一个说法。
+const COUNT_TOO_LARGE: &str = "a stored count does not fit the wire";
+
 /// 一句话只有图片时，这条对话叫什么。
 ///
 /// 标题取自第一句话，而第一句话可以没有字。此前那一行直接 take 一个空串，
@@ -1249,9 +1255,13 @@ pub struct AgentThreadAttachment {
     /// `poietica-asset://asset/{thread}/{sha256}`，可以直接进 img 的 src。
     pub url: String,
     /// 这是这条对话里第几条用户消息，从 0 数起。
-    pub turn: i64,
+    ///
+    /// 序号不为负，也不会大到 32 位装不下，所以线上就是 u32 —— 库里那一列
+    /// 是 i64 只因为 SQLite 的整数天生是 i64，那是存储的宽度，不是协议的。
+    /// specta 拒绝导出 i64 正是在守这条界线：JS 的 number 只精确到 2^53。
+    pub turn: u32,
     /// 那条消息里的第几张，从 0 数起。
-    pub ordinal: i64,
+    pub ordinal: u32,
 }
 
 /// A conversation that was just opened, and what its session offers.
@@ -1290,7 +1300,9 @@ pub struct AgentOpenedThread {
     ///
     /// 少了它,认领方就只能假定「第 0 轮就是第一条消息」—— 那对每一条迁移
     /// 之前就存在的对话都是错的。
-    pub prompts: i64,
+    ///
+    /// 与上面那两格同一个宽度，同一个理由。
+    pub prompts: u32,
 }
 
 /// Lists the stored conversations, newest first.
@@ -1414,6 +1426,8 @@ pub async fn agent_open_thread(
     })
     .await?;
 
+    let prompts = counted(prompts)?;
+
     Ok(AgentOpenedThread {
         thread,
         selectors: offered.into_iter().map(restate).collect(),
@@ -1514,11 +1528,19 @@ async fn deliver_attachments(
         .map(|attachment| {
             Ok(AgentThreadAttachment {
                 url: asset_protocol_url(&session, &attachment.hash).map_err(asset)?,
-                turn: attachment.turn,
-                ordinal: attachment.ordinal,
+                turn: counted(attachment.turn)?,
+                ordinal: counted(attachment.ordinal)?,
             })
         })
         .collect()
+}
+
+/// 库里的一个计数，缩成线上那一格。
+///
+/// 只有这一处做这件事。SQLite 交回来的一律是 i64，而这份 IPC 面上没有
+/// 任何一个 64 位整数 —— 边界在这里，不在别处。
+fn counted(value: i64) -> Result<u32> {
+    u32::try_from(value).map_err(|_overflow| Error::Internal(COUNT_TOO_LARGE.to_owned()))
 }
 
 /// 交付失败，说给屏幕听的那一句。

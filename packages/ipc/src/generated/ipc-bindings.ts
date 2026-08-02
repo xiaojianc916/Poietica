@@ -311,14 +311,19 @@ async diagnosticsTakePreviousCrash() : Promise<NativeCrashReport | null> {
  * 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
  * 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
  * 
- * 发行构建里它什么也不做。`open_devtools` 被 tauri 的 devtools feature 门控，
- * 而那个 feature 只在 debug 构建里自动开 —— 发行版里这个方法根本不存在。要让它
- * 存在，就得把整套开发者工具打进发给用户的包：一个 decorations: false 的成品
- * 应用，不该让用户能翻前端、改 DOM、看 IPC 流量。
+ * 两种构建里行为相同。
  * 
- * 命令本身两种构建都在。用 `#[cfg]` 把它从 `invoke_handler` 上摘掉的话，生成的
- * 绑定会随构建种类变形状，渲染层就得分支去猜自己跑在哪一种里。IPC 契约不随构建
- * 种类变。
+ * 此前这里有一个 `#[cfg(debug_assertions)]`，发行构建走的是一条 `drop` —— 帮助
+ * 菜单里那一项在装出来的应用里按下去静悄悄地什么也不发生。当时给出的理由是「不
+ * 该让用户能翻前端、改 DOM、看 IPC 流量」，那个理由站不住：前端代码原封不动躺在
+ * 安装包里，谁都能解压看，而这个仓库本身就是公开的。开发者工具不增加任何暴露，
+ * 它只是一个查看器。
+ * 
+ * 横向看，发行版带开发者工具是桌面应用的常规做法：VS Code 的 Help ▸ Toggle
+ * Developer Tools、Obsidian 的 Ctrl+Shift+I、Slack、Discord、Figma 桌面版都带。
+ * 
+ * 另一道闸在根 Cargo.toml：tauri 的 devtools feature 只在 debug 构建里自动开，
+ * 不显式写上它，这个方法在发行构建里根本不存在。两处要一起看。
  */
 async windowOpenDevtools(label: string) : Promise<void> {
     await TAURI_INVOKE("window_open_devtools", { label });
@@ -911,7 +916,29 @@ events: JsonValue[];
  * 空数组自己说不出区别：刚建的对话与一条打不开的旧对话长得一样。界面
  * 要据此决定是画入口提示，还是画一句"这段历史在某某手里"。
  */
-history: AgentHistory }
+history: AgentHistory; 
+/**
+ * 这条对话挂着的图片，字节已经装回交付注册表，URL 拿去就能用。
+ * 
+ * 它不来自 agent。上面那段经过是 agent 交还的，而图片是这台机器上用户
+ * 自己的文件：agent 收到的是一份 base64 副本，它没有义务交还，多数 CLI
+ * 也确实不交还 —— 所以这一格由本地账本回答（见 persistence 的
+ * attachments.rs）。
+ */
+attachments: AgentThreadAttachment[]; 
+/**
+ * 这条对话至今问过多少句话。
+ * 
+ * 上面那些附件的 turn 是照着它量的,而且是从末尾量起:计数为 N,就表示
+ * turn 盖住的是最后 N 条用户消息。渲染层拿它去减自己数出来的条数,得到
+ * 的差就是要跳过的那一段前史(0011 之前的那些话)。
+ * 
+ * 少了它,认领方就只能假定「第 0 轮就是第一条消息」—— 那对每一条迁移
+ * 之前就存在的对话都是错的。
+ * 
+ * 与上面那两格同一个宽度，同一个理由。
+ */
+prompts: number }
 /**
  * A conversation being held at the top of the list, or released.
  */
@@ -1059,6 +1086,33 @@ updatedAt: string;
  * Whether it is held at the top of the list.
  */
 pinned: boolean }
+/**
+ * 这条对话挂着的一张附件，以及它该出现在哪里。
+ * 
+ * URL 由这一侧拼好交出去（`asset_protocol_url`），渲染层不自己拼：它的形状
+ * 是协议的事，多一个人知道就多一处会漂移。
+ * 
+ * 位置由「第几条用户消息、这条消息里的第几张」两个数给出，而不是消息 id ——
+ * 这个程序不存对话内容，历史由 agent 交还，那份历史里的 id 不归我们发。
+ * 能由两侧各自数出同一个答案的，只有序号（见迁移 0010 与 0011）。
+ */
+export type AgentThreadAttachment = { 
+/**
+ * `poietica-asset://asset/{thread}/{sha256}`，可以直接进 img 的 src。
+ */
+url: string; 
+/**
+ * 这是这条对话里第几条用户消息，从 0 数起。
+ * 
+ * 序号不为负，也不会大到 32 位装不下，所以线上就是 u32 —— 库里那一列
+ * 是 i64 只因为 SQLite 的整数天生是 i64，那是存储的宽度，不是协议的。
+ * specta 拒绝导出 i64 正是在守这条界线：JS 的 number 只精确到 2^53。
+ */
+turn: number; 
+/**
+ * 那条消息里的第几张，从 0 数起。
+ */
+ordinal: number }
 /**
  * A conversation an action applies to, and nothing else.
  */
