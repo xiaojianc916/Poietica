@@ -1217,3 +1217,15 @@
 .timeline-prose.timeline-tool__prose :not(pre) > code {
   background: var(--cp-hover);
 }
+
+/*
+ * 封口段与在写段是同一篇文章。
+ *
+ * 拆成两个渲染实例是为了不重复解析，不是为了在版面上多一层。display: contents 让
+ * 这两个包裹元素在盒模型里消失，两段的块级子元素因此仍是 .timeline-prose 的直接
+ * 子元素 —— 既有的选择器、相邻边距合并、首尾子元素的 :first-child / :last-child
+ * 之外的一切，一个字都不用改。切点在屏幕上不存在。
+ */
+.timeline-prose__segment {
+  display: contents;
+}

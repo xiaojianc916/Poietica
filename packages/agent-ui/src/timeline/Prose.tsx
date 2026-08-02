@@ -3,7 +3,7 @@ import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -12,6 +12,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
+import { sealedSplit } from './split-stream'
 
 /*
  * 四个官方插件，一条管线。
@@ -36,6 +37,19 @@ import { cx } from '../primitives/class-names'
 const MATH = createMathPlugin({ singleDollarTextMath: true })
 
 const PLUGINS = { cjk, code, math: MATH, mermaid }
+
+/*
+ * 还在写的那一段少一个插件。
+ *
+ * mermaid 的 render 是一次同步的图布局（dagre），单次以十毫秒计。一个还没闭合的
+ * ```mermaid 围栏落在在写段里，就是每一帧都拿一份不完整的源码去跑一次图布局 ——
+ * 而这一帧的产物必然在下一帧作废。围栏闭合、这一块被封口之后，它才第一次真正需要
+ * 被画出来，那时它走的是 PLUGINS。
+ *
+ * 这不是把能力关掉，是把它挪到唯一有意义的那一刻。code 与 math 留着：前者对未闭合
+ * 围栏只是着色，后者对未配对的 $ 只是不认，两者都不做布局。
+ */
+const LIVE_PLUGINS = { cjk, code, math: MATH }
 
 /*
  * How arriving text is revealed.
@@ -161,22 +175,65 @@ export interface ProseProps {
  * 三个 prop 全是原始值，默认的浅比较因此就是精确比较：变了的那一行照常重画，
  * 没变的那些一次都不动。
  */
+/*
+ * 已经封口的那一段。
+ *
+ * 它的输入是一个字符串，而这个字符串在整段回答期间只会变几次 —— 每封口一块变一次。
+ * memo 的浅比较因此就是精确比较：思考链再长，这一半在两次封口之间一帧都不重画。
+ *
+ * 走静态管线，因为它就是静态的：不切块、不修补、不为未闭合标记预留过渡，代码块走
+ * 官方那条优化过的静态路径。也不带 animated —— 一段早已写完的文字不需要被再写一遍，
+ * 而逐词的 filter 动画是这个界面里唯一会按词数提层的东西。
+ */
+const Sealed = memo(function Sealed({ text }: { readonly text: string }) {
+  return (
+    <Streamdown
+      className="timeline-prose__segment"
+      controls={CONTROLS}
+      isAnimating={false}
+      lineNumbers={false}
+      mode="static"
+      plugins={PLUGINS}
+      translations={TRANSLATIONS}
+    >
+      {text}
+    </Streamdown>
+  )
+})
+
 export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
+  /*
+   * 一次线性扫描，没有解析。
+   *
+   * 切点只看行首字符与围栏配平，代价与文本长度成正比而常数极小。它换掉的是同样与
+   * 长度成正比、常数大三个量级的一次完整词法分析加一棵几千节点的 VDOM。
+   *
+   * 封口只发生在流式期间：一条早已结束的消息整篇都是封口的，拆开它只会凭空多出一次
+   * 切分与一个渲染实例，而 memo 本来就挡住了它的重渲染。
+   */
+  const [sealed, live] = useMemo(
+    (): readonly [string, string] => (isStreaming ? sealedSplit(text) : ['', text]),
+    [isStreaming, text],
+  )
+
   return (
     <div
       className={cx('timeline-prose', className)}
       data-streaming={isStreaming ? 'true' : undefined}
     >
+      {sealed === '' ? null : <Sealed text={sealed} />}
+
       <Streamdown
-        animated={ANIMATION}
+        {...(isStreaming ? { animated: ANIMATION } : {})}
+        className="timeline-prose__segment"
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
         mode={isStreaming ? 'streaming' : 'static'}
-        plugins={PLUGINS}
+        plugins={isStreaming ? LIVE_PLUGINS : PLUGINS}
         translations={TRANSLATIONS}
       >
-        {text}
+        {live}
       </Streamdown>
     </div>
   )
