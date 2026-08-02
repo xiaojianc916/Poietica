@@ -150,11 +150,27 @@
    * 两个伪元素占着位、跟着 flex 伸缩，但一个像素都没有画过。那里的注释写着
    * 「两侧的线自己伸缩」，它描述的是意图，不是事实。
    *
-   * 取危险色兑 30%：同一族里 --cp-timeline-diff-old 用 12%，那是一整块底色；
-   * 一根 1px 的线要读出同样的份量需要更高的 alpha，这是面积与感知的关系，
-   * 不是两个随手挑的数。渐变从透明推到它，所以 30% 只落在紧贴文字的那一端。
+   * 取值不兑透明。此前是危险色兑 30% 透明，而它没有参照 —— 同一张表里
+   * --cp-hairline 就是 var(--ui-divider-subtle)，满强度，本仓每一条分隔线
+   * 都用它。一根线兑掉七成墨，再叠上下面那段渐变，全线平均 alpha 只剩一成半，
+   * 而线高只有 1px：它有几何、有位置、有伸缩，就是画不出来。
+   *
+   * 所以它是 --cp-hairline 的报错色版本：分隔线色打底，调进危险色的色相。
+   * 份量与同屏其它分隔线一致，深浅两套主题各自成立。淡出交给渐变，不写进颜色 ——
+   * 一个量只有一个所有者。
    */
-  --cp-error-rule: color-mix(in srgb, var(--ui-destructive) 30%, transparent);
+  --cp-error-rule: color-mix(in srgb, var(--ui-destructive) 45%, var(--ui-divider-subtle));
+
+  /*
+   * 两端渐隐的长度。
+   *
+   * 渐隐是为了让线不撞上容器边缘，不是为了让整条线变淡。此前那两条渐变没有
+   * 色标位置，插值于是铺满伪元素的整个宽度 —— 阅读栏是 --cp-grid: 768px，
+   * 每侧约 300px，那不是一段渐隐，那是把整条线抹掉。
+   *
+   * 2.5rem 约合两个半字身：足够让端头软下来，又短到中间那段仍是一条实线。
+   */
+  --cp-error-rule-fade: 2.5rem;
   --cp-diff-added-text: var(--ui-success);
   --cp-diff-removed-text: var(--ui-destructive);
   --cp-timeline-diff-old: color-mix(in srgb, var(--ui-destructive) 12%, transparent);

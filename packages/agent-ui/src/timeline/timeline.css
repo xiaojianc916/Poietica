@@ -729,12 +729,23 @@
   block-size: 1px;
 }
 
+/*
+ * 色标写位置，渐隐才有长度。
+ *
+ * 不写位置时，第二个色标默认落在 100% —— 也就是伸缩之后的整段宽度上，
+ * 一条 300px 的线要爬完全程才到达满强度，平均下来只有一半的墨。写上位置，
+ * 淡出被关进外侧那 --cp-error-rule-fade 之内，其余是实线。
+ */
 .timeline-error::before {
-  background: linear-gradient(to right, transparent, var(--cp-error-rule));
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--cp-error-rule) var(--cp-error-rule-fade)
+  );
 }
 
 .timeline-error::after {
-  background: linear-gradient(to left, transparent, var(--cp-error-rule));
+  background: linear-gradient(to left, transparent, var(--cp-error-rule) var(--cp-error-rule-fade));
 }
 
 /* 摘要只占一行：min-inline-size: 0 是 flex 子项允许自己被截断的前提。 */
