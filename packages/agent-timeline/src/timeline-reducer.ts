@@ -673,7 +673,7 @@ function textOf(content: AcpContentBlock): string {
  * （Authentication required、配额用尽）。此前有后者时就把前者丢掉 —— 而排查
  * 一次失败要的恰好是两者的关系。重复的不写两遍，不重复的一句不删。
  */
-function preferAgent(function preferAgent(message: string, diagnostics?: string): string {
+function preferAgent(message: string, diagnostics?: string): string {
   const said = diagnostics?.trim() ?? ''
   const ours = message.trim()
 
