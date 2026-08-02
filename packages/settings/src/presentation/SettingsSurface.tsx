@@ -1,4 +1,4 @@
-import { Box } from '@mynaui/icons-react'
+import { Box, CogFour } from '@mynaui/icons-react'
 import {
   Button,
   ErrorState,
@@ -103,8 +103,7 @@ const SECTIONS: readonly SectionDefinition[] = [
 const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['general', 'appearance'],
   ['models', 'keymap', 'hooks', 'tools'],
-  ['privacy'],
-  ['about'],
+  ['privacy', 'about'],
 ]
 
 function findSection(id: SettingsSection): SectionDefinition {
@@ -707,6 +706,10 @@ type GlyphComponent = ComponentType<{
  * GlyphSection 里的分类直接用主侧边栏的字形组件：Hook 在主导航里已经有确定的
  * 画法，设置里再描一份 path 就是第二个来源，两处迟早对不上。
  *
+ * 「通用」曾经就是这句话的反例。侧边栏底部那颗齿轮是 CogFour，而这里另手描了
+ * 一份齿轮 path —— 同一个「设置」在同一个产品里有两个画法，粗细、齿数、内圆
+ * 半径都对不上，而且没有任何机制会在它们分叉时报错。现在它也从库里取同一枚。
+ *
  * 图标不从 packages/workspace 的导航注册表取：features-settings 依赖另一个
  * feature 会被架构测试拦下。两边共同的下游是 design-system，所以两处引用的是
  * 同一个组件，而不是同一张图的两份摹本。
@@ -714,17 +717,18 @@ type GlyphComponent = ComponentType<{
  * 拆成两张 Record 而不是在组件里写 if：新增分类时 PathSection 一侧会缺键，
  * typecheck 阶段就会失败，而不是运行时渲染出一个空图标。
  */
-type GlyphSection = 'hooks' | 'tools'
+type GlyphSection = 'general' | 'hooks' | 'tools'
 
 type PathSection = Exclude<SettingsSection, GlyphSection>
 
 const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
+  general: CogFour,
   hooks: WebhookIcon,
   tools: Box,
 }
 
 function isGlyphSection(section: SettingsSection): section is GlyphSection {
-  return section === 'hooks' || section === 'tools'
+  return section === 'general' || section === 'hooks' || section === 'tools'
 }
 
 function SectionIcon({ section }: { readonly section: SettingsSection }) {
@@ -735,12 +739,6 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
   }
 
   const paths: Record<PathSection, ReactNode> = {
-    general: (
-      <>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
-      </>
-    ),
     appearance: (
       <>
         <circle cx="12" cy="12" r="4" />

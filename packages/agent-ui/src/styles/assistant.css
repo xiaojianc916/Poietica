@@ -1206,3 +1206,40 @@
   block-size: var(--cp-mark);
   inline-size: var(--cp-mark);
 }
+
+/*
+ * 还没有答案的那几帧。
+ *
+ * 尺寸全部来自上面那两条既有规则 —— 占位和真图是同一个类，所以它们本来就
+ * 一样大，这里不再写第二份几何。只补一个 display：img 是替换元素，天生吃
+ * block-size / inline-size；span 不是，不给它 display 就会塌成零高。
+ *
+ * 画的是一枚极淡的圆，不是任何一家的标志：这一刻软件确实还不知道对面是谁，
+ * 界面就应该照实说。
+ */
+.assistant-provider-icon[data-pending="true"] {
+  display: inline-block;
+  border-radius: 50%;
+  background: currentcolor;
+  opacity: 0.08;
+}
+
+/*
+ * 占位是 span、真图是 img，标签不同，所以答案到达时 React 换的是节点本身，
+ * 入场动画因此每条对话只播一次，不会跟着任何一帧转录重放。
+ */
+img.assistant-provider-icon {
+  animation: assistant-mark-in var(--cp-motion-swift) var(--cp-motion-ease) both;
+}
+
+@keyframes assistant-mark-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img.assistant-provider-icon {
+    animation: none;
+  }
+}

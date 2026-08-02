@@ -22,17 +22,33 @@ export interface ProviderIconProps {
 }
 
 export function ProviderIcon({ className, label = '', provider }: ProviderIconProps) {
+  const shell =
+    className === undefined ? 'assistant-provider-icon' : `assistant-provider-icon ${className}`
+
+  /*
+   * 还不知道，和知道了但不认识，不是同一件事。
+   *
+   * 上一版把两者合并进 providerIconUrl 的 key.length === 0 分支，于是选择器
+   * 还没从 agent 那边认领回来的那几帧里，开场那张脸画的是 generic —— 不是
+   * 「正在加载」，是一个确定的错误答案，等真答案到了再当着人的面改口。开场
+   * 那枚标记有 --cp-mark 那么大，这一跳无处可藏。
+   *
+   * 未定就占位：等尺寸、不发请求、不跳版。generic 收回它本来的职责，只答
+   * 「这家我们没有图」—— 也就是这个文件顶上那段注释一直说的那件事。
+   */
+  if (provider === undefined) {
+    return <span aria-hidden="true" className={shell} data-pending="true" />
+  }
+
   const source = providerIconUrl(provider)
 
   return (
     <img
       alt={label}
       aria-hidden={label.length === 0}
-      className={
-        className === undefined ? 'assistant-provider-icon' : `assistant-provider-icon ${className}`
-      }
+      className={shell}
       data-fallback={source === PROVIDER_ICON_FALLBACK}
-      data-provider={provider ?? 'unknown'}
+      data-provider={provider}
       draggable={false}
       src={source}
     />

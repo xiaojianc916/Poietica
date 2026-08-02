@@ -40,7 +40,12 @@ export function SubField({
       <div className="models-row__control">
         <input
           aria-label={label}
-          autoComplete="off"
+          /*
+           * 密码字段上的 autoComplete="off" 不被 Chromium 尊重（WebView2 同源），
+           * 于是密码管理器照样接管这一格：自动填充、保存密码气泡，以及它往框里
+           * 塞的那颗原生按钮。new-password 是官方留给「这里不要回填」的那个值。
+           */
+          autoComplete={secret ? 'new-password' : 'off'}
           className="models-input models-input--inline"
           disabled={disabled}
           onChange={(event) => {

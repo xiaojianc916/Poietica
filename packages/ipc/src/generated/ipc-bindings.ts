@@ -621,13 +621,6 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
-/**
- * 不要给子进程开控制台窗口。
- * 
- * GUI 进程 spawn 一个控制台程序时，Windows 会给它开一个窗口：刷新一次模型清单就闪一
- * 次黑框，添加一次 provider 再闪一次。Zed 的 crates/util/src/command.rs 对每一条命令
- * 都设这个标志，理由相同。
- */
 export type AgentCliRequest = { 
 /**
  * 用于算出受控 home，也用于从档案里查出该执行哪个程序。

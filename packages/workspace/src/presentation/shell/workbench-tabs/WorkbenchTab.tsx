@@ -1,4 +1,4 @@
-import { X } from '@mynaui/icons-react'
+import { Planet, X } from '@mynaui/icons-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench'
 import { describeWorkspaceSurface, type SurfaceIcon } from '../surface-registry'
@@ -175,10 +175,19 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
   )
 }
 
+/*
+ * 对话在标签条上有自己的一枚字形。
+ *
+ * 其余表面仍然从注册表取图 —— 那里是标题、描述与图标的唯一事实来源，侧边栏与
+ * 入口都读它，所以这里不去改它，只在标签条这一处做例外，并且把例外写明白。
+ *
+ * 两条分支都算「AI 对话标签」：kind === 'conversation' 是一条具体的对话，
+ * surfaceId === 'ai' 是那张还没开口的入口页。它们在标签条上是同一种东西，
+ * 只认其中一条会让两张标签长得不一样。
+ */
 function resolveTabIcon(model: WorkbenchTabViewModel): SurfaceIcon {
-  /* 对话标签沿用 AI 表面的图标：同一个目标只允许有一个样子。 */
-  if (model.kind === 'conversation') {
-    return describeWorkspaceSurface('ai').icon
+  if (model.kind === 'conversation' || model.surfaceId === 'ai') {
+    return Planet
   }
 
   return describeWorkspaceSurface(model.surfaceId).icon
