@@ -30,6 +30,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@poietica/agent-timeline": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:tauri",
     "@types/node": "catalog:",

@@ -8,12 +8,11 @@
  * 自己拉 vite、自己开 Edge（Windows 上和 WebView2 是同一个 Chromium 引擎）、
  * 自己接 CDP、自己采样、自己收摊。
  *
- * 默认无头有三个理由，都是上一轮踩出来的：有头启动会被 Chromium 的 singleton
- * 转交给用户已经在跑的那个实例，于是 --user-data-dir 失效、扩展被带进来；扩展
- * 弹出的标签页会把谐调器挤到后台；而后台标签页会被停发 requestAnimationFrame。
- * 无头没有可见性概念，也不载入扩展。
+ * 默认无头有三个理由，都是踩出来的：有头启动会被 Chromium 的 singleton 转交给
+ * 用户已经在跑的那个实例，于是 --user-data-dir 失效、扩展被带进来；扩展弹出的
+ * 标签页会把谐调器挤到后台；后台标签页会被停发 requestAnimationFrame。
  *
- * 节拍现在由这边推进：一次 evaluate 让页面同步跑完整轮，不依赖浏览器调度器。
+ * 节拍由这边推进：一次 evaluate 让页面同步跑完整轮，不依赖浏览器调度器。
  */
 
 import { spawn } from 'node:child_process'
@@ -34,6 +33,13 @@ const CANDIDATES = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
 ]
+
+/**
+ * vite 的编译失败只会以控制台消息的形式到达 —— 页面本身没崩，所以 error 事件
+ * 不触发，__perfError 也不会被写。看见这些字样就等于已经拿到死因，再等下去
+ * 纯属浪费；上一轮明明第一秒就打出了报错，却仍旧空等了六十秒。
+ */
+const COMPILE_FAILURE = ['Internal Server Error', 'Failed to resolve import', 'Pre-transform error']
 
 /** Windows 上 pnpm 拉起的是一棵进程树，得连根拔。 */
 function terminate(child) {
@@ -129,15 +135,26 @@ async function main() {
 
     await client.ready
 
+    let broken = null
+
     /* 先挂监听，再 enable，最后重新加载 —— 顺序反了就收不到启动期的报错。 */
     client.on('Runtime.exceptionThrown', (params) => {
       const details = params.exceptionDetails
+      const text = details.exception?.description ?? details.text
 
-      console.error('page threw: ' + (details.exception?.description ?? details.text))
+      broken = broken ?? text
+
+      console.error('page threw: ' + text)
     })
 
     client.on('Runtime.consoleAPICalled', (params) => {
-      console.log('page: ' + params.args.map(describe).join(' '))
+      const text = params.args.map(describe).join(' ')
+
+      if (COMPILE_FAILURE.some((needle) => text.includes(needle))) {
+        broken = broken ?? text
+      }
+
+      console.log('page: ' + text)
     })
 
     await client.send('Runtime.enable')
@@ -146,6 +163,10 @@ async function main() {
 
     /* 确认连的确实是谐调器页，而不是碰巧存在的别的标签页。 */
     const ready = await until(async () => {
+      if (broken !== null) {
+        return { ready: false, error: broken }
+      }
+
       const { result } = await client.send('Runtime.evaluate', {
         expression:
           'JSON.stringify({ ready: window.__perfReady === true, error: window.__perfError ?? null })',
@@ -158,14 +179,14 @@ async function main() {
     }, 60_000)
 
     if (ready === undefined) {
-      console.error('the harness never became ready')
+      console.error('the harness never became ready, and never said why')
 
       process.exitCode = 1
 
       return
     }
 
-    if (ready.error !== null) {
+    if (ready.error !== null && ready.error !== undefined) {
       console.error('')
       console.error('the harness failed while loading:')
       console.error(ready.error)
