@@ -57,6 +57,9 @@ pub const CRASH_REPORT_FILE_NAME: &str = "last-native-crash.json";
 /// 路径无论如何都会作废，两件事共用同一次断裂，用户只承受一次。
 pub const AGENT_DATABASE: &str = "agent.sqlite3";
 
+/// 对话附件的字节根，位于 `app_local_data_dir` 之下。内容寻址。
+const ATTACHMENTS_DIRECTORY: &str = "attachments";
+
 /// 按 agent 隔离的私有数据根，位于 `app_local_data_dir` 之下。
 const AGENTS_DIRECTORY: &str = "agents";
 
@@ -110,4 +113,28 @@ fn data_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 平台目录无法解析、或数据目录无法创建时返回错误。
 pub fn agent_database<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(data_root(app)?.join(AGENT_DATABASE))
+}
+
+/// 附件字节的根，内容寻址，位于 `app_local_data_dir` 之下。
+///
+/// 与对话库同一个判据：大的、与这台机器绑定的数据。一次会话里贴进来的图片
+/// 可以是几十 MB，让它们走 %APPDATA% 的漫游同步，代价是每一次登录注销都要
+/// 把它们整份搬一遍。
+///
+/// 目录里的东西是内容寻址的：`<root>/<hash 前两位>/<hash>`。两级散列不是
+/// 装饰，单目录堆上几万个条目之后，NTFS 的枚举与创建都会明显变慢 ——
+/// git 的 objects、npm 的 cache、浏览器的 cache 用的都是这一套。
+///
+/// 谁清理它：字节不跟着对话删。删对话只解开账本里的链接，字节留给启动时
+/// 的回收，因为同一张图可能还挂在别的对话上。
+///
+/// # Errors
+///
+/// 平台目录无法解析、或目录无法创建时返回错误。
+pub fn attachments_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let directory = data_root(app)?.join(ATTACHMENTS_DIRECTORY);
+
+    std::fs::create_dir_all(&directory)?;
+
+    Ok(directory)
 }

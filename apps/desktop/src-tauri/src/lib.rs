@@ -14,6 +14,7 @@
 )]
 
 pub mod asset_protocol;
+mod attachments;
 pub mod bootstrap;
 pub mod commands;
 pub mod diagnostics;
