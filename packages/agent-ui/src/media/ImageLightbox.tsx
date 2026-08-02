@@ -1,9 +1,9 @@
-import Lightbox, { type SlideImage } from 'yet-another-react-lightbox'
+import Lightbox, { type Slide, type SlideImage } from 'yet-another-react-lightbox'
 import Counter from 'yet-another-react-lightbox/plugins/counter'
 import Zoom from 'yet-another-react-lightbox/plugins/zoom'
 import 'yet-another-react-lightbox/plugins/counter.css'
 import 'yet-another-react-lightbox/styles.css'
-import { useCallback, useMemo, useState } from 'react'
+import { type CSSProperties, useCallback, useMemo, useState } from 'react'
 import './image-lightbox.css'
 
 /** A previewable image, typically produced from a composer attachment. */
@@ -25,14 +25,26 @@ export type ImageLightboxProps = {
   onIndexChange: (index: number | null) => void
 }
 
-const toSlides = (images: readonly PreviewableImage[]): SlideImage[] =>
-  images.map((image) => ({
-    src: image.src,
-    alt: image.alt ?? '',
-    width: image.width,
-    height: image.height,
-    description: image.caption,
-  }))
+/**
+ * Build lightbox slides from attachments.
+ *
+ * `SlideImage` declares `width?: number` (without `| undefined`), and this
+ * workspace compiles with `exactOptionalPropertyTypes`. An absent dimension must
+ * therefore be an absent *key*, not a key holding `undefined` — hence the
+ * conditional spreads instead of a cast or a widened local type.
+ */
+const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
+  images.map((image): SlideImage => {
+    const { width, height, caption } = image
+
+    return {
+      src: image.src,
+      alt: image.alt ?? '',
+      ...(width !== undefined && { width }),
+      ...(height !== undefined && { height }),
+      ...(caption !== undefined && { description: caption }),
+    }
+  })
 
 /**
  * Fullscreen image preview. Controlled: the caller owns the open index, so the
@@ -92,9 +104,7 @@ export function ImageThumbnailGrid({ images, size, label }: ImageThumbnailGridPr
       <ul
         aria-label={label ?? 'Attached images'}
         className="poietica-image-grid"
-        style={
-          size ? ({ ['--poietica-thumb-size']: `${size}px` } as React.CSSProperties) : undefined
-        }
+        style={size ? ({ ['--poietica-thumb-size']: `${size}px` } as CSSProperties) : undefined}
       >
         {images.map((image, position) => (
           <li className="poietica-image-grid__item" key={image.id ?? image.src}>
