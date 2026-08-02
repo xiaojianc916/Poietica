@@ -100,7 +100,7 @@ export function agentChosen(controlId: string): string | undefined {
  * 上游 hasUsableConfiguredDefaultModel 第一行就是 defaultModel 缺席时 return false，
  * 于是配置文件里的 api_key 整条不算数。
  *
- * 挑第一个是稳定的：快照在 agent-provider-state 里按 provider id 排过序。挑出来的
+ * 挑第一个是稳定的：快照在 provider-state 里按 provider id 排过序。挑出来的
  * 只是个起点，不是偏好 —— 人拨一下它就变了。
  */
 function ensureDefaultModel(): void {

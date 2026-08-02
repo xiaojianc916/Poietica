@@ -97,21 +97,13 @@ export interface AcpAgentDescriptor {
    */
   readonly registryKeyVar?: string | undefined
   /**
-   * 权限选项按钮上写什么。
-   *
-   * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是
-   * 分类，一次请求里会重复，拿它当标签会让几个不同的选项显示成同一个词。
-   * 查不到的一律照原文显示，所以这张表只需要列出想改口的那几条。
-   *
-   * 各家不同的只是这张表，通用层查表那一行对谁都一样 —— 变的是值，所以是声明。
-   */
-  /**
    * 问这一家要「已配置的 provider 与模型」时的完整子命令序列。
    *
    * 各家 CLI 的子命令名不同（kimi 是 provider list --json），而通用层拿它去
    * 执行的那一行对谁都一样 —— 变的是值，所以是声明。
    *
-   * 此前它是 agent-provider-state.ts 里的一个模块常量，也就是说通用层写死了
+   * 此前它是 provider 解析那一侧的一个模块常量（那一侧今天是
+   * @poietica/agent-providers 的 provider-state.ts），也就是说通用层写死了
    * 一家的子命令名。缺席表示这一家没有这种查询，界面就不给这个入口。
    */
   readonly providerListArgs?: readonly string[] | undefined
@@ -123,6 +115,15 @@ export interface AcpAgentDescriptor {
    */
   readonly syntheticProviderId?: string | undefined
   readonly install?: AcpAgentInstall | undefined
+  /**
+   * 权限选项按钮上写什么。
+   *
+   * 键是这一家送来的 name（协议里的 human-readable label），不是 kind：kind 是
+   * 分类，一次请求里会重复，拿它当标签会让几个不同的选项显示成同一个词。
+   * 查不到的一律照原文显示，所以这张表只需要列出想改口的那几条。
+   *
+   * 各家不同的只是这张表，通用层查表那一行对谁都一样 —— 变的是值，所以是声明。
+   */
   readonly optionLabels: Readonly<Record<string, string>>
   /** 缺席表示这一家不用权限请求提问。 */
   readonly questionDialect?: AcpQuestionDialect | undefined
