@@ -14,7 +14,7 @@ import {
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
-  usePromptInput,
+  usePromptInputDraft,
 } from './composer/prompt-input'
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
@@ -62,7 +62,14 @@ function ComposerToolbar({
   onSelectControl,
   status,
 }: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
-  const { attachments, text } = usePromptInput()
+  /*
+   * 发送键只问一件事：有没有东西可发。
+   *
+   * 它此前是从整串草稿里现算 text.trim().length === 0 得出的，代价是这一层
+   * 连同两个菜单根随每个字符重渲一次。判据挪到了 PromptInput 里，这里拿到的
+   * 是两个布尔，只在空与非空之间翻转时才换引用。
+   */
+  const { hasFiles, hasText } = usePromptInputDraft()
 
   return (
     <PromptInputToolbar>
@@ -103,7 +110,7 @@ function ComposerToolbar({
           is how a dragged-in image ended up unsendable by mouse and sendable
           by Enter. */}
       <PromptInputSubmit
-        disabled={status !== 'streaming' && text.trim().length === 0 && attachments.length === 0}
+        disabled={status !== 'streaming' && !hasText && !hasFiles}
         onCancel={onCancel}
         status={status}
       />

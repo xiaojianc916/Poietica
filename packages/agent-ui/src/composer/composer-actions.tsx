@@ -25,7 +25,7 @@ import {
   ThreadIcon,
   ToolIcon,
 } from '../primitives/icons'
-import { usePromptInput } from './prompt-input'
+import { usePromptInputActions } from './prompt-input'
 
 /*
  * 加号那一侧：往这一句里加什么，以及这一句怎么被处理。
@@ -88,7 +88,8 @@ export interface ComposerActionsProps {
 }
 
 export function ComposerActions({ controls, onSelectControl }: ComposerActionsProps) {
-  const { openFilePicker } = usePromptInput()
+  /* 这一整棵菜单要的只是「打开文件选择器」，所以它不该随草稿重建。 */
+  const { openFilePicker } = usePromptInputActions()
 
   const mode = controls.find((control) => control.purpose === 'mode')
   const extras = controls.filter((control) => control.purpose === 'other')

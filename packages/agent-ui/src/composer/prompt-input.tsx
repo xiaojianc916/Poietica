@@ -32,6 +32,10 @@ import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primi
 
 export type { ChatStatus }
 
+/* 问一次就够。此前它长在每个字符都要跑的那条路上。 */
+const STILLNESS =
+  typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+
 export interface PromptInputAttachmentData {
   readonly id: string
   readonly file: File
@@ -44,11 +48,32 @@ export interface PromptInputMessage {
   readonly files: readonly File[]
 }
 
-interface PromptInputContextValue {
-  readonly text: string
+/*
+ * 四条线，各订各的。
+ *
+ * 草稿每敲一个字符就变，而工具栏、加号菜单、附件区没有一个真的需要那串字：
+ * 它们要么只要动作，要么只要「有没有东西可发」这一个布尔。此前四方共用一个
+ * useMemo 出来的对象，而 text 在它的依赖里 —— 于是每一次按键都换掉同一个引用，
+ * 整棵 composer 子树跟着 reconcile，其中包括 ComposerActions 与 SessionControls
+ * 两个菜单根，以及后者每次都重跑的 [...controls].filter().sort()。
+ *
+ * 拆开之后：动作恒定，文本只有 textarea 订，附件只有附件区订，而 hasText /
+ * hasFiles 只在空与非空之间翻转时换引用。从第一个字符敲到第五百个，工具栏一共
+ * 醒一次。
+ */
+const NO_ATTACHMENTS: readonly PromptInputAttachmentData[] = []
+
+/** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
+export interface PromptInputDraft {
+  readonly hasText: boolean
+  readonly hasFiles: boolean
+}
+
+const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false }
+
+interface PromptInputActions {
   readonly setText: (text: string) => void
   readonly focusTextarea: () => void
-  readonly attachments: readonly PromptInputAttachmentData[]
   readonly addFiles: (files: FileList | readonly File[]) => void
   readonly removeAttachment: (id: string) => void
   readonly openFilePicker: () => void
@@ -56,16 +81,31 @@ interface PromptInputContextValue {
   readonly requestSubmit: () => void
 }
 
-const PromptInputContext = createContext<PromptInputContextValue | null>(null)
+const ActionsContext = createContext<PromptInputActions | null>(null)
+const TextContext = createContext<string>('')
+const AttachmentsContext = createContext<readonly PromptInputAttachmentData[]>(NO_ATTACHMENTS)
+const DraftContext = createContext<PromptInputDraft>(NO_DRAFT)
 
-export function usePromptInput(): PromptInputContextValue {
-  const context = useContext(PromptInputContext)
+export function usePromptInputActions(): PromptInputActions {
+  const actions = useContext(ActionsContext)
 
-  if (!context) {
+  if (!actions) {
     throw new Error('PromptInput sub-components must be rendered inside <PromptInput>.')
   }
 
-  return context
+  return actions
+}
+
+export function usePromptInputText(): string {
+  return useContext(TextContext)
+}
+
+export function usePromptInputAttachments(): readonly PromptInputAttachmentData[] {
+  return useContext(AttachmentsContext)
+}
+
+export function usePromptInputDraft(): PromptInputDraft {
+  return useContext(DraftContext)
 }
 
 /**
@@ -152,24 +192,45 @@ export function PromptInput({
 
   useImperativeHandle(handle, () => ({ setText, focus: focusTextarea }), [focusTextarea])
 
-  const contextValue = useMemo<PromptInputContextValue>(
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((current) => current.filter((attachment) => attachment.id !== id))
+  }, [])
+
+  const openFilePicker = useCallback(() => {
+    fileInputRef.current?.click()
+  }, [])
+
+  const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
+    textareaRef.current = element
+  }, [])
+
+  const requestSubmit = useCallback(() => {
+    formRef.current?.requestSubmit()
+  }, [])
+
+  /* 全是 useCallback 或 setState，所以这个对象建一次就到卸载。 */
+  const actions = useMemo<PromptInputActions>(
     () => ({
-      text,
       setText,
       focusTextarea,
-      attachments,
       addFiles,
-      removeAttachment: (id) => {
-        setAttachments((current) => current.filter((attachment) => attachment.id !== id))
-      },
-      openFilePicker: () => fileInputRef.current?.click(),
-      registerTextarea: (element) => {
-        textareaRef.current = element
-      },
-      requestSubmit: () => formRef.current?.requestSubmit(),
+      removeAttachment,
+      openFilePicker,
+      registerTextarea,
+      requestSubmit,
     }),
-    [addFiles, attachments, focusTextarea, text],
+    [addFiles, focusTextarea, openFilePicker, registerTextarea, removeAttachment, requestSubmit],
   )
+
+  /*
+   * 两个布尔，不是一串字。
+   *
+   * 依赖是布尔本身，所以第 2 到第 500 个字符全部落在同一个引用上 —— 订这条线
+   * 的工具栏因此不会因为多敲一个字而重渲。
+   */
+  const hasText = text.trim().length > 0
+  const hasFiles = attachments.length > 0
+  const draft = useMemo<PromptInputDraft>(() => ({ hasText, hasFiles }), [hasFiles, hasText])
 
   /* Scoped to the composer, so it cannot outrank the workbench command table. */
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -190,59 +251,65 @@ export function PromptInput({
   }
 
   return (
-    <PromptInputContext.Provider value={contextValue}>
-      <form
-        className={cx('assistant-prompt-input', className)}
-        data-slot="prompt-input"
-        onDragOver={(event) => {
-          if (event.dataTransfer.types.includes('Files')) {
-            event.preventDefault()
-          }
-        }}
-        onDrop={(event) => {
-          if (!event.dataTransfer.files.length) {
-            return
-          }
+    <ActionsContext.Provider value={actions}>
+      <TextContext.Provider value={text}>
+        <AttachmentsContext.Provider value={attachments}>
+          <DraftContext.Provider value={draft}>
+            <form
+              className={cx('assistant-prompt-input', className)}
+              data-slot="prompt-input"
+              onDragOver={(event) => {
+                if (event.dataTransfer.types.includes('Files')) {
+                  event.preventDefault()
+                }
+              }}
+              onDrop={(event) => {
+                if (!event.dataTransfer.files.length) {
+                  return
+                }
 
-          event.preventDefault()
-          addFiles(event.dataTransfer.files)
-        }}
-        onKeyDown={onFormKeyDown}
-        onMouseDown={onFormMouseDown}
-        onSubmit={(event) => {
-          event.preventDefault()
+                event.preventDefault()
+                addFiles(event.dataTransfer.files)
+              }}
+              onKeyDown={onFormKeyDown}
+              onMouseDown={onFormMouseDown}
+              onSubmit={(event) => {
+                event.preventDefault()
 
-          const trimmed = text.trim()
+                const trimmed = text.trim()
 
-          if (trimmed.length === 0 && attachments.length === 0) {
-            return
-          }
+                if (trimmed.length === 0 && attachments.length === 0) {
+                  return
+                }
 
-          onSubmit({ text: trimmed, files: attachments.map((attachment) => attachment.file) })
-          setText('')
-          setAttachments([])
-        }}
-        {...props}
-        ref={formRef}
-      >
-        <input
-          accept={accept}
-          className="assistant-visually-hidden"
-          multiple={multiple}
-          onChange={(event) => {
-            if (event.currentTarget.files) {
-              addFiles(event.currentTarget.files)
-            }
-            event.currentTarget.value = ''
-          }}
-          ref={fileInputRef}
-          tabIndex={-1}
-          type="file"
-        />
+                onSubmit({ text: trimmed, files: attachments.map((attachment) => attachment.file) })
+                setText('')
+                setAttachments([])
+              }}
+              {...props}
+              ref={formRef}
+            >
+              <input
+                accept={accept}
+                className="assistant-visually-hidden"
+                multiple={multiple}
+                onChange={(event) => {
+                  if (event.currentTarget.files) {
+                    addFiles(event.currentTarget.files)
+                  }
+                  event.currentTarget.value = ''
+                }}
+                ref={fileInputRef}
+                tabIndex={-1}
+                type="file"
+              />
 
-        {children}
-      </form>
-    </PromptInputContext.Provider>
+              {children}
+            </form>
+          </DraftContext.Provider>
+        </AttachmentsContext.Provider>
+      </TextContext.Provider>
+    </ActionsContext.Provider>
   )
 }
 
@@ -251,7 +318,8 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
 }
 
 export function PromptInputAttachments({ className, ...props }: ComponentProps<'div'>) {
-  const { attachments, removeAttachment } = usePromptInput()
+  const attachments = usePromptInputAttachments()
+  const { removeAttachment } = usePromptInputActions()
 
   if (attachments.length === 0) {
     return null
@@ -292,7 +360,8 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
 }
 
 export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
-  const { registerTextarea, requestSubmit, setText, text } = usePromptInput()
+  const { registerTextarea, requestSubmit, setText } = usePromptInputActions()
+  const text = usePromptInputText()
   const editor = useRef<HTMLTextAreaElement | null>(null)
   /* 量高度的替身，以及观察器要用的那一版量法。 */
   const mirror = useRef<HTMLDivElement | null>(null)
@@ -348,75 +417,28 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
    * 钳制读的是计算样式，不是这里再抄一遍 --cp-editor-max：那两个数一旦分居，
    * 改样式表的人不会知道还有一份副本，而且不会报错。
    */
-  const clampToStyle = useCallback((node: HTMLTextAreaElement, wanted: number) => {
+  /*
+   * 上下限与替身的那身衣服，都只在样式真的可能变了的时候取。
+   *
+   * 此前它们躺在每字符都要跑的那条路上：一次 getComputedStyle 读钳制值、又一次
+   * getComputedStyle 读字体与内边距，然后把 22 条声明整段重写一遍。那 22 条里，
+   * 两次按键之间会变的只有 inline-size —— 其余 21 条是常量，被当成变量重算了
+   * 几百遍，每一遍都在 useLayoutEffect 里同步挡着绘制。
+   */
+  const bounds = useRef({ ceiling: Number.POSITIVE_INFINITY, floor: 0 })
+  /* 上一次穿衣时的宽度，以及上一次写下去的高度。都用来避免白做。 */
+  const dressed = useRef(-1)
+  const applied = useRef(-1)
+
+  const dress = useCallback((node: HTMLTextAreaElement, ghost: HTMLDivElement) => {
     const style = getComputedStyle(node)
     const ceiling = Number.parseFloat(style.maxBlockSize)
     const floor = Number.parseFloat(style.minBlockSize)
 
-    let target = wanted
-
-    if (Number.isFinite(ceiling)) {
-      target = Math.min(target, ceiling)
+    bounds.current = {
+      ceiling: Number.isFinite(ceiling) ? ceiling : Number.POSITIVE_INFINITY,
+      floor: Number.isFinite(floor) ? floor : 0,
     }
-
-    if (Number.isFinite(floor)) {
-      target = Math.max(target, floor)
-    }
-
-    return target
-  }, [])
-
-  const settle = useCallback(
-    (node: HTMLTextAreaElement, wanted: number) => {
-      const target = clampToStyle(node, wanted)
-      const from = node.getBoundingClientRect().height
-
-      running.current?.cancel()
-      running.current = null
-
-      /* 布局值先落定，动画只负责这段路怎么走。 */
-      node.style.setProperty('block-size', `${String(target)}px`)
-
-      /* 位移是钳制之后的位移，也就是眼睛真的会看到的那一段。 */
-      const delta = Math.abs(target - from)
-
-      /* 第一次量的时候元素还没进过布局，那一下不该有入场动画。 */
-      if (from === 0 || delta < 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        return
-      }
-
-      /*
-       * 时长跟真实位移走，两头钳住：短了看不见，长了碍事。到顶之后继续粘字
-       * 是零位移，于是零动画 —— 这正是该有的表现。
-       * 曲线不过冲：过冲会撞上钳位，把工具栏顶一下再弹回来。
-       */
-      const duration = Math.min(400, Math.max(130, delta * 1.7))
-
-      running.current = node.animate(
-        { blockSize: [`${String(from)}px`, `${String(target)}px`] },
-        { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' },
-      )
-    },
-    [clampToStyle],
-  )
-
-  const measure = useCallback(() => {
-    const node = editor.current
-
-    if (node === null) {
-      return
-    }
-
-    let ghost = mirror.current
-
-    if (ghost === null) {
-      ghost = document.createElement('div')
-      ghost.setAttribute('aria-hidden', 'true')
-      mirror.current = ghost
-      document.body.append(ghost)
-    }
-
-    const style = getComputedStyle(node)
 
     /* 替身不参与布局、不接指针、不可见，也不能自己滚动。 */
     ghost.style.cssText = [
@@ -442,12 +464,82 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
       `tab-size: ${style.tabSize}`,
       `word-break: ${style.wordBreak}`,
     ].join(';')
+  }, [])
+
+  const settle = useCallback((node: HTMLTextAreaElement, wanted: number) => {
+    const { ceiling, floor } = bounds.current
+    const target = Math.max(floor, Math.min(ceiling, wanted))
+
+    /*
+     * 同一行里继续打字，高度一个像素都不会变。
+     *
+     * 这一条早退是这段路上最大的一笔：它把 getBoundingClientRect 那次强制布局、
+     * 一次行内样式写入和一个 Animation 对象整个省掉，而省掉的次数正是「按键数
+     * 减去换行数」—— 绝大多数按键。
+     */
+    if (target === applied.current) {
+      return
+    }
+
+    const from = node.getBoundingClientRect().height
+
+    running.current?.cancel()
+    running.current = null
+    applied.current = target
+
+    /* 布局值先落定，动画只负责这段路怎么走。 */
+    node.style.setProperty('block-size', `${String(target)}px`)
+
+    /* 位移是钳制之后的位移，也就是眼睛真的会看到的那一段。 */
+    const delta = Math.abs(target - from)
+
+    /* 第一次量的时候元素还没进过布局，那一下不该有入场动画。 */
+    if (from === 0 || delta < 1 || STILLNESS?.matches === true) {
+      return
+    }
+
+    /*
+     * 时长跟真实位移走，两头钳住：短了看不见，长了碍事。到顶之后继续粘字
+     * 是零位移，于是零动画 —— 这正是该有的表现。
+     * 曲线不过冲：过冲会撞上钳位，把工具栏顶一下再弹回来。
+     */
+    const duration = Math.min(400, Math.max(130, delta * 1.7))
+
+    running.current = node.animate(
+      { blockSize: [`${String(from)}px`, `${String(target)}px`] },
+      { duration, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' },
+    )
+  }, [])
+
+  const measure = useCallback(() => {
+    const node = editor.current
+
+    if (node === null) {
+      return
+    }
+
+    let ghost = mirror.current
+
+    if (ghost === null) {
+      ghost = document.createElement('div')
+      ghost.setAttribute('aria-hidden', 'true')
+      mirror.current = ghost
+      document.body.append(ghost)
+    }
+
+    /* 宽度没动，衣服就还合身。窗口缩放与侧栏拖动会走到这里换一次。 */
+    const width = node.clientWidth
+
+    if (width !== dressed.current) {
+      dressed.current = width
+      dress(node, ghost)
+    }
 
     /* 末尾补一个换行：最后一行为空时它也要占一行，否则按回车高度不动。 */
     ghost.textContent = `${text}\n`
 
     settle(node, ghost.offsetHeight)
-  }, [settle, text])
+  }, [dress, settle, text])
 
   useLayoutEffect(measure, [measure])
 
