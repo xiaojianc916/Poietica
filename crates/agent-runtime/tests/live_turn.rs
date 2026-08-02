@@ -26,6 +26,15 @@
 //! cargo test -p poietica-agent-runtime-native --test live_turn -- --ignored --nocapture
 //! ```
 //!
+//! `#[ignore]` 说的是不跑，不是不编。这个文件照样由 `pnpm clippy`
+//! （`--all-targets`）和 `pnpm test:rust` 编译，而它是产品代码之外唯一调用
+//! `AgentClient::prompt` 的地方 —— 改那个签名就必须改到这里，改漏了在提交前
+//! 就会被拦住。
+//!
+//! 这一段此前是散落在函数体里的两句注释，各自解释自己那一行曾经怎样漏改过。
+//! 它们记的是流程，不是代码：读代码的人从中得不到任何关于代码的东西，而下一
+//! 次漏改照样发生 —— 因为拦住它的从来不是一句注释，是提交前跑一次 `pnpm check`。
+//!
 //! It is configured by the environment rather than by anything committed here,
 //! so no machine's paths end up in the repository:
 //!
@@ -180,13 +189,9 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     let mut driver = Driver::spawn(driver);
 
-    /* 握手现在自己带着原因回来。此前这一格是一个只送会话号的通道，失败唯一
-    的表示就是发送端被丢掉 —— 于是「agent 要求先登录」在这里也只报成一句
-    「通道断了」，而这个测试正是最需要那个原因的地方。
-
-    这一行还是这个文件八轮编译不过的原因：那次改动没有走到这里，而它是
-    #[ignore] 的，Rust 又一直没有被编译。同一个文件里已经写着一句一模一样的
-    病历（「而它编译不过的事实一直没人看见」）—— 那句话说的是上一次。 */
+    /* 握手自己带着原因回来。此前这一格是一个只送会话号的通道，失败唯一的表示
+    就是发送端被丢掉 —— 于是「agent 要求先登录」在这里也只报成一句「通道断了」，
+    而这个测试正是最需要那个原因的地方。 */
     let handshake = driver
         .expect(handshake, "the agent never finished the handshake")
         .expect("the handshake to succeed");
@@ -216,12 +221,14 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
     });
 
     let started = Instant::now();
-    /* 一条连接可以开很多条会话，所以提问必须说出它是给哪一条的。此前这里少
-    了这个参数，而它编译不过的事实一直没人看见。 */
+
+    /* 一句话的三半：发给哪条会话、说了什么、带了哪些图。这一轮不带图，所以
+    那一格是空的 —— 空是这一轮的事实，不是一个可以省略的参数。 */
     let answer = client
         .prompt(
             session_id.clone(),
             setting("POIETICA_ACP_PROMPT", DEFAULT_PROMPT),
+            Vec::new(),
             frames,
         )
         .expect("the driver to accept the prompt");
