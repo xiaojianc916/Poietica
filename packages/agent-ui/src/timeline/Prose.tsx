@@ -112,11 +112,22 @@ export interface ProseProps {
  * stylesheet dresses, which is why a fenced block inside the thinking already
  * looks like a fenced block inside the answer.
  *
- * 流式期间只需要说一次。parseIncompleteMarkdown 的默认值就是 true，而静态模式
- * 整个跳过未完成标记的修补（官方 Usage 的 How Static Mode Works 逐字）—— 显式
- * 写成 {isStreaming}，两种状态得到的都是它本来的行为，只是多一个真值来源。
+ * 说完了的，就说它说完了。
  *
- * isAnimating 才是真正放行 animate 插件的那一个：animated 单独在场什么也不做。
+ * mode 的默认值是 "streaming"（官方 Configuration 逐字），而这里此前从不传它 ——
+ * 于是每一段文本都走流式管线，包括早已封口的历史消息，也包括工具卡片里那些一次性
+ * 落定的正文。流式管线为「还没写完」准备的三件事因此对它们全部照做一遍：marked 的
+ * lexer 把全文 tokenize 成块、每块包一个独立的 memo 组件实例、remend 再扫一遍全文
+ * 去补不可能存在的未闭合标记。
+ *
+ * 这不是常数开销，是按内容长度计费的：转录区虚拟化，一条消息每次重新进入视口就要
+ * 重付一次。官方 Usage 的 How Static Mode Works 列的正是这几项，外加代码块走优化过
+ * 的静态渲染路径。
+ *
+ * 正在流的那一行完全不变 —— 那三件事恰恰是它需要的。
+ *
+ * isAnimating 管的是另一件事：官方对它的定义是「内容是否正在流式（禁用复制按钮）」，
+ * 它放行 animate 插件，但不左右解析管线。两个 prop 都要，缺一件都不成立。
  *
  * Line numbers and the download control are turned off through the props that
  * govern them. Overriding rendered output from a stylesheet works until the
@@ -146,6 +157,7 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
+        mode={isStreaming ? 'streaming' : 'static'}
         plugins={PLUGINS}
         translations={TRANSLATIONS}
       >
