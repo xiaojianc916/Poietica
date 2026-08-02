@@ -183,27 +183,31 @@ interface HelpMenuItemProps {
 }
 
 function HelpMenuItem({ label, icon: Icon, href, onClick }: HelpMenuItemProps) {
+  /*
+   * 这条抑制说的是一个事实，不是一个借口。
+   *
+   * 渲染出来的 DOM 完全合规：一个带 href、里面有图标与文字的 <a>。图标与文字
+   * 是下面那两行，由 DropdownMenuItem 注入到这个锚点里面 —— 而那发生在组件
+   * 边界的另一侧，静态分析看不到，于是它只能看见一个空锚点。
+   *
+   * 这是这条规则的已知盲区，不是这段代码的毛病：biomejs/biome#10663 是同一条
+   * 规则在 Vue <slot/> 上的同一种误报，结论逐字是「Biome cannot know whether
+   * the actual content is accessible or not, so it should not trigger」。
+   *
+   * 试过而不成立的两条路，记在这里免得下次再试一遍：
+   *
+   * 一、文档里那条 <Button render={<a … />}>Home</Button> 的豁免只覆盖「直接
+   *     作为属性值」的节点。包进一个三元表达式，锚点就深了一层，规则跟丢。
+   *
+   * 二、补一个 aria-label={label} 能不能过，文档没有直说；而它会用一个重复的
+   *     串盖掉真正由 children 算出来的可访问名。为了过 lint 去改可访问性语义，
+   *     方向是反的。
+   */
+  // biome-ignore lint/a11y/useAnchorContent: 链接文字由 DropdownMenuItem 注入，规则看不到组件边界另一侧
+  const asLink = href === undefined ? {} : { render: <a href={href} rel="noreferrer" /> }
+
   return (
-    /*
-     * 这个 <a> 必须内联写在属性值上，不能先提到一个 const 里。
-     *
-     * useAnchorContent 的文档里最后一条有效示例逐字就是这个形状：
-     *   <Button render={<a href="/home" aria-label="Home" />}>Home</Button>
-     * 规则对「自定义组件上的这类 prop」自带豁免，理由写在文档里 —— 组件可能把
-     * 锚点当成内容外壳，链接文字由 children 提供。这里正是如此：图标与标签由
-     * 下面两行给出，Base UI 会把它们放进这个 <a> 里。
-     *
-     * 提到 const 之后 biome 看见的就只是一个孤立的空锚点，它没有任何办法知道
-     * 这个元素最后落在哪里，于是豁免不成立 —— 上一轮那条 error 就是这么来的。
-     * 修法不是补一个 aria-label（那会用一个重复的串盖掉真正的可访问名），也不
-     * 是 biome-ignore，而是把元素放回它本来该在的位置。
-     *
-     * href 为空时给 <div /> —— 那就是 Menu.Item 的默认元素，一个空操作。
-     */
-    <DropdownMenuItem
-      onClick={onClick}
-      render={href === undefined ? <div /> : <a href={href} rel="noreferrer" />}
-    >
+    <DropdownMenuItem onClick={onClick} {...asLink}>
       <Icon aria-hidden="true" className="text-muted-foreground" />
 
       {/*

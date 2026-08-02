@@ -20,8 +20,12 @@ import { nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
  * 一个字符，每一行连同它各自持有的菜单根都要重建一遍。列表类界面把行做成
  * 可比较的组件是通行做法，这里补上。
  *
- * 一行的尾部只有一个格子：时间与操作叠在同一个网格单元上，由同一个判定
- * 互斥显示，因此不可能同时画出来；宽度取两者较大者，图标出现时标题不动。
+ * 一行的尾部只有一个格子：时间与操作叠在同一个网格单元上，宽度取两者较大者，
+ * 图标出现时标题不动。谁在画只由一件事决定 —— 这一行是否正被介入：指针在行
+ * 上、键盘落在行内、或它自己的菜单开着。三者等价，汇成 CSS 里的一条判定。
+ *
+ * 菜单那一路由本组件持有的 isMenuOpen 显式上报，不再靠 CSS 去嗅探触发器身上
+ * 的 aria-expanded：那个属性在关闭动画的第一帧就落回 false，比弹层早消失一拍。
  *
  * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
  * 不在数据库里先造一条没人说过话的会话。
@@ -189,6 +193,19 @@ const ThreadRow = memo(function ThreadRow({
   onDelete,
   onOpenInNewTab,
 }: ThreadRowProps) {
+  /*
+   * 菜单开合是这一行的状态，所以它住在这一行里。
+   *
+   * 受控而不是放任：行尾那一格要在菜单打开期间保持显示操作，而弹层是 Portal
+   * 到 body 的 —— 行的 :hover 与 :focus-within 都够不着它。此前 CSS 去看触发器
+   * 的 aria-expanded 来补这一段，但那个属性在关闭动画开始时就落回 false，菜单
+   * 还在屏幕上，图标已经灭了、时间已经冒出来了。
+   *
+   * open / onOpenChange 是 Base UI Menu.Root 的一等能力（DropdownMenu 就是
+   * Menu.Root 的再导出），不是这里自己造的开关。
+   */
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
   const isPinned = thread.isPinned === true
   const pinLabel = isPinned ? '取消固定' : '固定'
 
@@ -200,6 +217,7 @@ const ThreadRow = memo(function ThreadRow({
     <li
       className="assistant-thread"
       data-active={isActive ? 'true' : undefined}
+      data-menu-open={isMenuOpen ? 'true' : undefined}
       data-muted={thread.isMuted === true ? 'true' : undefined}
       data-renaming={isRenaming ? 'true' : undefined}
     >
@@ -254,8 +272,10 @@ const ThreadRow = memo(function ThreadRow({
                   Not modal: a modal menu locks pointer events outside itself,
                   so the click that dismissed it was swallowed instead of
                   landing on the row it was aimed at.
+
+                  受控：开合状态上报给这一行，行的底色与行尾那一格据此保持。
                 */}
-              <DropdownMenu modal={false}>
+              <DropdownMenu modal={false} onOpenChange={setIsMenuOpen} open={isMenuOpen}>
                 <DropdownMenuTrigger
                   aria-label="更多操作"
                   className="assistant-thread__action"

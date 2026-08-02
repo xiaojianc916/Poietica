@@ -483,7 +483,30 @@
  * 菜单项与模型选择器共用，于是同一列侧边栏上下两段各用一套
  * 色板，深色主题下更是各算各的。
  */
+/*
+ * 一行只有一种「被介入」的状态，判定写一次。
+ *
+ * 三个等价来源：指针在行上、键盘落在行内、这一行的菜单开着。底色与行尾那一格
+ * 因此由同一条规则同时决定 —— 此前它们散在四条选择器、两个文件段落里，于是
+ * 「菜单开着但指针已经移走」这种再普通不过的组合，会出现底色没了、图标还在、
+ * 时间又冒出来的画面。
+ *
+ * :focus-within 换成 :has(:focus-visible)。前者对鼠标点击同样成立 —— 点开一个
+ * 会话，那一行的按钮就此持有焦点，于是这一行的时间永远不再回来，直到你去点别
+ * 处。这不是「有时乱」，这是必然乱。:focus-visible 只在键盘导航时命中，鼠标点
+ * 击不命中，正是这里要的语义。
+ *
+ * 菜单是否打开由 React 说了算（data-menu-open），不再嗅探触发器的 aria-expanded。
+ */
 .assistant-thread:hover,
+.assistant-thread:has(:focus-visible),
+.assistant-thread[data-menu-open="true"] {
+  background: var(--ui-sidebar-accent);
+  --thread-trail-time: 0;
+  --thread-trail-actions: 1;
+}
+
+/* 当前会话常亮，但它说的仍然是时间：选中不是介入。 */
 .assistant-thread[data-active="true"] {
   background: var(--ui-sidebar-accent);
 }
@@ -542,14 +565,36 @@
   grid-area: 1 / 1;
 }
 
+/*
+ * 行尾那一格：静息说时间，介入说操作。
+ *
+ * 谁在画由行自己的两个自定义属性决定，而它们只在上面那条判定里被赋值一次 ——
+ * 静息值写在这里的 var() 回退里。自定义属性表示「覆盖」，不表示「默认」，这是
+ * 分割线那次消失之后立下的规矩：静息态直接读得到值，不依赖任何一次赋值发生。
+ *
+ * 不再管理 pointer-events。操作按钮只有在指针落在行上时才可能被指到，而指针落
+ * 在行上这件事本身就把它们点亮了 —— 「隐形可点」在几何上不存在。时间正相反：
+ * 它任何时候都不是控件，所以无条件不接指针，否则指针明明停在两个图标上，浏览
+ * 器却会把它 title 里的绝对时刻弹出来。
+ *
+ * 操作始终参与布局，只有涂色在变。这一条不能退回 display: none：菜单关闭动画
+ * 里触发器若离开布局，定位引擎会量到一个没有盒子的锚点，弹层因此在窗口左上角
+ * 闪一帧。
+ */
 .assistant-thread__time {
   font-size: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
+  opacity: var(--thread-trail-time, 1);
+  pointer-events: none;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-thread__actions {
+  display: flex;
   align-items: center;
   gap: 2px;
+  opacity: var(--thread-trail-actions, 0);
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-thread__action {
@@ -1001,44 +1046,10 @@
 }
 
 /*
- * Why the popup used to flash at the top left of the window.
- *
- * The row actions were laid out with display: none and revealed on hover.
- * The dropdown drops aria-expanded to false at the start of the close, while
- * its portalled content is still mounted for the exit, so the trigger left
- * the layout and the positioning engine measured an anchor with no box: for
- * one frame the content was placed at the origin. An anchor may not appear
- * and disappear. The actions are always laid out now and only their paint
- * changes, and a closing menu paints nothing at all.
+ * 行尾那一格的状态已经并进上面 .assistant-thread 的那一条判定里，这里不再有
+ * 第二处声明。此前这四条规则（外加上面的裸类名声明）是同一批属性的两个所有
+ * 者，后者靠 [data-assistant-skin] 前缀压特异性 —— 那不是设计，那是打架。
  */
-[data-assistant-skin] .assistant-thread__actions {
-  display: flex;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-  position: static;
-}
-
-[data-assistant-skin] .assistant-thread__time {
-  opacity: 1;
-  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
-  visibility: visible;
-}
-
-/* 一条条件，两个互斥的结果。 */
-[data-assistant-skin] .assistant-thread:hover .assistant-thread__actions,
-[data-assistant-skin] .assistant-thread:focus-within .assistant-thread__actions,
-[data-assistant-skin] .assistant-thread:has([aria-expanded="true"]) .assistant-thread__actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-[data-assistant-skin] .assistant-thread:hover .assistant-thread__time,
-[data-assistant-skin] .assistant-thread:focus-within .assistant-thread__time,
-[data-assistant-skin] .assistant-thread:has([aria-expanded="true"]) .assistant-thread__time {
-  opacity: 0;
-  visibility: hidden;
-}
 
 /*
  * 入场与退场。
@@ -1126,19 +1137,12 @@
   outline: none;
 }
 
-/* 正在改名的行不谈别的事。 */
-.assistant-thread[data-renaming="true"] .assistant-thread__actions {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.assistant-thread[data-renaming="true"] .assistant-thread__time {
-  opacity: 0;
-}
-
-.assistant-thread[data-placeholder="true"] .assistant-thread__trail {
-  display: none;
-}
+/*
+ * 这里曾有三条规则：关掉重命名行的操作、关掉它的时间、关掉占位行的行尾。
+ * 它们一次都没有命中过 —— JSX 里 isRenaming 分支只渲染 RenameField，占位行只
+ * 渲染一个 __ghost，两者的 DOM 里根本没有 __trail 这个元素。删掉的是描述，
+ * 不是行为。
+ */
 
 /*
  * 图钉只负责居中，状态由字形本身表达。

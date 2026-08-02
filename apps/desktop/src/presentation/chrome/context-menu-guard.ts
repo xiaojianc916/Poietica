@@ -11,18 +11,19 @@
  * 对「全局、跨组件、谁也不该知道」这类问题已经选定了做法 —— 见 external-links
  * .ts 那条 document 级 capture 监听。同类问题用同一条管线，不新开机制。
  *
- * 可编辑元素放行不是妥协，是精确：在 input / textarea / contenteditable 上
- * WebView2 出的是编辑菜单（剪切 / 复制 / 粘贴），危险项恰好全在非编辑那一张菜单
- * 上。而应用目前没有自绘右键菜单，一刀切会让输入框失去鼠标粘贴且没有替代 —— 那
- * 是纯亏。Discord、Slack、VS Code 在自绘菜单落地之前都是这么处理的。等到有了自
- * 绘菜单，这里改成无条件拦下，由那个菜单接管。
+ * 可编辑元素不再例外。
+ *
+ * 之前放行 input / textarea / contenteditable，理由是那张编辑菜单没有危险项，
+ * 一刀切会让输入框失去鼠标粘贴。这个理由站不住：那张菜单不是「我们的」菜单，
+ * 它是 WebView2 的 —— 宿主的字体、宿主的图标、宿主的语言，条目里还写着「表情
+ * 符号 Win+句点」「粘贴为纯文本」「书写方向」「发送标签页到你的设备」「检查」。
+ * 它当场告诉用户：你在看一个网页。桌面产品不会在自己的输入框上弹出宿主浏览器
+ * 的菜单，这一条没有例外可言。
+ *
+ * 代价明确记在这里：鼠标粘贴没有了，键盘 Ctrl+X / Ctrl+C / Ctrl+V 不受影响。
+ * 等自绘编辑菜单落地，它会在冒泡阶段自己 preventDefault，下面那句
+ * defaultPrevented 就是留给它的接口 —— 这个文件届时一行都不用改。
  */
-
-const EDITABLE = 'input, textarea, [contenteditable]:not([contenteditable="false"])'
-
-function isEditable(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(EDITABLE) !== null
-}
 
 export function installContextMenuGuard(): () => void {
   const onContextMenu = (event: MouseEvent): void => {
@@ -30,7 +31,7 @@ export function installContextMenuGuard(): () => void {
      * 已经被拦过就不再插手：将来自绘菜单会在冒泡阶段自己 preventDefault，
      * 这里没有理由重复表态。
      */
-    if (event.defaultPrevented || isEditable(event.target)) {
+    if (event.defaultPrevented) {
       return
     }
 
