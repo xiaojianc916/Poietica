@@ -313,17 +313,6 @@
     </style>
 
     <title>Poietica</title>
-      <script>
-      /*
-       * 设备像素比。图标基本单位与发丝线都由它推出，见
-       * packages/ui/src/styles/tokens/controls.css。这里同步写入是为了让首帧
-       * 就拿到真值；跨屏拖动后的更新由 packages/ui/src/pixel-grid.ts 接管。
-       */
-      document.documentElement.style.setProperty(
-        '--ui-dpr',
-        String(window.devicePixelRatio || 1),
-      )
-    </script>
   </head>
 
   <body>

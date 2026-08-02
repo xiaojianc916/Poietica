@@ -201,7 +201,6 @@
 [data-slot="prompt-input-submit"] svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  stroke-width: var(--ui-icon-stroke);
 }
 
 [data-slot="prompt-input-submit"]:hover:not(:disabled) {
@@ -436,7 +435,6 @@
 .assistant-threads__create svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  stroke-width: var(--ui-icon-stroke);
 }
 
 .assistant-threads__create:hover {
@@ -612,7 +610,6 @@
 .assistant-thread-menu .assistant-thread-menu__item svg {
   flex: none;
   color: var(--cp-ink-muted);
-  stroke-width: var(--ui-icon-stroke);
 }
 
 .assistant-thread-menu .assistant-thread-menu__item[data-highlighted],

@@ -168,10 +168,17 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * 与 index.html 里那份预 React 副本同尺寸。
+ *
+ * 那份副本写死 16px：致命屏必须在设计系统样式表加载之前就能画对。两份规则本来
+ * 就该同值，此前靠 --ui-icon-size-md 在 dpr 1.5 下解出 16px 才碰巧一致 —— 现在
+ * 尺寸不再随 dpr 漂移，md 是 20px，所以这里明确改指 sm。
+ */
 .fatal-icon-button svg {
   display: block;
-  width: var(--ui-icon-size-md);
-  height: var(--ui-icon-size-md);
+  width: var(--ui-icon-size-sm);
+  height: var(--ui-icon-size-sm);
 }
 
 .fatal-details,
