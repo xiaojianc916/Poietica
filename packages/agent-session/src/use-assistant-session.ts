@@ -64,8 +64,6 @@ export interface AssistantSession {
   readonly resolvePermission: (requestId: string, optionId: string) => void
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
-  /** 一件与这条对话有关的本地事故，记进转录 —— 报错只有横线那一种形态。 */
-  readonly note: (message: string) => void
 }
 
 /*
@@ -167,14 +165,7 @@ export function useAssistantSession({
     [key],
   )
 
-  const note = useCallback(
-    (message: string) => {
-      transcripts.note(key, message)
-    },
-    [key],
-  )
-
-  return { key, status, send, cancel, resolvePermission, isRestoring, note }
+  return { key, status, send, cancel, resolvePermission, isRestoring }
 }
 
 /**

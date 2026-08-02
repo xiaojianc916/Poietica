@@ -448,9 +448,9 @@ function isGrowable(item: TimelineItem): boolean {
  * 转录里没有条目能表示这段空档，所以它由派生回答，交给等待指示器。
  *
  * 这里此前还回答另一件事：一轮结束却没有产出任何条目时，footer 换成一句凭
- * status 枚举编出来的说明。那是第二条报错通道，而它的输入里根本没有「发生了
- * 什么」。真正的经过（run_failed.message、run_finished.diagnostics、本地事故）
- * 早已是流里的 error 条目。一件事只留一个说法，那条通道整个没有了。
+ * status 枚举编出来的说明。那句措辞已经删掉 —— 它的输入里根本没有「发生了
+ * 什么」。但它顺带在报的那个事实（这一轮空转了）不该跟着一起删：现在由
+ * reducer 的 silentTurn 用协议原词记成一条 error，与别的报错走同一条横线。
  */
 export function selectIsWaiting(state: TimelineState): boolean {
   if (state.status !== 'running' && state.status !== 'awaiting_permission') {

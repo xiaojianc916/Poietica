@@ -21,6 +21,32 @@
   --ui-icon-size-lg: 24px;
 
   /*
+   * 当前语境的图标档位。容器改这一个变量，档位就整片跟着走；调用点不声明
+   * 尺寸 —— 尺寸是语境的属性，不是每个调用点各自的口味。
+   *
+   * 实测（dpr 1.5，30 个 SVG）此前同页存在 16/14/13/12/20/30 六种尺寸，其中
+   * 14 与 12 来自 Tailwind 的 size-3.5 / size-3，与这三个令牌毫无关系。那是
+   * 两条并行的尺寸管线，本条把它们并成一条。
+   */
+  --ui-icon: var(--ui-icon-size-sm);
+}
+
+/*
+ * 图标的默认几何，特异性为 0。
+ *
+ * :where() 让任何组件规则都能无痛覆盖，所以这是默认值而不是强制值 —— 与
+ * Tailwind preflight、Fluent、Primer 给基础元素设默认几何的做法同构。
+ *
+ * display: block 是必需的：inline 的 svg 会参与行盒基线对齐，行高一旦不是整数
+ * （本仓 13px × 1.5 = 19.5px 就是），图标的 y 会被基线推到半个像素上。
+ */
+:where(svg) {
+  display: block;
+  flex: none;
+  inline-size: var(--ui-icon);
+  block-size: var(--ui-icon);
+
+  /*
    * 发丝线 1 CSS 像素。
    *
    * Chromium 会把 1px 边框吸附到设备像素边界；写 calc(1px / dpr) 得到 0.8px

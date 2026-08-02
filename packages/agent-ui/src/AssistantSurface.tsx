@@ -4,7 +4,7 @@ import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
 import type { AssistantSubmission } from '@poietica/agent-session'
 import { useAssistantPending, useAssistantSession } from '@poietica/agent-session'
 import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -88,20 +88,15 @@ export const AssistantSurface = memo(function AssistantSurface({
   const assistant = useAssistantSession({ endpoint, identify, onUserMessage, session })
 
   /*
-   * 连不上 agent 这件事，走转录那条唯一的通道。
+   * 连不上 agent 这件事，不在这一层写。
    *
-   * 它此前画在输入框顶上一块横幅里，于是同一类事实有两种
-   * 长相：来自帧流的失败是流里一条横线，来自会话配置的失败是一块横幅。报错
-   * 长什么样，不该由它从哪条路来的决定。
+   * 它在发生的地方写一次：threads-store 打开这条对话失败时，同一个 catch 里
+   * 既记下控件那一格，也把经过交给转录（#transcripts?.failed）—— 于是它和帧流
+   * 里的失败长同一个样子，都是那条横线。
+   *
+   * 这里此前还有一个 effect 把 controlsFailure 抄进转录，那是同一件事的第二次
+   * 写入：一个可撤销的状态被写成了不可撤销的记录，重试成功之后那条线还在。
    */
-  useEffect(() => {
-    if (controlsFailure === undefined) {
-      return
-    }
-
-    assistant.note(controlsFailure)
-  }, [assistant.note, controlsFailure])
-
   /* 这条对话对面是谁，由组合根说了算；这一层只负责把它的方言交给判据。 */
   const dialect = useAgentDialect()
 
