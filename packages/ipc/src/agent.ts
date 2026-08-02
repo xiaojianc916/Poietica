@@ -347,6 +347,12 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
         selectors: opened.selectors.map(controlOf),
         events: opened.events,
         history: opened.history,
+        /* 这条对话存下过的图片，以及它一共问过多少次。两格都原样交出去：
+        形状由原生侧定义，与端口逐格相同，这一层没有要转换的东西。轮次计数
+        是对齐用的尺子 —— 账本里的 turn 从某次迁移之后才开始记，所以认领方
+        要从末尾往回数，而末尾在哪只有这个计数说得准。 */
+        attachments: opened.attachments,
+        prompts: opened.prompts,
       }
     },
 
