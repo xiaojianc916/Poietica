@@ -3,6 +3,8 @@
 //! Windows 上一个 GUI 进程起控制台程序会闪一个黑窗，唯一的解法是 `CREATE_NO_WINDOW`。
 //! 这件事此前只写在 `agent_cli.rs` 里。安装那条管线同样要起子进程，照抄一遍就会有
 //! 第二个说法；同一个平台细节只该有一处。
+//!
+//! Zed 的 crates/util/src/command.rs 对每一条命令都设这个标志，理由相同。
 
 use std::process::Command;
 

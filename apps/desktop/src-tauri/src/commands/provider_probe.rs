@@ -1,7 +1,8 @@
 //! 保存密钥之后，问那家厂商一句：这把钥匙你认不认。
 //!
 //! 为什么需要它：在此之前，界面对「已配置」的全部判据是
-//! agent-provider-state.rs 里的 configured = credentialKind != 'none'，也就是
+//! `@poietica/agent-providers` 的 provider-state.ts 里的
+//! configured = credentialKind != 'none'，也就是
 //! 「那一格不是空的」。填错一个字符照样保存成功、照样点亮模型选择器，真相要等到
 //! 几分钟后发第一条消息时，从一条来自完全另一条管线（ACP 会话）的 401 里反推。
 //!
