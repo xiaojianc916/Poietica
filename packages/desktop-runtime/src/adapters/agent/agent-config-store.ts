@@ -66,14 +66,25 @@ export function createDesktopAgentConfigStore(): AgentConfigStore {
        * 等于替用户删文件。磁盘本来就空则不存在这个风险。
        */
       if ((parsed.fallback || reconciled.changed) && writable) {
-        return fromDto(await bridge.saveAgents(reconciled.profiles, parsed.value.defaultProfileId))
+        const written = fromDto(
+          await bridge.saveAgents(reconciled.profiles, parsed.value.defaultProfileId),
+        )
+
+        /*
+         * 物化自己产生的说明要一起交出去。
+         *
+         * 它说的是「磁盘上有一条不在名单里的 agent，我把它删了」—— 这条话只在这
+         * 一次读取里存在：写回之后再读，那一行已经不在文件里，谁也不会再提起它。
+         * 不带上就是替用户改了文件而一声不吭。
+         */
+        return { ...written, issues: [...written.issues, ...reconciled.issues] }
       }
 
       return {
         agents: reconciled.profiles,
         defaultAgentId: parsed.value.defaultProfileId,
         legacyProviders: dto.legacyProviders,
-        issues: [...dto.issues, ...parsed.issues],
+        issues: [...dto.issues, ...parsed.issues, ...reconciled.issues],
       }
     },
 

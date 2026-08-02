@@ -1,4 +1,9 @@
-import { type AcpAgentProfile, acpAgents, defaultAcpAgent } from '@poietica/agent-registry'
+import {
+  type AcpAgentProfile,
+  acpAgentById,
+  acpAgents,
+  defaultAcpAgent,
+} from '@poietica/agent-registry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import { AgentInstallAction } from './AgentInstallAction'
@@ -41,8 +46,6 @@ export interface ModelsSettingsProps {
 
 export function ModelsSettings({ store }: ModelsSettingsProps) {
   const [agentId, setAgentId] = useState<string>(() => defaultAcpAgent().id)
-  const [agentOptions, setAgentOptions] =
-    useState<readonly (readonly [string, string])[]>(AGENT_OPTIONS)
   const [profiles, setProfiles] = useState<readonly AcpAgentProfile[]>([])
   const [agentError, setAgentError] = useState<string | null>(null)
 
@@ -52,15 +55,10 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
    * 不写死在这里：换第二家 agent 时变量名不一样，而这一页对两家应该是同一段代码。缺席
    * 就是缺席 —— 卡片会说「这个 agent 没有声明」，而不是替它挑一个名字试试看。
    */
-  const registryKeyVar = useMemo(() => {
-    return profiles.find((profile) => profile.id === agentId)?.registryKeyVar
-  }, [agentId, profiles])
+  const registryKeyVar = useMemo(() => acpAgentById(agentId)?.registryKeyVar, [agentId])
 
   const applySnapshot = useCallback((snapshot: AgentConfigSnapshot) => {
-    const options = snapshot.agents.map((agent) => [agent.id, agent.displayName] as const)
-
     setProfiles(snapshot.agents)
-    setAgentOptions(options.length > 0 ? options : AGENT_OPTIONS)
     setAgentId(snapshot.defaultAgentId)
     setAgentError(snapshot.issues.length > 0 ? snapshot.issues.join('；') : null)
   }, [])
@@ -158,7 +156,7 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
               <OptionSelect
                 ariaLabel="ACP Agent"
                 onChange={selectAgent}
-                options={agentOptions}
+                options={AGENT_OPTIONS}
                 value={agentId}
               />
             </div>

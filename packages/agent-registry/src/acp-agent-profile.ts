@@ -1,63 +1,43 @@
 import * as v from 'valibot'
-import type { AcpAgentInstall } from './acp-agent-contract'
 import { acpAgents, defaultAcpAgent } from './acp-agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
 export type AgentConfigOptionValue = string | boolean
 
 /**
- * 一个 ACP agent 的接入档案。
+ * 一个 ACP agent 的接入档案：这台机器上，用户为这一家 agent 做的选择。
  *
- * 字段与 Zed 的 CustomAgentServerSettings 对齐：进程怎么起（command/args/env）、
- * 以及会话配置的默认值（defaultConfigOptions）。
+ * 只有四格，而且每一格都真的属于用户。此前还有七格 —— displayName、command、
+ * args、homeVar、registryKeyVar、ownHomeDirectory、install —— 它们描述的是「这
+ * 一家 agent 是什么」，那件事由二进制里的 AcpAgentDescriptor 说了算：名单是封闭
+ * 的（见 acp-agents.ts），界面上没有、也不会有一个能自带命令的入口。
  *
- * 这里刻意没有"收藏了哪些模型"：那份状态只存在提供方档案里一处。同一个概念
- * 存两份，迟早会分叉成两个都不敢信的来源。
+ * 那七格不是没用，是从来没被用过一次：reconcileAcpAgentProfiles 每次读都拿内置
+ * 值把它们逐一覆盖回去。写进磁盘只为了下一次读出来时被扔掉，中间那段路上却要
+ * 一整套针对不可信输入的校验陪着走 —— 反 shell 注入、npm 包名、目录名不许带分
+ * 隔符。防的是一个不存在的输入源。
  *
- * 也没有"支持哪些模型"，因为那是会话在 session/new 之后才报告的事。
+ * 现在 command 在磁盘上没有产地，所以「一份被改坏的档案变成一次任意命令执行」
+ * 这条路不是被正则拦住的，是结构上不存在。
+ *
+ * 这里刻意没有\"收藏了哪些模型\"：那份状态只存在提供方档案里一处。也没有\"支持哪些
+ * 模型\"，因为那是会话在 session/new 之后才报告的事。
  */
 export interface AcpAgentProfile {
+  /** 名单里的哪一家。不在名单里的档案会在物化时被移除。 */
   readonly id: string
-  readonly displayName: string
-  /** 可执行文件名或绝对路径。不经 shell，因此不接受元字符。 */
-  readonly command: string
-  readonly args: readonly string[]
   readonly cwd?: string | undefined
   /**
-   * 非敏感环境变量，会原样落盘，例如数据根目录 KIMI_CODE_HOME。
+   * 非敏感环境变量，会原样落盘。
    *
    * 密钥永远不在这里，也不在别处：它由界面随 AgentConfigStore.execCli 的一次
    * 调用交给 agent 官方 CLI，写进 agent 自己的配置文件之后就与我们无关。我们
    * 不注入密钥环境变量，也不拼对方的配置文件格式。
+   *
+   * 受控 home 那个变量名不在这里 —— 它归二进制（AcpAgentDescriptor.homeVar），
+   * 值由原生侧的 launch_env 现算。
    */
   readonly env: Readonly<Record<string, string>>
-  /**
-   * 受控 home 的环境变量名，例如 Kimi Code 的 KIMI_CODE_HOME。
-   *
-   * 只记名字，不记路径：原生侧的 launch_env 会用 paths::agent_home 现算出
-   * 一个已经创建好的目录，把它设到这个变量上。
-   *
-   * 缺席表示这个 agent 不接受受控 home。
-   */
-  readonly homeVar?: string | undefined
-  /**
-   * 代填密钥时注入哪个环境变量名。只记名字，值一次都不落盘。
-   *
-   * 缺席表示这一家不接受由我们代填密钥。
-   */
-  readonly registryKeyVar?: string | undefined
-  /**
-   * 不受控时，这家 agent 在用户 home 之下的数据目录名，例如 Kimi Code 的 .kimi-code。
-   *
-   * 只记名字：用户 home 由原生侧现算。缺席表示我们说不出它把配置放在哪。
-   */
-  readonly ownHomeDirectory?: string | undefined
-  /**
-   * 这个 agent 的运行时怎么装。身份归二进制，与 command / registryKeyVar 同一条规则。
-   *
-   * 缺席表示不由我们管安装 —— 用户自带的 agent 就是这一类。
-   */
-  readonly install?: AcpAgentInstall | undefined
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
 }
 
@@ -89,14 +69,7 @@ export interface AcpAgentProfileSetParse {
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
-/* 一个纯粹的目录名：允许开头一个点（.kimi-code），但第二个字符必须是字母数字，
- * 于是 .. 与任何带分隔符的路径都进不来 —— 这一格会被接在用户 home 后面去读文件。 */
-const HOME_DIRECTORY_PATTERN = /^\.?[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
-const SHELL_METACHARACTERS = /[;&|<>$`\n\r"']/
-/* npm 的合法包名。这一格会被交给 npm install，所以它和 command 一样不可信。 */
-const NPM_PACKAGE_PATTERN = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
 
-const MAX_ARGS = 32
 const MAX_TEXT = 512
 const MAX_ENTRIES = 32
 const MAX_PROFILES = 32
@@ -106,43 +79,29 @@ const MAX_PROFILES = 32
  *
  * 此前这里是一个手写的校验框架：一个 Parsed<T> 结果类型、一个 fail、两个
  * asRecord/asText 探针、七个 parseXxx 函数，最后由九段 if (!x.ok) return x 串
- * 起来 —— 240 行把"每个字段长什么样"这件声明式的事，写成了命令式的流程控制。
+ * 起来 —— 240 行把\"每个字段长什么样\"这件声明式的事，写成了命令式的流程控制。
  *
  * 代价不是观感：接口手写一遍、校验再手写一遍，两份靠人对齐，给档案加一个字段
- * 而忘了补校验时编译器一声不吭，它只是静默地不再校验那一格。parseEnvVarName
- * 上面那句注释已经承认了这件事 ——"写两遍就会有一天只改了一遍"。
+ * 而忘了补校验时编译器一声不吭，它只是静默地不再校验那一格。
  *
- * valibot 1.4.2 本来就在 pnpm-workspace.yaml 的 catalog 里，只是这个包没用它。
- * 校验来源不可信的输入正是标准能力该上场的地方：模式即文档，类型由模式推出，
- * 漏一格不再是"忘了写一段 if"，而是编译不过。
+ * valibot 1.4.2 本来就在 pnpm-workspace.yaml 的 catalog 里。校验来源不可信的
+ * 输入正是标准能力该上场的地方：模式即文档，类型由模式推出。
+ *
+ * 表比从前短，不是因为放松了，是因为不该由用户拥有的字段已经不在磁盘上了。
+ * 留下的两格 cwd 与 env 仍然完全来自用户，它们的规则一个字都没有动。
  *
  * 每条规则都自带中文说法，因为这些话会出现在设置界面上。
  */
-const text = (max: number, message: string) =>
+const text = (max, message) =>
   v.pipe(v.string(message), v.minLength(1, message), v.maxLength(max, message))
 
-const envName = (message: string) => v.pipe(text(64, message), v.regex(ENV_NAME_PATTERN, message))
+const envName = (message) => v.pipe(text(64, message), v.regex(ENV_NAME_PATTERN, message))
 
 const ID_ISSUE = 'agent 标识只允许小写字母、数字与连字符，且以字母开头'
 const PROFILE_ISSUE = 'agent 档案无法解析'
 
 const ProfileSchema = v.object({
   id: v.pipe(text(32, ID_ISSUE), v.regex(ID_PATTERN, ID_ISSUE)),
-  displayName: text(64, 'agent 需要一个 1–64 字的名称'),
-  command: v.pipe(
-    text(256, '启动命令不能为空'),
-    v.check(
-      (command) => !SHELL_METACHARACTERS.test(command),
-      '启动命令不经 shell 执行，不能包含 ; & | < > $ 等字符',
-    ),
-  ),
-  args: v.optional(
-    v.pipe(
-      v.array(text(MAX_TEXT, '参数必须是非空字符串'), '参数必须是数组'),
-      v.maxLength(MAX_ARGS, `参数不超过 ${MAX_ARGS} 项`),
-    ),
-    [],
-  ),
   cwd: v.nullish(text(1024, '工作目录必须是非空字符串')),
   env: v.optional(
     v.pipe(
@@ -154,30 +113,6 @@ const ProfileSchema = v.object({
       v.check((env) => Object.keys(env).length <= MAX_ENTRIES, `环境变量不超过 ${MAX_ENTRIES} 项`),
     ),
     {},
-  ),
-  /* 受控 home 与代填密钥只记名字不记值，规则逐字相同，所以是同一个 envName。 */
-  homeVar: v.nullish(envName('受控 home 的变量名不合法，应为大写字母、数字与下划线')),
-  registryKeyVar: v.nullish(envName('注册表密钥的变量名不合法，应为大写字母、数字与下划线')),
-  ownHomeDirectory: v.nullish(
-    v.pipe(
-      text(64, '自有 home 的目录名必须是非空字符串'),
-      v.regex(HOME_DIRECTORY_PATTERN, '自有 home 只能是一个目录名，不能是路径'),
-    ),
-  ),
-  install: v.nullish(
-    v.object({
-      packageName: v.pipe(
-        text(214, 'npm 包名必须是非空字符串'),
-        v.regex(NPM_PACKAGE_PATTERN, 'npm 包名不合法'),
-      ),
-      versionArgs: v.optional(
-        v.pipe(
-          v.array(text(MAX_TEXT, '参数必须是非空字符串'), '参数必须是数组'),
-          v.maxLength(MAX_ARGS, `参数不超过 ${MAX_ARGS} 项`),
-        ),
-        ['--version'],
-      ),
-    }),
   ),
   defaultConfigOptions: v.optional(
     v.record(
@@ -193,8 +128,7 @@ const ProfileSchema = v.object({
  * 整份配置的信封。
  *
  * defaultProfileId 用 fallback 而不是让它报错：那一格填坏了只算没填，回落到
- * 第一个档案 —— 与此前 asText 返回 undefined 时的行为一致。一个错字不该让整份
- * agents.json 作废。
+ * 第一个档案。一个错字不该让整份 agents.json 作废。
  */
 const EnvelopeSchema = v.object({
   profiles: v.array(v.unknown()),
@@ -205,21 +139,14 @@ const EnvelopeSchema = v.object({
 })
 
 /*
- * 缺席与 null 在磁盘上都表示"没有这一项"，在类型里只留 undefined 一种：
+ * 缺席与 null 在磁盘上都表示\"没有这一项\"，在类型里只留 undefined 一种：
  * 让两种空值一路往下走，就是让每个下游都判两次。
  */
-function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
+function shape(parsed) {
   return {
     id: parsed.id,
-    displayName: parsed.displayName,
-    command: parsed.command,
-    args: parsed.args,
     cwd: parsed.cwd ?? undefined,
     env: parsed.env,
-    homeVar: parsed.homeVar ?? undefined,
-    registryKeyVar: parsed.registryKeyVar ?? undefined,
-    ownHomeDirectory: parsed.ownHomeDirectory ?? undefined,
-    install: parsed.install ?? undefined,
     defaultConfigOptions: parsed.defaultConfigOptions,
   }
 }
@@ -227,10 +154,10 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
 /**
  * 校验一个来源不可信的 agent 档案。
  *
- * agents.json 可以被手改，界面也能填任意文本，两者都不可信：一个被改坏的档案
- * 不应该变成一次任意命令执行。所以校验集中在这里，而不是散落到调用点。
+ * agents.json 可以被手改，所以它不可信 —— 但界面填不出档案：agent 名单是封闭的，
+ * 用户在注册过的几家里选，选择本身只是一个 id。校验因此只面对磁盘这一个来源。
  */
-export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
+export function parseAcpAgentProfile(input) {
   const parsed = v.safeParse(ProfileSchema, input, { abortPipeEarly: true })
 
   if (!parsed.success) {
@@ -246,7 +173,7 @@ export function parseAcpAgentProfile(input: unknown): AcpAgentProfileParse {
  * 单个坏档案只会被丢弃并记一条 issue，不会让整份 agents.json 解析失败——
  * 否则用户手滑一个字符就会丢掉全部 agent。这是 Zed 设置层的处理方式。
  */
-export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse {
+export function parseAcpAgentProfileSet(input) {
   const envelope = v.safeParse(EnvelopeSchema, input)
 
   if (!envelope.success) {
@@ -257,8 +184,8 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
     }
   }
 
-  const issues: string[] = []
-  const profiles: AcpAgentProfile[] = []
+  const issues = []
+  const profiles = []
 
   for (const candidate of envelope.output.profiles.slice(0, MAX_PROFILES)) {
     const parsed = parseAcpAgentProfile(candidate)
@@ -310,13 +237,6 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   return { value: { profiles, defaultProfileId }, issues, fallback: false }
 }
 
-/** 说得出一次启动的东西：内置描述符有这三格，用户档案也有这三格。 */
-export interface AcpAgentLaunchSource {
-  readonly id: string
-  readonly command: string
-  readonly args: readonly string[]
-}
-
 /** 起一个 agent 进程要说清的三件事。 */
 export interface AcpAgentLaunch {
   readonly agentId: string
@@ -325,130 +245,82 @@ export interface AcpAgentLaunch {
 }
 
 /**
- * 把一份档案翻成一次启动。
+ * 把一家 agent 翻成一次启动。
+ *
+ * 收的是内置描述符本身。此前这里收一个 AcpAgentLaunchSource { id, command, args }，
+ * 理由写着「内置描述符与用户档案都能直接传进来」—— 而用户档案里从来就没有过
+ * command，全仓两个调用点送进来的也都是描述符。那是给一个不存在的调用者留的门。
  *
  * 名字与参数始终分开，从这里一路到 spawn 都不合并成字符串。合并是有损的：对面
  * 若按 POSIX 词法切回来，绝对路径 C:\\tools\\kimi.exe 的反斜杠会被当成转义符
- * 吃掉，带空格的路径会被切断 —— 而 parseCommand 是允许绝对路径的。
+ * 吃掉，带空格的路径会被切断。
  *
  * 业界标杆同样不合并：Zed 的 AgentServerCommand 是 path/args/env 三元组，连跨
  * 进程的 protobuf（crates/proto/proto/ai.proto）都保持结构化，整个仓库一处都
  * 没有用 shell_words。
- *
- * 三格就够，因此不强求一整份 AcpAgentProfile：内置描述符与用户档案都能直接传
- * 进来，不必先补出一堆用不上的字段。
  */
-export function acpAgentLaunch(agent: AcpAgentLaunchSource): AcpAgentLaunch {
+export function acpAgentLaunch(agent) {
   return { agentId: agent.id, program: agent.command, args: [...agent.args] }
 }
 
 /**
- * 内置 agent 档案，从既有的 acpAgents() 派生。
+ * 内置 agent 的档案：一家一条，用户那几格都还是空的。
  *
- * acp-agents.ts 仍然是 agent 名单的唯一来源，而它记的已经是可以直接 spawn
- * 的 command + args，所以这里没有任何一行命令要拼、也没有一次解析要做。
+ * 它不再从描述符里抄七个字段过来 —— 那些字段现在只有一个产地。
  */
-export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
+export function builtinAcpAgentProfiles() {
   return acpAgents().map((agent) => {
-    return {
-      id: agent.id,
-      displayName: agent.displayName,
-      command: agent.command,
-      args: [...agent.args],
-      cwd: undefined,
-      env: {},
-      homeVar: agent.homeVar,
-      registryKeyVar: agent.registryKeyVar,
-      ownHomeDirectory: agent.ownHomeDirectory,
-      install: agent.install,
-      defaultConfigOptions: {},
-    }
+    return { id: agent.id, cwd: undefined, env: {}, defaultConfigOptions: {} }
   })
 }
 
-export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
+export function builtinAcpAgentProfileSet() {
   return { profiles: builtinAcpAgentProfiles(), defaultProfileId: defaultAcpAgent().id }
 }
 
-/** 一次物化的结果。changed 为真表示磁盘上那份与二进制不一致。 */
+/** 一次物化的结果。changed 为真表示磁盘上那份与名单不一致。 */
 export interface AcpAgentProfileReconcile {
   readonly profiles: readonly AcpAgentProfile[]
   readonly changed: boolean
-}
-
-/*
- * 内置 agent 的身份由二进制拥有：起哪个程序、带哪些参数、把受控 home 与代填密钥注入
- * 到哪个变量名、以及它自己那份 home 叫什么。用户改不了这些，也没有理由改 —— 改了只会
- * 让界面与真正被 spawn 的进程说两套话。
- *
- * 用户拥有的是另外三格：cwd、env、defaultConfigOptions。物化不碰它们。
- */
-function sameLaunchIdentity(profile: AcpAgentProfile, builtin: AcpAgentProfile): boolean {
-  return (
-    profile.displayName === builtin.displayName &&
-    profile.command === builtin.command &&
-    profile.args.length === builtin.args.length &&
-    profile.args.every((arg, index) => arg === builtin.args[index]) &&
-    profile.homeVar === builtin.homeVar &&
-    profile.registryKeyVar === builtin.registryKeyVar &&
-    profile.ownHomeDirectory === builtin.ownHomeDirectory &&
-    sameInstall(profile.install, builtin.install)
-  )
-}
-
-/* 安装方式也归二进制：改了包名只会让界面装一个东西、进程起另一个东西。 */
-function sameInstall(profile?: AcpAgentInstall, builtin?: AcpAgentInstall): boolean {
-  if (profile === undefined || builtin === undefined) {
-    return profile === builtin
-  }
-
-  return (
-    profile.packageName === builtin.packageName &&
-    profile.versionArgs.length === builtin.versionArgs.length &&
-    profile.versionArgs.every((arg, index) => arg === builtin.versionArgs[index])
-  )
+  /** 为了对齐名单而丢掉了什么。界面要说出来，不能默默改用户的文件。 */
+  readonly issues: readonly string[]
 }
 
 /**
- * 把落盘的档案与二进制里的内置档案对齐。
+ * 把落盘的档案与二进制里的名单对齐。
  *
- * agents.json 是内置档案的一份物化，不是它的第二个来源。每次读都重新物化，于是
- * 「二进制升级了、磁盘没升级」这一整类问题不存在：给档案新增一个字段不需要迁移代码，
- * 也不需要用户删文件。上一版只在文件为空时写一次，那份拷贝因此永远停在用户第一次
- * 启动的那个版本 —— 后来加的 registryKeyVar 到不了磁盘，界面就说这个 agent 没有声明
- * 该往哪个环境变量注入密钥。
+ * 此前这里要逐格比对七个字段（sameLaunchIdentity 与 sameInstall 两个函数），
+ * 因为那七格既在磁盘上、又在二进制里，两份得对齐。现在它们只在二进制里，所以
+ * 这里没有任何字段要比 —— 只剩名单本身要对齐。
  *
- * 陌生 id 原样保留 —— 那是用户自带的 agent，不在二进制的管辖范围内。名单里有、磁盘上
- * 没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
+ * 陌生 id 现在移除，而不是原样保留。保留是上一版为「用户自带的 agent」留的余地，
+ * 而那条路不存在：acp-agents.ts 说得很清楚，名单是封闭的。留着它，设置页的下拉
+ * 就会列出一家原生侧根本查不到程序的 agent，选中之后失败在一个与选择无关的地方。
+ * 丢掉一行用户手写的配置必须说出来，所以它带一条 issue 出去。
+ *
+ * 名单里有、磁盘上没有的补上：接第二家 agent 时它得自己出现，而不是只对新用户出现。
  */
-export function reconcileAcpAgentProfiles(
-  profiles: readonly AcpAgentProfile[],
-): AcpAgentProfileReconcile {
-  const builtins = builtinAcpAgentProfiles()
-  let changed = false
+export function reconcileAcpAgentProfiles(profiles) {
+  const known = new Set(acpAgents().map((agent) => agent.id))
+  const issues = []
 
-  const merged = profiles.map((profile) => {
-    const builtin = builtins.find((one) => one.id === profile.id)
-
-    if (!builtin || sameLaunchIdentity(profile, builtin)) {
-      return profile
+  const kept = profiles.filter((profile) => {
+    if (known.has(profile.id)) {
+      return true
     }
 
-    changed = true
+    issues.push(`配置里的 ${profile.id} 不是本软件支持的 agent，已从 agents.json 移除`)
 
-    return {
-      ...profile,
-      displayName: builtin.displayName,
-      command: builtin.command,
-      args: [...builtin.args],
-      homeVar: builtin.homeVar,
-      registryKeyVar: builtin.registryKeyVar,
-      ownHomeDirectory: builtin.ownHomeDirectory,
-      install: builtin.install,
-    }
+    return false
   })
 
-  const missing = builtins.filter((builtin) => !merged.some((one) => one.id === builtin.id))
+  const missing = builtinAcpAgentProfiles().filter(
+    (builtin) => !kept.some((one) => one.id === builtin.id),
+  )
 
-  return { profiles: [...merged, ...missing], changed: changed || missing.length > 0 }
+  return {
+    profiles: [...kept, ...missing],
+    changed: issues.length > 0 || missing.length > 0,
+    issues,
+  }
 }

@@ -6,30 +6,25 @@ import {
 } from '../acp-agent-profile'
 
 /*
- * agents.json 是内置档案的物化产物，不是第二个来源。
+ * agents.json 是名单的一份物化，不是第二个来源。
  *
- * 这份测试守的是一个真实发生过的故障：磁盘上那条 kimi 档案是首次启动时写下的拷贝，
- * 之后二进制给档案加了 registryKeyVar，而拷贝永远拿不到它 —— 设置页于是说这个 agent
- * 没有声明该往哪个环境变量注入密钥，密钥一个字也写不进去。
+ * 物化现在只做一件事：让磁盘上的那几条与封闭名单对齐。此前它还要逐格比对七个
+ * 启动字段，那是因为那七格既在磁盘上又在二进制里 —— 现在它们只在二进制里，那
+ * 一整类「拷贝停在旧版本」的故障因此在结构上不存在了。
  */
 
 const builtins = builtinAcpAgentProfiles()
-const keyed = builtins.find((profile) => profile.registryKeyVar !== undefined)
+const first = builtins[0]
 
-if (!keyed) {
-  throw new Error('没有内置档案声明代填密钥的变量名，这份测试没有可用的装置')
+if (!first) {
+  throw new Error('名单里一家 agent 都没有，这份测试没有可用的装置')
 }
 
-/* 用户自带的 agent：不在二进制的名单里，物化不该碰它。 */
+/* 手写进配置文件的、不在名单里的一家。 */
 const homemade: AcpAgentProfile = {
   id: 'homemade',
-  displayName: '自带的 agent',
-  command: 'my-agent',
-  args: ['acp'],
   cwd: undefined,
   env: {},
-  homeVar: undefined,
-  registryKeyVar: undefined,
   defaultConfigOptions: {},
 }
 
@@ -38,40 +33,46 @@ describe('内置档案的物化', () => {
     const result = reconcileAcpAgentProfiles([])
 
     expect(result.changed).toBe(true)
+    expect(result.issues).toEqual([])
     expect(result.profiles.map((profile) => profile.id)).toEqual(builtins.map((one) => one.id))
   })
 
-  it('与二进制一致时不报改动', () => {
+  it('与名单一致时不报改动', () => {
     const result = reconcileAcpAgentProfiles(builtins)
 
     expect(result.changed).toBe(false)
+    expect(result.issues).toEqual([])
     expect(result.profiles).toEqual(builtins)
   })
 
-  it('补回后来才加进档案的注入变量名', () => {
-    const stale = { ...keyed, registryKeyVar: undefined }
+  it('用户自己那三格原样保留', () => {
+    const mine = { ...first, cwd: '/work', env: { EXTRA: '1' }, defaultConfigOptions: { a: true } }
 
-    const result = reconcileAcpAgentProfiles([stale])
-
-    expect(result.changed).toBe(true)
-    expect(result.profiles[0]?.registryKeyVar).toBe(keyed.registryKeyVar)
-  })
-
-  it('覆盖被改过的启动命令，保留用户自己那几格', () => {
-    const stale = { ...keyed, command: 'stale', cwd: '/work', env: { EXTRA: '1' } }
-
-    const result = reconcileAcpAgentProfiles([stale])
+    const result = reconcileAcpAgentProfiles([mine])
     const profile = result.profiles[0]
 
-    expect(result.changed).toBe(true)
-    expect(profile?.command).toBe(keyed.command)
+    expect(result.changed).toBe(false)
     expect(profile?.cwd).toBe('/work')
     expect(profile?.env).toEqual({ EXTRA: '1' })
+    expect(profile?.defaultConfigOptions).toEqual({ a: true })
   })
 
-  it('原样保留陌生 id 的档案', () => {
+  /*
+   * 名单是封闭的，所以一条不在名单里的档案是用不了的：原生侧按 id 查不到该起哪个
+   * 程序。留着它只会让下拉里多一家选中就失败的 agent。丢掉必须说出来。
+   */
+  it('移除不在名单里的档案，并说明原因', () => {
     const result = reconcileAcpAgentProfiles([homemade])
 
-    expect(result.profiles[0]).toEqual(homemade)
+    expect(result.changed).toBe(true)
+    expect(result.profiles.some((profile) => profile.id === 'homemade')).toBe(false)
+    expect(result.issues).toHaveLength(1)
+    expect(result.issues[0]).toContain('homemade')
+  })
+
+  it('移除之后名单里的那几家仍然补齐', () => {
+    const result = reconcileAcpAgentProfiles([homemade])
+
+    expect(result.profiles.map((profile) => profile.id)).toEqual(builtins.map((one) => one.id))
   })
 })

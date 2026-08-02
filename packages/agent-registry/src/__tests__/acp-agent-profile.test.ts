@@ -5,12 +5,11 @@ import {
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
 } from '../acp-agent-profile'
+import { acpAgentById, defaultAcpAgent } from '../acp-agents'
 
+/* 一份档案里现在只有用户自己的东西。 */
 const valid = {
   id: 'kimi',
-  displayName: 'Kimi Code',
-  command: 'kimi',
-  args: ['acp'],
   env: { NO_COLOR: '1' },
   defaultConfigOptions: { model: 'kimi-k2-turbo-preview', brave_mode: false },
 }
@@ -22,13 +21,13 @@ describe('parseAcpAgentProfile', () => {
     expect(result.ok).toBe(true)
 
     if (result.ok) {
-      expect(result.profile.args).toEqual(['acp'])
+      expect(result.profile.env['NO_COLOR']).toBe('1')
       expect(result.profile.defaultConfigOptions['brave_mode']).toBe(false)
     }
   })
 
-  it('拒绝带 shell 元字符的命令', () => {
-    expect(parseAcpAgentProfile({ ...valid, command: 'kimi; rm -rf /' }).ok).toBe(false)
+  it('拒绝不合法的 agent 标识', () => {
+    expect(parseAcpAgentProfile({ ...valid, id: 'NOT AN ID' }).ok).toBe(false)
   })
 
   it('拒绝不合法的环境变量名', () => {
@@ -37,6 +36,27 @@ describe('parseAcpAgentProfile', () => {
 
   it('拒绝非字符串非布尔的会话配置值', () => {
     expect(parseAcpAgentProfile({ ...valid, defaultConfigOptions: { model: 3 } }).ok).toBe(false)
+  })
+
+  /*
+   * 回归护栏：磁盘上多写的键不该变成档案的一部分。
+   *
+   * 老版本写下的 command 与 args 还留在很多人的 agents.json 里。它们必须被忽略 ——
+   * 一旦有一天又被读出来当真，「起哪个程序」就重新有了第二个产地。
+   */
+  it('忽略磁盘上遗留的启动字段', () => {
+    const result = parseAcpAgentProfile({ ...valid, command: 'evil', args: ['--rm-rf'] })
+
+    expect(result.ok).toBe(true)
+
+    if (result.ok) {
+      expect(Object.keys(result.profile).sort()).toEqual([
+        'cwd',
+        'defaultConfigOptions',
+        'env',
+        'id',
+      ])
+    }
   })
 })
 
@@ -93,11 +113,13 @@ describe('parseAcpAgentProfileSet', () => {
 })
 
 describe('acpAgentLaunch', () => {
-  it('把档案翻成 agentId 加 program 加 args', () => {
-    expect(acpAgentLaunch(valid)).toEqual({
-      agentId: 'kimi',
-      program: 'kimi',
-      args: ['acp'],
+  it('把名单里的一家翻成 agentId 加 program 加 args', () => {
+    const agent = defaultAcpAgent()
+
+    expect(acpAgentLaunch(agent)).toEqual({
+      agentId: agent.id,
+      program: agent.command,
+      args: [...agent.args],
     })
   })
 
@@ -108,7 +130,7 @@ describe('acpAgentLaunch', () => {
    */
   it('带空格的绝对路径与反斜杠原样保留', () => {
     const launch = acpAgentLaunch({
-      id: 'kimi',
+      ...defaultAcpAgent(),
       command: 'C:\\Program Files\\kimi\\kimi.exe',
       args: ['acp', '--cwd', 'C:\\my notes'],
     })
@@ -119,13 +141,13 @@ describe('acpAgentLaunch', () => {
 })
 
 describe('builtinAcpAgentProfileSet', () => {
-  it('内置档案本来就是可以直接 spawn 的形式', () => {
+  it('每一条都指向名单里真实存在的一家', () => {
     const set = builtinAcpAgentProfileSet()
 
     expect(set.profiles.length).toBeGreaterThan(0)
 
     for (const profile of set.profiles) {
-      expect(profile.command).not.toContain(' ')
+      expect(acpAgentById(profile.id), profile.id).toBeDefined()
     }
 
     expect(set.profiles.some((profile) => profile.id === set.defaultProfileId)).toBe(true)

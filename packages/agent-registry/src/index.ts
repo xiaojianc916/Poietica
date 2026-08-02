@@ -1,7 +1,6 @@
 export type { AcpAgentInstall, AcpQuestionDialect } from './acp-agent-contract'
 export type {
   AcpAgentLaunch,
-  AcpAgentLaunchSource,
   AcpAgentProfile,
   AcpAgentProfileParse,
   AcpAgentProfileReconcile,
