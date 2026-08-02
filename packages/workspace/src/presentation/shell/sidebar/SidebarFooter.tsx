@@ -14,7 +14,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
   Tooltip,
   TooltipContent,
@@ -110,18 +109,33 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
         <QuestionCircle aria-hidden="true" className="size-4" />
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-56" side="top" sideOffset={8}>
+      {/*
+       * 不定宽：菜单由内容撑开，兜底是基元的 min-w-32。
+       *
+       * 此前是 w-56（224px）。最长标签「开发者工具」5 个全角字 @ 14px 约 70px，
+       * 一行里确定的部分（popup padding 4×2 + item px 8×2 + 前导图标 16 + gap 8
+       * + 标签与尾标间 8 + 尾标 16）是 80px，合计约 150px —— 有 74px 是空的，就是
+       * 标签与右侧箭头之间那段空白。macOS 菜单、Fluent MenuFlyout、VS Code 的
+       * context menu 都是 min-width 兜底 + 内容撑开，没有一个定宽。
+       *
+       * sideOffset 也删了：基元默认 6，此处此前局部覆写成 8，没有理由。
+       *
+       * 分隔线切在「离开应用 / 作用于应用」的边界上。此前它切在第 2 与第 3 行
+       * 之间，而外链箭头出现在第 1、2、3 行 —— Discord 与上面两个同类，被分隔线
+       * 拆开了，反倒和唯一的本地动作绑在一起。
+       */}
+      <DropdownMenuContent align="end" side="top">
         <DropdownMenuGroup>
-          <HelpMenuItem external icon={BookOpen} label="文档" />
+          <HelpMenuItem external icon={BookOpen} label="项目文档" />
 
-          <HelpMenuItem external icon={RefreshAlt} label="更新日志" />
+          <HelpMenuItem external icon={RefreshAlt} label="检查更新" />
+
+          <HelpMenuItem external icon={Message} label="Github" />
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <HelpMenuItem external icon={Message} label="Discord" />
-
           <HelpMenuItem icon={Code} label="开发者工具" onClick={onDeveloperToolsOpen} />
         </DropdownMenuGroup>
       </DropdownMenuContent>
@@ -143,11 +157,17 @@ function HelpMenuItem({ label, icon: Icon, external = false, onClick }: HelpMenu
 
       <span className="flex-1">{label}</span>
 
-      {external ? (
-        <DropdownMenuShortcut>
-          <ExternalLink aria-hidden="true" />
-        </DropdownMenuShortcut>
-      ) : null}
+      {/*
+       * 直接是一个图标，不套 DropdownMenuShortcut。
+       *
+       * 那个组件是给 ⌘K 这类键位文本准备的：text-xs 与 tracking-widest 作用在
+       * svg 上是空转，真正被用到的只有 ml-auto —— 而上面那个 flex-1 已经把尾标
+       * 推到右边了，连 ml-auto 都不需要。
+       *
+       * 尺寸仍是 16px：tokens/controls.css 只允许 16 / 32 两档，因为 S / 16 必须
+       * 在 dpr 1.5 下取整（14px → 21px 会糊）。减重交给 muted 色，不改尺寸。
+       */}
+      {external ? <ExternalLink aria-hidden="true" className="text-muted-foreground" /> : null}
     </DropdownMenuItem>
   )
 }

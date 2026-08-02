@@ -71,8 +71,22 @@ export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuConten
  * which also paints while its submenu is open, so it adds that one class
  * instead of restating the rest.
  */
+/*
+ * 行高读 --ui-control-height-sm，不写 min-h-9。
+ *
+ * 36px 是 shadcn / Radix 的 web 默认值，前提是手指点击。这是鼠标产品：
+ * macOS 菜单行约 22px，Fluent 的 MenuFlyoutItem 32px，VS Code 26px。令牌表
+ * 里 --ui-hit-target-min（2.25rem）是最小命中区，不是行高，此前把两者当成
+ * 了一个数。
+ *
+ * 换成令牌之后，菜单行与应用里其他控件读同一个高度 —— 在此之前这里是全局
+ * 唯一一处不读令牌的控件高度。
+ *
+ * py-1.5 保留：32px 下它是惰性的（6 + 16 + 6 = 28 < 32），但标签折行时它是
+ * 唯一的保护。
+ */
 const itemClassName = [
-  'relative flex min-h-9',
+  'relative flex min-h-[var(--ui-control-height-sm)]',
   'cursor-default select-none',
   'items-center gap-2',
   'rounded-sm px-2 py-1.5',
