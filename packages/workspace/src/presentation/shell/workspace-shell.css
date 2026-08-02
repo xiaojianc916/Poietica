@@ -13,22 +13,29 @@
   grid-template-areas:
     "chrome chrome"
     "sidebar main";
-
-  /*
-   * 侧边栏与内容之间那条线的墨色与粗细。
-   *
-   * 它是一条线，不是两条。此前它有两个所有者：chrome 行里那一小段是
-   * desktop-title-bar 的一个绝对定位元素，chrome 行以下那一长段是
-   * SidebarRegion 上的一个 Tailwind border-r —— 两种机制、两处声明、
-   * 谁都改不动对方。所以拖拽反馈最后退化成在 8px 的命中区上刷一块主色
-   * 半透明：那是唯一一个两段都够不着、于是索性另画一层的位置。
-   *
-   * 现在两段读同一对变量，对齐是算出来的：两者的 inline-end 都取自
-   * --workspace-sidebar-column-width，边框都朝自己盒内长，x 坐标恒等。
-   */
-  --workspace-divider-ink: var(--color-divider);
-  --workspace-divider-width: var(--ui-region-divider-width);
 }
+
+/*
+ * 侧边栏与内容之间那条线：静止态没有变量，只有拖拽态有。
+ *
+ * 上一版把静止态的墨色与粗细也做成了自定义属性，再用一条简写去读它们：
+ *
+ *     border-inline-end: var(--…-width) solid var(--…-ink);
+ *
+ * 这是一个会整条消失的写法。简写里只要有一个 var() 解不出来，按规范整条
+ * 声明降级为 unset（invalid at computed-value time），三个子属性一起回到
+ * 初始值 —— border-style 于是回到 none。结果不是线变细或变淡，是线连同
+ * chrome 行那一小段一起不见。一条必须存在的发丝线不能挂在这种失效模式上。
+ *
+ * 所以分成两层。静止态直接读令牌，不经任何中转，也就没有可解不出来的东西；
+ * --workspace-divider-* 只在悬停 / 聚焦 / 拖拽时才被声明，消费端写成
+ * var(--workspace-divider-*, 令牌) —— 兜底就是那个令牌本身，不是另抄一个
+ * 字面量，所以没有第二份真相，变量的含义也收窄成了「覆盖」而不是「值」。
+ *
+ * 它仍然是一条线而不是两条：两段读同一组表达式，对齐是算出来的 —— 两者的
+ * inline-end 都取自 --workspace-sidebar-column-width，边框都朝自己盒内长，
+ * x 坐标恒等。
+ */
 
 /*
  * 状态从分隔条身上读，不新增任何一处状态。
@@ -83,7 +90,10 @@
  * 的是颜色而不是粗细。
  */
 .workspace-shell__sidebar {
-  border-inline-end: var(--workspace-divider-width) solid var(--workspace-divider-ink);
+  /* style 独立声明：线「存在」这件事不依赖任何变量。 */
+  border-inline-end-style: solid;
+  border-inline-end-width: var(--workspace-divider-width, var(--ui-region-divider-width));
+  border-inline-end-color: var(--workspace-divider-ink, var(--color-divider));
   transition: border-color var(--workspace-layout-duration) ease;
 }
 

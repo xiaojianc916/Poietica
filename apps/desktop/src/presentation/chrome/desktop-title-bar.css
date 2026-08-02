@@ -47,11 +47,20 @@
   inset-block: 0;
   inset-inline-end: 0;
   /*
-   * 墨色与粗细来自外壳根节点的 --workspace-divider-*，与 chrome 行以下那
-   * 一长段是同一条声明 —— 这两段本来就是一条线，此前只是各画各的。
-   * 不写兜底值：兜底值就是第二份真相，与本文件开头那条约定同一个理由。
+   * 与 chrome 行以下那一长段是同一组表达式 —— 这两段本来就是一条线，此前
+   * 只是各画各的。
+   *
+   * 三行长手而不是一条简写：简写里任一 var() 解不出来会让整条声明降级为
+   * unset，border-style 回到 none，这条线就会整条消失。长手各自独立降级，
+   * 而 style 根本不读变量。
+   *
+   * var() 的兜底不是本文件开头禁止的那种兜底值：它写的是同一个令牌，不是
+   * 另抄一个字面量，所以真相仍然只有一份。--workspace-divider-* 只在拖拽态
+   * 存在，静止态本就该落回令牌。
    */
-  border-inline-end: var(--workspace-divider-width) solid var(--workspace-divider-ink);
+  border-inline-end-style: solid;
+  border-inline-end-width: var(--workspace-divider-width, var(--ui-region-divider-width));
+  border-inline-end-color: var(--workspace-divider-ink, var(--color-divider));
   opacity: 0;
   pointer-events: none;
   transition:
