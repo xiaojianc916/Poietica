@@ -10,8 +10,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import { modelProviderOf } from '../primitives/model-provider'
-import { ProviderIcon } from '../primitives/provider-icon'
 
 /*
  * Everything the session lets us change, in one control.
@@ -89,7 +87,6 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
     .filter((control) => control.purpose !== 'mode')
     .sort((left, right) => rank(left.purpose) - rank(right.purpose))
   const model = controls.find((control) => control.purpose === 'model')
-  const provider = modelProviderOf(controls)
 
   /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
   const [firstRow] = rows

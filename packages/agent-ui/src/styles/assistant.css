@@ -776,11 +776,6 @@
   color: var(--cp-ink);
 }
 
-.assistant-model-select__button .assistant-provider-icon {
-  block-size: 1em;
-  inline-size: 1em;
-}
-
 /* A long name is truncated rather than allowed to squeeze the editor. */
 .assistant-model-select__button .assistant-model-select__label {
   max-inline-size: 18ch;

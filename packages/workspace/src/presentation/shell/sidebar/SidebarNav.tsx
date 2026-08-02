@@ -1,4 +1,3 @@
-import { Message } from '@mynaui/icons-react'
 import { cn } from '@poietica/ui'
 import type { WorkspaceSurfaceId } from '../../../contracts/workbench'
 import {
