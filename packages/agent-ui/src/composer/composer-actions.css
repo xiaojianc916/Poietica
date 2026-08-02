@@ -63,15 +63,22 @@
   color: var(--cp-ink-subtle);
 }
 
-/* 勾与会话设置里那一枚同形：生效的那一行才挂载它。 */
+/*
+ * 勾就是图标库里那一枚，不在这里用边框拼一个。
+ *
+ * 原先是 4×8 的盒子加两条边框再转 45°。它画出来的东西与 CheckIcon 是同一个
+ * 图形，于是同一个勾在仓库里有两份互不相干的实现，改一处不会同步另一处 ——
+ * 注释里那句「与会话设置里那一枚同形」说的就是这件事，它是缺陷的自述而不是
+ * 设计意图。
+ *
+ * 这里只留一个槽位：尺寸由上面 .assistant-plus-menu__item svg 那条统一给
+ * (--cp-icon)，形状归字形，墨色归令牌。
+ */
 [data-assistant-skin] .assistant-plus-menu__tick {
-  block-size: 8px;
-  inline-size: 4px;
+  display: flex;
   flex: none;
   margin-inline-start: auto;
-  border-inline-end: 1.5px solid var(--cp-ink);
-  border-block-end: 1.5px solid var(--cp-ink);
-  transform: rotate(45deg) translate(-1px, -1px);
+  color: var(--cp-ink);
 }
 
 /*
@@ -175,10 +182,14 @@
   visibility: hidden;
   opacity: 0;
   border-radius: 9999px;
-  padding: 15%;
+  /*
+   * padding 15% 解出 2.4px：内容区 11.2px，24 网格字形缩到 11.2px，叠上
+   * stroke-width 2.5 后实际渲染 2.5 × 11.2/24 = 1.167px，跨两列像素。
+   * 两个数一起错。2px 得到 12px 内容区，线宽交回字形自己声明。
+   */
+  padding: 2px;
   background: var(--am-pill-ink);
   color: var(--cp-surface);
-  stroke-width: 2.5;
 }
 
 .assistant-mode-pill:hover .assistant-mode-pill__glyph,

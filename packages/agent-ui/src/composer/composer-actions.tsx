@@ -15,6 +15,7 @@ import type { ComponentType } from 'react'
 import {
   AgentIcon,
   AttachIcon,
+  CheckIcon,
   CloseIcon,
   GlobeIcon,
   ModelIcon,
@@ -132,7 +133,9 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
 
                     <span className="assistant-plus-menu__label">{choice.label}</span>
 
-                    <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick" />
+                    <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick">
+                      <CheckIcon aria-hidden="true" />
+                    </DropdownMenuRadioItemIndicator>
                   </DropdownMenuRadioItem>
                 )
               })}
@@ -184,7 +187,9 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
                           <span className="assistant-plus-menu__detail">{choice.detail}</span>
                         )}
 
-                        <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick" />
+                        <DropdownMenuRadioItemIndicator className="assistant-plus-menu__tick">
+                          <CheckIcon aria-hidden="true" />
+                        </DropdownMenuRadioItemIndicator>
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>

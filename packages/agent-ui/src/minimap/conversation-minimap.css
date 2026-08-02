@@ -29,7 +29,15 @@
   --cp-rail-len: 9px;
   --cp-rail-gain: 25px;
   --cp-rail-weight-line: 3px;
-  --cp-rail-weight-gain: 0.5px;
+  /*
+   * 厚度 = weight-line + weight × weight-gain，weight ∈ [0, 1]。增量取 0.5px
+   * 时拉满是 3.5px —— 动画停下来的那一帧压在半个像素上。中间帧在运动中不读
+   * 锐度，端点读，所以端点必须是整数：3 → 4。
+   *
+   * 这也与本文件开头那段「所有格子共用同一相位」的立论一致；0.5 是它自己的
+   * 反例。
+   */
+  --cp-rail-weight-gain: 1px;
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
