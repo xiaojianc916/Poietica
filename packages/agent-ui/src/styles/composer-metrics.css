@@ -84,6 +84,32 @@
   --cp-radius-menu: 12px;
   --cp-radius-item: 8px;
 
+  /*
+   * 模式胶囊。
+   *
+   * 它不是按钮，所以不借 --cp-control（那是按钮的高度令牌）；但它和按钮共用
+   * 同一条硬约束：壳高减图标尺寸必须为偶数，居中偏移 (h − icon) / 2 才落在整
+   * 数 CSS 像素上。26 − 16 = 10，成立。
+   *
+   * 此前壳是写死的 20px，只比 16px 的图标大 4px —— 上下各 2px 空气，字身又占
+   * 掉 60% 的高度，于是它读起来是「图标套了个圈」而不是一枚标记。26px 给出上
+   * 下各 5px，这是 Fluent chip、Material assist chip、GitHub Label 那一档的
+   * 内容留白比例。
+   *
+   * 内边距是两个数而不是一个。前导是一枚圆形字形，后随是文字：圆形的光学重心
+   * 比它的外接方框靠里，两侧给同一个数，圆那侧永远看着更宽。业界的 chip 一律
+   * 前导紧、后随松，这不是偏好，是补偿。
+   *
+   * 底色浓度随字号一起定：字大了一档，washes 就得压一档，否则底色抢字。
+   */
+  --cp-pill: calc(var(--cp-control) - 6px);
+  --cp-pill-lead: 6px;
+  --cp-pill-trail: 10px;
+  --cp-pill-gap: var(--cp-control-gap);
+  --cp-pill-label-max: 14ch;
+  --cp-pill-wash: 13%;
+  --cp-pill-wash-hover: 19%;
+
   --cp-menu-min: 168px;
   --cp-menu-min-wide: calc(var(--cp-menu-min) + 40px);
 

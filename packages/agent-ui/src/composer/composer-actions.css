@@ -100,14 +100,25 @@
   --am-pill-ink: var(--cp-ink-muted);
 
   display: inline-flex;
-  block-size: 20px;
+  block-size: var(--cp-pill);
+  /* 工具条挤时它不许被压扁：一枚标记被压窄就变成了另一个形状。 */
+  flex: none;
   align-items: center;
-  gap: 4px;
+  gap: var(--cp-pill-gap);
   border-radius: 9999px;
-  padding-inline: 8px;
-  background: color-mix(in oklab, var(--am-pill-ink) 12%, var(--cp-surface));
-  font-size: var(--cp-font-micro);
+  /* 前导紧、后随松：补偿圆形字形比方框靠里的光学重心。 */
+  padding-inline: var(--cp-pill-lead) var(--cp-pill-trail);
+  background: color-mix(in oklab, var(--am-pill-ink) var(--cp-pill-wash), var(--cp-surface));
+  font-size: var(--cp-font-caption);
   font-weight: 500;
+  /*
+   * 行高锁 1。
+   *
+   * 壳的高度是固定的，字身的行盒如果还带着继承来的 1.625，CJK 的基线会在这
+   * 个盒子里被半行间距顶偏 —— 图标居中、文字不居中，两者差半个像素，而那正
+   * 是「内部位置不对」最容易被看见的地方。
+   */
+  line-height: 1;
   color: var(--am-pill-ink);
   /* 它是一枚控件，不是一段文稿：不给 I 型光标，也不参与选区。 */
   cursor: default;
@@ -117,7 +128,7 @@
 
 .assistant-mode-pill:hover,
 .assistant-mode-pill:focus-within {
-  background: color-mix(in oklab, var(--am-pill-ink) 20%, var(--cp-surface));
+  background: color-mix(in oklab, var(--am-pill-ink) var(--cp-pill-wash-hover), var(--cp-surface));
 }
 
 /* 键与 MODE_GLYPH 同一套：认得出的模式各有一色，认不出的走上面那个缺省。 */
@@ -204,8 +215,19 @@
   opacity: 1;
 }
 
+/*
+ * 标签只做三件事：不折行、不撑破工具条、和图标同一条中线。
+ *
+ * 截断而不是换行：胶囊一旦有第二行，它的圆角半径（9999px）会把它画成一颗
+ * 药丸形的方块，那是另一种控件。模式名由 agent 自己取，长度不可控，所以上限
+ * 必须在这里给死。
+ */
 .assistant-mode-pill__label {
+  max-inline-size: var(--cp-pill-label-max);
+  overflow: hidden;
+  line-height: 1;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 @media (prefers-reduced-motion: reduce) {
