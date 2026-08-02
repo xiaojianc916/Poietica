@@ -14,17 +14,16 @@ export { formatKeybinding, useCommandKeybindings } from './commands/keybinding'
 export {
   SidebarFooter,
   type SidebarFooterProps,
-} from './shell/SidebarFooter'
-
-export {
-  WorkbenchTabs,
-  type WorkbenchTabsProps,
-} from './shell/WorkbenchTabs'
+} from './shell/sidebar/SidebarFooter'
+export { WorkspaceSidebar } from './shell/sidebar/WorkspaceSidebar'
 export { WorkspaceShell } from './shell/WorkspaceShell'
-export { WorkspaceSidebar } from './shell/WorkspaceSidebar'
 export {
   WorkspaceSurface,
   type WorkspaceSurfaceProps,
 } from './shell/WorkspaceSurface'
+export {
+  WorkbenchTabs,
+  type WorkbenchTabsProps,
+} from './shell/workbench-tabs/WorkbenchTabs'
 export { WORKSPACE_LAYOUT } from './shell/workspace-layout'
 export { useWorkspaceLayoutState, workspaceLayoutStore } from './shell/workspace-layout-store'

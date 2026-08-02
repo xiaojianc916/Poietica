@@ -1,11 +1,11 @@
 import { Message } from '@mynaui/icons-react'
 import { cn } from '@poietica/ui'
-import type { WorkspaceSurfaceId } from '../../contracts/workbench'
+import type { WorkspaceSurfaceId } from '../../../contracts/workbench'
 import {
   describeWorkspaceSurface,
   type SurfaceIcon,
   WORKSPACE_NAVIGATION_ORDER,
-} from './surface-registry'
+} from '../surface-registry'
 
 export interface SidebarNavProps {
   /** 当前高亮的导航项，等于当前活动表面；非表面形态为 null。 */

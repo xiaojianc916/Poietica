@@ -1,9 +1,8 @@
 import { Drawer } from '@poietica/ui'
 import type { ReactNode } from 'react'
-
+import type { WorkspaceLayoutMode } from '../useWorkspaceLayout'
+import { WORKSPACE_LAYOUT } from '../workspace-layout'
 import { SidebarSplitter } from './SidebarSplitter'
-import type { WorkspaceLayoutMode } from './useWorkspaceLayout'
-import { WORKSPACE_LAYOUT } from './workspace-layout'
 
 export interface SidebarRegionProps {
   readonly mode: WorkspaceLayoutMode

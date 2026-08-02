@@ -1,11 +1,11 @@
 import { TooltipProvider } from '@poietica/ui'
 import type { WorkspaceShellProps } from '../../contracts/shell'
 import type { WorkbenchSurfaceViewModel, WorkspaceSurfaceId } from '../../contracts/workbench'
-import { SidebarRegion } from './SidebarRegion'
+import { SidebarRegion } from './sidebar/SidebarRegion'
+import { WorkspaceSidebar } from './sidebar/WorkspaceSidebar'
 import { describeWorkspaceSurface } from './surface-registry'
 import { useWorkspaceLayoutMode } from './useWorkspaceLayout'
 import { WorkspaceFrame } from './WorkspaceFrame'
-import { WorkspaceSidebar } from './WorkspaceSidebar'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
 

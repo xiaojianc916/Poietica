@@ -23,7 +23,7 @@ import {
 
 import type { ReactNode } from 'react'
 
-import type { SurfaceIcon } from './surface-registry'
+import type { SurfaceIcon } from '../surface-registry'
 
 export interface SidebarFooterProps {
   /**

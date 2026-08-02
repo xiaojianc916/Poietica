@@ -1,5 +1,5 @@
+import { useWorkspaceLayoutState } from '../workspace-layout-store'
 import { useSidebarResize } from './useSidebarResize'
-import { useWorkspaceLayoutState } from './workspace-layout-store'
 
 export interface SidebarSplitterProps {
   readonly width: number

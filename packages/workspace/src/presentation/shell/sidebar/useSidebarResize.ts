@@ -1,6 +1,6 @@
 import { type KeyboardEvent, type MouseEvent, type PointerEvent, useRef } from 'react'
 
-import { workspaceLayoutStore } from './workspace-layout-store'
+import { workspaceLayoutStore } from '../workspace-layout-store'
 
 export interface SidebarResizeOptions {
   readonly width: number
