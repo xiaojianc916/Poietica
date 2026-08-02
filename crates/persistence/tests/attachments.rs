@@ -1,3 +1,8 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a test proves itself by panicking, so a failed step must fail the test"
+)]
 //! 附件的账,跨一次关库开库。
 //!
 //! 这正是屏幕上出问题的那条路径:图片发出去的时候一切正常,重启之后不见了。
@@ -28,7 +33,9 @@ fn an_attachment_survives_closing_the_store() {
 
     let thread = {
         let mut store = AgentStore::open(&path).expect("store should open");
-        let thread = store.create_thread("新建对话").expect("thread should be created");
+        let thread = store
+            .create_thread("新建对话")
+            .expect("thread should be created");
 
         store
             .remember_attachment(thread, &image(0, 0, &hash))
@@ -38,11 +45,14 @@ fn an_attachment_survives_closing_the_store() {
     };
 
     let store = AgentStore::open(&path).expect("store should reopen");
-    let found = store.attachments_of(thread).expect("attachments should load");
+    let found = store
+        .attachments_of(thread)
+        .expect("attachments should load");
 
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].hash, hash);
-    assert_eq!(found[0].turn, 0);
+    let first = found.first().expect("刚存进去的那一条");
+    assert_eq!(first.hash, hash);
+    assert_eq!(first.turn, 0);
 }
 
 #[test]
@@ -51,7 +61,9 @@ fn the_same_image_twice_is_stored_once_and_linked_twice() {
     let hash = "b".repeat(64);
 
     let mut store = AgentStore::open(&path).expect("store should open");
-    let thread = store.create_thread("新建对话").expect("thread should be created");
+    let thread = store
+        .create_thread("新建对话")
+        .expect("thread should be created");
 
     store
         .remember_attachment(thread, &image(0, 0, &hash))
@@ -60,11 +72,17 @@ fn the_same_image_twice_is_stored_once_and_linked_twice() {
         .remember_attachment(thread, &image(3, 0, &hash))
         .expect("second send should be recorded");
 
-    let found = store.attachments_of(thread).expect("attachments should load");
+    let found = store
+        .attachments_of(thread)
+        .expect("attachments should load");
 
     assert_eq!(found.len(), 2);
-    assert_eq!(found[0].turn, 0);
-    assert_eq!(found[1].turn, 3);
+    let turns: Vec<_> = found.iter().map(|attachment| attachment.turn).collect();
+    assert_eq!(
+        turns,
+        vec![0, 3],
+        "同一张图发两次，字节只存一份，但两轮各自留着自己的链接"
+    );
 
     /* 一段字节,两条链接:没有人要它之前,回收不许看见它。 */
     assert!(
@@ -81,13 +99,17 @@ fn deleting_a_conversation_offers_its_bytes_to_the_sweep() {
     let hash = "c".repeat(64);
 
     let mut store = AgentStore::open(&path).expect("store should open");
-    let thread = store.create_thread("新建对话").expect("thread should be created");
+    let thread = store
+        .create_thread("新建对话")
+        .expect("thread should be created");
 
     store
         .remember_attachment(thread, &image(0, 0, &hash))
         .expect("attachment should be recorded");
 
-    store.delete_thread(thread).expect("thread should be deleted");
+    store
+        .delete_thread(thread)
+        .expect("thread should be deleted");
 
     assert_eq!(
         store.unreferenced_attachments().expect("sweep should run"),

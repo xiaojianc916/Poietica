@@ -142,9 +142,10 @@ impl AgentStore {
     ///
     /// 删除被拒时返回错误。
     pub fn forget_attachment(&self, hash: &str) -> Result<()> {
-        self.write("DELETE FROM attachments WHERE hash = ?1", rusqlite::params![
-            hash
-        ])
+        self.write(
+            "DELETE FROM attachments WHERE hash = ?1",
+            rusqlite::params![hash],
+        )
     }
 
     /// 解开这条对话挂着的全部链接。字节留给回收去处理。

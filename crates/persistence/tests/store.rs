@@ -51,12 +51,18 @@ fn speaking_again_moves_a_conversation_up_without_renaming_it() {
     let earlier = store.create_thread("新建对话").expect("thread");
     let later = store.create_thread("新建对话").expect("thread");
 
-    store.record_prompt(earlier, "第一句").expect("opening line");
-    store.record_prompt(later, "另一条对话").expect("opening line");
+    store
+        .record_prompt(earlier, "第一句")
+        .expect("opening line");
+    store
+        .record_prompt(later, "另一条对话")
+        .expect("opening line");
 
     let before = store.thread(earlier).expect("read").expect("the thread");
 
-    store.record_prompt(earlier, "第二句").expect("a later turn");
+    store
+        .record_prompt(earlier, "第二句")
+        .expect("a later turn");
 
     let after = store.thread(earlier).expect("read").expect("the thread");
 

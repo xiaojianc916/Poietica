@@ -191,6 +191,9 @@ impl AgentStore {
     ///
     /// Fails when the delete is rejected.
     pub fn delete_thread(&self, id: Uuid) -> Result<()> {
+        // 链接行跟着对话一起消失，字节不删：留给启动时的回收去认领，
+        // 因为同一张图可能还挂在别的对话上。
+        self.release_attachments(id)?;
         /*
          * 链接由这里解，不指望外键。
          *

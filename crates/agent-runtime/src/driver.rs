@@ -533,7 +533,14 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             in_flight = in_flight.saturating_add(1);
 
-                            jobs.push(Box::pin(run_turn(&connection, named, text, images, turn, reply)));
+                            jobs.push(Box::pin(run_turn(
+                                &connection,
+                                named,
+                                text,
+                                images,
+                                turn,
+                                reply,
+                            )));
                         }
                         Step::Settled(Settled::Done) => {}
                         Step::Settled(Settled::Opened { opened, reply }) => {
