@@ -7,6 +7,12 @@ import './workspace-shell.css'
 type WorkspaceMotionStyle = MotionStyle & Record<`--${string}`, string | number>
 
 const WORKSPACE_LAYOUT_STYLE: WorkspaceMotionStyle = {
+  /*
+   * 行几何的产品输入。设计系统据此算出行的前导内缩，而那道公式声明在
+   * [data-ui-rows] 上 —— 自定义属性的 var() 在声明所在元素上求值，公式与
+   * 输入因此必须同居一个元素。本组件同时提供两者：值在这里，标记在根节点的
+   * data-ui-rows 上。少任何一个，所有行的图标都会贴到 hover 背景左边缘。
+   */
   '--ui-row-icon-center': `${WORKSPACE_LAYOUT.sidebar.navIconCenter}px`,
 
   /*
@@ -63,6 +69,7 @@ export function WorkspaceFrame({
       }}
       className="workspace-shell relative grid h-dvh w-full min-h-0 overflow-hidden bg-background text-foreground"
       data-sidebar-docked={isSidebarDocked ? 'true' : 'false'}
+      data-ui-rows=""
       initial={false}
       ref={rootRef}
       style={{

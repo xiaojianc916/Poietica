@@ -13,9 +13,6 @@
  * 系统的量（标题栏的开合按钮也要在 JS 里用到它），由 WorkspaceFrame 挂成
  * --ui-row-icon-center。基座只提供把中线翻译成前导内缩的那一道公式，并且全仓只
  * 翻译这一次。
- *
- * --ui-row-icon-center 刻意不给默认值。默认值就是第二份真相：它只在链子断掉时
- * 生效，而链子断掉应当显形，不应当被一个陈旧的数字兜住。
  */
 :root {
   /*
@@ -32,10 +29,25 @@
   --ui-row-gap: 8px;
   --ui-row-icon-size: 16px;
 
-  /* 行高与圆角是纯粹的控件度量，直接读既有标尺。 */
+  /* 行高与圆角是纯粹的控件度量，它们的输入同在 :root，直接读既有标尺。 */
   --ui-row-height: var(--ui-control-height-sm);
   --ui-row-radius: var(--ui-radius-sm);
+}
 
+/*
+ * 前导内缩必须和中线声明在同一个元素上。不要把它挪回上面那个 :root 块。
+ *
+ * 自定义属性里的 var() 是在「声明所在的那个元素」上、于 computed-value time
+ * 完成替换的，替换后的结果才向下继承 —— 后代把输入改成什么，都追不回来。所以
+ * 写在 :root 上的这道公式，读到的是 :root 上并不存在的 --ui-row-icon-center：
+ * 整条 calc() 塌成 guaranteed-invalid，消费端的 padding-inline-start 变成 IACVT，
+ * 而 padding 不继承，取初始值 0。表现就是所有行的图标贴到 hover 背景的左边缘。
+ *
+ * 这也是「不写兜底值，链子断了就会显形」这个论证的边界：这一次它没有显形，它
+ * 静默退化成了 0。所以这里不补默认值，而是让公式与它唯一的输入落在同一个元素
+ * 上 —— 谁提供中线，谁就带上 data-ui-rows，两条声明从此不可能分居。
+ */
+[data-ui-rows] {
   /* 图标格前的留白：中线 − 行背景内缩 − 图标半宽。 */
   --ui-row-lead: calc(
     var(--ui-row-icon-center) -
