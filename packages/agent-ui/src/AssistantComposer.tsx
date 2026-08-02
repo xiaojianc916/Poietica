@@ -2,7 +2,7 @@ import './composer/composer-actions.css'
 import './composer/question-panel.css'
 
 import type { ChatStatus, SessionConfigControl } from '@poietica/acp'
-import type { RefObject } from 'react'
+import { memo, type RefObject } from 'react'
 import { ComposerActions } from './composer/composer-actions'
 import type { PromptInputHandle } from './composer/prompt-input'
 import {
@@ -111,7 +111,15 @@ function ComposerToolbar({
   )
 }
 
-export function AssistantComposer({
+/*
+ * 记住不重建。
+ *
+ * 它此前长在 AssistantSurface 的渲染体里，而那一层订着整条转录：模型每吐一个
+ * 字，PromptInput 连同草稿、附件、模型选择器与发送键整棵树 reconcile 一次 ——
+ * 一棵与转录内容毫无关系的树。上游的订阅粒度已经收窄，入参也全部引用稳定，
+ * 这一层浅比较因此几乎总是命中：一轮对话里它至多重渲两次。
+ */
+export const AssistantComposer = memo(function AssistantComposer({
   handle,
   onAnswerQuestions,
   placeholder = '问我任何问题…',
@@ -183,4 +191,4 @@ export function AssistantComposer({
       <ComposerToolbar status={status} {...toolbar} />
     </PromptInput>
   )
-}
+})

@@ -41,7 +41,30 @@ export function useStickToBottom(): (node: HTMLElement | null) => void {
       }
     }
 
-    const observer = new ResizeObserver(follow)
+    /*
+     * 长高由观察者报告，跟随由下一帧执行。
+     *
+     * 直接把 follow 交给 ResizeObserver 是在它的回调里写布局：写 scrollTop 会
+     * 改变布局，改变布局又派发下一轮通知 —— 那正是「ResizeObserver loop
+     * completed with undelivered notifications」的成因，而这个盒子在流式思考
+     * 期间每帧命中。转录那一层的观察者注释里写清了同一个坑（AgentActivityFeed
+     * 为此把转录移出了观察名单），这里此前踩着。
+     *
+     * 分帧之后读与写各归各的时机：一帧至多写一次，回路断开。
+     */
+    let frame = 0
+
+    const observer = new ResizeObserver(() => {
+      if (frame !== 0) {
+        return
+      }
+
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        follow()
+      })
+    })
+
     observer.observe(node)
 
     const content = node.firstElementChild
@@ -54,6 +77,10 @@ export function useStickToBottom(): (node: HTMLElement | null) => void {
     return () => {
       node.removeEventListener('scroll', sync)
       observer.disconnect()
+
+      if (frame !== 0) {
+        cancelAnimationFrame(frame)
+      }
     }
   }, [])
 }

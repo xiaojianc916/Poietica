@@ -252,13 +252,17 @@ export class TranscriptStore {
   }
 
   /**
-   * 这一格现在是什么样子。
+   * 这一格现在是什么样子。一次查表，什么都不改。
    *
-   * 攒着的帧在这里折进去，折完再交出去：快照永远是当前那一份，
-   * useSyncExternalStore 的契约要的正是这个。推迟的只有「折」这个动作本身 ——
-   * 没人看的那些中间态，本来就没有人看。
+   * 这就是 useSyncExternalStore 的 getSnapshot，而 React 在渲染期调用它 ——
+   * 契约要求它是纯读取。此前它走 #settle：折叠会删 #pending、写 #held，还会
+   * 同步广播 #idle（ThreadsStore 就挂在那上面）。也就是说一次渲染会变更两个
+   * store。那一刀此前只写在 #write 的注释里，代码没跟上。
+   *
+   * 折叠因此只剩两个位置，都在读之外：#flush（叫醒订阅者之前折完）与 #now
+   * （内部写路径要的是最新那一份）。帧进 → 折叠 → 通知 → 读，单向，不回头。
    */
-  read = (key: string): Transcript => this.#settle(this.#resolveKey(key))
+  read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
 
   subscribe = (key: string, listener: () => void): (() => void) => {
     const set = this.#listeners.get(key) ?? new Set<() => void>()
@@ -324,7 +328,7 @@ export class TranscriptStore {
   }
 
   /** 这条对话此刻有没有一轮在飞。 */
-  busy = (key: string): boolean => running(this.read(key).timeline.status)
+  busy = (key: string): boolean => running(this.#now(key).timeline.status)
 
   /** 某条对话从忙变闲的那一刻；交回取消订阅的办法。 */
   onIdle = (listener: (threadId: string) => void): (() => void) => {
@@ -354,7 +358,7 @@ export class TranscriptStore {
 
   /** 正在把这条对话要回来。 */
   opening = (threadId: string): void => {
-    const current = this.read(threadId)
+    const current = this.#now(threadId)
 
     if (current.owned || current.loaded) {
       return
@@ -392,7 +396,7 @@ export class TranscriptStore {
 
   /** 要不回来。这一条记在转录里，而不是记在会话设置那一格上。 */
   failed = (threadId: string, cause: unknown): void => {
-    const latest = this.read(threadId)
+    const latest = this.#now(threadId)
 
     this.#put(threadId, {
       ...latest,
@@ -405,7 +409,7 @@ export class TranscriptStore {
 
   send = ({ endpoint, identify, key, onUserMessage, port, text }: SendOptions): void => {
     const at = Date.now()
-    const current = this.read(key)
+    const current = this.#now(key)
 
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。 */
     this.#put(key, { ...current, timeline: appendUserMessage(current.timeline, text, at) })
@@ -489,6 +493,18 @@ export class TranscriptStore {
 
   #resolveKey(key: string): string {
     return this.#alias.get(key) ?? key
+  }
+
+  /*
+   * 写路径要的那一份：先把攒着的帧折进去，再拿。
+   *
+   * 与 read 分开，是因为它们问的不是同一件事。read 问「订阅者此刻看到的是
+   * 什么」，答案必须是已提交的状态；这里问「我要往上面追加，基线是什么」，
+   * 答案必须把在途的帧算进去。同一个函数同时回答两者，就是让快照读取带上
+   * 副作用。
+   */
+  #now(key: string): Transcript {
+    return this.#settle(this.#resolveKey(key))
   }
 
   #fire(key: string): void {
@@ -619,7 +635,7 @@ export class TranscriptStore {
 
   /** 这一句问不出去，或者半路断了：这一轮到此为止。 */
   #fail(key: string, cause: unknown): void {
-    const current = this.read(key)
+    const current = this.#now(key)
 
     this.#put(key, { ...current, timeline: noteOn(current.timeline, cause, true) })
   }
@@ -632,7 +648,7 @@ export class TranscriptStore {
    * 收摊、停止按钮消失，紧接着下一帧到达又把它翻回 running。
    */
   #note(key: string, cause: unknown): void {
-    const current = this.read(key)
+    const current = this.#now(key)
 
     this.#put(key, { ...current, timeline: noteOn(current.timeline, cause, false) })
   }

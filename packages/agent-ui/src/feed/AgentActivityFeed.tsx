@@ -205,8 +205,13 @@ export function AgentActivityFeed({
   /*
    * 虚拟器此刻铺出来的区间表。
    *
-   * 同步回调要用它做二分,而回调也在滚动事件里跑、那时拿不到渲染期的值,所以在
-   * 每次渲染之后把表放进 ref。渲染期间不写 ref:渲染要保持是纯的。
+   * 同步回调要用它做二分,而回调在滚动事件里跑、拿不到渲染期的值,所以把本帧
+   * 的表镜像进 ref —— 与上面的 rowsRef 同一处做法、同一个时机。
+   *
+   * 此前它走 useLayoutEffect([items])。而 items 是 getVirtualItems() 的返回值,
+   * 每帧都是新数组:那个效应因此每帧必跑一次加一次依赖比较,做的事与一行赋值
+   * 逐字相同。同一个文件里两种相反的做法,注释还互相打脸——上面那句说"赋值只能
+   * 发生在渲染期",这里说"渲染期间不写 ref"。留一个。
    */
   const spansRef = useRef<readonly RowSpan[]>([])
 
@@ -397,15 +402,8 @@ export function AgentActivityFeed({
 
   const items = virtualizer.getVirtualItems()
 
-  /*
-   * 区间表是渲染的产物,不是几何的产物。
-   *
-   * 它每次渲染都要更新 —— 虚拟器铺出来的区间就是这一帧的事实 —— 但这里一个
-   * 布局量都不读,所以它不再拖着一次强制回流。
-   */
-  useLayoutEffect(() => {
-    spansRef.current = items
-  }, [items])
+  /* 区间表是渲染的产物,不是几何的产物:这里一个布局量都不读。 */
+  spansRef.current = items
 
   /*
    * 转录偏移只在它真的会变的时候量。

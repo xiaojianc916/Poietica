@@ -1,18 +1,28 @@
 import type { AgentSessionPort, ChatStatus } from '@poietica/acp'
-import type { TimelineState } from '@poietica/agent-timeline'
+import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
+import { selectPendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import type { Transcript } from './transcript-store'
 import { transcripts } from './transcript-store'
 
 /*
- * 这个 Hook 只做一件事：把 store 里属于这一格的那一条读出来。
+ * 界面从 store 里读什么，以什么粒度读。
  *
- * 它此前是一个组件级的数据层：转录的副本活在 useState 里（每个挂载的界面一
- * 份），旁边配着一个模块级 LRU、一个分页游标、一个代际号做的竞态守卫、一个
- * ref 做的乐观 id 对账、一处渲染期改 state 的修补，以及每个界面各订阅一次的
- * 全量帧流。那六件事全部属于 store，现在也全部在 store 里 —— 见
- * ./transcript-store.ts。
+ * 此前这里只有一条订阅，读的是整个 Transcript —— 而 store 每一拍都交出一个新
+ * 对象（#settle 里的 { ...current, timeline }）。于是唯一的订阅者 AssistantSurface
+ * 在流式期间以帧率重渲染，连同它挂着的整个输入框子树：草稿、附件、模型选择器、
+ * 发送键，没有一个与转录内容有关。
  *
- * 对外的三个类型和 useAssistantSession 的签名一字未变，所以上层不用改。
+ * React 对 useSyncExternalStore 的保证是：快照 Object.is 相等就不重渲染。所以
+ * 正确的形状不是「一条订阅 + 一堆 memo 去挡」，而是按字段各订一条，每条都交出
+ * 一个能稳定比较的东西：
+ *
+ *   status     字符串字面量
+ *   restoring  布尔
+ *   timeline   转录本身 —— 只有真正画转录的那棵子树订它
+ *   pending    条目引用，reducer 只在它被答复时才换（timeline-reducer 的就地替换）
+ *
+ * 这不是四份数据，是同一份状态的四个投影，共用同一个订阅入口。
  */
 
 export interface AssistantSubmission {
@@ -46,14 +56,56 @@ export interface AssistantSessionOptions {
 }
 
 export interface AssistantSession {
+  /** 这一格现在的键：真对话 id，或入口那一格的草稿键。 */
+  readonly key: string
   readonly status: ChatStatus
-  readonly timeline: TimelineState
   readonly send: (submission: AssistantSubmission) => void
   readonly cancel: () => void
   readonly resolvePermission: (requestId: string, optionId: string) => void
   /** True while a conversation is still being fetched. */
   readonly isRestoring: boolean
 }
+
+/*
+ * 一条订阅，一个投影。
+ *
+ * project 必须是模块级函数：它进 getSnapshot 的依赖数组，写成内联箭头就等于
+ * 每次渲染换一个 getSnapshot，React 会当作快照可能变了。
+ */
+function useSlice<TValue>(key: string, project: (transcript: Transcript) => TValue): TValue {
+  return useSyncExternalStore(
+    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [key]),
+    useCallback(() => project(transcripts.read(key)), [key, project]),
+  )
+}
+
+/* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
+function toChatStatus(status: TimelineState['status']): ChatStatus {
+  switch (status) {
+    case 'running':
+    case 'awaiting_permission':
+      return 'streaming'
+    case 'failed':
+      return 'error'
+    default:
+      return 'ready'
+  }
+}
+
+const readStatus = (transcript: Transcript): ChatStatus => toChatStatus(transcript.timeline.status)
+
+const readRestoring = (transcript: Transcript): boolean => transcript.restoring
+
+const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
+
+/*
+ * 待答的那一道：倒扫，走到人说的上一句话为止（selectPendingPermission）。
+ *
+ * 代价是这一轮的长度，不是整条对话的长度；而它交回的是转录里那个条目本身，
+ * 所以在被答复之前恒是同一个引用 —— 订阅它的界面因此不会因为流式追加而醒。
+ */
+const readPending = (transcript: Transcript): PermissionItem | undefined =>
+  selectPendingPermission(transcript.timeline)
 
 export function useAssistantSession({
   endpoint,
@@ -65,28 +117,20 @@ export function useAssistantSession({
    * 入口那一格也需要一个键。
    *
    * 它还不是任何一条对话，可它已经有转录了 —— 人说的那句话。给它一个草稿键，
-   * 真 id 到达时由 store 改名，两个键读到同一份东西。此前这件事是一个 ref
-   * （claimed）加一处渲染期的 setState 在做。
+   * 真 id 到达时由 store 改名，两个键读到同一份东西。
    */
   const [draft] = useState(transcripts.newDraft)
 
   const key = endpoint ?? draft
 
-  const transcript = useSyncExternalStore(
-    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [key]),
-    useCallback(() => transcripts.read(key), [key]),
-  )
+  const status = useSlice(key, readStatus)
+  const isRestoring = useSlice(key, readRestoring)
 
   /*
    * 接上帧流。就这一件事。
    *
-   * 这里此前还负责"打开一条对话就把它取回来"。历史现在随打开那条对话一起回来
-   * （见 ThreadsStore 与 agent_open_thread），取过没有、要不要重取、晚到的算不
-   * 算，这几个问题连同那条取数路径一起没有了。
-   *
-   * 条件因此只剩线路：接不接得上帧流，与这一格现在看着哪条对话无关。入口那一
-   * 格也接 —— 它在说第一句话之前就该听着了，此前要等它变成一条真对话，靠 send
-   * 里那次 attach 补救才没漏帧。
+   * 条件只剩线路：接不接得上帧流，与这一格现在看着哪条对话无关。入口那一格
+   * 也接 —— 它在说第一句话之前就该听着了。
    */
   useEffect(() => {
     if (session === undefined) {
@@ -121,27 +165,26 @@ export function useAssistantSession({
     [key],
   )
 
-  /* 纯 switch,返回字符串字面量:依赖数组的分配与比较比它本身贵。 */
-  const status = toChatStatus(transcript.timeline.status)
-
-  return {
-    status,
-    timeline: transcript.timeline,
-    send,
-    cancel,
-    resolvePermission,
-    isRestoring: transcript.restoring,
-  }
+  return { key, status, send, cancel, resolvePermission, isRestoring }
 }
 
-function toChatStatus(status: TimelineState['status']): ChatStatus {
-  switch (status) {
-    case 'running':
-    case 'awaiting_permission':
-      return 'streaming'
-    case 'failed':
-      return 'error'
-    default:
-      return 'ready'
-  }
+/**
+ * 转录本身。只有真正画它的那棵子树订这一条。
+ *
+ * 它是唯一一个以帧率变化的投影，所以它也是唯一一个以帧率重渲染的订阅者 ——
+ * 这正是把它单独拎出来的全部理由。
+ */
+export function useAssistantTimeline(key: string): TimelineState {
+  return useSlice(key, readTimeline)
+}
+
+/**
+ * 这一轮此刻卡在哪一道权限请求上，没有就是 undefined。
+ *
+ * 交回条目本身：它的身份由 reducer 维护（答复到达时才就地替换那一条），所以
+ * 订阅它不会被流式追加打扰。是不是一道「提问」由界面层按方言判，那是 domain
+ * 的事，这一层只回答「有没有人在等」。
+ */
+export function useAssistantPending(key: string): PermissionItem | undefined {
+  return useSlice(key, readPending)
 }

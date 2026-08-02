@@ -14,4 +14,8 @@ export type {
   AssistantSessionOptions,
   AssistantSubmission,
 } from './use-assistant-session'
-export { useAssistantSession } from './use-assistant-session'
+export {
+  useAssistantPending,
+  useAssistantSession,
+  useAssistantTimeline,
+} from './use-assistant-session'
