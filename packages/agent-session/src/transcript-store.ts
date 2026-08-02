@@ -39,6 +39,16 @@ import { describeFailure } from './describe-failure'
 /** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
 const DRAFT = 'draft:'
 
+/**
+ * 一句话只有图片时，这条对话叫什么。
+ *
+ * 与 apps/desktop/src-tauri/src/commands/agent.rs 的 IMAGE_OPENER 逐字相同：
+ * 那一处是权威（它写进库），这一处是它到达之前的乐观占位。两种语言共享不了
+ * 一个常量，所以退而求其次 —— 只有一个地方定义规则，另一处标明自己是拷贝，
+ * 并说得出正本在哪。
+ */
+const IMAGE_OPENER = '[图片]'
+
 const NO_SESSION = '这个界面还没有接上助手会话，消息没有发送出去。'
 const NO_THREAD = '无法开始新的对话，消息没有发送出去。'
 
@@ -439,7 +449,19 @@ export class TranscriptStore {
           this.#rename(key, threadId)
         }
 
-        onUserMessage?.(threadId, text)
+        /*
+         * 用来命名的那句话，不一定就是发出去的那句话。
+         *
+         * 一句话可以只有图片 —— agent_prompt 明确把「只挑了图、没打字」当作
+         * 一句完整的话。库那侧对它的名字早有答案（IMAGE_OPENER），而这一侧的
+         * 乐观占位此前直接拿空的 text 去命名：shorten('') 交回「新建对话」，
+         * 于是屏幕上是一条永远没被命名的对话。同一个决定，两处各答一次，答得
+         * 还不一样。
+         *
+         * trim 与那一侧同步：它收到的 text 是 trim 过的，空白判据必须一致，
+         * 否则一句只有空格加一张图的话会在两边得到两个名字。
+         */
+        onUserMessage?.(threadId, text.trim() === '' && images.length > 0 ? IMAGE_OPENER : text)
 
         return port.prompt({ threadId, text, images }).then((handle) => {
           /*

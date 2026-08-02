@@ -184,7 +184,7 @@ export function ConversationSurface({
 
   const userMessage = useCallback(
     (conversation: string, text: string) => {
-      threads.nameFromMessage(conversation, text)
+      threads.noteUserMessage(conversation, text)
       onStarted?.(conversation, threads.standInTitle(text))
     },
     [onStarted, threads],

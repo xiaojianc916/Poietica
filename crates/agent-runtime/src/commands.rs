@@ -20,6 +20,24 @@ pub struct PromptImage {
     pub mime_type: String,
 }
 
+/// 手写，因为 derive 会把整张图打出来。
+///
+/// 这一格装的是 base64，上限十六兆（见桌面 seam 的 `MAX_IMAGE_CHARS`），而它
+/// 坐在 `Command` 里 —— 一行日志或一次 panic 的回溯就足以把它整个展开。那不是
+/// 诊断信息，那是把日志冲掉；尺寸和类型才是诊断信息。
+///
+/// 与同文件里 `AgentClient` 那一份同一条规矩：Debug 说的是这东西现在什么状况，
+/// 不是它装了什么。
+impl fmt::Debug for PromptImage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PromptImage")
+            .field("mime_type", &self.mime_type)
+            .field("base64_len", &self.data.len())
+            .finish()
+    }
+}
+
 /// What the driver is asked to do next.
 ///
 /// 每一条都是一件事，而不是一个时段：驱动器把它变成一个自己的未来推进去，

@@ -47,7 +47,7 @@ impl AgentStore {
     /// Fails when the query is rejected.
     // 没被说过话的对话不进列表。判据此前是「有没有 runs 行」，而本地已经
     // 不再记轮次。同一件事现在由名字回答：一条对话的名字取自它的第一句话
-    // （name_from_message），所以还挂着占位名的，就是还没有人开口的那一条。
+    // （record_prompt），所以还挂着占位名的，就是还没有人开口的那一条。
     // 迁移 0009 在删表之前把存量对齐过，列表成员一行不差。
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
@@ -129,25 +129,38 @@ impl AgentStore {
         }
     }
 
-    /// Names a conversation after the first thing said in it.
+    /// 记下这条对话刚被说了一句话。
     ///
-    /// This is where a conversation normally gets its name. Only a
-    /// conversation that has none yet is named: the statement refuses the
-    /// update otherwise, so the opening line of a later turn cannot displace
-    /// the name the conversation is already known by.
-    pub fn name_from_message(&self, id: Uuid, title: &str) -> Result<()> {
+    /// 一句话是两个事实，而它们的频率不同：这条对话**刚刚有活动**，每一轮都
+    /// 成立；这条对话**叫什么**，只由第一句话回答一次。
+    ///
+    /// 此前它们共用一条 `WHERE title_source = 'fallback'`：那个条件是为第二个
+    /// 事实准备的，却把第一个也一并守掉了。于是在一条旧对话里继续说话，整条
+    /// 语句被拒，`updated_at` 一动不动 —— 而列表正是按它排序（见 `list_threads`
+    /// 的 `ORDER BY`）。屏幕上的表现是：刚说过话的对话不会浮上来，永远停在它
+    /// 第一句话的时间上。
+    ///
+    /// 两个事实因此写进同一条语句、各带各的条件：时间无条件更新，名字只在还
+    /// 没有名字的时候写。一次往返，一条写路径，没有第二处需要保持同步。
+    ///
+    /// 命名仍然只发生一次：后一轮的开场白改不动一条已经有名字的对话，用户手
+    /// 打的名字（`manual`）更不会被它顶掉。`list_threads` 用「标题源还是
+    /// fallback」判断有没有人开过口，这条语句让那个判据继续成立。
+    pub fn record_prompt(&self, id: Uuid, title: &str) -> Result<()> {
         let timestamp = now()?;
 
         self.write(
             "UPDATE threads
-                SET title = ?2, title_source = ?3, updated_at = ?4
-              WHERE id = ?1 AND title_source = ?5",
+                SET title        = CASE WHEN title_source = ?4 THEN ?2 ELSE title END,
+                    title_source = CASE WHEN title_source = ?4 THEN ?5 ELSE title_source END,
+                    updated_at   = ?3
+              WHERE id = ?1",
             rusqlite::params![
                 id.to_string(),
                 title,
-                TitleSource::Message,
                 timestamp,
                 TitleSource::Fallback,
+                TitleSource::Message,
             ],
         )?;
 

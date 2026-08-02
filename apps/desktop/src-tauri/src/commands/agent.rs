@@ -15,6 +15,7 @@
 //! or sent.
 
 use std::collections::HashSet;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
@@ -203,13 +204,28 @@ pub struct AgentLaunch {
 /// 只走内存：字节由渲染进程 base64 之后直接进 ACP 的 image content block，
 /// 不落盘，也不进 asset 注册表 —— 那套东西服务的是本进程的 webview（自定义
 /// asset:// 协议），而 agent 是另一个进程，它读不到。
-#[derive(Debug, Deserialize, Type)]
+#[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptImage {
     /// base64 编码的原始字节，不带 `data:` 前缀。
     pub data: String,
     /// 例如 `image/png`。
     pub mime_type: String,
+}
+
+/// 手写，与运行时那侧的 `PromptImage` 同一条规矩。
+///
+/// 这一个更要紧：它跨 IPC 进来，被同样 Debug 的 `AgentPromptRequest` 持有，而
+/// 一次请求反序列化失败或参数校验失败最自然的动作就是把整个请求打进日志 ——
+/// 那一行会是十六兆的 base64。
+impl fmt::Debug for AgentPromptImage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AgentPromptImage")
+            .field("mime_type", &self.mime_type)
+            .field("base64_len", &self.data.len())
+            .finish()
+    }
 }
 
 /// A prompt, and how to start the agent if it is not running yet.
@@ -307,18 +323,23 @@ pub async fn agent_prompt(
     // conversation in a list should read as. Recorded as coming from the
     // message, so a name the user types later outranks it and this one does
     // not come back.
+    //
+    // 后面每一轮也走同一行。名字不会被它们改掉（record_prompt 的 CASE 只在
+    // 还没有名字时才写），但活动时间会 —— 那正是这一行每轮都要跑的理由。
     let opener: String = if text.is_empty() {
         IMAGE_OPENER.to_owned()
     } else {
         text.chars().take(TITLE_CHARS).collect()
     };
 
+    // 一句话记两件事：这条对话刚刚有活动，以及 —— 只有第一次 —— 它叫什么。
+    // 两个条件写在同一条语句里（见 record_prompt），所以这里每一轮都调，不
+    // 在这一侧判「是不是第一句」：那个判据的权威在库里，而它已经在守着了。
+    //
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
     on_store(&state, move |store| {
-        store
-            .name_from_message(thread_id, &opener)
-            .map_err(persistence)
+        store.record_prompt(thread_id, &opener).map_err(persistence)
     })
     .await?;
 

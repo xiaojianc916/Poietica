@@ -42,6 +42,23 @@ export interface TranscriptSink {
   readonly onIdle: (listener: (threadId: string) => void) => () => void
 }
 
+/**
+ * 置顶在前，然后按活动时间倒序。
+ *
+ * 时间是 RFC 3339 且两侧都写 UTC（库用 now()，本地用 toISOString），所以
+ * 字典序就是时间序，不需要解析成 Date 再比 —— 那是每次排序为每一行各建两个
+ * 对象。
+ */
+function byRecency(left: ThreadRecord, right: ThreadRecord): number {
+  const pinned = left.pinned === true
+
+  if (pinned !== (right.pinned === true)) {
+    return pinned ? -1 : 1
+  }
+
+  return right.updatedAt.localeCompare(left.updatedAt)
+}
+
 /** Cuts a stand in title down to something a tab can show. */
 export const shorten = (text: string): string => {
   const tidy = text.trim().replace(/\s+/g, ' ')
@@ -261,17 +278,22 @@ export class ThreadsStore {
       return found.title
     }
 
-    const standIn = this.#held.provisional.get(threadId)
-
-    if (standIn !== undefined) {
-      return standIn
+    /*
+     * 权威的名字排在占位之前。
+     *
+     * 占位存在的理由只有一个：平台还没记下这条对话，屏幕上总得写点什么。它
+     * 此前排在权威名字之上，于是从「还没有名字时的替身」变成了「永远压着名字
+     * 的一层」—— 而它每说一句就被改写一次，所以第二句话就把标题换掉了。
+     *
+     * 名字取自第一句话这条规则本身没错，错的是让一个临时值拥有比它更高的排名。
+     * 库那侧不可能出这个错（record_prompt 的 CASE 只在 fallback 时写标题），
+     * 所以这一格一旦是 message，它装的就是第一句话，逐字。
+     */
+    if (found?.titleSource === 'message') {
+      return shorten(found.title)
     }
 
-    if (found === undefined) {
-      return FALLBACK_TITLE
-    }
-
-    return found.titleSource === 'fallback' ? FALLBACK_TITLE : shorten(found.title)
+    return this.#held.provisional.get(threadId) ?? FALLBACK_TITLE
   }
 
   /** The stand in name a message would give a conversation. */
@@ -338,17 +360,43 @@ export class ThreadsStore {
     }
   }
 
-  /*
+  /**
+   * 人在这条对话里说了一句话。
+   *
+   * 两个事实，与库那侧的 record_prompt 一一对应：这条对话刚刚有活动，以及
+   * —— 只有它还没有名字时 —— 它从此叫这句话。这里写的是乐观值，库那份权威
+   * 会在下一次整表读取时盖上来；两边的规则必须逐字相同，否则那一盖就是一次
+   * 肉眼可见的跳变。
+   *
    * 平台在第一轮开始时才记下一条对话，所以发出的那一刻读回来可能还没有它。
    * 先把行显示出来、让下一次读取认领走，是列表类界面的常规乐观更新。
    */
-  nameFromMessage = (threadId: string, message: string): void => {
+  noteUserMessage = (threadId: string, message: string): void => {
     const found = this.#byId.get(threadId)
-    const standIn = shorten(message)
-    const provisional = this.#with(this.#held.provisional, threadId, standIn)
+    const at = new Date().toISOString()
+
+    /*
+     * 占位只在这条对话还没有名字的时候写。
+     *
+     * 有名字了就不该再有占位：那个名字是第一句话，而这一句不是第一句。此前
+     * 这里无条件覆盖，于是标题一路跟着最后一句话走。
+     */
+    const provisional =
+      found === undefined || found.titleSource === 'fallback'
+        ? this.#with(this.#held.provisional, threadId, shorten(message))
+        : this.#held.provisional
 
     if (found !== undefined) {
-      this.#commit({ provisional })
+      /*
+       * 说话就是活动，而列表按活动排（见 #listed）。这一格必须当场跟上：
+       * 等库那份回来要到下一次整表读取，那时人早就看着一条没浮上来的对话了。
+       */
+      this.#commit({
+        provisional,
+        threads: this.#held.threads.map((thread) =>
+          thread.threadId === threadId ? { ...thread, updatedAt: at } : thread,
+        ),
+      })
 
       return
     }
@@ -360,9 +408,9 @@ export class ThreadsStore {
           {
             threadId,
             sessionId: null,
-            title: standIn,
+            title: shorten(message),
             titleSource: 'message' as const,
-            updatedAt: new Date().toISOString(),
+            updatedAt: at,
           },
         ]
 
@@ -900,17 +948,27 @@ export class ThreadsStore {
     return { id: thread.threadId, title, isPinned, updatedAt: thread.updatedAt }
   }
 
-  /* 刚开口的对话排在最前，直到下一次读取把它认领走。 */
+  /**
+   * 列表的顺序，只有这一处说了算。
+   *
+   * 置顶在前，然后按活动时间倒序 —— 与库里那条 ORDER BY 同一条规则，因为它
+   * 们排的是同一个列表。库那份是初次读回来时的顺序；而说一句话之后 updatedAt
+   * 是先在本地改的（见 noteUserMessage），排序必须跟着在本地重算一次，否则
+   * 「刚说过话的对话浮上来」要等到下一次整表刷新才发生。
+   *
+   * 这不是两个真源：规则只写了一遍，执行了两次 —— 一次在读回来的那一刻，一次
+   * 在本地推进的那一刻。
+   *
+   * 刚开口、平台还没记下的那些自带此刻的时间戳，所以它们自然排在最前，不需要
+   * 一条额外的「pending 优先」规则。
+   */
   #listed(): readonly ThreadRecord[] {
     const { pending, threads } = this.#held
 
-    if (pending.length === 0) {
-      return threads
-    }
-
     const known = new Set(threads.map((thread) => thread.threadId))
     const extra = pending.filter((thread) => !known.has(thread.threadId))
+    const all = extra.length === 0 ? threads : [...extra, ...threads]
 
-    return extra.length === 0 ? threads : [...extra, ...threads]
+    return [...all].sort(byRecency)
   }
 }
