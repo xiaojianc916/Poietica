@@ -163,9 +163,6 @@ importers:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@poietica/agent-timeline':
-        specifier: workspace:*
-        version: link:../../packages/agent-timeline
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0))
