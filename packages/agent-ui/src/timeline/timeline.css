@@ -701,7 +701,26 @@
 .timeline-plan__entry[data-status="completed"] .timeline-plan__content {
   text-decoration: line-through;
   color: var(--cp-timeline-quiet-text);
-} /* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
+}
+
+/*
+ * 一次失败的运行，在它停下来的地方说一句：一条横贯的线，中间是那句话。
+ *
+ * 这条规则曾被一次重构连同它自己的注释整块摘走，只留下后面那条属于伪元素的
+ * 注释贴在上一条规则的收尾花括号后面。少了它，::before / ::after 就不再是
+ * 弹性子项 —— flex: 1 1 0 不适用于行内盒，block-size 对非替换行内盒也不生效，
+ * 两条线的宽度归零，屏幕上只剩一个图标和一行左对齐的字。
+ *
+ * 间距用 --cp-timeline-error-gap：那个令牌一直在 composer-metrics.css 里，
+ * 消费者只有这一处，被删之后它就成了孤儿。放回来，它重新有主。
+ */
+.timeline-error {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-timeline-error-gap);
+}
+
+/* 两侧的线自己伸缩；min-inline-size 保证窄容器里也还认得出这是一条线。 */
 .timeline-error::before,
 .timeline-error::after {
   content: "";

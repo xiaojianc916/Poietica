@@ -95,7 +95,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
         ref={newTabRef}
         type="button"
       >
-        <Plus aria-hidden="true" className="size-3.5" />
+        <Plus aria-hidden="true" />
       </button>
     </div>
   )

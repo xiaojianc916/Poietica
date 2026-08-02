@@ -62,12 +62,10 @@
   inline-size: 100%;
   min-inline-size: 0;
   flex-direction: column;
-  border: var(--cp-px) solid var(--cp-edge-top);
-  border-bottom-color: var(--cp-edge-bottom);
-  border-bottom-width: var(--cp-edge-weight);
+  border: var(--cp-px) solid var(--cp-edge);
   border-radius: var(--cp-radius);
   background: var(--cp-surface);
-  box-shadow: var(--cp-gloss), var(--cp-seat), var(--cp-lift-near), var(--cp-lift-far);
+  box-shadow: var(--cp-lift);
   cursor: text;
 }
 
@@ -313,12 +311,11 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border: var(--cp-px) solid var(--cp-edge-top);
-  border-bottom-color: var(--cp-edge-bottom);
+  border: var(--cp-px) solid var(--cp-edge);
   border-radius: var(--cp-radius-tile);
   padding: var(--cp-pad-tile) var(--cp-pad-x);
   background: var(--cp-surface);
-  box-shadow: var(--cp-lift-near);
+  box-shadow: none;
   text-align: start;
   cursor: pointer;
   transition:
@@ -327,11 +324,12 @@
 }
 
 .assistant-tile:hover {
-  box-shadow: var(--cp-lift-near), var(--cp-lift-far);
+  box-shadow: var(--cp-lift);
 }
 
+/* 位移取偶数像素：1px 在 dpr 1.5 上是 1.5 个设备像素，整张卡会糊一帧。 */
 .assistant-tile:active {
-  transform: translateY(1px);
+  transform: translateY(2px);
 }
 
 .assistant-tile__icon {
@@ -939,10 +937,12 @@
   --am-item: 5px;
   --am-pad: 4px;
   --am-line: var(--ui-divider);
-  --am-shadow:
-    0 0 0 var(--ui-hairline) color-mix(in srgb, var(--ui-foreground) 4%, transparent),
-    0 1px 2px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
-    0 8px 24px -8px color-mix(in srgb, var(--ui-foreground) 18%, transparent);
+  /*
+   * 菜单的边只画一遍。此前第一层是 0 0 0 1px 的阴影环，而
+   * .assistant-menu-surface 本来就有 border: var(--ui-hairline) solid ——
+   * 同一条边画了两次，和输入框底边是同一种病。高度并入公共的那一档。
+   */
+  --am-shadow: var(--cp-lift-menu);
 }
 
 /* The reusable frame. Anything that opens as a menu carries this class. */

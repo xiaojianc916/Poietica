@@ -207,15 +207,48 @@
   --cp-accent-idle: color-mix(in srgb, var(--ui-primary) 35%, var(--ui-surface));
   --cp-accent-wash: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-surface));
 
-  --cp-edge-top: color-mix(in srgb, var(--ui-foreground) 7%, transparent);
-  --cp-edge-bottom: color-mix(in srgb, var(--ui-foreground) 11%, transparent);
-  --cp-edge-weight: calc(var(--ui-hairline) * 2);
+  /*
+   * 一张卡只说一件事：它比背景高多少。
+   *
+   * 此前这里有五个阴影令牌，输入框把其中四个同时叠在一个盒子上：
+   *   --cp-gloss     inset 0  1px 0          顶部高光 -> 说「我是凸的」
+   *   --cp-seat      inset 0 -1px 0          底部暗线 -> 说「我是凹的」
+   *   --cp-lift-near       0  1px 1px        接触阴影 -> 说「我是浮的」
+   *   --cp-lift-far        0  6px 16px -12px          -> 说「我是浮的」
+   * 再加上 border-bottom-width 把底边单独加粗到 2px。
+   *
+   * 凸、凹、浮三种互相矛盾的说法同时成立，而它们在底边全部叠在一起：
+   *   1px seat + 2px 加粗边框 + 1px 偏移 1px 模糊的近影 = 5 个 CSS 像素，
+   *   在 dpr 1.5 上是 7.5 个设备像素的一条渐变灰带；其余三边只有 1.5 个。
+   * 「阴影太厚、好几个 px」是这五层叠出来的，是数得出来的量。
+   *
+   * 三种说法来自三个年代的三套范式：拟物时代的凸起高光、Fluent 的聚焦下划线
+   * （那是 1px 静息 / 2px 聚焦、且聚焦时变强调色的状态指示器，不是静息装饰），
+   * 以及 Material 的高度阴影。它们被抄进同一个盒子，谁也没有删掉谁。
+   *
+   * 业界现在只有一条做法：均匀一圈发丝边 + 一层软阴影。Material 3 的 outlined
+   * text field 是 1px 全周、无阴影；Fluent 2 的 TextBox 静息态 box-shadow 为
+   * none；ChatGPT / Cursor / Zed 的输入框都是 1px 全周加一层软投影。没有任何
+   * 一家在静息态加粗底边，也没有任何一家同时画高光和坐底。
+   *
+   * 所以收敛成一条边色，和一道按角色命名的两档高度梯 —— 名字说的是「它在哪
+   * 一层」，不是「它有几个像素」，改一档不会变成改二十个消费点。
+   *
+   * 每一个偏移与模糊半径都取偶数像素：dpr 1.5 下 px * 1.5 必须落整数，奇数会
+   * 让阴影边缘停在半个设备像素上 —— 旧的 0 1px 1px 就是这么虚的（1 * 1.5）。
+   * 边框不受这条约束：Chromium 会把边框吸附到设备像素栅格，box-shadow 不会。
+   * 这也是「线用 border 画、不要用 1px 阴影画」这条通行规则的由来，上面那两条
+   * 用 inset 阴影画线的令牌因此没有保留的余地。
+   */
+  --cp-edge: color-mix(in srgb, var(--ui-foreground) 9%, transparent);
 
-  /* 顶部高光由表面色推出:浅色下偏白,深色下只是比表面亮一档,不再是纯白。 */
-  --cp-gloss: inset 0 var(--ui-hairline) 0 color-mix(in srgb, var(--ui-surface) 85%, white);
-  --cp-seat: inset 0 calc(var(--ui-hairline) * -1) 0
-    color-mix(in srgb, var(--ui-foreground) 3%, transparent);
-  --cp-lift-near: 0 var(--ui-hairline) var(--ui-hairline)
-    color-mix(in srgb, var(--ui-foreground) 6%, transparent);
-  --cp-lift-far: 0 6px 16px -12px color-mix(in srgb, var(--ui-foreground) 16%, transparent);
+  /* 停靠在版面里的一张卡：输入框、悬停中的快捷入口。 */
+  --cp-lift:
+    0 2px 4px color-mix(in srgb, var(--ui-foreground) 4%, transparent),
+    0 8px 16px -8px color-mix(in srgb, var(--ui-foreground) 10%, transparent);
+
+  /* 脱离文档流、浮在一切之上：菜单与浮层。 */
+  --cp-lift-menu:
+    0 2px 4px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
+    0 12px 32px -8px color-mix(in srgb, var(--ui-foreground) 20%, transparent);
 }

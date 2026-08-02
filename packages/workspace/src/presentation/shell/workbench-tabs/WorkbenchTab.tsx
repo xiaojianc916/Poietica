@@ -144,7 +144,7 @@ function TabEndAction({
         tabIndex={-1}
         type="button"
       >
-        <X aria-hidden="true" className="size-3.5" />
+        <X aria-hidden="true" />
       </button>
     </div>
   )
