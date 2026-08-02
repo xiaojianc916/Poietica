@@ -6,7 +6,7 @@ import {
   selectTurnFooter,
   selectTurns,
 } from '@poietica/agent-timeline'
-import { type ReactNode, useCallback } from 'react'
+import { type ReactNode, useCallback, useMemo } from 'react'
 import { AgentActivityFeed, type FeedPort } from './feed/AgentActivityFeed'
 import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
@@ -67,7 +67,21 @@ export function TranscriptView({
    * 有一个，而它在选择器里：那里是跨组件共享的位置，这里不是。
    */
   const rows = selectFeedRows(timeline)
-  const visibleRows = excluded === undefined ? rows : rows.filter((row) => row.item !== excluded)
+
+  /*
+   * 摘掉那一行是一次分配，所以它要有记性。
+   *
+   * 此前是渲染期直接 filter。而 selectTurns 的复用判据是 held.rows === rows —— 只要
+   * 有一道题在等答复，visibleRows 每次渲染都是一个新数组，那张弱表就在最需要它的那
+   * 段时间里恒不命中，轮次每帧重建。选择器的增量派生没有错，是上游把它的前提拆了。
+   *
+   * 这一层不该有第二份缓存所有权：这里 memo 的只是「摘掉一行」这次分配本身，投影
+   * 仍然归选择器。
+   */
+  const visibleRows = useMemo(
+    () => (excluded === undefined ? rows : rows.filter((row) => row.item !== excluded)),
+    [excluded, rows],
+  )
 
   /*
    * 轮次读的是屏幕上真正在滚的那个数组：摘出去一行，两个数组的下标就错开一位，

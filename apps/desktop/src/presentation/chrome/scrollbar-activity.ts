@@ -9,6 +9,18 @@
  * 尺寸、时序、配色全部来自 CSS 自定义属性，并且从「滚动盒自身」读取。自定义属性会
  * 继承，未覆写的区域拿到的就是 :root 的值；某个区域要更粗或换色，只需在它自己的规则
  * 里覆写一行，不必回到这里改代码。
+ *
+ * 时序是到期唤醒的，不是每帧轮询的。此前 tick() 的续帧条件是「还有没有条」，于是一
+ * 次滚轮之后还要空转 linger + fade（默认 1240ms，约七十几帧），每一帧都对滚动盒读
+ * scrollHeight/clientHeight、对轨道与每一个祖先裁剪盒各取一次矩形，然后把逐字相同的
+ * 位置再写一遍；而 hovered 会让 hideAt 每帧续期 —— 鼠标停在滑块上，那个循环永远不会
+ * 结束。现在几何只在有理由变化时读：滚动事件、或者 ResizeObserver 说盒子变了。其余
+ * 时间一个布局量都不读，一个定时器等着该消失的那一刻。agent-ui 的相对时间也是这套
+ * 管线，不是这里新发明的第二套。
+ *
+ * 位置写 transform，长度只在真的变了时写。top/height 是布局属性，在 rAF 里写、下一帧
+ * 又在 rAF 里读，就是一次自造的读写交错；而滚动过程中滑块长度根本不变 —— 内容尺寸没
+ * 动，它凭什么动。
  */
 
 const AXES = ['vertical', 'horizontal'] as const
@@ -50,6 +62,13 @@ interface Clip {
   readonly left: number
 }
 
+/** 上一次真的写进 DOM 的那三个数。相同就不写。 */
+interface Placement {
+  readonly x: number
+  readonly y: number
+  readonly length: number
+}
+
 interface Bar {
   readonly axis: Axis
   readonly scroller: Element
@@ -57,6 +76,8 @@ interface Bar {
   readonly element: HTMLDivElement
   readonly metrics: Metrics
   readonly clippers: readonly Element[]
+  readonly observer: ResizeObserver
+  placed: Placement | null
   hideAt: number
   hovered: boolean
   dragging: boolean
@@ -108,9 +129,9 @@ const readMetrics = (scroller: Element): Metrics => {
  * 一行令牌退出，而不是靠选择器名单 —— 判定点因此只有一个，也就不会出现同一个盒子
  * 上两根滑块同时在动。
  *
- * 答案按元素缓存。reveal() 由 document 上的捕获型 scroll 监听调用，也就是每一个滚动
- * 事件都要问一次：一次滚轮手势几十个事件，每个都去解析一次计算样式。这个令牌来自
- * 静态规则，一个元素的答案不会中途改变，问一次就够。WeakMap 不拖住已被移除的节点。
+ * 答案按元素缓存：这个令牌来自静态规则，一个元素的答案不会中途改变，问一次就够。
+ * WeakMap 不拖住已被移除的节点。而这次询问现在发生在帧里而不是事件里 —— 滚动事件
+ * 处理器一个计算样式都不解析。
  */
 const optOut = new WeakMap<Element, boolean>()
 
@@ -147,14 +168,9 @@ const isScrollContainer = (element: Element): boolean => {
 /**
  * 这根条画在哪条轨道上。
  *
- * 「面板声明自己是轨道，滑块就贯穿整块面板」这句话只对面板自己的滚动区成立。此前
- * 这里一路 closest 到最近的 data-scrollbar-track，中途有没有另一个滚动容器一概不
- * 问：代码块、思维链、工具输出一滚，滑块就被画到整条会话面板的右缘 —— 长度按面板
- * 算、位置按代码块算，于是「我在代码块里滑，外面那条也在动」。外层其实一步没滚，
- * 动的是一根本来就不该在那里的滑块。
- *
- * 所以往上找有终点：命中轨道标记才领走它，而在此之前遇到的第一个滚动容器就说明这
- * 条轨道不属于自己 —— 就地返回滚动盒，画在自己的边缘上。
+ * 「面板声明自己是轨道，滑块就贯穿整块面板」这句话只对面板自己的滚动区成立。往上
+ * 找因此有终点：命中轨道标记才领走它，而在此之前遇到的第一个滚动容器就说明这条轨
+ * 道不属于自己 —— 就地返回滚动盒，画在自己的边缘上。
  */
 const trackOf = (scroller: Element): Element => {
   let node: Element | null = scroller
@@ -179,7 +195,7 @@ const scrollableOn = (scroller: Element, axis: Axis): boolean =>
     ? scroller.scrollHeight - scroller.clientHeight > 1
     : scroller.scrollWidth - scroller.clientWidth > 1
 
-/** 建条时走一次祖先链；每帧只对这些元素取矩形，不再重复读样式。 */
+/** 建条时走一次祖先链；之后只对这些元素取矩形，不再重复读样式。 */
 const clippersOf = (element: Element): readonly Element[] => {
   const found: Element[] = []
   let node = element.parentElement
@@ -256,11 +272,22 @@ const measure = (
   }
 }
 
+const conceal = (bar: Bar): void => {
+  bar.element.dataset['visible'] = 'false'
+}
+
+/**
+ * 把这一帧的几何写进 DOM —— 如果它真的和上一次不同。
+ *
+ * 位置走 transform：它只经过合成，而 top/left 每次都要重新布局这层浮层。长度仍是
+ * height/width，但只在变了时写 —— 滚动过程中内容尺寸没动，滑块长度就不会动，此前
+ * 却每帧照写一遍。
+ */
 const place = (bar: Bar): void => {
   const geometry = measure(bar.scroller, bar.track, bar.axis, bar.metrics)
 
   if (geometry === null) {
-    bar.element.dataset['visible'] = 'false'
+    conceal(bar)
 
     return
   }
@@ -284,46 +311,62 @@ const place = (bar: Bar): void => {
       length <= 0 || geometry.cross + bar.metrics.thickness < crossLow || geometry.cross > crossHigh
 
     if (outside) {
-      bar.element.dataset['visible'] = 'false'
+      conceal(bar)
 
       return
     }
   }
 
+  const main = Math.round(start)
+  const cross = Math.round(geometry.cross)
+  const size = Math.round(length)
+  const x = vertical ? cross : main
+  const y = vertical ? main : cross
+  const placed = bar.placed
+
+  if (placed !== null && placed.x === x && placed.y === y && placed.length === size) {
+    return
+  }
+
   const style = bar.element.style
 
-  style.setProperty(vertical ? 'top' : 'left', `${String(Math.round(start))}px`)
-  style.setProperty(vertical ? 'left' : 'top', `${String(Math.round(geometry.cross))}px`)
-  style.setProperty(vertical ? 'height' : 'width', `${String(Math.round(length))}px`)
+  if (placed === null || placed.length !== size) {
+    style.setProperty(vertical ? 'height' : 'width', `${String(size)}px`)
+  }
+
+  style.transform = `translate3d(${String(x)}px, ${String(y)}px, 0)`
+  bar.placed = { x, y, length: size }
 }
 
 /**
  * 单根条在这一帧的处置：还活着，还是已经收掉了。
  *
- * 与遍历分开，是因为这是两件事：一件是"这根条现在该怎样"，一件是"谁还需要下一
- * 帧"。揉在一个函数里，光是嵌套就把认知复杂度顶到 25；分开之后各自只有一层。
+ * 几何只在这一帧被判为脏的时候才读。悬停与拖拽期间 hideAt 是正无穷 —— 不到期，
+ * 也就不需要任何人守着它到期；此前那是靠每帧把它往后推实现的，代价是一个永远
+ * 不会停的循环。
  */
-const advance = (bar: Bar, now: number): 'alive' | 'gone' => {
+const advance = (bar: Bar, now: number, dirty: boolean): 'alive' | 'gone' => {
   if (bar.disposeAt !== null) {
     if (now < bar.disposeAt) {
       return 'alive'
     }
 
+    bar.observer.disconnect()
     bar.element.remove()
 
     return 'gone'
   }
 
-  place(bar)
+  if (dirty) {
+    place(bar)
+  }
 
-  if (bar.dragging || bar.hovered) {
-    bar.hideAt = now + bar.metrics.linger
-
+  if (bar.hovered || bar.dragging) {
     return 'alive'
   }
 
   if (now >= bar.hideAt) {
-    bar.element.dataset['visible'] = 'false'
+    conceal(bar)
     bar.disposeAt = now + bar.metrics.fade
   }
 
@@ -337,7 +380,20 @@ export function installScrollbarActivity(): () => void {
   document.body.append(layer)
 
   const bars = new Map<Element, Map<Axis, Bar>>()
+
+  /*
+   * 滚动事件只往这里记一笔。
+   *
+   * 处理器里一个布局量都不读、一个计算样式都不解析：一次滚轮手势几十上百个事件，
+   * 它们描述的是同一帧的同一份几何，读一次就够。这与 AgentActivityFeed 的
+   * scheduleSync 是同一条规矩。
+   */
+  const touched = new Set<Element>()
+
+  /** 这一帧有没有理由重算几何。 */
+  let dirty = false
   let frame: number | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null
 
   const schedule = (): void => {
     if (frame === null) {
@@ -345,31 +401,10 @@ export function installScrollbarActivity(): () => void {
     }
   }
 
-  function tick(): void {
-    frame = null
-
-    const now = performance.now()
-    let alive = false
-
-    for (const [scroller, axes] of bars) {
-      for (const [axis, bar] of axes) {
-        if (advance(bar, now) === 'gone') {
-          axes.delete(axis)
-
-          continue
-        }
-
-        alive = true
-      }
-
-      if (axes.size === 0) {
-        bars.delete(scroller)
-      }
-    }
-
-    if (alive) {
-      frame = requestAnimationFrame(tick)
-    }
+  /** 盒子自己变了 —— 面板被拖窄、内容长高 —— 而这不产生滚动事件。 */
+  const onResize = (): void => {
+    dirty = true
+    schedule()
   }
 
   const createBar = (scroller: Element, axis: Axis): Bar => {
@@ -387,6 +422,18 @@ export function installScrollbarActivity(): () => void {
       `${String(metrics.thickness)}px`,
     )
 
+    /* 位置的唯一来源是 transform，所以两条边先归零，不让样式表参与定位。 */
+    element.style.top = '0'
+    element.style.left = '0'
+
+    const observer = new ResizeObserver(onResize)
+
+    observer.observe(scroller)
+
+    if (track !== scroller) {
+      observer.observe(track)
+    }
+
     const bar: Bar = {
       axis,
       scroller,
@@ -394,6 +441,8 @@ export function installScrollbarActivity(): () => void {
       element,
       metrics,
       clippers: clippersOf(track),
+      observer,
+      placed: null,
       hideAt: 0,
       hovered: false,
       dragging: false,
@@ -402,11 +451,13 @@ export function installScrollbarActivity(): () => void {
 
     element.addEventListener('pointerenter', () => {
       bar.hovered = true
+      bar.hideAt = Number.POSITIVE_INFINITY
       schedule()
     })
 
     element.addEventListener('pointerleave', () => {
       bar.hovered = false
+      bar.hideAt = performance.now() + bar.metrics.linger
       schedule()
     })
 
@@ -422,9 +473,14 @@ export function installScrollbarActivity(): () => void {
       const offset = vertical ? scroller.scrollTop : scroller.scrollLeft
 
       bar.dragging = true
+      bar.hideAt = Number.POSITIVE_INFINITY
       element.dataset['dragging'] = 'true'
       element.setPointerCapture(event.pointerId)
 
+      /*
+       * 拖拽不需要自己的循环：把 scrollTop 写下去就会有一个滚动事件回来，那条路
+       * 已经会把这一帧标脏。
+       */
       const onMove = (move: PointerEvent): void => {
         const current = measure(scroller, track, axis, metrics)
 
@@ -448,6 +504,7 @@ export function installScrollbarActivity(): () => void {
 
       const onRelease = (): void => {
         bar.dragging = false
+        bar.hideAt = performance.now() + bar.metrics.linger
         element.removeAttribute('data-dragging')
         element.removeEventListener('pointermove', onMove)
         element.removeEventListener('pointerup', onRelease)
@@ -462,6 +519,8 @@ export function installScrollbarActivity(): () => void {
     })
 
     layer.append(element)
+
+    /* 进场那一次淡入要跨一帧，否则元素刚插入就已经是终态，过渡不会跑。 */
     requestAnimationFrame(() => {
       element.dataset['visible'] = 'true'
     })
@@ -469,7 +528,8 @@ export function installScrollbarActivity(): () => void {
     return bar
   }
 
-  const reveal = (scroller: Element): void => {
+  /** 认领一个刚滚动过的盒子：该建的建，该续期的续期。几何交给这一帧统一读。 */
+  const adopt = (scroller: Element, now: number): void => {
     if (optedOut(scroller)) {
       return
     }
@@ -484,33 +544,93 @@ export function installScrollbarActivity(): () => void {
       bars.set(scroller, axes)
 
       const existing = axes.get(axis)
-      const bar = existing ?? createBar(scroller, axis)
 
       if (existing === undefined) {
-        axes.set(axis, bar)
+        axes.set(axis, createBar(scroller, axis))
+
+        continue
       }
 
-      bar.disposeAt = null
-      bar.hideAt = performance.now() + bar.metrics.linger
-      bar.element.dataset['visible'] = 'true'
-      place(bar)
+      existing.disposeAt = null
+
+      if (!existing.hovered && !existing.dragging) {
+        existing.hideAt = now + existing.metrics.linger
+      }
+
+      existing.element.dataset['visible'] = 'true'
+    }
+  }
+
+  /*
+   * 一帧一次，然后就地睡着。
+   *
+   * 这一帧结束时若还有条要在将来某一刻消隐，就按最近的那个时刻排一个定时器，而不
+   * 是继续排下一帧 —— 那段时间里几何不会变，读它读不出新答案。悬停与拖拽期间到期
+   * 时刻是正无穷，于是连定时器都不排。
+   */
+  function tick(): void {
+    frame = null
+
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
     }
 
-    schedule()
+    const now = performance.now()
+
+    for (const scroller of touched) {
+      adopt(scroller, now)
+    }
+
+    touched.clear()
+
+    const sweeping = dirty
+
+    dirty = false
+
+    let wakeAt = Number.POSITIVE_INFINITY
+
+    for (const [scroller, axes] of bars) {
+      for (const [axis, bar] of axes) {
+        if (advance(bar, now, sweeping || bar.placed === null) === 'gone') {
+          axes.delete(axis)
+
+          continue
+        }
+
+        const due = bar.disposeAt ?? bar.hideAt
+
+        if (due < wakeAt) {
+          wakeAt = due
+        }
+      }
+
+      if (axes.size === 0) {
+        bars.delete(scroller)
+      }
+    }
+
+    if (wakeAt !== Number.POSITIVE_INFINITY) {
+      timer = setTimeout(tick, Math.max(0, wakeAt - now))
+    }
   }
 
   const onScroll = (event: Event): void => {
     const target = event.target
+    const scroller =
+      target instanceof Element
+        ? target
+        : target instanceof Document
+          ? target.scrollingElement
+          : null
 
-    if (target instanceof Element) {
-      reveal(target)
-
+    if (scroller === null) {
       return
     }
 
-    if (target instanceof Document && target.scrollingElement !== null) {
-      reveal(target.scrollingElement)
-    }
+    touched.add(scroller)
+    dirty = true
+    schedule()
   }
 
   document.addEventListener('scroll', onScroll, { capture: true, passive: true })
@@ -522,7 +642,18 @@ export function installScrollbarActivity(): () => void {
       cancelAnimationFrame(frame)
     }
 
+    if (timer !== null) {
+      clearTimeout(timer)
+    }
+
+    for (const axes of bars.values()) {
+      for (const bar of axes.values()) {
+        bar.observer.disconnect()
+      }
+    }
+
     layer.remove()
     bars.clear()
+    touched.clear()
   }
 }
