@@ -183,10 +183,27 @@ interface HelpMenuItemProps {
 }
 
 function HelpMenuItem({ label, icon: Icon, href, onClick }: HelpMenuItemProps) {
-  const asLink = href === undefined ? {} : { render: <a href={href} rel="noreferrer" /> }
-
   return (
-    <DropdownMenuItem onClick={onClick} {...asLink}>
+    /*
+     * 这个 <a> 必须内联写在属性值上，不能先提到一个 const 里。
+     *
+     * useAnchorContent 的文档里最后一条有效示例逐字就是这个形状：
+     *   <Button render={<a href="/home" aria-label="Home" />}>Home</Button>
+     * 规则对「自定义组件上的这类 prop」自带豁免，理由写在文档里 —— 组件可能把
+     * 锚点当成内容外壳，链接文字由 children 提供。这里正是如此：图标与标签由
+     * 下面两行给出，Base UI 会把它们放进这个 <a> 里。
+     *
+     * 提到 const 之后 biome 看见的就只是一个孤立的空锚点，它没有任何办法知道
+     * 这个元素最后落在哪里，于是豁免不成立 —— 上一轮那条 error 就是这么来的。
+     * 修法不是补一个 aria-label（那会用一个重复的串盖掉真正的可访问名），也不
+     * 是 biome-ignore，而是把元素放回它本来该在的位置。
+     *
+     * href 为空时给 <div /> —— 那就是 Menu.Item 的默认元素，一个空操作。
+     */
+    <DropdownMenuItem
+      onClick={onClick}
+      render={href === undefined ? <div /> : <a href={href} rel="noreferrer" />}
+    >
       <Icon aria-hidden="true" className="text-muted-foreground" />
 
       {/*

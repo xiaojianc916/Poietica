@@ -29,8 +29,49 @@ const CONTINUES = /^\s{0,3}(?:[-*+>|=]|\d{1,9}[.)])/
 /** 围栏的开合。缩进四格以上是缩进代码块，不是围栏。 */
 const FENCE = /^\s{0,3}(?:```|~~~)/
 
-/** 独占一行的 $$：块级公式的开合。 */
+/** 独占一行的 $：块级公式的开合。 */
 const MATH_FENCE = /^\s{0,3}\$\$\s*$/
+
+/** 当前落在哪一种跨行围栏里面。 */
+type Fence = 'none' | 'code' | 'math'
+
+/**
+ * 读完这一行之后，围栏状态变成什么。
+ *
+ * 围栏里只认自己那一种收口符：一个 ``` 块内部出现的 $ 是代码文本，不是公式
+ * 的开头。这是 CommonMark 的规则，也是此前那两个布尔变量真正在表达的东西 ——
+ * 它们表达得对，只是把它和「哪里可以切」缠在了同一个循环里。
+ */
+function fenceAfter(line: string, open: Fence): Fence {
+  if (open === 'code') {
+    return FENCE.test(line) ? 'none' : 'code'
+  }
+
+  if (open === 'math') {
+    return MATH_FENCE.test(line) ? 'none' : 'math'
+  }
+
+  if (FENCE.test(line)) {
+    return 'code'
+  }
+
+  return MATH_FENCE.test(line) ? 'math' : 'none'
+}
+
+/**
+ * 一个空行是不是块边界。
+ *
+ * previous 为空表示前面还没有内容；next 为空表示这是连续空行中的一个，边界在
+ * 更后面那一个。两侧任意一侧属于跨行结构（列表、引用、表格、setext 下划线），
+ * 这个空行就在块内，切开它会让编号重来、让 <ul> 断成两截。
+ */
+function separates(previous: string, next: string): boolean {
+  if (previous === '' || next.trim() === '') {
+    return false
+  }
+
+  return !CONTINUES.test(previous) && !CONTINUES.test(next)
+}
 
 /**
  * 把一篇还在写的 markdown 切成封口段与在写段。
@@ -44,66 +85,31 @@ const MATH_FENCE = /^\s{0,3}\$\$\s*$/
 export function sealedSplit(text: string): readonly [sealed: string, live: string] {
   const lines = text.split('\n')
 
-  let fenced = false
-  let math = false
+  let open: Fence = 'none'
   let previous = ''
   let cut = -1
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? ''
+    const inside = open !== 'none'
 
-    if (fenced) {
-      if (FENCE.test(line)) {
-        fenced = false
-      }
-
-      previous = line
-      continue
-    }
-
-    if (math) {
-      if (MATH_FENCE.test(line)) {
-        math = false
-      }
-
-      previous = line
-      continue
-    }
-
-    if (FENCE.test(line)) {
-      fenced = true
-      previous = line
-      continue
-    }
-
-    if (MATH_FENCE.test(line)) {
-      math = true
-      previous = line
-      continue
-    }
-
-    if (line.trim() !== '') {
-      previous = line
-      continue
-    }
+    open = fenceAfter(line, open)
 
     /*
-     * 一个空行只有在两侧都是普通块的时候才是块边界。
+     * 只有「围栏外的空行」才有资格当边界。围栏内的行、围栏本身那两行、以及任何
+     * 有字的行，都只是内容。
      *
-     * previous 为空表示前面还没有内容；next 为空表示这是连续空行中的一个，边界在
-     * 更后面那一个。两侧任意一侧属于跨行结构，这个空行就在块内。
+     * 注意空行不更新 previous —— 这不是疏忽，是 previous 的定义：它是上一个非空
+     * 行。连续空行时它不能被冲掉，否则第二个空行会看见一个空的左邻居，边界就丢了。
      */
-    const next = lines[index + 1] ?? ''
-
-    if (previous === '' || next.trim() === '') {
+    if (inside || open !== 'none' || line.trim() !== '') {
+      previous = line
       continue
     }
 
-    if (CONTINUES.test(previous) || CONTINUES.test(next)) {
-      continue
+    if (separates(previous, lines[index + 1] ?? '')) {
+      cut = index
     }
-
-    cut = index
   }
 
   /*

@@ -189,19 +189,25 @@
  * 里 setApiKey('')），密钥从不回填，所以没有「看一眼存着的密钥」这回事 ——
  * 那颗眼睛在这里从头到尾没有可看的东西。
  */
+/*
+ * 四个一起，一行声明。
+ *
+ * 上面那段注释一直写着「它们共用一个病因，所以一起关掉」，而代码此前是两条规则、
+ * 两套力度：::-ms-* 那条平写 display: none 且有效，::-webkit-* 那条多了一记
+ * !important 外加五行永远不会被求值的声明。
+ *
+ * !important 不需要：作者样式表在层叠里本来就压过 UA 样式表，除非 UA 那条自己
+ * 带 !important —— 紧邻的 ::-ms-* 规则已经就地证明了这一点。它是「我不确定，多
+ * 打一拳」留下的。
+ *
+ * 后面那五行是死的：display: none 之后盒子根本不生成，visibility / pointer-events
+ * / inline-size / block-size / margin 一条都不会参与计算。
+ */
 .models-input::-ms-reveal,
-.models-input::-ms-clear {
-  display: none;
-}
-
+.models-input::-ms-clear,
 .models-input::-webkit-credentials-auto-fill-button,
 .models-input::-webkit-strong-password-auto-fill-button {
-  display: none !important;
-  visibility: hidden;
-  pointer-events: none;
-  inline-size: 0;
-  block-size: 0;
-  margin: 0;
+  display: none;
 }
 
 .models-input:focus-visible {

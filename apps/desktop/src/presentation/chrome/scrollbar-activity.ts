@@ -300,6 +300,41 @@ const conceal = (bar: Bar): void => {
   bar.element.dataset['visible'] = 'false'
 }
 
+/** 滑块在主轴上被裁剪盒收敛之后的那一段。完全落在盒外时没有这一段。 */
+interface Visible {
+  readonly start: number
+  readonly length: number
+}
+
+/**
+ * 把滑块收进裁剪盒。
+ *
+ * 这是几何计算，和 measure 同类，不属于「写 DOM」。此前它内联在 place 里，于是
+ * 那个函数同时在做两件事：算出该在哪，以及判断值不值得写。
+ *
+ * 交叉轴不裁剪、只做存在性判断：滑块在交叉轴上只有 thickness 那么宽，落在盒外就
+ * 是整根不可见，把它切一半没有意义。
+ */
+const clipTo = (
+  geometry: Geometry,
+  clip: Clip,
+  vertical: boolean,
+  thickness: number,
+): Visible | null => {
+  const low = vertical ? clip.top : clip.left
+  const high = vertical ? clip.bottom : clip.right
+  const crossLow = vertical ? clip.left : clip.top
+  const crossHigh = vertical ? clip.right : clip.bottom
+  const start = Math.max(geometry.main, low)
+  const length = Math.min(geometry.main + geometry.length, high) - start
+
+  if (length <= 0 || geometry.cross + thickness < crossLow || geometry.cross > crossHigh) {
+    return null
+  }
+
+  return { start, length }
+}
+
 /**
  * 把这一帧的几何写进 DOM —— 如果它真的和上一次不同。
  *
@@ -318,32 +353,20 @@ const place = (bar: Bar): void => {
 
   const vertical = bar.axis === 'vertical'
   const clip = clipOf(bar.clippers)
-  let start = geometry.main
-  let length = geometry.length
+  const visible =
+    clip === null
+      ? { start: geometry.main, length: geometry.length }
+      : clipTo(geometry, clip, vertical, bar.metrics.thickness)
 
-  if (clip !== null) {
-    const low = vertical ? clip.top : clip.left
-    const high = vertical ? clip.bottom : clip.right
-    const crossLow = vertical ? clip.left : clip.top
-    const crossHigh = vertical ? clip.right : clip.bottom
-    const end = Math.min(start + length, high)
+  if (visible === null) {
+    conceal(bar)
 
-    start = Math.max(start, low)
-    length = end - start
-
-    const outside =
-      length <= 0 || geometry.cross + bar.metrics.thickness < crossLow || geometry.cross > crossHigh
-
-    if (outside) {
-      conceal(bar)
-
-      return
-    }
+    return
   }
 
-  const main = Math.round(start)
+  const main = Math.round(visible.start)
   const cross = Math.round(geometry.cross)
-  const size = Math.round(length)
+  const size = Math.round(visible.length)
   const x = vertical ? cross : main
   const y = vertical ? main : cross
   const placed = bar.placed
@@ -395,6 +418,41 @@ const advance = (bar: Bar, now: number, dirty: boolean): 'alive' | 'gone' => {
   }
 
   return 'alive'
+}
+
+/**
+ * 扫一遍所有条，收掉该收的，交回下一次该醒来的时刻。
+ *
+ * 正无穷表示没有任何条在等待到期 —— 全都悬停着、拖拽着，或者一根都不剩。调用方
+ * 据此决定排不排定时器。
+ *
+ * 抽出来是因为它和 tick 的职责不同：tick 是一帧的调度（清定时器、认领新盒子、
+ * 排下一次唤醒），遍历只是它中间要办的一件事。
+ */
+const sweep = (bars: Map<Element, Map<Axis, Bar>>, now: number, dirty: boolean): number => {
+  let wakeAt = Number.POSITIVE_INFINITY
+
+  for (const [scroller, axes] of bars) {
+    for (const [axis, bar] of axes) {
+      if (advance(bar, now, dirty || bar.placed === null) === 'gone') {
+        axes.delete(axis)
+
+        continue
+      }
+
+      const due = bar.disposeAt ?? bar.hideAt
+
+      if (due < wakeAt) {
+        wakeAt = due
+      }
+    }
+
+    if (axes.size === 0) {
+      bars.delete(scroller)
+    }
+  }
+
+  return wakeAt
 }
 
 export function installScrollbarActivity(): () => void {
@@ -612,27 +670,7 @@ export function installScrollbarActivity(): () => void {
 
     dirty = false
 
-    let wakeAt = Number.POSITIVE_INFINITY
-
-    for (const [scroller, axes] of bars) {
-      for (const [axis, bar] of axes) {
-        if (advance(bar, now, sweeping || bar.placed === null) === 'gone') {
-          axes.delete(axis)
-
-          continue
-        }
-
-        const due = bar.disposeAt ?? bar.hideAt
-
-        if (due < wakeAt) {
-          wakeAt = due
-        }
-      }
-
-      if (axes.size === 0) {
-        bars.delete(scroller)
-      }
-    }
+    const wakeAt = sweep(bars, now, sweeping)
 
     if (wakeAt !== Number.POSITIVE_INFINITY) {
       timer = setTimeout(tick, Math.max(0, wakeAt - now))
