@@ -33,7 +33,7 @@ mod sessions;
 mod stderr;
 mod trace;
 
-pub use commands::AgentClient;
+pub use commands::{AgentClient, PromptImage};
 pub use config::{ConfigChoice, ConfigControl, ConfigPurpose, controls};
 pub use desk::PermissionDesk;
 pub use driver::connect;

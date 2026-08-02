@@ -925,6 +925,22 @@ threadId: string;
  */
 pinned: boolean }
 /**
+ * 一张随这一句话送出去的图片。
+ * 
+ * 只走内存：字节由渲染进程 base64 之后直接进 ACP 的 image content block，
+ * 不落盘，也不进 asset 注册表 —— 那套东西服务的是本进程的 webview（自定义
+ * asset:// 协议），而 agent 是另一个进程，它读不到。
+ */
+export type AgentPromptImage = { 
+/**
+ * base64 编码的原始字节，不带 `data:` 前缀。
+ */
+data: string; 
+/**
+ * 例如 `image/png`。
+ */
+mimeType: string }
+/**
  * A prompt, and how to start the agent if it is not running yet.
  */
 export type AgentPromptRequest = { 
@@ -932,6 +948,13 @@ export type AgentPromptRequest = {
  * What the user typed.
  */
 text: string; 
+/**
+ * 这一句带的图片。
+ * 
+ * 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
+ * 完整的话。此前这里没有这一格，那种消息在下面第一行就被判成参数无效。
+ */
+images: AgentPromptImage[]; 
 /**
  * The conversation this turn belongs to, when the interface names one.
  */

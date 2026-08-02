@@ -17,7 +17,7 @@ use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 
-use crate::commands::{AgentClient, Command};
+use crate::commands::{AgentClient, Command, PromptImage};
 use crate::config::{ConfigControl, controls};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
@@ -34,6 +34,9 @@ use crate::stderr::StderrLog;
 use crate::trace::{open_trace, trace};
 
 const UNREADABLE: &str = "the agent reported a stop reason the client could not read";
+
+/* 这一句连一个内容块都组不出来。协议没有「空提问」这种东西，所以它不发。 */
+const UNSENDABLE: &str = "the prompt carried nothing the protocol could send";
 
 /// 主循环这一步在处理什么。
 enum Step {
@@ -479,6 +482,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         Step::Asked(Some(Command::Prompt {
                             session_id,
                             text,
+                            images,
                             frames,
                             reply,
                         })) => {
@@ -529,7 +533,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                             in_flight = in_flight.saturating_add(1);
 
-                            jobs.push(Box::pin(run_turn(&connection, named, text, turn, reply)));
+                            jobs.push(Box::pin(run_turn(&connection, named, text, images, turn, reply)));
                         }
                         Step::Settled(Settled::Done) => {}
                         Step::Settled(Settled::Opened { opened, reply }) => {
@@ -903,14 +907,22 @@ async fn run_turn(
     connection: &ConnectionTo<Agent>,
     named: SessionId,
     text: String,
+    images: Vec<PromptImage>,
     slot: RunSlot,
     reply: oneshot::Sender<Result<String>>,
 ) -> Settled {
+    /* 一句话可以带图，也可以只有图。协议的 prompt 收的本来就是一串内容块，
+    此前这里写死成一个文本块 —— 那不是协议的限制，是这一行的限制。 */
+    let Some(blocks) = blocks_of(&text, images) else {
+        return Settled::Turn {
+            ended: Ended::Failed(UNSENDABLE.to_owned()),
+            slot,
+            reply,
+        };
+    };
+
     let answered = connection
-        .send_request(PromptRequest::new(
-            named,
-            vec![ContentBlock::Text(TextContent::new(text))],
-        ))
+        .send_request(PromptRequest::new(named, blocks))
         .block_task()
         .await;
 
@@ -925,6 +937,37 @@ async fn run_turn(
     };
 
     Settled::Turn { ended, slot, reply }
+}
+
+/// 一句话与它带的图片，变成协议要的那串内容块。
+///
+/// 图片块由线上形状反序列化出来，而不是去调 SDK 的构造函数。这个 crate 已经在
+/// 读停止原因那一处立过同一条规矩：线上形状才是契约。image content block 的线上
+/// 形状由协议钉死，就这三格。
+///
+/// 交回 None 只有两种由来，两种都不该被当成一次空轮次发出去：这句话什么都没带，
+/// 或者其中一张图连协议自己都读不成块。
+fn blocks_of(text: &str, images: Vec<PromptImage>) -> Option<Vec<ContentBlock>> {
+    let mut blocks = Vec::with_capacity(images.len().saturating_add(1));
+
+    if !text.is_empty() {
+        blocks.push(ContentBlock::Text(TextContent::new(text.to_owned())));
+    }
+
+    for image in images {
+        let block = serde_json::from_value(serde_json::json!({
+            "type": "image",
+            "data": image.data,
+            "mimeType": image.mime_type,
+        }));
+
+        match block {
+            Ok(block) => blocks.push(block),
+            Err(_unreadable) => return None,
+        }
+    }
+
+    (!blocks.is_empty()).then_some(blocks)
 }
 
 /// The response that carries a decision back to the agent.

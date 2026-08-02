@@ -181,6 +181,12 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
         commands.agentPrompt({
           text: request.text,
           threadId: request.threadId,
+          /* readonly 的数组与生成绑定要的可变数组是两个类型，所以复制一次 —— 与
+          上面 nativeLaunch 同一个理由，也只在这一层做。 */
+          images: request.images.map((image) => ({
+            data: image.data,
+            mimeType: image.mimeType,
+          })),
           launch: nativeLaunch(launch()),
           cwd: cwd ?? null,
         }),

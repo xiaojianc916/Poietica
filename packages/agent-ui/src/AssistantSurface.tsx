@@ -7,7 +7,7 @@ import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
-import { withAttachmentNotice } from './composer/attachment-notice'
+
 import type { PromptInputHandle } from './composer/prompt-input'
 import { useAgentDialect } from './domain/agent-dialect'
 import type { QuestionAnswer } from './domain/ask-user-question'
@@ -214,7 +214,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   const submit = useCallback(
     (message: AssistantSubmission) => {
       setPhase('live')
-      assistant.send(withAttachmentNotice(message))
+      assistant.send(message)
     },
     [assistant.send],
   )

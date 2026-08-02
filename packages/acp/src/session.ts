@@ -55,9 +55,31 @@ export type {
  * 这个端口只管正在发生的事。
  */
 
+/**
+ * 一张随这句话送出去的图片。
+ *
+ * 形状就是协议的形状：base64 的字节加一个 mimeType（ACP 的 image content
+ * block）。这一层因此不认识 File，也不认识 URL —— 那些是浏览器的东西，不是
+ * 协议的东西。
+ */
+export interface PromptImage {
+  /** base64 编码的原始字节，不带 `data:` 前缀。 */
+  readonly data: string
+  /** 例如 `image/png`。 */
+  readonly mimeType: string
+}
+
 export interface AgentPromptRequest {
   readonly threadId: ThreadId
   readonly text: string
+  /**
+   * 这一句带的图片。
+   *
+   * 与 text 是同一句话的两半：只有图、没有字，仍然是一句完整的话。没有附件
+   * 时是空数组，而不是缺席 —— 一个「有时候不在」的字段会让每个读它的人都先
+   * 判一次空。
+   */
+  readonly images: readonly PromptImage[]
 }
 
 /**

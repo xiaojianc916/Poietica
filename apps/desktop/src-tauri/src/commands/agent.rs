@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use poietica_agent_persistence_native::{AgentStore, StoreError, TitleSource};
 use poietica_agent_runtime_native::{
     ACP_UPDATE, AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
-    FrameSink, PermissionDesk, RecordedEvent, Refusal, RunSlot, connect,
+    FrameSink, PermissionDesk, PromptImage, RecordedEvent, Refusal, RunSlot, connect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -68,6 +68,24 @@ const NO_READ: &str = "the database read did not finish";
 /// 上，于是这一轮被记进了一条屏幕上不存在的对话。在唯一能验证它的地方拒绝它，
 /// 与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
 const NO_CONVERSATION: &str = "no conversation was named";
+
+/// 附件不是图片。协议的 image content block 只装图片，别的东西得走别的块。
+const NOT_AN_IMAGE: &str = "an attachment is not an image";
+
+/// 一张图大得不该走一次 IPC 往返。
+const IMAGE_TOO_LARGE: &str = "an attachment is too large";
+
+/// 单张图片的 base64 长度上限。
+///
+/// 卡的是编码之后的长度，因为那正是这次调用要搬的字节数；原始大小约为它的
+/// 四分之三。
+const MAX_IMAGE_CHARS: usize = 16 * 1024 * 1024;
+
+/// 一句话只有图片时，这条对话叫什么。
+///
+/// 标题取自第一句话，而第一句话可以没有字。此前那一行直接 take 一个空串，
+/// 于是列表里出现一条没有名字的对话。
+const IMAGE_OPENER: &str = "[图片]";
 
 /// 要停的那条对话此刻没有会话可发。
 ///
@@ -180,12 +198,31 @@ pub struct AgentLaunch {
     pub args: Vec<String>,
 }
 
+/// 一张随这一句话送出去的图片。
+///
+/// 只走内存：字节由渲染进程 base64 之后直接进 ACP 的 image content block，
+/// 不落盘，也不进 asset 注册表 —— 那套东西服务的是本进程的 webview（自定义
+/// asset:// 协议），而 agent 是另一个进程，它读不到。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPromptImage {
+    /// base64 编码的原始字节，不带 `data:` 前缀。
+    pub data: String,
+    /// 例如 `image/png`。
+    pub mime_type: String,
+}
+
 /// A prompt, and how to start the agent if it is not running yet.
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptRequest {
     /// What the user typed.
     pub text: String,
+    /// 这一句带的图片。
+    ///
+    /// 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
+    /// 完整的话。此前这里没有这一格，那种消息在下面第一行就被判成参数无效。
+    pub images: Vec<AgentPromptImage>,
     /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
     /// 起哪个 agent。
@@ -230,9 +267,23 @@ pub async fn agent_prompt(
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
+    let images = request.images;
 
-    if text.is_empty() {
+    /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话 ——
+    此前这里只看 text，那种消息就死在这一行上，屏幕上是一句「请求参数无效」。 */
+    if text.is_empty() && images.is_empty() {
         return Err(Error::Validation("the prompt is empty".to_owned()).into());
+    }
+
+    /* 渲染层送来的东西不可信，与权限答复同一条规矩：先验，再往协议里放。 */
+    for image in &images {
+        if !image.mime_type.starts_with("image/") {
+            return Err(Error::Validation(NOT_AN_IMAGE.to_owned()).into());
+        }
+
+        if image.data.len() > MAX_IMAGE_CHARS {
+            return Err(Error::Validation(IMAGE_TOO_LARGE.to_owned()).into());
+        }
     }
 
     let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
@@ -256,7 +307,11 @@ pub async fn agent_prompt(
     // conversation in a list should read as. Recorded as coming from the
     // message, so a name the user types later outranks it and this one does
     // not come back.
-    let opener: String = text.chars().take(TITLE_CHARS).collect();
+    let opener: String = if text.is_empty() {
+        IMAGE_OPENER.to_owned()
+    } else {
+        text.chars().take(TITLE_CHARS).collect()
+    };
 
     // 库操作只有一条路。它在阻塞线程池上，所以这一次写不会停住这个运行时上
     // 别的东西 —— 包括 ACP driver 的 future，它就在这里 spawn 的。
@@ -271,7 +326,18 @@ pub async fn agent_prompt(
 
     let answer = session
         .client
-        .prompt(addressed.clone(), text, frames)
+        .prompt(
+            addressed.clone(),
+            text,
+            images
+                .into_iter()
+                .map(|image| PromptImage {
+                    data: image.data,
+                    mime_type: image.mime_type,
+                })
+                .collect(),
+            frames,
+        )
         .map_err(translate)?;
 
     async_runtime::spawn(async move {

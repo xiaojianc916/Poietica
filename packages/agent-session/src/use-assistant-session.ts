@@ -2,6 +2,8 @@ import type { AgentSessionPort, ChatStatus } from '@poietica/acp'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
 import { selectPendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { describeFailure } from './describe-failure'
+import { toPromptImages } from './prompt-attachments'
 import type { Transcript } from './transcript-store'
 import { transcripts } from './transcript-store'
 
@@ -140,16 +142,31 @@ export function useAssistantSession({
     transcripts.ensure(session)
   }, [session])
 
+  /*
+   * 附件先读成字节，再连同这句话一起送出去。
+   *
+   * 这是发送路径上唯一一步需要等待的事，等的是几毫秒的 arrayBuffer。读不出来
+   * 就不发：一句「图片读取失败」记进转录，与其他本地事故走同一条通道，而不是
+   * 悄悄发一句没有图的话出去 —— 那会让人以为对面看到了。
+   */
   const send = useCallback(
     (submission: AssistantSubmission) => {
-      transcripts.send({
-        endpoint,
-        identify,
-        key,
-        onUserMessage,
-        port: session,
-        text: submission.text,
-      })
+      void toPromptImages(submission.files).then(
+        (images) => {
+          transcripts.send({
+            endpoint,
+            identify,
+            images,
+            key,
+            onUserMessage,
+            port: session,
+            text: submission.text,
+          })
+        },
+        (cause: unknown) => {
+          transcripts.note(key, describeFailure(cause))
+        },
+      )
     },
     [endpoint, identify, key, onUserMessage, session],
   )

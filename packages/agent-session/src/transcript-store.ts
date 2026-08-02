@@ -1,4 +1,4 @@
-import type { AgentSessionPort, RunEvent, ThreadHistory } from '@poietica/acp'
+import type { AgentSessionPort, PromptImage, RunEvent, ThreadHistory } from '@poietica/acp'
 import type { TimelineState } from '@poietica/agent-timeline'
 import {
   appendLocalError,
@@ -66,6 +66,8 @@ export interface SendOptions {
   /** 这一格已经是哪条对话；入口那一格是 null。 */
   readonly endpoint: string | null
   readonly text: string
+  /** 这一句带的图片，已经是协议要的形状（读文件发生在这一层之外）。 */
+  readonly images: readonly PromptImage[]
   readonly identify?: (() => Promise<string | null>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
@@ -395,7 +397,7 @@ export class TranscriptStore {
 
   /* ================= 说一句话 ================= */
 
-  send = ({ endpoint, identify, key, onUserMessage, port, text }: SendOptions): void => {
+  send = ({ endpoint, identify, images, key, onUserMessage, port, text }: SendOptions): void => {
     const at = Date.now()
     const current = this.#now(key)
 
@@ -428,7 +430,7 @@ export class TranscriptStore {
 
         onUserMessage?.(threadId, text)
 
-        return port.prompt({ threadId, text }).then((handle) => {
+        return port.prompt({ threadId, text, images }).then((handle) => {
           /*
            * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *

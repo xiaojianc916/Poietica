@@ -8,6 +8,18 @@ use crate::error::{AcpError, Refusal, Result};
 use crate::recorder::FrameSink;
 use crate::session::{OpenedSession, SessionEntry};
 
+/// 这一轮随那句话一起送出去的一张图片。
+///
+/// base64 是协议自己的形状：ACP 的 image content block 就是一个 base64 的 data
+/// 加一个 mimeType。所以这条路上没有任何一层解码或落盘 —— 字节从渲染进程直接
+/// 进请求体。
+pub struct PromptImage {
+    /// base64 编码的原始字节，不带 `data:` 前缀。
+    pub data: String,
+    /// 例如 `image/png`。
+    pub mime_type: String,
+}
+
 /// What the driver is asked to do next.
 ///
 /// 每一条都是一件事，而不是一个时段：驱动器把它变成一个自己的未来推进去，
@@ -48,6 +60,11 @@ pub(crate) enum Command {
         /// 提问也必须说出它是给哪一条的，否则它只能发给第一条。
         session_id: String,
         text: String,
+        /// 这一句带的图片。
+        ///
+        /// 与 text 是同一句话的两半：只挑了图、没打字，是一句完整的话，
+        /// 而不是一句空话 —— 判空的地方在桌面 seam，那里两者一起看。
+        images: Vec<PromptImage>,
         /// 这一轮的帧交到哪里去。
         ///
         /// 记录器由驱动器造：位置要从这条会话的序号线上取，而那条线在它的
@@ -194,6 +211,7 @@ impl AgentClient {
         &self,
         session_id: String,
         text: String,
+        images: Vec<PromptImage>,
         frames: FrameSink,
     ) -> Result<oneshot::Receiver<Result<String>>> {
         let (reply, answer) = oneshot::channel();
@@ -201,6 +219,7 @@ impl AgentClient {
         self.send(Command::Prompt {
             session_id,
             text,
+            images,
             frames,
             reply,
         })?;
