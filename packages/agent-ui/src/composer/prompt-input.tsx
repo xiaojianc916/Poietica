@@ -12,6 +12,8 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ImageLightbox, type PreviewableImage } from '../media/ImageLightbox'
+import { useObjectUrls } from '../media/use-object-urls'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 
@@ -317,9 +319,34 @@ export function PromptInputBody({ className, ...props }: ComponentProps<'div'>) 
   return <div className={className} data-slot="prompt-input-body" {...props} />
 }
 
+const isImage = (mediaType: string) => mediaType.startsWith('image/')
+
 export function PromptInputAttachments({ className, ...props }: ComponentProps<'div'>) {
   const attachments = usePromptInputAttachments()
   const { removeAttachment } = usePromptInputActions()
+  const previews = useObjectUrls(attachments)
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  /*
+   * 灯箱只装图片，编号也只在图片之间连续。
+   *
+   * 混排时若直接拿附件下标当 slide index，左右键会翻到一张不存在的幻灯片 ——
+   * 一个 PDF 夹在两张图中间就够了。所以这里先塌缩成纯图片序列，附件行再回头
+   * 按 id 找自己的位置。
+   */
+  const images = useMemo<readonly PreviewableImage[]>(
+    () =>
+      attachments.flatMap((attachment) => {
+        const src = previews.get(attachment.id)
+
+        if (src === undefined || !isImage(attachment.mediaType)) {
+          return []
+        }
+
+        return [{ id: attachment.id, src, alt: attachment.filename, caption: attachment.filename }]
+      }),
+    [attachments, previews],
+  )
 
   if (attachments.length === 0) {
     return null
@@ -327,34 +354,61 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
 
   return (
     <div className={className} data-slot="prompt-input-attachments" {...props}>
-      {attachments.map((attachment) => (
-        <div
-          className="assistant-attachment"
-          data-slot="prompt-input-attachment"
-          key={attachment.id}
-        >
-          <FileIcon aria-hidden="true" className="assistant-attachment__icon" />
+      {attachments.map((attachment) => {
+        /* 第一帧没有 URL(effect 还没跑)，那一帧照旧显示文件图标,不闪空白框。 */
+        const preview = isImage(attachment.mediaType) ? previews.get(attachment.id) : undefined
+        const slide = images.findIndex((image) => image.id === attachment.id)
 
-          <span className="assistant-attachment__meta">
-            <span className="assistant-attachment__name">{attachment.filename}</span>
-
-            <span className="assistant-attachment__type">
-              {attachment.mediaType === '' ? '文件' : attachment.mediaType}
-            </span>
-          </span>
-
-          <button
-            aria-label={`移除 ${attachment.filename}`}
-            className="assistant-attachment__remove"
-            onClick={() => {
-              removeAttachment(attachment.id)
-            }}
-            type="button"
+        return (
+          <div
+            className="assistant-attachment"
+            data-slot="prompt-input-attachment"
+            key={attachment.id}
           >
-            <CloseIcon aria-hidden="true" />
-          </button>
-        </div>
-      ))}
+            {preview === undefined || slide === -1 ? (
+              <FileIcon aria-hidden="true" className="assistant-attachment__icon" />
+            ) : (
+              <button
+                aria-label={`预览 ${attachment.filename}`}
+                className="assistant-attachment__preview"
+                onClick={() => {
+                  setOpenIndex(slide)
+                }}
+                type="button"
+              >
+                <img
+                  alt=""
+                  className="assistant-attachment__thumb"
+                  decoding="async"
+                  draggable={false}
+                  src={preview}
+                />
+              </button>
+            )}
+
+            <span className="assistant-attachment__meta">
+              <span className="assistant-attachment__name">{attachment.filename}</span>
+
+              <span className="assistant-attachment__type">
+                {attachment.mediaType === '' ? '文件' : attachment.mediaType}
+              </span>
+            </span>
+
+            <button
+              aria-label={`移除 ${attachment.filename}`}
+              className="assistant-attachment__remove"
+              onClick={() => {
+                removeAttachment(attachment.id)
+              }}
+              type="button"
+            >
+              <CloseIcon aria-hidden="true" />
+            </button>
+          </div>
+        )
+      })}
+
+      <ImageLightbox images={images} index={openIndex} onIndexChange={setOpenIndex} />
     </div>
   )
 }
