@@ -10,6 +10,12 @@
  * per bar; length is that weight interpolated between rest and gain. Thickness
  * is a constant and takes no part — see the note on --cp-rail-weight-line. No
  * script sets a pixel, so the resting geometry stays readable here.
+ *
+ * Every edge in this file lands on a whole pixel, and that is a chain, not a
+ * property of any one declaration: the rail top is rounded, the pitch is a
+ * multiple of four, and the bar sits at an integer offset inside its cell.
+ * Centring a 3px mark in a 12px cell would put its edge on a half pixel, so
+ * it is not centred — see the note on the bar.
  */
 /*
  * 一格的高度,也就是步距 —— 这里不留间距,所以两者是同一个数。
@@ -141,7 +147,6 @@
 
   block-size: var(--cp-rail-hit);
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
-  align-items: center;
   justify-content: flex-end;
   border: 0;
   padding: 0;
@@ -168,6 +173,26 @@
  * per-frame target still reads as one continuous pull rather than as steps.
  */
 .conversation-minimap__bar {
+  /*
+   * 杠在格子里的落点,必须是整数。
+   *
+   * 这里原本靠父级的 align-items: center。格子高 12、杠厚 3,居中的偏移是
+   * (12 - 3) / 2 = 4.5px —— 偶数的格子里居中一根奇数厚的杠,偏移永远是半个
+   * 像素,这在算术上无解,不是调哪个数能躲开的。
+   *
+   * 后果:上边缘从 4.5 画到 7.5,首尾两行各被覆盖一半,画成两条半透明的灰边,
+   * 中间才是三行实心 —— 一根 3px 的杠在屏幕上摊成 4 到 5 行,读作"不够瘦"。
+   * 而本文件开头为步距写的那段注释早就把这件事说清楚了("在相位 .0 上摊成 4
+   * 行、在 .5 上摊成 5 行"),只是那条规矩只被用在了步距上:轨道顶边取了整、
+   * 步距取了 12 的倍数,链条一路都是整数,最后一环没人查。
+   *
+   * 不居中,钉死在 4px。杠占格子的第 4–7 行,比正中高半个 CSS 像素 —— 那半个
+   * 看不见,糊边看得见,这句话这份文件已经为整条轨道说过一次(见 @supports
+   * round 那段),这里只是把同一条判断用到最后一环。
+   */
+  align-self: flex-start;
+  margin-block-start: 4px;
+
   block-size: var(--cp-rail-weight-line);
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain));
   /*
@@ -184,6 +209,24 @@
   transition:
     inline-size var(--cp-motion-swift) var(--cp-motion-ease),
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * 上面那个 4px 是 floor((12 - 3) / 2) 的手算结果:两个 token 哪天改了,它不会
+ * 自己跟上。round() 能算,但它是较新的能力,而这是一条必须存在的偏移 —— 声明
+ * 一旦无效被丢掉,杠会贴到格子顶上,那是看得见的回归。
+ *
+ * 所以字面量当地板,round() 当真值:算得动的引擎用算出来的数,算不动的退回 4px。
+ * 这与文件里 inset-block-start 那处 @supports 是同一套做法,不是第二套。
+ */
+@supports (margin-block-start: round(down, 1px, 1px)) {
+  .conversation-minimap__bar {
+    margin-block-start: round(
+      down,
+      calc((var(--cp-rail-hit) - var(--cp-rail-weight-line)) / 2),
+      1px
+    );
+  }
 }
 
 /*
