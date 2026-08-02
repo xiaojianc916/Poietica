@@ -1472,8 +1472,7 @@ async fn deliver_attachments(
             在本进程里对这批字节做过摘要，而这些字节刚从磁盘读上来，没有人验过。
             文件名就是摘要，所以这一次哈希同时就是一次完整性检查。 */
             entries.push(
-                AssetSessionSnapshotEntry::verify(hash, mime, Arc::new(bytes))
-                    .map_err(asset)?,
+                AssetSessionSnapshotEntry::verify(hash, mime, Arc::new(bytes)).map_err(asset)?,
             );
         }
 
