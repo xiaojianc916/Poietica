@@ -11,6 +11,7 @@
   },
   "scripts": {
     "bench": "vitest bench --run",
+    "churn": "vitest run src/__bench__/churn.probe.test.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },

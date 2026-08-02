@@ -215,3 +215,6 @@ refactor-report.json
 dist-release/
 
 release.mjs
+
+# performance profiles
+.perf

@@ -20,9 +20,6 @@ import { useSyncExternalStore } from 'react'
  * 没有落盘的地方，也就不落 —— 落了就是第二个家。
  */
 
-/** 模型那一格由组合根合成，id 与 purpose 都是这个字面量。 */
-const MODEL = 'model'
-
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
 /* 这个 agent 提供的整张表。只在内存里：权威是它自己的配置。 */

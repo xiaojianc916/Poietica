@@ -15,6 +15,8 @@
     reason = "a measurement binary must fail loudly on a malformed fixture"
 )]
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use agent_client_protocol::schema::v1::SessionNotification;
@@ -42,15 +44,13 @@ fn notification() -> SessionNotification {
     .expect("the fixture matches the protocol wire shape")
 }
 
-fn main() {
+/// 跑满 FRAMES 帧，返回耗时。
+///
+/// sink 由调用方给：给一个空的，量到的就是成帧；给一个序列化的，多出来的
+/// 就是上线。
+fn drive(sink: Box<dyn FnMut(&RecordedEvent) + Send>) -> u128 {
     let update = notification();
-
-    /* 一趟：只成帧，不上线。 */
-    let mut frames = Frames::new(
-        "sess_bench".to_owned(),
-        SeqLine::new(),
-        Box::new(|_event: &RecordedEvent| {}),
-    );
+    let mut frames = Frames::new("sess_bench".to_owned(), SeqLine::new(), sink);
     let started = Instant::now();
 
     for _frame in 0..FRAMES {
@@ -59,44 +59,48 @@ fn main() {
             .expect("a chunk frame serialises");
     }
 
-    let shaping = started.elapsed();
+    started.elapsed().as_nanos()
+}
 
-    /* 另一趟：成帧之后再上线一次，这正是 Tauri 事件通道要做的事。 */
-    let mut bytes: u64 = 0;
-    let mut wired = Frames::new(
-        "sess_bench".to_owned(),
-        SeqLine::new(),
-        Box::new(|event: &RecordedEvent| {
-            let line = serde_json::to_string(event).expect("a recorded event serialises");
+fn main() {
+    /* 一趟：只成帧，不上线。 */
+    let shaping = drive(Box::new(|_event: &RecordedEvent| {}));
 
-            bytes = bytes.saturating_add(line.len() as u64);
-        }),
-    );
-    let started = Instant::now();
+    /*
+     * 另一趟：成帧之后再上线一次，这正是 Tauri 事件通道要做的事。
+     *
+     * sink 的生命周期是 'static，计数器只能在堆上共享 —— 真实的 sink 也一样，
+     * 所以这里不是为了迁就编译器，而是照着约束写。
+     */
+    let bytes = Arc::new(AtomicU64::new(0));
+    let counted = Arc::clone(&bytes);
+    let total = drive(Box::new(move |event: &RecordedEvent| {
+        let line = serde_json::to_string(event).expect("a recorded event serialises");
+        let len = u64::try_from(line.len()).unwrap_or(u64::MAX);
 
-    for _frame in 0..FRAMES {
-        wired
-            .record_session_update(&update)
-            .expect("a chunk frame serialises");
-    }
+        counted.fetch_add(len, Ordering::Relaxed);
+    }));
 
-    let total = started.elapsed();
-
-    let per_shape = shaping.as_nanos() / u128::from(FRAMES);
-    let per_total = total.as_nanos() / u128::from(FRAMES);
-    let payload = f64::from(u32::try_from(bytes / u64::from(FRAMES)).unwrap_or(u32::MAX));
+    let frames = u128::from(FRAMES);
+    let per_shape = shaping / frames;
+    let per_total = total / frames;
+    let payload = bytes.load(Ordering::Relaxed) / u64::from(FRAMES);
+    let chunk = u64::try_from(CHUNK.len()).unwrap_or(1);
 
     println!("frames        {FRAMES}");
-    println!("chunk bytes   {}", CHUNK.len());
+    println!("chunk bytes   {chunk}");
     println!("shape         {per_shape} ns/frame   (to_value + normalize + prune)");
     println!(
         "wire          {} ns/frame   (serde_json::to_string)",
         per_total.saturating_sub(per_shape)
     );
     println!("total         {per_total} ns/frame");
-    println!("payload       {payload:.0} bytes/frame");
+    println!("payload       {payload} bytes/frame");
+
+    /* 整数算放大倍数，省掉浮点转换和随之而来的一串 clippy 例外。 */
     println!(
-        "amplification {:.1}x   (payload / chunk bytes)",
-        payload / CHUNK.len() as f64
+        "amplification {}.{}x   (payload / chunk bytes)",
+        payload / chunk,
+        (payload * 10 / chunk) % 10
     );
 }
