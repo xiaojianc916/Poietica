@@ -17,6 +17,16 @@ import type { ReactNode } from 'react'
 
 import type { SurfaceIcon } from '../surface-registry'
 
+/*
+ * 仓库地址。
+ *
+ * 与 apps/desktop/src-tauri/tauri.conf.json 的 bundle.homepage 是同一个串。这
+ * 是分层的代价而不是疏忽：这个包在第 4 层，读不到 apps 里的构建配置，而把它
+ * 做成 prop 从组合根传下来，等于为一个常量铺一条跨三层的通道。两处任一改动，
+ * 另一处要跟着改。
+ */
+const REPOSITORY_URL = 'https://github.com/xiaojianc916/poietica'
+
 export interface SidebarFooterProps {
   /**
    * 底部行左端的插槽，排在帮助按钮之前。
@@ -140,7 +150,7 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
            * 品牌标记，不是形近的 UI 字形。此前这里是 Message（对话气泡）—— 那不
            * 是 GitHub 的图标，只是一个语义相近的字形在凑数。
            */}
-          <HelpMenuItem icon={GithubMark} label="GitHub" />
+          <HelpMenuItem href={REPOSITORY_URL} icon={GithubMark} label="GitHub" />
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
@@ -156,12 +166,27 @@ function HelpMenu({ onDeveloperToolsOpen }: { readonly onDeveloperToolsOpen: () 
 interface HelpMenuItemProps {
   readonly label: string
   readonly icon: SurfaceIcon
+  /**
+   * 外链行给一个真的 href。
+   *
+   * 不是 onClick 回调，也不需要从组合根往下传任何东西：apps/desktop 已经在
+   * document 上装了一条 capture 阶段的监听（presentation/chrome/external-links
+   * .ts），凡是 a[href] 且协议是 http(s)/mailto 就拦下来交给系统浏览器。此前
+   * 这一行点了没反应，原因是 Base UI 的 Menu.Item 渲染出来是个 div —— 那条监
+   * 听的 a[href] 判断压根匹配不到它。
+   *
+   * 于是这一层只需要说清「它是一条链接」这个事实，跨进程那一半归 apps。两边
+   * 谁也不必知道对方存在，这个包（第 4 层）也就不必认识 Tauri。
+   */
+  readonly href?: string
   readonly onClick?: () => void
 }
 
-function HelpMenuItem({ label, icon: Icon, onClick }: HelpMenuItemProps) {
+function HelpMenuItem({ label, icon: Icon, href, onClick }: HelpMenuItemProps) {
+  const asLink = href === undefined ? {} : { render: <a href={href} rel="noreferrer" /> }
+
   return (
-    <DropdownMenuItem onClick={onClick}>
+    <DropdownMenuItem onClick={onClick} {...asLink}>
       <Icon aria-hidden="true" className="text-muted-foreground" />
 
       {/*

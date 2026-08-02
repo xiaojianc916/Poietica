@@ -14,24 +14,25 @@ use tauri::{AppHandle, Manager, command};
 /// 一个返回形状」，而那张手抄的清单已经不在了；一个每条路径都 `Ok(())` 的返回值
 /// 到了生成绑定里，就是一个渲染层必须接、且永远接到 null 的东西。
 ///
-/// 发行构建里它什么也不做。`open_devtools` 被 tauri 的 devtools feature 门控，
-/// 而那个 feature 只在 debug 构建里自动开 —— 发行版里这个方法根本不存在。要让它
-/// 存在，就得把整套开发者工具打进发给用户的包：一个 decorations: false 的成品
-/// 应用，不该让用户能翻前端、改 DOM、看 IPC 流量。
+/// 两种构建里行为相同。
 ///
-/// 命令本身两种构建都在。用 `#[cfg]` 把它从 `invoke_handler` 上摘掉的话，生成的
-/// 绑定会随构建种类变形状，渲染层就得分支去猜自己跑在哪一种里。IPC 契约不随构建
-/// 种类变。
+/// 此前这里有一个 `#[cfg(debug_assertions)]`，发行构建走的是一条 `drop` —— 帮助
+/// 菜单里那一项在装出来的应用里按下去静悄悄地什么也不发生。当时给出的理由是「不
+/// 该让用户能翻前端、改 DOM、看 IPC 流量」，那个理由站不住：前端代码原封不动躺在
+/// 安装包里，谁都能解压看，而这个仓库本身就是公开的。开发者工具不增加任何暴露，
+/// 它只是一个查看器。
+///
+/// 横向看，发行版带开发者工具是桌面应用的常规做法：VS Code 的 Help ▸ Toggle
+/// Developer Tools、Obsidian 的 Ctrl+Shift+I、Slack、Discord、Figma 桌面版都带。
+///
+/// 另一道闸在根 Cargo.toml：tauri 的 devtools feature 只在 debug 构建里自动开，
+/// 不显式写上它，这个方法在发行构建里根本不存在。两处要一起看。
 #[command]
 #[specta::specta]
 pub async fn window_open_devtools(app: AppHandle, label: String) {
-    #[cfg(debug_assertions)]
     if let Some(window) = app.get_webview_window(&label) {
         window.open_devtools();
     }
-
-    #[cfg(not(debug_assertions))]
-    drop((app, label));
 }
 
 /// 把一个外部 URL 交给系统默认浏览器。没有 `JavaScript` 对应物的两个之二。

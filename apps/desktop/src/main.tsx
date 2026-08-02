@@ -7,6 +7,7 @@ import {
 } from '@poietica/desktop-runtime'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
+import { installContextMenuGuard } from './presentation/chrome/context-menu-guard'
 import { installExternalLinks } from './presentation/chrome/external-links'
 import { installScrollbarActivity } from './presentation/chrome/scrollbar-activity'
 
@@ -15,6 +16,7 @@ void bootstrapApplication()
 async function bootstrapApplication(): Promise<void> {
   installScrollbarActivity()
   installExternalLinks()
+  installContextMenuGuard()
 
   const previousCrash = await readPreviousNativeCrashReport()
 
