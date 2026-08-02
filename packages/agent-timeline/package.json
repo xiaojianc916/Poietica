@@ -10,8 +10,9 @@
     "./fixtures": "./src/__fixtures__/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "bench": "vitest bench --run",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@poietica/acp": "workspace:*"
