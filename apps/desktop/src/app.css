@@ -55,8 +55,11 @@
  * 这里只保留 border-color。
  *
  * box-sizing 由 Tailwind preflight 对 *、::before、::after 设过，重复。
- * 两条字体平滑是继承属性，写在 * 上等于为文档里每个元素各匹配计算一次，写在
- * body 上一次即可，渲染结果相同。
+ *
+ * 这里曾经还有 -webkit-font-smoothing: antialiased 与 -moz-osx-font-smoothing:
+ * grayscale。两条都是 macOS 的补偿：在 Windows 上，前者的实际作用是关闭
+ * ClearType 亚像素渲染，把全屏文字退回灰度抗锯齿，笔画因此整体变细变虚。
+ * 这个应用只出 Windows，所以它们不是"可留可不留"，是净损失。
  *
  * border-color 必须留：Tailwind v4 把默认边框色改成了 currentColor，这条是
  * 有意的行为覆盖，不是重复。
@@ -78,8 +81,6 @@ body {
   overflow: hidden;
   font-family: var(--ui-font-sans);
   color: var(--color-foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 .bootstrap-error {

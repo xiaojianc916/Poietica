@@ -1,7 +1,7 @@
 import {
   BookOpen,
   Code,
-  Cog,
+  CogFour,
   ExternalLink,
   Message,
   QuestionCircle,
@@ -65,7 +65,7 @@ export function SidebarFooter({
 
       <HelpMenu onDeveloperToolsOpen={onDeveloperToolsOpen} />
 
-      <FooterButton active={settingsActive} icon={Cog} label="设置" onClick={onSettingsOpen} />
+      <FooterButton active={settingsActive} icon={CogFour} label="设置" onClick={onSettingsOpen} />
     </div>
   )
 }

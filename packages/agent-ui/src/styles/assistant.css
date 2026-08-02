@@ -201,7 +201,7 @@
 [data-slot="prompt-input-submit"] svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  stroke-width: 2.25;
+  stroke-width: var(--ui-icon-stroke);
 }
 
 [data-slot="prompt-input-submit"]:hover:not(:disabled) {
@@ -432,7 +432,7 @@
 .assistant-threads__create svg {
   block-size: var(--cp-icon);
   inline-size: var(--cp-icon);
-  stroke-width: 1.75;
+  stroke-width: var(--ui-icon-stroke);
 }
 
 .assistant-threads__create:hover {
@@ -452,7 +452,7 @@
 .assistant-threads__list {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: calc(var(--ui-hairline) * 2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -608,7 +608,7 @@
 .assistant-thread-menu .assistant-thread-menu__item svg {
   flex: none;
   color: var(--cp-ink-muted);
-  stroke-width: 1.75;
+  stroke-width: var(--ui-icon-stroke);
 }
 
 .assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
@@ -665,7 +665,10 @@
   flex-direction: column;
   justify-content: flex-end;
   padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
-  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
+  padding-inline: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
 }
 
 /* 输入框下方的另一半自由空间。它只有这一个作用,所以它只有这一条声明。 */
@@ -685,7 +688,10 @@
   flex: none;
   min-inline-size: 0;
   padding-block: var(--cp-pad-mid) var(--cp-gutter);
-  padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
+  padding-inline: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
 }
 
 .assistant-surface__starters {
@@ -912,8 +918,8 @@
   width: 4px;
   height: 8px;
   margin-block-start: -6px;
-  border-inline-end: 1.5px solid var(--cp-ink);
-  border-block-end: 1.5px solid var(--cp-ink);
+  border-inline-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
+  border-block-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
   transform: rotate(45deg);
 }
 
@@ -933,14 +939,14 @@
   --am-pad: 4px;
   --am-line: var(--ui-divider);
   --am-shadow:
-    0 0 0 0.5px color-mix(in srgb, var(--ui-foreground) 4%, transparent),
+    0 0 0 var(--ui-hairline) color-mix(in srgb, var(--ui-foreground) 4%, transparent),
     0 1px 2px color-mix(in srgb, var(--ui-foreground) 6%, transparent),
     0 8px 24px -8px color-mix(in srgb, var(--ui-foreground) 18%, transparent);
 }
 
 /* The reusable frame. Anything that opens as a menu carries this class. */
 .assistant-menu-surface {
-  border: 1px solid var(--am-line);
+  border: var(--ui-hairline) solid var(--am-line);
   border-radius: var(--am-radius);
   padding: var(--am-pad);
   background: var(--cp-surface);
