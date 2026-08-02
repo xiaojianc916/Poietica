@@ -44,7 +44,22 @@
  */
 .desktop-title-bar__edge {
   position: absolute;
-  inset-block: 0;
+  inset-block-start: 0;
+  /*
+   * 向下多走一个 divider 的厚度，穿过 chrome 行那条横线。
+   *
+   * 本元素的包含块是 toggle-zone，它在 header 的 content box 里，而横线是
+   * header 的 border-block-end，画在 content box 之外。所以 inset-block-end: 0
+   * 会让竖线在离 header 底部还有一个 divider 的地方停住，那一格正好被横线占
+   * 着 —— 看起来就是横线把竖线封了口，交叉处是一个 T 而不是一条线。拖拽态把
+   * 竖线加粗加深之后，这个断口就藏不住了。
+   *
+   * 负的这一格让它止于 header 的 border-box 底，也就是侧栏那一长段的起点：
+   * 不重叠、不留缝。绝对定位的后代天然画在祖先的 border 之上，所以谁压谁不
+   * 需要 z-index 来仲裁 —— 正在被拖动的那条线压过静态的区域分隔，这也是它
+   * 应该有的次序。
+   */
+  inset-block-end: calc(var(--ui-region-divider-width) * -1);
   inset-inline-end: 0;
   /*
    * 与 chrome 行以下那一长段是同一组表达式 —— 这两段本来就是一条线，此前

@@ -49,19 +49,30 @@
  * 主区域一格不动，所以这一档粗细可以是即时的，不需要过渡去掩饰位移。
  */
 .workspace-shell:has(.workspace-sidebar-splitter:hover) {
-  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 20%, var(--color-divider));
+  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 8%, var(--color-divider));
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
 /* 正在拖，以及没有指针的键盘调整：同一档，比悬停再深一点。 */
 .workspace-shell:has(.workspace-sidebar-splitter:focus-visible),
 .workspace-shell:has(.workspace-sidebar-splitter[data-resizing="true"]) {
-  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 32%, var(--color-divider));
+  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 16%, var(--color-divider));
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 
+/*
+ * chrome 与内容之间那条横线。
+ *
+ * 它此前写在 WorkspaceShell 的 className 里（border-b border-divider），厚度
+ * 因此是 Tailwind 的 1px；而竖线要向下穿过它，穿多少读的是
+ * --ui-region-divider-width，也是 1px。两个 1px 分居两处，今天相等是巧合，
+ * 改任何一处另一处都不跟 —— 接缝会裂开或者叠一层，而这两种都不会报错。
+ *
+ * 现在两者读同一个令牌，接缝对齐是算出来的。
+ */
 .workspace-shell__chrome {
   grid-area: chrome;
+  border-block-end: var(--ui-region-divider-width) solid var(--color-divider);
 }
 
 .workspace-shell__sidebar {
