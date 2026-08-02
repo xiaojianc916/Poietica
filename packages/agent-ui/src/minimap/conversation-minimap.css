@@ -7,8 +7,9 @@
  * calc() over them and over the surface tokens.
  *
  * The fisheye is one multiplication. A hook writes a weight between 0 and 1
- * per bar; length and thickness are that weight interpolated between rest and
- * gain. No script sets a pixel, so the resting geometry stays readable here.
+ * per bar; length is that weight interpolated between rest and gain. Thickness
+ * is a constant and takes no part — see the note on --cp-rail-weight-line. No
+ * script sets a pixel, so the resting geometry stays readable here.
  */
 /*
  * 一格的高度,也就是步距 —— 这里不留间距,所以两者是同一个数。
@@ -28,16 +29,21 @@
   --cp-rail-hit: 12px;
   --cp-rail-len: 9px;
   --cp-rail-gain: 25px;
-  --cp-rail-weight-line: 3px;
   /*
-   * 厚度 = weight-line + weight × weight-gain，weight ∈ [0, 1]。增量取 0.5px
-   * 时拉满是 3.5px —— 动画停下来的那一帧压在半个像素上。中间帧在运动中不读
-   * 锐度，端点读，所以端点必须是整数：3 → 4。
+   * 厚度是常量，不是通道。
    *
-   * 这也与本文件开头那段「所有格子共用同一相位」的立论一致；0.5 是它自己的
-   * 反例。
+   * 此前它是 3px + weight × 1px。本文件开头为步距立的那条规矩 —— 端点必须
+   * 落在设备像素整数上 —— 只被拿去检查了拉满那一端（4 × k/4 是整数），静息
+   * 那一端没人查：3 × 1.25 = 3.75，3 × 1.5 = 4.5。而一根杠绝大多数时间待在
+   * 静息端，被拉起来的每帧至多七八根。规矩用反了地方。
+   *
+   * 恒定值在同一相位上对每根杠栅格化出同一个结果，这才是开头那句「未必都
+   * 锐利，但一定都一样」；厚度此前是它唯一的反例。
+   *
+   * 信息一点没丢：指针离得多近由长度说，手底下是哪一根由 data-aimed 的墨色
+   * 说。一个通道说一件事，厚度本来就在重复别人已经说完的话。
    */
-  --cp-rail-weight-gain: 1px;
+  --cp-rail-weight-line: 3px;
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
@@ -157,9 +163,9 @@
 }
 
 /*
- * The bar. Its two lengths are the same weight, so a bar can never grow long
- * without growing thick, and the transition is short enough that a per-frame
- * target still reads as one continuous pull rather than as steps.
+ * The bar. One dimension answers the pointer and one does not: length travels
+ * with the weight, thickness never moves. The transition is short enough that a
+ * per-frame target still reads as one continuous pull rather than as steps.
  */
 .conversation-minimap__bar {
   /*
@@ -170,16 +176,24 @@
    */
   --cp-rail-scale: 1;
 
-  block-size: calc(var(--cp-rail-weight-line) + var(--cp-rail-weight) * var(--cp-rail-weight-gain));
+  block-size: var(--cp-rail-weight-line);
   inline-size: calc(
     (var(--cp-rail-len) + var(--cp-rail-weight) * var(--cp-rail-gain)) *
     var(--cp-rail-scale)
   );
-  border-radius: 1px;
+  /*
+   * 直角。
+   *
+   * 这里原本是 border-radius: 1px —— 半径是这根条高度的三分之一，那个尺度上
+   * 读不出圆，只读得出四个角像素被四分之一圆覆盖了 π/4 ≈ 78.5% 的面积，各画
+   * 成一个七八成不透明的小方块。显示缩放不是 100% 时覆盖率还逐根不同，于是
+   * 四个角连深浅都不一致。这不是圆角，是四个抗锯齿残留。
+   *
+   * 一根 9×3 的标记，直角就是它该有的样子。
+   */
   background: var(--cp-rail-ink-rest);
   transition:
     inline-size var(--cp-motion-swift) var(--cp-motion-ease),
-    block-size var(--cp-motion-swift) var(--cp-motion-ease),
     background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
@@ -291,8 +305,11 @@
  * 合成层,它的抗锯齿从此和邻居不是同一套,这本身就是"静息态看着不一样"的一
  * 个来源。
  *
- * 一个通道说一件事。长度说这一格管多宽,厚度说指针离得多近,墨色说读到了
- * 哪里 —— 三件事三条通道,谁也别兼职。
+ * 一个通道说一件事 —— 而此前这句话是假的:长度里乘着鱼眼权重,厚度说的也是
+ * 鱼眼权重,两条通道在说同一件事,反倒是「这一格管多宽」只能挤在长度里搭车。
+ *
+ * 现在:长度归鱼眼,墨色归阅读位置与手的位置,厚度恒定不发言,而这一格管多宽
+ * 由下面那个比例乘在长度上 —— 静息时它是唯一改变长度的东西,一眼看得出。
  *
  * 三分之二是个整除得开的比例:静息 9 × 2/3 = 6px,不落在半像素上。到底代表
  * 几轮由卡片上的 kicker 直说,形状不必替它把话讲完。

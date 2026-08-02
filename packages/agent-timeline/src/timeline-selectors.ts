@@ -256,6 +256,16 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
  * the answer to it, so the questions alone are the table of contents. The
  * position of a turn is a feed row index, because the scrollport addresses
  * rows and nothing else — no pixel is measured to build this.
+ *
+ * 但一问之后什么都没发生,就不是一轮。
+ *
+ * 断网、鉴权失败、空转 —— 这一问的跨度里只有一条 error,或者干脆一条都没有,
+ * 然后人又问了一遍。屏幕上那是两个挤在一起的气泡,轨道上却是两格、序数多算
+ * 一轮,而点第一格会落到一个没有内容的位置。判据本来就在手边:下面第二趟扫描
+ * 为了取预览,已经在遍历这一轮的跨度了。
+ *
+ * 没有应答的那一问并进下一格,并把入口行号带过去 —— 落点仍在这一串气泡的最
+ * 上面,一个都不跳过;标题用真正得到回答的那一问,因为那才是读者要找的东西。
  */
 export interface ConversationTurn {
   readonly id: TimelineItemId
@@ -371,22 +381,53 @@ function buildTurns(
     }
   }
 
-  /* 第二趟：每一轮向后扫到下一轮为止，取第一段有内容的答复。 */
-  const rebuilt = staged.map((entry, position) => {
+  /*
+   * 第二趟：每一轮向后扫到下一轮为止，一趟回答两件事 —— 预览取哪一段，以及
+   * 这一轮到底发生过什么没有。
+   *
+   * 「发生过」= 跨度里出现过任何 agent 侧的条目。只有一条 error，或者一条都
+   * 没有，都不算 —— 那是一次没能开始的往返，不是一个可以跳过去的地方。
+   *
+   * 最后一轮永远不折叠：折叠要求后面还有人再问，而正在跑的那一轮没有下一问。
+   */
+  const rebuilt: ConversationTurn[] = []
+  let carried: number | undefined
+
+  for (let position = 0; position < staged.length; position += 1) {
+    const entry = staged[position]
+
+    if (entry === undefined) {
+      continue
+    }
+
     const until = staged[position + 1]?.rowIndex ?? rows.length
     let reply: string | undefined
+    let answered = false
 
     for (let index = entry.rowIndex + 1; index < until; index += 1) {
-      const row = rows[index]
+      const item = rows[index]?.item
 
-      if (row !== undefined && row.item.type === 'agent_text' && row.item.text.length > 0) {
-        reply = row.item.text.slice(0, 300)
+      if (item === undefined || item.type === 'error') {
+        continue
+      }
+
+      answered = true
+
+      if (item.type === 'agent_text' && item.text.length > 0) {
+        reply = item.text.slice(0, 300)
         break
       }
     }
 
-    return toTurn(entry, reply)
-  })
+    /* 没人应答，而后面还有人再问：这一问是下一格的开头，不是它自己的一格。 */
+    if (!answered && position + 1 < staged.length) {
+      carried ??= entry.rowIndex
+      continue
+    }
+
+    rebuilt.push(toTurn(carried === undefined ? entry : { ...entry, rowIndex: carried }, reply))
+    carried = undefined
+  }
 
   if (held === undefined) {
     return rebuilt

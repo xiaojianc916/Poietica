@@ -1,15 +1,22 @@
 import { useCallback } from 'react'
+import { RAIL_PITCH_PX } from './rail-budget'
 
 /* poietica:conversation-minimap-perf@v16 */
 
 /**
- * Half-width of the pull. Beyond roughly twice this a bar is at rest.
+ * 高斯半宽:两个步距。三个半宽之外与静止无异,所以波峰实际覆盖上下各两三根。
  *
- * Kept close to a few row pitches on purpose: a falloff much wider than the
- * spacing lifts the whole rail by a similar amount, which reads as the rail
- * getting fatter rather than as a crest travelling along it.
+ * 这里原本是写死的 44,而它自己的注释就写着「半宽远大于间距时整条轨道一起
+ * 抬起来,读作轨道变胖了,而不是一道波峰在移动」—— 44 是 3.7 个步距,三个半宽
+ * 覆盖上下各十一根,于是杠不到二十几根时全程都落在那个失败模式里。注释预言了
+ * 它,选的数却正好触发它。
+ *
+ * 取步距的倍数而不是另一个手调的数:波峰宽度问的本来就是「几根」,而不是
+ * 「几像素」。步距改了它自动跟上,不会各自漂。
+ *
+ * 顺带:REACH_PX 是它的三倍,一并从 132 收到 72,每帧参与计算的柱子少一半。
  */
-const FALLOFF_PX = 44
+const FALLOFF_PX = RAIL_PITCH_PX * 2
 
 /**
  * Where the pull begins, counted left from the rail's own edge.
