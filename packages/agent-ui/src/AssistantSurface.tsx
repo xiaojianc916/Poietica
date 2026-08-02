@@ -4,7 +4,7 @@ import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
 import type { AssistantSubmission } from '@poietica/agent-session'
 import { useAssistantPending, useAssistantSession } from '@poietica/agent-session'
 import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -75,7 +75,7 @@ const STARTERS: Readonly<Record<string, string>> = {
  *
  * 这一层仍然不量任何几何。
  */
-export function AssistantSurface({
+export const AssistantSurface = memo(function AssistantSurface({
   controls,
   controlsFailure,
   endpoint,
@@ -269,4 +269,4 @@ export function AssistantSurface({
       {live ? null : <div className="assistant-surface__ballast" />}
     </section>
   )
-}
+})

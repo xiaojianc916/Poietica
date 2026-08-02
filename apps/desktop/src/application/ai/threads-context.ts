@@ -1,5 +1,6 @@
+import type { SessionConfigControl } from '@poietica/acp'
 import type { ThreadsList, ThreadsStore } from '@poietica/agent-session'
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 
 /*
  * One conversation state, shared by the sidebar and the tab strip.
@@ -48,11 +49,42 @@ export function useThreadsList(): ThreadsList {
   return useSyncExternalStore(store.subscribe, store.listSnapshot, store.listSnapshot)
 }
 
-/** 订阅整份会话状态。对话那一格读的是按 id 取的零散事实，仍走这里。 */
-export function useSharedThreads(): ThreadsStore {
+/*
+ * 一格只订自己要的那一片。
+ *
+ * 这里此前是 useSharedThreads：它订阅整份 Held 快照，却把 useSyncExternalStore
+ * 的返回值原地丢掉 —— 订了一切，一样都没读。而 #commit 每次提交都换一个 Held
+ * 对象（{ ...this.#held, ...patch }，十一个调用点，其中 #remember 是 agent 主动
+ * 上报的落点），于是「另一条对话认领到了选择器」这种与本格无关的事实，会让
+ * ConversationSurface 连同它下面整棵助手树 —— 转录、虚拟列表、输入框 —— 重画。
+ *
+ * 切片天然是引用稳定的：selectors 那张表由 #with 维护，值没变就原样交回同一个
+ * Map，useSyncExternalStore 自己就会跳过。与转录那一侧的 useSlice 同一个形状，
+ * 不是第二套办法。
+ */
+
+/** 这条对话的选择器；还没拿到过是 undefined。 */
+export function useThreadSelectors(
+  threadId: string | null,
+): readonly SessionConfigControl[] | undefined {
   const store = useStore()
 
-  useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+  const read = useCallback(
+    () => (threadId === null ? undefined : store.selectorsOf(threadId)),
+    [store, threadId],
+  )
 
-  return store
+  return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/** 这条对话上一次认领或改动失败时的说法。 */
+export function useThreadSelectorFailure(threadId: string | null): string | undefined {
+  const store = useStore()
+
+  const read = useCallback(
+    () => (threadId === null ? undefined : store.selectorFailureOf(threadId)),
+    [store, threadId],
+  )
+
+  return useSyncExternalStore(store.subscribe, read, read)
 }

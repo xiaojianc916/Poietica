@@ -7,9 +7,13 @@ import {
 } from '@poietica/agent-session'
 import { AssistantSurface } from '@poietica/agent-ui'
 import type { AgentConfigStore } from '@poietica/settings'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { desktopAgentCapabilities } from '../../application/ai/agent-session'
-import { useSharedThreads } from '../../application/ai/threads-context'
+import {
+  useThreadSelectorFailure,
+  useThreadSelectors,
+  useThreadsActions,
+} from '../../application/ai/threads-context'
 import { reportFailure } from '../../application/failures/failure-policy'
 
 /*
@@ -46,7 +50,17 @@ export function ConversationSurface({
   session,
   threadId,
 }: ConversationSurfaceProps) {
-  const threads = useSharedThreads()
+  const threads = useThreadsActions()
+
+  /*
+   * 这一格只关心这两样，所以只订这两样。
+   *
+   * 两者在真的变化之前都是同一个引用，因此别的对话被打开、agent 报一次表、
+   * 侧栏改个名，都不会走到这里。
+   */
+  const offered = useThreadSelectors(threadId)
+
+  const failure = useThreadSelectorFailure(threadId)
 
   /*
    * 告诉能力表：这一家 agent 有哪些模型，以及怎么读写它的 default_model。
@@ -116,58 +130,71 @@ export function ConversationSurface({
    */
   const known = useAgentControls()
 
-  const controls = threadId === null ? known : (threads.selectorsOf(threadId) ?? known)
+  const controls = threadId === null ? known : (offered ?? known)
+
+  /*
+   * 交下去的每一个回调都钉住标识。
+   *
+   * AssistantSurface 是 memo 过的，而内联箭头每次渲染都是新引用 —— 那样的 memo
+   * 一次也命中不了：这一格但凡重画一次，转录、虚拟列表、输入框整棵树跟着走一遍。
+   */
+  const retryControls = useCallback(() => {
+    if (threadId !== null) {
+      threads.retrySelectors(threadId)
+    }
+  }, [threadId, threads])
+
+  const selectControl = useCallback(
+    (controlId: string, value: string) => {
+      /*
+       * 一条下发路径。
+       *
+       * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由 ThreadsStore 的
+       * 投影与对齐统一决定（observeAgentControls → #realign → #align），忙的那条
+       * 空下来由 onIdle 补发。
+       */
+      chooseAgentControl(controlId, value)
+
+      /*
+       * 模型多一件事：它有家，就是 agent 配置里的顶层 default_model。换模型就是换
+       * 默认模型，没有第二个概念，上游的 /model 也是这么做的（persist 恒为 true）。
+       *
+       * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读
+       * 到旧值。写失败会自己说出来，而不是让人以为换过了。
+       */
+      if (controls.find((control) => control.purpose === 'model')?.id !== controlId) {
+        return
+      }
+
+      void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
+        reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {
+          scope: 'conversation-surface',
+          operation: 'save-default-model',
+          alias: value,
+          cause,
+        })
+      })
+    },
+    [agentConfig, agentId, controls],
+  )
+
+  const userMessage = useCallback(
+    (conversation: string, text: string) => {
+      threads.nameFromMessage(conversation, text)
+      onStarted?.(conversation, threads.standInTitle(text))
+    },
+    [onStarted, threads],
+  )
 
   return (
     <AssistantSurface
       controls={controls}
-      controlsFailure={threadId === null ? undefined : threads.selectorFailureOf(threadId)}
+      controlsFailure={failure}
       endpoint={threadId}
       identify={onIdentify}
-      onRetryControls={() => {
-        if (threadId !== null) {
-          threads.retrySelectors(threadId)
-        }
-      }}
-      onSelectControl={(controlId, value) => {
-        /*
-         * 一条下发路径。
-         *
-         * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由 ThreadsStore 的
-         * 投影与对齐统一决定（observeAgentControls → #realign → #align），忙的那条
-         * 空下来由 onIdle 补发。
-         *
-         * 此前模型走全局、mode / thought 各自 threads.selectControl 直发，而入口那
-         * 一格没有 threadId —— 于是在那里改模式是一次静默的空操作，屏幕上却显示改
-         * 过了。两条路各打一次 set_config，那道"正在跑就先别下发"的闸也只装在其中
-         * 一条上，形同虚设。
-         */
-        chooseAgentControl(controlId, value)
-
-        /*
-         * 模型多一件事：它有家，就是 agent 配置里的顶层 default_model。换模型就是换
-         * 默认模型，没有第二个概念，上游的 /model 也是这么做的（persist 恒为 true）。
-         *
-         * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读
-         * 到旧值。写失败会自己说出来，而不是让人以为换过了。
-         */
-        if (controls.find((control) => control.purpose === 'model')?.id !== controlId) {
-          return
-        }
-
-        void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
-          reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {
-            scope: 'conversation-surface',
-            operation: 'save-default-model',
-            alias: value,
-            cause,
-          })
-        })
-      }}
-      onUserMessage={(conversation, text) => {
-        threads.nameFromMessage(conversation, text)
-        onStarted?.(conversation, threads.standInTitle(text))
-      }}
+      onRetryControls={retryControls}
+      onSelectControl={selectControl}
+      onUserMessage={userMessage}
       session={session}
     />
   )

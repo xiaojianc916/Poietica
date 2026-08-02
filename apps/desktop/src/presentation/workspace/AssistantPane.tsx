@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/acp'
 import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useRef, useState } from 'react'
-import { useSharedThreads } from '../../application/ai/threads-context'
+import { useThreadsActions } from '../../application/ai/threads-context'
 import { ConversationSurface } from './ConversationSurface'
 
 /*
@@ -37,8 +37,8 @@ export function AssistantPane({
   onConversationStarted,
   session,
 }: AssistantPaneProps) {
-  const threads = useSharedThreads()
-  const open = threads.create
+  /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
+  const open = useThreadsActions().create
   const [threadId, setThreadId] = useState<string | null>(null)
   const opening = useRef<Promise<string | null> | null>(null)
 
