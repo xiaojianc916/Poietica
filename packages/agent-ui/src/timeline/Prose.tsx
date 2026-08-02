@@ -1,6 +1,6 @@
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
-import { math } from '@streamdown/math'
+import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
 import { memo } from 'react'
@@ -20,7 +20,22 @@ import { cx } from '../primitives/class-names'
  * 因此以原始字符出现，```mermaid 被 code 插件当作未知语言退化为纯文本。缺的
  * 不是能力，是这一行。
  */
-const PLUGINS = { cjk, code, math, mermaid }
+/*
+ * 行内公式用一个美元号，因为模型就是这么写的。
+ *
+ * 上游默认只认 $$…$$（singleDollarTextMath 默认 false，官方 Syntax 一节逐字），
+ * 理由是怕把「这个 $5、那个 $10」认成公式。代价却落在另一边：模型输出的是标准
+ * LaTeX 惯例 —— 行内 $…$、块级 $$…$$ —— 于是行内那一半不被认作公式，整段掉回
+ * GFM 去处理，_ 隔空配对成斜体、反斜杠被当转义吃掉、^ 与 * 各自被当成标记。
+ * 屏幕上出现的不是「公式没渲染」，是一段被拆碎的斜体残字。
+ *
+ * 两害相权：行内公式崩坏是必然发生的，成对货币被误认是偶发的，而后者在一个
+ * 编程与研究场景的客户端里本来就罕见。ChatGPT、Claude、Perplexity 一律支持
+ * $…$，这已经是模型输出的事实标准。
+ */
+const MATH = createMathPlugin({ singleDollarTextMath: true })
+
+const PLUGINS = { cjk, code, math: MATH, mermaid }
 
 /*
  * How arriving text is revealed.
