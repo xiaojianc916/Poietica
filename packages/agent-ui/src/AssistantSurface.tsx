@@ -150,6 +150,21 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   const [phase, setPhase] = useState<'entry' | 'live'>(() => (endpoint === null ? 'entry' : 'live'))
 
+  /*
+   * 相位是派生的，不是记住的。
+   *
+   * 惰性初始化只在挂载那一次算：标签页复用同一个实例、换一条对话进来时，
+   * endpoint 已经变了而这里还停在上一相位 —— 入口的输入框长在对话里，或者反过来。
+   * 渲染期直接改自己的 state 是 React 官方给「props 变了要复位 state」的写法，
+   * 它在本次渲染内重跑，不会多出一帧闪烁，也不需要一个 effect。
+   */
+  const [seen, setSeen] = useState(endpoint)
+
+  if (seen !== endpoint) {
+    setSeen(endpoint)
+    setPhase(endpoint === null ? 'entry' : 'live')
+  }
+
   const live = phase === 'live'
 
   /*

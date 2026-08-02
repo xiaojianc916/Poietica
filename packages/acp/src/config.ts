@@ -11,6 +11,15 @@
 /** Where a selector belongs on screen. Mirrors the categories the protocol defines. */
 export type SessionConfigPurpose = 'model' | 'thought' | 'mode' | 'other'
 
+/*
+ * 模型那一格的 id。
+ *
+ * 它此前在三个包里各写了一遍字面量：capability store 的 MODEL、组合根的
+ * MODEL_CONTROL.id，以及 ConversationSurface 里绕道 find(purpose === 'model')
+ * 反查 id。协议里的常量归协议。
+ */
+export const MODEL_CONTROL_ID = 'model'
+
 /** One value a selector will accept. */
 export interface SessionConfigChoice {
   readonly value: string

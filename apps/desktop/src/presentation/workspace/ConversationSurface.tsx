@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import { type AgentSessionPort, MODEL_CONTROL_ID } from '@poietica/acp'
 import {
   chooseAgentControl,
   installAgentCapabilityPort,
@@ -162,7 +162,7 @@ export function ConversationSurface({
        * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读
        * 到旧值。写失败会自己说出来，而不是让人以为换过了。
        */
-      if (controls.find((control) => control.purpose === 'model')?.id !== controlId) {
+      if (controlId !== MODEL_CONTROL_ID) {
         return
       }
 
@@ -175,7 +175,11 @@ export function ConversationSurface({
         })
       })
     },
-    [agentConfig, agentId, controls],
+    /*
+     * 不再依赖 controls：模型那一格的 id 是协议常量，不需要去表里反查。
+     * 带着它，这个回调每次表变化都换引用，AssistantSurface 的 memo 一次也命中不了。
+     */
+    [agentConfig, agentId],
   )
 
   const userMessage = useCallback(

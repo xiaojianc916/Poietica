@@ -40,11 +40,11 @@ import { ProviderIcon } from '../primitives/provider-icon'
  * 侧给出的那一句，而不是一句无从下手的"读取失败"。 */
 const UNAVAILABLE = '没连上 agent，点击重试'
 
-const ORDER = ['model', 'thought', 'other'] as const
+const ORDER: readonly string[] = ['model', 'thought', 'other']
 
 /** Where a purpose sits; anything unrecognised sorts last rather than away. */
 function rank(purpose: SessionConfigControl['purpose']): number {
-  const found = ORDER.indexOf(purpose as (typeof ORDER)[number])
+  const found = ORDER.indexOf(purpose)
 
   return found < 0 ? ORDER.length : found
 }
@@ -65,7 +65,7 @@ function chosen(control: SessionConfigControl): string {
  * 去灰掉一个全局设置，既拦不住在别的对话里改，又会在正跑的这一格误伤。主语就不对。
  *
  * 该推迟的不是人的动作，是下发：正在跑的那条会话空下来之后由 ThreadsStore 补发
- * （threads-store 的 #switchModel 与 TranscriptSink.onIdle）。界面因此一格都不灰。
+ * （threads-store 的 #align 与 TranscriptSink.onIdle）。界面因此一格都不灰。
  */
 
 export interface SessionControlsProps {

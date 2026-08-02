@@ -1,4 +1,8 @@
-import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/acp'
+import {
+  type AgentCapabilityPort,
+  MODEL_CONTROL_ID as MODEL,
+  type SessionConfigControl,
+} from '@poietica/acp'
 import { useSyncExternalStore } from 'react'
 
 /*
@@ -78,6 +82,27 @@ export function chooseAgentControl(controlId: string, value: string | null): voi
     chosen.delete(controlId)
   } else {
     chosen.set(controlId, value)
+  }
+
+  if (controlId === MODEL) {
+    /*
+     * 这张表的身份是 (agent, model)，不是 (agent)。
+     *
+     * 模式与推理档位的候选由模型决定 —— ACP 的 session/new 连同 models 一起报出
+     * 它们，set_model 之后报的是新的一份。此前这里只换了模型，表却留着上一个
+     * 模型报的候选：入口画着 Off/High/Max，会话那一侧的真会话报的是 on/off。
+     *
+     * 旧值一并撤回。它属于上一个模型的取值空间，对齐时被 choices 校验静默丢弃，
+     * 而屏幕上仍写着它 —— 人以为开了 Max，其实一次都没生效过。
+     */
+    for (const id of [...chosen.keys()]) {
+      if (id !== MODEL) {
+        chosen.delete(id)
+      }
+    }
+
+    asked = false
+    loadOnce()
   }
 
   publish()
