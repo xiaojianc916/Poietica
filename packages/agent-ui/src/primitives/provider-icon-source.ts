@@ -18,7 +18,18 @@ import {
  */
 export const PROVIDER_MARK_FALLBACK: ProviderMark = GenericMark
 
-const MARKS: Record<string, ProviderMark> = {
+/*
+ * 一张按名字长度降序排好的表。
+ *
+ * 此前是一张 Record 加一份从它派生的键数组：先在键里找，再回表里索引一次。
+ * 那个 undefined 是这种查法自己造出来的 —— 名字就是从这张表里取的，它不可能
+ * 查不到，可 Record<string, T> 在 noUncheckedIndexedAccess 下没法知道这件事。
+ * 用断言压住它是在掩盖一个结构问题；把顺序放进表本身，第二次索引就不存在了，
+ * 同一张表也不必再由两个数据结构各说一遍。
+ *
+ * 匹配语义一字未改：按名字长度降序，前缀互相包含即算命中。
+ */
+const MARKS: ReadonlyArray<readonly [string, ProviderMark]> = Object.entries<ProviderMark>({
   deepseek: DeepSeekMark,
   glm: ZhipuMark,
   kimi: MoonshotMark,
@@ -26,9 +37,7 @@ const MARKS: Record<string, ProviderMark> = {
   moonshotai: MoonshotMark,
   zhipu: ZhipuMark,
   zhipuai: ZhipuMark,
-}
-
-const NAMES = Object.keys(MARKS).sort((left, right) => right.length - left.length)
+}).sort(([left], [right]) => right.length - left.length)
 
 /**
  * 认得出就给它的字形，认不出就给中性的那枚。
@@ -47,7 +56,7 @@ export function providerMarkOf(provider: string): ProviderMark {
     return PROVIDER_MARK_FALLBACK
   }
 
-  const hit = NAMES.find((name) => key.startsWith(name) || name.startsWith(key))
+  const hit = MARKS.find(([name]) => key.startsWith(name) || name.startsWith(key))
 
-  return hit === undefined ? PROVIDER_MARK_FALLBACK : MARKS[hit]
+  return hit === undefined ? PROVIDER_MARK_FALLBACK : hit[1]
 }

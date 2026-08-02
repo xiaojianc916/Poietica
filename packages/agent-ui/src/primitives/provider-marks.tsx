@@ -1,4 +1,4 @@
-import type { SVGProps } from 'react'
+import type { ReactElement, SVGProps } from 'react'
 
 /**
  * 厂商标记。
@@ -26,7 +26,7 @@ import type { SVGProps } from 'react'
  * 外框只会让两边都别扭。这里的外框只负责视口和无障碍。
  */
 
-export type ProviderMark = (props: SVGProps<SVGSVGElement>) => JSX.Element
+export type ProviderMark = (props: SVGProps<SVGSVGElement>) => ReactElement
 
 function Mark({ children, ...props }: SVGProps<SVGSVGElement>) {
   return (
