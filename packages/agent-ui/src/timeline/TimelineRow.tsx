@@ -3,6 +3,7 @@ import './timeline.css'
 import type { FeedRow } from '@poietica/agent-timeline'
 import { memo } from 'react'
 import { ErrorNotice } from './ErrorNotice'
+import { PermissionRequest } from './PermissionRequest'
 import { PlanPanel } from './PlanPanel'
 import { Prose } from './Prose'
 import { ReasoningPanel } from './ReasoningPanel'
@@ -19,12 +20,23 @@ import { UserMessage } from './UserMessage'
  * long as its entry is untouched: an arriving token then re-renders the tail
  * and nothing above it.
  *
- * Permission requests are drawn by the surface, because answering one needs the
- * session and a row renderer has no business holding it. They are named here
- * all the same, so the dispatch stays exhaustive — a new entry type is a
- * compile error rather than a silently blank row.
+ * 七个条目类型，七个 case，一个分发点。答复一次权限请求要用到会话，而会话由上层
+ * 持有 —— 那是一个参数解决的事（onResolvePermission），不是把一个 case 搬去上层
+ * 用三元表达式写第二遍的理由。此前正是后者：六个 case 在这里，第七个在 surface
+ * 上，这里留着一支永远跑不到的 return null。
+ *
+ * 一个新的条目类型在这里是编译错误，不是一行静默的空白。
  */
-export const TimelineRow = memo(function TimelineRow({ row }: { readonly row: FeedRow }) {
+export interface TimelineRowProps {
+  readonly row: FeedRow
+  /** 答复一次权限请求。引用必须稳定：这一层是 memo 的。 */
+  readonly onResolvePermission: (requestId: string, optionId: string) => void
+}
+
+export const TimelineRow = memo(function TimelineRow({
+  onResolvePermission,
+  row,
+}: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {
@@ -49,7 +61,7 @@ export const TimelineRow = memo(function TimelineRow({ row }: { readonly row: Fe
       return <ErrorNotice message={item.message} />
 
     case 'permission':
-      return null
+      return <PermissionRequest item={item} onResolve={onResolvePermission} />
 
     default:
       return unhandled(item)

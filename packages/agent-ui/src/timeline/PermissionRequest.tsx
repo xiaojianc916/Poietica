@@ -1,18 +1,21 @@
-import './styles/permission-request.css'
+import '../styles/permission-request.css'
 
 import type { AcpPermissionOption, AcpToolCallUpdate } from '@poietica/acp'
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useState } from 'react'
-import { useAgentDialect } from './domain/agent-dialect'
-import { isQuestionRequest } from './domain/ask-user-question'
-import { Surface } from './primitives/surface'
-import { OutcomeCard } from './timeline/OutcomeCard'
-import { Prose } from './timeline/Prose'
-import { QuestionOutcome } from './timeline/QuestionOutcome'
-import { type DiffStat, type ToolContentPart, toToolCallView } from './timeline/tool-call-content'
+import { useAgentDialect } from '../domain/agent-dialect'
+import { isQuestionRequest } from '../domain/ask-user-question'
+import { Surface } from '../primitives/surface'
+import { OutcomeCard } from './OutcomeCard'
+import { Prose } from './Prose'
+import { QuestionOutcome } from './QuestionOutcome'
+import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
 
 /**
  * A permission request, answered in place.
+ *
+ * 它和 UserMessage、ToolCallCard 一样是转录的一行，所以住在它们中间。答复用的那支
+ * 函数由 TimelineRow 交进来 —— 需要会话不等于要住在持有会话的那一层旁边。
  *
  * The agent is blocked until one option is chosen, so the question is rendered
  * inside the run it interrupts rather than in a dialog that could be dismissed,

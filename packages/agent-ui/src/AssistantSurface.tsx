@@ -3,7 +3,7 @@ import './styles/assistant.css'
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
 import type { AssistantSubmission } from '@poietica/agent-session'
 import { useAssistantPending, useAssistantSession } from '@poietica/agent-session'
-import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
+import type { FeedRow } from '@poietica/agent-timeline'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
@@ -16,11 +16,9 @@ import {
   isQuestionRequest,
   readQuestionPrompt,
 } from './domain/ask-user-question'
-import { PermissionRequest } from './PermissionRequest'
 import { modelProviderOf } from './primitives/model-provider'
 import { ProviderIcon } from './primitives/provider-icon'
 import { TranscriptView } from './TranscriptView'
-import { QuestionOutcome } from './timeline/QuestionOutcome'
 import { TimelineRow } from './timeline/TimelineRow'
 export interface AssistantSurfaceProps {
   /** 这一格代表的对话。入口那一格在说话之前还不是任何一条。 */
@@ -171,28 +169,18 @@ export const AssistantSurface = memo(function AssistantSurface({
   const live = phase === 'live'
 
   /*
-   * 权限行分两路。
+   * 行怎么画，这一层不判。
    *
-   * 提问已经在输入框里答过了，流里剩下的是它的痕迹：一张问题加选项的卡片。
-   * 其余的权限请求原样走 PermissionRequest —— 批准与拒绝仍然在流里就地回答。
+   * 「这是不是一道提问」的判据只有一处，在 PermissionRequest 自己身上 —— 单测与
+   * fixtures 都直接渲染那个组件，闸设在路由上必然被绕过去。此前这里还照着它写了
+   * 第二遍，两份判据各自演化的那一天不需要谁犯错。
    *
-   * useCallback：renderPermission 的引用稳定是 renderRow 稳定的前提，而
-   * renderRow 是虚拟列表的 prop —— 它每帧换身份，可见行就会全部重渲。
+   * 这一层只交出答复权限请求的那支函数。它的引用是稳定的，所以 renderRow 也是 ——
+   * 那是虚拟列表的 prop，每帧换身份就等于每帧重渲全部可见行。
    */
-  const renderPermission = useCallback(
-    (item: PermissionItem) =>
-      isQuestionRequest(item, dialect.questions) ? (
-        <QuestionOutcome item={item} />
-      ) : (
-        <PermissionRequest item={item} onResolve={assistant.resolvePermission} />
-      ),
-    [dialect.questions, assistant.resolvePermission],
-  )
-
   const renderRow = useCallback(
-    (row: FeedRow) =>
-      row.item.type === 'permission' ? renderPermission(row.item) : <TimelineRow row={row} />,
-    [renderPermission],
+    (row: FeedRow) => <TimelineRow onResolvePermission={assistant.resolvePermission} row={row} />,
+    [assistant.resolvePermission],
   )
 
   /*

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { AgentDialectProvider } from '../domain/AgentDialectProvider'
 import type { AgentDialect } from '../domain/agent-dialect'
-import { PermissionRequest } from '../PermissionRequest'
+import { PermissionRequest } from '../timeline/PermissionRequest'
 
 /*
  * 权限请求是唯一会把 agent 卡住、非等用户点一下不可的界面,因此它显示错字的
