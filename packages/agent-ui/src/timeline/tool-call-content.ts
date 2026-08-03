@@ -145,9 +145,17 @@ const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
  * 组件实例，旧内容被回收时缓存自动消失，不需要任何淘汰策略。
  *
  * 值得记的原因是它不便宜：diffStatOf 里是 Myers 差分，而两张卡的函数体都在渲染
- * 路径上 —— 流式期间每个 chunk 都会让整个 feed 重渲，视口里每一张带 diff 的卡片
- * 都在里面，包括早就结束的、包括折叠着的（徽章画在 button 上，不在
- * DisclosureBody 里）。
+ * 路径上。
+ *
+ * 「流式期间每一张可见卡片都在重解析」曾经是这里的理由，今天不成立了：feed-rows
+ * 的 toRow 把行对象记在条目上，一条没被碰过的工具调用相邻两帧交回的是同一个
+ * FeedRow，而 TimelineRow 的 memo 判据正是它 —— 已经落定的那些卡片的函数体一次都
+ * 不跑，turn-identity.test.ts 守着这条。上游挡住了，这里就不该再宣称自己在挡同一
+ * 件事：一份缓存靠一个不再发生的场景辩护，下一个人无从判断它还该不该在。
+ *
+ * 留着它，是为了另一条真实的路径，而那条路径就写在上面 —— 权限请求随身带来的那
+ * 一份不经过 TimelineRow，它由 surface 直接画，memo 够不着。同一份 content 被两个
+ * 容器带着走，按 content 记就只解析一次。
  */
 export function toToolCallView(
   content: readonly AcpToolCallContent[] | null | undefined,

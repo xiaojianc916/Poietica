@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useId, useSyncExternalStore } from 'react'
 
 /*
  * 会话时间的唯一管线：一口时钟、一套文案、一套分段。
@@ -48,7 +48,7 @@ const listeners = new Set<() => void>()
  * 于是报期限的那个 effect 只能裸奔，每一次渲染都 set 一遍、plan 一遍。存时刻，
  * 表上的值就是可比较的，[at] 立刻成立：期限没变就不排表。
  */
-const horizons = new Map<object, number>()
+const horizons = new Map<string, number>()
 
 let now = Date.now()
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -178,7 +178,18 @@ export function useNow(): number {
  * 期限是个数，所以依赖数组管得住它：同一个期限重报多少次都不排表。
  */
 export function useHorizon(at: number): void {
-  const key = useRef({}).current
+  /*
+   * 「哪一个消费者」这件事有官方答案。
+   *
+   * useId 给的正是它：每个调用点每个实例一个稳定唯一的标识,跨组件不重复,而且
+   * 一次分配都不做。此前是 useRef({}).current —— 每次渲染现造一个 {} 交给
+   * useRef,只有首次那个被采用,其余全是即扔的。拿一次分配去换一个 React 18 起
+   * 就已经给出的东西。
+   *
+   * 这不是列表的 key（官方明确劝阻的那种用法）：列表的 key 必须来自数据,而这
+   * 里要的恰恰是「这个实例」本身,与数据无关。
+   */
+  const key = useId()
 
   useEffect(() => {
     horizons.set(key, at)

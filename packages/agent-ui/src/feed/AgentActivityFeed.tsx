@@ -19,17 +19,39 @@ import { useRevealIntent } from './use-reveal-intent'
  *
  * 这些数字是保守的下界:估小了只是补偿一次,估大了会在到达前留白。
  */
-const ESTIMATED_ROW_PX: Record<string, number> = {
+const ESTIMATED_ROW_PX: Record<FeedRow['item']['type'], number> = {
   user_message: 72,
   agent_text: 240,
   agent_thought: 120,
   tool_call: 160,
   plan: 200,
-  permission: 140,
+  /*
+   * 权限请求在这一层什么都不画。
+   *
+   * TimelineRow 的 case 'permission' 交回 null，理由写在那里：应答一次请求要
+   * 拿着会话，而行渲染器不该持有它，所以它由 surface 画。于是这一行在转录里
+   * 只是一个占位，实测高度就是 __row 自己那两道 --cp-feed-row-gap。
+   *
+   * 此前这一格是 140 —— 七档里第三高，而它对应的渲染结果是空。上面那句「落差
+   * 越大,虚拟器要补偿的滚动增量越大」在这一格上正好是自己打自己：一次权限请求
+   * 上屏,虚拟器先按 140 铺一行,测回来十几个像素,再倒着补偿一次。
+   *
+   * 0 是可证的：空内容的内容高度就是 0，行距由 CSS 另加。按这张表自己声明的
+   * 口径 ——「估小了只是补偿一次,估大了会在到达前留白」—— 0 落在安全的那一侧。
+   */
+  permission: 0,
   error: 96,
 }
 
-/** 未知类型的兜底估高。 */
+/*
+ * 下标越界时的兜底。
+ *
+ * 表的类型收窄到条目类型的联合之后,它对每一个类型都有值 —— 这不是约定,是
+ * TimelineRow 末尾那个 unhandled(_item: never) 已经证过的事：那个 switch 穷尽,
+ * 这张表就与它对齐,以后新增一个条目类型会在这两处同时编译失败。
+ *
+ * 所以这个常量不再是「未知类型的估高」,它只剩一件事：这一行根本不存在。
+ */
 const ESTIMATED_FALLBACK_PX = 120
 
 /**
@@ -401,9 +423,14 @@ export function AgentActivityFeed({
   const estimateSize = useCallback((index: number) => {
     const type = rowsRef.current[index]?.item.type
 
-    return type === undefined
-      ? ESTIMATED_FALLBACK_PX
-      : (ESTIMATED_ROW_PX[type] ?? ESTIMATED_FALLBACK_PX)
+    /*
+     * 只剩一个分支：有没有这一行。
+     *
+     * 此前那个 ?? 是类型宽度的产物 —— 表写成 Record<string, number> 就宽到能接
+     * 任何字符串,编译器于是再也证明不了它是全的,兜底成了必需品。收窄之后它是
+     * 可证不可达的:留着它,读的人会以为存在某个类型落不进这张表。
+     */
+    return type === undefined ? ESTIMATED_FALLBACK_PX : ESTIMATED_ROW_PX[type]
   }, [])
 
   const virtualizer = useVirtualizer({
