@@ -26,8 +26,8 @@ use crate::commands::{
     agent_config::AgentConfigSnapshot,
     agent_install::{AgentInstallState, AgentInstallStatus},
     asset::{
-        AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest, AssetSessionResult,
-        AssetUploadRequest, AssetUploadResult,
+        AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
+        AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
     provider_probe::ProviderProbeOutcome,
     settings::{AppSettings, PrivacySettings},
@@ -56,6 +56,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::agent_rename_thread,
             crate::commands::agent::agent_delete_thread,
             crate::commands::agent::agent_pin_thread,
+            crate::commands::asset::asset_formats,
             crate::commands::asset::asset_session_open,
             crate::commands::asset::asset_import,
             crate::commands::asset::asset_upload,
@@ -93,6 +94,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AgentRenameThreadRequest>()
         .typ::<AgentThreadRequest>()
         .typ::<AgentPinThreadRequest>()
+        .typ::<AssetFormat>()
         .typ::<AssetSessionResult>()
         .typ::<AssetImportRequest>()
         .typ::<AssetUploadRequest>()

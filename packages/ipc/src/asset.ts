@@ -1,5 +1,5 @@
 import { throughIpc } from './error'
-import { type AssetUploadResult, commands } from './generated/ipc-bindings'
+import { type AssetFormat, type AssetUploadResult, commands } from './generated/ipc-bindings'
 
 /*
  * 资产会话：一批图片挂在一个令牌下面，关掉就一起释放。
@@ -15,6 +15,20 @@ import { type AssetUploadResult, commands } from './generated/ipc-bindings'
 
 /** 原生按路径入库之后交回来的那一份。source 就是 <img src> 能直接用的地址。 */
 export type AssetImport = AssetUploadResult
+
+/** 一种收得下的格式：内容类型，加上它在系统对话框里的扩展名。 */
+export type { AssetFormat }
+
+/**
+ * 原生收得下的格式清单。
+ *
+ * 扩展名只给系统对话框的过滤器用，不是判据 —— 判据是文件头，在原生那一侧，
+ * 而且两者出自同一张表（commands/asset.rs 的 FORMATS）。这一层因此不持有
+ * 任何格式知识，它只是把那张表运过来。
+ */
+export function listAssetFormats(): Promise<readonly AssetFormat[]> {
+  return throughIpc(() => commands.assetFormats())
+}
 
 /** 开一条资产会话，拿到它的令牌。 */
 export function openAssetSession(): Promise<string> {

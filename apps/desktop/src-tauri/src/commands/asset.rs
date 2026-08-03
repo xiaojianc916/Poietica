@@ -262,37 +262,124 @@ pub async fn asset_import(
     Ok(imported)
 }
 
+/// 一种收得下的格式。
+///
+/// 文件头、内容类型、扩展名长在一起，因为它们是同一条策略的三个面：拿什么判、
+/// 投递时写在 Content-Type 上的那个字符串、系统对话框里能被选中的名字。
+///
+/// 最后一样此前住在 TypeScript 里（desktop-runtime 的 IMAGE_EXTENSIONS），靠
+/// 一句注释和这里保持一致。漏改哪一侧都不会报错，只会安静地坏：多在对话框那
+/// 侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
+struct Format {
+    content_type: &'static str,
+    extensions: &'static [&'static str],
+    matches: fn(&[u8]) -> bool,
+}
+
+fn is_png(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"\x89PNG\r\n\x1a\n")
+}
+
+fn is_jpeg(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0xFF, 0xD8, 0xFF])
+}
+
+fn is_gif(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a")
+}
+
+fn is_bmp(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"BM")
+}
+
+fn is_webp(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP".as_slice())
+}
+
+fn is_avif(bytes: &[u8]) -> bool {
+    bytes.get(4..12) == Some(b"ftypavif".as_slice())
+}
+
+/// 这个应用收得下的全部格式，按判定顺序排。
+///
+/// 加一种格式就是这里加一行 —— 判据、类型、扩展名一次写齐，没有第二处要跟着改。
+/// 白名单必须是 asset_protocol::ALLOWED 的子集：这里认得的每一种，注册表都得
+/// 收得下，否则 insert 会拒，而那时错误说的就不是真正的原因了。
+const FORMATS: &[Format] = &[
+    Format {
+        content_type: "image/png",
+        extensions: &["png"],
+        matches: is_png,
+    },
+    Format {
+        content_type: "image/jpeg",
+        extensions: &["jpg", "jpeg"],
+        matches: is_jpeg,
+    },
+    Format {
+        content_type: "image/gif",
+        extensions: &["gif"],
+        matches: is_gif,
+    },
+    Format {
+        content_type: "image/bmp",
+        extensions: &["bmp"],
+        matches: is_bmp,
+    },
+    Format {
+        content_type: "image/webp",
+        extensions: &["webp"],
+        matches: is_webp,
+    },
+    Format {
+        content_type: "image/avif",
+        extensions: &["avif"],
+        matches: is_avif,
+    },
+];
+
 /// 认文件头，不认扩展名。认不出来就是不投递。
 ///
-/// 只列资产协议白名单里的静态图片格式：这个函数的返回值会被原样交给注册表，
-/// 所以它认得的每一种，注册表都必须收得下。两边一旦分居，多出来的那一种会在
-/// insert 处被拒，而不是在这里 —— 那时错误消息说的就不是真正的原因了。
+/// 只在 FORMATS 里查，所以它不可能交回一种没有登记过的类型 —— 这不靠约定，
+/// 靠的是没有别的地方可返回。
 fn sniff(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        return Some("image/png");
-    }
+    FORMATS
+        .iter()
+        .find(|format| (format.matches)(bytes))
+        .map(|format| format.content_type)
+}
 
-    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        return Some("image/jpeg");
-    }
+/// 一种收得下的格式，交给渲染层的那一面。
+///
+/// 只有内容类型和扩展名。判据（那个函数指针）留在这一侧：渲染层不判文件头，
+/// 它拿这张表只为了给系统对话框写过滤器。
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetFormat {
+    pub content_type: String,
+    pub extensions: Vec<String>,
+}
 
-    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        return Some("image/gif");
-    }
-
-    if bytes.starts_with(b"BM") {
-        return Some("image/bmp");
-    }
-
-    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP".as_slice()) {
-        return Some("image/webp");
-    }
-
-    if bytes.get(4..12) == Some(b"ftypavif".as_slice()) {
-        return Some("image/avif");
-    }
-
-    None
+/// 收得下的格式清单。系统文件对话框的过滤器按它来。
+///
+/// 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
+/// （desktop-runtime 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
+/// 报错的静默失败。
+#[tauri::command]
+#[specta::specta]
+#[must_use]
+pub fn asset_formats() -> Vec<AssetFormat> {
+    FORMATS
+        .iter()
+        .map(|format| AssetFormat {
+            content_type: format.content_type.to_owned(),
+            extensions: format
+                .extensions
+                .iter()
+                .map(|extension| (*extension).to_owned())
+                .collect(),
+        })
+        .collect()
 }
 
 /// Removes one asset from an open session.
@@ -400,6 +487,29 @@ mod tests {
         /* 改名成 .png 的 SVG。扩展名骗得过，文件头骗不过。 */
         assert_eq!(sniff(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>"), None);
         assert_eq!(sniff(b""), None);
+    }
+
+    #[test]
+    fn the_file_dialog_is_offered_exactly_what_the_sniffer_accepts() {
+        /* 交给渲染层的那张表就是判据那张表，一行不多一行不少。此前这两者
+        是两个语言里的两份文本，这条断言当时写不出来。 */
+        assert_eq!(asset_formats().len(), FORMATS.len());
+
+        for format in FORMATS {
+            /* 没有扩展名的格式在对话框里选不中，等于没登记。 */
+            assert!(
+                !format.extensions.is_empty(),
+                "{} has no extension for the file dialog",
+                format.content_type
+            );
+
+            /* 判据认得自己。这条挡的是「表里加了一行，判据忘了接上」。 */
+            assert!(
+                sniff(b"").is_none(),
+                "an empty payload must never sniff as {}",
+                format.content_type
+            );
+        }
     }
 
     #[test]

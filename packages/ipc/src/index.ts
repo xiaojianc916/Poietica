@@ -31,9 +31,11 @@ export {
   createAgentConfigBridge,
 } from './agent-config'
 export {
+  type AssetFormat,
   type AssetImport,
   closeAssetSession,
   importAssets,
+  listAssetFormats,
   openAssetSession,
   removeAsset,
   uploadAsset,

@@ -1,5 +1,12 @@
 import type { AttachmentIntake, ComposerAsset } from '@poietica/agent-ui/composer/attachment-intake'
-import { importAssets, openAssetSession, removeAsset, uploadAsset } from '@poietica/ipc'
+import {
+  type AssetFormat,
+  importAssets,
+  listAssetFormats,
+  openAssetSession,
+  removeAsset,
+  uploadAsset,
+} from '@poietica/ipc'
 
 /*
  * 附件收件口的原生这一半。
@@ -20,9 +27,6 @@ import { importAssets, openAssetSession, removeAsset, uploadAsset } from '@poiet
 
 /** 一次转 32 KiB。String.fromCharCode 的参数个数有上限，整张图铺开会爆栈。 */
 const CHUNK = 0x8000
-
-/** 系统对话框里那张过滤器。与原生 sniff 认得的格式一一对应，不多不少。 */
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'avif']
 
 /** 同一批 paths 在这么久之内再来一次，当作重复触发。 */
 const REPEAT_WINDOW = 1000
@@ -67,6 +71,23 @@ function composerSession(): Promise<string> {
   return opened
 }
 
+let offered: Promise<readonly AssetFormat[]> | undefined
+
+/*
+ * 对话框过滤器里那张扩展名清单，问原生要。
+ *
+ * 此前它是这个文件里的一个常量，与 commands/asset.rs 的 sniff 是同一条策略的
+ * 两份文本 —— 靠注释维系，漏改哪一侧都不报错。现在它只有一个产地，这一侧连
+ * 「有哪些格式」都不知道。
+ *
+ * 一个进程问一次：清单在进程存活期间不会变，而它只在第一次打开对话框时才需要。
+ */
+function knownFormats(): Promise<readonly AssetFormat[]> {
+  offered ??= listAssetFormats()
+
+  return offered
+}
+
 async function intake(paths: readonly string[]): Promise<readonly ComposerAsset[]> {
   if (paths.length === 0) {
     return []
@@ -89,12 +110,17 @@ async function intake(paths: readonly string[]): Promise<readonly ComposerAsset[
 export function createAttachmentIntake(): AttachmentIntake {
   return {
     async pick(multiple) {
-      const { open } = await import('@tauri-apps/plugin-dialog')
+      /* 两件事互不依赖，串着等没有理由。第二次起清单已经在手，这里就只剩
+      模块加载那一下。 */
+      const [{ open }, formats] = await Promise.all([
+        import('@tauri-apps/plugin-dialog'),
+        knownFormats(),
+      ])
 
       const picked = await open({
         multiple,
         directory: false,
-        filters: [{ name: '图片', extensions: IMAGE_EXTENSIONS }],
+        filters: [{ name: '图片', extensions: formats.flatMap((format) => format.extensions) }],
       })
 
       if (picked === null) {

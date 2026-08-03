@@ -237,6 +237,16 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
     return await TAURI_INVOKE("agent_pin_thread", { request });
 },
 /**
+ * 收得下的格式清单。系统文件对话框的过滤器按它来。
+ * 
+ * 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
+ * （desktop-runtime 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
+ * 报错的静默失败。
+ */
+async assetFormats() : Promise<AssetFormat[]> {
+    return await TAURI_INVOKE("asset_formats");
+},
+/**
  * Opens an asset session and returns its opaque token.
  * 
  * # Errors
@@ -1191,6 +1201,13 @@ export type AgentTitleSource =
  */
 "manual"
 export type AppSettings = { theme: ThemePreference; language: string; shortcuts: Partial<{ [key in string]: string }>; privacy: PrivacySettings }
+/**
+ * 一种收得下的格式，交给渲染层的那一面。
+ * 
+ * 只有内容类型和扩展名。判据（那个函数指针）留在这一侧：渲染层不判文件头，
+ * 它拿这张表只为了给系统对话框写过滤器。
+ */
+export type AssetFormat = { contentType: string; extensions: string[] }
 export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
