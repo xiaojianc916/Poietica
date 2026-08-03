@@ -10,7 +10,8 @@ import {
 } from '@poietica/ui'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
-import { datedOf, nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
+import { useHorizon, useNow } from './threads/clock'
+import { datedOf, nextChangeIn, sectionsOf } from './threads/sections'
 
 /*
  * 会话列表。

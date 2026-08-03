@@ -90,7 +90,14 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
         return slots
       }
 
-      const box = node.querySelector<HTMLElement>(CARD)
+      /*
+       * :scope > —— 卡片是 nav 的直接子节点。此前这里是裸的 querySelector(CARD)，
+       * 而那时每个按钮里也各有一张同类名的卡片，于是文档序第一个匹配是第 1 格
+       * 里的那张：这套逻辑从头到尾在操作错误的元素，而 --cp-rail-card-y 又是按
+       * nav 坐标算的，定位基准跟着错开一整格。按钮里的卡片已经删掉，这条限定是
+       * 为了让「唯一那张」在选择器层面就说得死。
+       */
+      const box = node.querySelector<HTMLElement>(`:scope > ${CARD}`)
 
       if (box === null) {
         slots = null

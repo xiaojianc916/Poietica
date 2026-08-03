@@ -76,7 +76,7 @@ const play = (shot: Shot, from: number | undefined) => {
  * 不带依赖数组:这个组件被 memo 包着,滚动帧里根本不重渲染,所以每一次重渲染
  * 几乎都伴随布局变化。没变的格子 delta 为 0,直接跳过,不会平白起一个动画。
  */
-export function useFoldFlip(): (node: HTMLElement | null) => void {
+export function useFoldFlip(signature: string): (node: HTMLElement | null) => void {
   const nodeRef = useRef<HTMLElement | null>(null)
   const beforeRef = useRef<Map<string, number>>(new Map())
 
@@ -84,6 +84,18 @@ export function useFoldFlip(): (node: HTMLElement | null) => void {
     nodeRef.current = node
   }, [])
 
+  /*
+   * 依赖是这一帧格子的身份序列，不是「每次渲染」。
+   *
+   * 此前这里没有依赖数组，理由写着「这个组件被 memo 包着，滚动帧里根本不重渲染」。
+   * 那句话是错的：activeRow 就是 memo 的入参之一，而它每跨一行就变一次（滚动区
+   * 每帧都在算它）。于是读者每跨一行，这里就对 live collection 逐格读一次
+   * offsetTop —— 全表强制回流，只为发现每一格的 delta 都是 0。
+   *
+   * 而 FLIP 要补的是「几个节点被一个节点顶替」造成的位移，那件事当且仅当格子的
+   * 身份序列变了才发生。身份序列没变就一个字都不用读。
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 签名即结构，节点由 ref 持有
   useLayoutEffect(() => {
     const node = nodeRef.current
     const view = node?.ownerDocument.defaultView ?? null
@@ -109,7 +121,7 @@ export function useFoldFlip(): (node: HTMLElement | null) => void {
     for (const shot of shots) {
       play(shot, before.get(shot.id))
     }
-  })
+  }, [signature])
 
   return ref
 }

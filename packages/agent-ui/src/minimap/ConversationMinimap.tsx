@@ -2,9 +2,8 @@ import './conversation-minimap.css'
 
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { memo, useCallback } from 'react'
-import { railSlots, useRailBudget } from './rail-budget'
-import { groupTurns } from './rail-groups'
-import { turnIndexAtRow } from './turn-index'
+import { turnIndexAtRow } from '../ordered-lookup'
+import { groupTurns, railSlots, useRailBudget } from './rail-groups'
 import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
 import { useRailCard } from './use-rail-card'
@@ -34,7 +33,6 @@ export interface ConversationMinimapProps {
 
 function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
-  const flip = useFoldFlip()
   const card = useRailCard()
   const { ref: measure, available } = useRailBudget()
 
@@ -79,6 +77,15 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
    */
   const active = turnIndexAtRow(items, activeRow)
 
+  /*
+   * 折叠动画的触发条件：格子的身份序列变了。它只有在并格结果算完之后才说得出口，
+   * 所以这个 hook 排在 items 之后 —— 顺序就是数据的顺序。
+   */
+  const flip = useFoldFlip(items.map((item) => item.id).join('|'))
+
+  /* 每格都要念一遍「共 N 轮」，但 N 一格一格地不会变。 */
+  const total = String(turns.length)
+
   return (
     <nav aria-label="会话轮次" className="conversation-minimap" ref={setRail}>
       {items.map((item, index) => {
@@ -90,8 +97,6 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
          *
          * 并格之后更要报区间:一格代表八轮却只报一个序数,是在谎报位置。
          */
-        const total = String(turns.length)
-
         const position =
           item.kind === 'cluster'
             ? `第 ${String(item.from)}–${String(item.to)} 轮，共 ${total} 轮`
@@ -127,23 +132,6 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
             type="button"
           >
             <span className="conversation-minimap__bar" />
-
-            {/*
-             * Preview card: a real element because it needs two semantic rows.
-             * aria-hidden so screen readers use the button's accessible name
-             * (aria-label) rather than reading the card prose twice.
-             */}
-            <div aria-hidden="true" className="conversation-minimap__card">
-              {item.kind === 'cluster' && (
-                <p className="conversation-minimap__card-kicker">
-                  {`${String(item.to - item.from + 1)} 项`}
-                </p>
-              )}
-              <p className="conversation-minimap__card-question">{item.label}</p>
-              {item.reply !== undefined && (
-                <p className="conversation-minimap__card-reply">{item.reply}</p>
-              )}
-            </div>
           </button>
         )
       })}

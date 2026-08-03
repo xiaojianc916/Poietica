@@ -1,8 +1,7 @@
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
-import { RAIL_INSET_PX, RAIL_PITCH_PX, railCapacity } from '../minimap/rail-budget'
-import { groupTurns } from '../minimap/rail-groups'
-import { turnIndexAtRow } from '../minimap/turn-index'
+import { groupTurns, RAIL_INSET_PX, RAIL_PITCH_PX, railCapacity } from '../minimap/rail-groups'
+import { turnIndexAtRow } from '../ordered-lookup'
 
 /* poietica:conversation-minimap-density@v23 */
 

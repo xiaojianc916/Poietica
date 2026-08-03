@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { datedOf, formatElapsed, nextChangeIn, sectionsOf } from '../time'
+import { datedOf, formatElapsed, nextChangeIn, sectionsOf } from '../threads/sections'
 
 const at = (iso: string) => Date.parse(iso)
 
