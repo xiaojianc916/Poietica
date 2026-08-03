@@ -54,7 +54,7 @@ describe('ipc session', () => {
 
     /* 地址与图片一起交回。此前这一格在这一层就丢了，而屏幕上看不出来：实时
     那条路自己拼了一条 data: URL，于是协议这条路坏了很久都没有人发现。 */
-    await expect(session.prompt({ threadId: 't', text: 'hi', images: [] })).resolves.toEqual({
+    await expect(session.prompt({ threadId: 't', text: 'hi', assets: [] })).resolves.toEqual({
       sessionId: 'sess_2',
       images: [DELIVERED],
     })

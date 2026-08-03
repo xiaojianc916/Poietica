@@ -5,7 +5,8 @@ import {
   installAgentDefaultModelSource,
   useAgentControls,
 } from '@poietica/agent-session'
-import { AssistantSurface } from '@poietica/agent-ui'
+import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
+import { createAttachmentIntake } from '@poietica/desktop-runtime'
 import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useEffect } from 'react'
 import { desktopAgentCapabilities } from '../../application/ai/agent-session'
@@ -41,6 +42,15 @@ export interface ConversationSurfaceProps {
   readonly session: AgentSessionPort
   readonly threadId: string | null
 }
+
+/*
+ * 输入框的收件口，一个进程一份。
+ *
+ * 装在模块求值时，不装在 effect 里：它不随任何一条对话变化，而且拖放监听要
+ * 在第一次渲染之前就位 —— 与 installAgentCapabilityPort 不同，那一个的内容
+ * 随 agentId 变，这一个不变。会话本身仍然是懒开的（见 createAttachmentIntake）。
+ */
+installAttachmentIntake(createAttachmentIntake())
 
 export function ConversationSurface({
   agentConfig,

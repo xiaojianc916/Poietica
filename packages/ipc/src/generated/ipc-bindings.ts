@@ -269,14 +269,25 @@ async assetImport(request: AssetImportRequest) : Promise<AssetUploadResult[]> {
     return await TAURI_INVOKE("asset_import", { request });
 },
 /**
- * Hashes one payload and stores it inside an open asset session.
+ * 剪贴板里的那一张图：解码、按文件头判类型、存进一条打开着的资产会话。
+ * 
+ * 这是渲染层唯一还能把字节交给原生的入口，而它只为剪贴板存在：截图是一团
+ * 没有名字也没有路径的 blob，系统给不出路径，所以它走不了 asset_import。
+ * 别的每一条进门的路（窗口拖放、系统文件对话框）交的都是路径，字节根本不
+ * 进 webview。
+ * 
+ * 内容类型不再由调用方声明。此前它是请求里的一格，而资产协议是带 nosniff
+ * 投递的：声明什么就照什么投，等于把 MIME 的决定权交给了渲染层，而渲染层
+ * 的 `File.type` 来自扩展名。判据与 asset_import 共用同一个 sniff，两条路
+ * 因此不可能分叉。
  * 
  * # Errors
  * 
- * Returns an error when the payload length exceeds `u32`, when the hashing
- * task is cancelled, when the registry rejects the asset, or when the asset
- * protocol URL cannot be built — in that last case the stored asset is rolled
- * back before the error is returned.
+ * Returns an error when the payload is not valid base64, when its bytes are
+ * not one of the deliverable image formats, when the payload length exceeds
+ * `u32`, when the registry rejects the asset, or when the asset protocol URL
+ * cannot be built — in that last case the stored asset is rolled back before
+ * the error is returned.
  */
 async assetUpload(request: AssetUploadRequest) : Promise<AssetUploadResult> {
     return await TAURI_INVOKE("asset_upload", { request });
@@ -973,21 +984,25 @@ threadId: string;
  */
 pinned: boolean }
 /**
- * 一张随这一句话送出去的图片。
+ * 一张随这一句话送出去的图片，按它在交付注册表里的位置点名。
  * 
- * 字节有两个去处，都在 keep_bytes 里：一份 base64 原样进 ACP 的 image content
- * block —— agent 是另一个进程，它只认这一份；另一份解码之后落进内容寻址的
- * blob 仓并记进账本，重启之后屏幕上还看得见这张图，靠的正是后者。
+ * 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
+ * （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
+ * 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
+ * 
+ * 手写的 Debug 也随之没有了：这个结构现在一共两个短字符串，一整个请求打
+ * 进日志也就是两行令牌。此前它必须手写，因为默认的 Debug 会把十六兆的
+ * base64 原样吐进日志文件。
  */
-export type AgentPromptImage = { 
+export type AgentPromptAsset = { 
 /**
- * base64 编码的原始字节，不带 `data:` 前缀。
+ * 这张图挂在哪条资产会话下（输入框那一条）。
  */
-data: string; 
+sessionToken: string; 
 /**
- * 例如 `image/png`。
+ * 它在那条会话里的令牌，也就是内容摘要。
  */
-mimeType: string }
+assetToken: string }
 /**
  * A prompt, and how to start the agent if it is not running yet.
  */
@@ -997,12 +1012,12 @@ export type AgentPromptRequest = {
  */
 text: string; 
 /**
- * 这一句带的图片。
+ * 这一句带的图片，按它们在交付注册表里的位置点名。
  * 
  * 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
- * 完整的话。此前这里没有这一格，那种消息在下面第一行就被判成参数无效。
+ * 完整的话。
  */
-images: AgentPromptImage[]; 
+assets: AgentPromptAsset[]; 
 /**
  * The conversation this turn belongs to, when the interface names one.
  */
@@ -1180,7 +1195,16 @@ export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
-export type AssetUploadRequest = { sessionToken: string; contentType: string; bytes: number[] }
+export type AssetUploadRequest = { sessionToken: string; 
+/**
+ * base64 编码的原始字节，不带 `data:` 前缀。
+ * 
+ * 不是 `Vec<u8>`。默认的 JSON IPC 下 `Vec<u8>` 在线上是一个 `number[]`
+ * —— 每个字节一个十进制数字加一个逗号，比 base64 还大出四五倍。原始
+ * 字节只有在整个 args 就是 ArrayBuffer/Uint8Array 时才走 raw body，
+ * 塞在对象的一格里必然退化（见 Tauri v2 的 InvokeArgs）。
+ */
+base64: string }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"

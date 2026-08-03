@@ -56,17 +56,20 @@ export type {
  */
 
 /**
- * 一张随这句话送出去的图片。
+ * 一张随这句话送出去的图片，按它在原生交付注册表里的位置点名。
  *
- * 形状就是协议的形状：base64 的字节加一个 mimeType（ACP 的 image content
- * block）。这一层因此不认识 File，也不认识 URL —— 那些是浏览器的东西，不是
- * 协议的东西。
+ * 字节不在这一层，也从不经过这一层。用户把文件放进输入框的那一刻它们就已经
+ * 在原生侧了，这里拿着的只是取得它的两个令牌。所以这个包不认识 File，不认识
+ * base64，也不认识 object URL —— 那些都是浏览器的东西，不是协议的东西。
+ *
+ * 协议本身要的 base64 由持有字节的那一侧编（见 commands/agent.rs 的 keep_bytes）：
+ * agent 是另一个进程，那一份省不掉，但它不该在 webview 与原生之间往返一趟。
  */
-export interface PromptImage {
-  /** base64 编码的原始字节，不带 `data:` 前缀。 */
-  readonly data: string
-  /** 例如 `image/png`。 */
-  readonly mimeType: string
+export interface PromptAsset {
+  /** 这张图挂在哪条资产会话下。 */
+  readonly sessionToken: string
+  /** 它在那条会话里的令牌，也就是内容摘要。 */
+  readonly assetToken: string
 }
 
 export interface AgentPromptRequest {
@@ -79,7 +82,7 @@ export interface AgentPromptRequest {
    * 时是空数组，而不是缺席 —— 一个「有时候不在」的字段会让每个读它的人都先
    * 判一次空。
    */
-  readonly images: readonly PromptImage[]
+  readonly assets: readonly PromptAsset[]
 }
 
 /**

@@ -40,6 +40,26 @@ export function importAssets(
   return throughIpc(() => commands.assetImport({ sessionToken, paths: [...paths] }))
 }
 
+/**
+ * 剪贴板里的那一张图。
+ *
+ * 三条进门的路里只有这一条要经过字节：截图是一团没有名字也没有路径的 blob，
+ * 系统给不出路径，所以它走不了 importAssets。拖放与文件对话框交的都是路径。
+ *
+ * 内容类型不在参数里。它由原生按文件头判定，与 importAssets 共用同一个判据 ——
+ * 渲染层报的 `File.type` 来自扩展名，而资产协议是带 nosniff 投递的。
+ */
+export function uploadAsset(sessionToken: string, base64: string): Promise<AssetImport> {
+  return throughIpc(() => commands.assetUpload({ sessionToken, base64 }))
+}
+
+/** 从会话里放掉一张。输入框里被移除的那一张不该继续占着注册表的预算。 */
+export function removeAsset(sessionToken: string, assetToken: string): Promise<void> {
+  return throughIpc(async () => {
+    await commands.assetRemove({ sessionToken, assetToken })
+  })
+}
+
 /** 关掉会话，它持有的字节与地址一并作废。已经不在了也算成功。 */
 export function closeAssetSession(sessionToken: string): Promise<void> {
   return throughIpc(async () => {

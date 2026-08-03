@@ -3,6 +3,7 @@ import './composer/question-panel.css'
 
 import type { ChatStatus, SessionConfigControl } from '@poietica/acp'
 import { memo, type RefObject } from 'react'
+import type { ComposerAsset } from './composer/attachment-intake'
 import { ComposerActions } from './composer/composer-actions'
 import type { PromptInputHandle } from './composer/prompt-input'
 import {
@@ -33,7 +34,10 @@ import { MicIcon } from './primitives/icons'
 export interface AssistantComposerProps {
   readonly placeholder?: string
   readonly status?: ChatStatus
-  readonly onSubmit: (input: { readonly text: string; readonly files: readonly File[] }) => void
+  readonly onSubmit: (input: {
+    readonly text: string
+    readonly assets: readonly ComposerAsset[]
+  }) => void
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
   readonly handle?: RefObject<PromptInputHandle | null> | undefined
@@ -162,7 +166,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   }
 
   return (
-    <PromptInput accept="image/*" handle={handle} multiple onSubmit={onSubmit}>
+    <PromptInput handle={handle} multiple onSubmit={onSubmit}>
       <PromptInputBody>
         <PromptInputAttachments />
 

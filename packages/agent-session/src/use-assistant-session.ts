@@ -1,9 +1,8 @@
-import type { AgentSessionPort, ChatStatus } from '@poietica/acp'
+import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/acp'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
 import { selectPendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { describeFailure } from './describe-failure'
-import { toPromptImages } from './prompt-attachments'
 import type { Transcript } from './transcript-store'
 import { transcripts } from './transcript-store'
 
@@ -29,7 +28,15 @@ import { transcripts } from './transcript-store'
 
 export interface AssistantSubmission {
   readonly text: string
-  readonly files: readonly File[]
+  /**
+   * 这一句带的图片，已经在原生的交付注册表里。
+   *
+   * 不是 File。字节在用户放手的那一刻就入了库（拖放与文件对话框交路径，
+   * 剪贴板交一次 base64），所以发送这条路上再没有任何要读、要编码、要等的
+   * 东西 —— 此前这里是一次 arrayBuffer 加一次 btoa，一张十六兆的图会在
+   * 发送前把主线程占住，而它换来的只是把本机文件交给本机进程。
+   */
+  readonly assets: readonly PromptAsset[]
 }
 
 export interface AssistantSessionOptions {
@@ -143,30 +150,27 @@ export function useAssistantSession({
   }, [session])
 
   /*
-   * 附件先读成字节，再连同这句话一起送出去。
+   * 说一句话，就是说一句话。
    *
-   * 这是发送路径上唯一一步需要等待的事，等的是几毫秒的 arrayBuffer。读不出来
-   * 就不发：一句「图片读取失败」记进转录，与其他本地事故走同一条通道，而不是
-   * 悄悄发一句没有图的话出去 —— 那会让人以为对面看到了。
+   * 这里此前要先把附件读成 base64，于是发送是异步的、可能失败的、而且失败
+   * 的理由（读文件）与这句话本身毫无关系。附件现在进门就已经入库，所以这条
+   * 路上没有任何要等的东西 —— toPromptImages 连同它那个 32 KiB 分块的
+   * base64 编码器整个不存在了。
+   *
+   * describeFailure 仍然在：转录里的本地事故还是走同一条通道，只是这一路
+   * 不再产生本地事故了。
    */
   const send = useCallback(
     (submission: AssistantSubmission) => {
-      void toPromptImages(submission.files).then(
-        (images) => {
-          transcripts.send({
-            endpoint,
-            identify,
-            images,
-            key,
-            onUserMessage,
-            port: session,
-            text: submission.text,
-          })
-        },
-        (cause: unknown) => {
-          transcripts.note(key, describeFailure(cause))
-        },
-      )
+      transcripts.send({
+        assets: submission.assets,
+        endpoint,
+        identify,
+        key,
+        onUserMessage,
+        port: session,
+        text: submission.text,
+      })
     },
     [endpoint, identify, key, onUserMessage, session],
   )

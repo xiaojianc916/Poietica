@@ -3,6 +3,8 @@
 //! The renderer provides bytes and MIME metadata. Native owns validation,
 //! content hashing, opaque delivery identities and protocol registration.
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use specta::Type;
@@ -18,8 +20,13 @@ type CommandResult<T> = Result<T, IpcError>;
 #[serde(rename_all = "camelCase")]
 pub struct AssetUploadRequest {
     pub session_token: String,
-    pub content_type: String,
-    pub bytes: Vec<u8>,
+    /// base64 编码的原始字节，不带 `data:` 前缀。
+    ///
+    /// 不是 `Vec<u8>`。默认的 JSON IPC 下 `Vec<u8>` 在线上是一个 `number[]`
+    /// —— 每个字节一个十进制数字加一个逗号，比 base64 还大出四五倍。原始
+    /// 字节只有在整个 args 就是 ArrayBuffer/Uint8Array 时才走 raw body，
+    /// 塞在对象的一格里必然退化（见 Tauri v2 的 InvokeArgs）。
+    pub base64: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Type)]
@@ -78,14 +85,25 @@ pub async fn asset_session_open(
     Ok(AssetSessionResult { session_token })
 }
 
-/// Hashes one payload and stores it inside an open asset session.
+/// 剪贴板里的那一张图：解码、按文件头判类型、存进一条打开着的资产会话。
+///
+/// 这是渲染层唯一还能把字节交给原生的入口，而它只为剪贴板存在：截图是一团
+/// 没有名字也没有路径的 blob，系统给不出路径，所以它走不了 asset_import。
+/// 别的每一条进门的路（窗口拖放、系统文件对话框）交的都是路径，字节根本不
+/// 进 webview。
+///
+/// 内容类型不再由调用方声明。此前它是请求里的一格，而资产协议是带 nosniff
+/// 投递的：声明什么就照什么投，等于把 MIME 的决定权交给了渲染层，而渲染层
+/// 的 `File.type` 来自扩展名。判据与 asset_import 共用同一个 sniff，两条路
+/// 因此不可能分叉。
 ///
 /// # Errors
 ///
-/// Returns an error when the payload length exceeds `u32`, when the hashing
-/// task is cancelled, when the registry rejects the asset, or when the asset
-/// protocol URL cannot be built — in that last case the stored asset is rolled
-/// back before the error is returned.
+/// Returns an error when the payload is not valid base64, when its bytes are
+/// not one of the deliverable image formats, when the payload length exceeds
+/// `u32`, when the registry rejects the asset, or when the asset protocol URL
+/// cannot be built — in that last case the stored asset is rolled back before
+/// the error is returned.
 #[tauri::command]
 #[specta::specta]
 pub async fn asset_upload(
@@ -94,29 +112,35 @@ pub async fn asset_upload(
 ) -> CommandResult<AssetUploadResult> {
     let AssetUploadRequest {
         session_token,
-        content_type,
-        bytes,
+        base64,
     } = request;
+
+    /*
+     * A command body runs on the async runtime's worker threads. Decoding,
+     * sniffing and hashing are all CPU-bound over up to MAX_ASSET_BYTES, so
+     * doing them here occupied a worker that every other pending command was
+     * queued behind, in a function that awaited nothing at all.
+     *
+     * The registry write stays on this thread because State cannot cross the
+     * boundary, and it is a short lock, not a scan.
+     */
+    let (content_hash, content_type, bytes) = async_runtime::spawn_blocking(move || {
+        let bytes = BASE64
+            .decode(base64.as_bytes())
+            .map_err(|_| Error::Validation("attachment is not valid base64".into()))?;
+
+        let content_type =
+            sniff(&bytes).ok_or_else(|| Error::Validation("unsupported image format".into()))?;
+
+        let content_hash = hex::encode(Sha256::digest(&bytes));
+
+        Ok::<_, Error>((content_hash, content_type, bytes))
+    })
+    .await
+    .map_err(|_| Error::Internal("asset hashing task failed".into()))??;
 
     let byte_length =
         u32::try_from(bytes.len()).map_err(|_| Error::Asset("asset length overflow".into()))?;
-
-    /*
-     * A command body runs on the async runtime's worker threads. Hashing is
-     * CPU-bound over up to MAX_ASSET_BYTES, so doing it here occupied a worker
-     * that every other pending command was queued behind, in a function that
-     * awaited nothing at all.
-     *
-     * Only the digest moves. The registry write stays on this thread because
-     * State cannot cross the boundary, and it is a short lock, not a scan.
-     */
-    let (content_hash, bytes) = async_runtime::spawn_blocking(move || {
-        let content_hash = hex::encode(Sha256::digest(&bytes));
-
-        (content_hash, bytes)
-    })
-    .await
-    .map_err(|_| Error::Internal("asset hashing task failed".into()))?;
 
     let asset_token = content_hash.clone();
 
@@ -125,7 +149,7 @@ pub async fn asset_upload(
             &session_token,
             &asset_token,
             &content_hash,
-            &content_type,
+            content_type,
             bytes,
         )
         .map_err(map_asset_error)?;
@@ -144,7 +168,7 @@ pub async fn asset_upload(
         content_hash,
         source,
         byte_length,
-        content_type,
+        content_type: content_type.to_owned(),
     })
 }
 

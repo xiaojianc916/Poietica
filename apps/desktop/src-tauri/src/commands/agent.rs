@@ -15,7 +15,6 @@
 //! or sent.
 
 use std::collections::HashSet;
-use std::fmt;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
@@ -35,7 +34,6 @@ use uuid::Uuid;
 
 use crate::asset_protocol::{
     AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
-    is_deliverable,
 };
 use crate::attachments::{blob_path, forget_blob, store_bytes};
 use crate::commands::agent_config::launch_env;
@@ -77,29 +75,15 @@ const NO_READ: &str = "the database read did not finish";
 /// 与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
 const NO_CONVERSATION: &str = "no conversation was named";
 
-/// 附件不是图片。协议的 image content block 只装图片，别的东西得走别的块。
-const NOT_AN_IMAGE: &str = "an attachment is not an image";
-
-/// 是图片，但交付协议不认它。
-///
-/// 与上一条分开：那一条说的是"这不是图片"，这一条说的是"这张图显示不出来"。
-/// 允许清单排掉的是活动内容（SVG）与浏览器不一定解得开的容器（HEIC），
-/// 判据在 asset_protocol，这里只是引用它。
-const NOT_DELIVERABLE: &str = "that image format cannot be displayed";
-
-/// 一张图大得不该走一次 IPC 往返。
+/// 一张图大到账本里那一格装不下。
 const IMAGE_TOO_LARGE: &str = "an attachment is too large";
 
-/// 单张图片的 base64 长度上限。
+/// 那两个令牌在交付注册表里指不到东西。
 ///
-/// 卡的是编码之后的长度，因为那正是这次调用要搬的字节数；原始大小约为它的
-/// 四分之三。
-const MAX_IMAGE_CHARS: usize = 16 * 1024 * 1024;
-
-/// 送来的不是 base64。
-///
-/// 与「不是图片」分开：那一条说的是 MIME，这一条说的是这一格根本解不开。
-const NOT_BASE64: &str = "an attachment is not valid base64";
+/// 到不了才是常态：令牌是输入框刚刚从原生侧拿到的，中间没有人关过那条会话。
+/// 真的到了，说明这一句带的图已经不在了 —— 那就不该假装它还在，静默少发一张
+/// 图比失败更坏，因为屏幕上什么都不会说。
+const NO_SUCH_ASSET: &str = "an attachment is no longer available";
 
 /// 一句话里的图片多到序号装不下。实际到不了，但转换要有个说法。
 const TOO_MANY_IMAGES: &str = "too many attachments in one message";
@@ -230,33 +214,22 @@ pub struct AgentLaunch {
     pub args: Vec<String>,
 }
 
-/// 一张随这一句话送出去的图片。
+/// 一张随这一句话送出去的图片，按它在交付注册表里的位置点名。
 ///
-/// 字节有两个去处，都在 keep_bytes 里：一份 base64 原样进 ACP 的 image content
-/// block —— agent 是另一个进程，它只认这一份；另一份解码之后落进内容寻址的
-/// blob 仓并记进账本，重启之后屏幕上还看得见这张图，靠的正是后者。
-#[derive(Deserialize, Type)]
+/// 字节不再跨 IPC。它们在用户把文件放进输入框的那一刻就已经在原生侧了
+/// （见 commands/asset.rs 的 asset_import 与 asset_upload），这里交回来的
+/// 只是取得它的两个令牌 —— 一次提问因此不再搬运任何字节，无论那张图多大。
+///
+/// 手写的 Debug 也随之没有了：这个结构现在一共两个短字符串，一整个请求打
+/// 进日志也就是两行令牌。此前它必须手写，因为默认的 Debug 会把十六兆的
+/// base64 原样吐进日志文件。
+#[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentPromptImage {
-    /// base64 编码的原始字节，不带 `data:` 前缀。
-    pub data: String,
-    /// 例如 `image/png`。
-    pub mime_type: String,
-}
-
-/// 手写，与运行时那侧的 `PromptImage` 同一条规矩。
-///
-/// 这一个更要紧：它跨 IPC 进来，被同样 Debug 的 `AgentPromptRequest` 持有，而
-/// 一次请求反序列化失败或参数校验失败最自然的动作就是把整个请求打进日志 ——
-/// 那一行会是十六兆的 base64。
-impl fmt::Debug for AgentPromptImage {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("AgentPromptImage")
-            .field("mime_type", &self.mime_type)
-            .field("base64_len", &self.data.len())
-            .finish()
-    }
+pub struct AgentPromptAsset {
+    /// 这张图挂在哪条资产会话下（输入框那一条）。
+    pub session_token: String,
+    /// 它在那条会话里的令牌，也就是内容摘要。
+    pub asset_token: String,
 }
 
 /// A prompt, and how to start the agent if it is not running yet.
@@ -265,11 +238,11 @@ impl fmt::Debug for AgentPromptImage {
 pub struct AgentPromptRequest {
     /// What the user typed.
     pub text: String,
-    /// 这一句带的图片。
+    /// 这一句带的图片，按它们在交付注册表里的位置点名。
     ///
     /// 与 text 是同一句话的两半，所以判空要一起判：只挑了图、没打字是一句
-    /// 完整的话。此前这里没有这一格，那种消息在下面第一行就被判成参数无效。
-    pub images: Vec<AgentPromptImage>,
+    /// 完整的话。
+    pub assets: Vec<AgentPromptAsset>,
     /// The conversation this turn belongs to, when the interface names one.
     pub thread_id: Option<String>,
     /// 起哪个 agent。
@@ -323,31 +296,21 @@ pub async fn agent_prompt(
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
-    let images = request.images;
+    let attached = request.assets;
 
     /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话 ——
     此前这里只看 text，那种消息就死在这一行上，屏幕上是一句「请求参数无效」。 */
-    if text.is_empty() && images.is_empty() {
+    if text.is_empty() && attached.is_empty() {
         return Err(Error::Validation("the prompt is empty".to_owned()).into());
     }
 
-    /* 渲染层送来的东西不可信，与权限答复同一条规矩：先验，再往协议里放。 */
-    for image in &images {
-        if !image.mime_type.starts_with("image/") {
-            return Err(Error::Validation(NOT_AN_IMAGE.to_owned()).into());
-        }
+    /* 这里不再验类型、不再验大小。字节进注册表的那一刻就已经验过：内容类型
+    由文件头嗅出来（asset.rs 的 sniff，不看扩展名），交付得了才收得下
+    （validate_content_type），单张上限由 MAX_ASSET_BYTES 卡。同一件事只判一次，
+    而且判在字节所在的那一侧 —— 此前门口这三条判的是渲染层自己报的 MIME 与一个
+    base64 字符串的长度，两样都不是事实本身。
 
-        /* 交付得了才收。此前这里只判 image/ 前缀，于是一张 SVG 能落盘、能记账，
-        而重开这条对话时 verify 在 deliver_attachments 里把整批判失败 —— 一张图
-        就让这条对话再也打不开。收与交付用同一份清单，只有这样才不会再分叉。 */
-        if !is_deliverable(&image.mime_type) {
-            return Err(Error::Validation(NOT_DELIVERABLE.to_owned()).into());
-        }
-
-        if image.data.len() > MAX_IMAGE_CHARS {
-            return Err(Error::Validation(IMAGE_TOO_LARGE.to_owned()).into());
-        }
-    }
+    这一路唯一还会失败的事，是那两个令牌指不到东西，由 keep_bytes 说出来。 */
 
     let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
@@ -400,7 +363,7 @@ pub async fn agent_prompt(
         state.attachments.clone(),
         assets.inner().clone(),
         thread_id.to_string(),
-        images,
+        attached,
         turn,
     )
     .await?;
@@ -467,27 +430,30 @@ fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
     }
 }
 
-/// 一句话带的图片：落盘、铺进交付会话，再把它们原样交还给协议。
+/// 一句话带的图片：落盘、过继进这条对话的交付会话，再交还给协议。
 ///
-/// 整段在阻塞执行器上。base64 解码、SHA-256、以及注册表入口那次摘要都要过一遍
-/// 全部字节，单张最大十六兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs
-/// 把摘要挪走是同一条判据：命令体跑在异步运行时的 worker 上，别的命令全排在它
-/// 后面。
+/// 字节从输入框那条资产会话搬过来，搬的是 Arc 不是内存（见 adopt）。它们在
+/// 用户放手的那一刻就已经在这个进程里了，所以这个函数不再解码任何东西 ——
+/// 此前它的第一件事是 `BASE64.decode`，而那份 base64 是渲染层先把文件读进
+/// webview、编码、跨 IPC 送过来的：一次读、一次编码、一次比原文大三分之一的
+/// 传输、一次解码，四份代价，只为把本机的一个文件交给本机的一个进程。
 ///
-/// base64 串移进去、移出来，中途不复制：协议要的就是它那一份，账本要的是解出
-/// 来的字节，而注册表接手的正是同一份 —— 它不再被丢掉，也就不必在重启之后
-/// 再从磁盘读回来一次。
+/// 编码没有消失，它换了一侧：ACP 的 image content block 只认 base64，而 agent
+/// 是另一个进程。现在它发生在字节所在的这一侧，不再往返。
 ///
-/// 字节写进磁盘、铺进内存里那张表，账本行仍然不在这里写：那要拿库的锁，而这里
-/// 拿的是文件系统。一个函数一件事，调用方按顺序把两件事串起来。
+/// 整段仍在阻塞执行器上。落盘、SHA-256 与 base64 编码都要过一遍全部字节，
+/// 单张最大三十二兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs 把
+/// 摘要挪走是同一条判据。
+///
+/// 账本行仍然不在这里写：那要拿库的锁，而这里拿的是文件系统。一个函数一件事。
 async fn keep_bytes(
     root: PathBuf,
     assets: AssetProtocolRegistry,
     session: String,
-    images: Vec<AgentPromptImage>,
+    attached: Vec<AgentPromptAsset>,
     turn: i64,
 ) -> Result<Kept> {
-    if images.is_empty() {
+    if attached.is_empty() {
         return Ok(Kept {
             carried: Vec::new(),
             ledger: Vec::new(),
@@ -498,39 +464,37 @@ async fn keep_bytes(
     async_runtime::spawn_blocking(move || {
         opened_session(&assets, &session)?;
 
-        let mut carried = Vec::with_capacity(images.len());
-        let mut ledger = Vec::with_capacity(images.len());
-        let mut urls = Vec::with_capacity(images.len());
+        let mut carried = Vec::with_capacity(attached.len());
+        let mut ledger = Vec::with_capacity(attached.len());
+        let mut urls = Vec::with_capacity(attached.len());
 
-        for (ordinal, image) in images.into_iter().enumerate() {
-            let bytes = BASE64
-                .decode(image.data.as_bytes())
-                .map_err(|_invalid| Error::Validation(NOT_BASE64.to_owned()))?;
+        for (ordinal, reference) in attached.into_iter().enumerate() {
+            /* 取不到就不发。这一句带的图已经不在了，而静默少发一张比失败更坏：
+            对面收到一句没有附件的话，屏幕上什么都不会说。 */
+            let (mime, bytes) = assets
+                .adopt(&reference.session_token, &reference.asset_token, &session)
+                .map_err(asset)?
+                .ok_or_else(|| Error::NotFound(NO_SUCH_ASSET.to_owned()))?;
 
             let blob = store_bytes(&root, &bytes)?;
-            let hash = blob.hash.clone();
 
-            /* 一句话里挑了两张一样的图是常事：注册表按摘要计数，第二次只是把
-            引用加一，所以这里不去重 —— 去重会让那两格的地址对不上号。 */
-            assets
-                .insert(&session, &hash, &hash, &image.mime_type, bytes)
-                .map_err(asset)?;
+            let data = BASE64.encode(bytes.as_slice());
 
-            urls.push(asset_protocol_url(&session, &hash).map_err(asset)?);
+            urls.push(asset_protocol_url(&session, &blob.hash).map_err(asset)?);
 
             ledger.push(ThreadAttachment {
                 hash: blob.hash,
                 turn,
                 ordinal: i64::try_from(ordinal)
                     .map_err(|_overflow| Error::Internal(TOO_MANY_IMAGES.to_owned()))?,
-                mime: image.mime_type.clone(),
+                mime: mime.clone(),
                 byte_size: i64::try_from(blob.byte_size)
                     .map_err(|_overflow| Error::Validation(IMAGE_TOO_LARGE.to_owned()))?,
             });
 
             carried.push(PromptImage {
-                data: image.data,
-                mime_type: image.mime_type,
+                data,
+                mime_type: mime,
             });
         }
 

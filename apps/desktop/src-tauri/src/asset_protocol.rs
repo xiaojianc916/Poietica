@@ -496,6 +496,94 @@ impl AssetProtocolRegistry {
         Ok(snapshot)
     }
 
+    /// 把一份字节从一条会话过继到另一条，并把它交给调用方读。
+    ///
+    /// 输入框那条会话（用户挑图的地方）与一条对话的交付会话是两条：前者在
+    /// 用户放手的那一刻就存在，后者要等这一句真的发出去。同一份字节因此要
+    /// 同时挂在两处 —— 挂的是同一个 Arc，不是第二份内存，注册表按引用计数
+    /// 管它，这也正是 RegisteredAsset 一开始就带 references 的理由。
+    ///
+    /// 交回内容类型与字节本身：调用方（agent_prompt 的 keep_bytes）要拿它们
+    /// 落盘、记账，以及编成 ACP 要的那一份 base64。让它另外再查一次表，等于
+    /// 让同一把写锁开两趟。
+    ///
+    /// 源里没有这份东西时返回 Ok(None)：那不是故障，是「这张图已经不在了」，
+    /// 该由调用方翻译成一句人话，不是一个内部错误。
+    ///
+    /// # Errors
+    ///
+    /// 令牌不合法、目标会话不存在、或过继之后越过注册表预算时返回错误；
+    /// 失败时两条会话都原封不动。
+    pub fn adopt(
+        &self,
+        from_session: &str,
+        from_token: &str,
+        into_session: &str,
+    ) -> Result<Option<(String, Arc<Vec<u8>>)>, AssetProtocolError> {
+        validate_token(from_session)?;
+        validate_token(from_token)?;
+        validate_token(into_session)?;
+
+        let mut state = self
+            .state
+            .write()
+            .map_err(|_| AssetProtocolError::Internal)?;
+
+        /* 取的是 RegisteredAsset 的克隆：一个 Arc 加一个 String，与字节数无关。 */
+        let Some(found) = state
+            .sessions
+            .get(from_session)
+            .and_then(|assets| assets.get(from_token))
+            .cloned()
+        else {
+            return Ok(None);
+        };
+
+        let current_total = state.total_bytes;
+
+        let session = state
+            .sessions
+            .get_mut(into_session)
+            .ok_or(AssetProtocolError::NotFound)?;
+
+        if let Some(existing) = session.get_mut(from_token) {
+            if existing.content_type != found.content_type {
+                return Err(AssetProtocolError::DuplicateAsset);
+            }
+
+            existing.references = existing
+                .references
+                .checked_add(1)
+                .ok_or(AssetProtocolError::ReferenceOverflow)?;
+
+            return Ok(Some((found.content_type, found.bytes)));
+        }
+
+        let next_total = current_total
+            .checked_add(found.bytes.len())
+            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
+
+        if next_total > MAX_REGISTRY_BYTES {
+            return Err(AssetProtocolError::RegistryBudgetExceeded);
+        }
+
+        let content_type = found.content_type.clone();
+        let bytes = Arc::clone(&found.bytes);
+
+        session.insert(
+            from_token.to_owned(),
+            RegisteredAsset {
+                bytes: found.bytes,
+                content_type: found.content_type,
+                references: 1,
+            },
+        );
+
+        state.total_bytes = next_total;
+
+        Ok(Some((content_type, bytes)))
+    }
+
     pub fn contains(
         &self,
         session_token: &str,
@@ -1425,6 +1513,58 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.body(), after.as_ref());
+    }
+
+    /*
+     * 过继是这一刀的地基：输入框那条会话与对话的交付会话共用同一份内存。
+     * 共用没做到，就是每发一句话复制一次最多 32 MB；共用做错了（比如把字节
+     * 重复计入预算），账只会朝一个方向漂，而它从外面完全看不见。
+     */
+    #[test]
+    fn adopting_shares_the_bytes_instead_of_copying_them() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry.open_session("composer").expect("session should open");
+        registry.open_session("thread-1").expect("session should open");
+
+        let asset = insert(&registry, "composer", "image/png", &[1, 2, 3]);
+        let once = registry.total_bytes();
+
+        let (mime, bytes) = registry
+            .adopt("composer", &asset, "thread-1")
+            .expect("adopting should succeed")
+            .expect("the asset is there");
+
+        assert_eq!(mime, "image/png");
+        assert_eq!(bytes.as_ref(), &vec![1, 2, 3]);
+
+        assert!(registry.contains("composer", &asset).expect("source keeps it"));
+        assert!(registry.contains("thread-1", &asset).expect("target has it"));
+
+        /* 同一份内存两条会话共用，所以预算只涨这一份的大小，不是两份。 */
+        assert_eq!(registry.total_bytes(), once * 2 - once);
+
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/thread-1/{asset}"
+        )));
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), &vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn adopting_something_that_is_gone_is_not_an_error() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry.open_session("thread-1").expect("session should open");
+
+        let absent = "0".repeat(64);
+
+        assert_eq!(
+            registry.adopt("composer", &absent, "thread-1"),
+            Ok(None),
+            "源会话不存在就是「这张图已经不在了」，不是内部错误"
+        );
     }
 
     #[test]

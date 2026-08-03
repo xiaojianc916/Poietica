@@ -1,6 +1,6 @@
 import type {
   AgentSessionPort,
-  PromptImage,
+  PromptAsset,
   RunEvent,
   ThreadAttachment,
   ThreadHistory,
@@ -84,8 +84,8 @@ export interface SendOptions {
   /** 这一格已经是哪条对话；入口那一格是 null。 */
   readonly endpoint: string | null
   readonly text: string
-  /** 这一句带的图片，已经是协议要的形状（读文件发生在这一层之外）。 */
-  readonly images: readonly PromptImage[]
+  /** 这一句带的图片，按它们在原生交付注册表里的位置点名。 */
+  readonly assets: readonly PromptAsset[]
   readonly identify?: (() => Promise<string | null>) | undefined
   readonly onUserMessage?: ((threadId: string, text: string) => void) | undefined
 }
@@ -424,7 +424,7 @@ export class TranscriptStore {
 
   /* ================= 说一句话 ================= */
 
-  send = ({ endpoint, identify, images, key, onUserMessage, port, text }: SendOptions): void => {
+  send = ({ assets, endpoint, identify, key, onUserMessage, port, text }: SendOptions): void => {
     const at = Date.now()
     const current = this.#now(key)
 
@@ -434,7 +434,7 @@ export class TranscriptStore {
        上限，也不该有）；更要紧的是它与重启之后那张图指的不是同一种地址 ——
        同一张图两种写法，于是走协议的那条路坏了很久都没人发现。地址只有一种，
        由持有字节的那一侧发（见 agent_prompt 的答复）。 */
-    const opened = appendUserMessage(current.timeline, text, at, [], images.length)
+    const opened = appendUserMessage(current.timeline, text, at, [], assets.length)
     /* 这一句在转录里的身份。地址还在路上，到了以后按它挂回去 —— 期间这条
        对话又追加了多少帧都不影响。 */
     const said = opened.items.at(-1)?.id
@@ -477,9 +477,9 @@ export class TranscriptStore {
          * trim 与那一侧同步：它收到的 text 是 trim 过的，空白判据必须一致，
          * 否则一句只有空格加一张图的话会在两边得到两个名字。
          */
-        onUserMessage?.(threadId, text.trim() === '' && images.length > 0 ? IMAGE_OPENER : text)
+        onUserMessage?.(threadId, text.trim() === '' && assets.length > 0 ? IMAGE_OPENER : text)
 
-        return port.prompt({ threadId, text, images }).then((handle) => {
+        return port.prompt({ threadId, text, assets }).then((handle) => {
           /*
            * 地址早就在表里了：这条对话打开的那一刻就登记过（route）。
            *

@@ -7,6 +7,7 @@ export {
   type UpdateProgress,
   type UpdateRelease,
 } from './adapters/app-update'
+export { createAttachmentIntake } from './adapters/attachments'
 export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,

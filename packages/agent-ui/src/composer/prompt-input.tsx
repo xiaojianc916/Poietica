@@ -13,9 +13,9 @@ import {
   useState,
 } from 'react'
 import { ImageLightbox, type PreviewableImage } from '../media/ImageLightbox'
-import { useObjectUrls } from '../media/use-object-urls'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
+import { attachmentIntake, type ComposerAsset } from './attachment-intake'
 
 /*
  * The composer input.
@@ -38,16 +38,9 @@ export type { ChatStatus }
 const STILLNESS =
   typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
 
-export interface PromptInputAttachmentData {
-  readonly id: string
-  readonly file: File
-  readonly filename: string
-  readonly mediaType: string
-}
-
 export interface PromptInputMessage {
   readonly text: string
-  readonly files: readonly File[]
+  readonly assets: readonly ComposerAsset[]
 }
 
 /*
@@ -63,7 +56,7 @@ export interface PromptInputMessage {
  * hasFiles 只在空与非空之间翻转时换引用。从第一个字符敲到第五百个，工具栏一共
  * 醒一次。
  */
-const NO_ATTACHMENTS: readonly PromptInputAttachmentData[] = []
+const NO_ATTACHMENTS: readonly ComposerAsset[] = []
 
 /** 能不能发，就这两位。整串草稿不出现在这里，因为没有人需要它。 */
 export interface PromptInputDraft {
@@ -73,94 +66,23 @@ export interface PromptInputDraft {
 
 const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false }
 
-/* 剪贴板里的图片没有名字（截图就是一团 blob），给它一个带时刻的名字。 */
-function stampedName(file: File): string {
-  if (file.name.length > 0) {
-    return file.name
-  }
-
-  const extension = file.type.split('/')[1] ?? 'png'
-  const stamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
-
-  return `pasted-${stamp}.${extension}`
-}
-
 /*
- * 粘贴进来的文件，和拖拽进来的是同一种东西：一个 FileList。
+ * 收什么，不在这一层判。
  *
- * 所以这里不另开一条收件路径 —— 交给同一个 addFiles，multiple 与 maxFiles
- * 因此自动生效。没有文件就交回 null：粘贴文字一个字节都不该被这一层碰到。
- * 只有确实存在没名字的那一张时才重建列表，其余情况原样交回。
+ * 判据在原生：内容类型由文件头嗅出来（commands/asset.rs 的 sniff），认不出
+ * 来的格式在入库那一步就停住，压根变不出一个 ComposerAsset。所以这里没有
+ * accept，也没有 accepted() —— 那个函数在的时候，「能放进框里」这件事由一个
+ * 从扩展名猜出来的 File.type 说了算，而它骗得过：把 .svg 改名成 .png 就行。
+ *
+ * stampedName 与 pastedFiles 也一并没有了：命名归实现（剪贴板那一张由
+ * desktop-runtime 给名字），而拖、粘、选三条路交出来的已经是同一种东西。
  */
-function pastedFiles(clipboard: DataTransfer): FileList | null {
-  const files = clipboard.files
-
-  if (files.length === 0) {
-    return null
-  }
-
-  let unnamed = false
-
-  for (let index = 0; index < files.length; index += 1) {
-    if (files.item(index)?.name.length === 0) {
-      unnamed = true
-    }
-  }
-
-  if (!unnamed) {
-    return files
-  }
-
-  const transfer = new DataTransfer()
-
-  for (let index = 0; index < files.length; index += 1) {
-    const file = files.item(index)
-
-    if (file !== null) {
-      transfer.items.add(new File([file], stampedName(file), { type: file.type }))
-    }
-  }
-
-  return transfer.files
-}
-
-/*
- * accept 说了收什么，收件口就照它执行。
- *
- * 浏览器只把 accept 当文件对话框里的过滤器：拖进来和粘进来的文件不受它管。
- * 于是「能放进框里」和「能发出去」变成两条判据，中间隔着用户看得见的界面 ——
- * 一个 PDF 拖进来会长出一张卡片，发送时在另一头被 filter 掉，对面收到一句
- * 没有附件的话，而屏幕上什么都没说过。三条进门的路（拖、粘、选）从这里起
- * 共用同一条判据，进不来的东西不长卡片。
- *
- * 三种写法都按 accept 属性本来的语义判：通配的 image/*、后缀的 .png、精确的
- * image/png。没给 accept 就是什么都收。
- */
-function accepted(accept: string | undefined, file: File): boolean {
-  if (accept === undefined) {
-    return true
-  }
-
-  return accept.split(',').some((rule) => {
-    const pattern = rule.trim()
-
-    if (pattern.startsWith('.')) {
-      return file.name.toLowerCase().endsWith(pattern.toLowerCase())
-    }
-
-    if (pattern.endsWith('/*')) {
-      return file.type.startsWith(pattern.slice(0, -1))
-    }
-
-    return file.type === pattern
-  })
-}
 
 interface PromptInputActions {
   readonly setText: (text: string) => void
   readonly focusTextarea: () => void
-  readonly addFiles: (files: FileList | readonly File[]) => void
-  readonly removeAttachment: (id: string) => void
+  readonly addAssets: (assets: readonly ComposerAsset[]) => void
+  readonly removeAttachment: (assetToken: string) => void
   readonly openFilePicker: () => void
   readonly registerTextarea: (element: HTMLTextAreaElement | null) => void
   readonly requestSubmit: () => void
@@ -168,7 +90,7 @@ interface PromptInputActions {
 
 const ActionsContext = createContext<PromptInputActions | null>(null)
 const TextContext = createContext<string>('')
-const AttachmentsContext = createContext<readonly PromptInputAttachmentData[]>(NO_ATTACHMENTS)
+const AttachmentsContext = createContext<readonly ComposerAsset[]>(NO_ATTACHMENTS)
 const DraftContext = createContext<PromptInputDraft>(NO_DRAFT)
 
 export function usePromptInputActions(): PromptInputActions {
@@ -185,7 +107,7 @@ export function usePromptInputText(): string {
   return useContext(TextContext)
 }
 
-export function usePromptInputAttachments(): readonly PromptInputAttachmentData[] {
+export function usePromptInputAttachments(): readonly ComposerAsset[] {
   return useContext(AttachmentsContext)
 }
 
@@ -211,7 +133,6 @@ export interface PromptInputHandle {
 }
 
 export interface PromptInputProps extends Omit<ComponentProps<'form'>, 'onSubmit'> {
-  readonly accept?: string
   readonly handle?: RefObject<PromptInputHandle | null> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
@@ -219,7 +140,6 @@ export interface PromptInputProps extends Omit<ComponentProps<'form'>, 'onSubmit
 }
 
 export function PromptInput({
-  accept,
   children,
   className,
   handle,
@@ -229,34 +149,29 @@ export function PromptInput({
   ...props
 }: PromptInputProps) {
   const [text, setText] = useState('')
-  const [attachments, setAttachments] = useState<readonly PromptInputAttachmentData[]>([])
+  const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const idPrefix = useId()
 
-  const addFiles = useCallback(
-    (incoming: FileList | readonly File[]) => {
+  const addAssets = useCallback(
+    (incoming: readonly ComposerAsset[]) => {
       setAttachments((current) => {
         const next = multiple ? [...current] : []
 
-        for (const file of Array.from(incoming)) {
-          /* 收不下的先出局，它不该占掉 maxFiles 的名额。 */
-          if (!accepted(accept, file)) {
-            continue
-          }
-
+        for (const asset of incoming) {
           if (maxFiles !== undefined && next.length >= maxFiles) {
             break
           }
 
-          next.push({
-            id: `${idPrefix}-${String(next.length)}-${file.name}`,
-            file,
-            filename: file.name,
-            mediaType: file.type,
-          })
+          /* 身份是内容摘要，所以同一张图挑两次就是同一张图。这不是"去重"，
+          这是内容寻址本来的意思 —— 两张卡片指着同一个令牌，移掉其中一张会
+          把另一张的字节也放掉。 */
+          if (next.some((held) => held.assetToken === asset.assetToken)) {
+            continue
+          }
+
+          next.push(asset)
 
           if (!multiple) {
             break
@@ -266,7 +181,7 @@ export function PromptInput({
         return next
       })
     },
-    [accept, idPrefix, maxFiles, multiple],
+    [maxFiles, multiple],
   )
 
   const focusTextarea = useCallback(() => {
@@ -282,13 +197,40 @@ export function PromptInput({
 
   useImperativeHandle(handle, () => ({ setText, focus: focusTextarea }), [focusTextarea])
 
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((current) => current.filter((attachment) => attachment.id !== id))
+  const removeAttachment = useCallback((assetToken: string) => {
+    setAttachments((current) => {
+      const going = current.find((attachment) => attachment.assetToken === assetToken)
+
+      /* 移掉一张卡片就是放掉那一份字节。不放，注册表会一直替一个已经不在
+      屏幕上的东西占着预算，而那笔预算是整个进程共用的（MAX_REGISTRY_BYTES）。 */
+      if (going !== undefined) {
+        attachmentIntake()?.discard(going)
+      }
+
+      return current.filter((attachment) => attachment.assetToken !== assetToken)
+    })
   }, [])
 
+  /*
+   * 加号：系统文件对话框，不是一个藏起来的 <input type="file">。
+   *
+   * 它交回的是路径，而路径正是原生入库要的东西（asset_import）—— 那个隐藏的
+   * input 交回的是 File，于是字节必须先被读进 webview 才能过去。少一个 DOM
+   * 节点是顺带的，真正换掉的是这条路的形状。
+   */
   const openFilePicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
+    const intake = attachmentIntake()
+
+    if (intake === null) {
+      return
+    }
+
+    void intake.pick(multiple).then(addAssets, () => {
+      /* 用户取消，或者这一批一个都收不下。两种都不该在屏幕上炸出一句报错：
+      收不下的原因（格式不对）由原生说，而它说的话属于这一句消息的转录，
+      不属于输入框 —— 输入框只是没有多出一张卡片。 */
+    })
+  }, [addAssets, multiple])
 
   const registerTextarea = useCallback((element: HTMLTextAreaElement | null) => {
     textareaRef.current = element
@@ -298,18 +240,40 @@ export function PromptInput({
     formRef.current?.requestSubmit()
   }, [])
 
+  /*
+   * 往窗口里拖文件。
+   *
+   * 这是这个程序第一次真的支持拖放。此前 form 上挂着 onDragOver / onDrop 两个
+   * 处理器，而它们从落地起一行都没有执行过：Tauri 的 dragDropEnabled 默认为
+   * 真，原生拖放接管了整个 webview，HTML5 的那一套在 Windows 上收不到事件
+   * （官方文档：Disabling it is required to use HTML5 drag and drop on the
+   * frontend on Windows）。tauri.conf.json 里没有写过这一格，所以它一直是开着的。
+   *
+   * 正确的做法不是把它关掉去救那两个死处理器 —— 关掉之后拿到的仍然是 File，
+   * 字节还得进 webview。而是听原生这一条：它给的是路径。
+   */
+  useEffect(() => {
+    const intake = attachmentIntake()
+
+    if (intake === null) {
+      return undefined
+    }
+
+    return intake.watchDrop(addAssets)
+  }, [addAssets])
+
   /* 全是 useCallback 或 setState，所以这个对象建一次就到卸载。 */
   const actions = useMemo<PromptInputActions>(
     () => ({
       setText,
       focusTextarea,
-      addFiles,
+      addAssets,
       removeAttachment,
       openFilePicker,
       registerTextarea,
       requestSubmit,
     }),
-    [addFiles, focusTextarea, openFilePicker, registerTextarea, removeAttachment, requestSubmit],
+    [addAssets, focusTextarea, openFilePicker, registerTextarea, removeAttachment, requestSubmit],
   )
 
   /*
@@ -326,7 +290,7 @@ export function PromptInput({
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'u') {
       event.preventDefault()
-      fileInputRef.current?.click()
+      openFilePicker()
     }
   }
 
@@ -348,30 +312,29 @@ export function PromptInput({
             <form
               className={cx('assistant-prompt-input', className)}
               data-slot="prompt-input"
-              onDragOver={(event) => {
-                if (event.dataTransfer.types.includes('Files')) {
-                  event.preventDefault()
-                }
-              }}
-              onDrop={(event) => {
-                if (!event.dataTransfer.files.length) {
-                  return
-                }
-
-                event.preventDefault()
-                addFiles(event.dataTransfer.files)
-              }}
               onKeyDown={onFormKeyDown}
               onMouseDown={onFormMouseDown}
               onPaste={(event) => {
-                const files = pastedFiles(event.clipboardData)
+                /* 三条路里唯一还经过字节的一条：剪贴板里的截图没有路径，
+                系统给不出，所以它走不了按路径入库那一条。粘贴文字不该被
+                这一层碰到，所以先看有没有文件。 */
+                const intake = attachmentIntake()
+                const [pasted] = Array.from(event.clipboardData.files)
 
-                if (files === null) {
+                if (intake === null || pasted === undefined) {
                   return
                 }
 
                 event.preventDefault()
-                addFiles(files)
+
+                void intake.paste(pasted).then(
+                  (asset) => {
+                    addAssets([asset])
+                  },
+                  () => {
+                    /* 与加号同一条规矩：收不下就是没多出一张卡片。 */
+                  },
+                )
               }}
               onSubmit={(event) => {
                 event.preventDefault()
@@ -382,28 +345,16 @@ export function PromptInput({
                   return
                 }
 
-                onSubmit({ text: trimmed, files: attachments.map((attachment) => attachment.file) })
+                onSubmit({ text: trimmed, assets: attachments })
                 setText('')
+
+                /* 不 discard：这些字节现在归这条对话的交付会话（原生侧 adopt
+                会把引用加一），输入框只是不再拿着它们。 */
                 setAttachments([])
               }}
               {...props}
               ref={formRef}
             >
-              <input
-                accept={accept}
-                className="assistant-visually-hidden"
-                multiple={multiple}
-                onChange={(event) => {
-                  if (event.currentTarget.files) {
-                    addFiles(event.currentTarget.files)
-                  }
-                  event.currentTarget.value = ''
-                }}
-                ref={fileInputRef}
-                tabIndex={-1}
-                type="file"
-              />
-
               {children}
             </form>
           </DraftContext.Provider>
@@ -422,7 +373,6 @@ const isImage = (mediaType: string) => mediaType.startsWith('image/')
 export function PromptInputAttachments({ className, ...props }: ComponentProps<'div'>) {
   const attachments = usePromptInputAttachments()
   const { removeAttachment } = usePromptInputActions()
-  const previews = useObjectUrls(attachments)
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   /*
@@ -434,16 +384,19 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
    */
   const images = useMemo<readonly PreviewableImage[]>(
     () =>
-      attachments.flatMap((attachment) => {
-        const src = previews.get(attachment.id)
-
-        if (src === undefined || !isImage(attachment.mediaType)) {
-          return []
-        }
-
-        return [{ id: attachment.id, src, alt: attachment.filename, caption: attachment.filename }]
-      }),
-    [attachments, previews],
+      attachments.flatMap((attachment) =>
+        isImage(attachment.mediaType)
+          ? [
+              {
+                id: attachment.assetToken,
+                src: attachment.url,
+                alt: attachment.filename,
+                caption: attachment.filename,
+              },
+            ]
+          : [],
+      ),
+    [attachments],
   )
 
   if (attachments.length === 0) {
@@ -453,15 +406,16 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
   return (
     <div className={className} data-slot="prompt-input-attachments" {...props}>
       {attachments.map((attachment) => {
-        /* 第一帧没有 URL(effect 还没跑)，那一帧照旧显示文件图标,不闪空白框。 */
-        const preview = isImage(attachment.mediaType) ? previews.get(attachment.id) : undefined
-        const slide = images.findIndex((image) => image.id === attachment.id)
+        /* 地址从入库那一刻就有了，所以没有"第一帧还没有 URL"这回事 —— 那是
+        object URL 时代的处境，它要等一个 effect 跑完才存在。 */
+        const preview = isImage(attachment.mediaType) ? attachment.url : undefined
+        const slide = images.findIndex((image) => image.id === attachment.assetToken)
 
         return (
           <div
             className="assistant-attachment"
             data-slot="prompt-input-attachment"
-            key={attachment.id}
+            key={attachment.assetToken}
           >
             {preview === undefined || slide === -1 ? (
               <FileIcon aria-hidden="true" className="assistant-attachment__icon" />
@@ -496,7 +450,7 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
               aria-label={`移除 ${attachment.filename}`}
               className="assistant-attachment__remove"
               onClick={() => {
-                removeAttachment(attachment.id)
+                removeAttachment(attachment.assetToken)
               }}
               type="button"
             >
