@@ -106,25 +106,36 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
   }, [])
 
   /*
-   * 一次重命名只算一次。
+   * 一次重命名只了结一次，而「了结」有两种结局。
    *
-   * Enter 和失焦是同一个动作的两条出口，不是两个动作：按下 Enter 走 onSubmit，
-   * 提交把这一行切回非重命名分支，输入框因此卸载，浏览器紧跟着派发一次 blur ——
-   * 于是 rename 落两遍库、发两遍通知、列表刷两遍。上层那句 trim().length > 0
-   * 拦不住它，两次的标题一模一样，都非空。
+   * 闩防的是输入框的卸载，不是提交本身：无论 Enter 提交还是 Escape 放弃，
+   * 这一行都会切回非重命名分支，输入框因此卸载，浏览器紧跟着派发一次 blur ——
+   * 而 blur 也接在这个出口上。于是一次动作走两遍：rename 落两遍库、发两遍
+   * 通知、列表刷两遍。上层那句 trim().length > 0 拦不住它，两次的标题一模
+   * 一样，都非空。
    *
-   * 闩在这里而不是在 store 里去重：这一层知道这两条出口通向同一次提交，store
-   * 不知道，它只会看到两条合法的重命名。
+   * 闩此前只装在提交那一路。Escape 走 onCancel 卸载输入框，随后那次 blur
+   * 落进未闩的 commit —— 按下取消，草稿被提交。取消键做了提交键的事，而
+   * 这两条路径共用的那个前提（卸载会再派发一次 blur）就写在上面。
+   *
+   * 所以闩属于「这次重命名结束了」，不属于其中某一个结局。两条出口共用它，
+   * 先到的那个说了算。去重放在这一层而不是 store 里：这一层知道这些出口
+   * 通向同一次了结，store 不知道，它只会看到两条合法的重命名。
    */
   const settled = useRef(false)
 
-  const commit = () => {
+  const finish = (outcome: 'cancel' | 'commit') => {
     if (settled.current) {
       return
     }
 
     settled.current = true
-    onCommit(draft)
+
+    if (outcome === 'commit') {
+      onCommit(draft)
+    } else {
+      onCancel()
+    }
   }
 
   return (
@@ -132,7 +143,7 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
       className="assistant-thread__rename"
       onSubmit={(event) => {
         event.preventDefault()
-        commit()
+        finish('commit')
       }}
     >
       <ThreadIcon aria-hidden="true" className="assistant-thread__icon" />
@@ -140,14 +151,16 @@ function RenameField({ initial, onCommit, onCancel }: RenameFieldProps) {
       <input
         aria-label="重命名会话"
         className="assistant-thread__rename-field"
-        onBlur={commit}
+        onBlur={() => {
+          finish('commit')
+        }}
         onChange={(event) => {
           setDraft(event.target.value)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             event.preventDefault()
-            onCancel()
+            finish('cancel')
           }
         }}
         ref={selectOnMount}
@@ -165,6 +178,9 @@ interface ThreadRowProps {
   readonly absolute: string | null
   readonly isActive: boolean
   readonly isRenaming: boolean
+  /** 上层给不给重命名这个能力。给不了就不画那一项 —— 画一个点了没反应的菜单项，
+   * 比不画更糟：重命名那一项还会让人先敲完字，再把它静默丢掉。 */
+  readonly canRename: boolean
   readonly onActivate: (threadId: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onBeginRename: (threadId: string) => void
@@ -186,6 +202,7 @@ const ThreadRow = memo(function ThreadRow({
   absolute,
   isActive,
   isRenaming,
+  canRename,
   onActivate,
   onPin,
   onBeginRename,
@@ -302,38 +319,46 @@ const ThreadRow = memo(function ThreadRow({
                     <span>{pinLabel}</span>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="assistant-thread-menu__item"
-                    onClick={() => {
-                      onBeginRename(thread.id)
-                    }}
-                  >
-                    <Edit aria-hidden="true" />
-                    <span>重命名</span>
-                  </DropdownMenuItem>
+                  {canRename ? (
+                    <DropdownMenuItem
+                      className="assistant-thread-menu__item"
+                      onClick={() => {
+                        onBeginRename(thread.id)
+                      }}
+                    >
+                      <Edit aria-hidden="true" />
+                      <span>重命名</span>
+                    </DropdownMenuItem>
+                  ) : null}
 
-                  <DropdownMenuItem
-                    className="assistant-thread-menu__item
-                      assistant-thread-menu__item--destructive"
-                    onClick={() => {
-                      onDelete?.(thread.id)
-                    }}
-                  >
-                    <Trash aria-hidden="true" />
-                    <span>删除</span>
-                  </DropdownMenuItem>
+                  {onDelete === undefined ? null : (
+                    <DropdownMenuItem
+                      className="assistant-thread-menu__item assistant-thread-menu__item--destructive"
+                      onClick={() => {
+                        onDelete(thread.id)
+                      }}
+                    >
+                      <Trash aria-hidden="true" />
+                      <span>删除</span>
+                    </DropdownMenuItem>
+                  )}
 
-                  <DropdownMenuSeparator className="assistant-thread-menu__separator" />
+                  {/* 分隔符属于它下面那一项：那一项不在，这条线也不该在。 */}
+                  {onOpenInNewTab === undefined ? null : (
+                    <>
+                      <DropdownMenuSeparator className="assistant-thread-menu__separator" />
 
-                  <DropdownMenuItem
-                    className="assistant-thread-menu__item"
-                    onClick={() => {
-                      onOpenInNewTab?.(thread.id)
-                    }}
-                  >
-                    <ExternalLink aria-hidden="true" />
-                    <span>在新选项卡中打开</span>
-                  </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="assistant-thread-menu__item"
+                        onClick={() => {
+                          onOpenInNewTab(thread.id)
+                        }}
+                      >
+                        <ExternalLink aria-hidden="true" />
+                        <span>在新选项卡中打开</span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </span>
@@ -438,6 +463,7 @@ export function AssistantThreadList({
             {section.members.map(({ absolute, elapsed, thread }) => (
               <ThreadRow
                 absolute={absolute}
+                canRename={onRename !== undefined}
                 elapsed={elapsed}
                 isActive={thread.id === activeThreadId}
                 isRenaming={thread.id === renamingId}

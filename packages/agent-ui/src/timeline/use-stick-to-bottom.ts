@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { type RefCallback, useCallback } from 'react'
 
 /** 距末端多近算作「仍在看最新一行」。与转录那一层同一个概念，尺度按盒子缩小。 */
 const BOTTOM_SLACK = 8
@@ -21,9 +21,14 @@ const BOTTOM_SLACK = 8
  * 赋值 scrollTop 会派发一次 scroll，于是 pinned 立刻被重新算成真：写入与判据共用
  * 同一个出口，不需要抑制标志，也就不会出现「程序滚动被误判成人在滚动」。
  *
- * Returned as a ref callback with a cleanup, which React 19 calls on unmount.
+ * 返回类型是 RefCallback，不是自己写一个 (node) => void。
+ *
+ * 它确实交回一个清理函数，React 19 在卸载时调用它。而 => void 的标注会被
+ * TypeScript 的返回类型双变性吞掉：编译过、运行也对，但签名说的是「没有返回
+ * 值」，与它上面这句注释互相矛盾。签名是给下一个人看的契约，不该撒谎，而
+ * React 19 的 RefCallback 本来就把 void | (() => void) 写进了类型里。
  */
-export function useStickToBottom(): (node: HTMLElement | null) => void {
+export function useStickToBottom(): RefCallback<HTMLElement> {
   return useCallback((node: HTMLElement | null) => {
     if (node === null) {
       return
@@ -52,15 +57,15 @@ export function useStickToBottom(): (node: HTMLElement | null) => void {
      *
      * 分帧之后读与写各归各的时机：一帧至多写一次，回路断开。
      */
-    let frame = 0
+    let frame: number | null = null
 
     const observer = new ResizeObserver(() => {
-      if (frame !== 0) {
+      if (frame !== null) {
         return
       }
 
       frame = requestAnimationFrame(() => {
-        frame = 0
+        frame = null
         follow()
       })
     })
@@ -78,7 +83,7 @@ export function useStickToBottom(): (node: HTMLElement | null) => void {
       node.removeEventListener('scroll', sync)
       observer.disconnect()
 
-      if (frame !== 0) {
+      if (frame !== null) {
         cancelAnimationFrame(frame)
       }
     }
