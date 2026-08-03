@@ -3,12 +3,13 @@ import './conversation-minimap.css'
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { memo, useCallback } from 'react'
 import { turnIndexAtRow } from '../ordered-lookup'
-import { groupTurns, railSlots, useRailBudget } from './rail-groups'
+import { groupTurns, railSlots } from './rail-groups'
 import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
+import { useRailBudget } from './use-rail-budget'
 import { useRailCard } from './use-rail-card'
 
-/* poietica:conversation-minimap-card@v24 */
+/* poietica:conversation-minimap-card@v25 */
 
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
@@ -37,6 +38,29 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const { ref: measure, available } = useRailBudget()
 
   /*
+   * 先算装得下几格,再决定一格代表几轮。
+   *
+   * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,N 是屏幕上放得
+   * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
+   */
+  const focus = turnIndexAtRow(turns, activeRow)
+  const items = groupTurns(turns, railSlots(turns.length, available), focus)
+
+  /*
+   * 有序数组上求"最后一个不晚于当前行的一格",这是二分。
+   *
+   * 并格没有破坏前提:桶首的 rowIndex 仍然严格递增,所以二分照旧成立,答案从
+   * "第几轮"变成"第几格",而那正是要高亮的东西。
+   */
+  const active = turnIndexAtRow(items, activeRow)
+
+  /*
+   * 折叠动画的触发条件：格子的身份序列变了。它只有在并格结果算完之后才说得出口，
+   * 所以这个 hook 排在 items 之后 —— 顺序就是数据的顺序。
+   */
+  const flip = useFoldFlip(items.map((item) => item.id).join('|'))
+
+  /*
    * 两个 ref 落在同一个节点上:一个要指针,一个要尺寸。
    *
    * 两者都返回清理函数,合并之后也必须返回一个 —— React 19 在卸载时调用它。
@@ -59,29 +83,6 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
     },
     [card, fisheye, flip, measure],
   )
-
-  /*
-   * 先算装得下几格,再决定一格代表几轮。
-   *
-   * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,N 是屏幕上放得
-   * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
-   */
-  const focus = turnIndexAtRow(turns, activeRow)
-  const items = groupTurns(turns, railSlots(turns.length, available), focus)
-
-  /*
-   * 有序数组上求"最后一个不晚于当前行的一格",这是二分。
-   *
-   * 并格没有破坏前提:桶首的 rowIndex 仍然严格递增,所以二分照旧成立,答案从
-   * "第几轮"变成"第几格",而那正是要高亮的东西。
-   */
-  const active = turnIndexAtRow(items, activeRow)
-
-  /*
-   * 折叠动画的触发条件：格子的身份序列变了。它只有在并格结果算完之后才说得出口，
-   * 所以这个 hook 排在 items 之后 —— 顺序就是数据的顺序。
-   */
-  const flip = useFoldFlip(items.map((item) => item.id).join('|'))
 
   /* 每格都要念一遍「共 N 轮」，但 N 一格一格地不会变。 */
   const total = String(turns.length)
