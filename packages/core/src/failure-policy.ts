@@ -64,17 +64,34 @@ const RECOVERY_BY_IMPACT = {
 } satisfies Record<FailureImpact, ReadonlySet<FailureRecovery>>
 
 /**
- * 每个 impact 只允许一种 scope —— 这张表就是规则本身。
+ * 每个 impact 允许哪些 scope，以及违反时说什么 —— 规则和它的说法放在一起。
  *
- * 之前是一个四分支 switch，每个分支写一遍相同形状的判断；规则藏在控制流里，
- * 加一个 impact 就要再抄一遍。
+ * message 是写死的句子，不是从 impact 拼出来的。impact 是给机器看的标识符，
+ * 错误文案是给人看的规约：它会进日志和崩溃上报，不应该因为将来重命名一个
+ * 枚举成员就跟着变形。表格化要的是"加 impact 不用再抄一遍分支"，
+ * 不是"把文案也变成派生物"。
  */
-const SCOPE_BY_IMPACT = {
-  recoverable: new Set<FailureScope['kind']>(['operation', 'feature']),
-  'feature-degraded': new Set<FailureScope['kind']>(['feature']),
-  'application-fatal': new Set<FailureScope['kind']>(['application']),
-  'native-fatal': new Set<FailureScope['kind']>(['native-process']),
-} satisfies Record<FailureImpact, ReadonlySet<FailureScope['kind']>>
+const SCOPE_RULES = {
+  recoverable: {
+    allowed: new Set<FailureScope['kind']>(['operation', 'feature']),
+    message: 'Recoverable failure cannot own an application or native-process scope.',
+  },
+  'feature-degraded': {
+    allowed: new Set<FailureScope['kind']>(['feature']),
+    message: 'Feature-degraded failure requires a feature scope.',
+  },
+  'application-fatal': {
+    allowed: new Set<FailureScope['kind']>(['application']),
+    message: 'Application-fatal failure requires an application scope.',
+  },
+  'native-fatal': {
+    allowed: new Set<FailureScope['kind']>(['native-process']),
+    message: 'Native-fatal failure requires a native-process scope.',
+  },
+} satisfies Record<
+  FailureImpact,
+  { readonly allowed: ReadonlySet<FailureScope['kind']>; readonly message: string }
+>
 
 export function createClassifiedFailure(input: ClassifiedFailureInput): ClassifiedFailure {
   validateFailurePolicy(input)
@@ -146,9 +163,10 @@ export function validateFailurePolicy(input: ClassifiedFailureInput): void {
     { impact: input.impact, recovery: input.recovery },
   )
 
-  assertInvariant(
-    SCOPE_BY_IMPACT[input.impact].has(input.scope.kind),
-    `${input.impact} failure requires a ${[...SCOPE_BY_IMPACT[input.impact]].join(' or ')} scope.`,
-    { impact: input.impact, scope: input.scope.kind },
-  )
+  const scopeRule = SCOPE_RULES[input.impact]
+
+  assertInvariant(scopeRule.allowed.has(input.scope.kind), scopeRule.message, {
+    impact: input.impact,
+    scope: input.scope.kind,
+  })
 }

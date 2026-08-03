@@ -17,7 +17,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@poietica/test-kit": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "^19.2.8",
