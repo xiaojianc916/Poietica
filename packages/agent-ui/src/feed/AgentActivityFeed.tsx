@@ -3,8 +3,9 @@ import './agent-activity-feed.css'
 import type { FeedRow } from '@poietica/agent-timeline'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useDevicePixels } from '../primitives/use-device-pixels'
 import { type RowSpan, rowAtAnchor } from './reading-position'
-import { useDevicePixels } from './use-device-pixels'
+import { useDrawerMotion } from './use-drawer-motion'
 import { useRevealIntent } from './use-reveal-intent'
 
 /* poietica:conversation-minimap-audit@v15 */
@@ -45,41 +46,6 @@ const BOTTOM_THRESHOLD_PX = 48
  * 会话行远高于表格行,预留少了会在快速滚动时露白,多了则白白测量。
  */
 const OVERSCAN_ROWS = 6
-
-/**
- * 抽屉那条过渡改的是哪个属性。
- *
- * 思考面板与工具卡片的展开收起都靠 grid-template-rows 从 0fr 走到 1fr
- * （timeline.css）。滚动区认这一个属性名，就等于认「有人正在故意改变某一
- * 行的高度」，而不必知道是谁在改。
- */
-const DRAWER_PROPERTY = 'grid-template-rows'
-
-/**
- * 此刻是否有抽屉正在改某一行的高度。
- *
- * 问的是浏览器的活动动画表，不是我们自己记的账。记账那一版漏在减的那一头：
- * 行在动画途中被虚拟列表卸载时，按 CSS Transitions 规范过渡被取消，而
- * transitioncancel 在已经脱离文档的那个节点上派发 —— 冒泡不到滚动区，于是
- * 加了减不回来，计数只增不减，锚点永远卡在让位状态。
- *
- * getAnimations 没有这个可能：卸载的行连同它的过渡一起从表里消失，被取消的
- * 过渡也一样。没有账本，就不存在账本对不上。
- *
- * 只认 DRAWER_PROPERTY 这一条 —— 同一个元素上还有 opacity 的过渡，行里还有
- * 悬停底色，那些都不是在改高度。
- *
- * getAnimations 在 jsdom 里没有实现，所以先探后用。
- */
-const drawersAreMoving = (transcript: HTMLElement): boolean => {
-  if (typeof transcript.getAnimations !== 'function') {
-    return false
-  }
-
-  return transcript
-    .getAnimations({ subtree: true })
-    .some((animation) => (animation as CSSTransition).transitionProperty === DRAWER_PROPERTY)
-}
 
 /**
  * 视线在视口里的位置,自上而下的比例。
@@ -265,15 +231,14 @@ export function AgentActivityFeed({
    * 这同时是第三道保险：万一让位状态因为任何原因没收回来，下一轮开始时
    * isBusy 转真，锚点自己就回到末端。
    *
-   * 「正在动」不自己记账，读的是活动动画表，理由见 drawersAreMoving。这里只
-   * 存一个布尔值和一个帧号：transitionrun 起循环，读到表里没有抽屉就停。
+   * 「正在动」不自己记账，读的是活动动画表，理由见
+   * use-drawer-motion —— 它与 useRevealIntent 同形：一个 watch，交回一个卸载函数。
    *
    * 一个诚实的边界：prefers-reduced-motion 下过渡被关掉，不发事件，这次让位
    * 也就不发生，那种情况下仍会上移一次。不为它加兜底定时器 —— 那是拿一个
    * 猜测去补一个已知的缺口。
    */
-  const [drawersMoving, setDrawersMoving] = useState(false)
-  const drawerFrame = useRef<number | null>(null)
+  const { moving: drawersMoving, watch: watchDrawers } = useDrawerMotion(transcriptRef)
 
   const {
     pending,
@@ -301,10 +266,10 @@ export function AgentActivityFeed({
   /*
    * 本帧已经排好的那次几何读取。
    *
-   * 0 表示没有。一次滚轮滚动派发几十个事件,而它们读的是同一帧的同一份布局:
+   * null 表示没有。一次滚轮滚动派发几十个事件,而它们读的是同一帧的同一份布局:
    * 读第二次不会得到新答案,只会多两次二分和三次 setState。
    */
-  const frame = useRef(0)
+  const frame = useRef<number | null>(null)
 
   /*
    * 一次读取，两个派生量。
@@ -346,12 +311,12 @@ export function AgentActivityFeed({
    * 时机。此前每一个 scroll 事件各读一遍,答案完全相同。
    */
   const scheduleSync = useCallback(() => {
-    if (frame.current !== 0) {
+    if (frame.current !== null) {
       return
     }
 
     frame.current = requestAnimationFrame(() => {
-      frame.current = 0
+      frame.current = null
 
       const viewport = viewportRef.current
 
@@ -386,59 +351,24 @@ export function AgentActivityFeed({
 
       viewport.addEventListener('scroll', scheduleSync, { passive: true })
 
-      /*
-       * 一帧一问：表里还有抽屉吗。没有就把帧号交还，循环自己结束 —— 不需要
-       * 任何收尾事件，也就没有收不到收尾事件这回事。
-       */
-      const readDrawers = () => {
-        const transcript = transcriptRef.current
-        const moving = transcript !== null && drawersAreMoving(transcript)
-
-        setDrawersMoving(moving)
-
-        drawerFrame.current = moving ? requestAnimationFrame(readDrawers) : null
-      }
-
-      /*
-       * transitionrun 冒泡，所以挂在滚动区上就能收到任何一行里的那条过渡。
-       * 先同步置真，好让紧接着的这一次尺寸变化就落在让位里；循环只负责认出
-       * 它什么时候结束。
-       */
-      const onDrawerRun = (event: TransitionEvent) => {
-        if (event.propertyName !== DRAWER_PROPERTY) {
-          return
-        }
-
-        setDrawersMoving(true)
-
-        if (drawerFrame.current === null) {
-          drawerFrame.current = requestAnimationFrame(readDrawers)
-        }
-      }
-
-      viewport.addEventListener('transitionrun', onDrawerRun)
-
-      const unwatch = watchReveal(viewport)
+      /* 一个滚动区，一处装卸：两处订阅各自交回自己的卸载函数。 */
+      const unwatchDrawers = watchDrawers(viewport)
+      const unwatchReveal = watchReveal(viewport)
 
       return () => {
         viewport.removeEventListener('scroll', scheduleSync)
-        viewport.removeEventListener('transitionrun', onDrawerRun)
 
-        if (drawerFrame.current !== null) {
-          cancelAnimationFrame(drawerFrame.current)
-          drawerFrame.current = null
-        }
-
-        if (frame.current !== 0) {
+        if (frame.current !== null) {
           cancelAnimationFrame(frame.current)
-          frame.current = 0
+          frame.current = null
         }
 
-        unwatch()
+        unwatchDrawers()
+        unwatchReveal()
         viewportRef.current = null
       }
     },
-    [scheduleSync, watchReveal],
+    [scheduleSync, watchDrawers, watchReveal],
   )
 
   /*
@@ -529,41 +459,17 @@ export function AgentActivityFeed({
   spansRef.current = items
 
   /*
-   * 转录偏移只在它真的会变的时候量。
-   *
-   * 此前这次 offsetTop 挂在一个无依赖的布局效应里:每一次渲染强制一次同步
-   * 布局,紧接着 syncScrollState 又读三个几何量再写三个 state —— 流式输出每
-   * 个 token 一次渲染,那就是每个 token 两次强制回流加一轮额外重渲染。而偏移
-   * 由滚动区的内边距与页眉决定,与转录长度无关:它变,只可能是因为容器变了,
-   * 而容器变了下面那个 ResizeObserver 会说。
-   *
-   * 开场定位仍然排在偏移之后 —— 基准不对,scrollToEnd 就差一个偏移 —— 并且
-   * 多了一个条件:表里得有东西。此前它在首帧就把 opened 置真,于是从列表打开
-   * 一段既存对话时,那一次 scrollToEnd 落在空表上,而它再也不会重来。
-   */
-  /*
-   * 量一次转录偏移。
-   *
-   * 只有一个调用者：下面那个观察者。此前它和开场定位挤在同一个效应里，依赖数组
-   * 带着 items.length —— 而滚动经过每一个 overscan 边界都会改变可见行数，于是
-   * 滚动期间反复强制同步布局，量的还是一个与转录长度无关的量。
-   */
-  /*
    * 量，然后交出去。这里一个字都不写回 DOM。
    *
-   * 这里曾经有一段滚动补偿：尾部长高多少，就往 viewport.scrollTop 上加多少，
-   * 为的是让最后一行与输入框上沿保持恒定距离。它撤销了，因为它违反的正是这个
-   * 文件开头那条不变式 —— 滚动位置只有一个所有者，那就是虚拟器。
+   * 末端的位置只能通过交给虚拟器的那几个数（scrollMargin / paddingEnd / anchorTo）
+   * 去表达。绕过它去写滚动位置的路子试过两条，都坏在同一件事上：直接写
+   * viewport.scrollTop 是引入第二个所有者，与末端锚定对同一次尺寸变化各补偿一次；
+   * 改走 virtualizer.scrollBy 也不行 —— 它内部是 scrollToOffset(getScrollOffset() + d)，
+   * 写的是绝对位置，而这里开着 useScrollendEvent，滚动状态收敛推迟到 scrollend，
+   * 尾部尺寸在这期间一变，基准就过期了。两次的症状一模一样：滑到底也到不了底。
    *
-   * 两个纠正者对同一次尺寸变化各补偿一次，谁都不知道对方动过：末端锚定按自己
-   * 的坐标把视口拉回去，补偿又按 DOM 的坐标推一把，滚动位置停在两者拉扯出来的
-   * 地方，于是滑到底也到不了底。这条不变式在这个仓库里已经付过两次学费 ——
-   * 浏览器原生的滚动锚定在样式里被显式关掉，重复的贴底判据被删掉，理由都写在
-   * 原地。第三次不必再付。
-   *
-   * 「输入框长高时那段距离会变」这件事仍然成立，但它的解法只能在唯一那个所有者
-   * 里面：这块被遮挡区已经作为 paddingEnd 进了虚拟器的坐标系。要调的是交给它的
-   * 那个数，不是绕过它去写 scrollTop。
+   * 「输入框长高时最后一行与它的距离会变」这件事仍然成立，但解法只能在唯一那个
+   * 所有者里面：改这几个数的含义，或者换掉整套锚定模型。
    */
   const measureBounds = useCallback(() => {
     const transcript = transcriptRef.current
@@ -578,24 +484,6 @@ export function AgentActivityFeed({
     }
   }, [])
 
-  /*
-   * 这里不补偿。两次都试过，两次都坏在同一件事上。
-   *
-   * 要做的事本身是成立的：输入框长高 d，它的上沿上移 d，而 paddingEnd 只增加
-   * 可滚余量、不搬动任何内容，最后一行于是被压住。差额确实得有人补。
-   *
-   * 第一次直接写 viewport.scrollTop —— 那是第二个所有者，与末端锚定各补一次。
-   * 第二次改走 virtualizer.scrollBy，以为经由所有者自己就安全：不安全。
-   * scrollBy(d) 内部是 scrollToOffset(getScrollOffset() + d)，写的是绝对位置，
-   * 基准是虚拟器记的偏移；而这里开着 useScrollendEvent，滚动状态收敛推迟到
-   * scrollend，尾部尺寸在这期间一变，它就拿过期的基准算出过期的绝对位置写
-   * 回去。两次的症状一模一样：滑到底也到不了底。
-   *
-   * 结论是这个组件的不变式，不是一句抱怨：末端的位置只能通过交给虚拟器的那些
-   * 数（scrollMargin / paddingEnd / anchorTo）去表达，任何在它之外写滚动位置
-   * 的代码都会与它自己的纠正撞在一起。要修那段距离，只能改这几个数的含义，
-   * 或者换掉整套锚定模型 —— 那是一次单独的改动，不是在这里加一个效应。
-   */
   /*
    * 开场那一次定位，只做一次，而且要等基准定下来。
    *

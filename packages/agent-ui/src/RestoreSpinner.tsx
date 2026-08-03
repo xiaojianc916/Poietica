@@ -1,4 +1,4 @@
-import './restore-spinner.css'
+import './styles/restore-spinner.css'
 
 export interface RestoreSpinnerProps {
   /** 这一格正在把一条对话读出来，而且还没有任何一行可画。 */

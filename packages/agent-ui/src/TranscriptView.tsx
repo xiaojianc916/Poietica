@@ -8,8 +8,8 @@ import {
 } from '@poietica/agent-timeline'
 import { type ReactNode, useCallback, useMemo } from 'react'
 import { AgentActivityFeed, type FeedPort } from './feed/AgentActivityFeed'
-import { RestoreSpinner } from './feed/RestoreSpinner'
 import { ConversationMinimap } from './minimap/ConversationMinimap'
+import { RestoreSpinner } from './RestoreSpinner'
 import { ThinkingIndicator } from './timeline/ThinkingIndicator'
 
 /*
