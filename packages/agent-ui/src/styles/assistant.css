@@ -91,9 +91,11 @@
 }
 
 /*
- * 高度只有一个所有者：prompt-input.tsx。
+ * 高度只有一个所有者：composer/use-autosize.ts。
  *
- * 那里量一个替身，把像素值写进行内样式，并用 Web Animations 把这段路走完。
+ * 那里把这个元素归零、量一次 scrollHeight，把钳制后的像素值写进行内样式，
+ * 并用 Web Animations 把这段路走完。替身 div 没有了：显式关键帧不需要一个
+ * 可插值的计算值，所以它从来就不是必需的。
  * 这一层因此只剩三件事：上下限、盒模型、首帧的高度。
  *
  * field-sizing: content 已经删掉，它不是被嫌弃，是已经不接线：行内像素值恒
@@ -101,7 +103,7 @@
  * 还有配套的 @supports 分支，和一条给这个元素关闭 transition 的减弱动态规则
  * —— 这个元素身上没有 transition 了，减弱动态由 settle 里的 matchMedia 处理。
  *
- * 上下限留在这里，是因为 settle 读计算样式来取它们：一个数只写一次。
+ * 上下限留在这里，是因为 use-autosize 读计算样式来取它们：一个数只写一次。
  */
 [data-slot="prompt-input-textarea"] {
   display: block;
@@ -118,7 +120,7 @@
   caret-color: var(--cp-accent);
   resize: none;
   box-sizing: border-box;
-  /* 首帧的高度。此后这一项由 prompt-input.tsx 写行内值。 */
+  /* 首帧的高度。此后这一项由 composer/use-autosize.ts 写行内值。 */
   block-size: var(--cp-editor-idle);
 }
 

@@ -116,7 +116,7 @@
   /* motion: durations are design decisions, so they live in the token layer.
    *
    * 输入框长高没有时长令牌，是有意的：那段位移的长度由内容决定，所以时长也由
-   * 内容决定（见 composer/prompt-input.tsx 的 settle）。一个固定的毫秒数在这里
+   * 内容决定（见 composer/use-autosize.ts）。一个固定的毫秒数在这里
    * 只会让粘两行和粘两百行走同一段时间。--cp-motion-grow 因此退场。 */
   --cp-motion-swift: 140ms;
   --cp-motion-ease: var(--ui-ease-emphasized);
