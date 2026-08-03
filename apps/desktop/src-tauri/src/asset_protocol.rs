@@ -364,38 +364,7 @@ impl AssetProtocolRegistry {
     ) -> Result<(), AssetProtocolError> {
         validate_token(session_token)?;
 
-        let mut restored_assets = HashMap::<String, RegisteredAsset>::new();
-        let mut restored_bytes = 0_usize;
-
-        for asset in assets {
-            if asset.bytes.len() > MAX_ASSET_BYTES {
-                return Err(AssetProtocolError::AssetTooLarge);
-            }
-
-            restored_bytes = restored_bytes
-                .checked_add(asset.bytes.len())
-                .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
-
-            if restored_bytes > MAX_REGISTRY_BYTES {
-                return Err(AssetProtocolError::RegistryBudgetExceeded);
-            }
-
-            let AssetSessionSnapshotEntry {
-                content_hash,
-                content_type,
-                bytes,
-            } = asset;
-
-            let registered = RegisteredAsset {
-                bytes,
-                content_type,
-                references: 1,
-            };
-
-            if restored_assets.insert(content_hash, registered).is_some() {
-                return Err(AssetProtocolError::DuplicateAsset);
-            }
-        }
+        let (restored_assets, restored_bytes) = materialise(assets)?;
 
         let mut state = self
             .state
@@ -422,6 +391,75 @@ impl AssetProtocolRegistry {
         state.total_bytes = next_total;
 
         Ok(())
+    }
+
+    /// 换掉一条交付会话：撤旧与铺新在同一次写锁里完成。
+    ///
+    /// 打开一条对话此前是"先 remove_session，末尾再 restore_session"（见
+    /// commands/agent.rs 的 deliver_attachments）。两次写锁之间隔着一次库读和
+    /// 一整趟磁盘读，那段时间这条会话在注册表里并不存在 —— 而这条命令的重入
+    /// 是常态：Ctrl+R 与第二个窗口都会让它重来一遍。旧页面上还挂着的 <img>
+    /// 在那一瞬取到的是 404，协议这一侧没有重试，于是它就一直是个破图标。
+    ///
+    /// 分两步做替换从来不是一个可以靠调用方"小心一点"解决的问题，所以原语
+    /// 放在这里：中间态不对读者出现，因为它压根不存在。
+    ///
+    /// 与 restore_session 的差别只有一条：那一个坚持这条会话还不存在（文档
+    /// 打开那条路确实以此为前提），这一个不在乎。
+    ///
+    /// # Errors
+    ///
+    /// 令牌不合法、单张超限、或换上去之后越过注册表预算时返回错误；失败时
+    /// 原来那一份原封不动。
+    pub fn replace_session(
+        &self,
+        session_token: &str,
+        assets: Vec<AssetSessionSnapshotEntry>,
+    ) -> Result<(), AssetProtocolError> {
+        validate_token(session_token)?;
+
+        let (restored_assets, restored_bytes) = materialise(assets)?;
+
+        let mut state = self
+            .state
+            .write()
+            .map_err(|_| AssetProtocolError::Internal)?;
+
+        /* 旧的那一份先从账上减掉再算总量。不减就是把同一条会话的字节反复计入，
+        而打开对话这件事一天里会发生很多次 —— 那笔账只会朝一个方向漂。 */
+        let released = state.sessions.get(session_token).map_or(0, |assets| {
+            assets
+                .values()
+                .map(|asset| asset.bytes.len())
+                .sum::<usize>()
+        });
+
+        let next_total = state
+            .total_bytes
+            .saturating_sub(released)
+            .checked_add(restored_bytes)
+            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
+
+        if next_total > MAX_REGISTRY_BYTES {
+            return Err(AssetProtocolError::RegistryBudgetExceeded);
+        }
+
+        state
+            .sessions
+            .insert(session_token.to_owned(), restored_assets);
+
+        state.total_bytes = next_total;
+
+        Ok(())
+    }
+
+    /// 注册表此刻替所有会话记着多少字节。
+    ///
+    /// 只给测试。预算是这个类型唯一一笔跨会话的状态，也是替换写错时唯一会
+    /// 出问题的地方，而它从外面完全看不见 —— 看不见的不变量等于没有不变量。
+    #[cfg(test)]
+    fn total_bytes(&self) -> usize {
+        self.state.read().map_or(0, |state| state.total_bytes)
     }
 
     pub fn snapshot_session(
@@ -542,6 +580,53 @@ impl AssetProtocolRegistry {
             .cloned()
             .ok_or(AssetProtocolError::NotFound)
     }
+}
+
+/// 把一批已验身份的资源物化成一条会话的内容，以及它一共占多少字节。
+///
+/// 单张与整批的上限都在这里算清，而且在任何人拿写锁之前算清 —— 失败因此
+/// 不可能留下半条会话，这正是 restore_session 文档里那句「Failure never
+/// publishes an empty or partially restored session」的实现处。
+///
+/// 铺一条新的（restore_session）与换掉一条旧的（replace_session）走的是同一段，
+/// 两者的区别只剩下"这条会话已经在了算不算错"这一个判断。
+fn materialise(
+    assets: Vec<AssetSessionSnapshotEntry>,
+) -> Result<(HashMap<String, RegisteredAsset>, usize), AssetProtocolError> {
+    let mut restored_assets = HashMap::<String, RegisteredAsset>::new();
+    let mut restored_bytes = 0_usize;
+
+    for asset in assets {
+        if asset.bytes.len() > MAX_ASSET_BYTES {
+            return Err(AssetProtocolError::AssetTooLarge);
+        }
+
+        restored_bytes = restored_bytes
+            .checked_add(asset.bytes.len())
+            .ok_or(AssetProtocolError::RegistryBudgetExceeded)?;
+
+        if restored_bytes > MAX_REGISTRY_BYTES {
+            return Err(AssetProtocolError::RegistryBudgetExceeded);
+        }
+
+        let AssetSessionSnapshotEntry {
+            content_hash,
+            content_type,
+            bytes,
+        } = asset;
+
+        let registered = RegisteredAsset {
+            bytes,
+            content_type,
+            references: 1,
+        };
+
+        if restored_assets.insert(content_hash, registered).is_some() {
+            return Err(AssetProtocolError::DuplicateAsset);
+        }
+    }
+
+    Ok((restored_assets, restored_bytes))
 }
 
 /// 这条资源在 webview 里的地址。
@@ -1283,6 +1368,63 @@ mod tests {
             registry.snapshot_session("duplicate-session",),
             Err(AssetProtocolError::NotFound),
         ));
+    }
+
+    /*
+     * 打开一条对话会反复走到这里：Ctrl+R 一次，开第二个窗口一次。
+     * restore_session 会拒绝第二次 —— 那正是调用方此前不得不先把它拆掉的原因，
+     * 而拆和铺之间那段空窗就是屏幕上的破图标。这一个不需要拆。
+     */
+    #[test]
+    fn replacing_a_live_session_swaps_its_contents_in_one_step() {
+        let registry = AssetProtocolRegistry::default();
+
+        let before = Arc::new(vec![1, 2, 3]);
+        let after = Arc::new(vec![4, 5, 6]);
+
+        registry
+            .replace_session("thread-1", vec![entry(&before)])
+            .expect("first delivery should publish");
+
+        registry
+            .replace_session("thread-1", vec![entry(&after)])
+            .expect("second delivery should replace, not refuse");
+
+        assert!(
+            !registry
+                .contains("thread-1", &hash(before.as_slice()))
+                .expect("the old asset should be gone")
+        );
+
+        assert!(
+            registry
+                .contains("thread-1", &hash(after.as_slice()))
+                .expect("the new asset should resolve")
+        );
+
+        /* 反复铺同一条会话不该把字节重复计入预算。分两步时这笔账由 remove
+        那一半负责减，少走一次就永远回不来，而它对外完全不可见。 */
+        let steady = registry.total_bytes();
+
+        for _repeat in 0..8 {
+            registry
+                .replace_session("thread-1", vec![entry(&after)])
+                .expect("delivery should stay idempotent");
+        }
+
+        assert_eq!(
+            registry.total_bytes(),
+            steady,
+            "反复交付同一条会话不该把字节重复计入预算"
+        );
+
+        let response = registry.response(&request(&format!(
+            "poietica-asset://asset/thread-1/{}",
+            hash(after.as_slice())
+        )));
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), after.as_ref());
     }
 
     #[test]

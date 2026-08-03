@@ -1544,15 +1544,9 @@ async fn deliver_attachments(
 
     let session = thread_id.to_string();
 
-    /* 上一次打开这条对话铺下的那一份先撤掉。restore_session 拒绝往一个已经
-    存在的会话上再铺一次，而这条命令本来就会被反复调用 —— 它自己的文档写着
-    「渲染层可以在连接还活着的时候整个重来，Ctrl+R 就是，开第二个窗口也是」。
-    撤了再铺，重入因此是它的常态而不是例外。 */
-    let _dropped = assets.remove_session(&session).map_err(asset)?;
-
-    if ledger.is_empty() {
-        return Ok(Vec::new());
-    }
+    /* 账本空了也要走完这一趟：上一次铺下的那一份得撤掉，而"撤掉"现在就是
+    "换成一条空的"。此前这里提前 return，撤除靠的是函数开头那一次单独的
+    remove_session —— 两条返回路径,两处撤除时机,而它们必须永远一致。 */
 
     /* 按摘要去重。同一张图挂在两轮上是常事 —— 内容寻址的全部意义就在这里 ——
     而 restore_session 收到两个相同的摘要会把整批拒掉。账本给的是链接行，不是
@@ -1612,7 +1606,12 @@ async fn deliver_attachments(
         .map(|entry| entry.content_hash().to_owned())
         .collect::<HashSet<_>>();
 
-    assets.restore_session(&session, entries).map_err(asset)?;
+    /* 撤旧与铺新在注册表的同一次写锁里完成。此前是"函数开头 remove_session、
+    函数末尾 restore_session"，中间隔着一次库读和一整趟磁盘读：那段时间这条
+    会话在注册表里不存在，而这条命令的重入是常态（Ctrl+R、第二个窗口）。旧
+    页面上还挂着的 <img> 在那一瞬取到 404，协议这一侧没有重试，破图标就留下
+    来了。 */
+    assets.replace_session(&session, entries).map_err(asset)?;
 
     ledger
         .into_iter()
