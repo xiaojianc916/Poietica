@@ -426,59 +426,33 @@ export function AgentActivityFeed({
    * 滚动期间反复强制同步布局，量的还是一个与转录长度无关的量。
    */
   /*
-   * 上一次的尾部高度。
+   * 量，然后交出去。这里一个字都不写回 DOM。
    *
-   * 只为一件事：算出它变了多少。-1 是「还没量过」—— 首次测量的「变化量」是
-   * 整个尾部的高度，而那不是一次变化，是它的初值。
+   * 这里曾经有一段滚动补偿：尾部长高多少，就往 viewport.scrollTop 上加多少，
+   * 为的是让最后一行与输入框上沿保持恒定距离。它撤销了，因为它违反的正是这个
+   * 文件开头那条不变式 —— 滚动位置只有一个所有者，那就是虚拟器。
+   *
+   * 两个纠正者对同一次尺寸变化各补偿一次，谁都不知道对方动过：末端锚定按自己
+   * 的坐标把视口拉回去，补偿又按 DOM 的坐标推一把，滚动位置停在两者拉扯出来的
+   * 地方，于是滑到底也到不了底。这条不变式在这个仓库里已经付过两次学费 ——
+   * 浏览器原生的滚动锚定在样式里被显式关掉，重复的贴底判据被删掉，理由都写在
+   * 原地。第三次不必再付。
+   *
+   * 「输入框长高时那段距离会变」这件事仍然成立，但它的解法只能在唯一那个所有者
+   * 里面：这块被遮挡区已经作为 paddingEnd 进了虚拟器的坐标系。要调的是交给它的
+   * 那个数，不是绕过它去写 scrollTop。
    */
-  const tailSizeRef = useRef(-1)
-
   const measureBounds = useCallback(() => {
     const transcript = transcriptRef.current
     const tail = tailRef.current
-    const viewport = viewportRef.current
 
     if (transcript !== null) {
       setScrollMargin(transcript.offsetTop)
     }
 
-    if (tail === null) {
-      return
+    if (tail !== null) {
+      setTailSize(tail.offsetHeight)
     }
-
-    const next = tail.offsetHeight
-    const previous = tailSizeRef.current
-
-    tailSizeRef.current = next
-
-    /*
-     * 尾部长高多少，滚动位置就跟着走多少。
-     *
-     * 尾部的高度就是输入框那块被遮挡区：--cp-dock-clearance 是实测的输入框
-     * 高度，再加一段溶解距离。输入框长高时它的上沿往上走，而加大下内边距只
-     * 增加可滚的余量、不搬动任何内容 —— 最后一行原地不动，它与输入框上沿的
-     * 距离于是真的变小了。paddingEnd 声明的是空间，不是位置。
-     *
-     * 这块被遮挡区包含问答面板：面板是输入框自己长成的（见 AssistantComposer），
-     * 仍在同一条带子里，所以它的高度走的是同一次测量，不需要第二条通路。
-     *
-     * 补偿是这一类布局的通行解法：iOS 的 contentInset 调整，以及 Slack 与
-     * ChatGPT 的输入框长高时对滚动位置的同步修正，做的都是这一句。
-     *
-     * 不分「贴底」与「没贴底」两种情况，因为不需要：内容长高 d，可滚上限也
-     * 正好抬高 d。贴底时 scrollTop 已在上限，加 d 之后被钳到新的上限，仍然
-     * 贴底；没贴底时它保持与内容的相对位置。同一句话覆盖两种，也就不会多出
-     * 一个贴底判据去和虚拟器的 scrollEndThreshold 各说各话 —— 这个文件已经
-     * 因为同一个理由删过一次重复判据。
-     *
-     * 写在这里而不是别处：这是尾部尺寸唯一的读取点，补偿与读数因此同源同帧。
-     * ResizeObserver 的回调跑在布局之后、绘制之前，所以不会先画错一帧再纠正。
-     */
-    if (viewport !== null && previous >= 0 && next !== previous) {
-      viewport.scrollTop += next - previous
-    }
-
-    setTailSize(next)
   }, [])
 
   /*
