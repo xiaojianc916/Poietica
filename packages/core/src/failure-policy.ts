@@ -1,5 +1,4 @@
 import { v7 as uuidv7 } from 'uuid'
-import { systemClock } from './clock'
 import { assertInvariant } from './errors'
 import { optionalProperty } from './object'
 
@@ -113,7 +112,7 @@ export function createClassifiedFailure(input: ClassifiedFailureInput): Classifi
     technicalMessage: input.technicalMessage,
     scope: Object.freeze(input.scope),
     recovery: input.recovery,
-    occurredAt: systemClock.nowIso(),
+    occurredAt: new Date().toISOString(),
     ...optionalProperty('cause', input.cause),
     context: Object.freeze({ ...(input.context ?? {}) }),
   })

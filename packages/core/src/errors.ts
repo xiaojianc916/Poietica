@@ -1,5 +1,3 @@
-import { systemClock } from './clock'
-
 export abstract class DomainError extends Error {
   abstract readonly code: string
   abstract readonly userMessage: string
@@ -10,7 +8,7 @@ export abstract class DomainError extends Error {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message)
     this.name = this.constructor.name
-    this.timestamp = systemClock.nowIso()
+    this.timestamp = new Date().toISOString()
     this.context = context
   }
 

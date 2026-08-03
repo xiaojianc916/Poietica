@@ -6,8 +6,6 @@ export {
   isCancellationError,
   withCancellation,
 } from './cancellation'
-
-export { type Clock, createFixedClock, createMockClock, systemClock } from './clock'
 export {
   assertInvariant,
   assertUnreachable,
@@ -56,20 +54,3 @@ export {
   type WindowId,
 } from './id'
 export { optionalProperty } from './object'
-export type { Err, Ok, Result } from './result'
-export {
-  all,
-  err,
-  firstOk,
-  flatMap,
-  fromPromise,
-  fromThrowable,
-  isErr,
-  isOk,
-  map,
-  mapErr,
-  match,
-  ok,
-  unwrap,
-  unwrapErr,
-} from './result'
