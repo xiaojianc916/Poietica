@@ -8,8 +8,8 @@ export {
 } from './agent-capability-store'
 export type { ThreadListItem, ThreadsList } from './thread-order'
 export { shorten } from './thread-title'
-export type { TranscriptSink } from './threads-store'
 export { ThreadsStore } from './threads-store'
+export type { TranscriptSink } from './transcript-sink'
 export { TranscriptStore } from './transcript-store'
 export { TranscriptsProvider, useTranscripts } from './transcripts-context'
 export type {
