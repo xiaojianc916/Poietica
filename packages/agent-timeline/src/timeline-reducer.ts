@@ -1,5 +1,5 @@
 import type { RunEvent } from '@poietica/acp'
-import { apply } from './acp-projection'
+import { apply, surelyIgnored } from './acp-projection'
 import type { MessageImage, TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { beginRun, draftOf, freeze, namespace, openSegment, push } from './timeline-draft'
@@ -247,9 +247,10 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
   let draft: Draft | null = null
 
   for (const event of events) {
-    /* run_started 例外：它开的是新一段，段内的 seq 窗口本来就要重来，
-       拿上一段的窗口去判它，判出来的"重复"是假的。 */
-    if (event.kind !== 'run_started' && event.seq <= (draft?.lastSeq ?? state.lastSeq)) {
+    /* 一批全是重复帧时不开草稿，原样把入参那个对象交回去。判据不在这里写第二
+       遍 —— surelyIgnored 与真正的那道闸门住在同一个文件里，它只做单向承诺：
+       为真则一定会被丢掉。 */
+    if (surelyIgnored(event, draft?.lastSeq ?? state.lastSeq)) {
       continue
     }
 

@@ -26,16 +26,36 @@ import type {
 import type { Draft } from './timeline-draft'
 import { namespace, positionOf, push, sealTail } from './timeline-draft'
 
+/**
+ * 这一帧一定会被丢掉吗。
+ *
+ * 这不是一道闸门，是一次保守的预判：为真时 apply 一定丢，为假时什么都不承诺。
+ * 它唯一的作用是让一整批全是重复帧的输入不必开草稿 —— 引用原样交回，下游的记忆
+ * 化不会被白白打掉。真正的去重只有 apply 里那一处，就在下面。
+ *
+ * run_started 不预判：它开的那一段窗口马上要重来（beginRun），拿上一段的窗口去
+ * 判它，判出来的重复是假的。
+ *
+ * 它住在这里而不住在调用方，是因为它逼近的那条判据在这里 —— 一份权威，一份贴着
+ * 权威写的近似，中间没有可以各自漂移的余地。
+ */
+export function surelyIgnored(event: RunEvent, lastSeq: number): boolean {
+  return event.kind !== 'run_started' && event.seq <= lastSeq
+}
+
 export function apply(draft: Draft, event: RunEvent): void {
   /*
    * 段的边界不在这里判。
    *
-   * 一帧 run_started 可能是新的一轮，也可能是同一份日志被重放了一遍，
-   * 而这两者的 seq、at、prompt 全都一样：apply 手上没有任何东西能把它们
-   * 分开。所以由知道自己在干什么的调用方来开段——replayThreadEvents 遍历
-   * 多轮日志时开，applyRunEvent 在实时流上收到一轮开始时开，而
-   * replayRunEvents 一轮到底，一段都不开：同一份日志放两遍必须得到同一个
-   * 状态，这是回放能被信任的前提。
+   * 一帧 run_started 可能是新的一轮，也可能是同一份日志被重放了一遍，而这两者的
+   * seq、at、prompt 全都一样：apply 手上没有任何东西能把它们分开。所以由知道自己
+   * 在干什么的那一层来开段 —— 人先说话时是 appendUserMessage，没有经过输入框的那
+   * 些轮次是 beginRun，而 replayRunEvents 一轮到底、一段都不开：同一份日志放两遍
+   * 必须得到同一个状态，这是回放能被信任的前提。
+   *
+   * 去重只有下面这一处。正因为一段都不开的那条路径上没有第二张网，这里不能跟着
+   * surelyIgnored 一起给 run_started 放行 —— 放行之后紧跟着的那句赋值会把窗口拨
+   * 回到它的 seq，后面每一帧都会重新生效一遍。
    */
   if (event.seq <= draft.lastSeq) {
     return
@@ -363,9 +383,13 @@ function appendChunk(
  * 所以连着来的 chunk 并成一条，与 agent 那半边（appendChunk）同一条规矩：
  * 中间插进任何别的条目，相邻就断了，那就是下一句话。
  *
- * 只并这条路径自己产的那些（id 前缀 user-）。发送时本地先上屏的那一条是
- * said-，agent 若把它原样回声一遍，那是两个来源说同一件事，不是一句话的
- * 两半 —— 并进去会把文字接成两遍。
+ * 只并这条路径自己产的那些（id 前缀 user-）。发送时本地先上屏的那一条前缀是
+ * local-said-，agent 若把它原样回声一遍，那是两个来源说同一件事，不是一句话的
+ * 两半：并进去会把文字接成两遍，各推一条则会在屏幕上显示两遍。所以下面认出它
+ * 就什么都不做。
+ *
+ * withPrompt 对 run_started 带回来的 prompt 早就做了同一次对账，这条路径此前没
+ * 做 —— 同一件事的两半，只有一半认得出对方。
  */
 function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk: string): void {
   const tail = draft.items.at(-1)
@@ -375,6 +399,22 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
 
     draft.items[draft.items.length - 1] = grown
 
+    return
+  }
+
+  /*
+   * 本地先上屏的那一条与这些 chunk 说的是同一句话。
+   *
+   * 以本地那条为准，不是随手挑一边：它是人真正敲下的字节，而协议这一条还夹着
+   * agent 注入的旁白（saidByUser 正在剥的那段）。
+   *
+   * 认出来就什么都不推 —— tail 因此仍然是它，这一轮后续的每一段 chunk 都会落回
+   * 这同一个判断上，不需要记「已经对过账了」。
+   *
+   * 这条判断能成立的前提是那句话与这一轮同段：在人说话不开段的那个版本里，本地
+   * 那条落在上一段，scope 对不上，这里认不出它。
+   */
+  if (tail?.type === 'user_message' && tail.id.startsWith(`${scope}local-said-`)) {
     return
   }
 
