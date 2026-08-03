@@ -2,6 +2,9 @@ import type { RunEvent } from '@poietica/acp'
 import { describe, expect, it } from 'vitest'
 import { createIpcSession } from '../acp-session'
 
+/* 原生侧交回来的那一种地址，原样照抄，不在这里重新拼一遍它的形状。 */
+const DELIVERED = 'poietica-asset://asset/t/0000'
+
 /*
  * 这一层只做转发。
  *
@@ -17,7 +20,7 @@ describe('ipc session', () => {
 
     const session = createIpcSession({
       bridge: {
-        prompt: () => Promise.resolve({ sessionId: 's' }),
+        prompt: () => Promise.resolve({ sessionId: 's', images: [] }),
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
       },
@@ -39,18 +42,21 @@ describe('ipc session', () => {
     expect(received.at(0)?.[1]).toBe('sess_1')
   })
 
-  it('prompt 交回原生侧给出的会话号，不自己发明一个', async () => {
+  it('prompt 把原生侧给的会话号与图片地址原样交回，一格都不吞', async () => {
     const session = createIpcSession({
       bridge: {
-        prompt: () => Promise.resolve({ sessionId: 'sess_2' }),
+        prompt: () => Promise.resolve({ sessionId: 'sess_2', images: [DELIVERED] }),
         cancel: () => Promise.resolve(),
         resolvePermission: () => Promise.resolve(),
       },
       source: { listen: () => () => {} },
     })
 
+    /* 地址与图片一起交回。此前这一格在这一层就丢了，而屏幕上看不出来：实时
+    那条路自己拼了一条 data: URL，于是协议这条路坏了很久都没有人发现。 */
     await expect(session.prompt({ threadId: 't', text: 'hi', images: [] })).resolves.toEqual({
       sessionId: 'sess_2',
+      images: [DELIVERED],
     })
   })
 })
