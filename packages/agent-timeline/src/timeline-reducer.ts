@@ -514,7 +514,7 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
 
   switch (update.sessionUpdate) {
     case 'user_message_chunk': {
-      appendSaid(draft, scope, seq, at, textOf(update.content))
+      appendSaid(draft, scope, seq, at, saidByUser(textOf(update.content)))
 
       return
     }
@@ -781,6 +781,25 @@ function sameMessage(
   return messageId === undefined || messageId === tail.messageId
 }
 
+/**
+ * 用户这一句里，哪些字是用户自己说的。
+ *
+ * agent CLI 会往这一轮的用户消息里注入自己的旁白 —— 观察到的一例：只发了一
+ * 张图，回放出来却是「一张图 + 一段 <system-reminder>，告诉模型这张图被压过、
+ * 原图在哪个路径」。那段字不是人说的，把它当成人说的话显示出来，转录就在撒谎。
+ *
+ * 剥的是标记之间的整块，不是按关键词猜。标记是成对的，非贪婪地一块块吃掉，
+ * 跨行也吃 —— 那段旁白本来就是多行的。
+ *
+ * 剥完为空时这条消息仍然留着，绝不能连气泡一起丢：一句纯图片的话，屏幕上正
+ * 是靠这一格站住的，附件按第几条用户消息挂回来（见 attachImages）。少一格，
+ * 两侧的数就不等，整批图一张都挂不上 —— 这不是假设，是这一条改动之前的现状。
+ */
+const INJECTED = /<system-reminder>[\s\S]*?<\/system-reminder>/g
+
+function saidByUser(text: string): string {
+  return text.replace(INJECTED, '').trim()
+}
 /** 追加一条：末尾那段说到这里为止，新的一条排在它后面。 */
 function push(draft: Draft, item: TimelineItem): void {
   sealTail(draft)
