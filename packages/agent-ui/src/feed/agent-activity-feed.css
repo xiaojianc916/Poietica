@@ -54,13 +54,14 @@
   contain: layout paint;
   padding-block-start: var(--cp-gutter);
   padding-inline: max(var(--cp-gutter), calc((100% - var(--cp-grid)) / 2));
-  mask-image: linear-gradient(
-    to bottom,
-    #000 calc(100% - var(--cp-dock-dissolve)),
-    rgb(0 0 0 / 0.72) calc(100% - var(--cp-dock-dissolve) * 0.62),
-    rgb(0 0 0 / 0.22) calc(100% - var(--cp-dock-dissolve) * 0.24),
-    transparent 100%
-  );
+  /*
+   * 给条留一条恒定的沟。
+   *
+   * 条是常驻的，所以这一句此刻不改变任何一帧；它防的是将来某个人把它改回
+   * 自动隐藏 —— 那一刻内容宽度会随条的出现与消失横向跳动，而这正是当初
+   * 自绘浮层的理由。官方给了这条沟，就不该再手搓一层去绕开它。
+   */
+  scrollbar-gutter: stable;
 }
 
 /*
@@ -130,7 +131,13 @@
   position: absolute;
   inset-block-end: 0;
   inset-inline: 0;
-  padding-block-end: var(--cp-dock-dissolve);
+  /*
+   * 末端空出输入框那么高 —— 它现在盖在转录上。
+   *
+   * 这个数由 dock-clearance 实测写入。回退值是一格常规间距：入口态没有
+   * 转录，也就没有人写它，而一个读不到值的 var() 会让整条声明失效。
+   */
+  padding-block-end: var(--cp-dock-clearance, var(--cp-gutter));
 }
 
 .agent-activity-feed__tail:not(:empty) {

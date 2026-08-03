@@ -552,7 +552,7 @@ export function AgentActivityFeed({
   )
 
   return (
-    <div className="agent-activity-feed" data-scrollbar-track>
+    <div className="agent-activity-feed">
       <div className="agent-activity-feed__viewport" ref={bindViewport}>
         <div
           aria-busy={isBusy}

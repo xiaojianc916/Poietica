@@ -7,8 +7,8 @@ import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
-
 import type { PromptInputHandle } from './composer/prompt-input'
+import { useDockClearance } from './dock-clearance'
 import { useAgentDialect } from './domain/agent-dialect'
 import type { QuestionAnswer } from './domain/ask-user-question'
 import {
@@ -110,6 +110,9 @@ export const AssistantSurface = memo(function AssistantSurface({
 
   /* Where a starter is written: the draft belongs to the field that holds it. */
   const composer = useRef<PromptInputHandle | null>(null)
+
+  /* 输入框盖在转录上，所以转录要知道它有多高。理由见 dock-clearance。 */
+  const dockRef = useDockClearance()
 
   /*
    * 待答的那道题。
@@ -249,6 +252,14 @@ export const AssistantSurface = memo(function AssistantSurface({
     <section
       className="assistant-surface"
       data-assistant-skin
+      /*
+       * 相位写到 DOM 上。
+       *
+       * 版式按相位分家本来就是这一层的范式（见 assistant.css：两个静止态，
+       * 两棵树）。输入框只在会话态浮起 —— 入口态它是居中的，浮起来会掉到
+       * 底部。样式表需要知道现在是哪一态，所以这个布尔值不能只留在闭包里。
+       */
+      data-phase={live ? 'live' : 'entry'}
       data-restoring={assistant.isRestoring ? 'true' : undefined}
     >
       {live ? (
@@ -271,7 +282,7 @@ export const AssistantSurface = memo(function AssistantSurface({
         </div>
       )}
 
-      <div className="assistant-surface__dock">
+      <div className="assistant-surface__dock" ref={dockRef}>
         {dock}
 
         {live ? null : (

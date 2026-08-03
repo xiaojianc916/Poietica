@@ -126,7 +126,6 @@ body {
  * 上读它,于是"要不要滚动条"和其它外观决定一样留在 CSS 里,组件不必知情。
  */
 [role="tablist"] {
-  --overlay-scrollbar: none;
 }
 
 .bg-chrome,

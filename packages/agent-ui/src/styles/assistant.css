@@ -1215,3 +1215,33 @@ svg.assistant-provider-icon {
     animation: none;
   }
 }
+
+/*
+ * 会话态：输入框盖在转录上。
+ *
+ * 此前它是滚动区的兄弟，于是滚动盒的高度天生等于「面板减去输入框」，滚动条
+ * 画不到那一段 —— 那正是当初要自绘一层浮层滚动条的理由。让它浮起来之后，
+ * 滚动盒就是整个界面，原生的条自然贯通全高，那一层手搓也就不必存在。
+ *
+ * 只在会话态浮。入口态输入框是居中的，浮起来会掉到底部 —— 两个静止态各挂
+ * 各的版式，这是本文件既定的做法，不是为这次改动新开的分支。
+ *
+ * 最后一条消息不会被压住：末端由虚拟器的 paddingEnd 空出输入框那么高，
+ * 数值由 dock-clearance 实测写进 --cp-dock-clearance。
+ */
+.assistant-surface[data-phase="live"] .assistant-surface__dock {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline: 0;
+  /*
+   * 带子是整宽的，但它不是一个可以点的东西。
+   *
+   * 不让开指针，输入框左右两侧那两片空白就会吞掉滚轮 —— 鼠标停在那里滚不
+   * 动页面，而人眼看到的是一片什么都没有的地方。收指针的只有输入框本体。
+   */
+  pointer-events: none;
+}
+
+.assistant-surface[data-phase="live"] .assistant-surface__composer {
+  pointer-events: auto;
+}

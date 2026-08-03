@@ -539,8 +539,6 @@
  * 只会白占一条车道。
  */
 .timeline-reasoning__scroll {
-  --overlay-scrollbar: none;
-
   max-block-size: var(--cp-timeline-thought-cap);
   overflow: hidden auto;
   scrollbar-width: auto;
