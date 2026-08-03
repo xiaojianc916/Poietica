@@ -56,6 +56,32 @@ const OVERSCAN_ROWS = 6
 const DRAWER_PROPERTY = 'grid-template-rows'
 
 /**
+ * 此刻是否有抽屉正在改某一行的高度。
+ *
+ * 问的是浏览器的活动动画表，不是我们自己记的账。记账那一版漏在减的那一头：
+ * 行在动画途中被虚拟列表卸载时，按 CSS Transitions 规范过渡被取消，而
+ * transitioncancel 在已经脱离文档的那个节点上派发 —— 冒泡不到滚动区，于是
+ * 加了减不回来，计数只增不减，锚点永远卡在让位状态。
+ *
+ * getAnimations 没有这个可能：卸载的行连同它的过渡一起从表里消失，被取消的
+ * 过渡也一样。没有账本，就不存在账本对不上。
+ *
+ * 只认 DRAWER_PROPERTY 这一条 —— 同一个元素上还有 opacity 的过渡，行里还有
+ * 悬停底色，那些都不是在改高度。
+ *
+ * getAnimations 在 jsdom 里没有实现，所以先探后用。
+ */
+const drawersAreMoving = (transcript: HTMLElement): boolean => {
+  if (typeof transcript.getAnimations !== 'function') {
+    return false
+  }
+
+  return transcript
+    .getAnimations({ subtree: true })
+    .some((animation) => (animation as CSSTransition).transitionProperty === DRAWER_PROPERTY)
+}
+
+/**
  * 视线在视口里的位置,自上而下的比例。
  *
  * 高亮问的是"人在读哪一轮",而不是"哪一行碰到了视口上沿"。上沿是一条边,上一轮
@@ -205,7 +231,7 @@ export function AgentActivityFeed({
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
   /*
-   * 正在展开或收起的抽屉数。
+   * 是否有抽屉正在改某一行的高度，以及这件事发生在空闲时。
    *
    * 它只服务一件事：抽屉动的时候，末端锚定要让位。理由在库的源码里 ——
    * resizeItem 中，anchorTo 为 end 且 getVirtualDistanceFromEnd() 落在
@@ -228,15 +254,26 @@ export function AgentActivityFeed({
    * 让位期间走库的默认判据：只补偿整个都在视口上方的行。视口上方的抽屉展开
    * 仍然保持读者的位置不动，视口内的抽屉直接向下长。两者都是要的。
    *
-   * 计数不是自己发明的信号。CSS 过渡自己会说：transitionrun 与
-   * transitionend / transitioncancel 一一对应，且都冒泡，所以滚动区在自己
-   * 身上听就够了，不需要任何组件向上报告，也不需要定时器去猜它何时结束。
+   * 让位还有一个前提：只在空闲时。库的 setOptions 里，followOnAppend 的整段
+   * 判断包在 merged.anchorTo === "end" 里头 —— 让位期间若正好来了一段追加，
+   * 这次跟随被整个跳过；跟随漏一次，视口就落后一个分块，下一次
+   * isAtEnd(scrollEndThreshold) 不再成立，于是再也回不来，表现就是滑到底了
+   * 界面还没到底。所以 isBusy 为真时锚点一步不让：回复在流的时候，追加与
+   * 增长照常跟随；回复停了才允许让位，而那时候没有东西会被追加，也就没有
+   * 东西会丢。
+   *
+   * 这同时是第三道保险：万一让位状态因为任何原因没收回来，下一轮开始时
+   * isBusy 转真，锚点自己就回到末端。
+   *
+   * 「正在动」不自己记账，读的是活动动画表，理由见 drawersAreMoving。这里只
+   * 存一个布尔值和一个帧号：transitionrun 起循环，读到表里没有抽屉就停。
    *
    * 一个诚实的边界：prefers-reduced-motion 下过渡被关掉，不发事件，这次让位
    * 也就不发生，那种情况下仍会上移一次。不为它加兜底定时器 —— 那是拿一个
    * 猜测去补一个已知的缺口。
    */
-  const [drawerCount, setDrawerCount] = useState(0)
+  const [drawersMoving, setDrawersMoving] = useState(false)
+  const drawerFrame = useRef<number | null>(null)
 
   const {
     pending,
@@ -357,29 +394,48 @@ export function AgentActivityFeed({
        * 途被打断（连点两下，或者这一行被卸载）。只听前者会漏减，末端锚定就此
        * 永远关着。
        */
-      const onDrawerRun = (event: TransitionEvent) => {
-        if (event.propertyName === DRAWER_PROPERTY) {
-          setDrawerCount((count) => count + 1)
-        }
+      /*
+       * 一帧一问：表里还有抽屉吗。没有就把帧号交还，循环自己结束 —— 不需要
+       * 任何收尾事件，也就没有收不到收尾事件这回事。
+       */
+      const readDrawers = () => {
+        const transcript = transcriptRef.current
+        const moving = transcript !== null && drawersAreMoving(transcript)
+
+        setDrawersMoving(moving)
+
+        drawerFrame.current = moving ? requestAnimationFrame(readDrawers) : null
       }
 
-      const onDrawerSettled = (event: TransitionEvent) => {
-        if (event.propertyName === DRAWER_PROPERTY) {
-          setDrawerCount((count) => Math.max(0, count - 1))
+      /*
+       * transitionrun 冒泡，所以挂在滚动区上就能收到任何一行里的那条过渡。
+       * 先同步置真，好让紧接着的这一次尺寸变化就落在让位里；循环只负责认出
+       * 它什么时候结束。
+       */
+      const onDrawerRun = (event: TransitionEvent) => {
+        if (event.propertyName !== DRAWER_PROPERTY) {
+          return
+        }
+
+        setDrawersMoving(true)
+
+        if (drawerFrame.current === null) {
+          drawerFrame.current = requestAnimationFrame(readDrawers)
         }
       }
 
       viewport.addEventListener('transitionrun', onDrawerRun)
-      viewport.addEventListener('transitionend', onDrawerSettled)
-      viewport.addEventListener('transitioncancel', onDrawerSettled)
 
       const unwatch = watchReveal(viewport)
 
       return () => {
         viewport.removeEventListener('scroll', scheduleSync)
         viewport.removeEventListener('transitionrun', onDrawerRun)
-        viewport.removeEventListener('transitionend', onDrawerSettled)
-        viewport.removeEventListener('transitioncancel', onDrawerSettled)
+
+        if (drawerFrame.current !== null) {
+          cancelAnimationFrame(drawerFrame.current)
+          drawerFrame.current = null
+        }
 
         if (frame.current !== 0) {
           cancelAnimationFrame(frame.current)
@@ -455,10 +511,10 @@ export function AgentActivityFeed({
      *
      * 唯一的例外是抽屉：读者亲手改变一行的高度时，末端锚定会把这次长高加到
      * scrollTop 上，面板于是向上长。那段时间锚点让给 start，理由与判据写在
-     * 上面 drawerCount 那里。这不是把模式当开关用 —— 立场没变，会话流的稳定
+     * 上面 drawersMoving 那里。这不是把模式当开关用 —— 立场没变，会话流的稳定
      * 侧仍然是末端；变的是「谁引起了这次尺寸变化」，而库自己不区分。
      */
-    anchorTo: drawerCount > 0 ? 'start' : 'end',
+    anchorTo: drawersMoving && !isBusy ? 'start' : 'end',
     /* 人正在别处看的时候,新消息不夺取视口。 */
     followOnAppend: !revealing,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
