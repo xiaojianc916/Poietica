@@ -802,6 +802,3 @@ export class TranscriptStore {
     })
   }
 }
-
-/** 帧流全进程只有一条，所以路由它的 store 也只有一个。 */
-export const transcripts = new TranscriptStore()

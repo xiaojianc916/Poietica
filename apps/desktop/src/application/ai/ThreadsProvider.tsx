@@ -1,4 +1,4 @@
-import { ThreadsStore, transcripts } from '@poietica/agent-session'
+import { ThreadsStore, TranscriptStore, TranscriptsProvider } from '@poietica/agent-session'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo } from 'react'
 
@@ -27,9 +27,12 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
    * 的帧，也是这段历史唯一的来源。交接必须发生在打开它的地方，这里就是造出那
    * 个 store 的唯一一行。
    */
+  /* 转录归这一棵树，不归这个进程：造它的地方与造对话列表的是同一处。 */
+  const transcripts = useMemo(() => new TranscriptStore(), [])
+
   const store = useMemo(
     () => new ThreadsStore(desktopThreads(), desktopSessionConfig(), transcripts),
-    [],
+    [transcripts],
   )
 
   useEffect(() => {
@@ -48,5 +51,9 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
     return store.start()
   }, [store])
 
-  return <ThreadsContext.Provider value={store}>{children}</ThreadsContext.Provider>
+  return (
+    <TranscriptsProvider value={transcripts}>
+      <ThreadsContext.Provider value={store}>{children}</ThreadsContext.Provider>
+    </TranscriptsProvider>
+  )
 }

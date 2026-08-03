@@ -3,7 +3,7 @@ import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
 import { selectPendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Transcript } from './transcript-store'
-import { transcripts } from './transcript-store'
+import { useTranscripts } from './transcripts-context'
 
 /*
  * 界面从 store 里读什么，以什么粒度读。
@@ -81,9 +81,11 @@ export interface AssistantSession {
  * 每次渲染换一个 getSnapshot，React 会当作快照可能变了。
  */
 function useSlice<TValue>(key: string, project: (transcript: Transcript) => TValue): TValue {
+  const transcripts = useTranscripts()
+
   return useSyncExternalStore(
-    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [key]),
-    useCallback(() => project(transcripts.read(key)), [key, project]),
+    useCallback((onChange: () => void) => transcripts.subscribe(key, onChange), [transcripts, key]),
+    useCallback(() => project(transcripts.read(key)), [transcripts, key, project]),
   )
 }
 
@@ -121,6 +123,8 @@ export function useAssistantSession({
   onUserMessage,
   session,
 }: AssistantSessionOptions): AssistantSession {
+  const transcripts = useTranscripts()
+
   /*
    * 入口那一格也需要一个键。
    *
@@ -146,7 +150,7 @@ export function useAssistantSession({
     }
 
     transcripts.ensure(session)
-  }, [session])
+  }, [session, transcripts])
 
   /*
    * 说一句话，就是说一句话。
@@ -168,18 +172,18 @@ export function useAssistantSession({
         text: submission.text,
       })
     },
-    [endpoint, identify, key, onUserMessage, session],
+    [endpoint, identify, key, onUserMessage, session, transcripts],
   )
 
   const cancel = useCallback(() => {
     transcripts.cancel(key)
-  }, [key])
+  }, [key, transcripts])
 
   const resolvePermission = useCallback(
     (requestId: string, optionId: string) => {
       transcripts.resolvePermission(key, requestId, optionId)
     },
-    [key],
+    [key, transcripts],
   )
 
   return { key, status, send, cancel, resolvePermission, isRestoring }
