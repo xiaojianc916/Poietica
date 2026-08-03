@@ -137,7 +137,15 @@
    * 这个数由 dock-clearance 实测写入。回退值是一格常规间距：入口态没有
    * 转录，也就没有人写它，而一个读不到值的 var() 会让整条声明失效。
    */
-  padding-block-end: var(--cp-dock-clearance, var(--cp-gutter));
+  /*
+   * 输入框那么高，再加一段渐隐的长度。
+   *
+   * 后面这一段不是「看着松一点」挑出来的数：带子上沿之上那 --cp-dock-dissolve
+   * 是渐变区，最后一行若停在里面，滚到底时它的下半截是淡的。这条约束原来那份
+   * 注释已经写过 ——「末端永远有一段清空距离，滚到底时最后一行停在溶解带之外」
+   * —— 只是那时溶解带在滚动盒上。带子换了位置，这个数跟着换了来源，含义没变。
+   */
+  padding-block-end: calc(var(--cp-dock-clearance, var(--cp-gutter)) + var(--cp-dock-dissolve));
 }
 
 .agent-activity-feed__tail:not(:empty) {

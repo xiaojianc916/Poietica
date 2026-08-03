@@ -207,7 +207,17 @@ body {
  */
 
 * {
-  scrollbar-width: thin;
+  /*
+   * 合法值只有三个：auto、thin、none。
+   *
+   * 标准属性里没有像素这个旋钮。想要一个任意宽度只有一条路 —— 回到
+   * ::-webkit-scrollbar，而它是非标准的遗留伪元素，并且与 scrollbar-color /
+   * scrollbar-width 互斥：一旦给伪元素上样式，标准属性整组失效，滑块、轨道、
+   * 拐角、按钮就得重新一笔一笔画回来 —— 那正是上一轮删掉的那 21KB。
+   *
+   * 所以 thin 与 auto 之间二选一，没有中间档。这里取 auto。
+   */
+  scrollbar-width: auto;
   scrollbar-color: var(--desktop-scrollbar-thumb) transparent;
 }
 

@@ -1232,7 +1232,25 @@ svg.assistant-provider-icon {
 .assistant-surface[data-phase="live"] .assistant-surface__dock {
   position: absolute;
   inset-block-end: 0;
-  inset-inline: 0;
+  /*
+   * 右边让开滚动条那条沟。一句话修两件事。
+   *
+   * 其一，下面那层渐隐横跨整条带子，不让开就会盖住滚动条的最后一段，常驻
+   * 贯通就废了一半。
+   *
+   * 其二 —— 这条才是真的 bug：滚动盒的 padding-inline 里那个百分比按包含块
+   * 算，也就是整个界面宽 W，不减那条沟；而它自己的内容宽还要再减掉沟。于是
+   * 消息列的中心落在 W/2 减去半条沟的位置，整宽的带子却把输入框摆在 W/2 ——
+   * 输入框比消息列右偏半条沟、宽出一整条沟。这是上一轮 scrollbar-gutter:
+   * stable 落地那一刻起就存在的，只是还没有人盯着它看。
+   *
+   * 让开之后带子的内容宽解出 768 − 沟，与消息列逐像素相同，中心也重合。
+   *
+   * 兜底 0px 而不是省略：那个变量由 chrome 层在启动时写，React 挂载早于它是
+   * 不可能的，但一个读不到值的 var() 会让整条 inset-inline 失效，代价是带子
+   * 整个塌掉。这种回退不值得赌。
+   */
+  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
   /*
    * 带子是整宽的，但它不是一个可以点的东西。
    *
@@ -1244,4 +1262,28 @@ svg.assistant-provider-icon {
 
 .assistant-surface[data-phase="live"] .assistant-surface__composer {
   pointer-events: auto;
+}
+
+/*
+ * 内容在够到输入框之前化掉。
+ *
+ * 不用色块。色块有一条硬边，滚上来的字会被齐刷刷切断，那比漏出来更难看 ——
+ * 渐变没有这条边，这也是 ChatGPT、Claude、Cursor 在同一处的做法。
+ *
+ * --cp-dock-dissolve 不是新令牌：上一轮删掉的是它挂在滚动盒上的那个消费点
+ * （mask 作用于整个元素盒，会连原生滚动条一起抹掉），令牌本身一直在
+ * composer-metrics.css 里空着。它现在画在带子上，碰不到滚动盒。
+ *
+ * 起点抬到带子上沿之上一整段：带子自己的上内边距只有 --cp-pad-mid，不抬的话
+ * 那 8px 里的字是硬切的。到带子上沿时已经是纯底色，往下整片实色，所以输入框
+ * 四周和它下面那道 --cp-gutter 都不再漏内容。
+ *
+ * 是 ::before 而不是 ::after：伪元素与流内子元素按树序绘制，::before 在前，
+ * 输入框因此压在它上面。带子整体 pointer-events: none，这一层也就不吃滚轮。
+ */
+.assistant-surface[data-phase="live"] .assistant-surface__dock::before {
+  position: absolute;
+  inset: calc(-1 * var(--cp-dock-dissolve)) 0 0;
+  background: linear-gradient(to bottom, transparent 0, var(--cp-ground) var(--cp-dock-dissolve));
+  content: "";
 }
