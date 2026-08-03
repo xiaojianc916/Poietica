@@ -97,6 +97,9 @@ catalogs:
     '@tauri-apps/cli':
       specifier: 2.11.4
       version: 2.11.4
+    '@tauri-apps/plugin-dialog':
+      specifier: ^2.0.0
+      version: 2.7.2
 
 importers:
 
@@ -370,6 +373,9 @@ importers:
       '@poietica/agent-registry':
         specifier: workspace:*
         version: link:../agent-registry
+      '@poietica/agent-ui':
+        specifier: workspace:*
+        version: link:../agent-ui
       '@poietica/ipc':
         specifier: workspace:*
         version: link:../ipc
@@ -379,6 +385,9 @@ importers:
       '@tauri-apps/api':
         specifier: catalog:tauri
         version: 2.11.1
+      '@tauri-apps/plugin-dialog':
+        specifier: catalog:tauri
+        version: 2.7.2
 
   packages/ipc:
     dependencies:
@@ -1086,6 +1095,9 @@ packages:
     resolution: {integrity: sha512-R8xGtMpwyetawSqm9kYOuMmEqkhUbvcUy8n0aNXIxollKBLESUu5f4Fx+64hgASYm1H+jSWq6jCW6zqTnH6hqQ==}
     engines: {node: '>= 10'}
     hasBin: true
+
+  '@tauri-apps/plugin-dialog@2.7.2':
+    resolution: {integrity: sha512-pX0IGm1I3I6wc+zeKYcq1GSqogK6okCNX5fOdaNU5ab1AjGS6l1E5wFNjEb7meg7ZFSp0JUs+0jQGQNyOvLrsg==}
 
   '@turbo/darwin-64@2.10.8':
     resolution: {integrity: sha512-po+7rfJfUnFXjWlcoN2RwhErgzCdRtBc1T26vYPcywHlggmCQiQe1uWaE4j+BibI2uY9/2pDoFzMN0rmSaPFOw==}
@@ -3073,6 +3085,10 @@ snapshots:
       '@tauri-apps/cli-win32-arm64-msvc': 2.11.4
       '@tauri-apps/cli-win32-ia32-msvc': 2.11.4
       '@tauri-apps/cli-win32-x64-msvc': 2.11.4
+
+  '@tauri-apps/plugin-dialog@2.7.2':
+    dependencies:
+      '@tauri-apps/api': 2.11.1
 
   '@turbo/darwin-64@2.10.8':
     optional: true

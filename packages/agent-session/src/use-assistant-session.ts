@@ -2,7 +2,6 @@ import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/acp'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
 import { selectPendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { describeFailure } from './describe-failure'
 import type { Transcript } from './transcript-store'
 import { transcripts } from './transcript-store'
 
@@ -156,9 +155,6 @@ export function useAssistantSession({
    * 的理由（读文件）与这句话本身毫无关系。附件现在进门就已经入库，所以这条
    * 路上没有任何要等的东西 —— toPromptImages 连同它那个 32 KiB 分块的
    * base64 编码器整个不存在了。
-   *
-   * describeFailure 仍然在：转录里的本地事故还是走同一条通道，只是这一路
-   * 不再产生本地事故了。
    */
   const send = useCallback(
     (submission: AssistantSubmission) => {

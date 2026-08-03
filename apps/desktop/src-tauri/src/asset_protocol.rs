@@ -1524,8 +1524,12 @@ mod tests {
     fn adopting_shares_the_bytes_instead_of_copying_them() {
         let registry = AssetProtocolRegistry::default();
 
-        registry.open_session("composer").expect("session should open");
-        registry.open_session("thread-1").expect("session should open");
+        registry
+            .open_session("composer")
+            .expect("session should open");
+        registry
+            .open_session("thread-1")
+            .expect("session should open");
 
         let asset = insert(&registry, "composer", "image/png", &[1, 2, 3]);
         let once = registry.total_bytes();
@@ -1538,8 +1542,16 @@ mod tests {
         assert_eq!(mime, "image/png");
         assert_eq!(bytes.as_ref(), &vec![1, 2, 3]);
 
-        assert!(registry.contains("composer", &asset).expect("source keeps it"));
-        assert!(registry.contains("thread-1", &asset).expect("target has it"));
+        assert!(
+            registry
+                .contains("composer", &asset)
+                .expect("source keeps it")
+        );
+        assert!(
+            registry
+                .contains("thread-1", &asset)
+                .expect("target has it")
+        );
 
         /* 同一份内存两条会话共用，所以预算只涨这一份的大小，不是两份。 */
         assert_eq!(registry.total_bytes(), once * 2 - once);
@@ -1556,7 +1568,9 @@ mod tests {
     fn adopting_something_that_is_gone_is_not_an_error() {
         let registry = AssetProtocolRegistry::default();
 
-        registry.open_session("thread-1").expect("session should open");
+        registry
+            .open_session("thread-1")
+            .expect("session should open");
 
         let absent = "0".repeat(64);
 

@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "@poietica/agent-registry": "workspace:*",
+    "@poietica/agent-ui": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/settings": "workspace:*",
-    "@tauri-apps/api": "catalog:tauri"
+    "@tauri-apps/api": "catalog:tauri",
+    "@tauri-apps/plugin-dialog": "catalog:tauri"
   }
 }

@@ -35,6 +35,8 @@ export {
   closeAssetSession,
   importAssets,
   openAssetSession,
+  removeAsset,
+  uploadAsset,
 } from './asset'
 export {
   type IpcError,
