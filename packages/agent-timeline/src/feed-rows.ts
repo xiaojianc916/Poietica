@@ -1,3 +1,4 @@
+import { isTerminal } from './acp-projection'
 import { isRenderable } from './renderable'
 import type { TimelineItem, TimelineState } from './timeline-contract'
 import { selectIsBusy } from './timeline-queries'
@@ -146,7 +147,12 @@ function projectRows(
  * 提问那一条自己的下标 —— 一个用户消息「还在飞」本来就不成立。
  */
 function inFlightAt(item: TimelineItem, index: number, turnStart: number): boolean {
-  return item.type === 'tool_call' && index >= turnStart
+  /* 终态不在飞。此前这一格里没有 status，于是本轮内已经 completed 或 failed 的
+     卡片只要还落在当前段内就一直转纺锤 —— 一轮里先跑几个短工具、再挂一个长时间
+     的 Agent 子代理时，屏幕上是一整轮集体转圈，人分不出哪一个还在跑。
+     判据不在这里重写一遍：isTerminal 是 acp-projection 里那一份，endedAt 记不记
+     也是照它。同一个概念两处判断，迟早会各自漂移。 */
+  return item.type === 'tool_call' && index >= turnStart && !isTerminal(item.status)
 }
 
 /** 会长大的只有末尾那一条，而且只在一轮还在跑的时候。 */

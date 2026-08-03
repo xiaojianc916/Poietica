@@ -455,7 +455,14 @@ function saidByUser(text: string): string {
   return text.replace(INJECTED, '').trim()
 }
 
-function isTerminal(status: ToolCallTimelineItem['status']): boolean {
+/**
+ * 这次调用已经有结局了吗。
+ *
+ * ACP 的四档 status 里只有 completed 与 failed 是终态。这里是这句话的唯一权威：
+ * 它是对协议值的解读，而按本文件的头注释，这里就是唯一认识 ACP 的地方。
+ * endedAt 记不记、纺锤转不转，读的必须是同一份判据。
+ */
+export function isTerminal(status: ToolCallTimelineItem['status']): boolean {
   return status === 'completed' || status === 'failed'
 }
 
