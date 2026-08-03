@@ -31,6 +31,12 @@ export {
   createAgentConfigBridge,
 } from './agent-config'
 export {
+  type AssetImport,
+  closeAssetSession,
+  importAssets,
+  openAssetSession,
+} from './asset'
+export {
   type IpcError,
   IpcInvocationError,
   isIpcError,
