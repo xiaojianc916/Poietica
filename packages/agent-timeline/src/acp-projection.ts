@@ -25,6 +25,7 @@ import type {
 } from './timeline-contract'
 import type { Draft } from './timeline-draft'
 import { namespace, positionOf, push, sealTail } from './timeline-draft'
+import { pendingPermission } from './timeline-queries'
 
 /**
  * 这一帧一定会被丢掉吗。
@@ -96,8 +97,6 @@ export function apply(draft: Draft, event: RunEvent): void {
     }
 
     case 'permission_resolved': {
-      draft.status = 'running'
-
       /* 身份是算得出来的（见 permission_requested 那一支），所以按 id 定位。
          此前每来一次答复就把整条转录扫一遍 —— 索引就在同一个文件里。 */
       const position = positionOf(draft, `${namespace(draft)}permission-${event.requestId}`)
@@ -109,6 +108,12 @@ export function apply(draft: Draft, event: RunEvent): void {
           resolution: { optionId: event.optionId, outcome: event.outcome },
         }
       }
+
+      /* 答掉一个不等于不再等。并行的子代理会同时挂着几个请求（ADR 0002），
+         此前这一支开头无条件写 running —— 第一个答复一到，状态就说这一轮不在
+         等人了，而另外几个请求还挂在原生侧的桌子上，界面上再没有入口。
+         这句话必须排在上面那次落账之后：刚答掉的这一个也在扫描范围里。 */
+      draft.status = pendingPermission(draft) === undefined ? 'running' : 'awaiting_permission'
 
       return
     }

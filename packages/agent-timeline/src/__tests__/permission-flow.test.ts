@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/acp'
 import { describe, expect, it } from 'vitest'
-import { selectIsBusy, selectPendingPermission } from '../timeline-queries'
+import { pendingPermission, selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
 
 const OPTIONS = [
@@ -29,7 +29,7 @@ const RESOLVED: RunEvent = {
 describe('permission flow', () => {
   it('blocks the run on an unanswered question', () => {
     const state = replayRunEvents([REQUESTED])
-    const pending = selectPendingPermission(state)
+    const pending = pendingPermission(state)
 
     expect(state.status).toBe('awaiting_permission')
     expect(selectIsBusy(state)).toBe(true)
@@ -42,7 +42,7 @@ describe('permission flow', () => {
   it('stops pending once the answer is recorded', () => {
     const state = replayRunEvents([REQUESTED, RESOLVED])
 
-    expect(selectPendingPermission(state)).toBeUndefined()
+    expect(pendingPermission(state)).toBeUndefined()
     expect(state.status).toBe('running')
     expect(state.items).toHaveLength(1)
   })

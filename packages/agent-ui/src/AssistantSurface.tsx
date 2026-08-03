@@ -116,7 +116,7 @@ export const AssistantSurface = memo(function AssistantSurface({
    * 待答的那道题。
    *
    * 「还在等的那一道必在本轮末尾」这条不变式的实现只有一处：选择器里的
-   * selectPendingPermission。此前这里手抄了一份逐字相同的倒扫，依赖 rows ——
+   * pendingPermission。此前这里手抄了一份逐字相同的倒扫，依赖 rows ——
    * 而 rows 每帧都是新的，于是每个 token 都把本轮走一遍去找一个不动的东西。
    *
    * 现在它是一条订阅，交回的是转录里那个条目本身：在被答复之前恒是同一个

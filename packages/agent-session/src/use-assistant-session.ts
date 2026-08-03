@@ -1,6 +1,6 @@
 import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/acp'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
-import { selectPendingPermission } from '@poietica/agent-timeline'
+import { pendingPermission } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Transcript } from './transcript-store'
 import { useTranscripts } from './transcripts-context'
@@ -109,13 +109,13 @@ const readRestoring = (transcript: Transcript): boolean => transcript.restoring
 const readTimeline = (transcript: Transcript): TimelineState => transcript.timeline
 
 /*
- * 待答的那一道：倒扫，走到人说的上一句话为止（selectPendingPermission）。
+ * 待答的那一道：倒扫，走到人说的上一句话为止（pendingPermission）。
  *
  * 代价是这一轮的长度，不是整条对话的长度；而它交回的是转录里那个条目本身，
  * 所以在被答复之前恒是同一个引用 —— 订阅它的界面因此不会因为流式追加而醒。
  */
 const readPending = (transcript: Transcript): PermissionItem | undefined =>
-  selectPendingPermission(transcript.timeline)
+  pendingPermission(transcript.timeline)
 
 export function useAssistantSession({
   endpoint,
