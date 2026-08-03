@@ -3,6 +3,7 @@ import { refreshAgentCapabilities } from '@poietica/agent-session'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectProvider } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-runtime'
+import { AppUpdateStore } from '@poietica/desktop-runtime'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry } from '@poietica/workspace/application'
@@ -89,6 +90,24 @@ export function AppShell({ runtime }: AppShellProps) {
       windowControls: !degraded.has('window-controls'),
     }
   }, [failureSnapshot.degradedFeatures])
+
+  /*
+   * 更新状态在这里落地，一个进程一份。
+   *
+   * 它必须比那枚胶囊活得久：胶囊挂在 sidebarFooterSlot 上，而那个插槽在设置态会被
+   * sidebarOverride 顶替，React 按位置协调，等于一次卸载重挂。状态放在这一层，切设
+   * 置页就只是换个地方把同一份状态再画一遍。
+   */
+  const updates = useMemo(
+    () =>
+      new AppUpdateStore(runtime.appUpdate, runtime.settings, (operation, cause) => {
+        reportFailure('UPDATE_DOWNLOAD_FAILED', { cause, operation, scope: 'app-update' })
+      }),
+    [runtime.appUpdate, runtime.settings],
+  )
+
+  /* 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。 */
+  useEffect(() => updates.start(), [updates])
 
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((open) => !open)
@@ -221,9 +240,7 @@ export function AppShell({ runtime }: AppShellProps) {
           onWindowMaximize={maximizeWindow}
           onWindowMinimize={minimizeWindow}
           settingsStore={runtime.settings}
-          sidebarFooterSlot={
-            <UpdateCapsule controller={runtime.appUpdate} settings={runtime.settings} />
-          }
+          sidebarFooterSlot={<UpdateCapsule store={updates} />}
           workspace={runtime.workspace}
         />
 

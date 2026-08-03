@@ -3,6 +3,7 @@
 //! 原生侧只回答三件事：有没有新版本、把它下下来、装上并重启。何时检查、要不要
 //! 提示、长什么样，全部归渲染层，与设置页读的是同一份设置。
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Duration;
 
@@ -37,6 +38,27 @@ const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 ///
 /// 代价照实说：这期间那几十 MB 待在内存里。这是这套 API 的形状决定的。
 static STAGED: Mutex<Option<StagedUpdate>> = Mutex::new(None);
+
+/// 同一时刻只允许一条下载。
+///
+/// 此前这里没有任何保护，而渲染层那枚胶囊挂在一个会被条件替换的插槽上：切到设置
+/// 页就是一次卸载重挂，状态归零，人只好再点一次 —— 可第一条下载还在后台跑，命令
+/// 发出去就不会因为组件消失而取消。于是两条下载并存，各自持有一份从零开始累加的
+/// `downloaded`，却往同一个事件通道上发进度，界面上的百分比就在两条曲线之间来回
+/// 跳。事件里没有任何能标识来源的字段，监听器无从分辨。
+///
+/// 根上堵住：第二次调用直接返回，不再开第二条流。于是也不需要给事件加会话号 ——
+/// 那是在给一个不该存在的情形准备字段，还要连累 IPC 契约重新生成。
+static DOWNLOADING: AtomicBool = AtomicBool::new(false);
+
+/// 无论从哪条路径退出，都把那面旗放下。
+struct DownloadGuard;
+
+impl Drop for DownloadGuard {
+    fn drop(&mut self) {
+        DOWNLOADING.store(false, Ordering::Release);
+    }
+}
 
 struct StagedUpdate {
     update: Update,
@@ -126,6 +148,27 @@ pub async fn update_check(app: AppHandle) -> UpdateCommandResult<Option<UpdateRe
 #[command]
 #[specta::specta]
 pub async fn update_download(app: AppHandle) -> UpdateCommandResult<()> {
+    /*
+     * 已经下好的那一个还在等人点重启，就什么都不做。
+     *
+     * 此前这里不看 STAGED，于是再点一次就是把同一个几十 MB 的包重下一遍，下完再把
+     * 缓存覆盖掉。这个命令应当是幂等的：它的语义是"让新版本待命"，而不是"发起一次
+     * 下载"。
+     */
+    if STAGED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some()
+    {
+        return Ok(());
+    }
+
+    if DOWNLOADING.swap(true, Ordering::AcqRel) {
+        return Ok(());
+    }
+
+    let _guard = DownloadGuard;
+
     let Some(update) = fetch(&app).await? else {
         return Err(Error::NotFound("no update is available".to_owned()).into());
     };

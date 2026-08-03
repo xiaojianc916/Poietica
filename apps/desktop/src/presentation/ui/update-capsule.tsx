@@ -1,253 +1,104 @@
-import { RefreshAlt } from '@mynaui/icons-react'
-import type { AppUpdateController, UpdateRelease } from '@poietica/desktop-runtime'
-import type { SettingsStore } from '@poietica/settings'
-import { ConfirmationDialog } from '@poietica/ui'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowDown, Refresh, Spinner } from '@mynaui/icons-react'
+import type { AppUpdateState, AppUpdateStore } from '@poietica/desktop-runtime'
+import { useSyncExternalStore } from 'react'
 
-import { reportFailure } from '../../application/failures/failure-policy'
-
-/* 与此前原生侧的 CHECK_EVERY 相同，节流现在只有这一份。 */
-const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
-
-/* 启动后不立刻检查：首屏还在装配，一个网络往返没有理由和它抢。 */
-const FIRST_CHECK_DELAY_MS = 30_000
-
-type CapsuleState =
-  | { readonly phase: 'hidden' }
-  | { readonly phase: 'available'; readonly release: UpdateRelease }
-  | {
-      readonly phase: 'downloading'
-      readonly release: UpdateRelease
-      readonly percent: number | null
-    }
-  | { readonly phase: 'ready'; readonly release: UpdateRelease }
+import './update-capsule.css'
 
 export interface UpdateCapsuleProps {
-  readonly controller: AppUpdateController
-  readonly settings: SettingsStore
+  readonly store: AppUpdateStore
 }
 
 /**
- * 侧栏底部的更新胶囊。
+ * 侧栏底部的更新胶囊。只读一份状态，自己不记任何东西。
  *
- * 此前这块界面是 tauri_plugin_dialog 的一个系统 message box：拿不到应用的主题与
- * 令牌，装不下进度，而且它是模态的——一个后台任务在你打字的时候夺走焦点，问你
- * 要不要现在重启。
+ * 它此前既是视图也是状态机：检查节奏、下载进度、失败回退全在它的 useState 里。
+ * 而它挂在一个会被条件替换的插槽上（WorkspaceContainer 的 sidebarFooterSlot 同时
+ * 出现在常态侧栏和设置态的 sidebarOverride 里），React 按位置协调 —— 打开设置就是
+ * 一次卸载重挂，那台状态机连同正在跑的下载一起被抹掉。
  *
- * 现在它是角落里的一枚胶囊，三态原地切换，不移动、不夺焦、不遮挡。
+ * 现在状态在 AppUpdateStore 里，寿命是进程。这一层只剩三件事：读、画、把点击转发
+ * 回去。切设置页、折叠侧栏、以后任何布局改动，都动不了下载。
  *
- * 它不能被关闭，这是刻意的，也是 VS Code（齿轮蓝点）、Chrome（菜单变色）、
- * Zed 与 Slack 一致的做法：能不能关取决于打不打扰，而一个 28px 的角落控件不抢
- * 任何东西。给它一个关闭按钮只有一个后果——第一次看见就被顺手关掉，此后再也
- * 收不到安全更新。
+ * 三态原地切换，不移动、不夺焦、不遮挡；不可关闭，与 VS Code（齿轮蓝点）、Chrome
+ * （菜单变色）、Zed、Slack 一致 —— 一个 28px 的角落控件不抢任何东西，给它一个关闭
+ * 按钮只有一个后果：第一次看见就被顺手关掉，此后再也收不到安全更新。
  */
-export function UpdateCapsule({ controller, settings }: UpdateCapsuleProps) {
-  const [state, setState] = useState<CapsuleState>({ phase: 'hidden' })
-  const [confirming, setConfirming] = useState(false)
+export function UpdateCapsule({ store }: UpdateCapsuleProps) {
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
-  const stateRef = useRef<CapsuleState>(state)
-
-  useEffect(() => {
-    stateRef.current = state
-  }, [state])
-
-  useEffect(() => {
-    /*
-     * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它"新"，
-     * 结果是每六小时提示一次一个装不上的更新。
-     */
-    if (import.meta.env.DEV) {
-      return
-    }
-
-    let active = true
-
-    const check = async () => {
-      /* 一次只处理一个更新：已经现身或正在下载时不再发起检查。 */
-      if (!active || stateRef.current.phase !== 'hidden') {
-        return
-      }
-
-      const permitted = await settings
-        .load()
-        .then((loaded) => loaded.privacy.updateCheck)
-        .catch(() => false)
-
-      if (!permitted || !active) {
-        return
-      }
-
-      /*
-       * 后台检查失败保持安静：离线是常态，为它报一次失败只是噪音。下载失败不同，
-       * 那是人按下按钮之后的事，必须回话。
-       */
-      const release = await controller.check().catch(() => null)
-
-      if (!active || release === null) {
-        return
-      }
-
-      setState({ phase: 'available', release })
-    }
-
-    const first = window.setTimeout(() => {
-      void check()
-    }, FIRST_CHECK_DELAY_MS)
-
-    const repeat = window.setInterval(() => {
-      void check()
-    }, CHECK_EVERY_MS)
-
-    return () => {
-      active = false
-      window.clearTimeout(first)
-      window.clearInterval(repeat)
-    }
-  }, [controller, settings])
-
-  const startDownload = useCallback(() => {
-    const current = stateRef.current
-
-    if (current.phase !== 'available') {
-      return
-    }
-
-    const release = current.release
-
-    setState({ phase: 'downloading', release, percent: null })
-
-    void controller
-      .download((progress) => {
-        setState({ phase: 'downloading', release, percent: progress.percent ?? null })
-      })
-      .then(
-        () => {
-          setState({ phase: 'ready', release })
-        },
-        (cause: unknown) => {
-          reportFailure('UPDATE_DOWNLOAD_FAILED', {
-            cause,
-            scope: 'update-capsule',
-            operation: 'download-update',
-            version: release.version,
-          })
-
-          /* 退回可点状态：这枚胶囊本身就是重试入口。 */
-          setState({ phase: 'available', release })
-        },
-      )
-  }, [controller])
-
-  const relaunch = useCallback(() => {
-    setConfirming(false)
-
-    void controller.relaunch().catch((cause: unknown) => {
-      reportFailure('UPDATE_DOWNLOAD_FAILED', {
-        cause,
-        scope: 'update-capsule',
-        operation: 'install-update',
-      })
-    })
-  }, [controller])
-
-  if (state.phase === 'hidden') {
+  if (state.phase === 'idle') {
     return null
   }
 
-  /*
-   * 下载中的胶囊不是一个按钮，所以它也不该是一个 <button>。
-   *
-   * 此前这三态共用一个 <button>，靠 role 与 disabled 来回切——那既被 biome 的
-   * useAriaPropsSupportedByRole 拦下，本身也是错的：ARIA 规定 button 的子元素是
-   * presentational 的，进度信息塞在按钮内部根本不会被读屏暴露。按状态分成两种
-   * 元素之后，语义各归各位，disabled 那道补丁也不需要了。
-   *
-   * 两者共用同一串 class，视觉上仍然是原地变化的同一枚胶囊。
-   */
-  if (state.phase === 'downloading') {
-    const percent = state.percent
-
-    return (
-      <div
-        aria-label={labelOf(state)}
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={percent ?? undefined}
-        className={CAPSULE_CLASS}
-        role="progressbar"
-      >
-        {/*
-          进度就是胶囊自己被填满的过程，不额外占一行也不改变布局宽度。
-          总长未知时（服务端没给 Content-Length）保持在 0：一根乱跳的假进度条
-          比没有进度条更糟，那时靠文字说"下载中"。
-        */}
-        <span aria-hidden="true" className={FILL_CLASS} style={{ width: widthOf(percent) }} />
-
-        <span className="relative">{labelOf(state)}</span>
-      </div>
-    )
-  }
+  const busy = state.phase === 'downloading'
 
   return (
-    <>
+    <div className="update-capsule" data-phase={state.phase}>
       <button
-        className={CLICKABLE_CLASS}
-        onClick={() => {
-          if (state.phase === 'available') {
-            startDownload()
-            return
-          }
-
-          setConfirming(true)
-        }}
+        aria-label={hintOf(state)}
+        className="update-capsule__button"
+        onClick={busy ? undefined : actionOf(state, store)}
+        title={hintOf(state)}
         type="button"
       >
-        <RefreshAlt aria-hidden="true" className="relative" />
+        <span className="update-capsule__label">{labelOf(state)}</span>
 
-        <span className="relative">{labelOf(state)}</span>
+        <span className="update-capsule__icon">{iconOf(state)}</span>
       </button>
-
-      <ConfirmationDialog
-        cancelLabel="稍后"
-        confirmLabel="重启"
-        description="应用会立刻关闭并以新版本重新打开。没有保存的内容会丢失。"
-        onCancel={() => {
-          setConfirming(false)
-        }}
-        onConfirm={relaunch}
-        open={confirming}
-        title="重启以完成更新"
-      />
-    </>
+    </div>
   )
 }
 
-const CAPSULE_CLASS = [
-  'relative flex h-7 shrink-0 items-center gap-1.5 overflow-hidden',
-  'rounded-full border border-divider px-2.5',
-  'font-medium text-foreground text-xs',
-].join(' ')
+type Visible = Exclude<AppUpdateState, { phase: 'idle' }>
 
-const CLICKABLE_CLASS = [CAPSULE_CLASS, 'transition-colors hover:bg-sidebar-accent'].join(' ')
-
-const FILL_CLASS = [
-  'absolute inset-y-0 left-0 bg-foreground/10',
-  'transition-[width] duration-200 ease-out',
-].join(' ')
-
-function labelOf(state: Exclude<CapsuleState, { phase: 'hidden' }>): string {
+/* 胶囊上的字。下载中是纯数字，宽度由 CSS 钉死，所以它不会把胶囊撑长。 */
+function labelOf(state: Visible): string {
   switch (state.phase) {
     case 'available':
-      return ['更新到', state.release.version].join(' ')
+      return 'Update'
 
     case 'downloading':
-      return state.percent === null ? '下载中' : [String(state.percent), '%'].join('')
+      return state.percent === null ? '···' : `${String(state.percent)}%`
 
     case 'ready':
-      return '重启以完成更新'
+      return 'Restart'
   }
 }
 
-function widthOf(percent: number | null): string {
-  return percent === null ? '0%' : [String(percent), '%'].join('')
+/* 悬停与读屏听到的那一句：胶囊上那个词太短，说不清要发生什么。 */
+function hintOf(state: Visible): string {
+  switch (state.phase) {
+    case 'available':
+      return `下载 ${state.version}`
+
+    case 'downloading':
+      return `正在下载 ${state.version}`
+
+    case 'ready':
+      return `重启以更新到 ${state.version}`
+  }
+}
+
+function iconOf(state: Visible) {
+  switch (state.phase) {
+    case 'available':
+      return <ArrowDown aria-hidden="true" />
+
+    case 'downloading':
+      return <Spinner aria-hidden="true" className="update-capsule__spinner" />
+
+    case 'ready':
+      return <Refresh aria-hidden="true" />
+  }
+}
+
+/*
+ * 点了就做，两处都不再问。
+ *
+ * 下载本来就是可撤销的（不装就等于没发生），为它加一道确认只是多一次点击；重启
+ * 此前挂着一个 ConfirmationDialog，而这个应用没有未保存的文档要抢救 —— 那句"没有
+ * 保存的内容会丢失"在文档域移除之后已经不成立了。
+ */
+function actionOf(state: Visible, store: AppUpdateStore): () => void {
+  return state.phase === 'ready' ? store.relaunch : store.download
 }
