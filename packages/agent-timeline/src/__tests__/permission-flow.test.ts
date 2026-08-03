@@ -1,7 +1,7 @@
 import type { RunEvent } from '@poietica/acp'
 import { describe, expect, it } from 'vitest'
+import { selectIsBusy, selectPendingPermission } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
-import { selectIsBusy, selectPendingPermission } from '../timeline-selectors'
 
 const OPTIONS = [
   { optionId: 'allow', name: '允许一次', kind: 'allow_once' },

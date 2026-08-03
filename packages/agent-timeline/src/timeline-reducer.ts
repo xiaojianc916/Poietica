@@ -1,6 +1,7 @@
 import type { RunEvent } from '@poietica/acp'
 import { apply } from './acp-projection'
 import type { MessageImage, TimelineState } from './timeline-contract'
+import type { Draft } from './timeline-draft'
 import { draftOf, freeze, namespace, openSegment, push } from './timeline-draft'
 
 /**

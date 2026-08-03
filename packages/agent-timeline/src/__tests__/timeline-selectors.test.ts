@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
+import { selectFeedRows } from '../feed-rows'
+import { selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'
-import { selectFeedRows, selectIsBusy } from '../timeline-selectors'
 
 describe('timeline selectors', () => {
   it('marks no streaming tail once the run has finished', () => {

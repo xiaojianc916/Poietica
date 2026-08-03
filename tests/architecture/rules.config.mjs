@@ -157,7 +157,7 @@ if (mismatches.length > 0) {
  */
 const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
 
-const tierRules = [...placed].map(([pkg, index]) => {
+const tierRules = [...placed].flatMap(([pkg, index]) => {
   const allowed = tiers.slice(0, index + 1).flatMap((tier) => tier.packages)
   const forbidden = [`${SPECIFIER}@poietica/(?!(?:${alternation(allowed)})['"/])[\\w-]+`]
 
@@ -165,12 +165,30 @@ const tierRules = [...placed].map(([pkg, index]) => {
     forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
   }
 
-  return {
-    id: `${pkg}-depends-downward`,
-    appliesTo: inDirectory(workspacePackages.get(pkg)),
-    pattern: new RegExp(forbidden.join('|'), 'g'),
-    message: `${pkg}（${tiers[index].name}）只能依赖 ${allowed.join(', ')}`,
-  }
+  return [
+    {
+      id: `${pkg}-depends-downward`,
+      appliesTo: inDirectory(workspacePackages.get(pkg)),
+      pattern: new RegExp(forbidden.join('|'), 'g'),
+      message: `${pkg}（${tiers[index].name}）只能依赖 ${allowed.join(', ')}`,
+    },
+    /*
+     * 包名指回自己，上面那条抓不到 —— allowed 是「自己这一层及以下」，自然
+     * 含自己，负向断言当场落空。另外两条也各差一格：public-package-exports
+     * 管的是 src/ 深路径，no-cross-boundary-relative-imports 管的是相对路径
+     * 跨包。三条围了一圈，恰好漏掉这一个方向 —— 于是 agent-timeline 里
+     * index → timeline-reducer → index 成了一个模块环，只因为全是 import
+     * type 才没在运行时炸，而检查器一路报着 Architecture rules passed.
+     *
+     * 包入口是给别人看的那道边界。自己人绕它一圈，这道边界就是假的。
+     */
+    {
+      id: `${pkg}-owns-its-entry`,
+      appliesTo: inDirectory(workspacePackages.get(pkg)),
+      pattern: new RegExp(`${SPECIFIER}@poietica/${escapeForRegExp(pkg)}(?=['"/])`, 'g'),
+      message: `${pkg} 不能用包名引用自己：包内走相对路径，否则包入口与模块互指成环`,
+    },
+  ]
 })
 
 /*

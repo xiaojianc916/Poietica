@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
+import { selectTurns } from '../conversation-turns'
+import { selectFeedRows } from '../feed-rows'
 import type { TimelineState } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
-import { selectFeedRows, selectTurns } from '../timeline-selectors'
 
 /* poietica:turn-identity@v17 */
 

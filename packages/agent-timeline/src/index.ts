@@ -1,3 +1,7 @@
+export type { ConversationTurn } from './conversation-turns'
+export { selectTurns } from './conversation-turns'
+export type { FeedRow } from './feed-rows'
+export { selectFeedRows } from './feed-rows'
 export type { ReplayedAttachment } from './message-images'
 export { attachImages, attachImagesTo } from './message-images'
 export type { ReplayScheduler, ReplaySessionOptions } from './replay-session'
@@ -15,6 +19,7 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
+export { selectIsBusy, selectIsWaiting, selectPendingPermission } from './timeline-queries'
 export {
   appendLocalError,
   appendUserMessage,
@@ -24,11 +29,3 @@ export {
   replayRunEvents,
   replayThreadEvents,
 } from './timeline-reducer'
-export type { ConversationTurn, FeedRow } from './timeline-selectors'
-export {
-  selectFeedRows,
-  selectIsBusy,
-  selectIsWaiting,
-  selectPendingPermission,
-  selectTurns,
-} from './timeline-selectors'
