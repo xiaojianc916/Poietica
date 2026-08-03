@@ -89,17 +89,33 @@ function MarkIcon({ selected }: { readonly selected: boolean }) {
 
 export interface QuestionPanelProps {
   readonly deck: QuestionDeck
-  /** 全部答完。逐题一条，顺序与题组一致。 */
-  readonly onSubmit: (answers: readonly QuestionAnswer[]) => void
-  /** ✕：整组跳过。每题回它自己的 skip；没有 skip 的题不出现在结果里。 */
-  readonly onSkipAll: (answers: readonly QuestionAnswer[]) => void
-  /** 提交中：按钮转不可点，避免重复回包。 */
-  readonly busy?: boolean
+  /**
+   * 整组答案交出去。逐题一条，顺序与题组一致。
+   *
+   * 「发送」与「✕ 整组跳过」是同一个出口：两者的差别已经写在答案里 —— 跳过那一次
+   * 每题回的是它自己的 skipOptionId，没有 skip 的题干脆不出现在结果里。此前这里是
+   * 两个 prop，而调用点给它们的是同一个函数，外加两个内联箭头。
+   */
+  readonly onAnswer?: ((answers: readonly QuestionAnswer[]) => void) | undefined
 }
 
-export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: QuestionPanelProps) {
+export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
   const [index, setIndex] = useState(0)
   const [picked, setPicked] = useState<Readonly<Record<string, string>>>({})
+
+  /*
+   * 交出去之后不能再交第二次。
+   *
+   * ACP 的 request_permission 一答就收不回来，同一个 requestId 回两次是协议错误；
+   * 而「发送」是个普通按钮，双击一下就是两次。此前挡这件事的是一个叫 busy 的 prop，
+   * 写着「提交中：按钮转不可点，避免重复回包」—— 没有任何调用点传过它，那道闸从落地
+   * 起就是敞开的。一个没人传、且缺席即缺陷的 prop，比没有更坏。
+   *
+   * 闸设在面板自己身上：它是唯一确切知道「我已经交出去了」的人，那一刻就是它调用
+   * onAnswer 的那一刻，不必等上游把题组撤掉的那次往返。换了题组就是换了一个面板
+   * （调用点按 toolCallId 给 key），这个闩跟着新实例从头开始。
+   */
+  const [sent, setSent] = useState(false)
 
   const total = deck.cards.length
   const card = deck.cards[Math.min(index, total - 1)]
@@ -120,6 +136,15 @@ export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: Quest
 
   const chosen = picked[card.requestId]
   const isLast = index === total - 1
+
+  const answer = (answers: readonly QuestionAnswer[]) => {
+    if (sent) {
+      return
+    }
+
+    setSent(true)
+    onAnswer?.(answers)
+  }
 
   /* 没选的题按跳过算，"下一题"不会把用户卡死在某一题上。 */
   const collect = (): readonly QuestionAnswer[] =>
@@ -176,9 +201,9 @@ export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: Quest
               <button
                 aria-label="跳过全部问题"
                 className="assistant-question-panel__dismiss"
-                disabled={busy}
+                disabled={sent}
                 onClick={() => {
-                  onSkipAll(skipAnswers)
+                  answer(skipAnswers)
                 }}
                 type="button"
               >
@@ -194,7 +219,7 @@ export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: Quest
                   aria-pressed={chosen === choice.optionId}
                   className="assistant-question-panel__option"
                   data-selected={chosen === choice.optionId ? 'true' : undefined}
-                  disabled={busy}
+                  disabled={sent}
                   onClick={() => {
                     setPicked((current) => ({ ...current, [card.requestId]: choice.optionId }))
                   }}
@@ -217,10 +242,10 @@ export function QuestionPanel({ busy = false, deck, onSkipAll, onSubmit }: Quest
 
             <button
               className={`assistant-question-panel__advance${chosen === undefined ? ' is-idle' : ''}`}
-              disabled={busy}
+              disabled={sent}
               onClick={() => {
                 if (isLast) {
-                  onSubmit(collect())
+                  answer(collect())
                   return
                 }
 

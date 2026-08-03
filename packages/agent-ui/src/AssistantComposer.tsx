@@ -54,7 +54,7 @@ export interface AssistantComposerProps {
    * 所以这条 prop 不给也一切照旧。
    */
   readonly questionDeck?: QuestionDeck | null | undefined
-  /** 面板交出整组答案（发送）或整组跳过（✕）时走这里。 */
+  /** 面板交出整组答案时走这里 —— 发送与整组跳过是同一个出口，差别写在答案里。 */
   readonly onAnswerQuestions?: ((answers: readonly QuestionAnswer[]) => void) | undefined
 }
 
@@ -148,32 +148,44 @@ export const AssistantComposer = memo(function AssistantComposer({
    *
    * textarea 和工具栏一并让位。提问期间没有自由输入这回事：agent 那头等的是
    * 一个 optionId，不是一段话，留个能打字的框只会让人以为打了有用。
+   *
+   * 分支在孩子身上，不在壳身上。此前是两个 return，各写一次 <PromptInput> —— 于是
+   * 「打了一半的字和已经拖进来的图能熬过一次提问」全靠两处调用点恰好写成同一个组件、
+   * 恰好排在同一个位置来维持。那是对的行为，但它当时是巧合而不是保证，而巧合已经不
+   * 成立过一次：两处的 props 并不相同，提问那一支漏了 multiple。multiple 一旦转假，
+   * addAssets 的第一件事就是把已经攒着的整批丢掉（next = multiple ? [...current] : []），
+   * 而丢掉的那几张没有经过 removeAttachment —— 原生注册表里那几份字节也就没人放。
+   *
+   * 一个所有者、一处配置，identity 由结构保证。
    */
-  if (questionDeck != null && questionDeck.cards.length > 0) {
-    return (
-      <PromptInput className="assistant-prompt-input--question" handle={handle} onSubmit={onSubmit}>
-        <QuestionPanel
-          deck={questionDeck}
-          onSkipAll={(answers) => {
-            onAnswerQuestions?.(answers)
-          }}
-          onSubmit={(answers) => {
-            onAnswerQuestions?.(answers)
-          }}
-        />
-      </PromptInput>
-    )
-  }
+  const asking = questionDeck != null && questionDeck.cards.length > 0
 
   return (
-    <PromptInput handle={handle} multiple onSubmit={onSubmit}>
-      <PromptInputBody>
-        <PromptInputAttachments />
+    <PromptInput
+      className={asking ? 'assistant-prompt-input--question' : undefined}
+      handle={handle}
+      multiple
+      onSubmit={onSubmit}
+    >
+      {asking ? (
+        /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这正
+           是 key 的用处，不是再加一个 effect 去复位三个 state。 */
+        <QuestionPanel
+          deck={questionDeck}
+          key={questionDeck.toolCallId}
+          onAnswer={onAnswerQuestions}
+        />
+      ) : (
+        <>
+          <PromptInputBody>
+            <PromptInputAttachments />
 
-        <PromptInputTextarea placeholder={placeholder} />
-      </PromptInputBody>
+            <PromptInputTextarea placeholder={placeholder} />
+          </PromptInputBody>
 
-      <ComposerToolbar status={status} {...toolbar} />
+          <ComposerToolbar status={status} {...toolbar} />
+        </>
+      )}
     </PromptInput>
   )
 })
