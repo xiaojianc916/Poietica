@@ -37,11 +37,13 @@ export function useDisclosure(fallback: boolean): {
  *
  * The content stays mounted: unmounting it is why a panel snaps instead of
  * opening, as there is nothing to animate between a node and no node. It lives
- * in a grid row that sits at 0fr or 1fr. The row no longer travels between the
- * two — inside a virtual list every intermediate height is reported to the
- * measurer, so the tween cost one reflow of everything below it per frame.
- * Closed, the row is inert, so its content is out of reach of the keyboard and
- * of a screen reader.
+ * in a grid row that travels between 0fr and 1fr, the one way an intrinsic
+ * height animates without being measured in script. Closed, the row is inert,
+ * so its content is out of reach of the keyboard and of a screen reader.
+ *
+ * 过渡期间每一帧都会向虚拟器的 measureElement 报一次新高度，下面的行因此跟着
+ * 平滑下移。这一条被当作删掉过渡的理由用过一次，那是错的：重排是这个效果的
+ * 实现方式，不是它的代价。
  *
  * The BEM prefix stays with the caller, so each panel keeps its own scope and
  * sharing this costs the stylesheet nothing.

@@ -482,7 +482,22 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: opacity 160ms linear;
+  /*
+   * 高度会动，而且必须动。
+   *
+   * 0fr 到 1fr 是内在高度唯一不用在脚本里量就能过渡的写法：浏览器自己在两个
+   * 确定的轨道之间插值，没有第二个人去读一次 scrollHeight 再写死一个像素值。
+   *
+   * 这一行挂着虚拟器的 measureElement，所以过渡期间每一帧都会向它报一次新
+   * 高度，它下面的行跟着一起下移 —— 这不是副作用，这就是要的效果。此前这条
+   * 过渡被删过一次，理由写的是「补间会让虚拟器每帧重排」：重排是真的，但把
+   * 它当成删掉动画的理由是错的。会让画面坏掉的是在虚拟器之外写滚动位置，
+   * 那件事已经不做了（见 AgentActivityFeed 里那段说明）。
+   */
+  transition:
+    grid-template-rows var(--cp-motion-drawer)
+    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
+    opacity 160ms linear;
 }
 
 /* The clip is what makes a partial height legal rather than overflowing. */
@@ -592,7 +607,22 @@
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: opacity 160ms linear;
+  /*
+   * 高度会动，而且必须动。
+   *
+   * 0fr 到 1fr 是内在高度唯一不用在脚本里量就能过渡的写法：浏览器自己在两个
+   * 确定的轨道之间插值，没有第二个人去读一次 scrollHeight 再写死一个像素值。
+   *
+   * 这一行挂着虚拟器的 measureElement，所以过渡期间每一帧都会向它报一次新
+   * 高度，它下面的行跟着一起下移 —— 这不是副作用，这就是要的效果。此前这条
+   * 过渡被删过一次，理由写的是「补间会让虚拟器每帧重排」：重排是真的，但把
+   * 它当成删掉动画的理由是错的。会让画面坏掉的是在虚拟器之外写滚动位置，
+   * 那件事已经不做了（见 AgentActivityFeed 里那段说明）。
+   */
+  transition:
+    grid-template-rows var(--cp-motion-drawer)
+    var(--cp-motion-drawer-ease, cubic-bezier(0.2, 0, 0, 1)),
+    opacity 160ms linear;
 }
 
 .timeline-tool__clip {
