@@ -106,8 +106,15 @@ export function AppShell({ runtime }: AppShellProps) {
     [runtime.appUpdate, runtime.settings],
   )
 
-  /* 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。 */
-  useEffect(() => updates.start(), [updates])
+  /*
+   * 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。
+   *
+   * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
+   * 每六小时提示一次一个装不上的更新。这个判断留在这一层 —— 构建模式是应用的事，
+   * desktop-runtime 是适配层，不该知道自己被谁怎么打包，它的 tsconfig 里也确实没有
+   * vite 的类型。
+   */
+  useEffect(() => (import.meta.env.DEV ? undefined : updates.start()), [updates])
 
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((open) => !open)

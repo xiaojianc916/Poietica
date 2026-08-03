@@ -74,15 +74,14 @@ export class AppUpdateStore {
    * 订阅与退订成对交给调用方的 effect，与 ThreadsStore.start 同一条纪律：装载几次
    * 就订阅几次、退订几次，开发模式下的双次装载不会把它弄哑。
    */
+  /**
+   * 开始按节奏检查，交回停下来的办法。
+   *
+   * 无条件执行：要不要检查是调用方的决定。这里曾经写着 import.meta.env.DEV，而这
+   * 一层的 tsconfig 按设计就没有 vite 的类型 —— 适配层不该知道自己被谁怎么打包，
+   * 那个判断现在在 AppShell 里。副作用是它变成了一个能直接测的函数。
+   */
   start = (): (() => void) => {
-    /*
-     * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，
-     * 结果是每六小时提示一次一个装不上的更新。
-     */
-    if (import.meta.env.DEV) {
-      return () => {}
-    }
-
     let active = true
 
     const check = async (): Promise<void> => {
