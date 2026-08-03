@@ -134,10 +134,13 @@ export function ToolCallCard({
           <FailureIcon aria-label="失败" className="timeline-tool__failed" role="img" />
         ) : null}
 
-        <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron" />
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="timeline-tool__chevron disclosure__chevron"
+        />
       </button>
 
-      <DisclosureBody block="timeline-tool" isOpen={isOpen}>
+      <DisclosureBody isOpen={isOpen}>
         <div className="timeline-tool__body">
           {item.locations.length > 0 ? (
             <ul className="timeline-tool__locations">

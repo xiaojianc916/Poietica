@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import './disclosure.css'
 
 /**
  * 一段可以打开的内容。
@@ -10,8 +11,8 @@ import { useState } from 'react'
  * 这个派生曾经被改成一次性初值（useState(defaultOpen)），理由是「落定时的自动
  * 收起会让行高突降，而这一行挂着虚拟器的 measureElement」。那个理由只对了一半：
  * 塌陷本身不是问题，塌陷被补间成 260 毫秒才是 —— 那段时间里每一帧都向测量器
- * 报一次新高度。补间已经拆掉（timeline.css 的两条 __reveal 现在只过渡 opacity），
- * 收起因此是一次跳变、一次重排。
+ * 报一次新高度。而那次重排正是这个效果的实现方式，不是它的代价：过渡就写在
+ * disclosure.css 里，与这个 hook 同属一处，不必再靠一句转述去描述它。
  *
  * 所以两件事各归各：要不要自动收起是产品判断，抖不抖是实现问题。用前者去绕开
  * 后者，等于拿一个行为改动去掩盖一段本来就不该存在的动画。
@@ -45,21 +46,21 @@ export function useDisclosure(fallback: boolean): {
  * 平滑下移。这一条被当作删掉过渡的理由用过一次，那是错的：重排是这个效果的
  * 实现方式，不是它的代价。
  *
- * The BEM prefix stays with the caller, so each panel keeps its own scope and
- * sharing this costs the stylesheet nothing.
+ * 类名不再问调用方要。此前它收一个 BEM 前缀去拼 __reveal 与 __clip，理由写的是
+ * 「这样每块各有各的作用域，而且不花样式表一分钱」—— 花了：同一套声明在
+ * timeline.css 里被抄成两份，并且已经和这里的文档漂移开。机制归这一处，调用方
+ * 要覆盖外观照旧加自己的类。
  */
 export function DisclosureBody({
-  block,
   children,
   isOpen,
 }: {
-  readonly block: string
   readonly children: ReactNode
   readonly isOpen: boolean
 }) {
   return (
-    <div className={`${block}__reveal`} inert={!isOpen}>
-      <div className={`${block}__clip`}>{children}</div>
+    <div className="disclosure__reveal" inert={!isOpen}>
+      <div className="disclosure__clip">{children}</div>
     </div>
   )
 }

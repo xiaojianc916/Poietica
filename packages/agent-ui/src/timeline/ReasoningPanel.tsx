@@ -49,10 +49,13 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
 
         <span className="timeline-reasoning__label">{isStreaming ? '正在思考' : '思考完毕'}</span>
 
-        <ChevronDownIcon aria-hidden="true" className="timeline-reasoning__chevron" />
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="timeline-reasoning__chevron disclosure__chevron"
+        />
       </button>
 
-      <DisclosureBody block="timeline-reasoning" isOpen={isOpen}>
+      <DisclosureBody isOpen={isOpen}>
         <div className="timeline-reasoning__scroll" ref={viewportRef}>
           <Prose className="timeline-reasoning__body" isStreaming={isStreaming} text={text} />
         </div>
