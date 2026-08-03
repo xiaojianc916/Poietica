@@ -192,7 +192,8 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
         }),
       )
 
-      return { sessionId: result.sessionId }
+      /* 两格都原样交出去：形状由原生侧定义，与端口逐格相同。 */
+      return { sessionId: result.sessionId, images: result.images }
     },
 
     cancel: async (threadId) => {

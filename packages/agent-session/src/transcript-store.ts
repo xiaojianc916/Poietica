@@ -11,6 +11,7 @@ import {
   appendUserMessage,
   applyRunEvents,
   attachImages,
+  attachImagesTo,
   createTimelineState,
   replayThreadEvents,
 } from '@poietica/agent-timeline'
@@ -427,19 +428,18 @@ export class TranscriptStore {
     const at = Date.now()
     const current = this.#now(key)
 
-    /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。 */
-    this.#put(key, {
-      ...current,
-      timeline: appendUserMessage(
-        current.timeline,
-        text,
-        at,
-        /* 字节在这里变成能画的东西，只此一处：条目那一层只想知道往哪儿指。
-           data: URL 而不是 object URL —— 后者要配一次 revoke，而这些图的寿命
-           就是这条对话的寿命，多一条生命周期就多一处可以泄漏的地方。 */
-        images.map((image) => ({ url: `data:${image.mimeType};base64,${image.data}` })),
-      ),
-    })
+    /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
+       字节不在这一层变成能画的东西。此前这里拼一条 data: URL：一张十六兆的图
+       会在 JS 堆上留下一份二十一兆的字符串，活到这条对话被关掉（#held 没有
+       上限，也不该有）；更要紧的是它与重启之后那张图指的不是同一种地址 ——
+       同一张图两种写法，于是走协议的那条路坏了很久都没人发现。地址只有一种，
+       由持有字节的那一侧发（见 agent_prompt 的答复）。 */
+    const opened = appendUserMessage(current.timeline, text, at, [], images.length)
+    /* 这一句在转录里的身份。地址还在路上，到了以后按它挂回去 —— 期间这条
+       对话又追加了多少帧都不影响。 */
+    const said = opened.items.at(-1)?.id
+
+    this.#put(key, { ...current, timeline: opened })
 
     if (port === undefined) {
       this.#fail(key, new Error(NO_SESSION))
@@ -488,12 +488,36 @@ export class TranscriptStore {
            * 号可登记。它是幂等的，不是补救。
            */
           this.route(handle.sessionId, threadId)
+          this.#carry(threadId, said, handle.images)
         })
       })
       .catch((cause: unknown) => {
         /* 没有"当前那一轮"要收拾了：这一轮从来没拿到过地址，也就从来没占过谁。 */
         this.#fail(key, cause)
       })
+  }
+
+  /**
+   * 刚发出去的那些图，挂到刚说的那句话上。
+   *
+   * 一次写入，只在这一句真的带了图时发生：没带图的那些轮次一帧都不多画。
+   * 走的是 #put，所以它与其它任何一次写入一样会被攒到下一拍再叫醒订阅者。
+   */
+  #carry(key: string, id: string | undefined, urls: readonly string[]): void {
+    if (id === undefined || urls.length === 0) {
+      return
+    }
+
+    const current = this.#now(key)
+
+    this.#put(key, {
+      ...current,
+      timeline: attachImagesTo(
+        current.timeline,
+        id,
+        urls.map((url) => ({ url })),
+      ),
+    })
   }
 
   /**

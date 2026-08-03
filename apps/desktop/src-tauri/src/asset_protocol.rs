@@ -605,6 +605,15 @@ fn validate_content_hash(content_hash: &str) -> Result<(), AssetProtocolError> {
 /// Allowlist of inert binary formats. Active content (SVG, HTML, JavaScript)
 /// is excluded: serving it from the custom URI scheme would allow injected
 /// markup to run with the same-origin privileges as the application shell.
+/// 这个类型交付得了吗。
+///
+/// 判定留在这个文件，因为允许清单在这个文件。收件的那一侧必须在门口就问它：
+/// 一份存得下、交付不了的附件（SVG、HEIC…）会让这条对话此后再也打不开 ——
+/// deliver_attachments 里的 verify 会为它把整批交付判失败。
+pub fn is_deliverable(content_type: &str) -> bool {
+    validate_content_type(content_type).is_ok()
+}
+
 fn validate_content_type(content_type: &str) -> Result<(), AssetProtocolError> {
     const ALLOWED: &[&str] = &[
         "image/png",
@@ -972,14 +981,16 @@ mod tests {
         let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3]);
         let url = asset_protocol_url("session-1", &asset).expect("url should build");
 
-        if cfg!(windows) {
-            assert!(
-                url.starts_with("http://poietica-asset.localhost/asset/"),
-                "WebView2 不解析自定义 scheme: {url}"
-            );
+        /* 逐字比，不比前缀：上一版这里是 starts_with，而生成器把 format! 的
+        大括号转义写错时吐出的是 "{http://poietica-asset}.localhost/..." ——
+        一个畸形 URL，前缀断言在非 Windows 宿主上根本不会跑到。 */
+        let expected = if cfg!(windows) {
+            format!("http://poietica-asset.localhost/asset/session-1/{asset}")
         } else {
-            assert!(url.starts_with("poietica-asset://asset/"), "{url}");
-        }
+            format!("poietica-asset://asset/session-1/{asset}")
+        };
+
+        assert_eq!(url, expected, "生成器与解析器必须逐字对得上");
 
         let response = registry.response(&request(&url));
 

@@ -35,6 +35,7 @@ use uuid::Uuid;
 
 use crate::asset_protocol::{
     AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
+    is_deliverable,
 };
 use crate::attachments::{blob_path, forget_blob, store_bytes};
 use crate::commands::agent_config::launch_env;
@@ -78,6 +79,13 @@ const NO_CONVERSATION: &str = "no conversation was named";
 
 /// 附件不是图片。协议的 image content block 只装图片，别的东西得走别的块。
 const NOT_AN_IMAGE: &str = "an attachment is not an image";
+
+/// 是图片，但交付协议不认它。
+///
+/// 与上一条分开：那一条说的是"这不是图片"，这一条说的是"这张图显示不出来"。
+/// 允许清单排掉的是活动内容（SVG）与浏览器不一定解得开的容器（HEIC），
+/// 判据在 asset_protocol，这里只是引用它。
+const NOT_DELIVERABLE: &str = "that image format cannot be displayed";
 
 /// 一张图大得不该走一次 IPC 往返。
 const IMAGE_TOO_LARGE: &str = "an attachment is too large";
@@ -276,6 +284,14 @@ pub struct AgentPromptRequest {
 pub struct AgentPromptResult {
     /// 这一轮发到了哪条会话。它的每一帧都带着同一个号。
     pub session_id: String,
+    /// 这一句里的图片在 webview 里的地址，顺序与用户挑的一致。
+    ///
+    /// 与重开这条对话时交回的那些是同一种东西（见 AgentThreadAttachment）：
+    /// 字节落盘的同一趟里就铺进了同一条交付会话，所以"刚发出去的图"和"昨天
+    /// 发过的图"在渲染层那边不再是两种写法。此前那一侧自己拼 data: URL ——
+    /// 一张十六兆的图会在 JS 堆上留下一份二十一兆的字符串，活到这条对话被
+    /// 关掉为止；而那条路不经过协议，于是协议这条路坏了很久都没人发现。
+    pub images: Vec<String>,
 }
 
 /// A user's answer to a permission request.
@@ -303,6 +319,7 @@ pub struct AgentResolvePermissionRequest {
 pub async fn agent_prompt(
     app: AppHandle,
     state: State<'_, AgentRuntime>,
+    assets: State<'_, AssetProtocolRegistry>,
     request: AgentPromptRequest,
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
@@ -318,6 +335,13 @@ pub async fn agent_prompt(
     for image in &images {
         if !image.mime_type.starts_with("image/") {
             return Err(Error::Validation(NOT_AN_IMAGE.to_owned()).into());
+        }
+
+        /* 交付得了才收。此前这里只判 image/ 前缀，于是一张 SVG 能落盘、能记账，
+        而重开这条对话时 verify 在 deliver_attachments 里把整批判失败 —— 一张图
+        就让这条对话再也打不开。收与交付用同一份清单，只有这样才不会再分叉。 */
+        if !is_deliverable(&image.mime_type) {
+            return Err(Error::Validation(NOT_DELIVERABLE.to_owned()).into());
         }
 
         if image.data.len() > MAX_IMAGE_CHARS {
@@ -366,11 +390,22 @@ pub async fn agent_prompt(
     })
     .await?;
 
-    /* 先落盘，再记账，最后才上路。顺序见 attachments.rs 的模块头：反过来会
-    留下一条指着不存在字节的账，而那种残留不会自愈。 */
-    let (images, kept) = keep_bytes(state.attachments.clone(), images, turn).await?;
+    /* 先落盘、铺进交付会话，再记账，最后才上路。顺序见 attachments.rs 的模块
+    头：反过来会留下一条指着不存在字节的账，而那种残留不会自愈。 */
+    let Kept {
+        carried,
+        ledger,
+        urls,
+    } = keep_bytes(
+        state.attachments.clone(),
+        assets.inner().clone(),
+        thread_id.to_string(),
+        images,
+        turn,
+    )
+    .await?;
 
-    for attachment in kept {
+    for attachment in ledger {
         on_store(&state, move |store| {
             store
                 .remember_attachment(thread_id, &attachment)
@@ -383,7 +418,7 @@ pub async fn agent_prompt(
 
     let answer = session
         .client
-        .prompt(addressed.clone(), text, images, frames)
+        .prompt(addressed.clone(), text, carried, frames)
         .map_err(translate)?;
 
     async_runtime::spawn(async move {
@@ -402,32 +437,70 @@ pub async fn agent_prompt(
 
     Ok(AgentPromptResult {
         session_id: addressed,
+        images: urls,
     })
 }
 
-/// 一句话带的图片：落盘、记账，再把它们原样交还给协议。
+/// 一句话里的图片落定之后的三份东西。
 ///
-/// 整段在阻塞执行器上。base64 解码与 SHA-256 都要过一遍全部字节，单张最大
-/// 十六兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs 把摘要挪走是
-/// 同一条判据：命令体跑在异步运行时的 worker 上，别的命令全排在它后面。
+/// 同一批字节，三个去处，一次解码：协议要 base64 那一份，账本要摘要与位置，
+/// 屏幕要一条取得回它的地址。第三份此前不存在，于是渲染层自己拼了一条 data:
+/// URL —— 同一张图在这个程序里因此有两种写法，重启前后各一种，而只有其中
+/// 一种走过协议。
+struct Kept {
+    /// 原样交给协议的那一份。
+    carried: Vec<PromptImage>,
+    /// 记进账本的那些行。
+    ledger: Vec<ThreadAttachment>,
+    /// 屏幕上指向它们的地址，顺序与用户挑的一致。
+    urls: Vec<String>,
+}
+
+/// 这条对话的交付会话，没有就开一个。
+///
+/// 注册表用 DuplicateAsset 表示"这条会话已经在了"，而同一条对话上的第二句话
+/// 带图时它必然已经开着 —— 那不是错误，是常态。
+fn opened_session(assets: &AssetProtocolRegistry, session: &str) -> Result<()> {
+    match assets.open_session(session) {
+        Ok(()) | Err(AssetProtocolError::DuplicateAsset) => Ok(()),
+        Err(error) => Err(asset(error)),
+    }
+}
+
+/// 一句话带的图片：落盘、铺进交付会话，再把它们原样交还给协议。
+///
+/// 整段在阻塞执行器上。base64 解码、SHA-256、以及注册表入口那次摘要都要过一遍
+/// 全部字节，单张最大十六兆，而这段代码一个 await 都没有 —— 与 commands/asset.rs
+/// 把摘要挪走是同一条判据：命令体跑在异步运行时的 worker 上，别的命令全排在它
+/// 后面。
 ///
 /// base64 串移进去、移出来，中途不复制：协议要的就是它那一份，账本要的是解出
-/// 来的字节。两边各拿各的，没有一次多余的克隆。
+/// 来的字节，而注册表接手的正是同一份 —— 它不再被丢掉，也就不必在重启之后
+/// 再从磁盘读回来一次。
 ///
-/// 字节写进磁盘，账本行不在这里写：那要拿库的锁，而这里拿的是文件系统。
-/// 一个函数一件事，调用方按顺序把两件事串起来。
+/// 字节写进磁盘、铺进内存里那张表，账本行仍然不在这里写：那要拿库的锁，而这里
+/// 拿的是文件系统。一个函数一件事，调用方按顺序把两件事串起来。
 async fn keep_bytes(
     root: PathBuf,
+    assets: AssetProtocolRegistry,
+    session: String,
     images: Vec<AgentPromptImage>,
     turn: i64,
-) -> Result<(Vec<PromptImage>, Vec<ThreadAttachment>)> {
+) -> Result<Kept> {
     if images.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
+        return Ok(Kept {
+            carried: Vec::new(),
+            ledger: Vec::new(),
+            urls: Vec::new(),
+        });
     }
 
     async_runtime::spawn_blocking(move || {
+        opened_session(&assets, &session)?;
+
         let mut carried = Vec::with_capacity(images.len());
-        let mut kept = Vec::with_capacity(images.len());
+        let mut ledger = Vec::with_capacity(images.len());
+        let mut urls = Vec::with_capacity(images.len());
 
         for (ordinal, image) in images.into_iter().enumerate() {
             let bytes = BASE64
@@ -435,8 +508,17 @@ async fn keep_bytes(
                 .map_err(|_invalid| Error::Validation(NOT_BASE64.to_owned()))?;
 
             let blob = store_bytes(&root, &bytes)?;
+            let hash = blob.hash.clone();
 
-            kept.push(ThreadAttachment {
+            /* 一句话里挑了两张一样的图是常事：注册表按摘要计数，第二次只是把
+            引用加一，所以这里不去重 —— 去重会让那两格的地址对不上号。 */
+            assets
+                .insert(&session, &hash, &hash, &image.mime_type, bytes)
+                .map_err(asset)?;
+
+            urls.push(asset_protocol_url(&session, &hash).map_err(asset)?);
+
+            ledger.push(ThreadAttachment {
                 hash: blob.hash,
                 turn,
                 ordinal: i64::try_from(ordinal)
@@ -452,7 +534,11 @@ async fn keep_bytes(
             });
         }
 
-        Ok((carried, kept))
+        Ok(Kept {
+            carried,
+            ledger,
+            urls,
+        })
     })
     .await
     .map_err(|_dropped| Error::Internal(NO_READ.to_owned()))?
@@ -1503,9 +1589,16 @@ async fn deliver_attachments(
             /* verify，不是 from_verified_container：后者的契约要求调用方已经
             在本进程里对这批字节做过摘要，而这些字节刚从磁盘读上来，没有人验过。
             文件名就是摘要，所以这一次哈希同时就是一次完整性检查。 */
-            entries.push(
-                AssetSessionSnapshotEntry::verify(hash, mime, Arc::new(bytes)).map_err(asset)?,
-            );
+            match AssetSessionSnapshotEntry::verify(hash.clone(), mime, Arc::new(bytes)) {
+                Ok(entry) => entries.push(entry),
+                /* 门口现在挡着这类附件（见 agent_prompt），但迁移之前存下的那些
+                还在账本里。一张交付不了的图此前会让整条对话打不开 —— 与上面缺
+                字节那一支同一条规矩：显示其余的，把这一张记进日志。 */
+                Err(error) => {
+                    log::warn!("an attachment cannot be delivered: {hash} {error:?}");
+                    continue;
+                }
+            }
         }
 
         Ok::<_, Error>(entries)

@@ -83,14 +83,23 @@ export interface AgentPromptRequest {
 }
 
 /**
- * 这一轮发到了哪条会话。
+ * 这一轮发到了哪条会话，以及这一句里的图片在哪。
  *
- * 只剩一格。此前它还带着一个轮次号和一个取消闭包 —— 号是本仓库自己发明的
- * 地址，闭包则让「停止」变成一件要先存住、过一会儿再找回来的东西：上层为此
- * 维护了一张对话 → 闭包的表。取消本来只需要点名一条对话，见下面的 cancel。
+ * 两格，都是原生侧才说得出的事实。此前它还带着一个轮次号和一个取消闭包 ——
+ * 号是本仓库自己发明的地址，闭包则让「停止」变成一件要先存住、过一会儿再找
+ * 回来的东西：上层为此维护了一张对话 → 闭包的表。取消本来只需要点名一条对话，
+ * 见下面的 cancel。
  */
 export interface AgentPromptHandle {
   readonly sessionId: AcpSessionId
+  /**
+   * 这一句里的图片在 webview 里的地址，顺序与用户挑的一致。
+   *
+   * 与重开这条对话时拿到的那些是同一种东西（见 thread.ts 的 ThreadAttachment）：
+   * 字节由原生侧持有，地址也由它发。这一层因此不认识 data: URL，也不认识
+   * object URL —— 那些是浏览器的东西，不是这条管线的东西。
+   */
+  readonly images: readonly string[]
 }
 
 export interface AgentSessionPort {

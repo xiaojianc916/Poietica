@@ -137,13 +137,23 @@ export function appendUserMessage(
   text: string,
   at: number,
   images: readonly MessageImage[] = [],
+  /**
+   * 这一句一共带了几张图。
+   *
+   * 与 images 分开，因为这两件事知道的时刻不同：「带了几张」在人按下发送的
+   * 那一刻就知道，「它们在哪」要等原生侧把字节落盘之后才发得出地址（见
+   * transcript-store 的 send 与 #carry）。按 images 的长度判空，一句纯图片
+   * 的话就会在等地址的那一小段里整条消失 —— 而它恰恰是最该立刻出现的那条。
+   *
+   * 缺省等于 images.length，所以既有的调用方一个字都不用改。
+   */
+  carrying: number = images.length,
 ): TimelineState {
   const said = text.trim()
 
   /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句说过的话 ——
-     此前这里只看文字，那条消息连转录都进不去：图发出去了，屏幕上没有它。
-     缺省成空数组，所以既有的调用方一个字都不用改。 */
-  if (said.length === 0 && images.length === 0) {
+     此前这里只看文字，那条消息连转录都进不去：图发出去了，屏幕上没有它。 */
+  if (said.length === 0 && carrying === 0) {
     return state
   }
 
@@ -337,6 +347,40 @@ export function attachImages(
 
     items[position] = grown
   }
+
+  return { ...state, items }
+}
+
+/**
+ * 这一句的图片地址到了，挂回去。
+ *
+ * 与 attachImages 是同一件事的两种处境，不是两套规则：那一条要在两侧各自数出
+ * 来的序号之间对齐，因为账本与 agent 交还的历史没有共同的 id；而这一条的那句
+ * 话就是这个进程刚刚追加的，id 在手上，所以按 id 定位——能点名的时候数数就是
+ * 多出来的一层猜测。
+ *
+ * 找不到那一条就什么都不做：这条对话可能已经被删掉，也可能这句话被后来的帧
+ * 合并走了。悄悄不挂，好过把图挂到别人的话上 —— 后者人看不出来。
+ */
+export function attachImagesTo(
+  state: TimelineState,
+  id: string,
+  images: readonly MessageImage[],
+): TimelineState {
+  if (images.length === 0) {
+    return state
+  }
+
+  const position = state.items.findIndex((item) => item.id === id)
+  const item = state.items[position]
+
+  if (item?.type !== 'user_message') {
+    return state
+  }
+
+  const items = state.items.slice()
+
+  items[position] = { ...item, images }
 
   return { ...state, items }
 }

@@ -20,6 +20,7 @@ export {
   applyRunEvent,
   applyRunEvents,
   attachImages,
+  attachImagesTo,
   createTimelineState,
   replayRunEvents,
   replayThreadEvents,
