@@ -248,6 +248,27 @@ async assetSessionOpen() : Promise<AssetSessionResult> {
     return await TAURI_INVOKE("asset_session_open");
 },
 /**
+ * Stores files the operating system handed us, named by path.
+ * 
+ * 字节不过 IPC。拖放与文件对话框交出来的都是路径，读盘因此发生在这一侧 ——
+ * 让渲染层先把文件读进 webview、编码、再送回来，是为一个不存在的前提付三份
+ * 代价（一次读、一次编码、一次比原文大三分之一的传输）。
+ * 
+ * 内容类型也由这里判定，判据是文件头而不是渲染层报的 `File.type` —— 后者来自
+ * 扩展名，把 .svg 改名成 .png 就能骗过去，而资产协议是带 nosniff 投递的。认不
+ * 出来的一律拒绝，白名单之外的格式在这一步就停住，不会走到界面上再报错。
+ * 
+ * # Errors
+ * 
+ * Returns an error when a file cannot be read, when its bytes are not one of
+ * the deliverable image formats, when the payload length exceeds `u32`, when
+ * the registry rejects the asset, or when the asset protocol URL cannot be
+ * built — in that last case the stored asset is rolled back first.
+ */
+async assetImport(request: AssetImportRequest) : Promise<AssetUploadResult[]> {
+    return await TAURI_INVOKE("asset_import", { request });
+},
+/**
  * Hashes one payload and stores it inside an open asset session.
  * 
  * # Errors
@@ -1155,6 +1176,7 @@ export type AgentTitleSource =
  */
 "manual"
 export type AppSettings = { theme: ThemePreference; language: string; shortcuts: Partial<{ [key in string]: string }>; privacy: PrivacySettings }
+export type AssetImportRequest = { sessionToken: string; paths: string[] }
 export type AssetRemoveRequest = { sessionToken: string; assetToken: string }
 export type AssetSessionCloseRequest = { sessionToken: string }
 export type AssetSessionResult = { sessionToken: string }
