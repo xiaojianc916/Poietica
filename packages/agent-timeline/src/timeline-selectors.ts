@@ -379,32 +379,28 @@ function leavesAMark(item: TimelineItem): boolean {
   }
 }
 
-function buildTurns(
-  rows: readonly FeedRow[],
-  held: TurnProjection | undefined,
-): readonly ConversationTurn[] {
-  const shared = held === undefined ? 0 : sharedPrefix(held.rows, rows)
-
-  /*
-   * 一轮的预览要往后扫到下一轮为止，所以共享前缀里最后那一轮的答复仍可能被
-   * 前缀之后的行改写 —— 它跟着一起重算。再往前的轮次，扫描区间整个落在共享
-   * 前缀里，一个字都不会变。
-   */
+/*
+ * 上一份投影里，前面几轮可以原样留着。
+ *
+ * 一轮的预览要往后扫到下一轮为止，所以共享前缀里最后那一轮的答复仍可能被
+ * 前缀之后的行改写 —— 它跟着一起重算。再往前的轮次，扫描区间整个落在共享
+ * 前缀里，一个字都不会变。
+ */
+function reuseFrom(held: TurnProjection, shared: number): { keep: number; from: number } {
   let keep = 0
-  let from = 0
 
-  if (held !== undefined) {
-    while (
-      keep < held.turns.length &&
-      (held.turns[keep + 1]?.rowIndex ?? Number.POSITIVE_INFINITY) <= shared
-    ) {
-      keep += 1
-    }
-
-    from = Math.min(held.turns[keep]?.rowIndex ?? shared, shared)
+  while (
+    keep < held.turns.length &&
+    (held.turns[keep + 1]?.rowIndex ?? Number.POSITIVE_INFINITY) <= shared
+  ) {
+    keep += 1
   }
 
-  /* 第一趟：从重算起点开始，收下每一句人说的话和它的行号。 */
+  return { keep, from: Math.min(held.turns[keep]?.rowIndex ?? shared, shared) }
+}
+
+/** 第一趟：从重算起点开始，收下每一句人说的话和它的行号。 */
+function stageTurns(rows: readonly FeedRow[], from: number): StagedTurn[] {
   const staged: StagedTurn[] = []
 
   for (let rowIndex = from; rowIndex < rows.length; rowIndex += 1) {
@@ -415,16 +411,50 @@ function buildTurns(
     }
   }
 
-  /*
-   * 第二趟：每一轮向后扫到下一轮为止，一趟回答两件事 —— 预览取哪一段，以及
-   * 这一轮到底发生过什么没有。
-   *
-   * 「发生过」由 leavesAMark 一句话回答，它是对条目类型的穷尽判断，不是一张
-   * 列举失败情形的名单 —— 断网、鉴权、空转、发了三条才等到回答、一个字没吐就
-   * 被打断，都落在同一条判据下，不需要各自加一个分支。
-   *
-   * 最后一轮永远不折叠：折叠要求后面还有人再问，而正在跑的那一轮没有下一问。
-   */
+  return staged
+}
+
+/** 一轮的跨度里留下了什么：预览取哪一段，以及它到底算不算发生过。 */
+interface Span {
+  readonly answered: boolean
+  readonly reply: string | undefined
+}
+
+/*
+ * 第二趟：一轮向后扫到下一轮为止，一趟回答上面那两件事。
+ *
+ * 「发生过」由 leavesAMark 一句话回答，它是对条目类型的穷尽判断，不是一张
+ * 列举失败情形的名单 —— 断网、鉴权、空转、发了三条才等到回答、一个字没吐就
+ * 被打断，都落在同一条判据下，不需要各自加一个分支。
+ *
+ * 取到第一段答复就收手：卡片只画三行，后面扫多远都改不了它。
+ */
+function scanSpan(rows: readonly FeedRow[], start: number, until: number): Span {
+  let answered = false
+
+  for (let index = start; index < until; index += 1) {
+    const item = rows[index]?.item
+
+    if (item === undefined || !leavesAMark(item)) {
+      continue
+    }
+
+    answered = true
+
+    if (item.type === 'agent_text') {
+      return { answered: true, reply: item.text.slice(0, 300) }
+    }
+  }
+
+  return { answered, reply: undefined }
+}
+
+/*
+ * 收下来的那些问，折成轨道上的格子。
+ *
+ * 最后一轮永远不折叠：折叠要求后面还有人再问，而正在跑的那一轮没有下一问。
+ */
+function foldTurns(rows: readonly FeedRow[], staged: readonly StagedTurn[]): ConversationTurn[] {
   const rebuilt: ConversationTurn[] = []
   let carried: number | undefined
 
@@ -436,23 +466,7 @@ function buildTurns(
     }
 
     const until = staged[position + 1]?.rowIndex ?? rows.length
-    let reply: string | undefined
-    let answered = false
-
-    for (let index = entry.rowIndex + 1; index < until; index += 1) {
-      const item = rows[index]?.item
-
-      if (item === undefined || !leavesAMark(item)) {
-        continue
-      }
-
-      answered = true
-
-      if (item.type === 'agent_text' && item.text.length > 0) {
-        reply = item.text.slice(0, 300)
-        break
-      }
-    }
+    const { answered, reply } = scanSpan(rows, entry.rowIndex + 1, until)
 
     /* 没人应答，而后面还有人再问：这一问是下一格的开头，不是它自己的一格。 */
     if (!answered && position + 1 < staged.length) {
@@ -464,10 +478,19 @@ function buildTurns(
     carried = undefined
   }
 
+  return rebuilt
+}
+
+function buildTurns(
+  rows: readonly FeedRow[],
+  held: TurnProjection | undefined,
+): readonly ConversationTurn[] {
   if (held === undefined) {
-    return rebuilt
+    return foldTurns(rows, stageTurns(rows, 0))
   }
 
+  const { from, keep } = reuseFrom(held, sharedPrefix(held.rows, rows))
+  const rebuilt = foldTurns(rows, stageTurns(rows, from))
   const built = keep === 0 ? rebuilt : [...held.turns.slice(0, keep), ...rebuilt]
 
   /* 缩略导航是 memo 过的：轮次没变就必须是同一个数组。 */
