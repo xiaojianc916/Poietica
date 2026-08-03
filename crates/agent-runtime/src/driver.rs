@@ -210,7 +210,22 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 agent_client_protocol::on_receive_notification!(),
             )
             .on_receive_request(
-                async move |request: RequestPermissionRequest, responder, _connection| {
+                async move |request: RequestPermissionRequest, responder, connection| {
+                    /* 等待不在这里。SDK 的派发是原子的：一个 on_* 处理器返回之前，
+                    这条连接上不再处理任何一条消息（docs/rfds/rust-sdk-v1.mdx 的
+                    Atomic handlers，以及紧接着那一节 block_task and deadlock）。
+                    此前这里就地 await 了一个人类回答 —— 于是从 agent 问出这一句
+                    到有人点下按钮为止，整条连接的入站是停摆的：这一轮的
+                    session/update 进不来，别的会话的提问进不来，连这一轮自己的
+                    答复也读不到。屏幕上就是卡死，连停止都没有反应。
+
+                    子代理必现，是因为那一路恰好只有审批会打上来：Kimi 把子代理的
+                    过程事件吞成 SubagentEvent 不发 ACP（kimi_cli/acp/session.py），
+                    却把 ApprovalRequest 原样转发给父 wire
+                    （kimi_cli/subagents/runner.py 的 _make_ui_loop_fn）。
+
+                    办法是官方给的那一个：responder 是 Send 的，把它连同等待一起
+                    移进 spawn，处理器立刻返回，派发继续跑。 */
                     let mut opened = None;
                     let named = request.session_id.to_string();
 
@@ -232,26 +247,32 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                         return responder.respond(reply(&Decision::Cancel));
                     };
 
-                    let decision = match waiting.wait(&request_id, &request) {
-                        // A dropped sender means the turn ended first, which
-                        // is exactly what the protocol calls a cancellation.
-                        Ok(answer) => answer.await.unwrap_or(Decision::Cancel),
-                        // An unusable desk is our fault, not the agent's, so
-                        // the turn is not left hanging on it.
-                        Err(_unusable) => decide(&request),
+                    // An unusable desk is our fault, not the agent's, so the
+                    // turn is not left hanging on it. Answered on the spot,
+                    // because there is nothing to wait for.
+                    let Ok(answer) = waiting.wait(&request_id, &request) else {
+                        return responder.respond(reply(&decide(&request)));
                     };
 
-                    // The answer belongs to the same session as the
-                    // question, and is recorded there or nowhere.
-                    if let Ok(Some(slot)) = permissions.slot(&named) {
-                        let _routed = slot.record(|listening| {
-                            if let Some(recorder) = listening.turn_mut() {
-                                recorder.record_permission_resolved(&request_id, &decision);
-                            }
-                        });
-                    }
+                    let book = permissions.clone();
 
-                    responder.respond(reply(&decision))
+                    connection.spawn(async move {
+                        // A dropped sender means the turn ended first, which
+                        // is exactly what the protocol calls a cancellation.
+                        let decision = answer.await.unwrap_or(Decision::Cancel);
+
+                        // The answer belongs to the same session as the
+                        // question, and is recorded there or nowhere.
+                        if let Ok(Some(slot)) = book.slot(&named) {
+                            let _routed = slot.record(|listening| {
+                                if let Some(recorder) = listening.turn_mut() {
+                                    recorder.record_permission_resolved(&request_id, &decision);
+                                }
+                            });
+                        }
+
+                        responder.respond(reply(&decision))
+                    })
                 },
                 agent_client_protocol::on_receive_request!(),
             )
