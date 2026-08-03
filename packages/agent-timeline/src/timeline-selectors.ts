@@ -1,10 +1,10 @@
+import { isRenderable } from './renderable'
 import type {
   PermissionItem,
   TimelineItem,
   TimelineItemId,
   TimelineState,
-} from '@poietica/agent-timeline'
-import { isRenderable } from './renderable'
+} from './timeline-contract'
 
 /**
  * Read models for the activity feed.

@@ -1,4 +1,4 @@
-import type { TimelineItem } from '@poietica/agent-timeline'
+import type { TimelineItem } from './timeline-contract'
 
 /**
  * 这一条有内容可看吗。

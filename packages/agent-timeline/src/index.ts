@@ -1,3 +1,5 @@
+export type { ReplayedAttachment } from './message-images'
+export { attachImages, attachImagesTo } from './message-images'
 export type { ReplayScheduler, ReplaySessionOptions } from './replay-session'
 export { createReplaySession } from './replay-session'
 export type {
@@ -13,14 +15,11 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
-export type { ReplayedAttachment } from './timeline-reducer'
 export {
   appendLocalError,
   appendUserMessage,
   applyRunEvent,
   applyRunEvents,
-  attachImages,
-  attachImagesTo,
   createTimelineState,
   replayRunEvents,
   replayThreadEvents,

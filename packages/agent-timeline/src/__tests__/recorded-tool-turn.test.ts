@@ -1,7 +1,7 @@
 import type { RunEvent } from '@poietica/acp'
-import type { AgentTextItem, ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { recordedTurn } from '../__fixtures__/tool-turn.generated'
+import type { AgentTextItem, ToolCallTimelineItem } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
 
 /**
