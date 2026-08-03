@@ -387,14 +387,6 @@ export function AgentActivityFeed({
       viewport.addEventListener('scroll', scheduleSync, { passive: true })
 
       /*
-       * 抽屉的起落。三个事件都冒泡，所以挂在滚动区上就能收到任何一行里的那
-       * 条过渡；只认 DRAWER_PROPERTY，别的过渡（悬停底色、透明度）不算。
-       *
-       * 收尾有两种，两种都要听：transitionend 是走完，transitioncancel 是中
-       * 途被打断（连点两下，或者这一行被卸载）。只听前者会漏减，末端锚定就此
-       * 永远关着。
-       */
-      /*
        * 一帧一问：表里还有抽屉吗。没有就把帧号交还，循环自己结束 —— 不需要
        * 任何收尾事件，也就没有收不到收尾事件这回事。
        */
@@ -666,9 +658,27 @@ export function AgentActivityFeed({
 
     observer.observe(viewport)
 
-    /* 等待指示器出现与消失都改变末端的位置，而它们不产生滚动事件。 */
+    /*
+     * 尾部要按边框盒观察，这不是一个可选项。
+     *
+     * 这个盒子的高度整个来自 padding-block-end（--cp-dock-clearance 加一段
+     * 溶解带，见 agent-activity-feed.css）；它的内容盒里只有等待指示器，空闲
+     * 时是 0。而 ResizeObserver 默认观察 content-box —— 内边距变化不派发。
+     *
+     * 于是输入框长高、问题面板长出来、或者 dock-clearance 在首帧之后才第一次
+     * 写入真实高度时，实物长高了，而交给虚拟器的 paddingEnd 还停在旧值：转录
+     * 框按旧值定高，尾部按新值向上占位，多出来的那一截压在最后几行上，正好被
+     * 输入框盖住。滑到滚动条尽头，虚拟器认为到底了，内容还没到底。
+     *
+     * 冷启动必现：挂载时 clearance 还没被写，var() 走回退值 --cp-gutter，首测
+     * 就偏小，而通知永远不来。一轮对话开头或结尾「自己好一下」，是等待指示器
+     * 的出现与消失改变了内容盒，顺带把当时的正确值读了回来。
+     *
+     * measureBounds 读的一直是 offsetHeight，也就是边框盒。观察哪个盒子，就得
+     * 是读哪个盒子 —— 两边说的必须是同一个量。
+     */
     if (tailRef.current !== null) {
-      observer.observe(tailRef.current)
+      observer.observe(tailRef.current, { box: 'border-box' })
     }
 
     return () => {
