@@ -456,6 +456,43 @@ export function AgentActivityFeed({
   }, [])
 
   /*
+   * 已经让开过的那个高度。-1 是「还没量过」——首次测量不是一次变化。
+   */
+  const yieldedRef = useRef(-1)
+
+  /*
+   * 输入框长高多少，转录就往上让多少。
+   *
+   * 尾部的高度就是输入框那块被遮挡区：--cp-dock-clearance 是实测的输入框高度，
+   * 再加一段溶解距离。输入框长高时它的上沿往上走，而加大下内边距只增加可滚的
+   * 余量、不搬动任何内容 —— 最后一行原地不动，于是被压住。paddingEnd 声明的是
+   * 空间，不是位置，两者的差额得有人补。
+   *
+   * 补的人是虚拟器自己，不是这段代码。这里曾经直接写 viewport.scrollTop，那是
+   * 给滚动位置立了第二个所有者：它和末端锚定对同一次尺寸变化各纠正一遍，谁都
+   * 不知道对方动过，滚动位置停在两者拉扯出来的地方，滑到底也到不了底。scrollBy
+   * 走的是同一套记账，虚拟器知道这一次位移是它自己发起的。
+   *
+   * 时机同样是上一次错的地方：写在测量的那一刻，paddingEnd 还没进渲染，可滚
+   * 上限尚未长出来，加上去的量当场被钳掉。所以这里依赖的是 tailSize 这个状态
+   * —— 它跑在把 paddingEnd 交给虚拟器的那次渲染之后，总高度已经包含新的余量。
+   *
+   * 问答面板走的是同一条路：面板是输入框自己长成的（见 AssistantComposer），
+   * 仍在同一条带子里，高度由同一次测量得出，不需要第二套通路。
+   */
+  useLayoutEffect(() => {
+    const previous = yieldedRef.current
+
+    yieldedRef.current = tailSize
+
+    if (previous < 0 || tailSize === previous) {
+      return
+    }
+
+    virtualizer.scrollBy(tailSize - previous)
+  }, [tailSize, virtualizer])
+
+  /*
    * 开场那一次定位，只做一次，而且要等基准定下来。
    *
    * 这里仍然读一次 offsetTop：偏移那一步可能刚刚把它改过，而 scrollToEnd 用的是

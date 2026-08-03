@@ -43,13 +43,13 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * "Read" and then "Reading README.md" — so it is displayed rather than
  * reconstructed from the arguments.
  *
- * 运行时展开，落定后收起 —— 和思考链同一个抽屉、同一条判据，因为两者是同一
- * 种东西：过程。过程值得看，结果不值得摊着。一次读完的文件是事实不是故事，
- * 事实收在标题里就够了；失败同样收起，标题栏留一枚失败记号，点开才是原因。
+ * 运行时展开 —— 和思考链同一个抽屉、同一条判据，因为两者是同一种东西：过程。
+ * 过程值得看，所以它跑起来的时候是开着的。
  *
- * Opening is the same drawer the thought chain uses: the body stays mounted and
- * a grid row travels between 0fr and 1fr, so a card that closes by itself when
- * it settles travels rather than jumps. Closed, the body is inert.
+ * 但它不会自己收回去。这个默认值只在卡片挂载时问一次，此后开合归人管：一次
+ * 没有人按下的折叠，在虚拟列表里就是一次没人预期的行高塌陷，它下面的每一行
+ * 都会跟着重排。抽屉本身是同一个 —— 内容常驻挂载，0fr 与 1fr 之间一次跳变，
+ * 收起时 inert。
  */
 export function ToolCallCard({
   isInFlight,
@@ -81,16 +81,14 @@ export function ToolCallCard({
    * 摊开 —— 一句 not found、一句 aborted，此后每次回看这条对话它们都还摊在那
    * 里，而它们恰恰是最不值得占版面的内容。
    *
-   * 思考链传的是 isStreaming。同一个 useDisclosure、同一个 DisclosureBody、
-   * 同一段 0fr↔1fr，此前却喂着两种轴。现在两者读同一个轴：活着就开着，落定
-   * 就收起，异常落定也是落定。
+   * 思考链传的是 isStreaming，这里传 isRunning：同一个 useDisclosure、同一个
+   * DisclosureBody、同一个轴。
+   *
+   * 它是初值，不是每帧的推导 —— 落定之后这张卡不会自己收起来。
    *
    * 失败不再自动摊开。理由不是不重要，是它不该由一张永久展开的卡片来承担：
    * 标题栏上那枚失败图标是常驻记号，点开才是一次动作 —— Claude Code、Cursor、
    * Zed 的工具卡片都是这么收的。
-   *
-   * 人点过之后就不再自动动：override 一旦落下就压过这个默认值。那是
-   * useDisclosure 的既定语义，不在这里重述第二遍。
    */
   const { isOpen, toggle } = useDisclosure(isRunning)
   const { diffStat, parts } = toToolCallView(item.content)
