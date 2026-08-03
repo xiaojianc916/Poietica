@@ -503,6 +503,15 @@ impl AssetProtocolRegistry {
     /// 同时挂在两处 —— 挂的是同一个 Arc，不是第二份内存，注册表按引用计数
     /// 管它，这也正是 RegisteredAsset 一开始就带 references 的理由。
     ///
+    /// 内存共用，账不共用：预算按「会话 × 资源」记，过继之后同一份字节在账上
+    /// 是两份。那不是漏洞 —— remove 与 remove_session 也各减一份，而这笔账唯
+    /// 一的硬性要求就是加减对得上。少记这一份，两条会话关闭时会各减一次，总量
+    /// 朝下漂，MAX_REGISTRY_BYTES 就此形同虚设，那是危险的那一侧。
+    ///
+    /// 代价是这个上限对共用的字节偏保守（最多多算一倍）。要让它变成真正的内存
+    /// 计数，得把引用计数从「每条会话一份」提到全局按内容摘要一份 —— 那是另一
+    /// 件事，换来的只是一个 256 MB 缓存上限更准一点。
+    ///
     /// 交回内容类型与字节本身：调用方（agent_prompt 的 keep_bytes）要拿它们
     /// 落盘、记账，以及编成 ACP 要的那一份 base64。让它另外再查一次表，等于
     /// 让同一把写锁开两趟。
@@ -1553,8 +1562,25 @@ mod tests {
                 .expect("target has it")
         );
 
-        /* 同一份内存两条会话共用，所以预算只涨这一份的大小，不是两份。 */
-        assert_eq!(registry.total_bytes(), once * 2 - once);
+        /*
+         * 「没有复制」就是字面意思：比 Arc 的地址。
+         *
+         * 这是这一刀的全部价值 —— 共用没做到，就是每发一句话把最多 32 MB 复制
+         * 一遍。此前这里断言的是 total_bytes()，那测的是记账，不是内存，而且
+         * 期望写错了：它按「预算只涨一份」写，见 adopt 的文档。
+         */
+        let held = registry
+            .snapshot_session("composer")
+            .expect("the source session should snapshot");
+
+        assert_eq!(held.len(), 1);
+        assert!(
+            Arc::ptr_eq(held[0].bytes(), &bytes),
+            "过继必须交出同一份内存，而不是它的副本"
+        );
+
+        /* 账按「会话 × 资源」记，两条会话各记一份。 */
+        assert_eq!(registry.total_bytes(), once * 2);
 
         let response = registry.response(&request(&format!(
             "poietica-asset://asset/thread-1/{asset}"
@@ -1562,6 +1588,24 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.body(), &vec![1, 2, 3]);
+
+        /*
+         * 加减对得上，才是这笔账唯一的硬性要求，也是它唯一会出问题的地方。
+         * 漏减一次就永远回不来，而 total_bytes 从外面完全看不见 —— 看不见的
+         * 不变量等于没有不变量。
+         */
+        registry
+            .remove_session("composer")
+            .expect("the source session should close");
+        registry
+            .remove_session("thread-1")
+            .expect("the target session should close");
+
+        assert_eq!(
+            registry.total_bytes(),
+            0,
+            "两条会话都关掉之后账必须归零，否则它只会朝一个方向漂"
+        );
     }
 
     #[test]
