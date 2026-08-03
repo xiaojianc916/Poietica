@@ -11,6 +11,10 @@ import { diffLines } from 'diff'
  * Content blocks other than text are named rather than rendered. Guessing at
  * the shape of an image or a resource block is what produced the last defect;
  * these get drawn when a recording contains one.
+ *
+ * 它住在 domain。这里没有一行 React，做的是「协议信封 → 可显示的片段」这一次投影，
+ * 与 ask-user-question 同类。此前它住在 timeline/，于是 domain 想读一段 content 就
+ * 得反着依赖表现层 —— 题面那份手搓的 unknown 收窄正是这么长出来的。
  */
 
 export type ToolContentPart =
@@ -153,9 +157,14 @@ const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
  * 不跑，turn-identity.test.ts 守着这条。上游挡住了，这里就不该再宣称自己在挡同一
  * 件事：一份缓存靠一个不再发生的场景辩护，下一个人无从判断它还该不该在。
  *
- * 留着它，是为了另一条真实的路径，而那条路径就写在上面 —— 权限请求随身带来的那
- * 一份不经过 TimelineRow，它由 surface 直接画，memo 够不着。同一份 content 被两个
- * 容器带着走，按 content 记就只解析一次。
+ * 留着它，是为了另一条真实的路径：一道提问的 content 会被两个互不相识的地方读到
+ * —— 输入框那副题组在 surface 的 useMemo 里读一次（readQuestionPrompt），流里那张
+ * 结果卡在 QuestionOutcome 里再读一次，两者之间没有任何共享的组件缓存。键是 content
+ * 数组本身，所以谁带着它、经不经过 memo 都不重要，解析只发生一次。
+ *
+ * 此前这里写的理由是「权限请求由 surface 直接画，memo 够不着」。permission 那一支
+ * 交回 TimelineRow 之后那条路径不存在了，理由跟着换成上面这条真的 —— 一份缓存靠一
+ * 个不再发生的场景辩护，下一个人无从判断它还该不该在。
  */
 export function toToolCallView(
   content: readonly AcpToolCallContent[] | null | undefined,

@@ -5,11 +5,11 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useCallback, useState } from 'react'
 import { useAgentDialect } from '../domain/agent-dialect'
 import { isQuestionRequest } from '../domain/ask-user-question'
+import { type DiffStat, type ToolContentPart, toToolCallView } from '../domain/tool-call-content'
 import { Surface } from '../primitives/surface'
 import { OutcomeCard } from './OutcomeCard'
 import { Prose } from './Prose'
 import { QuestionOutcome } from './QuestionOutcome'
-import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
 
 /**
  * A permission request, answered in place.
@@ -206,24 +206,28 @@ export const PermissionRequest = memo(function PermissionRequest({
   )
 
   /*
-   * 一次渲染只解析一遍，而且和工具卡走同一条管线：解析与行级增删都在
-   * toToolCallView 里算，按 content 本身记一次 —— 所以同一次调用被两张卡画到，
-   * 也只有一遍 Myers。
-   */
-  const { diffStat, parts } = toToolCallView(item.toolCall?.content)
-
-  /*
    * 提问不是权限请求，尽管它借的是同一条通道。
    *
    * 判据只写在 surface 的路由上是不够的：fixtures、单测、以后别的容器都会直接
    * 渲染这个组件，总有一条路会绕过去，然后 AskUserQuestion 又变回一排"批准 /
    * 拒绝"按钮 —— 而它的选项根本不是那个意思。所以闸设在组件自己身上。
    *
-   * 位置在所有 hook 之后：提前到 useState 上面就是条件调用 hook。
+   * 位置在所有 hook 之后：提前到 useState 上面就是条件调用 hook。它同时也在解析
+   * 之前，理由见下面那一段。
    */
   if (isQuestionRequest(item, dialect.questions)) {
     return <QuestionOutcome item={item} />
   }
+
+  /*
+   * 一次渲染只解析一遍，而且和工具卡走同一条管线：解析与行级增删都在
+   * toToolCallView 里算，按 content 本身记一次 —— 所以同一次调用被两张卡画到，
+   * 也只有一遍 Myers。
+   *
+   * 位置在提问闸门之下：提问那一支用不到 parts 与 diffStat，摆在闸门上面就是每渲染
+   * 一道题都解析一次再把结果扔掉。它不是 hook，挪得动。
+   */
+  const { diffStat, parts } = toToolCallView(item.toolCall?.content)
 
   /*
    * 答复之后，它就不再是一个请求了。

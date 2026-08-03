@@ -1,4 +1,5 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
+import { toToolCallView } from '../domain/tool-call-content'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -13,7 +14,6 @@ import {
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
 import { Prose } from './Prose'
-import { toToolCallView } from './tool-call-content'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'

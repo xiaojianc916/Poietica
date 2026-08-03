@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { AgentDialectProvider } from '../domain/AgentDialectProvider'
 import type { AgentDialect } from '../domain/agent-dialect'
-import { PermissionRequest } from '../PermissionRequest'
+import { PermissionRequest } from '../timeline/PermissionRequest'
 
 /*
  * 提问闸门。

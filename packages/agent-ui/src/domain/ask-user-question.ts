@@ -22,6 +22,9 @@
  *     等它放开，同一套 UI 直接生效，wire format 不变。
  */
 
+import type { AcpToolCallContent } from '@poietica/acp'
+import { toToolCallView } from './tool-call-content'
+
 export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'
 
 /**
@@ -222,45 +225,34 @@ export interface QuestionAnswer {
  * permission 帧的 title 是工具名而不是题面 —— 题面被塞进 toolCall.content 的第一
  * 段文本。所以凡是要显示「问了什么」的地方都必须走这里；读 title 只能读到工具名。
  *
- * 参数按结构收，不绑 PermissionItem：这支函数的前提只有"有个 title、可能有个
- * toolCall.content"，绑死契约类型会让它跟着契约一起改。
+ * 内容怎么拆，这里不自己写。此前它手搓了一遍 unknown 的逐层收窄（判 object、判
+ * type === 'content'、再判 inner、再判 text），而同一件事在 tool-call-content 里
+ * 已经有一份照着协议判别式走的实现 —— 一个 as 都不需要。两份解析器读同一个 wire
+ * 形状，正是这条规则自己被违反的地方：权限卡那边走的就是另一份。
+ *
+ * 换过来还顺带省下一次解析：同一道题的 content 在 surface 的题组 useMemo 与流里那
+ * 张结果卡上各读一次，而缓存的键就是 content 数组本身。
+ *
+ * trim 留在这里：拆分那一层交回的是原文，而空白构不成一句题面。
+ *
+ * 参数仍按结构收，不绑 PermissionItem：前提只有「有个 title、可能有个
+ * toolCall.content」。
  */
 
 interface QuestionPromptSource {
   readonly title: string
-  readonly toolCall?: { readonly content?: readonly unknown[] | null | undefined } | undefined
-}
-
-/** 取一条 toolCall content 里的纯文本；不是文本块就是空串。 */
-function textOfContent(entry: unknown): string {
-  if (typeof entry !== 'object' || entry === null) {
-    return ''
-  }
-
-  const outer = entry as { readonly type?: unknown; readonly content?: unknown }
-
-  if (outer.type !== 'content') {
-    return ''
-  }
-
-  const inner = outer.content
-
-  if (typeof inner !== 'object' || inner === null) {
-    return ''
-  }
-
-  const block = inner as { readonly type?: unknown; readonly text?: unknown }
-
-  if (block.type !== 'text' || typeof block.text !== 'string') {
-    return ''
-  }
-
-  return block.text
+  readonly toolCall?:
+    | { readonly content?: readonly AcpToolCallContent[] | null | undefined }
+    | undefined
 }
 
 export function readQuestionPrompt(request: QuestionPromptSource): string {
-  for (const entry of request.toolCall?.content ?? []) {
-    const text = textOfContent(entry).trim()
+  for (const part of toToolCallView(request.toolCall?.content).parts) {
+    if (part.type !== 'text') {
+      continue
+    }
+
+    const text = part.text.trim()
 
     if (text.length > 0) {
       return text
