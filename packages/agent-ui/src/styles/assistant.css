@@ -1261,6 +1261,19 @@ svg.assistant-provider-icon {
 }
 
 .assistant-surface[data-phase="live"] .assistant-surface__composer {
+  /*
+   * 输入框必须是定位元素，否则它在渐隐下面。
+   *
+   * 渐隐是带子的 ::before，position: absolute。CSS 2.1 附录 E 的绘制顺序里，
+   * 定位元素整体压在流内块级内容之上 —— 树序只在同一层内部说话。所以
+   * 「::before 在前所以被压住」是错的：它在第 8 层，普通流内块在第 4 层。
+   *
+   * 两者同为定位元素之后，树序才生效，而输入框排在 ::before 之后。
+   *
+   * 不用 z-index: -1 把渐隐压下去：.assistant-surface 是 position: relative;
+   * z-index: auto，不构成层叠上下文，负值会穿过它一路沉到转录内容底下。
+   */
+  position: relative;
   pointer-events: auto;
 }
 
