@@ -9,12 +9,8 @@ import type {
 } from '@poietica/acp'
 import { agentChosen, observeAgentControls } from './agent-capability-store'
 import { describeFailure } from './describe-failure'
-
-/** Shown for a conversation nothing has named yet: the words of the entry. */
-const FALLBACK_TITLE = '新建对话'
-
-/** How much of a stand in title a tab can carry. */
-const TITLE_LIMIT = 24
+import { byRecency, type ThreadListItem, type ThreadsList } from './thread-order'
+import { nameOf, shorten } from './thread-title'
 
 /**
  * 转录那一侧，只要这四句话。
@@ -47,60 +43,6 @@ export interface TranscriptSink {
   readonly busy: (threadId: string) => boolean
   /** 某条对话从忙变闲的那一刻。参数是那条对话。 */
   readonly onIdle: (listener: (threadId: string) => void) => () => void
-}
-
-/**
- * 置顶在前，然后按活动时间倒序。
- *
- * 时间是 RFC 3339 且两侧都写 UTC（库用 now()，本地用 toISOString），所以
- * 字典序就是时间序，不需要解析成 Date 再比 —— 那是每次排序为每一行各建两个
- * 对象。
- */
-function byRecency(left: ThreadRecord, right: ThreadRecord): number {
-  const pinned = left.pinned === true
-
-  if (pinned !== (right.pinned === true)) {
-    return pinned ? -1 : 1
-  }
-
-  return right.updatedAt.localeCompare(left.updatedAt)
-}
-
-/** Cuts a stand in title down to something a tab can show. */
-export const shorten = (text: string): string => {
-  const tidy = text.trim().replace(/\s+/g, ' ')
-
-  if (tidy.length === 0) {
-    return FALLBACK_TITLE
-  }
-
-  if (tidy.length <= TITLE_LIMIT) {
-    return tidy
-  }
-
-  return `${tidy.slice(0, TITLE_LIMIT)}…`
-}
-
-/**
- * 一行会话在列表里的样子。
- *
- * 名字在这里就已经定下来了：三个来源（用户手改、第一句话、以及还没有名字时
- * 的入口占位）在 store 里分出胜负，渲染层拿到的是结论。此前每画一行都回头问
- * 一次 titleOf，
- * 于是名字的规则散在渲染期，而列表每帧都是一批新对象。
- */
-export interface ThreadListItem {
-  readonly id: string
-  readonly title: string
-  readonly isPinned: boolean
-  readonly updatedAt: string
-}
-
-/** 侧栏要的那一片：只有这三样变了，侧栏才需要重画。 */
-export interface ThreadsList {
-  readonly items: readonly ThreadListItem[]
-  readonly isLoading: boolean
-  readonly failure: string | null
 }
 
 interface Held {
@@ -270,38 +212,8 @@ export class ThreadsStore {
   listSnapshot = (): ThreadsList => this.#list
 
   /** 这条对话现在叫什么。 */
-  titleOf = (threadId: string): string => this.#nameOf(this.#byId.get(threadId), threadId)
-
-  /*
-   * 名字的规则，只有这一份。
-   *
-   * 收的是记录本身，不是 id：投影那一趟手里已经握着 thread，让它把 id 交出去、
-   * 再由这里拿 #byId 查回同一个对象，是每行一次白跑的查表 —— 那张表就是同一个
-   * 函数里用同一个数组刚建出来的。公开的 titleOf 只多做一件事：按 id 找人。
-   */
-  #nameOf(found: ThreadRecord | undefined, threadId: string): string {
-    /* 用户自己起的名字压过一切派生的名字。 */
-    if (found?.titleSource === 'manual') {
-      return found.title
-    }
-
-    /*
-     * 权威的名字排在占位之前。
-     *
-     * 占位存在的理由只有一个：平台还没记下这条对话，屏幕上总得写点什么。它
-     * 此前排在权威名字之上，于是从「还没有名字时的替身」变成了「永远压着名字
-     * 的一层」—— 而它每说一句就被改写一次，所以第二句话就把标题换掉了。
-     *
-     * 名字取自第一句话这条规则本身没错，错的是让一个临时值拥有比它更高的排名。
-     * 库那侧不可能出这个错（record_prompt 的 CASE 只在 fallback 时写标题），
-     * 所以这一格一旦是 message，它装的就是第一句话，逐字。
-     */
-    if (found?.titleSource === 'message') {
-      return shorten(found.title)
-    }
-
-    return this.#held.provisional.get(threadId) ?? FALLBACK_TITLE
-  }
+  titleOf = (threadId: string): string =>
+    nameOf(this.#byId.get(threadId), this.#held.provisional.get(threadId))
 
   /** The stand in name a message would give a conversation. */
   standInTitle = (message: string): string => shorten(message)
@@ -951,7 +863,7 @@ export class ThreadsStore {
   }
 
   #itemFor(thread: ThreadRecord): ThreadListItem {
-    const title = this.#nameOf(thread, thread.threadId)
+    const title = nameOf(thread, this.#held.provisional.get(thread.threadId))
     const isPinned = thread.pinned === true
     const last = this.#items.get(thread.threadId)
 
