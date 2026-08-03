@@ -544,12 +544,29 @@ impl AssetProtocolRegistry {
     }
 }
 
+/// 这条资源在 webview 里的地址。
+///
+/// 形状随平台变，因为 WebView2 不解析自定义 scheme：Windows 上 Tauri 把注册的
+/// 协议挂在 `http://<scheme>.localhost` 上，官方的 convertFileSrc 生成的正是
+/// 这一条；macOS 与 Linux 用真正的 scheme。
+///
+/// 此前两个平台都发 `poietica-asset://`。resolve_request 一直认得
+/// `poietica-asset.localhost` 这个 host，tauri.conf.json 的 CSP 也一直放行着
+/// 它 —— 而全仓没有一处生成过它。于是 Windows 上每一条附件 URL 都指向一个取
+/// 不到东西的地址，重启之后整条对话的图片全是破图标；实时那条路看起来正常，
+/// 只是因为它走的是另一种 URL（见 transcript-store 的 data:）。
 pub fn asset_protocol_url(
     session_token: &str,
     asset_token: &str,
 ) -> Result<String, AssetProtocolError> {
     validate_token(session_token)?;
     validate_token(asset_token)?;
+
+    if cfg!(windows) {
+        return Ok(format!(
+            "http://{ASSET_PROTOCOL_SCHEME}.localhost/{ASSET_PROTOCOL_HOST}/{session_token}/{asset_token}"
+        ));
+    }
 
     Ok(format!(
         "{ASSET_PROTOCOL_SCHEME}://{ASSET_PROTOCOL_HOST}/{session_token}/{asset_token}"
@@ -936,6 +953,38 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK, "{spec}");
             assert_eq!(response.body(), &vec![1, 2, 3], "{spec}");
         }
+    }
+
+    /*
+     * 生成器与解析器必须对得上，而且要按平台对。
+     *
+     * 上面那些用例手拼 URI，所以它们绕过了 asset_protocol_url —— 那道缝正是
+     * Windows 上整条对话破图的地方。这一条从生成器出发，走完整条解析路径。
+     */
+    #[test]
+    fn the_url_it_hands_out_resolves_on_this_platform() {
+        let registry = AssetProtocolRegistry::default();
+
+        registry
+            .open_session("session-1")
+            .expect("session should open");
+
+        let asset = insert(&registry, "session-1", "image/png", &[1, 2, 3]);
+        let url = asset_protocol_url("session-1", &asset).expect("url should build");
+
+        if cfg!(windows) {
+            assert!(
+                url.starts_with("http://poietica-asset.localhost/asset/"),
+                "WebView2 不解析自定义 scheme: {url}"
+            );
+        } else {
+            assert!(url.starts_with("poietica-asset://asset/"), "{url}");
+        }
+
+        let response = registry.response(&request(&url));
+
+        assert_eq!(response.status(), StatusCode::OK, "{url}");
+        assert_eq!(response.body(), &vec![1, 2, 3]);
     }
 
     #[test]

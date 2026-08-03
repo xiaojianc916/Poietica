@@ -37,7 +37,9 @@ export function MessageAttachments({ images }: { readonly images: readonly Messa
         {images.map((image, at) => (
           <button
             className="timeline-attachments__item"
-            key={image.url}
+            /* 内容寻址之后同一张图的 URL 逐字相同：一句话里发两次，光靠 URL
+               就是两个一样的 key。位置参与身份，撞不了。 */
+            key={`${String(at)}:${image.url}`}
             onClick={() => {
               setOpenIndex(at)
             }}
@@ -47,6 +49,8 @@ export function MessageAttachments({ images }: { readonly images: readonly Messa
             <img
               alt={`图片 ${String(at + 1)}`}
               className="timeline-attachments__image"
+              decoding="async"
+              draggable={false}
               src={image.url}
             />
           </button>

@@ -224,9 +224,9 @@ pub struct AgentLaunch {
 
 /// 一张随这一句话送出去的图片。
 ///
-/// 只走内存：字节由渲染进程 base64 之后直接进 ACP 的 image content block，
-/// 不落盘，也不进 asset 注册表 —— 那套东西服务的是本进程的 webview（自定义
-/// asset:// 协议），而 agent 是另一个进程，它读不到。
+/// 字节有两个去处，都在 keep_bytes 里：一份 base64 原样进 ACP 的 image content
+/// block —— agent 是另一个进程，它只认这一份；另一份解码之后落进内容寻址的
+/// blob 仓并记进账本，重启之后屏幕上还看得见这张图，靠的正是后者。
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentPromptImage {
