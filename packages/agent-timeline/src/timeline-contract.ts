@@ -36,10 +36,35 @@ export interface MessageImage {
   readonly url: string
 }
 
-export interface UserMessageItem {
-  readonly type: 'user_message'
+/**
+ * 每一条转录条目共有的三个事实。
+ *
+ * turn 此前不在这里 —— 它只以字符串前缀的形式编在 id 里（r0-said-1），而没有
+ * 任何一个地方解析它回来。于是「这一条属于第几轮」这个已经存在的事实读不出来，
+ * 派生层只好反推：反向扫到最后一条 user_message，把它当作本轮的起点。同一个
+ * 启发式在 feed-rows、timeline-queries、acp-projection 里各手抄了一遍。
+ *
+ * 而权威答案一直在状态里放着：runIndex。段由 run_started 划定，号由 openSegment
+ * 发。把语义编进身份、再另起一套启发式去猜，本来就不是建模 —— 身份负责唯一，
+ * 字段负责语义。补上这一格之后，那三处扫描的判据全部塌成一次相等比较。
+ */
+interface TimelineEntry {
   readonly id: TimelineItemId
+  /**
+   * 它属于第几段。
+   *
+   * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的为正。
+   *
+   * 一句话先于 run_started 到达，所以它记的是上一段的号。这不是错位：提问是
+   * 两段之间的边界，不是它开启的那一段的产出，而读这一格的三处判据要的恰好
+   * 都是「本段的产出从哪里开始」。
+   */
+  readonly turn: number
   readonly at: number
+}
+
+export interface UserMessageItem extends TimelineEntry {
+  readonly type: 'user_message'
   readonly text: string
   /**
    * 这句话带的图片。
@@ -50,10 +75,8 @@ export interface UserMessageItem {
   readonly images?: readonly MessageImage[]
 }
 
-export interface AgentTextItem {
+export interface AgentTextItem extends TimelineEntry {
   readonly type: 'agent_text'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly text: string
   /**
    * 这些字属于哪一条消息，由 agent 自己说（ContentChunk.messageId）。
@@ -70,19 +93,15 @@ export interface AgentTextItem {
   readonly sealed: boolean
 }
 
-export interface AgentThoughtItem {
+export interface AgentThoughtItem extends TimelineEntry {
   readonly type: 'agent_thought'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly text: string
   readonly messageId?: string
   readonly sealed: boolean
 }
 
-export interface ToolCallTimelineItem {
+export interface ToolCallTimelineItem extends TimelineEntry {
   readonly type: 'tool_call'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly toolCallId: AcpToolCallId
   readonly title: string
   readonly kind: AcpToolKind
@@ -95,17 +114,13 @@ export interface ToolCallTimelineItem {
   readonly endedAt?: number
 }
 
-export interface PlanItem {
+export interface PlanItem extends TimelineEntry {
   readonly type: 'plan'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly entries: readonly AcpPlanEntry[]
 }
 
-export interface PermissionItem {
+export interface PermissionItem extends TimelineEntry {
   readonly type: 'permission'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly requestId: string
   readonly title: string
   readonly toolCall?: AcpToolCallUpdate
@@ -113,10 +128,8 @@ export interface PermissionItem {
   readonly resolution?: { readonly optionId: string; readonly outcome: 'selected' | 'cancelled' }
 }
 
-export interface ErrorItem {
+export interface ErrorItem extends TimelineEntry {
   readonly type: 'error'
-  readonly id: TimelineItemId
-  readonly at: number
   readonly message: string
 }
 

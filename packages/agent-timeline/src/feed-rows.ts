@@ -185,15 +185,25 @@ function isSettled(
 }
 
 /**
- * 当前这一轮从哪一条开始：人说的最后一句话。
+ * 当前这一段的产出从哪一条开始。
  *
- * 反着走，与 selectPendingPermission 同一套办法：代价是这一轮的长度，不是整条
- * 对话的长度。一条对话里没有人说过话时从头算起 —— 那种转录只可能来自回放。
+ * 判据是条目自己的段号：反着走，走出本段就到头了。代价是这一轮的长度，不是整条
+ * 对话的长度。
+ *
+ * 此前这里找的是「人说的最后一句话」—— 一个反推，而且在人于轮次进行中又说一句
+ * 时会当场跳到新那句：上一轮还在跑的调用全部被判成不在飞，纺锤停转；更贵的是
+ * boundary 跟着回退，整轮重投影、整轮的行身份翻新，而行身份正是 TimelineRow 的
+ * memo 判据。段号由 run_started 划定，它不会因为有人插话而移动。
+ *
+ * 提问那一条记的是上一段的号（它先于 run_started 到达），所以起点落在它之后 ——
+ * 本来就该如此：一条用户消息不会「在飞」。
  */
-function turnStartOf(items: readonly TimelineItem[]): number {
+function turnStartOf(items: readonly TimelineItem[], turn: number): number {
   for (let index = items.length - 1; index >= 0; index -= 1) {
-    if (items[index]?.type === 'user_message') {
-      return index
+    const item = items[index]
+
+    if (item !== undefined && item.turn !== turn) {
+      return index + 1
     }
   }
 
@@ -215,8 +225,8 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
     return held.rows
   }
 
-  /* 一轮从人说的最后一句话开始。没在跑就没有人在飞，整条对话都不在。 */
-  const turnStart = live ? turnStartOf(items) : items.length
+  /* 在飞的范围就是当前这一段。没在跑就没有人在飞，整条对话都不在。 */
+  const turnStart = live ? turnStartOf(items, state.runIndex) : items.length
 
   /*
    * 在飞的范围变了，共享前缀就不能一路沿用到底：那一段里的行还带着上一次的

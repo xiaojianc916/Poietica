@@ -18,8 +18,15 @@ import type { PermissionItem, TimelineItem, TimelineState } from './timeline-con
  *
  * At most one: the agent waits for an answer before asking anything else. 那条
  * 不变式此前只写在注释里，实现却是一次正向 find —— 于是为了找一个恒在本轮末尾
- * 的东西，每次都要走完整条已答的历史。反着走，并在本轮开头收手：走到人说的上
- * 一句话，就说明这一轮没有在等谁。
+ * 的东西，每次都要走完整条已答的历史。反着走，并在本段边界上收手。
+ *
+ * 边界读的是条目自己的段号。此前读的是「撞见一条用户消息」，而那会漏掉一个能
+ * 把整轮卡死的情形：agent 停在一个还没答复的请求上，人没点按钮，转头在输入框里
+ * 又说了一句 —— 那句话排在请求后面，于是反向扫第一个就撞上它，面板当场消失，
+ * 而原生侧的 RunSlot 还在阻塞等这个答复，界面上再没有任何入口。
+ *
+ * 那句话没有开新的一段（开段的是 run_started），所以它与那个请求同号，扫描照常
+ * 走过去。
  */
 export function selectPendingPermission(state: TimelineState): PermissionItem | undefined {
   const items = state.items
@@ -31,7 +38,7 @@ export function selectPendingPermission(state: TimelineState): PermissionItem | 
       continue
     }
 
-    if (item.type === 'user_message') {
+    if (item.turn !== state.runIndex) {
       return undefined
     }
 

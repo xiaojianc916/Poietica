@@ -140,12 +140,36 @@ export function appendUserMessage(
 
   const draft = draftOf(state)
 
-  draft.status = 'running'
-  /* 这句话先于 run_started 到达，所以它落在上一段的命名空间里；
-     位置补进 id，同一段内问两次也不会撞。 */
+  /*
+   * 又问一句，不等于上一个问题消失了。
+   *
+   * 此前这里无条件写 'running'。agent 停在一个还没答复的权限请求上时，那一笔
+   * 就把「我在等你批准」抹掉了 —— 而那条请求仍然躺在 items 里、resolution 仍
+   * 然是 undefined、原生侧的 RunSlot 仍然在阻塞。状态被当成一个可以随手赋值的
+   * 共享字段，是这条缺陷的形状：全包七处 status 赋值里，只有这一处不是帧驱动的。
+   *
+   * 一轮的状态由帧说了算。本地这条路径唯一有资格宣告的是「有一轮在跑」，而
+   * awaiting_permission 本来就是在跑的一种，它比 running 多带一个事实，覆盖它
+   * 只会丢信息。
+   */
+  if (draft.status !== 'awaiting_permission') {
+    draft.status = 'running'
+  }
+
+  /*
+   * 这句话先于 run_started 到达，所以它落在上一段的命名空间里；位置补进 id，
+   * 同一段内问两次也不会撞。
+   *
+   * 前缀是 local-said- 而不是 said-：said- 是帧那边在用的，号源是段内 seq；这里
+   * 的号源是整条对话的长度。两个号源共用一个前缀，只要回放出来的条目数恰好等于
+   * 那一帧的 seq 就会撞出同一个 id —— 一段只有 prompt、没有任何产出的日志（断网
+   * 就是这样）正好满足：items 长度 1，seq 也是 1。撞出来的后果是虚拟列表拿到重复
+   * key，行复用错乱。
+   */
   push(draft, {
     type: 'user_message',
-    id: `${namespace(draft)}said-${String(draft.items.length)}`,
+    id: `${namespace(draft)}local-said-${String(draft.items.length)}`,
+    turn: draft.runIndex,
     at,
     text: said,
     /* 缺席和「值为 undefined」在 exactOptionalPropertyTypes 下不是一回事。 */
@@ -181,10 +205,12 @@ export function appendLocalError(
     draft.status = 'failed'
   }
 
-  /* 位置补进 id：同一段里出两次事故也不会撞，与 said- 同一套办法。 */
+  /* 位置补进 id，前缀与另一条本地路径成对：local- 之下再分种类，才不会与帧那边
+     按 seq 编号的 error- / agent- 共用同一个号段。 */
   push(draft, {
     type: 'error',
-    id: `${namespace(draft)}local-${String(draft.items.length)}`,
+    id: `${namespace(draft)}local-error-${String(draft.items.length)}`,
+    turn: draft.runIndex,
     at: error.at,
     message: error.message,
   })

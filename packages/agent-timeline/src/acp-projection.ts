@@ -62,6 +62,7 @@ export function apply(draft: Draft, event: RunEvent): void {
       push(draft, {
         type: 'permission',
         id: `${namespace(draft)}permission-${event.requestId}`,
+        turn: draft.runIndex,
         at: event.at,
         requestId: event.requestId,
         title: event.title,
@@ -111,6 +112,7 @@ export function apply(draft: Draft, event: RunEvent): void {
         push(draft, {
           type: 'error',
           id: `${namespace(draft)}agent-${String(event.seq)}`,
+          turn: draft.runIndex,
           at: event.at,
           message: told,
         })
@@ -125,6 +127,7 @@ export function apply(draft: Draft, event: RunEvent): void {
       push(draft, {
         type: 'error',
         id: `${namespace(draft)}error-${String(event.seq)}`,
+        turn: draft.runIndex,
         at: event.at,
         message: preferAgent(event.message, event.diagnostics),
       })
@@ -176,7 +179,7 @@ function applyAcpUpdate(draft: Draft, update: AcpSessionUpdate, seq: number, at:
       /* The protocol replaces the whole plan; keep exactly one plan entry per
          turn, so a later turn cannot rewrite an earlier one. */
       const id = `${scope}plan`
-      const plan = { type: 'plan', id, at, entries: update.entries } as const
+      const plan = { type: 'plan', id, turn: draft.runIndex, at, entries: update.entries } as const
       const position = positionOf(draft, id)
 
       if (position < 0) {
@@ -235,6 +238,8 @@ function upsertToolCall(
   const next: ToolCallTimelineItem = {
     type: 'tool_call',
     id,
+    /* 一次调用属于它开始的那一段，与 at 同一条规矩：记下就不再移动。 */
+    turn: held?.turn ?? draft.runIndex,
     at: held?.at ?? at,
     toolCallId: update.toolCallId,
     title: update.title ?? held?.title ?? update.toolCallId,
@@ -284,6 +289,7 @@ function withPrompt(
   push(draft, {
     type: 'user_message',
     id: `${namespace(draft)}said-${String(event.seq)}`,
+    turn: draft.runIndex,
     at: event.at,
     text: prompt,
   })
@@ -334,6 +340,7 @@ function appendChunk(
   push(draft, {
     type,
     id: scope + prefix + String(seq),
+    turn: draft.runIndex,
     at,
     text: chunk,
     sealed: false,
@@ -374,6 +381,7 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
   push(draft, {
     type: 'user_message',
     id: `${scope}user-${String(seq)}`,
+    turn: draft.runIndex,
     at,
     text: chunk,
   })
@@ -445,8 +453,12 @@ function preferAgent(message: string, diagnostics?: string): string {
  *
  * agent 自己留下了 diagnostics 时根本走不到这里：一件事只有一个说法。
  *
- * 判据向后扫到本轮的提问为止，代价是一轮的长度，不是整条对话的长度；
+ * 判据向后扫到本段边界为止，代价是一轮的长度，不是整条对话的长度；
  * isRenderable 与派生共用同一份 —— 抄第二份就会有两种「空」。
+ *
+ * 边界读的是条目自己的段号，不再是「撞见一条用户消息就算到头」。那个启发式
+ * 在人于轮次进行中又说一句时会当场收错口；段号是 run_started 划的，它不会。
+ * 提问单独跳过：它是两段之间的边界，不是这一段的产出。
  */
 function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined {
   for (let index = draft.items.length - 1; index >= 0; index -= 1) {
@@ -456,8 +468,12 @@ function silentTurn(draft: Draft, stopReason: AcpStopReason): string | undefined
       continue
     }
 
-    if (item.type === 'user_message') {
+    if (item.turn !== draft.runIndex) {
       break
+    }
+
+    if (item.type === 'user_message') {
+      continue
     }
 
     if (isRenderable(item)) {

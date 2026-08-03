@@ -49,9 +49,13 @@ export function openSegment(draft: Draft): void {
 /**
  * The identity prefix of the turn currently being written.
  *
- * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的段号为正。两者不会
- * 相遇：一条对话被读回来之后，接着说的话开的是 r1，而 r1 在任何一次回放里都
- * 不存在。
+ * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的段号为正。
+ *
+ * 但「接着说的那一句话」不在正的那一边：它先于 run_started 到达，开段的是那一
+ * 帧，不是它 —— 所以它落在 r0，与回放出来的最后一段同号。此前这里写的是「接着
+ * 说的话开的是 r1」，那句话是假的，而正是它让本地那条路径敢用 items.length 当
+ * 号源：与帧那边的 seq 撞在同一个 said- 前缀里，回放出一条条目时两者恰好相等。
+ * 本地的两条路径因此改用 local- 开头的前缀，与协议发的号彻底隔开。
  */
 export function namespace(draft: Draft): string {
   return `r${String(draft.runIndex)}-`
