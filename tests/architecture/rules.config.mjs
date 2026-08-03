@@ -66,7 +66,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
  * 解释为什么 platform 可以反向依赖 features。分开之后，那个破例不存在了。
  */
 const tiers = [
-  { name: 'foundations', packages: ['core', 'observability', 'serialization', 'test-kit', 'ui'] },
+  { name: 'foundations', packages: ['core', 'observability', 'serialization', 'ui'] },
   { name: 'protocol', packages: ['acp'] },
   {
     name: 'domain',
@@ -81,59 +81,74 @@ const tiers = [
 /* 只有这三个包可以直连原生宿主。其余任何一个碰 @tauri-apps 都是越界。 */
 const nativeAllowed = new Set(['desktop', 'desktop-runtime', 'ipc'])
 
-const directoryOf = (pkg) => {
-  for (const root of sourceRoots) {
-    if (existsSync(path.join(repositoryRoot, root, pkg, 'package.json'))) {
-      return `${root}/${pkg}`
-    }
-  }
-  throw new Error(`architecture: 分层表里的 "${pkg}" 在磁盘上不存在`)
-}
-
-const declaredNameOf = (directory) =>
-  JSON.parse(readFileSync(path.join(repositoryRoot, directory, 'package.json'), 'utf8')).name
-
-const placed = new Map()
-for (const [index, tier] of tiers.entries()) {
-  for (const pkg of tier.packages) {
-    if (placed.has(pkg)) {
-      throw new Error(`architecture: "${pkg}" 被放进了不止一层`)
-    }
-    placed.set(pkg, index)
-  }
-}
-
 /*
- * 新增一个包却没有给它定层，就在这里失败 —— 而不是安静地不受任何方向约束。
- * 旧规则想要的正是这个效果，但它靠的是命名约定，所以做不到。
+ * 分层表与工作区对账，一次做完。
+ *
+ * 上一版把这件事拆成三段各自为政地跑：directoryOf 逐包 existsSync、一段循环找
+ * 「磁盘上多出来的包」、再一段循环核对包名。表里写了一个磁盘上已经不存在的包时，
+ * directoryOf 在第一个受害者身上直接抛 —— 整个检查器死在模块加载期，一次只报一
+ * 个名字，改完再跑再报下一个。run.mjs 开头写着 "Never short-circuits."，这份配
+ * 置却把那条原则毁在了加载阶段。
+ *
+ * 现在工作区只扫一次，两个方向与包名核对合并成一份清单，一次抛全。
  */
+const workspacePackages = new Map()
+
 for (const root of sourceRoots) {
   for (const entry of readdirSync(path.join(repositoryRoot, root), { withFileTypes: true })) {
     if (!entry.isDirectory()) {
       continue
     }
-    if (!existsSync(path.join(repositoryRoot, root, entry.name, 'package.json'))) {
-      continue
-    }
-    if (!placed.has(entry.name)) {
-      throw new Error(
-        `architecture: ${root}/${entry.name} 没有出现在分层表里。` +
-          '新增包必须先声明它属于哪一层，才能被允许 import 任何东西。',
-      )
+
+    const directory = `${root}/${entry.name}`
+
+    if (existsSync(path.join(repositoryRoot, directory, 'package.json'))) {
+      workspacePackages.set(entry.name, directory)
     }
   }
 }
 
-/* 允许集按包名拼装，所以包名与目录名必须一致，否则规则会指向错误的东西。 */
-for (const [pkg] of placed) {
-  const directory = directoryOf(pkg)
-  const declared = declaredNameOf(directory)
-  if (declared !== `@poietica/${pkg}`) {
-    throw new Error(
-      `architecture: ${directory} 的包名是 "${declared}"，与目录名不一致。` +
-        '分层表按目录名索引、按包名生成允许集，两者必须对齐。',
-    )
+const placed = new Map()
+const mismatches = []
+
+for (const [index, tier] of tiers.entries()) {
+  for (const pkg of tier.packages) {
+    if (placed.has(pkg)) {
+      mismatches.push(`"${pkg}" 被放进了不止一层`)
+      continue
+    }
+
+    placed.set(pkg, index)
+
+    const directory = workspacePackages.get(pkg)
+
+    if (directory === undefined) {
+      mismatches.push(`分层表里的 "${pkg}" 在磁盘上不存在 —— 包删除或改名后必须同步这张表`)
+      continue
+    }
+
+    /* 允许集按包名拼装，所以包名与目录名必须一致，否则规则会指向错误的东西。 */
+    const declared = JSON.parse(
+      readFileSync(path.join(repositoryRoot, directory, 'package.json'), 'utf8'),
+    ).name
+
+    if (declared !== `@poietica/${pkg}`) {
+      mismatches.push(`${directory} 的包名是 "${declared}"，与目录名不一致`)
+    }
   }
+}
+
+/* 新增一个包却没有给它定层，就在这里失败 —— 而不是安静地不受任何方向约束。 */
+for (const [pkg, directory] of workspacePackages) {
+  if (!placed.has(pkg)) {
+    mismatches.push(`${directory} 没有出现在分层表里 —— 新增包必须先声明它属于哪一层`)
+  }
+}
+
+if (mismatches.length > 0) {
+  throw new Error(
+    ['architecture: 分层表与工作区对不上：', ...mismatches.map((item) => `  · ${item}`)].join('\n'),
+  )
 }
 
 /*
@@ -152,7 +167,7 @@ const tierRules = [...placed].map(([pkg, index]) => {
 
   return {
     id: `${pkg}-depends-downward`,
-    appliesTo: inDirectory(directoryOf(pkg)),
+    appliesTo: inDirectory(workspacePackages.get(pkg)),
     pattern: new RegExp(forbidden.join('|'), 'g'),
     message: `${pkg}（${tiers[index].name}）只能依赖 ${allowed.join(', ')}`,
   }
