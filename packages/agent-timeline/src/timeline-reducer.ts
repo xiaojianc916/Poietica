@@ -2,7 +2,7 @@ import type { RunEvent } from '@poietica/acp'
 import { apply } from './acp-projection'
 import type { MessageImage, TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
-import { draftOf, freeze, namespace, openSegment, push } from './timeline-draft'
+import { beginRun, draftOf, freeze, namespace, openSegment, push } from './timeline-draft'
 
 /**
  * The timeline reducer.
@@ -80,12 +80,16 @@ export function replayThreadEvents(events: readonly RunEvent[]): TimelineState {
    * 出新号 —— 屏幕上已有的那些行，连 id 带对象一起原样留下。这不是为滚动做
    * 的让步：一轮在一条对话里的位置，本来就该由它距今多少轮来定，而不是由
    * 「这次我读了多少」来定。
+   *
+   * N 轮之间只有 N-1 次开段：第一段是现成的 —— run_started 不会在一段还空着的
+   * 时候再开一段（见 beginRun），实时那边人先说的那句话正是这样落进它自己那一
+   * 轮的。末轮仍然恒为 r0。
    */
-  draft.runIndex = -turnsIn(events)
+  draft.runIndex = 1 - Math.max(turnsIn(events), 1)
 
   for (const event of events) {
     if (event.kind === 'run_started') {
-      openSegment(draft)
+      beginRun(draft)
     }
 
     apply(draft, event)
@@ -151,14 +155,24 @@ export function appendUserMessage(
    * 一轮的状态由帧说了算。本地这条路径唯一有资格宣告的是「有一轮在跑」，而
    * awaiting_permission 本来就是在跑的一种，它比 running 多带一个事实，覆盖它
    * 只会丢信息。
+   *
+   * 「有没有一轮在跑」同时回答了另一个问题：这一句话开不开一段。没在跑，它就是
+   * 新一轮的开头，段在这一刻开；正在跑时插的那句话属于在跑的那一轮 —— 换段会连
+   * seq 窗口带 id 前缀一起换掉，在飞的工具调用会认不回自己那张卡。两件事同一个
+   * 判据，所以只判一次。
    */
-  if (draft.status !== 'awaiting_permission') {
+  const busy = draft.status === 'running' || draft.status === 'awaiting_permission'
+
+  if (!busy) {
+    openSegment(draft)
     draft.status = 'running'
   }
 
   /*
-   * 这句话先于 run_started 到达，所以它落在上一段的命名空间里；位置补进 id，
-   * 同一段内问两次也不会撞。
+   * 这句话开的段就是它自己那一轮：随后的 run_started 看见这一段还没收过帧，不会
+   * 再开一段。此前它落在上一段，而回放那边同一句话由 run_started 的 prompt 投影
+   * 出来、落在它自己那一轮里 —— 同一条对话读两遍给出两种归属，与这个文件开篇那条
+   * 「回放逐字复现实时」相抵触。位置补进 id，同一段内问两次也不会撞。
    *
    * 前缀是 local-said- 而不是 said-：said- 是帧那边在用的，号源是段内 seq；这里
    * 的号源是整条对话的长度。两个号源共用一个前缀，只要回放出来的条目数恰好等于
@@ -243,9 +257,10 @@ export function applyRunEvents(state: TimelineState, events: readonly RunEvent[]
 
     /* 实时流不会把旧帧再送一遍，所以这里的 run_started 一定是新的一轮。
        它从 1 开始编自己的号，窗口必须跟着换，否则整轮会被上一轮的 seq
-       判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。 */
+       判成重复——没有经过输入框的那些轮次（重连续接、重试）就是这么消失的。
+       人先说话的那些轮次里段已经开过了，beginRun 认得出来，不会再开一段。 */
     if (event.kind === 'run_started') {
-      openSegment(draft)
+      beginRun(draft)
     }
 
     apply(draft, event)

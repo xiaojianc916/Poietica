@@ -29,6 +29,7 @@ function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
     type: 'permission',
     id: 'r0-permission-1',
     at: 0,
+    turn: 0,
     requestId: 'request-1',
     title: '写入文件',
     options: [

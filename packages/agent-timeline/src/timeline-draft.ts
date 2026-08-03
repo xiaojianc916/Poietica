@@ -47,15 +47,36 @@ export function openSegment(draft: Draft): void {
 }
 
 /**
+ * 一轮的帧开始到了。
+ *
+ * 段可能已经开过：人先说话时开段的是 appendUserMessage —— 那一句话就是这一轮的
+ * 开头，它和随后的帧本来就该同号。「这一段还没收过帧」就是「它刚被开出来」，所以
+ * 不必另记一个标志位，lastSeq 为零说的就是这件事。
+ *
+ * 没有经过输入框的那些轮次（重连续接、重试）到这里时，lastSeq 还停在上一轮的窗口
+ * 上，于是照常开一段 —— 否则整轮会被上一轮的 seq 判成重复而逐帧丢掉。
+ */
+export function beginRun(draft: Draft): void {
+  if (draft.lastSeq === 0) {
+    return
+  }
+
+  openSegment(draft)
+}
+
+/**
  * The identity prefix of the turn currently being written.
  *
- * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的段号为正。
+ * 回放出来的段号是零或负数（最后一轮为 r0），接着说下去开出来的段号为正。
  *
- * 但「接着说的那一句话」不在正的那一边：它先于 run_started 到达，开段的是那一
- * 帧，不是它 —— 所以它落在 r0，与回放出来的最后一段同号。此前这里写的是「接着
- * 说的话开的是 r1」，那句话是假的，而正是它让本地那条路径敢用 items.length 当
- * 号源：与帧那边的 seq 撞在同一个 said- 前缀里，回放出一条条目时两者恰好相等。
- * 本地的两条路径因此改用 local- 开头的前缀，与协议发的号彻底隔开。
+ * 段由先到的那一方开：人先说话，段在 appendUserMessage 那一刻就开了；没有经过
+ * 输入框的那些轮次（重连续接、重试）由 run_started 开。两边不会各开一次 —— 帧
+ * 那侧走 beginRun，它只在这一段已经收过帧时才开新的一段。人说的那句话因此与它
+ * 的答复同号，实时与回放对同一条对话给出同一种归属。
+ *
+ * 本地那两条路径的号源是整条对话的长度，与帧那边按 seq 编的号不是一回事，所以
+ * 前缀是 local- 开头的，与协议发的号彻底隔开：共用前缀时，一段只有 prompt、没有
+ * 任何产出的日志（断网就是这样）正好让两个号源撞出同一个 id。
  */
 export function namespace(draft: Draft): string {
   return `r${String(draft.runIndex)}-`

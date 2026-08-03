@@ -33,6 +33,7 @@ function question(resolution?: PermissionItem['resolution']): PermissionItem {
     type: 'permission',
     id: 'item-question',
     at: 0,
+    turn: 0,
     requestId: 'req-question',
     title: 'AskUserQuestion',
     toolCall: {
@@ -59,6 +60,7 @@ function consent(): PermissionItem {
     type: 'permission',
     id: 'item-consent',
     at: 0,
+    turn: 0,
     requestId: 'req-consent',
     title: '写入文件',
     options: [
