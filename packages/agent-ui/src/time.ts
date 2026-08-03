@@ -279,14 +279,21 @@ function nextMidnight(instant: number): number {
   return at.getTime()
 }
 
-/**
+/*
  * 这一行的文案下一次会变的时刻 —— 与 formatElapsed 同一道阶梯，反着算。
  *
- * 分钟档在这一行自己的下一个整分钟变，小时档在下一个整小时变；一天以上只
- * 在本地午夜改口（包括跨过第七天那道坎、从时长改画日期）。未来时刻读作
- * 「现在」，它会在自己的第一分钟到来时变，所以同样有确定的期限。
+ * 分钟档在这一行自己的下一个整分钟变，小时档在下一个整小时变。一天以上没有
+ * 属于自己的期限：它只在本地午夜改口，而午夜是整屏共同的边界，nextChangeIn
+ * 无条件把它算进去（列表空着也要算）。此前这里交回 nextMidnight(reference) ——
+ * 与那个初值逐字相等，于是每一行都白造一次 Date，算出一个必然被丢掉的候选。
+ * 交回 Infinity 是把这句话说清楚：这一行自己不会变。
+ *
+ * 未来时刻（时钟偏差）读作「现在」，它会在自己的第一分钟到来时变，所以同样
+ * 有确定的期限。
+ *
+ * 不导出：唯一的消费者是下面的 nextChangeIn —— 整屏的期限只能整屏地求。
  */
-export function nextChangeOf(instant: number, reference: number): number {
+function nextChangeOf(instant: number, reference: number): number {
   const since = reference - instant
 
   if (since < MINUTE) {
@@ -301,7 +308,7 @@ export function nextChangeOf(instant: number, reference: number): number {
     return instant + (Math.floor(since / HOUR) + 1) * HOUR
   }
 
-  return nextMidnight(reference)
+  return Number.POSITIVE_INFINITY
 }
 
 /**
@@ -362,6 +369,34 @@ export interface DatedThread {
   readonly isPinned?: boolean
 }
 
+/**
+ * 一行里不随墙上时间变化的那一半：时刻，以及它的准确说法。
+ *
+ * 分出来，是因为这两样都只是 updatedAt 的函数。它们此前与相对文案算在同一趟里
+ * （sectionsOf），而那一趟的输入含 now —— 于是时钟每跳一次（有近处会话时是每分钟
+ * 一次），整张列表就重跑一遍 Date.parse 和一遍 dateStyle: 'full' 的 DateTimeFormat，
+ * 而后者只出现在悬停提示上，那一分钟里没有一个像素因它不同。
+ *
+ * 两级投影：数据变了算这一趟，时钟跳了只算下一趟。
+ */
+export interface DatedThreadMember<T> {
+  readonly thread: T
+  /** 解析过的时刻；无法解析时为 NaN。 */
+  readonly instant: number
+  /** 同一时刻的准确说法，给悬停与读屏；无法解析时为 null。 */
+  readonly absolute: string | null
+}
+
+export function datedOf<T extends DatedThread>(
+  threads: readonly T[],
+): readonly DatedThreadMember<T>[] {
+  return threads.map((thread) => {
+    const instant = Date.parse(thread.updatedAt)
+
+    return { absolute: Number.isNaN(instant) ? null : formatAbsolute(instant), instant, thread }
+  })
+}
+
 export interface ThreadSectionMember<T> {
   readonly thread: T
   /** 解析过的时刻；无法解析时为 NaN。段内排序用它，画面不用。 */
@@ -401,23 +436,20 @@ function orderOf<T>(member: ThreadSectionMember<T>): number {
 /*
  * 固定在最前，其余按本地日历日分段；段内按最近活动倒序。
  *
- * 文案也在这一趟里算完。这个模块自称是「会话时间的唯一管线」，可文案此前
- * 是在调用点的 JSX 里逐行现算的，于是任何与时间无关的重画（改名态、父组件
- * 状态）都要把整屏的 Intl.DateTimeFormat（dateStyle: 'full'）重跑一遍，而它
- * 只用来做悬停提示。算在这里，它就只随 (threads, now) 变，被 useMemo 挡住。
+ * 入参是 datedOf 的结果，不是原始会话：这一趟只做随墙上时间变化的那一半 ——
+ * 相对文案、分段与段内次序。时刻与绝对文案不随时钟变，它们在上一级算一次就够，
+ * 此前跟着这一趟每分钟重算一遍整屏。
  */
 export function sectionsOf<T extends DatedThread>(
-  threads: readonly T[],
+  dated: readonly DatedThreadMember<T>[],
   reference: number,
 ): readonly ThreadSection<T>[] {
   const held = new Map<string, ThreadSectionMember<T>[]>()
 
-  for (const thread of threads) {
-    const instant = Date.parse(thread.updatedAt)
-    const unreadable = Number.isNaN(instant)
+  for (const { absolute, instant, thread } of dated) {
     const member: ThreadSectionMember<T> = {
-      absolute: unreadable ? null : formatAbsolute(instant),
-      elapsed: unreadable ? null : formatElapsed(instant, reference),
+      absolute,
+      elapsed: Number.isNaN(instant) ? null : formatElapsed(instant, reference),
       instant,
       thread,
     }

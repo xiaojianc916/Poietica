@@ -10,7 +10,7 @@ import {
 } from '@poietica/ui'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
-import { nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
+import { datedOf, nextChangeIn, sectionsOf, useHorizon, useNow } from './time'
 
 /*
  * 会话列表。
@@ -360,7 +360,10 @@ export function AssistantThreadList({
    * 同时告诉它这一屏下一次会变的时刻：它不按拍子轮询，睡到那一刻为止。
    */
   const now = useNow()
-  const groups = useMemo(() => sectionsOf(threads, now), [now, threads])
+
+  /* 两级投影：时刻与绝对文案只随数据变，相对文案与分段才随时钟变。 */
+  const dated = useMemo(() => datedOf(threads), [threads])
+  const groups = useMemo(() => sectionsOf(dated, now), [dated, now])
 
   /* 期限从分好段的结果上求 —— 时刻在上面那一趟里已经解析过了。 */
   useHorizon(nextChangeIn(groups, now))
