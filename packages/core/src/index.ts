@@ -1,8 +1,8 @@
 export {
+  CANCELLATION_REASONS,
   CancellationError,
   type CancellationReason,
-  type CancellationToken,
-  CancellationTokenSource,
+  cancellationReasonOf,
   isCancellationError,
   withCancellation,
 } from './cancellation'
