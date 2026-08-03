@@ -68,7 +68,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
         pending.push(scheduler(() => emit(event), stepMs * index))
       })
 
-      return Promise.resolve({ sessionId: SESSION })
+      return Promise.resolve({ sessionId: SESSION, images: [] })
     },
 
     /* 录像里只有一条对话，所以停的就是它 —— 点名哪一条不改变要做的事。 */

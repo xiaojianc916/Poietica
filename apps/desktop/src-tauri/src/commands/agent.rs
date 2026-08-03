@@ -1596,7 +1596,6 @@ async fn deliver_attachments(
                 字节那一支同一条规矩：显示其余的，把这一张记进日志。 */
                 Err(error) => {
                     log::warn!("an attachment cannot be delivered: {hash} {error:?}");
-                    continue;
                 }
             }
         }
