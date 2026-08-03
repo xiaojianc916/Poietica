@@ -1,4 +1,4 @@
-import '../styles/permission-request.css'
+import './permission-request.css'
 
 import type { AcpPermissionOption, AcpToolCallUpdate } from '@poietica/acp'
 import type { PermissionItem } from '@poietica/agent-timeline'
