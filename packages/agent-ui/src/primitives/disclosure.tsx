@@ -2,26 +2,33 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 
 /**
- * A section that opens.
+ * 一段可以打开的内容。
  *
- * The default is the content's business, and in this product it is always the
- * same question: is this still happening? A live thought chain and a running
- * tool call are open; both close when they settle, however they settle. A click
- * is an opinion that outranks the default from then on, which is why the
- * override is state and the default is derived rather than synchronised in an
- * effect — the default must be free to keep changing until someone disagrees.
+ * 默认开合只在挂载那一刻问一次，之后归读者。
+ *
+ * 此前它是每帧派生的：isOpen = override ?? fallback，而两个调用点传进来的
+ * fallback 分别是 isStreaming 与 isRunning。于是一次运行结束的那一刻，面板
+ * 替用户按了一下折叠 —— 没有人点过它，行高却突降一截，而这一行挂着虚拟器的
+ * measureElement，它后面每一行的位置都要重算。那就是那阵「莫名其妙的抖动」。
+ * 它还解释了为什么时有时无：点过一次之后 override 非空，派生就失效了。
+ *
+ * 业界没有一家这么做。VS Code 的输出面板、Xcode 的 build log、Cursor 的工具
+ * 卡片，任务跑完都不会自动折叠 —— 展开状态是读者的，一旦交出去就不再收回。
+ * 「运行中默认展开」是个好默认，但默认的意思就是只在开头说一次。
+ *
+ * 这也正是 React 官方对「用 prop 当 state 初始值」给的写法：useState(prop)，
+ * 而不是一个每次渲染都重新求值的派生量。
  */
-export function useDisclosure(fallback: boolean): {
+export function useDisclosure(defaultOpen: boolean): {
   readonly isOpen: boolean
   readonly toggle: () => void
 } {
-  const [override, setOverride] = useState<boolean | null>(null)
-  const isOpen = override ?? fallback
+  const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return {
     isOpen,
     toggle: () => {
-      setOverride(!isOpen)
+      setIsOpen(!isOpen)
     },
   }
 }
