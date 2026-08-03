@@ -1280,30 +1280,41 @@ svg.assistant-provider-icon {
 /*
  * 内容在够到输入框之前化掉。
  *
- * 不用色块。色块有一条硬边，滚上来的字会被齐刷刷切断，那比漏出来更难看 ——
- * 渐变没有这条边，这也是 ChatGPT、Claude、Cursor 在同一处的做法。
+ * 高度仍是 --cp-dock-dissolve，一段，不显眼。变的是这一段怎么画。
  *
- * --cp-dock-dissolve 不是新令牌：上一轮删掉的是它挂在滚动盒上的那个消费点
- * （mask 作用于整个元素盒，会连原生滚动条一起抹掉），令牌本身一直在
- * composer-metrics.css 里空着。它现在画在带子上，碰不到滚动盒。
+ * 一个颜色，一张遮罩。底色写死 var(--cp-ground)，整层被 mask 罩着，alpha
+ * 从 0 缓到 1 —— 落到眼睛里是渐变，不是色块。
  *
- * 起点抬到带子上沿之上一整段：带子自己的上内边距只有 --cp-pad-mid，不抬的话
- * 那 8px 里的字是硬切的。到带子上沿时已经是纯底色，往下整片实色，所以输入框
- * 四周和它下面那道 --cp-gutter 都不再漏内容。
+ * 不把渐变写进 background，是因为 transparent 在插值里是 rgba(0, 0, 0, 0)：
+ * 浅色主题下中段会往灰里偏，那正是上一版「看着像一块色」的来源。一个颜色加
+ * 一张 alpha 遮罩，全程只有一个颜色，没有颜色可以插错。
  *
- * 是 ::before 而不是 ::after：两者都是定位元素，树序因此生效，而输入框排在它
- * 后面。
+ * 遮罩还顺手把模糊一起揭开：backdrop-filter 与 background 同属这一层，同受
+ * 这一张遮罩，所以两者共用一条曲线，不会各走各的。停靠点按缓入排布，避免两
+ * 段式线性在这么短的距离上读成一道横带。
  *
- * 这里上一版写的是「伪元素与流内子元素按树序绘制」—— 那句话是错的，而且代价
- * 是输入框整个消失了一轮：绘制顺序里定位元素压在流内块级内容之上，树序只在同
- * 一层内部说话。改正的说明在上面 .assistant-surface__composer 那条规则里，这句
- * 当时留在了原地，两句互相矛盾。
+ * 模糊只在这一段里有意义：往下 alpha 已经是 1，背后什么也透不过来。
  *
- * 带子整体 pointer-events: none，这一层也就不吃滚轮。
+ * 是 ::before 而不是 ::after：两者都是定位元素，树序因此生效，而输入框排在
+ * 它后面。带子整体 pointer-events: none，这一层也就不吃滚轮。
  */
 .assistant-surface[data-phase="live"] .assistant-surface__dock::before {
+  --assistant-dock-veil: var(--cp-dock-dissolve);
+  --assistant-dock-veil-blur: 8px;
+
   position: absolute;
-  inset: calc(-1 * var(--cp-dock-dissolve)) 0 0;
-  background: linear-gradient(to bottom, transparent 0, var(--cp-ground) var(--cp-dock-dissolve));
+  inset: calc(-1 * var(--assistant-dock-veil)) 0 0;
+  background: var(--cp-ground);
+  backdrop-filter: blur(var(--assistant-dock-veil-blur));
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0) 0,
+    rgb(0 0 0 / 0.05) calc(var(--assistant-dock-veil) * 0.25),
+    rgb(0 0 0 / 0.16) calc(var(--assistant-dock-veil) * 0.42),
+    rgb(0 0 0 / 0.34) calc(var(--assistant-dock-veil) * 0.58),
+    rgb(0 0 0 / 0.58) calc(var(--assistant-dock-veil) * 0.72),
+    rgb(0 0 0 / 0.82) calc(var(--assistant-dock-veil) * 0.86),
+    rgb(0 0 0 / 1) var(--assistant-dock-veil)
+  );
   content: "";
 }

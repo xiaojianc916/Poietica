@@ -47,6 +47,15 @@ const BOTTOM_THRESHOLD_PX = 48
 const OVERSCAN_ROWS = 6
 
 /**
+ * 抽屉那条过渡改的是哪个属性。
+ *
+ * 思考面板与工具卡片的展开收起都靠 grid-template-rows 从 0fr 走到 1fr
+ * （timeline.css）。滚动区认这一个属性名，就等于认「有人正在故意改变某一
+ * 行的高度」，而不必知道是谁在改。
+ */
+const DRAWER_PROPERTY = 'grid-template-rows'
+
+/**
  * 视线在视口里的位置,自上而下的比例。
  *
  * 高亮问的是"人在读哪一轮",而不是"哪一行碰到了视口上沿"。上沿是一条边,上一轮
@@ -195,6 +204,40 @@ export function AgentActivityFeed({
    */
   const [readingRow, setReadingRow] = useState<number | null>(null)
 
+  /*
+   * 正在展开或收起的抽屉数。
+   *
+   * 它只服务一件事：抽屉动的时候，末端锚定要让位。理由在库的源码里 ——
+   * resizeItem 中，anchorTo 为 end 且 getVirtualDistanceFromEnd() 落在
+   * scrollEndThreshold 之内时，任何一行长高都会走
+   *
+   *   applyScrollAdjustment(getTotalSize() - prevTotalSize)
+   *
+   * 也就是把这次长高原样加到 scrollTop 上。这对流式输出的最后一条是对的
+   * （末端钉住），对读者亲手点开的抽屉是错的：整条转录跟着上移，面板于是
+   * 看起来是向上长出来的。
+   *
+   * 调小 scrollEndThreshold 躲不掉。判据是「距末端 <= 阈值」，而人看完一条
+   * 回复停在的位置距末端就是 0，任何非负阈值都成立。何况那个数还兼着
+   * followOnAppend 与 isAtEnd 的判据（官方 API 文档原话），调小它等于让
+   * 新消息不再自动跟到底部 —— 一个数两份工，修一头砸另一头。
+   *
+   * 库给的 shouldAdjustScrollPositionOnItemSizeChange 也够不着：它是
+   * wasAtEnd 的 else 分支。所以唯一的开关就是 anchorTo 本身。
+   *
+   * 让位期间走库的默认判据：只补偿整个都在视口上方的行。视口上方的抽屉展开
+   * 仍然保持读者的位置不动，视口内的抽屉直接向下长。两者都是要的。
+   *
+   * 计数不是自己发明的信号。CSS 过渡自己会说：transitionrun 与
+   * transitionend / transitioncancel 一一对应，且都冒泡，所以滚动区在自己
+   * 身上听就够了，不需要任何组件向上报告，也不需要定时器去猜它何时结束。
+   *
+   * 一个诚实的边界：prefers-reduced-motion 下过渡被关掉，不发事件，这次让位
+   * 也就不发生，那种情况下仍会上移一次。不为它加兜底定时器 —— 那是拿一个
+   * 猜测去补一个已知的缺口。
+   */
+  const [drawerCount, setDrawerCount] = useState(0)
+
   const {
     pending,
     begin: beginReveal,
@@ -306,10 +349,37 @@ export function AgentActivityFeed({
 
       viewport.addEventListener('scroll', scheduleSync, { passive: true })
 
+      /*
+       * 抽屉的起落。三个事件都冒泡，所以挂在滚动区上就能收到任何一行里的那
+       * 条过渡；只认 DRAWER_PROPERTY，别的过渡（悬停底色、透明度）不算。
+       *
+       * 收尾有两种，两种都要听：transitionend 是走完，transitioncancel 是中
+       * 途被打断（连点两下，或者这一行被卸载）。只听前者会漏减，末端锚定就此
+       * 永远关着。
+       */
+      const onDrawerRun = (event: TransitionEvent) => {
+        if (event.propertyName === DRAWER_PROPERTY) {
+          setDrawerCount((count) => count + 1)
+        }
+      }
+
+      const onDrawerSettled = (event: TransitionEvent) => {
+        if (event.propertyName === DRAWER_PROPERTY) {
+          setDrawerCount((count) => Math.max(0, count - 1))
+        }
+      }
+
+      viewport.addEventListener('transitionrun', onDrawerRun)
+      viewport.addEventListener('transitionend', onDrawerSettled)
+      viewport.addEventListener('transitioncancel', onDrawerSettled)
+
       const unwatch = watchReveal(viewport)
 
       return () => {
         viewport.removeEventListener('scroll', scheduleSync)
+        viewport.removeEventListener('transitionrun', onDrawerRun)
+        viewport.removeEventListener('transitionend', onDrawerSettled)
+        viewport.removeEventListener('transitioncancel', onDrawerSettled)
 
         if (frame.current !== 0) {
           cancelAnimationFrame(frame.current)
@@ -382,8 +452,13 @@ export function AgentActivityFeed({
      * 锚点，模式在两次渲染之间换掉，锚点的含义也就换了。
      *
      * 于是这里只留立场：这是一条会话流，它的稳定侧永远是末端。
+     *
+     * 唯一的例外是抽屉：读者亲手改变一行的高度时，末端锚定会把这次长高加到
+     * scrollTop 上，面板于是向上长。那段时间锚点让给 start，理由与判据写在
+     * 上面 drawerCount 那里。这不是把模式当开关用 —— 立场没变，会话流的稳定
+     * 侧仍然是末端；变的是「谁引起了这次尺寸变化」，而库自己不区分。
      */
-    anchorTo: 'end',
+    anchorTo: drawerCount > 0 ? 'start' : 'end',
     /* 人正在别处看的时候,新消息不夺取视口。 */
     followOnAppend: !revealing,
     scrollEndThreshold: BOTTOM_THRESHOLD_PX,
