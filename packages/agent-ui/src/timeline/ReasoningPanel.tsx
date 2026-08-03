@@ -15,10 +15,8 @@ export interface ReasoningPanelProps {
  * One quiet line that can be opened, and the thinking underneath it — rendered
  * by the same pipeline as the answer, because it is the same kind of content.
  *
- * 挂载时正在思考，它就是展开的；此后归读者。
- *
- * 此前这个默认值每帧派生：思考一结束面板自己收起 —— 没有人点过它，行高却突降
- * 一截，而这一行挂着虚拟器的 measureElement。理由写在 useDisclosure。
+ * 正在思考时展开，思考完毕收起；人点过一次之后以人为准。判据与工具卡片同一个，
+ * 语义写在 useDisclosure。
  *
  * The prose is always mounted: unmounting it is why the panel used to snap
  * open, as there is nothing to animate between a node and no node. It lives in

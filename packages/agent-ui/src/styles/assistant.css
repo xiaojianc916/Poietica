@@ -1291,8 +1291,15 @@ svg.assistant-provider-icon {
  * 那 8px 里的字是硬切的。到带子上沿时已经是纯底色，往下整片实色，所以输入框
  * 四周和它下面那道 --cp-gutter 都不再漏内容。
  *
- * 是 ::before 而不是 ::after：伪元素与流内子元素按树序绘制，::before 在前，
- * 输入框因此压在它上面。带子整体 pointer-events: none，这一层也就不吃滚轮。
+ * 是 ::before 而不是 ::after：两者都是定位元素，树序因此生效，而输入框排在它
+ * 后面。
+ *
+ * 这里上一版写的是「伪元素与流内子元素按树序绘制」—— 那句话是错的，而且代价
+ * 是输入框整个消失了一轮：绘制顺序里定位元素压在流内块级内容之上，树序只在同
+ * 一层内部说话。改正的说明在上面 .assistant-surface__composer 那条规则里，这句
+ * 当时留在了原地，两句互相矛盾。
+ *
+ * 带子整体 pointer-events: none，这一层也就不吃滚轮。
  */
 .assistant-surface[data-phase="live"] .assistant-surface__dock::before {
   position: absolute;

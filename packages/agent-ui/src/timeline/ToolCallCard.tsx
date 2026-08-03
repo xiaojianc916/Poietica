@@ -43,13 +43,11 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
  * "Read" and then "Reading README.md" — so it is displayed rather than
  * reconstructed from the arguments.
  *
- * 运行时展开 —— 和思考链同一个抽屉、同一条判据，因为两者是同一种东西：过程。
- * 过程值得看，所以它跑起来的时候是开着的。
+ * 运行时展开，落定后收起 —— 和思考链同一个抽屉、同一条判据，因为两者是同一
+ * 种东西：过程。过程值得看，结果不值得摊着。人点过一次之后以人为准。
  *
- * 但它不会自己收回去。这个默认值只在卡片挂载时问一次，此后开合归人管：一次
- * 没有人按下的折叠，在虚拟列表里就是一次没人预期的行高塌陷，它下面的每一行
- * 都会跟着重排。抽屉本身是同一个 —— 内容常驻挂载，0fr 与 1fr 之间一次跳变，
- * 收起时 inert。
+ * 抽屉：内容常驻挂载，0fr 与 1fr 之间一次跳变，收起时 inert。不补间 —— 这一行
+ * 挂着虚拟器的 measureElement，补间高度就是每帧让它下面所有行重排一次。
  */
 export function ToolCallCard({
   isInFlight,
@@ -84,7 +82,8 @@ export function ToolCallCard({
    * 思考链传的是 isStreaming，这里传 isRunning：同一个 useDisclosure、同一个
    * DisclosureBody、同一个轴。
    *
-   * 它是初值，不是每帧的推导 —— 落定之后这张卡不会自己收起来。
+   * 活着就开着，落定就收起，异常落定也是落定。人点过之后不再自动动：override
+   * 一旦落下就压过这个默认值，那是 useDisclosure 的语义，不在这里重述第二遍。
    *
    * 失败不再自动摊开。理由不是不重要，是它不该由一张永久展开的卡片来承担：
    * 标题栏上那枚失败图标是常驻记号，点开才是一次动作 —— Claude Code、Cursor、
@@ -128,7 +127,7 @@ export function ToolCallCard({
          *
          * 成功不需要一行「已完成」：卡片在那儿、纺锤停了，就是完成了。运行中
          * 也不需要「执行中」：纺锤正在转。四种状态里只有失败带着新消息，所以
-         * 它是唯一留下的记号 —— 一个图标，不染色（原因由自动展开的内容负责
+         * 它是唯一留下的记号 —— 一个图标，不染色（原因由展开之后的内容负责
          * 说清楚），带 aria-label，读屏仍然听得到。
          */}
         {item.status === 'failed' ? (
