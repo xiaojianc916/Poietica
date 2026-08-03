@@ -10,50 +10,35 @@ export type RequestId = Brand<string, 'RequestId'>
 export type SessionId = Brand<string, 'SessionId'>
 export type WindowId = Brand<string, 'WindowId'>
 
-const brander = <T, B>(value: T): Brand<T, B> => value as Brand<T, B>
-
-export function createAssetId(): AssetId {
-  return brander(uuidv7())
-}
-export function createCommandId(): CommandId {
-  return brander(uuidv7())
-}
-export function createTransactionId(): TransactionId {
-  return brander(uuidv7())
-}
-export function createActorId(): ActorId {
-  return brander(uuidv7())
-}
-export function createRequestId(): RequestId {
-  return brander(uuidv7())
-}
-export function createSessionId(): SessionId {
-  return brander(uuidv7())
-}
-export function createWindowId(): WindowId {
-  return brander(uuidv7())
-}
-
-export function parseAssetId(value: string): AssetId {
-  return brander(value)
-}
-export function parseCommandId(value: string): CommandId {
-  return brander(value)
-}
-export function parseTransactionId(value: string): TransactionId {
-  return brander(value)
-}
-export function parseActorId(value: string): ActorId {
-  return brander(value)
-}
-export function parseRequestId(value: string): RequestId {
-  return brander(value)
-}
-export function parseSessionId(value: string): SessionId {
-  return brander(value)
-}
-export function parseWindowId(value: string): WindowId {
-  return brander(value)
-}
-
 export type AnyId = AssetId | CommandId | TransactionId | ActorId | RequestId | SessionId | WindowId
+
+/**
+ * 所有 id 的生成与还原是同一件事，只有品牌不同。
+ *
+ * 之前是十四个函数体逐字相同的副本 —— 那不是"显式"，那是十四个各自会漂移的
+ * 复制品。类型上的区分靠品牌，运行时只需要一份实现。
+ */
+const newId =
+  <T extends string>(): (() => T) =>
+  () =>
+    uuidv7() as T
+const asId =
+  <T extends string>(): ((value: string) => T) =>
+  (value) =>
+    value as T
+
+export const createAssetId = newId<AssetId>()
+export const createCommandId = newId<CommandId>()
+export const createTransactionId = newId<TransactionId>()
+export const createActorId = newId<ActorId>()
+export const createRequestId = newId<RequestId>()
+export const createSessionId = newId<SessionId>()
+export const createWindowId = newId<WindowId>()
+
+export const parseAssetId = asId<AssetId>()
+export const parseCommandId = asId<CommandId>()
+export const parseTransactionId = asId<TransactionId>()
+export const parseActorId = asId<ActorId>()
+export const parseRequestId = asId<RequestId>()
+export const parseSessionId = asId<SessionId>()
+export const parseWindowId = asId<WindowId>()
