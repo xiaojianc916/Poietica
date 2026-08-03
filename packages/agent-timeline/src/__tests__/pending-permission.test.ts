@@ -5,11 +5,19 @@ import { pendingPermission } from '../timeline-queries'
 /*
  * 并行子代理会让一轮里同时挂着几个请求（ADR 0002）。
  *
- * 交出最晚那一个，先问的几个就永远等不到按钮 —— 原生侧的 oneshot 收不到答复,
+ * 交出最晚那一个，先问的几个就永远等不到按钮 —— 原生侧的 oneshot 收不到答复，
  * 卡片停在 in_progress，这一轮再也结束不了。所以顺序本身就是不变式。
  */
 
-function asked(requestId: string, turn: number, resolved: boolean): PermissionItem {
+/*
+ * 两个构造函数，不是一个带开关的。
+ *
+ * exactOptionalPropertyTypes 下「可选属性缺席」与「值为 undefined」不是一回事，
+ * 而条件展开产出的正是后者。分成两个之后，两边都是完整的对象字面量，一个断言
+ * 都不需要 —— 上一版在这里用 as 把两个数字掰成 resolution，那不是让类型通过，
+ * 那是让类型闭嘴。
+ */
+function asked(requestId: string, turn: number): PermissionItem {
   return {
     type: 'permission',
     id: `permission-${requestId}`,
@@ -18,41 +26,37 @@ function asked(requestId: string, turn: number, resolved: boolean): PermissionIt
     requestId,
     title: requestId,
     options: [],
-    ...(resolved
-      ? { resolution: { optionId: 1, outcome: 2 } as PermissionItem['resolution'] }
-      : {}),
+  }
+}
+
+function answered(requestId: string, turn: number): PermissionItem {
+  return {
+    ...asked(requestId, turn),
+    resolution: { optionId: 'approve_once', outcome: 'selected' },
   }
 }
 
 describe('pendingPermission', () => {
   it('交出本段最早那个还没答复的请求', () => {
-    const items: readonly TimelineItem[] = [
-      asked('a', 1, false),
-      asked('b', 1, false),
-      asked('c', 1, false),
-    ]
+    const items: readonly TimelineItem[] = [asked('a', 1), asked('b', 1), asked('c', 1)]
 
     expect(pendingPermission({ items, runIndex: 1 })?.requestId).toBe('a')
   })
 
   it('答掉一个，下一个顶上来', () => {
-    const items: readonly TimelineItem[] = [
-      asked('a', 1, true),
-      asked('b', 1, false),
-      asked('c', 1, false),
-    ]
+    const items: readonly TimelineItem[] = [answered('a', 1), asked('b', 1), asked('c', 1)]
 
     expect(pendingPermission({ items, runIndex: 1 })?.requestId).toBe('b')
   })
 
   it('不越过段边界', () => {
-    const items: readonly TimelineItem[] = [asked('old', 0, false), asked('now', 1, false)]
+    const items: readonly TimelineItem[] = [asked('old', 0), asked('now', 1)]
 
     expect(pendingPermission({ items, runIndex: 1 })?.requestId).toBe('now')
   })
 
   it('全部答完就没有了', () => {
-    const items: readonly TimelineItem[] = [asked('a', 1, true), asked('b', 1, true)]
+    const items: readonly TimelineItem[] = [answered('a', 1), answered('b', 1)]
 
     expect(pendingPermission({ items, runIndex: 1 })).toBeUndefined()
   })
