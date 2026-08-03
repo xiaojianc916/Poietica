@@ -124,6 +124,38 @@ function pastedFiles(clipboard: DataTransfer): FileList | null {
   return transfer.files
 }
 
+/*
+ * accept 说了收什么，收件口就照它执行。
+ *
+ * 浏览器只把 accept 当文件对话框里的过滤器：拖进来和粘进来的文件不受它管。
+ * 于是「能放进框里」和「能发出去」变成两条判据，中间隔着用户看得见的界面 ——
+ * 一个 PDF 拖进来会长出一张卡片，发送时在另一头被 filter 掉，对面收到一句
+ * 没有附件的话，而屏幕上什么都没说过。三条进门的路（拖、粘、选）从这里起
+ * 共用同一条判据，进不来的东西不长卡片。
+ *
+ * 三种写法都按 accept 属性本来的语义判：通配的 image/*、后缀的 .png、精确的
+ * image/png。没给 accept 就是什么都收。
+ */
+function accepted(accept: string | undefined, file: File): boolean {
+  if (accept === undefined) {
+    return true
+  }
+
+  return accept.split(',').some((rule) => {
+    const pattern = rule.trim()
+
+    if (pattern.startsWith('.')) {
+      return file.name.toLowerCase().endsWith(pattern.toLowerCase())
+    }
+
+    if (pattern.endsWith('/*')) {
+      return file.type.startsWith(pattern.slice(0, -1))
+    }
+
+    return file.type === pattern
+  })
+}
+
 interface PromptInputActions {
   readonly setText: (text: string) => void
   readonly focusTextarea: () => void
@@ -210,6 +242,11 @@ export function PromptInput({
         const next = multiple ? [...current] : []
 
         for (const file of Array.from(incoming)) {
+          /* 收不下的先出局，它不该占掉 maxFiles 的名额。 */
+          if (!accepted(accept, file)) {
+            continue
+          }
+
           if (maxFiles !== undefined && next.length >= maxFiles) {
             break
           }
@@ -229,7 +266,7 @@ export function PromptInput({
         return next
       })
     },
-    [idPrefix, maxFiles, multiple],
+    [accept, idPrefix, maxFiles, multiple],
   )
 
   const focusTextarea = useCallback(() => {

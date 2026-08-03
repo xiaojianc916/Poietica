@@ -162,7 +162,7 @@ export const AssistantComposer = memo(function AssistantComposer({
   }
 
   return (
-    <PromptInput handle={handle} multiple onSubmit={onSubmit}>
+    <PromptInput accept="image/*" handle={handle} multiple onSubmit={onSubmit}>
       <PromptInputBody>
         <PromptInputAttachments />
 
