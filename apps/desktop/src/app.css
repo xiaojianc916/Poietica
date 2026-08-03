@@ -33,22 +33,13 @@
   --desktop-window-close-foreground: #ffffff;
 
   /*
-   * 滚动条。停留时长是设计决定,所以在令牌层,监听器从计算样式读同一个值
-   * —— 与 composer-metrics 的既有纪律一致:一个数字只有一处。
+   * 滚动条的颜色。两个区域各自覆盖，所以它留在令牌层。
+   *
+   * 只剩这一个了。停留时长、淡出时长、命中区、可见宽度、最小长度 —— 那五个
+   * 数字存在的唯一理由，是有一层手绘滑块要照着它们画。浏览器自己画的时候，
+   * 它们不是被简化了，是没有收件人。
    */
-  --desktop-scrollbar-linger: 1000ms;
-  --desktop-scrollbar-fade: 240ms;
   --desktop-scrollbar-thumb: color-mix(in srgb, var(--color-foreground) 24%, transparent);
-  --desktop-scrollbar-thumb-strong: color-mix(in srgb, var(--color-foreground) 36%, transparent);
-
-  /*
-   * 命中区 10px,可见 4px —— 与原生那一版的 border: 3px solid transparent
-   * 收出来的宽度完全相同。滑块再短也不小于 min-length,否则长文档里它会
-   * 缩成一个抓不住的点。
-   */
-  --desktop-scrollbar-lane: 10px;
-  --desktop-scrollbar-thickness: 4px;
-  --desktop-scrollbar-min-length: 28px;
 }
 
 /*
@@ -122,10 +113,12 @@ body {
 /*
  * 标签条不要滚动条。
  *
- * 退出方式是一个自定义属性而不是隐藏某种伪元素:浮层滚动条创建前会在滚动盒
- * 上读它,于是"要不要滚动条"和其它外观决定一样留在 CSS 里,组件不必知情。
+ * 上一版靠一个自定义属性退出浮层，而原生条那时被 * { scrollbar-width: none }
+ * 全局关着 —— 两条路都堵上了，所以这个规则块清掉退出令牌之后是空的。现在条是
+ * 常驻的，「不要」必须自己说出来，否则标签条上会冒出一根。
  */
 [role="tablist"] {
+  scrollbar-width: none;
 }
 
 .bg-chrome,
@@ -195,60 +188,27 @@ body {
 }
 
 /*
- * 浮层滚动条:一层 fixed 的滑块,不与内容共享一寸空间。
+ * 滚动条交回浏览器。
  *
- * 为什么自绘。Chromium 的经典滚动条属于布局,它从滚动盒的内容区里切走 10px:
- * 同一个列表,内容少时占满、内容一多滚动条出现,整列文字瞬间左移 10px。想让
- * 它不占位只有两条路 —— scrollbar-gutter: stable 永远预留(那 10px 永远空着,
- * 滚动条依旧压在内容边上),或者不用原生。面向网页的 overlay-scrollbar 开关在
- * Chromium 早已下线,::-webkit-scrollbar 画出来的东西一定占位,所以"浮在内容
- * 之上"这件事原生做不到。VS Code、Figma、Slack 一律自绘,原因相同。
+ * 上一版在这里手绘了一层 fixed 的滑块，理由写了三段，核心那条是「原生条属于
+ * 布局，内容一多它出现，整列文字瞬间左移 10px」。这条理由的前提是它时有时无
+ * —— 下面这两句让它常驻，前提就不存在了。真需要预留，scrollbar-gutter:
+ * stable 就是官方为此而设的那条沟，转录区已经用上了。
  *
- * 自绘不等于重做交互:几何、拖拽、露面时机都在
- * presentation/chrome/scrollbar-activity.ts,那里写了完整的理由。这里只管外观,
- * 而外观与上一版逐像素相同 —— 命中区 10px、可见 4px、全圆角、滚动时才现身、
- * 指针压上去加深。
+ * scrollbar-width 与 scrollbar-color 是 CSS Scrollbars Styling 的标准能力，
+ * Chromium 121 起支持，而这个应用的渲染器只有 WebView2 一个，不需要回退分支。
+ * 指定 scrollbar-color 同时也就退出了 Windows 那套会自己淡出的覆盖式滚动条：
+ * 常驻不是额外加的开关，是这一句的既定效果。
  *
- * 区域想要自己的颜色,照旧在那个区域的选择器上给 --desktop-scrollbar-thumb
- * 赋值:滑块创建时从它所属的滚动盒上读这两个令牌,所以尽管节点挂在浮层里,
- * 取值链仍然是原来那条。
+ * 挂在 * 上而不是 :root 上，和它替换掉的那一句同一个选择器 —— 这一条不能改。
+ * var() 在声明所在的元素上就解析完了，继承出去的是已经算好的颜色；写在 :root
+ * 上，下面两个区域重新给 --desktop-scrollbar-thumb 赋的值一个都不会生效。
+ * 逐元素解析，原来那条「区域覆盖令牌」的取值链才原封不动。
  */
 
 * {
-  scrollbar-width: none;
-}
-
-.overlay-scrollbar-layer {
-  position: fixed;
-  z-index: 9999;
-  inset: 0;
-  pointer-events: none;
-}
-
-.overlay-scrollbar {
-  position: fixed;
-  border-radius: 999px;
-  background: var(--desktop-scrollbar-thumb);
-  opacity: 0;
-  pointer-events: auto;
-  transition:
-    opacity var(--desktop-scrollbar-fade) var(--ui-ease-standard),
-    background-color var(--desktop-scrollbar-fade) var(--ui-ease-standard);
-}
-
-.overlay-scrollbar[data-visible="true"] {
-  opacity: 1;
-}
-
-.overlay-scrollbar:hover,
-.overlay-scrollbar[data-dragging="true"] {
-  background: var(--desktop-scrollbar-thumb-strong);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .overlay-scrollbar {
-    transition: none;
-  }
+  scrollbar-width: thin;
+  scrollbar-color: var(--desktop-scrollbar-thumb) transparent;
 }
 
 /*
@@ -266,15 +226,20 @@ body {
  * color-mix 推出来的默认值不同,记在这里,免得下次被当成疏漏顺手"修正"。
  */
 .workspace-shell__sidebar {
-  --desktop-scrollbar-thumb: #e2e2e2;
-  --desktop-scrollbar-thumb-strong: #d7d7d7;
+  /* 原生条没有悬停态，所以这里取原来那对里较实的一个。 */
+  --desktop-scrollbar-thumb: #d7d7d7;
 }
 
 .assistant-surface {
-  /* 正文区域的行距比侧边栏松，4px 的滑块在这里显得游丝一样细。
-     内缩仍是 (lane - thickness) / 2 = 3px，所以只变粗、不移位。 */
-  --desktop-scrollbar-lane: 13px;
-  --desktop-scrollbar-thickness: 7px;
-  --desktop-scrollbar-thumb: #e7e7e7;
-  --desktop-scrollbar-thumb-strong: #5a5a5a;
+  /*
+   * 原生条没有悬停态：scrollbar-color 只收一个滑块色。
+   *
+   * 上一版这里是一对 #e7e7e7 / #5a5a5a —— 静息几乎看不见，靠指针压上去加深来
+   * 补。只能给一个值时，静息那个在白底上读不出来，悬停那个是一条会压住正文的
+   * 深灰。取中间一档，两头都不选。
+   *
+   * 宽度不再在这里给：条的粗细由 scrollbar-width 的 thin 一档决定，全应用同一
+   * 个值。原来那两个数是画给手绘滑块看的。
+   */
+  --desktop-scrollbar-thumb: #c9c9c9;
 }
