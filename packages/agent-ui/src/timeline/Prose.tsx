@@ -7,6 +7,7 @@ import { memo, useMemo } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
+  type LinkSafetyConfig,
   Streamdown,
   type StreamdownTranslations,
 } from 'streamdown'
@@ -98,32 +99,39 @@ const CONTROLS: ControlsConfig = {
 }
 
 /*
- * 控件与弹窗的中文标签。
+ * 控件的中文标签。
  *
  * 上游的 37 个键默认全是英文（defaultTranslations），落在一个整体中文的界面上
  * 就是半句英文半句中文。translations 收的是 Partial，没写的键继续用英文默认值,
  * 所以这里只译真正会出现的那些 —— download 那一组全部关掉了，不译。
  *
- * 外链弹窗的六个键必须在场：linkSafety 默认就是开的（官方 Link Safety 文档逐字
- * 「enabled by default」），点任何链接都会弹它出来。在这个 webview 里它暂时还不
- * 能关 —— 关掉之后链接会在应用内导航，把整个界面替换成网页。接管外链是下一刀，
- * 在那之前它至少该说中文。
+ * 外链弹窗的那几个键不在这里：那个弹窗已经关掉（见下方 LINK_SAFETY）。译一个
+ * 永远不会出现的界面，留下的只是一份没人会去维护的死文案。
  */
 const TRANSLATIONS: Partial<StreamdownTranslations> = {
   copied: '已复制',
   copyCode: '复制代码',
-  copyLink: '复制链接',
   copyTable: '复制表格',
   copyTableAsCsv: '复制为 CSV',
   copyTableAsMarkdown: '复制为 Markdown',
   copyTableAsTsv: '复制为 TSV',
   exitFullscreen: '退出全屏',
-  externalLinkWarning: '即将打开外部网站。',
   imageNotAvailable: '图片无法显示',
-  openExternalLink: '打开外部链接？',
-  openLink: '打开链接',
   viewFullscreen: '全屏查看',
 }
+
+/*
+ * 外链不在这一层拦。
+ *
+ * linkSafety 默认 { enabled: true }（官方 Configuration 逐字），于是点任何链接都
+ * 先弹一个确认框。可这个应用早已在 document 的 capture 阶段接管了全部外链
+ * （apps/desktop 的 presentation/chrome/external-links.ts），链接从来不会在 webview
+ * 里导航 —— 弹窗因此不保护任何东西，它只是在系统浏览器已经被唤起之后，多留一个
+ * 要人再点一次的框。
+ *
+ * 一个链接一条路径：点下去，系统浏览器打开它。
+ */
+const LINK_SAFETY: LinkSafetyConfig = { enabled: false }
 
 export interface ProseProps {
   readonly text: string
@@ -192,6 +200,7 @@ const Sealed = memo(function Sealed({ text }: { readonly text: string }) {
       controls={CONTROLS}
       isAnimating={false}
       lineNumbers={false}
+      linkSafety={LINK_SAFETY}
       mode="static"
       plugins={PLUGINS}
       translations={TRANSLATIONS}
@@ -229,6 +238,7 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
         controls={CONTROLS}
         isAnimating={isStreaming}
         lineNumbers={false}
+        linkSafety={LINK_SAFETY}
         mode={isStreaming ? 'streaming' : 'static'}
         plugins={isStreaming ? LIVE_PLUGINS : PLUGINS}
         translations={TRANSLATIONS}
