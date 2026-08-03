@@ -12,9 +12,11 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import process from 'node:process'
 
+import { SEMVER } from './version.mjs'
+
 const version = process.argv[2]
 
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version ?? '')) {
+if (!SEMVER.test(version ?? '')) {
   console.error('usage: pnpm version:set <semver>   e.g. pnpm version:set 0.2.0')
   process.exit(2)
 }

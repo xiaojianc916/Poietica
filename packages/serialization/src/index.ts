@@ -1,2 +1,2 @@
 export type { SerializationEnvelope, Serializer } from './serializer'
-export { jsonSerializer, SerializationError, unwrap, wrap } from './serializer'
+export { createSerializer, SerializationError } from './serializer'

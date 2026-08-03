@@ -1,33 +1,16 @@
-use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug)]
+/// 这个 crate 的失败。
+///
+/// Display、source、以及 io::Error 的转换都由 thiserror 生成 —— 手写这三个
+/// impl 不会更清楚，只会多三处需要跟着变体一起维护的地方。
+#[derive(Debug, Error)]
 pub enum Error {
-    Io(std::io::Error),
+    #[error("IO: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Internal: {0}")]
     Internal(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::Io(e) => write!(f, "IO: {e}"),
-            Error::Internal(e) => write!(f, "Internal: {e}"),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::Io(e) => Some(e),
-            Error::Internal(_) => None,
-        }
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::Io(e)
-    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
