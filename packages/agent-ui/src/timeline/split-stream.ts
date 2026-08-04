@@ -111,30 +111,14 @@ function countLines(text: string): number {
 }
 
 /**
- * 整篇当一块。
- *
- * 一条早已结束的消息整篇都是封口的，拆开它只会凭空多出一次扫描与若干渲染实例，而
- * memo 本来就挡住了它的重渲染。它仍然以块的形状交出去：下游只认块，不必为「没切过
- * 的那一种」另留一条分支。
- */
-export function wholeText(text: string): readonly StreamBlock[] {
-  return [{ key: 0, lines: countLines(text), text }]
-}
-
-/**
  * 一次可以接着往下走的扫描。
  *
  * 切点是前缀确定的（理由见文件头），所以一次流式追加本来只需要扫新到的那几行。
  * 此前每一帧都把整篇重扫一遍：一次 split('\n') 分配整份行表，再对每一行跑两条
- * 正则 —— 第 n 帧扫 n 行，一轮下来 O(n²)，n 是这条回答的长度。这正是文件头那句
- * 话在说的事，只是它此前只对「解析」成立，对「切分」自己不成立。
+ * 正则 —— 第 n 帧扫 n 行，一轮下来 O(n²)，n 是这条回答的长度。
  *
  * 停点落在「它后面那一行也已经完整」的位置：一个空行是不是边界要看它的下一行
- * （separates），而正在写的那一行随时会变。因此停点之前的判据永不重算。
- *
- * 只留一条状态：同一时刻只有一段文本在长（末块才是流式的那一块），别的块由调用
- * 方的 useMemo 挡住，本来就不会重扫。认不出前缀时整篇重扫，逐字退化成没有这份
- * 状态时的行为。
+ *（separates），而正在写的那一行随时会变。因此停点之前的判据永不重算。
  */
 interface Scan {
   /** 上一次交进来的那篇文本，也就是续扫的前缀判据。 */
@@ -155,7 +139,30 @@ interface Scan {
   readonly open: Fence
 }
 
-let held: Scan | null = null
+/**
+ * 一条流的切分器。状态跟着流走，不藏在模块里。
+ *
+ * 这份状态此前是一个模块级单槽（let held），前提写在它自己的注释里：「同一时刻
+ * 只有一段文本在长」。那个前提是假的 —— 调用者有两个：Prose 画回答，ReasoningPanel
+ * 画思考链。一轮里两条流同时在屏幕上长，而它们的文本互不为前缀，于是每一帧两边
+ * 轮流把对方的停点顶掉：前缀判据帧帧不命中，续扫退化成整篇重扫。这份状态要消除
+ * 的那个 O(n²)，被它自己的单槽请了回来。并行子代理（一轮里几条流同时长）只会
+ * 让它更糟，而这件事不改变任何一个字的输出，所以它只能靠读代码或者靠测试发现。
+ *
+ * 一条流一份进度，与转录那一层「一份投影按对话弱引用」同一个立场：谁的状态，谁
+ * 持有。这个模块因此不再有任何跨流共享的可变量。
+ */
+export type BlockScanner = (text: string) => readonly StreamBlock[]
+
+export function createBlockScanner(): BlockScanner {
+  let held: Scan | null = null
+
+  return (text) => {
+    held = scanFrom(held, text)
+
+    return held.result
+  }
+}
 
 /**
  * 这一趟从哪里接着扫。
@@ -163,15 +170,12 @@ let held: Scan | null = null
  * 只追加就接着上一趟走，判据是一次原生前缀比较，不分配；认不出前缀就从零起步，
  * 逐字退化成没有这份状态时的行为。
  *
- * 它单独成一个函数，是因为「能不能续」和「怎么扫」是两件事。写在一起时，那六个
- * ?? 兜底与一层三元只是在补「可能没有上一趟」这一个情形，而循环本身一个字都不
- * 关心它 —— 读的人却得把两件事同时按在脑子里。
+ * 它单独成一个函数，是因为「能不能续」和「怎么扫」是两件事：写在一起时那几个
+ * 兜底只在补「可能没有上一趟」这一个情形，而循环本身一个字都不关心它。
  */
-function startFrom(text: string): Scan {
-  const scan = held
-
-  if (scan !== null && text.length > scan.source.length && text.startsWith(scan.source)) {
-    return scan
+function startFrom(held: Scan | null, text: string): Scan {
+  if (held !== null && text.length > held.source.length && text.startsWith(held.source)) {
+    return held
   }
 
   return {
@@ -201,7 +205,7 @@ function contentRow(row: string, before: Fence, after: Fence): boolean {
 }
 
 /**
- * 把一篇还在写的 markdown 切成块。
+ * 扫一趟，交出这一趟的停点与结果。
  *
  * 最后一块就是正在写的那一块：它后面没有安全切点，所以它是唯一还可能变的一块。前面
  * 每一块都已封口 —— 内容不再变，也就不该被解析第二次，也不该被切第二次。
@@ -211,15 +215,13 @@ function contentRow(row: string, before: Fence, after: Fence): boolean {
  * 相邻两块之间少掉的正是切点那一个空行，而空行是块之间的分隔符本身：它属于分隔，
  * 不属于任何一块。
  */
-export function blockSplit(text: string): readonly StreamBlock[] {
-  const scan = held
-
+function scanFrom(held: Scan | null, text: string): Scan {
   /* 同一篇文本被问第二次（一次渲染里 getSnapshot 会被调用不止一次）：原样交回。 */
-  if (scan !== null && scan.source === text) {
-    return scan.result
+  if (held !== null && held.source === text) {
+    return held
   }
 
-  const resumed = startFrom(text)
+  const resumed = startFrom(held, text)
   const blocks = resumed.blocks
 
   let at = resumed.at
@@ -271,7 +273,5 @@ export function blockSplit(text: string): readonly StreamBlock[] {
   const last: StreamBlock = { key: start, lines: countLines(tailText), text: tailText }
   const result = blocks.length === 0 ? [last] : [...blocks, last]
 
-  held = { source: text, result, blocks, at, line, from, start, previous, open }
-
-  return result
+  return { source: text, result, blocks, at, line, from, start, previous, open }
 }

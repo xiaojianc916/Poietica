@@ -1,10 +1,10 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import { ChevronDownIcon, ThinkingIcon } from '../primitives/icons'
 import { useDevicePixels } from '../primitives/use-device-pixels'
 import { ProseSegment } from './Prose'
-import { blockSplit } from './split-stream'
+import { createBlockScanner } from './split-stream'
 
 export interface ReasoningPanelProps {
   readonly text: string
@@ -73,7 +73,9 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
    *
    * 封口的块内容不再变，所以每一块正好被解析一次；正在写的那一块是最后一块。
    */
-  const blocks = useMemo(() => blockSplit(text), [text])
+  const [split] = useState(createBlockScanner)
+
+  const blocks = useMemo(() => split(text), [split, text])
 
   /*
    * 本帧的块表，给虚拟器的选项函数同步读。

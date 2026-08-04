@@ -3,7 +3,7 @@ import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -13,7 +13,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
-import { blockSplit, type StreamBlock, wholeText } from './split-stream'
+import { createBlockScanner, type StreamBlock } from './split-stream'
 
 /*
  * 四个官方插件，一条管线。
@@ -231,18 +231,31 @@ export const ProseSegment = memo(function ProseSegment({
 
 export const Prose = memo(function Prose({ className, isStreaming, text }: ProseProps) {
   /*
-   * 一次线性扫描，没有解析。
+   * 一条流一个切分器。
    *
-   * 切点只看行首字符与围栏配平，代价与文本长度成正比而常数极小。它换掉的是同样与
-   * 长度成正比、常数大三个量级的一次完整词法分析加一棵几千节点的 VDOM。
-   *
-   * 封口只发生在流式期间：一条早已结束的消息整篇都是封口的，拆开它只会凭空多出一次
-   * 切分与一个渲染实例，而 memo 本来就挡住了它的重渲染。
+   * 进度跟着这个组件实例走（useState 的惰性初始化，一个实例只造一次）。它此前是
+   * split-stream 里的一个模块级单槽，而屏幕上同时有回答与思考链两条流在长，两者
+   * 互不为前缀 —— 谁后调用谁把对方的停点顶掉，续扫因此帧帧不命中。
    */
-  const blocks = useMemo(
-    (): readonly StreamBlock[] => (isStreaming ? blockSplit(text) : wholeText(text)),
-    [isStreaming, text],
-  )
+  const [split] = useState(createBlockScanner)
+
+  /*
+   * 切块与流没流无关。
+   *
+   * 此前这里按 isStreaming 分岔：在写的时候切块，封口之后整篇一块。于是每一轮回答
+   * 说完的那一刻，块表从 n 块塌成 1 块 —— key 全变，n 个 ProseSegment 一起卸载、
+   * 一个新实例挂载，整篇文本连同它全部的代码高亮、KaTeX 与 mermaid 在这一帧里被
+   * 重新解析一次。那正是「回答刚说完界面顿一下」的来处，而它每一轮都发生。思考盒
+   * 从来不分岔（ReasoningPanel 恒走切分），所以它没有这一下 —— 正确的做法本来就在
+   * 同一个文件里。
+   *
+   * 一条管线：切点只由文本决定，isStreaming 只决定最后一块要不要走流式渲染。于是
+   * 流停下的那一帧块表逐字不变，只有最后一块换一个 prop。
+   *
+   * 一次线性扫描，没有解析：切点只看行首字符与围栏配平，代价与文本长度成正比而常数
+   * 极小，而它省下的是同样与长度成正比、常数大三个量级的一次完整词法分析。
+   */
+  const blocks = useMemo((): readonly StreamBlock[] => split(text), [split, text])
 
   return (
     <div
