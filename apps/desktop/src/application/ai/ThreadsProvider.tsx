@@ -1,6 +1,6 @@
 import { ThreadsStore, TranscriptStore, TranscriptsProvider } from '@poietica/agent-session'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 
 import { desktopSessionConfig, desktopThreads } from './agent-session'
 import { ThreadsContext } from './threads-context'
@@ -27,13 +27,22 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
    * 的帧，也是这段历史唯一的来源。交接必须发生在打开它的地方，这里就是造出那
    * 个 store 的唯一一行。
    */
-  /* 转录归这一棵树，不归这个进程：造它的地方与造对话列表的是同一处。 */
-  const transcripts = useMemo(() => new TranscriptStore(), [])
+  /*
+   * 转录归这一棵树，不归这个进程：造它的地方与造对话列表的是同一处 —— 现在真的
+   * 是同一处，两者在一个初始化函数里成对建出来，memo 之间的链式依赖没了。
+   *
+   * 必须是 useState 的初始化函数而不是 useMemo：useMemo 只是性能优化，React 允许
+   * 丢弃缓存重算，而 TranscriptStore 持有 session/load 期间重放的帧 —— 这段历史
+   * 没有第二个来源，换一个实例就等于让用户手里的对话经过凭空消失。
+   */
+  const [{ store, transcripts }] = useState(() => {
+    const transcriptStore = new TranscriptStore()
 
-  const store = useMemo(
-    () => new ThreadsStore(desktopThreads(), desktopSessionConfig(), transcripts),
-    [transcripts],
-  )
+    return {
+      store: new ThreadsStore(desktopThreads(), desktopSessionConfig(), transcriptStore),
+      transcripts: transcriptStore,
+    }
+  })
 
   useEffect(() => {
     void store.refresh()

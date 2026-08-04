@@ -20,6 +20,13 @@ import { UiFeedbackRegion } from './ui/ui-feedback'
 import { UpdateCapsule } from './ui/update-capsule'
 import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
+/*
+ * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
+ * 每六小时提示一次一个装不上的更新。这个判断是构建期常量，放在模块级，生产构建
+ * 里整个分支会被直接消掉；desktop-runtime 是适配层，不该知道自己被谁怎么打包。
+ */
+const CHECKS_UPDATES = !import.meta.env.DEV
+
 /**
  * 对面那家 agent 的方言。
  *
@@ -77,19 +84,27 @@ export function AppShell({ runtime }: AppShellProps) {
   )
 
   /*
-   * 降级判断只在这里派生一次，并且是稳定引用：它此前既在本文件的五个回调里
-   * 各写一遍，又以每次渲染新建的字符串数组传给工作区容器再算一遍，下游任何
-   * 记忆化都被这个数组打掉。
+   * 降级判断只在这里派生一次，并且这次真的是稳定引用。
+   *
+   * 依赖是三个布尔，不是那张 Map：FailureCoordinator.publish() 每次都
+   * degradedFeatures: new Map(...)，而 publish 也走 recoverable 上报与 dismiss。
+   * 按 Map 的引用记忆化，等于任何一次与降级无关的失败都会换掉 capabilities,
+   * 把工作区容器下游的记忆化全部作废。
    */
-  const capabilities = useMemo<AppCapabilities>(() => {
-    const degraded = failureSnapshot.degradedFeatures
+  const degraded = failureSnapshot.degradedFeatures
 
-    return {
-      settings: !degraded.has('settings'),
-      developerTools: !degraded.has('developer-tools'),
-      windowControls: !degraded.has('window-controls'),
-    }
-  }, [failureSnapshot.degradedFeatures])
+  const canOpenSettings = !degraded.has('settings')
+  const canOpenDeveloperTools = !degraded.has('developer-tools')
+  const canUseWindowControls = !degraded.has('window-controls')
+
+  const capabilities = useMemo<AppCapabilities>(
+    () => ({
+      developerTools: canOpenDeveloperTools,
+      settings: canOpenSettings,
+      windowControls: canUseWindowControls,
+    }),
+    [canOpenDeveloperTools, canOpenSettings, canUseWindowControls],
+  )
 
   /*
    * 更新状态在这里落地，一个进程一份。
@@ -98,23 +113,29 @@ export function AppShell({ runtime }: AppShellProps) {
    * sidebarOverride 顶替，React 按位置协调，等于一次卸载重挂。状态放在这一层，切设
    * 置页就只是换个地方把同一份状态再画一遍。
    */
-  const updates = useMemo(
+  /*
+   * 用 useState 的初始化函数，不是 useMemo。
+   *
+   * useMemo 是性能优化，React 允许丢弃缓存重算；这个 store 有身份（start() 返回
+   * 退订），丢一次缓存就多一个实例、多一份订阅，「一个进程一份」当场失效。
+   * runtime 由 bootstrap 造一次并作为 prop 传进来（见 bootstrap/react-root.tsx),
+   * 原来的依赖数组本就永不变化，所以这是等价替换，且拿到了创建一次的保证。
+   */
+  const [updates] = useState(
     () =>
       new AppUpdateStore(runtime.appUpdate, runtime.settings, (operation, cause) => {
         reportFailure('UPDATE_DOWNLOAD_FAILED', { cause, operation, scope: 'app-update' })
       }),
-    [runtime.appUpdate, runtime.settings],
   )
 
-  /*
-   * 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。
-   *
-   * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
-   * 每六小时提示一次一个装不上的更新。这个判断留在这一层 —— 构建模式是应用的事，
-   * desktop-runtime 是适配层，不该知道自己被谁怎么打包，它的 tsconfig 里也确实没有
-   * vite 的类型。
-   */
-  useEffect(() => (import.meta.env.DEV ? undefined : updates.start()), [updates])
+  /* 订阅与退订成对交给 effect，与 ThreadsStore.start 同一条纪律。 */
+  useEffect(() => {
+    if (!CHECKS_UPDATES) {
+      return undefined
+    }
+
+    return updates.start()
+  }, [updates])
 
   const toggleCommandPalette = useCallback(() => {
     setCommandPaletteOpen((open) => !open)
@@ -269,55 +290,57 @@ function useTerminationRequests(
   onCloseRequested: () => void,
 ): void {
   useEffect(() => {
+    /*
+     * 两个入口只在「订阅哪一个」上不同，所以它们是一张表里的两行，不是两段手抄。
+     * 上一版为此写了一个 track 辅助函数，它的第二个参数唯一的用途是被 void 掉。
+     */
+    const channels = [
+      {
+        operation: 'register-close-listener',
+        subscribe: () => mainWindow.onCloseRequested(onCloseRequested),
+      },
+      {
+        operation: 'register-tray-quit-listener',
+        subscribe: () => mainWindow.onTerminationRequested(onCloseRequested),
+      },
+    ]
+
+    /* 兑现可能落在清理之后：那就地退订，别留一个悬空的监听。 */
     let disposed = false
-    let unsubscribe: (() => void) | undefined
-    let unsubscribeTrayQuit: (() => void) | undefined
+    const disposers: Array<() => void> = []
 
-    const track =
-      (assign: (dispose: () => void) => void, operation: string) => (dispose: () => void) => {
-        if (disposed) {
-          dispose()
-          return
-        }
+    for (const channel of channels) {
+      void channel.subscribe().then(
+        (dispose) => {
+          if (disposed) {
+            dispose()
+            return
+          }
 
-        assign(dispose)
-        void operation
-      }
+          disposers.push(dispose)
+        },
+        (cause: unknown) => {
+          if (disposed) {
+            return
+          }
 
-    void mainWindow.onTerminationRequested(onCloseRequested).then(
-      track((dispose) => {
-        unsubscribeTrayQuit = dispose
-      }, 'register-tray-quit-listener'),
-      (cause: unknown) => {
-        if (!disposed) {
           reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
-            scope: 'app-shell',
-            operation: 'register-tray-quit-listener',
             cause,
-          })
-        }
-      },
-    )
-
-    void mainWindow.onCloseRequested(onCloseRequested).then(
-      track((dispose) => {
-        unsubscribe = dispose
-      }, 'register-close-listener'),
-      (cause: unknown) => {
-        if (!disposed) {
-          reportFailure('WINDOW_CLOSE_LISTENER_UNAVAILABLE', {
+            operation: channel.operation,
             scope: 'app-shell',
-            operation: 'register-close-listener',
-            cause,
           })
-        }
-      },
-    )
+        },
+      )
+    }
 
     return () => {
       disposed = true
-      unsubscribe?.()
-      unsubscribeTrayQuit?.()
+
+      for (const dispose of disposers) {
+        dispose()
+      }
+
+      disposers.length = 0
     }
   }, [mainWindow, onCloseRequested])
 }
