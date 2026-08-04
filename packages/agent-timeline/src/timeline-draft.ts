@@ -15,29 +15,66 @@ import type { TimelineItem, TimelineState } from './timeline-contract'
 export interface Draft {
   status: RunStatus
   readonly items: TimelineItem[]
-  /** id → 下标；没人按 id 找过就还没有。 */
+  /** id → 下标；没人按 id 找过、上一趟也没交下来，就还没有。 */
   index: Map<string, number> | null
   lastSeq: number
   runIndex: number
 }
 
+/**
+ * id → 下标，按转录归属。
+ *
+ * 这份索引此前只活一趟草稿：draftOf 写 null，freeze 把它扔掉。而一次工具调用的每
+ * 一帧 tool_call_update 都要按 id 定位（acp-projection 的 upsertToolCall），上游又
+ * 按屏幕的节拍攒帧、一拍开一趟草稿 —— 于是每一拍的第一次定位都要把整条转录重建
+ * 一遍索引：O(条目数) 的 Map 分配，每秒六十次。一个刷屏的终端工具挂在一条几千条目
+ * 的对话上，「每来一次就把整条转录扫一遍」于是原地复活，只是从「每帧一次」降成
+ * 「每拍一次」。缓存本身没写错，它的寿命绑在了错的那个对象上。
+ *
+ * 索引是 items 的函数，而 items 只追加与就地替换：push 追在末尾，sealTail 与那几处
+ * items[position] = … 都不移动任何既有条目的位置。下标一旦记下就不再变，所以它跨趟
+ * 成立 —— 整条对话只需要建一次。
+ *
+ * 所有权是线性的：draftOf 取走，freeze 交给新的那一份状态，旧状态因此不再持有它。
+ * 一份状态被开两次草稿（回退、分叉）时第二次从零重建 —— 宁可慢一次，也不让两趟草稿
+ * 往同一张表里写。弱引用是这份缓存的边界：状态被回收，索引跟着走，没有需要谁去清的
+ * 东西。
+ *
+ * 派生按状态弱引用是这个仓库既有的立场（feed-rows 的 FEEDS、timeline-selectors 的
+ * TURNS），不是这里新发明的一层缓存。
+ */
+const INDEXES = new WeakMap<TimelineState, Map<string, number>>()
+
 export function draftOf(state: TimelineState): Draft {
+  const index = INDEXES.get(state) ?? null
+
+  /* 取走就不再属于它：一份状态最多把索引交出去一次。 */
+  INDEXES.delete(state)
+
   return {
     status: state.status,
     items: state.items.slice(),
-    index: null,
+    /* items 是一份浅拷贝，下标与原来逐一对应，所以这张表直接接着用。 */
+    index,
     lastSeq: state.lastSeq,
     runIndex: state.runIndex,
   }
 }
 
 export function freeze(draft: Draft): TimelineState {
-  return {
+  const state: TimelineState = {
     status: draft.status,
     items: draft.items,
     lastSeq: draft.lastSeq,
     runIndex: draft.runIndex,
   }
+
+  /* 这一趟没人按 id 找过，就没有东西要交下去：不为「以后也许会用」凭空建一张表。 */
+  if (draft.index !== null) {
+    INDEXES.set(state, draft.index)
+  }
+
+  return state
 }
 
 /** 新的一轮：它自己的帧从一开始编号，所以窗口跟着换。 */

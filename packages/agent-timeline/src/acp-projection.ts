@@ -293,6 +293,21 @@ function upsertToolCall(
   draft.items[position] = next
 }
 
+/*
+ * 一份入参只被字符串化一次。
+ *
+ * withoutArgumentEcho 挂在流式热路径上：一次工具调用的每一帧 tool_call_update 只要
+ * 带了 content 且还没终态，就会走到这里要一次入参的 JSON。而入参在整次调用里通常一
+ * 个字都不变 —— 不带 rawInput 的帧继承的是同一个对象引用（见 upsertToolCall）。于是
+ * 此前每帧把整份入参序列化一遍，写文件那类调用的入参装着整篇文件内容：几十 KB 的
+ * 序列化，每秒六十次，每次得到逐字相同的字符串。
+ *
+ * 按对象弱引用记住，命中判据就是身份本身，不是一次深比较 —— 那会把要省的活儿又干
+ * 一遍。带来新入参的那一帧换一个新对象，于是它照常重算：该算的一次不少，不该算的
+ * 一次不多。表随入参对象一起被回收。
+ */
+const ENCODED = new WeakMap<object, string | null>()
+
 /**
  * 一次调用的入参，按上游的写法字符串化。
  *
@@ -302,6 +317,26 @@ function upsertToolCall(
  * 宁可多留一段，不肯错藏一段真产出。
  */
 function encode(value: unknown): string | null {
+  /* 原始值没有身份可记，而它们的序列化本来就是常数代价。 */
+  if (typeof value !== 'object' || value === null) {
+    return stringify(value)
+  }
+
+  const held = ENCODED.get(value)
+
+  /* null 是一个记下来的答案（认不出的入参），undefined 才是没记过。 */
+  if (held !== undefined) {
+    return held
+  }
+
+  const text = stringify(value)
+
+  ENCODED.set(value, text)
+
+  return text
+}
+
+function stringify(value: unknown): string | null {
   try {
     const text = JSON.stringify(value)
 
