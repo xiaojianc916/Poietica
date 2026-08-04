@@ -249,7 +249,7 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
    */
   const turnStart = !live
     ? items.length
-    : held !== undefined && held.live && held.runIndex === state.runIndex
+    : held?.live && held.runIndex === state.runIndex
       ? held.turnStart
       : turnStartOf(items, state.runIndex)
 

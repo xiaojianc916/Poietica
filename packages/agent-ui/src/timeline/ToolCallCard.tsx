@@ -78,6 +78,54 @@ function revealsProgress(item: ToolCallTimelineItem): boolean {
 }
 
 /**
+ * 抽屉里的一段产出，一格一个组件。
+ *
+ * 种类分流是这一层唯一的分支，它属于「一段产出怎么画」，不属于「这张卡片怎么
+ * 排」。串在卡片函数里，那个函数就同时是排版器和渲染器 —— 行业里的 chat 视图
+ * （VS Code、Zed）都是一种 part 一个 renderer，理由就是这个。
+ *
+ * 种类从投影层的返回值上取，不另立一份类型：那份联合是 toToolCallView 的产出，
+ * 在这里重新声明一遍就是同一个概念的第二份定义。
+ *
+ * key 由调用方给：那是列表的事，不是这一格自己的事。
+ */
+type ToolCallPartView = ReturnType<typeof toToolCallView>['parts'][number]
+
+function ToolCallPart({ part }: { readonly part: ToolCallPartView }) {
+  /*
+   * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个组件，而
+   * 不是一个只会原样倒字符串的 <pre> —— 计划模式产出的整份文档此前正是因此以
+   * # 与 | 的原文出现在卡片里。
+   *
+   * 命令输出不受影响：协议把终端单列为一种 part，不走这条分支。
+   * 这里的内容已经落定，所以流式修补与增量揭示都关掉。
+   */
+  if (part.type === 'text') {
+    return <Prose className="timeline-tool__prose" isStreaming={false} text={part.text} />
+  }
+
+  if (part.type === 'diff') {
+    return (
+      <div className="timeline-tool__diff">
+        <p className="timeline-tool__diff-path">{part.path}</p>
+        {part.oldText === null ? (
+          <p className="timeline-tool__diff-note">新建文件</p>
+        ) : (
+          <pre className="timeline-tool__diff-old">{part.oldText}</pre>
+        )}
+        <pre className="timeline-tool__diff-new">{part.newText}</pre>
+      </div>
+    )
+  }
+
+  if (part.type === 'terminal') {
+    return <p className="timeline-tool__terminal">终端 {part.terminalId}</p>
+  }
+
+  return <p className="timeline-tool__opaque">{part.label}</p>
+}
+
+/**
  * One tool call, from the moment it is announced to the moment it settles.
  *
  * The title is the agent's own words and changes as work proceeds — Kimi sends
@@ -268,56 +316,9 @@ export function ToolCallCard({
             <p className="timeline-tool__empty">{emptyNoteOf(brief, isRunning)}</p>
           ) : null}
 
-          {parts.map((part, index) => {
-            const key = `${part.type}:${String(index)}`
-
-            /*
-             * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个
-             * 组件，而不是一个只会原样倒字符串的 <pre> —— 计划模式产出的整份
-             * 文档此前正是因此以 # 与 | 的原文出现在卡片里。
-             *
-             * 命令输出不受影响：协议把终端单列为一种 part，不走这条分支。
-             * 这里的内容已经落定，所以流式修补与增量揭示都关掉。
-             */
-            if (part.type === 'text') {
-              return (
-                <Prose
-                  className="timeline-tool__prose"
-                  isStreaming={false}
-                  key={key}
-                  text={part.text}
-                />
-              )
-            }
-
-            if (part.type === 'diff') {
-              return (
-                <div className="timeline-tool__diff" key={key}>
-                  <p className="timeline-tool__diff-path">{part.path}</p>
-                  {part.oldText === null ? (
-                    <p className="timeline-tool__diff-note">新建文件</p>
-                  ) : (
-                    <pre className="timeline-tool__diff-old">{part.oldText}</pre>
-                  )}
-                  <pre className="timeline-tool__diff-new">{part.newText}</pre>
-                </div>
-              )
-            }
-
-            if (part.type === 'terminal') {
-              return (
-                <p className="timeline-tool__terminal" key={key}>
-                  终端 {part.terminalId}
-                </p>
-              )
-            }
-
-            return (
-              <p className="timeline-tool__opaque" key={key}>
-                {part.label}
-              </p>
-            )
-          })}
+          {parts.map((part, index) => (
+            <ToolCallPart key={`${part.type}:${String(index)}`} part={part} />
+          ))}
         </div>
       </DisclosureBody>
     </Surface>

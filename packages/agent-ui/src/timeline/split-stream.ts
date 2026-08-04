@@ -158,6 +158,49 @@ interface Scan {
 let held: Scan | null = null
 
 /**
+ * 这一趟从哪里接着扫。
+ *
+ * 只追加就接着上一趟走，判据是一次原生前缀比较，不分配；认不出前缀就从零起步，
+ * 逐字退化成没有这份状态时的行为。
+ *
+ * 它单独成一个函数，是因为「能不能续」和「怎么扫」是两件事。写在一起时，那六个
+ * ?? 兜底与一层三元只是在补「可能没有上一趟」这一个情形，而循环本身一个字都不
+ * 关心它 —— 读的人却得把两件事同时按在脑子里。
+ */
+function startFrom(text: string): Scan {
+  const scan = held
+
+  if (scan !== null && text.length > scan.source.length && text.startsWith(scan.source)) {
+    return scan
+  }
+
+  return {
+    source: '',
+    result: [],
+    blocks: [],
+    at: 0,
+    line: 0,
+    from: 0,
+    start: 0,
+    previous: '',
+    open: 'none',
+  }
+}
+
+/**
+ * 这一行是内容，不是块之间那个空行。
+ *
+ * 只有「围栏外的空行」才有资格当边界：围栏里的行、围栏本身那两行、以及任何有字
+ * 的行，都只是内容。before 是读这一行之前的围栏状态，after 是读完之后的 —— 开合
+ * 那两行自己也算在围栏里，所以两头都要看。
+ *
+ * 空行不更新 previous，那不是疏忽：previous 的定义就是上一个非空行。
+ */
+function contentRow(row: string, before: Fence, after: Fence): boolean {
+  return before !== 'none' || after !== 'none' || row.trim() !== ''
+}
+
+/**
  * 把一篇还在写的 markdown 切成块。
  *
  * 最后一块就是正在写的那一块：它后面没有安全切点，所以它是唯一还可能变的一块。前面
@@ -176,18 +219,15 @@ export function blockSplit(text: string): readonly StreamBlock[] {
     return scan.result
   }
 
-  /* 只追加就接着扫。判据是一次原生前缀比较，不分配。 */
-  const resumed =
-    scan !== null && text.length > scan.source.length && text.startsWith(scan.source) ? scan : null
+  const resumed = startFrom(text)
+  const blocks = resumed.blocks
 
-  const blocks = resumed === null ? [] : resumed.blocks
-
-  let at = resumed?.at ?? 0
-  let line = resumed?.line ?? 0
-  let from = resumed?.from ?? 0
-  let start = resumed?.start ?? 0
-  let previous = resumed?.previous ?? ''
-  let open: Fence = resumed?.open ?? 'none'
+  let at = resumed.at
+  let line = resumed.line
+  let from = resumed.from
+  let start = resumed.start
+  let previous = resumed.previous
+  let open: Fence = resumed.open
 
   for (;;) {
     const end = text.indexOf('\n', at)
@@ -205,17 +245,11 @@ export function blockSplit(text: string): readonly StreamBlock[] {
     }
 
     const row = text.slice(at, end)
-    const inside = open !== 'none'
+    const before = open
 
     open = fenceAfter(row, open)
 
-    /*
-     * 只有「围栏外的空行」才有资格当边界。围栏内的行、围栏本身那两行、以及任何
-     * 有字的行，都只是内容。
-     *
-     * 空行不更新 previous —— 这不是疏忽，是 previous 的定义：它是上一个非空行。
-     */
-    if (inside || open !== 'none' || row.trim() !== '') {
+    if (contentRow(row, before, open)) {
       previous = row
     } else if (separates(previous, text.slice(end + 1, after))) {
       /* 切点那一行不属于任何一块：块止于它前面那个换行。 */
