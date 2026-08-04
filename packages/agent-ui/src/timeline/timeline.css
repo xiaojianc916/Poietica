@@ -1213,3 +1213,25 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/*
+ * 意图占标题栏的主位。
+ *
+ * 名字定宽、压暗，意图吃掉剩下的宽度并单行截断 —— min-width: 0 不能省，
+ * flex 子项的默认最小宽度是内容宽度，省掉它省略号永远不出现。
+ *
+ * 只有意图真的在的时候名字才压暗：一张只有工具名的卡片，那个名字就是主角。
+ */
+.timeline-tool__title:has(+ .timeline-tool__intent) {
+  flex: 0 0 auto;
+  color: var(--cp-ink-muted);
+}
+
+.timeline-tool__intent {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--cp-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,6 +1,7 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { readSubAgent, type SubAgentBrief } from '../domain/sub-agent'
 import { toToolCallView } from '../domain/tool-call-content'
+import { readToolIntent } from '../domain/tool-intent'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -119,6 +120,12 @@ export function ToolCallCard({
    */
   const brief = readSubAgent(item.rawInput)
 
+  /*
+   * 子代理已经把自己的意图写在标题上了（brief.label），不再叠第二句。
+   * 别的工具没有这个待遇：它们的标题只有一个工具名。
+   */
+  const intent = brief === null ? readToolIntent(item) : null
+
   return (
     <Surface
       as="section"
@@ -153,6 +160,20 @@ export function ToolCallCard({
         <span className="timeline-tool__title" title={brief?.gist}>
           {brief === null ? item.title : brief.label}
         </span>
+
+        {/*
+         * 工具名让位，意图占主位。
+         *
+         * 名字不删：它是 agent 自己的话，而且会随进展变（Kimi 送过 Read，也送过
+         * Reading README.md）。但一屏的 Bash、Glob、Read 之间没有区别，真正把这次
+         * 调用和那次调用分开的是它要做什么。长了单行截断，全文进悬浮提示 —— 标题栏
+         * 不做展开：那是抽屉的事，一行里再藏一个开关就是两个开关。
+         */}
+        {intent === null ? null : (
+          <span className="timeline-tool__intent" title={intent.full}>
+            {intent.text}
+          </span>
+        )}
 
         {brief?.isBackground === true ? (
           <span className="timeline-tool__background">后台</span>
