@@ -68,7 +68,14 @@ export const kimiCode = {
   id: 'kimi',
   displayName: 'Kimi Code',
   command: 'kimi',
-  args: ['acp'],
+  /*
+   * 子命令决定接的是上游哪一套 ACP 实现。上游两套并存：
+   * acp 是 @moonshot-ai/acp-adapter（acp-v2.ts 逐字称它 legacy），
+   * acp-v2 是 @moonshot-ai/acp-server + agent-core-v2。
+   * 走 v2 是为了子代理的审批能到达客户端 —— legacy 在事件流
+   * 首行就把子代理的请求滤掉了。证据见 docs/adr/0004。
+   */
+  args: ['acp-v2'],
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',

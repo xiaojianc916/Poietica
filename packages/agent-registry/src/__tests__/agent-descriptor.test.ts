@@ -25,4 +25,13 @@ describe('kimi 的接入档案', () => {
   it('环境变量合成条目的 id 就是解析层认的那一个', () => {
     expect(kimiCode.syntheticProviderId).toBe('__kimi_env__')
   })
+
+  /*
+   * 子命令决定接的是上游哪一套 ACP 实现。只有 acp-v2 那一套会把子代理的审批
+   * 送到客户端：legacy 的 session.ts 在事件流首行就按 MAIN_AGENT_ID 过滤掉了。
+   * 谁想退回 acp，先过这一条。见 docs/adr/0004。
+   */
+  it('起的是 acp-v2 那套实现', () => {
+    expect(kimiCode.args).toEqual(['acp-v2'])
+  })
 })
