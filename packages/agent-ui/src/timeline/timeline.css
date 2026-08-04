@@ -1174,3 +1174,15 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/*
+ * 后台派发的记号。
+ *
+ * 一个词，不染色：它不是警告，只是说明这次派发不占前台，答复会晚一些回来。
+ */
+.timeline-tool__background {
+  flex: none;
+  font: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+}

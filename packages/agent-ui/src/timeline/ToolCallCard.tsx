@@ -1,4 +1,5 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
+import { readSubAgent, type SubAgentBrief } from '../domain/sub-agent'
 import { toToolCallView } from '../domain/tool-call-content'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
@@ -35,6 +36,21 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
     default:
       return <ToolIcon aria-hidden="true" className={className} />
   }
+}
+
+/*
+ * 抽屉里空着，原因有三种，而此前只说了一种。
+ *
+ * 「没有返回内容」对一个还在跑的调用是假的：它不是没返回，是还没返回。子代理这
+ * 一路更进一步 —— 它整段运行期都是空的，而且空得有原因：上游不回传子代理的过程。
+ * 那句话该写在卡片上，而不是只留在我们的记忆里。
+ */
+function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
+  if (!isRunning) {
+    return '这次调用没有返回内容。'
+  }
+
+  return brief === null ? '还在运行，暂时没有输出。' : '子代理在自己那边干活，上游不回传它的过程。'
 }
 
 /**
@@ -93,6 +109,15 @@ export function ToolCallCard({
   const { isOpen, toggle } = useDisclosure(isRunning)
   const { diffStat, parts } = toToolCallView(item.content)
 
+  /*
+   * 这次调用是不是一次子代理派发。
+   *
+   * 从 rawInput 现读，不进 TimelineState：它只是入参的函数，而 TimelineState 的
+   * 条目引用相等是 feed 的 sharedPrefix 赖以成立的前提，往里加一格派生字段就是
+   * 拿一次全表重画去换一个算得出来的东西。
+   */
+  const brief = readSubAgent(item.rawInput)
+
   return (
     <Surface
       as="section"
@@ -106,9 +131,31 @@ export function ToolCallCard({
         onClick={toggle}
         type="button"
       >
-        <ToolKindIcon kind={item.kind} />
+        {/*
+         * 子代理不是一种 ACP 工具类别 —— AcpToolKind 里没有它，所以这一格的分流
+         * 在组件层，不在 ToolKindIcon 的 switch 里：那个 switch 认的是协议枚举，
+         * 往里塞一个协议不认识的值，它就不再是协议的投影了。
+         */}
+        {brief === null ? (
+          <ToolKindIcon kind={item.kind} />
+        ) : (
+          <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
+        )}
 
-        <span className="timeline-tool__title">{item.title}</span>
+        {/*
+         * 标题优先用派发本身。
+         *
+         * item.title 是 agent 自己的话，通常就一个工具名（Agent）—— 对别的工具
+         * 够用，对这一种不够：一屏平行的子代理会得到一屏一模一样的标题。派了哪
+         * 一种、干什么，上游在入参里已经说了。
+         */}
+        <span className="timeline-tool__title" title={brief?.gist}>
+          {brief === null ? item.title : brief.label}
+        </span>
+
+        {brief?.isBackground === true ? (
+          <span className="timeline-tool__background">后台</span>
+        ) : null}
 
         {diffStat === null || diffStat.added + diffStat.removed === 0 ? null : (
           <span className="timeline-tool__diffstat">
@@ -156,17 +203,8 @@ export function ToolCallCard({
             </ul>
           ) : null}
 
-          {/*
-           * 空的原因有两种，此前只说了一种。
-           *
-           * 「没有返回内容」对一个还在跑的调用是假的：它不是没返回，是还没返回。
-           * 子代理这一路尤其明显 —— 上游不回传子代理的过程，那张卡片整段运行期
-           * 都是空的，于是这句话会在屏幕上挂着好几分钟。
-           */}
           {parts.length === 0 ? (
-            <p className="timeline-tool__empty">
-              {isRunning ? '还在运行，暂时没有输出。' : '这次调用没有返回内容。'}
-            </p>
+            <p className="timeline-tool__empty">{emptyNoteOf(brief, isRunning)}</p>
           ) : null}
 
           {parts.map((part, index) => {
