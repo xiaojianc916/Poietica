@@ -127,17 +127,35 @@ struct Connection {
     can_load_session: bool,
     /// 这个 agent 会不会删掉一条会话。同样是握手问出来的。
     can_delete_session: bool,
+    /// 这条连接锚会话的记录槽。
+    ///
+    /// 它的语义是一条会话：driver 建立连接时把它 adopt 到锚会话名下，别的会话
+    /// 由册子各开一个。此前它挂在 AgentRuntime 上，也就是说换一条连接要复用
+    /// 上一条连接的槽。
+    slot: RunSlot,
+    /// 这条连接的权限台。
+    ///
+    /// request_id 由 agent 自己发，两个 agent 的号不可通约：共用一张桌子，一个
+    /// 答案就可能落到另一个 agent 的问题上。
+    desk: PermissionDesk,
+    /// 这条连接开出来的会话号。
+    ///
+    /// ACP 的 sessionId 只在一条连接内有意义，而且活在这个 agent 自己的命名空间
+    /// 里：进程重启之后它不认识上一次的号，另一个 agent 从来不认识它。
+    known: Arc<Mutex<HashSet<String>>>,
 }
 
-/// Managed state for everything the agent commands need.
+/// 这个进程活多久就活多久的那些东西：库、附件、根目录，以及此刻那一条连接。
+///
+/// 连接自己的东西不在这里 —— 记录槽、权限台、它开出来的会话号，寿命都是一条
+/// 连接。它们此前是这个结构的字段，于是全进程只有一份，而第二个 agent 在结构
+/// 上就放不进来。
 #[derive(Debug)]
 pub struct AgentRuntime {
     database: PathBuf,
     /// 附件字节的根。与库文件同一个时刻解析：两者都是布局，不是某条命令的参数。
     attachments: PathBuf,
     root: PathBuf,
-    slot: RunSlot,
-    desk: PermissionDesk,
     connection: Mutex<Option<Connection>>,
     /// 起一条连接这件事的排队处。
     ///
@@ -150,11 +168,6 @@ pub struct AgentRuntime {
     /// `agent_shutdown` 之后重新起一条连接照样成立 —— 这是它比 `OnceCell` 合适
     /// 的地方，后者一次成型，没有回头路。
     starting: tokio::sync::Mutex<()>,
-    /// 本次连接开出来的会话号。
-    ///
-    /// ACP 的 sessionId 只在一条连接内有意义：进程重启之后，agent 不认识上一次
-    /// 的会话号。库里存着的那一个因此不是主键而是缓存，寻址之前必须先问这里。
-    live: Mutex<HashSet<String>>,
     /// The one connection to the index, opened on first use.
     ///
     /// Every command used to open one of its own: a full migrate, all of
@@ -185,11 +198,8 @@ impl AgentRuntime {
             database: agent_database(handle)?,
             attachments: attachments_root(handle)?,
             root,
-            slot: RunSlot::new(),
-            desk: PermissionDesk::new(),
             connection: Mutex::new(None),
             starting: tokio::sync::Mutex::new(()),
-            live: Mutex::new(HashSet::new()),
             store: OnceLock::new(),
         })
     }
@@ -558,10 +568,13 @@ pub fn agent_resolve_permission(
     state: State<'_, AgentRuntime>,
     request: AgentResolvePermissionRequest,
 ) -> AgentCommandResult<()> {
+    /* 桌子归连接：一个答案只可能是这条连接问出来的那个问题的答案，而
+    request_id 活在 agent 自己的命名空间里 —— 没有连接就没有问题可答。 */
+    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
+
     // Every failure here means the same thing to the interface: that answer no
     // longer applies to anything. The detail stays on this side of the wire.
-    state
-        .desk
+    live.desk
         .answer(&request.request_id, &request.option_id)
         .map_err(|error| Error::NotFound(error.to_string()))?;
 
@@ -623,7 +636,7 @@ pub async fn agent_cancel(
     };
 
     /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。 */
-    if !recognised(&state, &addressed)? {
+    if !recognised(&live, &addressed)? {
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     }
 
@@ -640,38 +653,38 @@ pub async fn agent_cancel(
 #[tauri::command]
 #[specta::specta]
 pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
-    let taken = lock(&state.connection)?.take();
-
-    if let Some(live) = taken {
-        // The process is going away either way, so a driver that already
-        // stopped is not an error worth reporting.
-        let _ignored = live.client.shutdown();
-    }
-
-    /* 槽里那位听众也要收走。
-     *
-     * 一轮在飞的时候退出，driver 的 future 被丢掉，那一轮的 Settled::Turn
-     * 永远走不完，于是 slot.take() 永远不会被调用 —— 而 RunSlot 活得比连接长
-     * （每次 connect 交出去的是 state.slot.clone()）。槽里那个 Recorder 就此
-     * 长住，下一次连接的第一轮在 RunSlot::install 那里撞上 Refusal::Busy，
-     * 屏幕上是"这条对话正在回答，请等它结束再改设置"—— 一句答错了问题的话，
-     * 而且不会自己好转：清空这个槽的地方只有 take，没有别人会来调它。只有
-     * 重启进程能救。
-     *
-     * 拿出来就丢掉。take 的文档写的是"把这一位交回去，好让它自己收尾"，
-     * 丢掉正是让它收尾。更完整的做法是给那半轮补一帧 run_failed，让屏幕上
-     * 那一轮显式地失败而不是无声消失 —— 那要先读 recorder.rs，这里不猜。
-     */
-    let _abandoned = state.slot.take().map_err(translate)?;
-
-    state.desk.clear();
-
-    /* 连接走了，它开出来的会话号也就不再指向任何东西。 */
-    if let Ok(mut known) = state.live.lock() {
-        known.clear();
-    }
+    retire(lock(&state.connection)?.take());
 
     Ok(())
+}
+
+/// 让一条连接干净地退场。
+///
+/// 显式退出与换 agent 是同一件事的两个理由，所以它只写一遍：进程要走、槽里
+/// 那位听众要收走、桌上再没有人会来回答、它开出来的会话号也不再指向任何东西。
+///
+/// 一轮在飞时退场，driver 的 future 被丢掉，那一轮的 Settled::Turn 永远走不完，
+/// 于是 RunSlot::take 永远不会被调用。槽现在随连接一起走，所以收不干净只影响
+/// 这一条已经作废的连接 —— 此前它是全进程唯一的那一份，一次这样的退出会让
+/// 下一条连接的第一轮撞上 Refusal::Busy，而屏幕上那句话答的是另一个问题。
+fn retire(taken: Option<Connection>) {
+    let Some(live) = taken else {
+        return;
+    };
+
+    // The process is going away either way, so a driver that already
+    // stopped is not an error worth reporting.
+    let _ignored = live.client.shutdown();
+
+    /* 拿出来就丢掉。RunSlot::take 的文档写的是把这一位交回去、好让它自己
+    收尾，而丢掉正是让它收尾。 */
+    let _abandoned = live.slot.take();
+
+    live.desk.clear();
+
+    if let Ok(mut known) = live.known.lock() {
+        known.clear();
+    }
 }
 
 /// What a session selector is for.
@@ -881,6 +894,12 @@ struct Handle {
     can_load_session: bool,
     /// 这个 agent 会不会删掉一条会话。删除要按它分路。
     can_delete_session: bool,
+    /// 这条连接锚会话的记录槽。
+    slot: RunSlot,
+    /// 这条连接的权限台。
+    desk: PermissionDesk,
+    /// 这条连接认得的会话号。
+    known: Arc<Mutex<HashSet<String>>>,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -890,7 +909,18 @@ async fn ensure_session(
     launch: AgentLaunch,
     cwd: Option<String>,
 ) -> Result<Handle> {
-    if let Some(live) = borrow(state)? {
+    /* 起哪个 agent 是这个函数的第一件事，因为下面每一次「连接已经在了」都要
+    拿它来问。此前它在函数中段才被解构出来，于是上面那两次检查只问了有没有
+    连接 —— 换了 agent 之后，这一句话照旧发给上一个进程。 */
+    let AgentLaunch {
+        agent_id,
+        program,
+        args,
+    } = launch;
+
+    if let Some(live) = borrow(state)?
+        && live.agent_id == agent_id
+    {
         return Ok(live);
     }
 
@@ -901,7 +931,14 @@ async fn ensure_session(
     /* 排在前面那位可能刚好把连接建起来了。这一次的"没有"是可信的：写
     state.connection 的地方只有这个函数，而这一刻拿着闸的人只有一个。 */
     if let Some(live) = borrow(state)? {
-        return Ok(live);
+        if live.agent_id == agent_id {
+            return Ok(live);
+        }
+
+        /* 换 agent：上一条连接先干净地退场，再起新的。两个 agent 同时常驻是
+        下一刀的事（那要先让库里那一列的持有者补实）；而把 B 的话发给 A、并
+        且记成 A 的，今天就是错的。 */
+        retire(lock(&state.connection)?.take());
     }
 
     // The agent reads and writes relative to the directory the session was
@@ -917,12 +954,6 @@ async fn ensure_session(
     // CLI，起会话用的是这条连接，两边必须指向同一个目录 —— 否则 provider 写
     // 进了一个 home，而对话读的是另一个：界面上 provider 添加成功，一开口却
     // 说没有可用的模型。
-    let AgentLaunch {
-        agent_id,
-        program,
-        args,
-    } = launch;
-
     let env = launch_env(app, &agent_id)?;
 
     let spawn = AgentSpawn {
@@ -936,13 +967,20 @@ async fn ensure_session(
     // to the connection, and the driver holds its own handle to it, so
     // routing works while this side leaves it alone. The runtime takes it
     // over once it keeps more than one session at a time.
+    /* 槽、桌子和会话号集合在这里出生，随这条连接一起活。此前它们是
+    AgentRuntime 的字段：全进程一个槽、一张桌子、一份号，而它们的语义分别是
+    一条会话、一条连接、一条连接。 */
+    let slot = RunSlot::new();
+    let desk = PermissionDesk::new();
+    let known = Arc::new(Mutex::new(HashSet::new()));
+
     let AgentConnection {
         client,
         handshake,
         driver,
         reports,
         book: _,
-    } = connect(spawn, state.slot.clone(), state.desk.clone()).map_err(translate)?;
+    } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
     // so this is where the driver gets an executor.
@@ -996,18 +1034,26 @@ async fn ensure_session(
         anchor: session_id.clone(),
         can_load_session,
         can_delete_session,
+        slot: slot.clone(),
+        desk: desk.clone(),
+        known: Arc::clone(&known),
     });
 
-    /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
-    remember(state, &session_id)?;
-
-    Ok(Handle {
+    let live = Handle {
         client,
         agent_id,
-        anchor: session_id,
+        anchor: session_id.clone(),
         can_load_session,
         can_delete_session,
-    })
+        slot,
+        desk,
+        known,
+    };
+
+    /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
+    remember(&live, &session_id)?;
+
+    Ok(live)
 }
 
 /// Reads the session without holding the lock across an await point.
@@ -1020,6 +1066,9 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
         anchor: live.anchor.clone(),
         can_load_session: live.can_load_session,
         can_delete_session: live.can_delete_session,
+        slot: live.slot.clone(),
+        desk: live.desk.clone(),
+        known: Arc::clone(&live.known),
     }))
 }
 
@@ -1209,7 +1258,7 @@ pub async fn agent_new_session(
         .map_err(translate)?;
 
     /* 这个会话号只在这条连接里有意义，寻址之前必须先认得它。 */
-    remember(&state, &opened.session_id)?;
+    remember(&live, &opened.session_id)?;
 
     Ok(AgentOpenedSession {
         session_id: opened.session_id,
@@ -1738,9 +1787,8 @@ struct Held {
 }
 
 /// 记下一个本次连接开出来的会话号。
-fn remember(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
-    state
-        .live
+fn remember(live: &Handle, session_id: &str) -> Result<()> {
+    live.known
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
         .insert(session_id.to_owned());
@@ -1752,9 +1800,9 @@ fn remember(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
 ///
 /// 与 remember 成对：agent 那侧已经没有它了，这里再认得它就是认得一个
 /// 不存在的东西。
-fn forget(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
-    let _forgotten = state
-        .live
+fn forget(live: &Handle, session_id: &str) -> Result<()> {
+    let _forgotten = live
+        .known
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
         .remove(session_id);
@@ -1763,9 +1811,9 @@ fn forget(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<()> {
 }
 
 /// 本次连接是否认得这个会话号。
-fn recognised(state: &State<'_, AgentRuntime>, session_id: &str) -> Result<bool> {
-    Ok(state
-        .live
+fn recognised(live: &Handle, session_id: &str) -> Result<bool> {
+    Ok(live
+        .known
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
         .contains(session_id))
@@ -1833,7 +1881,7 @@ async fn session_for(
         它认得，不等于屏幕上还有东西：渲染层可以在连接活着的时候整个重来
         （Ctrl+R、第二个窗口），那一刻它手里一片空白。「有没有经过可看」是
         那一侧的事实，这一侧猜不出来，所以不猜 —— 要经过的那一路照样去装载。 */
-        let known = recognised(state, &session_id)?;
+        let known = recognised(live, &session_id)?;
 
         if !mine {
             /* 号发出去只会换回 UnknownSession，所以不发。 */
@@ -1858,7 +1906,7 @@ async fn session_for(
                 .await
             {
                 Ok(loaded) => {
-                    remember(state, &session_id)?;
+                    remember(live, &session_id)?;
 
                     /* 装载成功，这条会话确实是这个 agent 的。空的那一格在这里
                     记实，所以补写只发生一次，不是每次开对话都写一遍。 */
@@ -1950,7 +1998,7 @@ async fn session_for(
         .await?;
     }
 
-    remember(state, &opened.session_id)?;
+    remember(live, &opened.session_id)?;
 
     Ok(Held {
         thread_id,
@@ -2042,7 +2090,7 @@ pub async fn agent_delete_thread(
             log::warn!("could not delete the session on the agent: {error}");
         }
 
-        forget(&state, &session_id)?;
+        forget(&live, &session_id)?;
     }
 
     on_store(&state, move |store| {
