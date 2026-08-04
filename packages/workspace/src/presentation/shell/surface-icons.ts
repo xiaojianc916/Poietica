@@ -2,31 +2,34 @@ import { Box, Folder, Message, Search } from '@mynaui/icons-react'
 import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
 import type { ComponentType } from 'react'
 
-import { WORKSPACE_SURFACE_REGISTRY, type WorkspaceSurfaceId } from '../../domain/index'
-
-export type SurfaceIcon = ComponentType<{
-  readonly className?: string
-  readonly 'aria-hidden'?: boolean | 'true' | 'false'
-}>
+import {
+  describeWorkspaceSurface,
+  type WorkspaceSurfaceIconId,
+  type WorkspaceSurfaceId,
+} from '../../domain/surface-registry'
 
 /**
- * iconId 到组件的映射，全应用唯一一处。
+ * iconId 到组件的唯一映射。
  *
- * 描述符里只有 iconId 字符串，领域层因此不再 import React 组件；
- * 此前 registry 直接把 Search / Message 当数据字段存着，是分层反向。
- * Record<WorkspaceSurfaceId, …> 仍然强制穷尽：漏一个在 typecheck 就失败。
+ * 领域层只声明图标标识，组件引用留在这一层，分层方向因此不会反过来。
+ * 键是 WorkspaceSurfaceIconId 而非 WorkspaceSurfaceId：否则新增表面时
+ * 得同时改两张按表面分行的表，又变成两份真相。
+ *
+ * 映射是全域的（Record 而非 Partial），漏一个图标是编译错误，
+ * 所以这里不需要、也不应该有 ?? 兜底。
  */
-export const SURFACE_ICONS: Record<WorkspaceSurfaceId, SurfaceIcon> = {
-  ai: Message,
-  repositories: Folder,
+
+export type SurfaceIcon = ComponentType<{ readonly className?: string }>
+
+const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
+  box: Box,
+  clock: ClockTenIcon,
+  folder: Folder,
+  message: Message,
   search: Search,
-  tools: Box,
-  automations: ClockTenIcon,
-  hooks: WebhookIcon,
+  webhook: WebhookIcon,
 }
 
-export function surfaceIcon(surfaceId: WorkspaceSurfaceId): SurfaceIcon {
-  return SURFACE_ICONS[surfaceId]
+export function surfaceIcon(id: WorkspaceSurfaceId): SurfaceIcon {
+  return SURFACE_ICONS[describeWorkspaceSurface(id).iconId]
 }
-
-export { WORKSPACE_SURFACE_REGISTRY }

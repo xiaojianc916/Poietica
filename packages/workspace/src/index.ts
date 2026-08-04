@@ -9,7 +9,6 @@ export type {
   WorkspaceParts,
 } from './contracts/parts'
 export {
-  inMemoryWorkbenchStatePort,
   type PersistedWorkbenchState,
   PersistedWorkbenchStateSchema,
   type RepositoryPort,

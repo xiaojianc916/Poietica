@@ -21,6 +21,11 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
 
   const dockSidebar = mode !== 'narrow' && sidebarOpen
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
+
+  /*
+   * 主区默认是标签面板，由标签自己命名（aria-labelledby）；只有 Part 明确给了
+   * label 时才降级成 region 并自带名字。两者互斥，不能同时挂。
+   */
   const isTabPanel = parts.main.label === undefined
 
   return (
@@ -40,9 +45,9 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
           >
             <main
               aria-label={parts.main.label}
-              aria-labelledby={isTabPanel ? \`workbench-tab-\${activeTabDomId}\` : undefined}
+              aria-labelledby={isTabPanel ? `workbench-tab-${activeTabDomId}` : undefined}
               className="relative h-full min-h-0 min-w-0 overflow-hidden"
-              id={isTabPanel ? \`workbench-panel-\${activeTabDomId}\` : undefined}
+              id={isTabPanel ? `workbench-panel-${activeTabDomId}` : undefined}
               role={isTabPanel ? 'tabpanel' : 'region'}
             >
               {parts.main.content}

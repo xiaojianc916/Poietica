@@ -325,7 +325,6 @@ export function createWorkbenchSessionController(
        * 所以在这里终结而不是往上抛；但不吞掉——交给宿主的错误通道。
        */
       void persistence.write(repositoryId, encode(state)).catch((cause: unknown) => {
-        listeners.forEach(() => undefined)
         reportPersistFailure(cause)
       })
     }

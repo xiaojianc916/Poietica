@@ -118,10 +118,8 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
  * 会话入口（AI 表面）的名字。
  *
  * 与侧栏「新建对话」导航项、会话列表的加号、标签条的加号同名：一个入口只
- * 允许有一个名字，标签、导航与按钮因此不可能对不上。
+ * 默认表面的标签 id 由默认表面 id 派生，不另立字面量。
  */
-export const CONVERSATION_ENTRY_TITLE = '新建对话'
-
 export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `workspace:${DEFAULT_SURFACE_ID}`
 
 /**
