@@ -19,8 +19,8 @@ import { cn } from '../../lib/utils'
  * 是两套管线，不是灵活。
  *
  * 对外签名一字不改：buttonVariants({ variant, size, className }) 仍返回一个
- * class 字符串，所以包外的调用方不需要跟着动。档位从"由 cva 推导"变成写出来的
- * 联合类型 —— 有哪几档，现在在类型里直接读得到。
+ * class 字符串。档位从"由 cva 推导"变成写出来的联合类型 —— 有哪几档，现在在
+ * 类型里直接读得到。
  */
 
 const BASE =
@@ -64,6 +64,14 @@ const SIZE: Record<ButtonSize, string> = {
   icon: 'h-[var(--ui-control-height-md)] w-[var(--ui-control-height-md)]',
 }
 
+/*
+ * buttonVariants() 的入参。
+ *
+ * 它和 ButtonProps 是两个不同的契约，不能合并：这里的 className 是"再拼进来的
+ * 一段 class"，而 ButtonProps 的 className 是 HTML 属性，由 ButtonHTMLAttributes
+ * 提供。cva 时代 VariantProps 只提取 variant 键、不含 className，所以这个区别
+ * 一直被掩盖着。
+ */
 export interface ButtonVariantOptions {
   readonly variant?: ButtonVariant | null | undefined
   readonly size?: ButtonSize | null | undefined
@@ -71,11 +79,15 @@ export interface ButtonVariantOptions {
 }
 
 /** 一档变体 + 一档尺寸 + 调用方补充的 class，合成最终 class 字符串。 */
-export function buttonVariants({ variant, size, className }: ButtonVariantOptions = {}): string {
+function buttonVariants(options: ButtonVariantOptions = {}): string {
+  const { variant, size, className } = options
+
   return cn(BASE, VARIANT[variant ?? 'default'], SIZE[size ?? 'default'], className)
 }
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonVariantOptions {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  readonly variant?: ButtonVariant | null | undefined
+  readonly size?: ButtonSize | null | undefined
   readonly asChild?: boolean
 }
 
