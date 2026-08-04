@@ -4,8 +4,12 @@ import type { AcpAgentDescriptor } from '../acp-agent-contract'
  * Kimi Code CLI 的档案。
  *
  * 事实来源是它自己的源码，不是观察和猜测：
- * MoonshotAI/kimi-code @ 67dd0314，packages/acp-adapter/src/。
- * 每一条下面都注明具体是哪个函数。
+ * MoonshotAI/kimi-code，packages/acp-adapter/src/。每一条下面都注明具体是哪个函数。
+ *
+ * 那个包是上游自己叫作 legacy 的那一套（acp-v2.ts 逐字："the legacy
+ * @moonshot-ai/acp-adapter over the SDK harness"）。另有一套 @moonshot-ai/acp-server
+ * 挂在 kimi acp-v2 下，终端反向 RPC、文件宿主、session/close 只在那一套里。
+ * 我们接哪一套、为什么、什么条件下才切，见 docs/adr/0004。
  */
 
 /**
@@ -54,6 +58,11 @@ const OPTION_LABELS = {
  * 启动方式取自上游 README 给 ACP 客户端的配置：command "kimi"，args ["acp"]。
  * 它是一个可执行名加一串参数，不是一行待解析的命令行 —— 拼成字符串再拆开只会
  * 凭空长出一个引号和转义的问题。
+ *
+ * 不是 acp-v2，这是一个决定而不是疏忽：那一套上游标着 experimental，它的
+ * runAcpServer 调用没有传 slashCommands（命令面板会整个消失），而它多出来的
+ * terminal/* 与 fs/* 都是客户端侧方法 —— 要先由我们实现并如实声明能力，
+ * 声明而不实现比不声明糟。三条前置条件写在 docs/adr/0004。
  */
 export const kimiCode = {
   id: 'kimi',
