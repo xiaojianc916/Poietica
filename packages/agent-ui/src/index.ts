@@ -21,3 +21,4 @@ export type {
   PreviewableImage,
 } from './media/ImageLightbox'
 export { ImageLightbox, ImageThumbnailGrid } from './media/ImageLightbox'
+export { createExternalStore } from './primitives/external-store'

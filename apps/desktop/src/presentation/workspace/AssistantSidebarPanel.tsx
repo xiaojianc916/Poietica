@@ -2,6 +2,7 @@ import { AssistantThreadList } from '@poietica/agent-ui'
 import { memo, useCallback } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../../application/ai/threads-context'
+import { toggleWorkspace, useCollapsedWorkspaces } from '../../application/ai/workspace-collapse'
 
 /*
  * 侧栏的会话列表。
@@ -40,6 +41,11 @@ export interface AssistantSidebarPanelProps {
  *
  * 这一层的入参只有一个会真的变：activeThreadId。它变的时候列表本来就该重画
  * 高亮，其余时候这里应当一动不动。
+ *
+ * 「收起了哪些工作区」这份偏好在这里读。它有存储键、要跨窗口一致、一个进程只该
+ * 有一份 —— 都是宿主的事实（application/ai/workspace-collapse），不是列表组件的
+ * 内部记忆。往下只交出一个集合和一个动作，而 toggleWorkspace 是模块函数，引用
+ * 天生稳定，memo 这道门不会因为多接一根线而失效。
  */
 export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   activeThreadId,
@@ -49,6 +55,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
 }: AssistantSidebarPanelProps) {
   const threads = useThreadsActions()
   const { groups, isLoading } = useThreadsList()
+  const collapsedWorkspaces = useCollapsedWorkspaces()
 
   const activate = useCallback(
     (threadId: string) => {
@@ -88,6 +95,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   return (
     <AssistantThreadList
       activeThreadId={activeThreadId}
+      collapsedWorkspaces={collapsedWorkspaces}
       groups={groups}
       isLoading={isLoading}
       onActivate={activate}
@@ -96,6 +104,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
       onOpenInNewTab={openInNewTab}
       onPin={pin}
       onRename={rename}
+      onToggleWorkspace={toggleWorkspace}
     />
   )
 })

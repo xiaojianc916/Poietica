@@ -1,16 +1,21 @@
+import { createExternalStore } from '@poietica/agent-ui'
 import { useSyncExternalStore } from 'react'
-import { createExternalStore } from '../primitives/external-store'
 
 /*
  * 哪些工作区是收起来的。
  *
- * 一份状态，不是每个组头一个 useState：收起来这件事要跨重挂载、跨窗口、跨重启
- * 存活 —— 组件本地状态三样都做不到。订阅那圈样板与 threads/clock 共用一个原语
- * （primitives/external-store），此前这里带着一份逐字同构的手抄。
+ * 住在应用层，不住在 agent-ui 里。它是一份用户偏好：有存储键、有跨窗口语义、
+ * 一个进程里只该有一份 —— 这三件事都是宿主的事实，而 agent-ui 是一包展示组件。
+ * 此前它在 packages/agent-ui/src/threads/workspace-collapse.ts，被
+ * AssistantThreadList 直接 import：一个展示组件由此绑死一份模块级可变状态，
+ * 同一份列表在同一个进程里画两次就会互相打断，也没法在没有 localStorage 的
+ * 环境里渲染（列表的折叠因此一条测试都没有）。现在列表只收一个集合和一个动作。
  *
- * 落盘用 localStorage：它是同步的，所以首帧读得到，不会先展开再收起闪一下。
- * storage 事件让同一个应用的另一个窗口跟着变 —— 那是浏览器免费给的一致性，
- * 自己发消息去同步反而会漏。
+ * 落盘用 localStorage，不走 @poietica/settings：那条管线是异步的（AppShell 在
+ * effect 里 await runtime.settings.load()），第一帧读不到值，于是每次开窗所有
+ * 收起的组都会先展开一帧再收起。localStorage 是同步的，首帧就有答案 —— 这不是
+ * 遗漏统一，这是这份状态的正确管线。storage 事件让同一个应用的另一个窗口跟着
+ * 变，那是平台免费给的一致性，自己发消息去同步反而会漏。
  */
 
 const KEY = 'poietica.threads.collapsedWorkspaces'
@@ -64,7 +69,7 @@ export function useCollapsedWorkspaces(): ReadonlySet<string> {
   return useSyncExternalStore(store.subscribe, store.read, readServer)
 }
 
-/** 收起或展开一个工作区。 */
+/** 收起或展开一个工作区。模块函数，引用稳定，可以直接当 prop 往下传。 */
 export function toggleWorkspace(id: string): void {
   const next = new Set(collapsed)
 

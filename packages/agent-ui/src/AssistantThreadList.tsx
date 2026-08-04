@@ -12,7 +12,6 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 import { useHorizon, useNow } from './threads/clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './threads/relative-time'
-import { toggleWorkspace, useCollapsedWorkspaces } from './threads/workspace-collapse'
 
 /*
  * 会话列表。
@@ -24,8 +23,13 @@ import { toggleWorkspace, useCollapsedWorkspaces } from './threads/workspace-col
  * 「昨天」、行尾又写「1天」）。
  *
  * 分组不在这一层算。它是次序规则的一部分，住在 agent-session 的 thread-order，
- * 与库那条 ORDER BY 同源；这一层只把分好的组画出来，并且只管两件视图自己的事：
- * 哪些组是收起来的，每组已经展开到第几条。
+ * 与库那条 ORDER BY 同源；这一层只把分好的组画出来。
+ *
+ * 收起了哪些工作区也不由这一层持有：那是一份跨窗口、跨重启存活的宿主偏好，
+ * 从 props 进来（collapsedWorkspaces / onToggleWorkspace）。此前这个文件直接
+ * import 了一个写 localStorage 的模块单例 —— 一个展示组件由此绑死一份全局可变
+ * 状态和一个存储键：同一份界面在一个进程里画两次会互相打断，没有 localStorage
+ * 的环境里根本渲染不了。这一层自己只留一件视图状态：每组已经展开到第几条。
  *
  * 一行是一个组件。此前整行——重命名表单、时间格、固定按钮、四项菜单——都摊在
  * 父组件 map 的匿名回调里，于是列表没有可比较的边界：时钟每跳一次、草稿每多
@@ -71,6 +75,9 @@ export interface AssistantThreadListProps {
   /** True while the list is still being read for the first time. */
   readonly isLoading?: boolean
   readonly activeThreadId: string | null
+  /** 收起来的工作区，以及收起／展开它的动作。两者都要活过重启，所以住在宿主。 */
+  readonly collapsedWorkspaces: ReadonlySet<string>
+  readonly onToggleWorkspace: (workspaceId: string) => void
   readonly onActivate: (threadId: string) => void
   /** 不点名工作区就是「当前那个」，由宿主决定。 */
   readonly onCreate: (workspaceId?: string) => void
@@ -409,6 +416,7 @@ interface WorkspaceHeaderProps {
   readonly count: number
   readonly isOpen: boolean
   readonly onCreate: (workspaceId?: string) => void
+  readonly onToggle: (workspaceId: string) => void
 }
 
 /*
@@ -419,9 +427,17 @@ interface WorkspaceHeaderProps {
  * 这里的 name 是 string 而不是 string | null —— 收窄一次，内部就不必各自兜底。
  *
  * 组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以 aria-expanded
- * 说的是下面那张列表在不在，而不是它自己的样子。
+ * 说的是下面那张列表在不在，而不是它自己的样子。收与展是往上报的一件事，不是
+ * 在这里就地去写一份全局状态 —— 这一格和它旁边那枚加号现在遵守同一条规矩。
  */
-function WorkspaceHeader({ workspaceId, name, count, isOpen, onCreate }: WorkspaceHeaderProps) {
+function WorkspaceHeader({
+  workspaceId,
+  name,
+  count,
+  isOpen,
+  onCreate,
+  onToggle,
+}: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
 
   return (
@@ -430,7 +446,7 @@ function WorkspaceHeader({ workspaceId, name, count, isOpen, onCreate }: Workspa
         aria-expanded={isOpen}
         className="assistant-threads__toggle"
         onClick={() => {
-          toggleWorkspace(workspaceId)
+          onToggle(workspaceId)
         }}
         type="button"
       >
@@ -466,6 +482,8 @@ export function AssistantThreadList({
   groups,
   isLoading,
   activeThreadId,
+  collapsedWorkspaces,
+  onToggleWorkspace,
   onActivate,
   onCreate,
   onPin,
@@ -492,13 +510,12 @@ export function AssistantThreadList({
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   /*
-   * 收起来的工作区，与每组展开到第几条。
+   * 每组已经展开到第几条。
    *
-   * 两份状态都放在这一层，不放在组头里：map 里开不了 hook，而组的身份会随
-   * 数据增删变化 —— 状态跟着组件走就会在重挂载时丢。收起来那一份还要跨窗口
-   * 与重启存活，因此它住在 threads/workspace-collapse 的外部 store 里。
+   * 放在这一层而不是组头里：map 里开不了 hook，而组的身份会随数据增删变化 ——
+   * 状态跟着组件走就会在重挂载时丢。它只活这一次会话，所以不落盘；收起来那一份
+   * 要活得更久，因此不在这里，由宿主传进来。
    */
-  const collapsed = useCollapsedWorkspaces()
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(NO_PAGES)
 
   const showMore = useCallback((workspaceId: string) => {
@@ -584,7 +601,7 @@ export function AssistantThreadList({
          * 之后，它自然长出名字与组头，这一层不用再改。
          */
         const named = group.name
-        const isOpen = named === null || !collapsed.has(group.id)
+        const isOpen = named === null || !collapsedWorkspaces.has(group.id)
         const limit = shown.get(group.id) ?? PAGE
         const members = group.members.slice(0, limit)
         const rest = group.members.length - members.length
@@ -597,6 +614,7 @@ export function AssistantThreadList({
                 isOpen={isOpen}
                 name={named}
                 onCreate={onCreate}
+                onToggle={onToggleWorkspace}
                 workspaceId={group.id}
               />
             )}
