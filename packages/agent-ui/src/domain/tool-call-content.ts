@@ -166,68 +166,6 @@ const VIEWS = new WeakMap<readonly AcpToolCallContent[], ToolCallView>()
  * 交回 TimelineRow 之后那条路径不存在了，理由跟着换成上面这条真的 —— 一份缓存靠一
  * 个不再发生的场景辩护，下一个人无从判断它还该不该在。
  */
-/*
- * 一次调用的入参，按上游的写法字符串化。
- *
- * 上游用的是 JSON.stringify(args)（events-map.ts 的 stringifyArgs），而 rawInput 就是
- * 同一份 args 解析回来的对象 —— JSON 往返保留键序，所以两边算出来的是同一个字符串。
- * 它那边 stringify 抛错时退回 String(args)，这里不跟：认不出就不认，宁可多画一段，
- * 不肯错藏一段真输出。
- */
-function encode(value: unknown): string | null {
-  try {
-    const text = JSON.stringify(value)
-
-    return text === undefined ? null : text
-  } catch {
-    return null
-  }
-}
-
-/** 还没落定：结果一到，content 就被输出整份覆盖（wire 是 REPLACE 语义）。 */
-function isOpen(status: AcpToolCallStatus): boolean {
-  return status === 'pending' || status === 'in_progress'
-}
-
-/**
- * 摘掉入参回显。
- *
- * 上游建卡时就把入参的 JSON 全文写进了 content，并在流式期间逐片替换成累积的
- * args 片段 —— 它自己的注释管这叫 degraded preview。那不是这次调用的产出，是我们
- * 已经拿在手里的 rawInput 的一份降级重复：画出来只是让抽屉里躺着一坨转义引号，
- * 而真正的产出要等结果帧才来。
- *
- * 判据是「它是入参字符串化结果的前缀」，所以流到一半的未闭合片段一样认得出。只在
- * 调用还没落定时判：一个把入参回显成输出的工具，完成之后那段文本是真的产出。
- *
- * 什么都没摘就交回原来那个投影 —— 已经落定的卡片必须保持引用不变。
- */
-export function withoutArgumentEcho(
-  view: ToolCallView,
-  call: { readonly rawInput?: unknown; readonly status: AcpToolCallStatus },
-): ToolCallView {
-  if (call.rawInput === undefined || !isOpen(call.status)) {
-    return view
-  }
-
-  const echo = encode(call.rawInput)
-
-  if (echo === null) {
-    return view
-  }
-
-  const kept = view.parts.filter(
-    (part) => part.type !== 'text' || part.text.length === 0 || !echo.startsWith(part.text),
-  )
-
-  if (kept.length === view.parts.length) {
-    return view
-  }
-
-  /* diffStat 不重算：它只数 diff，而摘掉的是一格文本。 */
-  return { diffStat: view.diffStat, parts: kept }
-}
-
 export function toToolCallView(
   content: readonly AcpToolCallContent[] | null | undefined,
 ): ToolCallView {
