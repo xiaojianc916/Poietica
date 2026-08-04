@@ -1,5 +1,5 @@
 import type { ChatStatus } from '@poietica/acp'
-import type { ComponentProps, KeyboardEvent, MouseEvent, RefObject } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
 import {
   createContext,
   useCallback,
@@ -127,7 +127,17 @@ export interface PromptInputHandle {
   readonly focus: () => void
 }
 
-export interface PromptInputProps extends Omit<ComponentProps<'form'>, 'onSubmit'> {
+/*
+ * 只声明这张卡真的兑现的那几项。
+ *
+ * 此前它 extends Omit<ComponentProps<'form'>, 'onSubmit'>，而 form 上的
+ * onKeyDown / onMouseDown / onPaste 写在 {...props} 之后 —— 类型邀请调用方
+ * 传，实现静默丢掉：编译通过、运行无错、行为消失。类型收窄之后这条陷阱
+ * 不存在，那段解释「展开为什么排在前面」的注释也一起没了。
+ */
+export interface PromptInputProps {
+  readonly children?: ReactNode
+  readonly className?: string | undefined
   readonly handle?: RefObject<PromptInputHandle | null> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
@@ -141,7 +151,6 @@ export function PromptInput({
   maxFiles,
   multiple = false,
   onSubmit,
-  ...props
 }: PromptInputProps) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])

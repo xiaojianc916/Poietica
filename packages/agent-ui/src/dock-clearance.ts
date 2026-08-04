@@ -10,13 +10,18 @@ const CLEARANCE = '--cp-dock-clearance'
  * 测量是必需的，不是偷懒。
  *
  * 量出来的数写成一个自定义属性，交给尾部的下内边距；尾部的实测高度本来就是
- * 虚拟器的 paddingEnd。于是末端仍然只有一个定义，这里没有新增第二条管线，
- * 只是给现成的那条换了个数。
+ * 虚拟器的 paddingEnd。于是末端仍然只有一个定义，这里没有新增第二条管线。
+ *
+ * 高度取自 entry.borderBoxSize —— 那是浏览器刚刚量好、免费交到手上的值。此前
+ * 这里读 node.offsetHeight：那是一次强制同步布局，而它就在「打字时输入框长高」
+ * 这条高频路上。同一个数，两种代价。
+ *
+ * 值没变就不写：一次观察不等于一次变化（父级布局抖一下也会通知），而写属性
+ * 会让消费它的滚动盒尾部重新算内边距。
  *
  * 直接在观察者回调里写，不推到 rAF。会成环的是另一种写法 —— 回调里改的东西又会
- * 改回它自己观察的那个尺寸，比如在 ResizeObserver 里写 scrollTop、引起重排、再
- * 触发下一轮通知；这里被写的属性只被滚动盒内部的尾部消费，改不动输入框自己的
- * 高度，成不了环。同一个坑要看清是不是同一个坑。
+ * 改回它自己观察的那个尺寸；这里被写的属性只被滚动盒内部的尾部消费，改不动输入
+ * 框自己的高度，成不了环。
  *
  * 属性写在父元素上：这个 ref 挂在输入框那条带子上，而带子的父元素就是
  * assistant-surface —— JSX 里紧挨着，不需要 closest() 去猜。
@@ -26,11 +31,21 @@ export function useDockClearance(): (node: HTMLElement | null) => void {
     const surface = node?.parentElement ?? null
 
     if (node === null || surface === null) {
-      return
+      return undefined
     }
 
-    const observer = new ResizeObserver(() => {
-      surface.style.setProperty(CLEARANCE, `${String(node.offsetHeight)}px`)
+    let written = -1
+
+    const observer = new ResizeObserver((entries) => {
+      const measured = entries[0]?.borderBoxSize?.[0]?.blockSize
+      const height = measured === undefined ? node.offsetHeight : Math.round(measured)
+
+      if (height === written) {
+        return
+      }
+
+      written = height
+      surface.style.setProperty(CLEARANCE, height + 'px')
     })
 
     observer.observe(node)
