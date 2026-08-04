@@ -186,10 +186,17 @@
 /*
  * Spacing goes between blocks, never before the first one: the edge above it
  * belongs to the row, and a leading margin there reads as a misaligned entry.
- * Two selectors because the markdown package may or may not wrap its output.
+ *
+ * 第二条选择器是给包裹层准备的（.timeline-prose__segment 是 display: contents），
+ * 但它此前写的是 > *，也就是「任何一个包裹层里的第一个块」。一条流被切成封口段与
+ * 在写段之后，在写段的第一块正好是它自己的第一个孩子 —— 于是切点上方那个段间距被
+ * 清掉了，而消息封口、两段合一时它又回来。「切点在屏幕上不存在」这句断言在这一条
+ * 上不成立，而按块切分会把这一处偏差乘以块数。
+ *
+ * 首块只有一个：这条流第一个包裹层里的第一个块。
  */
 .timeline-prose > :first-child,
-.timeline-prose > * > :first-child {
+.timeline-prose > :first-child > :first-child {
   margin-block-start: 0;
 }
 
@@ -245,7 +252,7 @@
 }
 
 .timeline-prose > [data-streamdown="code-block"]:first-child,
-.timeline-prose > * > [data-streamdown="code-block"]:first-child {
+.timeline-prose > :first-child > [data-streamdown="code-block"]:first-child {
   margin-block-start: 0;
 }
 
@@ -482,6 +489,8 @@
 .timeline-reasoning__body {
   --cp-prose-flow: var(--ui-prose-flow-quiet);
 
+  /* 虚拟块的包含块。高度由虚拟器给出，是行内样式 —— 这里不声明第二个来源。 */
+  position: relative;
   max-inline-size: var(--cp-timeline-thought-max);
   font-size: var(--ui-prose-size-quiet);
   line-height: var(--ui-prose-line-height);
@@ -527,9 +536,41 @@
 .timeline-reasoning__scroll {
   max-block-size: var(--cp-timeline-thought-cap);
   overflow: hidden auto;
+  /*
+   * 锚定只能有一个所有者：末端锚定与流式增长的补偿归虚拟器，浏览器原生的滚动锚定
+   * 若同时生效，同一次尺寸变化会被两个纠正者各补一次。转录那一层同一条。
+   */
+  overflow-anchor: none;
   scrollbar-width: auto;
   scrollbar-color: color-mix(in srgb, var(--cp-ink) 20%, transparent) transparent;
   scrollbar-gutter: stable;
+}
+
+/*
+ * 一块思考。位置由虚拟器给出，尺寸由自身内容决定并被 measureElement 读回 —— 与转录
+ * 那一层的行是同一种东西，理由不在这里重述第二遍（见 agent-activity-feed.css 的
+ * __row：绝对定位不是负担，它让位置只有一个来源）。
+ *
+ * 块的上边距照旧归块自己（.timeline-prose 那套节奏，标题与分隔线仍然拿更大的那一
+ * 档）：这个包裹层挡在中间，首块清零那两条选择器够不到它。绝对定位另外顺手解决一
+ * 件事 —— 它建立独立的 BFC，上边距因此留在盒子里、被量进这一块的高度，而不是穿出去。
+ */
+.timeline-reasoning__block {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  contain: style;
+}
+
+/*
+ * 首块之上不留空白 —— 判据是「第几块」，不是「第几个孩子」。
+ *
+ * 虚拟化之后 DOM 里的第一个孩子是当前窗口的第一块，滚到中段时它是第 40 块；用
+ * :first-child 会让那一块的上边距随滚动位置忽有忽无，而它的高度正被 measureElement
+ * 读着 —— 那是一次自己引起自己的重测。
+ */
+.timeline-reasoning__block[data-first="true"] > * > :first-child {
+  margin-block-start: 0;
 }
 
 /* 外框归 [data-surface]；这里只留裁剪 —— 展开后的输出要靠它收住圆角。 */
@@ -1114,7 +1155,7 @@
 }
 
 .timeline-prose > .katex-display:first-child,
-.timeline-prose > * > .katex-display:first-child {
+.timeline-prose > :first-child > .katex-display:first-child {
   margin-block-start: 0;
 }
 

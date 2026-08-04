@@ -1,5 +1,5 @@
 /*
- * 已经写完的那一段，和还在写的那一段。
+ * 已经写完的那些块，和还在写的那一块。
  *
  * 流式 markdown 的代价不在「解析一次要多久」，在「同一段文本要被解析多少次」。
  * 一段思考链上屏时，整篇文本每一次刷新都被重新交给解析器一次 —— 第 n 帧解析 n 个
@@ -11,11 +11,16 @@
  * 的块之间相互独立，一个已经闭合的块不会因为后面又来了几个字而改变含义。既然不会变，
  * 就不该再解析。
  *
- * 这个文件只做那一件事：找到最后一个可以安全封口的位置。
+ * 这个文件只做那一件事：找到所有可以安全封口的位置。
+ *
+ * 「最后一个」曾经就够用 —— 那时消费者只有一处，而它只想把全文分成「前面的」与
+ * 「正在写的」两段。代价是前面那一段仍然是一个整体：每封口一块它就换一次字符串，
+ * 于是前面所有块被重新解析一遍，n 块合计 n(n+1)/2 次。O(n²) 换了个位置，没有消失。
+ * 切点本来就全在这一次扫描里，交出全部只是不再把它们丢掉。
  *
  * 「安全」是这里唯一的难点。切点必须落在两个块之间，而不是落在一个跨行结构的中间 ——
  * 切开一个列表会让编号重来、让 <ul> 断成两截，切开一个围栏会让代码变成正文。判据因此
- * 是保守的：拿不准就不切。找不到切点时交回空的封口段，逐字退化成未拆分时的行为。
+ * 是保守的：拿不准就不切。一个切点都找不到时整篇就是一块，逐字退化成未拆分时的行为。
  */
 
 /**
@@ -74,20 +79,58 @@ function separates(previous: string, next: string): boolean {
 }
 
 /**
- * 把一篇还在写的 markdown 切成封口段与在写段。
+ * 一块 markdown，以及它的身份。
  *
- * 封口段可能是空串（还没有任何一块写完，或找不到安全切点）；在写段永远非空 —— 切点
- * 后面必须还有内容，否则封口段就是全文，而全文永远不该被当成写完了。
+ * key 是起始行号：块只追加，封口之后内容不再变，所以这个数恒定且唯一。它同时是
+ * 虚拟化那一层认人的依据 —— 正在写的那一块封口时起始行号不变，于是它已经测到的
+ * 高度不会因为「它现在算封口的了」而作废。
  *
- * 两段拼回去等于原文减去切点那一个空行，而空行正是块之间的分隔符本身：它属于分隔，
- * 不属于任何一块。
+ * lines 是逻辑行数，扫描的时候顺手就有。它只服务估高，而估高要的是下界：一行换行
+ * 之后只会更高，不会更矮。
  */
-export function sealedSplit(text: string): readonly [sealed: string, live: string] {
+export interface StreamBlock {
+  readonly key: number
+  readonly lines: number
+  readonly text: string
+}
+
+function blockAt(lines: readonly string[], start: number, end: number): StreamBlock {
+  return { key: start, lines: end - start, text: lines.slice(start, end).join('\n') }
+}
+
+/**
+ * 整篇当一块。
+ *
+ * 一条早已结束的消息整篇都是封口的，拆开它只会凭空多出一次扫描与若干渲染实例，而
+ * memo 本来就挡住了它的重渲染。它仍然以块的形状交出去：下游只认块，不必为「没切过
+ * 的那一种」另留一条分支。
+ */
+export function wholeText(text: string): readonly StreamBlock[] {
+  return [{ key: 0, lines: text.split('\n').length, text }]
+}
+
+/**
+ * 把一篇还在写的 markdown 切成块。
+ *
+ * 最后一块就是正在写的那一块：它后面没有安全切点，所以它是唯一还可能变的一块。前面
+ * 每一块都已封口 —— 内容不再变，也就不该被解析第二次。
+ *
+ * 至少交回一块（可能是空串）：一篇还没有任何内容的思考也有一个正在写的位置。
+ *
+ * 相邻两块之间少掉的正是切点那一个空行，而空行是块之间的分隔符本身：它属于分隔，
+ * 不属于任何一块。
+ *
+ * 切点是前缀确定的：一个空行是不是边界，只取决于它前面的内容与紧随其后的那一行，
+ * 而围栏状态只由前缀决定。于是块只会追加、不会重新划分 —— 虚拟化那一层拿起始行号
+ * 当身份，靠的就是这一条。
+ */
+export function blockSplit(text: string): readonly StreamBlock[] {
   const lines = text.split('\n')
+  const blocks: StreamBlock[] = []
 
   let open: Fence = 'none'
   let previous = ''
-  let cut = -1
+  let start = 0
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? ''
@@ -108,18 +151,17 @@ export function sealedSplit(text: string): readonly [sealed: string, live: strin
     }
 
     if (separates(previous, lines[index + 1] ?? '')) {
-      cut = index
+      blocks.push(blockAt(lines, start, index))
+      start = index + 1
     }
   }
 
   /*
-   * 收尾时仍在围栏里，不影响已经记下的切点：切点只在围栏之外记录，所以它一定落在
-   * 这个未闭合围栏开始之前。而这正是最需要封口的场景 —— 一个正在被一行行写出来的
-   * 代码块，前面那些已经写完的段落没有任何理由陪着它一起重新解析。
+   * 收尾时仍在围栏里，不影响任何一个已经记下的切点：切点只在围栏之外记录，所以它们
+   * 全都落在这个未闭合围栏开始之前。而这正是最需要封口的场景 —— 一个正在被一行行写
+   * 出来的代码块，前面那些已经写完的段落没有理由陪着它一起重新解析。
    */
-  if (cut < 0) {
-    return ['', text]
-  }
+  blocks.push(blockAt(lines, start, lines.length))
 
-  return [lines.slice(0, cut).join('\n'), lines.slice(cut + 1).join('\n')]
+  return blocks
 }

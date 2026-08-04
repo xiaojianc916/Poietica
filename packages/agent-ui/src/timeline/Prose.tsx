@@ -13,7 +13,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
-import { sealedSplit } from './split-stream'
+import { blockSplit, type StreamBlock, wholeText } from './split-stream'
 
 /*
  * 四个官方插件，一条管线。
@@ -191,15 +191,21 @@ export interface ProseProps {
  * 改一处漏一处只是时间问题，而这个文件的每一个常量都恰恰是在讲「一个所有者、
  * 一处配置」。
  *
- * memo 的边界没有变，只是搬到了这里：封口段的输入在整段回答期间只变几次（每
- * 封口一块变一次），浅比较因此就是精确比较 —— 思考链再长，那一半在两次封口
- * 之间一帧都不重画。在写段每帧都换字，memo 不命中，也不需要命中。
+ * memo 的边界就是一块 markdown：封口之后它的输入再也不变，浅比较因此是精确比较，
+ * 这一块此后一帧都不重画。此前边界是「整个封口段」，而封口段是全文前缀 —— 每封口
+ * 一块它就换一次字符串，于是前面所有块连同它们的 Shiki 高亮与 KaTeX 一起重新解析
+ * 一遍，n 块合计 n(n+1)/2 次。切成块之后每块正好解析一次。
+ *
+ * 它同时是思考盒虚拟化的那个渲染单元，所以从这里导出：一块 markdown 由谁画、按哪
+ * 一份配置画，只有这一个答案 —— 变的只是谁来决定哪些块此刻在屏幕上。
+ *
+ * 在写的那一块每帧都换字，memo 不命中，也不需要命中。
  *
  * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条优化过的
  * 静态路径，也不带 animated：一段早已写完的文字不需要被再写一遍，而逐词的
  * filter 动画是这个界面里唯一会按词数提层的东西。
  */
-const Segment = memo(function Segment({
+export const ProseSegment = memo(function ProseSegment({
   isStreaming,
   text,
 }: {
@@ -233,8 +239,8 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
    * 封口只发生在流式期间：一条早已结束的消息整篇都是封口的，拆开它只会凭空多出一次
    * 切分与一个渲染实例，而 memo 本来就挡住了它的重渲染。
    */
-  const [sealed, live] = useMemo(
-    (): readonly [string, string] => (isStreaming ? sealedSplit(text) : ['', text]),
+  const blocks = useMemo(
+    (): readonly StreamBlock[] => (isStreaming ? blockSplit(text) : wholeText(text)),
     [isStreaming, text],
   )
 
@@ -243,9 +249,13 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
       className={cx('timeline-prose', className)}
       data-streaming={isStreaming ? 'true' : undefined}
     >
-      {sealed === '' ? null : <Segment isStreaming={false} text={sealed} />}
-
-      <Segment isStreaming={isStreaming} text={live} />
+      {blocks.map((block, index) => (
+        <ProseSegment
+          isStreaming={isStreaming && index === blocks.length - 1}
+          key={block.key}
+          text={block.text}
+        />
+      ))}
     </div>
   )
 })
