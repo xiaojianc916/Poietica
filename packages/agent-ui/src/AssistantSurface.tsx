@@ -2,11 +2,16 @@ import './styles/assistant.css'
 
 import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
 import type { AssistantSubmission } from '@poietica/agent-session'
-import { useAssistantPending, useAssistantSession } from '@poietica/agent-session'
+import {
+  useAssistantPending,
+  useAssistantPendingCount,
+  useAssistantSession,
+} from '@poietica/agent-session'
 import type { FeedRow } from '@poietica/agent-timeline'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from './AssistantComposer'
 import { AssistantQuickActions } from './AssistantQuickActions'
+import { PermissionDock } from './composer/permission-dock'
 import type { PromptInputHandle } from './composer/prompt-input'
 import { useDockClearance } from './dock-clearance'
 import { useAgentDialect } from './domain/agent-dialect'
@@ -125,8 +130,21 @@ export const AssistantSurface = memo(function AssistantSurface({
    */
   const blocked = useAssistantPending(assistant.key)
 
-  const pending =
-    blocked !== undefined && isQuestionRequest(blocked, dialect.questions) ? blocked : undefined
+  /* 还在等的一共几个。审批带恒显示最早那一个，所以变的只有分母。 */
+  const waiting = useAssistantPendingCount(assistant.key)
+
+  const asking = blocked !== undefined && isQuestionRequest(blocked, dialect.questions)
+
+  const pending = asking ? blocked : undefined
+
+  /*
+   * 待答的权限请求里，不是提问的那一类。
+   *
+   * 两者借同一条通道，去处却相反：提问让输入框自己长成面板（答案是对话的
+   * 一部分），审批停在输入框上方那条带子里（它是一道闸）。判据仍然只有一处
+   * —— domain 的 isQuestionRequest，认方言而不是认工具名。
+   */
+  const approval = blocked !== undefined && !asking ? blocked : undefined
 
   const questionDeck = useMemo(() => {
     if (pending === undefined) {
@@ -175,13 +193,11 @@ export const AssistantSurface = memo(function AssistantSurface({
    * fixtures 都直接渲染那个组件，闸设在路由上必然被绕过去。此前这里还照着它写了
    * 第二遍，两份判据各自演化的那一天不需要谁犯错。
    *
-   * 这一层只交出答复权限请求的那支函数。它的引用是稳定的，所以 renderRow 也是 ——
-   * 那是虚拟列表的 prop，每帧换身份就等于每帧重渲全部可见行。
+   * 现在它连答复都不交了：审批在输入框上方那条带子里完成，转录里的权限那一支
+   * 只留「答完的提问」。于是 renderRow 没有依赖，恒是同一个引用 —— 那是虚拟
+   * 列表的 prop，每帧换身份就等于每帧重渲全部可见行。
    */
-  const renderRow = useCallback(
-    (row: FeedRow) => <TimelineRow onResolvePermission={assistant.resolvePermission} row={row} />,
-    [assistant.resolvePermission],
-  )
+  const renderRow = useCallback((row: FeedRow) => <TimelineRow row={row} />, [])
 
   /*
    * 一道题一个 permission 请求，所以整组答案就是一串 resolvePermission。
@@ -252,7 +268,7 @@ export const AssistantSurface = memo(function AssistantSurface({
     >
       {live ? (
         <TranscriptView
-          excluded={pending}
+          excluded={blocked}
           isRestoring={assistant.isRestoring}
           renderRow={renderRow}
           sessionKey={assistant.key}
@@ -271,6 +287,18 @@ export const AssistantSurface = memo(function AssistantSurface({
       )}
 
       <div className="assistant-surface__dock" ref={dockRef}>
+        {/*
+          审批在输入框之上，且在同一带子里 —— 于是它的高度自动进了
+          useDockClearance 的实测值，转录末端跟着让位，没有第二条管线。
+        */}
+        {approval === undefined ? null : (
+          <PermissionDock
+            item={approval}
+            onResolve={assistant.resolvePermission}
+            waiting={waiting}
+          />
+        )}
+
         {dock}
 
         {live ? null : (

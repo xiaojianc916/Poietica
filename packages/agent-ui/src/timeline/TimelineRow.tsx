@@ -3,7 +3,7 @@ import './timeline.css'
 import type { FeedRow } from '@poietica/agent-timeline'
 import { memo } from 'react'
 import { ErrorNotice } from './ErrorNotice'
-import { PermissionRequest } from './PermissionRequest'
+import { PermissionRecord } from './PermissionRecord'
 import { PlanPanel } from './PlanPanel'
 import { Prose } from './Prose'
 import { ReasoningPanel } from './ReasoningPanel'
@@ -20,23 +20,19 @@ import { UserMessage } from './UserMessage'
  * long as its entry is untouched: an arriving token then re-renders the tail
  * and nothing above it.
  *
- * 七个条目类型，七个 case，一个分发点。答复一次权限请求要用到会话，而会话由上层
- * 持有 —— 那是一个参数解决的事（onResolvePermission），不是把一个 case 搬去上层
- * 用三元表达式写第二遍的理由。此前正是后者：六个 case 在这里，第七个在 surface
- * 上，这里留着一支永远跑不到的 return null。
+ * 七个条目类型，七个 case，一个分发点。
+ *
+ * 这里不再接会话。审批已经搬去输入框上方那条带子 —— 转录里的权限那一支现在
+ * 只回答「这条记录要不要留个影」，不回答「批不批」，所以那个用来答复的参数
+ * 连同它的引用稳定性要求一起走了。
  *
  * 一个新的条目类型在这里是编译错误，不是一行静默的空白。
  */
 export interface TimelineRowProps {
   readonly row: FeedRow
-  /** 答复一次权限请求。引用必须稳定：这一层是 memo 的。 */
-  readonly onResolvePermission: (requestId: string, optionId: string) => void
 }
 
-export const TimelineRow = memo(function TimelineRow({
-  onResolvePermission,
-  row,
-}: TimelineRowProps) {
+export const TimelineRow = memo(function TimelineRow({ row }: TimelineRowProps) {
   const { item } = row
 
   switch (item.type) {
@@ -61,7 +57,7 @@ export const TimelineRow = memo(function TimelineRow({
       return <ErrorNotice message={item.message} />
 
     case 'permission':
-      return <PermissionRequest item={item} onResolve={onResolvePermission} />
+      return <PermissionRecord item={item} />
 
     default:
       return unhandled(item)

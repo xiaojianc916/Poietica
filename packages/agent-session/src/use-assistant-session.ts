@@ -1,6 +1,6 @@
 import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/acp'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
-import { pendingPermission } from '@poietica/agent-timeline'
+import { pendingPermission, pendingPermissionCount } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { Transcript } from './transcript-store'
 import { useTranscripts } from './transcripts-context'
@@ -117,6 +117,10 @@ const readTimeline = (transcript: Transcript): TimelineState => transcript.timel
 const readPending = (transcript: Transcript): PermissionItem | undefined =>
   pendingPermission(transcript.timeline)
 
+/* 同一趟扫描的另一格。交出的是数字，所以它比条目引用还稳。 */
+const readPendingCount = (transcript: Transcript): number =>
+  pendingPermissionCount(transcript.timeline)
+
 export function useAssistantSession({
   endpoint,
   identify,
@@ -208,4 +212,14 @@ export function useAssistantTimeline(key: string): TimelineState {
  */
 export function useAssistantPending(key: string): PermissionItem | undefined {
   return useSlice(key, readPending)
+}
+
+/**
+ * 这一轮此刻一共有几道权限请求在等。
+ *
+ * 审批带一次只显示最早那一个，所以它要的不是一叠请求，是一个分母 —— 交出
+ * 数组就等于每一帧都换一个新引用，而这一层的全部意义就是不被叫醒。
+ */
+export function useAssistantPendingCount(key: string): number {
+  return useSlice(key, readPendingCount)
 }

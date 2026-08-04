@@ -1,0 +1,105 @@
+import type { PermissionItem } from '@poietica/agent-timeline'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
+import { PermissionDock } from '../composer/permission-dock'
+import { AgentDialectProvider } from '../domain/AgentDialectProvider'
+import type { AgentDialect } from '../domain/agent-dialect'
+
+/*
+ * 审批带是唯一会把 agent 卡住、非等用户点一下不可的界面，因此它显示错字的代价
+ * 比别处都高：用户是照着按钮上的字决定要不要放行的。
+ *
+ * 用 react-dom/server 而不是 testing-library：要守的都只关乎一次渲染的产物，
+ * 不需要 DOM，也就不需要为此往这个包里添三个依赖和一套环境配置。
+ */
+
+/** 一家 agent 的说法。刻意让两枚选项同 kind、不同 name。 */
+const DIALECT: AgentDialect = {
+  optionLabels: {
+    'Approve once': '批准一次',
+    'Approve for this session': '本次会话都批准',
+    Reject: '拒绝',
+  },
+  questions: [],
+}
+
+function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
+  return {
+    type: 'permission',
+    id: 'r0-permission-1',
+    at: 0,
+    turn: 0,
+    requestId: 'request-1',
+    title: 'write',
+    options: [
+      { optionId: 'approve_once', name: 'Approve once', kind: 'allow_once' },
+      { optionId: 'approve_always', name: 'Approve for this session', kind: 'allow_once' },
+      { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
+    ],
+    ...overrides,
+  }
+}
+
+function render(item: PermissionItem, waiting = 1): string {
+  return renderToStaticMarkup(
+    <AgentDialectProvider dialect={DIALECT}>
+      <PermissionDock item={item} onResolve={() => {}} waiting={waiting} />
+    </AgentDialectProvider>,
+  )
+}
+
+describe('审批带', () => {
+  it('没有 provider 就当场抛，不带着错文案画出来', () => {
+    /* 缺表时宁可炸在测试里，也不能悄悄套用另一家 agent 的说法。 */
+    expect(() =>
+      renderToStaticMarkup(<PermissionDock item={permission()} onResolve={() => {}} waiting={1} />),
+    ).toThrow(/AgentDialectProvider is missing/)
+  })
+
+  it('同一个 kind 的两枚选项，显示的是各自的字', () => {
+    /* 按 kind 查表时这两枚都是 allow_once，会写着同一个词。按 name 才分得开。 */
+    const markup = render(permission())
+
+    expect(markup).toContain('批准一次')
+    expect(markup).toContain('本次会话都批准')
+    expect(markup).toContain('拒绝')
+  })
+
+  it('表里没有的说法，照 agent 原文显示', () => {
+    /* 宁可显示英文，也不能显示一个错的中文。 */
+    const markup = render(
+      permission({
+        options: [{ optionId: 'plan_revise', name: 'Revise', kind: 'reject_once' }],
+      }),
+    )
+
+    expect(markup).toContain('Revise')
+  })
+
+  it('题面是 agent 送来的那一句，一个字不加', () => {
+    /*
+     * 这一条守的是「不替 agent 说话」。此前这里会拼一句自己的复述，于是同一次
+     * 调用在带子上和工具卡里叫两个名字。
+     */
+    const markup = render(permission())
+
+    expect(markup).toContain('>write</span>')
+    expect(markup).not.toContain('需要批准')
+  })
+
+  it('只有一个在等就不报序号，有第二个才报', () => {
+    /* 分子恒是 1（永远交出最早那一个），所以 1/1 是一句废话。 */
+    expect(render(permission())).not.toContain('assistant-approval__count')
+    expect(render(permission(), 3)).toContain('1/3')
+  })
+
+  it('放行只涂一颗', () => {
+    /*
+     * kimi 一次送来两颗 allow_once。两颗都涂，人看不出默认动作是哪一个 ——
+     * agent 把它想要的那个排在前面。
+     */
+    const markup = render(permission())
+
+    expect(markup.match(/data-lead="true"/g)).toHaveLength(1)
+  })
+})

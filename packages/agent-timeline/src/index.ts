@@ -19,7 +19,12 @@ export type {
   ToolCallTimelineItem,
   UserMessageItem,
 } from './timeline-contract'
-export { pendingPermission, selectIsBusy, selectIsWaiting } from './timeline-queries'
+export {
+  pendingPermission,
+  pendingPermissionCount,
+  selectIsBusy,
+  selectIsWaiting,
+} from './timeline-queries'
 export {
   appendLocalError,
   appendUserMessage,

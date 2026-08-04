@@ -19,6 +19,7 @@ export type {
 } from './use-assistant-session'
 export {
   useAssistantPending,
+  useAssistantPendingCount,
   useAssistantSession,
   useAssistantTimeline,
 } from './use-assistant-session'

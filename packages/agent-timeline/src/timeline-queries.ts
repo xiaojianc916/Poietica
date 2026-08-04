@@ -46,8 +46,34 @@ export interface PermissionScope {
  * 与那个请求同号，扫描照常走过去。
  */
 export function pendingPermission(scope: PermissionScope): PermissionItem | undefined {
+  return waitingIn(scope).first
+}
+
+/**
+ * 本段里还没被答复的请求一共几个。
+ *
+ * 审批带上那个 1/3 的分母。分子恒是 1 —— 交出去的永远是最早那一个。
+ *
+ * 它和 pendingPermission 共用同一趟扫描，因为它们问的是同一件事的两面：
+ * 抄第二个循环，边界条件就会有两份，而漂移的那一天不需要谁犯错。
+ */
+export function pendingPermissionCount(scope: PermissionScope): number {
+  return waitingIn(scope).count
+}
+
+/*
+ * 那一趟倒扫本身。
+ *
+ * 交出的对象是过路的：两个导出各取一格，一个是转录里那个条目本身（引用稳定），
+ * 一个是数字。订阅它们的界面因此不会被流式追加叫醒。
+ */
+function waitingIn(scope: PermissionScope): {
+  readonly first: PermissionItem | undefined
+  readonly count: number
+} {
   const items = scope.items
-  let asked: PermissionItem | undefined
+  let first: PermissionItem | undefined
+  let count = 0
 
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index]
@@ -57,15 +83,16 @@ export function pendingPermission(scope: PermissionScope): PermissionItem | unde
     }
 
     if (item.turn !== scope.runIndex) {
-      return asked
+      return { first, count }
     }
 
     if (item.type === 'permission' && item.resolution === undefined) {
-      asked = item
+      first = item
+      count += 1
     }
   }
 
-  return asked
+  return { first, count }
 }
 
 export function selectIsBusy(state: TimelineState): boolean {
