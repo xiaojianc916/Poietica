@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { agentProviderCatalogAddArgs } from '../catalog-add'
+import { kimiCatalogAddArgs } from '../catalog-add'
 
-describe('agentProviderCatalogAddArgs', () => {
+describe('kimiCatalogAddArgs', () => {
   it('只给厂商时不带任何可选参数', () => {
-    expect(agentProviderCatalogAddArgs({ providerId: 'anthropic' })).toEqual([
+    expect(kimiCatalogAddArgs({ providerId: 'anthropic' })).toEqual([
       'provider',
       'catalog',
       'add',
@@ -13,7 +13,7 @@ describe('agentProviderCatalogAddArgs', () => {
 
   it('默认模型与基础地址各自可选', () => {
     expect(
-      agentProviderCatalogAddArgs({
+      kimiCatalogAddArgs({
         providerId: 'deepseek',
         defaultModelId: 'deepseek-v4-pro',
         baseUrl: 'https://api.deepseek.com',
@@ -36,7 +36,7 @@ describe('agentProviderCatalogAddArgs', () => {
    * 顺手拼一个上去。
    */
   it('永远不会产出 --api-key', () => {
-    const args = agentProviderCatalogAddArgs({
+    const args = kimiCatalogAddArgs({
       providerId: 'deepseek',
       defaultModelId: 'deepseek-v4-pro',
       baseUrl: 'https://api.deepseek.com',
@@ -46,10 +46,8 @@ describe('agentProviderCatalogAddArgs', () => {
   })
 
   it('拦下不能出现在命令行上的值', () => {
-    expect(() => agentProviderCatalogAddArgs({ providerId: 'a;rm -rf /' })).toThrow()
-    expect(() => agentProviderCatalogAddArgs({ providerId: '' })).toThrow()
-    expect(() =>
-      agentProviderCatalogAddArgs({ providerId: 'deepseek', defaultModelId: 'x y' }),
-    ).toThrow()
+    expect(() => kimiCatalogAddArgs({ providerId: 'a;rm -rf /' })).toThrow()
+    expect(() => kimiCatalogAddArgs({ providerId: '' })).toThrow()
+    expect(() => kimiCatalogAddArgs({ providerId: 'deepseek', defaultModelId: 'x y' })).toThrow()
   })
 })

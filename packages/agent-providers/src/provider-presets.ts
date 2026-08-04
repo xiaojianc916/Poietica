@@ -1,5 +1,3 @@
-import type { AgentModelState } from './provider-state'
-
 /*
  * 内置厂商清单。
  *
@@ -16,6 +14,11 @@ import type { AgentModelState } from './provider-state'
  * 回去核，而不是照着记忆改。治本的来源是各家的 GET /models 端点，那是下一刀的事。
  *
  * 这里不放密钥，一个字节都不放。密钥经环境变量交给 agent，写入由它自己完成。
+ *
+ * 这个模块此前叫 builtin-catalog.ts，还兼着两件不属于它的事：某一家 agent 的目录文档
+ * 格式（已搬去 agents/kimi/catalog.ts），以及别名与显示名的换算（已搬去
+ * model-display.ts）。现在它只剩一张常量表，因此一个 import 都没有 —— 一张表反向依赖
+ * 运行时快照类型（AgentModelState），方向本来就是错的。
  */
 
 /** 思考能力。有逐字证据才填；缺席表示不声明，而不是不支持。 */
@@ -204,16 +207,6 @@ export function builtinAgentProviderById(id: string): AgentProviderPreset | unde
 }
 
 /*
- * 剥掉别名的 provider/ 前缀。--default-model 只认裸模型 id：对方的校验名单是
- * catalogProviderModels，里面的 id 没有前缀。别名取不到前缀时原样用。
- */
-function bareModelId(alias: string, providerId: string): string {
-  const prefix = `${providerId}/`
-
-  return alias.startsWith(prefix) ? alias.slice(prefix.length) : alias
-}
-
-/*
  * agentProviderModelOptions 曾在这里：一张厂商卡一个「默认模型」下拉。
  *
  * 删掉不是因为它有 bug，是那个形状本身错了。配置里的 default_model 是顶层唯一的一个
@@ -225,40 +218,3 @@ function bareModelId(alias: string, providerId: string): string {
  * （crates/settings_content/src/agent.rs）里同时装着 provider 与 model —— 全局一份，
  * 跨厂商单选。现在那一格在 ModelsSettings 里，候选是所有已配置的模型。
  */
-
-/*
- * 别名剥掉 provider/ 前缀后的裸模型 id。
- *
- * --default-model 只认它：对方的校验名单是 catalogProviderModels 解析出来的模型
- * （handleCatalogAdd 里 models.some((m) => m.id === opts.defaultModel)），那里面的 id
- * 没有前缀；写成功之后它自己再拼回去（Default model set to ${providerId}/${...}）。
- *
- * 导出而不是让调用方各剥各的：这是对方命令行的约定，抄第二遍就会有第二种剥法。
- */
-export function agentBareModelId(alias: string, providerId: string): string {
-  return bareModelId(alias, providerId)
-}
-
-/*
- * 一条模型给人看的名字。显示层的事：别名一个字符都不动 —— 它是数据键。
- *
- * 规则只有一条：agent 报的名字与别名不同，以 agent 为准；相同（等于没起名）就查
- * 内置表补全；都不沾边才原样显示别名。写入（importDocument 的 name）与展示
- * （模型行）共用这一条，两处不会长出两种叫法。
- */
-export function agentModelDisplayName(model: AgentModelState): string {
-  if (model.displayName !== model.alias) {
-    return model.displayName
-  }
-
-  if (model.providerId === undefined) {
-    return model.alias
-  }
-
-  const bare = bareModelId(model.alias, model.providerId)
-
-  return (
-    builtinAgentProviderById(model.providerId)?.models.find((one) => one.id === bare)
-      ?.displayName ?? model.alias
-  )
-}

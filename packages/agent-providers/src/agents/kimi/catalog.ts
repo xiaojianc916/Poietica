@@ -1,21 +1,19 @@
-import {
-  type AgentProviderPreset,
-  agentBareModelId,
-  agentModelDisplayName,
-} from '../../builtin-catalog'
+import type { AgentCatalogCodec } from '../../catalog-contract'
+import { agentBareModelId, agentModelDisplayName } from '../../model-display'
+import type { AgentProviderPreset } from '../../provider-presets'
 import type { AgentProviderState } from '../../provider-state'
+import { kimiCatalogAddArgs } from './catalog-add'
 
 /*
  * Kimi Code 的 provider 目录编解码器。
  *
  * 这些函数此前住在 builtin-catalog.ts —— 一个名叫「内置厂商清单」的通用模块里。
  * 它们产出的却是一家的私有形状：判据是 @moonshot-ai/kosong 的 src/catalog.ts
- * 逐字读什么、handleCatalogAdd 逐字校验什么（原注释自己写着这两条）。也就是说
- * 通用层握着一家 CLI 的写入格式，接第二家时它会拿 kimi 的 api.json 去喂别人。
+ * 逐字读什么、handleCatalogAdd 逐字校验什么（原注释自己写着这两条）。
  *
- * 现在它属于这一家自己。别家要不要代写目录、写成什么形状，是那一家的事；
- * 通用层只通过 catalog-codec.ts 那一个缝按 agentId 取，取不到就不给这个入口 ——
- * 与 descriptor 里 install / providerListArgs 缺席的处置完全一致。
+ * 现在它属于这一家自己，而且只对外交出一样东西：下面那个 kimiCatalogCodec。函数名
+ * 因此不再带 agentProvider / builtin 这类通用前缀 —— 在这个目录里它们本来就只可能是
+ * kimi 的，前缀只会让人以为通用层能直接调它们（上一刀之前正是如此）。
  */
 
 /*
@@ -30,7 +28,7 @@ import type { AgentProviderState } from '../../provider-state'
  * 产物经 IPC 交给原生侧，绑在一次性 loopback 服务上，经官方 --url 喂给 catalog add。
  * 不含密钥：密钥走环境变量，从来不进这份文档。
  */
-export function agentProviderCatalogDocument(presets: readonly AgentProviderPreset[]): string {
+function catalogDocument(presets: readonly AgentProviderPreset[]): string {
   const catalog: Record<string, unknown> = {}
 
   for (const preset of presets) {
@@ -77,16 +75,12 @@ export function agentProviderCatalogDocument(presets: readonly AgentProviderPres
 /*
  * 把一家已配置的 provider 序列化成 agent 目录命令认的 api.json 形状。
  *
- * 从 provider-state 搬到这里：它需要查内置表补显示名，而内置表查快照类型
- * 是单向的 —— 倒过来就环了。与 agentProviderModelOptions 同模块：两个都是
- * 「内置表 × 快照」的消费者。
- *
  * 用途只有一个：一次性导入。原料是 provider list 的快照（模型 id、上下文、
  * capabilities、effort 全在里面），写入仍走官方的 catalog add。没有正整数上下文的
  * 模型跳过：对方的 catalogModelToCapability 会把它们整条丢掉，不如在这里就跳。
  * 密钥永不进这份文档。
  */
-export function agentProviderImportDocument(provider: AgentProviderState): string {
+function importDocument(provider: AgentProviderState): string {
   const models: Record<string, unknown> = {}
 
   for (const model of provider.models) {
@@ -145,12 +139,12 @@ export function agentProviderImportDocument(provider: AgentProviderState): strin
  *
  * 候选只在「进得了导入文档」的那几条里挑：--default-model 的校验名单是对方从目录
  * 里解析出来的模型（handleCatalogAdd 的 models.some(m => m.id === opts.defaultModel)），
- * 而没有正整数上下文的模型在 agentProviderImportDocument 那一步已经被跳过。挑一条
- * 被跳过的，整次导入会以 exit 1 收场。两处过滤必须是同一条，所以这里不另写判据。
+ * 而没有正整数上下文的模型在 importDocument 那一步已经被跳过。挑一条被跳过的，
+ * 整次导入会以 exit 1 收场。两处过滤必须是同一条，所以这里不另写判据。
  *
  * 一条都不合格时缺席 —— 编一个 id 出来只会把失败推迟到对方的校验里。
  */
-export function agentProviderDefaultModelId(provider: AgentProviderState): string | undefined {
+function defaultModelId(provider: AgentProviderState): string | undefined {
   const first = provider.models.find((model) => model.maxContextSize !== undefined)
 
   return first === undefined ? undefined : agentBareModelId(first.alias, provider.id)
@@ -160,16 +154,24 @@ export function agentProviderDefaultModelId(provider: AgentProviderState): strin
  * 同一个问题的另一半：手上只有内置预设（这一家还没配过，provider list 里根本没有
  * 它）时，该拿哪个模型当 default_model。
  *
- * 判据与上面那个函数逐字相同，而且必须相同：没有正整数上下文的模型，
- * agentProviderCatalogDocument 写出的条目就没有 limit.context，对方的
- * catalogModelToCapability 会把它整条丢掉，随后 handleCatalogAdd 的
- * models.some((m) => m.id === opts.defaultModel) 落空，整次写入以 exit 1 收场。
- * 两处过滤是同一条，所以这里不另写判据，只换一种输入。
+ * 判据与上面那个函数逐字相同，而且必须相同：没有正整数上下文的模型，catalogDocument
+ * 写出的条目就没有 limit.context，对方的 catalogModelToCapability 会把它整条丢掉，
+ * 随后 handleCatalogAdd 的 models.some((m) => m.id === opts.defaultModel) 落空，整次
+ * 写入以 exit 1 收场。两处过滤是同一条，所以这里不另写判据，只换一种输入。
  *
  * 之所以不是同一个函数：那一个吃 provider list 的快照（AgentProviderState，别名带
  * provider/ 前缀，要剥），这一个吃内置预设（AgentProviderPreset，id 本来就是裸的）。
  * 合并只能靠再加一层参数，那比两行贵。
  */
-export function builtinProviderDefaultModelId(preset: AgentProviderPreset): string | undefined {
+function presetDefaultModelId(preset: AgentProviderPreset): string | undefined {
   return preset.models.find((model) => model.maxContextSize !== undefined)?.id
+}
+
+/* 这一家对外的全部：一个编解码器。通用层从 catalog-codec.ts 按 agentId 取到它。 */
+export const kimiCatalogCodec: AgentCatalogCodec = {
+  catalogDocument,
+  importDocument,
+  defaultModelId,
+  presetDefaultModelId,
+  catalogAddArgs: kimiCatalogAddArgs,
 }

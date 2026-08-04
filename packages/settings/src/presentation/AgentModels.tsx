@@ -4,7 +4,6 @@ import {
   type AgentProviderSnapshot,
   agentCatalogCodec,
   agentModelDisplayName,
-  agentProviderCatalogAddArgs,
   builtinAgentProviders,
   parseAgentProviderListOutput,
 } from '@poietica/agent-providers'
@@ -45,7 +44,7 @@ import { useAgentProviders } from './useAgentProviders'
  */
 const COLLAPSED_MODEL_LIMIT = 8
 
-/* 要显示哪几家。清单内置在 @poietica/agent-registry 里，加第四家不用改这里。 */
+/* 要显示哪几家。清单内置在 @poietica/agent-providers 的 provider-presets.ts 里。 */
 const BUILTIN_PROVIDERS = builtinAgentProviders()
 
 /** 一家没导进去，以及 agent 说的原因。 */
@@ -83,7 +82,7 @@ async function importOne(input: {
   try {
     const outcome = await store.execCli({
       agentId,
-      args: agentProviderCatalogAddArgs({
+      args: codec.catalogAddArgs({
         providerId: provider.id,
         ...(defaultModelId === undefined ? {} : { defaultModelId }),
         ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kimiCode } from '../agents/kimi'
+import { kimiCode } from '../descriptor'
 
 /*
  * 档案里「怎么问这一家的模型清单」那两格。

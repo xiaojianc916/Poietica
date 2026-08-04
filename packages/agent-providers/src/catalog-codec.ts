@@ -1,41 +1,16 @@
-import {
-  agentProviderCatalogDocument,
-  agentProviderDefaultModelId,
-  agentProviderImportDocument,
-  builtinProviderDefaultModelId,
-} from './agents/kimi/catalog'
-import type { AgentProviderPreset } from './builtin-catalog'
-import type { AgentProviderState } from './provider-state'
+import { kimiCatalogCodec } from './agents/kimi/catalog'
+import type { AgentCatalogCodec } from './catalog-contract'
 
 /*
- * 「怎么把 provider 目录写进这一家 agent」的缝。
+ * 哪几家 agent 说得出「目录该怎么写」。
  *
- * 每一家 agent 的目录命令都是它自己的契约：子命令名、文档形状、默认模型的校验
- * 名单，没有一条是协议规定的。所以这件事按 agentId 定址，而不是让通用层认准
- * 一家的格式（那正是这次重构拆掉的东西）。
+ * 接第 N 家 = 新增 agents/<id>/catalog.ts 交出一个 AgentCatalogCodec，然后在这张表里
+ * 加一行。通用层一个字都不用改；如果改了，就说明还没解耦干净。
  *
- * 缺席是有意义的答案：表示我们说不出该怎么给这一家写目录，界面于是不画那个
- * 入口，而不是画一个点了会失败的按钮。
+ * 表是开放的而不是封闭的：一家 agent 完全可以不从我们这里写目录（它可能压根没有目录
+ * 这个概念），那就不在表里 —— 取不到就是取不到，界面照缺席处置。
  */
-export interface AgentCatalogCodec {
-  /** 把内置预设序列化成这一家目录命令认的文档。 */
-  readonly catalogDocument: (presets: readonly AgentProviderPreset[]) => string
-  /** 把一家已配置的 provider 序列化成同一种文档（一次性导入用）。 */
-  readonly importDocument: (provider: AgentProviderState) => string
-  /** 这一家该拿哪个模型当 default_model；一条都不合格时缺席。 */
-  readonly defaultModelId: (provider: AgentProviderState) => string | undefined
-  /** 同一个问题的另一半：手上只有内置预设时。 */
-  readonly presetDefaultModelId: (preset: AgentProviderPreset) => string | undefined
-}
-
-const KIMI: AgentCatalogCodec = {
-  catalogDocument: agentProviderCatalogDocument,
-  importDocument: agentProviderImportDocument,
-  defaultModelId: agentProviderDefaultModelId,
-  presetDefaultModelId: builtinProviderDefaultModelId,
-}
-
-const CODECS: Readonly<Record<string, AgentCatalogCodec>> = { kimi: KIMI }
+const CODECS: Readonly<Record<string, AgentCatalogCodec>> = { kimi: kimiCatalogCodec }
 
 export function agentCatalogCodec(agentId: string): AgentCatalogCodec | undefined {
   return CODECS[agentId]

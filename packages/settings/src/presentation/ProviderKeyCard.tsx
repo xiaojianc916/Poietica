@@ -2,7 +2,6 @@ import {
   type AgentCatalogCodec,
   type AgentProviderPreset,
   agentCatalogCodec,
-  agentProviderCatalogAddArgs,
 } from '@poietica/agent-providers'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { useCallback, useEffect, useState } from 'react'
@@ -171,7 +170,7 @@ export function ProviderKeyCard({
            * 显式的 undefined。
            */
           try {
-            args = agentProviderCatalogAddArgs({
+            args = catalog.catalogAddArgs({
               providerId: provider.id,
               ...(seed === undefined ? {} : { defaultModelId: seed }),
               ...(provider.baseUrl === '' ? {} : { baseUrl: provider.baseUrl }),
