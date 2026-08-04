@@ -2,8 +2,9 @@
  * 一次子代理派发。
  *
  * ACP 里没有「子代理」这个概念：派一个子代理，在线上就是一次普通的工具调用。
- * 而上游把子代理自己的 session/update 全部挡在外面（agentId 不是主代理就 return），
- * 所以那张卡片整段运行期都没有它的过程 —— 在屏幕上和卡死没有区别。
+ * 而子代理自己的过程一个字都不会来：acp-server/src/session.ts 只订阅
+ * session.agent('main') 的事件流，子代理是另一个 agent（同文件逐字：this session
+ * only follows the main agent's events），所以那张卡片整段运行期都是空的。
  *
  * 但派发的入参是照常送过来的：ToolCallTimelineItem.rawInput 里就写着派了哪一种
  * 子代理、让它干什么、是不是后台跑。这一层只把已经在手里的东西读出来 —— 不新增
