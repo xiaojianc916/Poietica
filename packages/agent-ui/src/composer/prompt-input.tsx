@@ -487,6 +487,15 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
 
   return (
     <textarea
+      /*
+       * 展开排在受控三件套之前。
+       *
+       * 与同文件 <form> 上那条规矩一致：调用方补充 props，但不静默顶掉这个框
+       * 自己的行为。value / onChange / ref 任意一个被顶掉，草稿就有了第二个
+       * 所有者，而这个文件的全部前提是「一个所有者」；顶掉 ref 还会连带
+       * registerTextarea 与 autosize 一起失效，且不报错。
+       */
+      {...props}
       className={className}
       data-slot="prompt-input-textarea"
       onChange={(event) => {
@@ -500,7 +509,6 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
       }}
       ref={bind}
       value={text}
-      {...props}
     />
   )
 }
@@ -516,16 +524,17 @@ export function PromptInputTools({ className, ...props }: ComponentProps<'div'>)
 export function PromptInputButton({ className, type, ...props }: ComponentProps<'button'>) {
   return (
     <button
+      {...props}
       className={className}
       data-slot="prompt-input-button"
       type={type ?? 'button'}
-      {...props}
     />
   )
 }
 
 export function PromptInputSubmit({
   className,
+  disabled,
   onCancel,
   status = 'ready',
   ...props
@@ -533,18 +542,30 @@ export function PromptInputSubmit({
   readonly status?: ChatStatus
   readonly onCancel?: (() => void) | undefined
 }) {
+  /*
+   * 能不能发，由持有草稿的这一侧自己答。
+   *
+   * 此前它是调用点算出来的一个 disabled，而调用点为此在工具栏顶上订了 draft ——
+   * context 的消费者连同整棵子树一起重渲，于是「空↔非空」那一次翻转要带上
+   * ComposerActions 与 SessionControls 两个菜单根，而它们与草稿空不空无关。
+   * 消费点下沉到真正用它的叶子，是官方对「一处变、整棵子树醒」的标准答案。
+   *
+   * disabled 仍可由外部显式压过：这是「补充」，不是第二个判据。
+   */
+  const { hasFiles, hasText } = usePromptInputDraft()
   const isStreaming = status === 'streaming'
   const Icon = isStreaming ? StopIcon : status === 'submitted' ? SpinnerIcon : SubmitIcon
 
   return (
     <button
+      {...props}
       aria-label={isStreaming ? '停止生成' : '发送'}
       className={className}
       data-slot="prompt-input-submit"
       data-status={status}
+      disabled={disabled ?? (!isStreaming && !hasText && !hasFiles)}
       onClick={isStreaming ? onCancel : undefined}
       type={isStreaming ? 'button' : 'submit'}
-      {...props}
     >
       <Icon aria-hidden="true" />
     </button>

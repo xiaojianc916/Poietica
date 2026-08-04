@@ -10,6 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/ui'
+import { memo, useMemo } from 'react'
 
 /*
  * Everything the session lets us change, in one control.
@@ -74,7 +75,20 @@ export interface SessionControlsProps {
   readonly onRetry?: (() => void) | undefined
 }
 
-export function SessionControls({ controls, failure, onRetry, onSelect }: SessionControlsProps) {
+/*
+ * 记住不重建。
+ *
+ * 同层的 AssistantSurface、AssistantComposer、ThreadRow 都有这道边界，这一格
+ * 此前没有 —— 管线不统一。它的入参只有 controls 会变，而 controls 只在换模型
+ * 时才换引用；它下面是一个菜单根加 N 个子菜单根，白重建一次的代价远不止下面
+ * 那几次数组分配。
+ */
+export const SessionControls = memo(function SessionControls({
+  controls,
+  failure,
+  onRetry,
+  onSelect,
+}: SessionControlsProps) {
   /*
    * 模式不在这一格。
    *
@@ -83,10 +97,22 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
    *
    * Sorting is stable, so the agent order survives inside each purpose.
    */
-  const rows = [...controls]
-    .filter((control) => control.purpose !== 'mode')
-    .sort((left, right) => rank(left.purpose) - rank(right.purpose))
-  const model = controls.find((control) => control.purpose === 'model')
+  /*
+   * 排序是投影，不是渲染。
+   *
+   * 一次复制、一次过滤、一次排序、一次查找，此前每次渲染都做一遍。
+   * prompt-input.tsx 顶上那段注释已经点过它的名，但那次只收窄了触发次数，
+   * 没有把它挪出渲染路径 —— 它依赖的只有 controls。
+   */
+  const rows = useMemo(
+    () =>
+      [...controls]
+        .filter((control) => control.purpose !== 'mode')
+        .sort((left, right) => rank(left.purpose) - rank(right.purpose)),
+    [controls],
+  )
+
+  const model = useMemo(() => controls.find((control) => control.purpose === 'model'), [controls])
 
   /* 析构判空同时给出空状态判据与首行，索引访问不再需要断言。 */
   const [firstRow] = rows
@@ -196,4 +222,4 @@ export function SessionControls({ controls, failure, onRetry, onSelect }: Sessio
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
+})

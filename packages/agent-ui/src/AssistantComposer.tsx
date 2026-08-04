@@ -15,7 +15,6 @@ import {
   PromptInputTextarea,
   PromptInputToolbar,
   PromptInputTools,
-  usePromptInputDraft,
 } from './composer/prompt-input'
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
@@ -67,14 +66,15 @@ function ComposerToolbar({
   status,
 }: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
   /*
-   * 发送键只问一件事：有没有东西可发。
+   * 这一层不再问草稿任何事。
    *
-   * 它此前是从整串草稿里现算 text.trim().length === 0 得出的，代价是这一层
-   * 连同两个菜单根随每个字符重渲一次。判据挪到了 PromptInput 里，这里拿到的
-   * 是两个布尔，只在空与非空之间翻转时才换引用。
+   * 「有没有东西可发」由 PromptInputSubmit 自己订 —— 它是唯一用到那两个布尔的
+   * 节点。订在这里，翻转一次就要重渲整条工具栏，连同 ComposerActions 与
+   * SessionControls 两个菜单根。收窄 context 的粒度只减少了触发次数，把消费点
+   * 放对了层才真正把范围关住。
+   *
+   * 于是这一层无状态、无 hook、无副作用：纯粹是一次声明。
    */
-  const { hasFiles, hasText } = usePromptInputDraft()
-
   return (
     <PromptInputToolbar>
       <PromptInputTools>
@@ -109,15 +109,10 @@ function ComposerToolbar({
         <MicIcon aria-hidden="true" />
       </PromptInputButton>
 
-      {/* The form accepts a submission carrying only attachments, so the
-          button has to offer one: two readings of "is there anything to send"
-          is how a dragged-in image ended up unsendable by mouse and sendable
-          by Enter. */}
-      <PromptInputSubmit
-        disabled={status !== 'streaming' && !hasText && !hasFiles}
-        onCancel={onCancel}
-        status={status}
-      />
+      {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
+          按钮与 onSubmit 看的是同一个所有者 —— 两份读法分家的那一天不需要谁
+          犯错：拖进来的图片曾经鼠标发不出去、回车发得出去。 */}
+      <PromptInputSubmit onCancel={onCancel} status={status} />
     </PromptInputToolbar>
   )
 }
