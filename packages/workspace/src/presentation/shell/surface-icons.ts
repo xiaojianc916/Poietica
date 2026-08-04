@@ -19,7 +19,10 @@ import {
  * 所以这里不需要、也不应该有 ?? 兜底。
  */
 
-export type SurfaceIcon = ComponentType<{ readonly className?: string }>
+export type SurfaceIcon = ComponentType<{
+  readonly className?: string
+  readonly 'aria-hidden'?: boolean | 'true' | 'false'
+}>
 
 const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
   box: Box,

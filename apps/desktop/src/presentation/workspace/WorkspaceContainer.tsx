@@ -5,17 +5,18 @@ import {
   SettingsNavigationRegion,
   SettingsProvider,
 } from '@poietica/settings/react'
-import {
-  CONVERSATION_ENTRY_TITLE,
-  type WorkbenchSessionStore,
-  type WorkbenchTabId,
-  type WorkbenchTabViewModel,
-  type WorkspaceShellActions,
+import type {
+  WorkbenchSessionStore,
+  WorkbenchTabId,
+  WorkbenchTabViewModel,
+  WorkspaceParts,
+  WorkspaceShellActions,
 } from '@poietica/workspace/contracts'
 import {
   SidebarFooter,
   WorkbenchTabs,
   WorkspaceShell,
+  WorkspaceSidebar,
   WorkspaceSurface,
 } from '@poietica/workspace/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
@@ -48,7 +49,6 @@ export interface WorkspaceContainerProps {
   readonly agentConfigStore: AgentConfigStore
   readonly sidebarFooterSlot: ReactNode
   readonly isWindowMaximized: boolean
-  readonly onCommandPaletteOpen: () => void
   readonly onDeveloperToolsOpen: () => void
   readonly onSettingsOpen: () => void
   readonly onWindowMinimize: () => void
@@ -56,6 +56,14 @@ export interface WorkspaceContainerProps {
   readonly onWindowClose: () => void
 }
 
+/**
+ * 工作区的组合根。
+ *
+ * 这一层的产物是一张 Part 表：chrome / sidebar / main 各是一格内容，
+ * 外壳只负责把它们摆进栅格。此前这里向外壳递六个内容插槽外加一个渲染回调，
+ * 外壳因此既要知道有哪些区域、又要把区域内部要用的数据回传给组合根 ——
+ * 那是把布局职责和接线职责搅在一起。
+ */
 export function WorkspaceContainer({
   agentSession,
   appVersion,
@@ -67,7 +75,6 @@ export function WorkspaceContainer({
   agentConfigStore,
   sidebarFooterSlot,
   isWindowMaximized,
-  onCommandPaletteOpen,
   onDeveloperToolsOpen,
   onSettingsOpen,
   onWindowMinimize,
@@ -87,7 +94,7 @@ export function WorkspaceContainer({
    *
    * 接线只有这一处：删除的写路径是 ThreadsStore.remove，工作台在这里听它。
    * 侧栏那个菜单项因此不需要知道标签的存在 —— 否则命令面板、快捷键、以后
-   * 任何第二个删除入口都要各自记得再关一次标签，漏一个就是今天这个 bug。
+   * 任何第二个删除入口都要各自记得再关一次标签，漏一个就是一个 bug。
    */
   useEffect(() => threads.onRemoved(workspace.closeConversation), [threads, workspace])
 
@@ -105,22 +112,29 @@ export function WorkspaceContainer({
         workspace.moveTab(tabId, targetIndex)
       },
 
-      openWorkspaceSurface(surfaceId, title) {
-        workspace.openWorkspaceSurface({ surfaceId, title })
+      /* 只递 id：标题是注册表已经拥有的事实，递第二遍就是第二个来源。 */
+      openWorkspaceSurface(surfaceId) {
+        workspace.openWorkspaceSurface({ surfaceId })
       },
-
-      openCommandPalette: onCommandPaletteOpen,
 
       openDeveloperTools: onDeveloperToolsOpen,
 
       openSettingsWindow: onSettingsOpen,
     }),
-    [onCommandPaletteOpen, onDeveloperToolsOpen, onSettingsOpen, workspace],
+    [onDeveloperToolsOpen, onSettingsOpen, workspace],
   )
 
   /* 侧栏高亮的那一行就是正在看的那一格：身份来自工作台，没有第二份状态。 */
   const activeConversationId =
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
+
+  /*
+   * 一条对话就是 ai 表面的实体化，所以看着一条对话时亮的仍是「新建对话」那一行。
+   * 标签条上的图标同一条规则（见 WorkbenchTab.resolveTabIcon）：同一个表面在两个
+   * 地方不该长着两张脸。
+   */
+  const activeNavigationId =
+    workbench.activeSurface.kind === 'workspace' ? workbench.activeSurface.surfaceId : 'ai'
 
   /*
    * 一条对话开口说话的那一刻，AI 那一格就变成这条对话。
@@ -137,13 +151,13 @@ export function WorkspaceContainer({
   )
 
   /*
-   * 侧栏那三根线也钉住标识：它们此前是 JSX 里的内联箭头，于是任何一次无关
+   * 侧栏那几根线也钉住标识：它们此前是 JSX 里的内联箭头，于是任何一次无关
    * 重渲都要把整张会话列表重画一遍。
    *
    * 打开一条对话与「说出第一句话」是同一件事，共用 startConversation。
    */
   const openAssistantEntry = useCallback(() => {
-    workspace.openWorkspaceSurface({ surfaceId: 'ai', title: CONVERSATION_ENTRY_TITLE })
+    workspace.openWorkspaceSurface({ surfaceId: 'ai' })
   }, [workspace])
 
   const openConversationInNewTab = useCallback(
@@ -158,10 +172,8 @@ export function WorkspaceContainer({
     [agentConfigStore, agentSession, startConversation],
   )
 
-  /*
-   * 两种表面形态，穷尽，没有兜底分支：一条对话，或者一个工作区表面。
-   */
-  const mainContent =
+  /* 两种表面形态，穷尽，没有兜底分支：一条对话，或者一个工作区表面。 */
+  const surface =
     workbench.activeSurface.kind === 'conversation' ? (
       assistant.renderConversation(workbench.activeSurface.threadId)
     ) : (
@@ -171,77 +183,82 @@ export function WorkspaceContainer({
       />
     )
 
-  const shell = (
-    <WorkspaceShell
-      actions={actions}
-      mainContent={isSettingsOpen ? <SettingsContentRegion /> : mainContent}
-      mainContentLabel={isSettingsOpen ? '设置' : undefined}
-      model={workbench}
-      renderChrome={({
-        isSidebarOpen,
-        tabs: chromeTabs,
-        onSidebarToggle,
-        onActivateTab,
-        onCloseTab,
-        onMoveTab,
-        onCreateConversation,
-      }) => (
+  /*
+   * 设置界面没有标签：标签属于工作台，不属于设置。它接管的是主区与侧栏两格，
+   * 其余部分照旧 —— 工作区留在下面不卸载，返回要回到进入设置前的那个标签页。
+   */
+  const parts: WorkspaceParts = {
+    chrome: {
+      content: (
         <DesktopTitleBar
-          activeTabSequence={describeTabSequence(isSettingsOpen ? [] : chromeTabs, onActivateTab)}
+          activeTabSequence={describeTabSequence(
+            isSettingsOpen ? [] : workbench.tabs,
+            actions.activateTab,
+          )}
           isMaximized={isWindowMaximized}
-          isSidebarOpen={isSidebarOpen}
           onClose={onWindowClose}
           onMaximize={onWindowMaximize}
           onMinimize={onWindowMinimize}
-          onSidebarToggle={onSidebarToggle}
           windowControlsDisabled={!capabilities.windowControls}
         >
-          {/* 设置界面没有标签：标签属于工作台，不属于设置。 */}
           {isSettingsOpen ? null : (
             <WorkbenchTabs
-              onActivate={onActivateTab}
-              onClose={onCloseTab}
-              onCreate={onCreateConversation}
-              onMove={onMoveTab}
-              tabs={chromeTabs}
+              onActivate={actions.activateTab}
+              onClose={actions.closeTab}
+              onCreate={openAssistantEntry}
+              onMove={actions.moveTab}
+              tabs={workbench.tabs}
             />
           )}
         </DesktopTitleBar>
-      )}
-      sidebarFooterSlot={sidebarFooterSlot}
-      sidebarOverride={
-        isSettingsOpen ? (
-          <SettingsNavigationRegion
-            footer={
-              <SidebarFooter
-                leading={sidebarFooterSlot}
-                onDeveloperToolsOpen={onDeveloperToolsOpen}
-                onSettingsOpen={onSettingsClose}
-                settingsActive
-              />
-            }
-          />
-        ) : null
-      }
-      sidebarPanel={
-        <AssistantSidebarPanel
-          activeThreadId={activeConversationId}
-          onCreate={openAssistantEntry}
-          onOpen={startConversation}
-          onOpenInNewTab={openConversationInNewTab}
+      ),
+    },
+
+    sidebar: {
+      content: isSettingsOpen ? (
+        <SettingsNavigationRegion
+          footer={
+            <SidebarFooter
+              leading={sidebarFooterSlot}
+              onDeveloperToolsOpen={onDeveloperToolsOpen}
+              onSettingsOpen={onSettingsClose}
+              settingsActive
+            />
+          }
         />
-      }
-    />
-  )
+      ) : (
+        <WorkspaceSidebar
+          activeNavigationId={activeNavigationId}
+          footerLeading={sidebarFooterSlot}
+          onCreateConversation={openAssistantEntry}
+          onDeveloperToolsOpen={onDeveloperToolsOpen}
+          onSettingsOpen={onSettingsOpen}
+          onSurfaceActivate={actions.openWorkspaceSurface}
+          panel={
+            <AssistantSidebarPanel
+              activeThreadId={activeConversationId}
+              onCreate={openAssistantEntry}
+              onOpen={startConversation}
+              onOpenInNewTab={openConversationInNewTab}
+            />
+          }
+        />
+      ),
+    },
+
+    main: {
+      content: isSettingsOpen ? <SettingsContentRegion /> : surface,
+      label: isSettingsOpen ? '设置' : undefined,
+    },
+  }
+
+  const shell = <WorkspaceShell model={workbench} parts={parts} />
 
   if (!isSettingsOpen) {
     return shell
   }
 
-  /*
-   * 设置不是浮层：Provider 只提供状态，界面本身就是外壳栅格里的两个格子。
-   * 工作区留在下面不卸载，返回要回到进入设置前的那个标签页。
-   */
+  /* 设置不是浮层：Provider 只提供状态，界面本身就是外壳栅格里的两个格子。 */
   return (
     <SettingsProvider
       agentConfigStore={agentConfigStore}

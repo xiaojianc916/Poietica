@@ -56,7 +56,7 @@ function readPersistedState(): WorkspaceLayoutState {
     return { ...v.parse(PersistedLayoutSchema, JSON.parse(raw)), isResizing: false }
   } catch (cause) {
     // 存储内容不可信时回退到产品默认布局，而不是让整个外壳启动失败。
-    warn('workspace-layout', '忽略无法解析的持久化布局', cause)
+    warn('忽略无法解析的持久化布局', { scope: 'workspace-layout', cause })
 
     return DEFAULT_STATE
   }
@@ -128,7 +128,7 @@ class WorkspaceLayoutStore {
       globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(persisted))
     } catch (cause) {
       // 存储不可用（配额或隐私模式）只影响下次启动的还原，不影响本次会话。
-      warn('workspace-layout', '无法持久化布局', cause)
+      warn('无法持久化布局', { scope: 'workspace-layout', cause })
     }
   }
 }

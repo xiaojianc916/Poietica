@@ -56,10 +56,16 @@ fn validate_repository_id(repository_id: &str) -> Result<(), WorkspaceStateError
     }
 }
 
+/// 状态文件都住在这一层目录下。
+///
+/// 它是被算出来的，不是从路径里反推的：此前写入侧问 path.parent()，
+/// 拿到一个永远是 Some 的 Option 再 expect —— 那个问句本身就不该存在。
+fn state_dir(base_dir: &Path) -> PathBuf {
+    base_dir.join("workbench")
+}
+
 fn state_path(base_dir: &Path, repository_id: &str) -> PathBuf {
-    base_dir
-        .join("workbench")
-        .join(format!("{repository_id}.json"))
+    state_dir(base_dir).join(format!("{repository_id}.json"))
 }
 
 pub fn read_workbench_state(
@@ -85,10 +91,10 @@ pub fn write_workbench_state(
     validate_repository_id(repository_id)?;
 
     let path = state_path(base_dir, repository_id);
-    let parent = path.parent().expect("state path always has a parent");
-    fs::create_dir_all(parent)?;
+    let dir = state_dir(base_dir);
+    fs::create_dir_all(&dir)?;
 
-    let temp_path = parent.join(format!(".{repository_id}.json.tmp"));
+    let temp_path = dir.join(format!(".{repository_id}.json.tmp"));
 
     {
         let mut file = fs::File::create(&temp_path)?;
@@ -104,6 +110,12 @@ pub fn write_workbench_state(
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a test proves itself by panicking, so a failed step must fail the test"
+    )]
+
     use super::*;
 
     #[test]
@@ -114,8 +126,62 @@ mod tests {
 
     #[test]
     fn missing_state_reads_as_none() {
-        let dir = std::env::temp_dir().join("poietica-workbench-test-none");
-        let state = read_workbench_state(&dir, "deadbeef").unwrap();
+        // 写死名字的共享临时目录会被并发的另一次测试和上一次的残留同时踩中。
+        let dir = tempfile::tempdir().unwrap();
+        let state = read_workbench_state(dir.path(), "deadbeef").unwrap();
         assert!(state.is_none());
+    }
+
+    #[test]
+    fn a_written_state_reads_back_and_leaves_no_temporary_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = PersistedWorkbenchState {
+            version: 1,
+            active_index: 1,
+            tabs: vec![
+                PersistedTab::Workspace {
+                    surface_id: "ai".to_owned(),
+                },
+                PersistedTab::Conversation {
+                    thread_id: "thread-1".to_owned(),
+                    title: "One".to_owned(),
+                },
+            ],
+        };
+
+        write_workbench_state(dir.path(), "deadbeef", &state).unwrap();
+
+        let read = read_workbench_state(dir.path(), "deadbeef")
+            .unwrap()
+            .expect("状态刚写过，应当读得回来");
+
+        assert_eq!(read.active_index, 1);
+        assert!(matches!(
+            read.tabs.first(),
+            Some(PersistedTab::Workspace { surface_id }) if surface_id == "ai"
+        ));
+
+        // rename 成功之后目录里只该剩那一个文件，临时文件不许留下。
+        let entries = fs::read_dir(dir.path().join("workbench")).unwrap().count();
+        assert_eq!(entries, 1);
+    }
+
+    #[test]
+    fn a_tab_is_the_tagged_camel_case_json_the_frontend_parses() {
+        /*
+         * 这串 JSON 是跨进程契约：界面侧的 valibot schema 按同一形状校验。
+         * 两边各写一份形状而没有一处把它钉住，就是这一版分叉的由来 ——
+         * 界面侧曾经校验的是一个扁平形状，与这里写出的判别联合并不相认。
+         */
+        let json = serde_json::to_string(&PersistedTab::Conversation {
+            thread_id: "thread-1".to_owned(),
+            title: "One".to_owned(),
+        })
+        .unwrap();
+
+        assert_eq!(
+            json,
+            r#"{"kind":"conversation","threadId":"thread-1","title":"One"}"#
+        );
     }
 }

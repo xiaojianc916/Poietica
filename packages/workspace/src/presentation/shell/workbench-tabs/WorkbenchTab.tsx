@@ -1,7 +1,7 @@
 import { X } from '@mynaui/icons-react'
 import type { KeyboardEvent } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../../contracts/workbench'
-import { describeWorkspaceSurface, type SurfaceIcon } from '../surface-registry'
+import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 import type { WorkbenchTabReorderBindings } from './use-workbench-tabs-interactions'
 import { encodeWorkbenchTabDomId } from './workbench-tabs-model'
 
@@ -189,8 +189,8 @@ function ActiveTabCap({ side }: { readonly side: 'left' | 'right' }) {
  */
 function resolveTabIcon(model: WorkbenchTabViewModel): SurfaceIcon {
   if (model.kind === 'conversation' || model.surfaceId === 'ai') {
-    return describeWorkspaceSurface('ai').icon
+    return surfaceIcon('ai')
   }
 
-  return describeWorkspaceSurface(model.surfaceId).icon
+  return surfaceIcon(model.surfaceId)
 }

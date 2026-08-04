@@ -120,10 +120,8 @@ export function AppShell({ runtime }: AppShellProps) {
     setCommandPaletteOpen((open) => !open)
   }, [])
 
-  const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
-
   const openAssistantSurface = useCallback(() => {
-    runtime.workspace.openWorkspaceSurface({ surfaceId: 'ai', title: 'AI' })
+    runtime.workspace.openWorkspaceSurface({ surfaceId: 'ai' })
   }, [runtime.workspace])
 
   const openSettings = useCallback(() => {
@@ -239,7 +237,6 @@ export function AppShell({ runtime }: AppShellProps) {
           capabilities={capabilities}
           isSettingsOpen={isSettingsOpen && capabilities.settings}
           isWindowMaximized={isWindowMaximized}
-          onCommandPaletteOpen={openCommandPalette}
           onDeveloperToolsOpen={openDeveloperTools}
           onSettingsClose={closeSettings}
           onSettingsOpen={openSettings}

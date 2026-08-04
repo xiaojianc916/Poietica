@@ -1,3 +1,5 @@
+import { warn } from '@poietica/observability'
+
 import type { PersistedWorkbenchState, WorkbenchStatePort } from '../contracts/persistence'
 import type {
   ActiveConversationViewModel,
@@ -285,7 +287,7 @@ function decode(persisted: PersistedWorkbenchState): WorkbenchState {
   const entries = persisted.tabs.map<Entry>((tab) =>
     tab.kind === 'conversation'
       ? { kind: 'conversation', threadId: tab.threadId, title: tab.title }
-      : { kind: 'workspace', surfaceId: tab.surfaceId as WorkspaceSurfaceId },
+      : { kind: 'workspace', surfaceId: tab.surfaceId },
   )
 
   return settle(entries, persisted.activeIndex)
@@ -382,7 +384,7 @@ export function createWorkbenchSessionController(
 }
 
 function reportPersistFailure(cause: unknown): void {
-  console.warn('[workbench] 工作台状态持久化失败，下次启动将回到默认布局', cause)
+  warn('工作台状态持久化失败，下次启动将回到默认布局', { scope: 'workbench', cause })
 }
 
 export { CONVERSATION_ENTRY_TITLE }

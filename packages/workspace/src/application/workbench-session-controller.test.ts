@@ -37,10 +37,7 @@ describe('workbench session controller', () => {
 
     store.activateTab('workspace:ai')
 
-    store.openWorkspaceSurface({
-      surfaceId: 'tools',
-      title: 'Tool',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'tools' })
 
     expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
       'workspace:ai',
@@ -52,15 +49,9 @@ describe('workbench session controller', () => {
   it('deduplicates singleton workspace surfaces', () => {
     const store = createWorkbenchSessionController()
 
-    store.openWorkspaceSurface({
-      surfaceId: 'search',
-      title: '搜索',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'search' })
 
-    store.openWorkspaceSurface({
-      surfaceId: 'search',
-      title: '搜索',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'search' })
 
     expect(store.getSnapshot().tabs.filter((tab) => tab.id === 'workspace:search')).toHaveLength(1)
   })
@@ -68,15 +59,9 @@ describe('workbench session controller', () => {
   it('selects the right adjacent tab after closing active', () => {
     const store = createWorkbenchSessionController()
 
-    store.openWorkspaceSurface({
-      surfaceId: 'tools',
-      title: 'Tool',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'tools' })
 
-    store.openWorkspaceSurface({
-      surfaceId: 'search',
-      title: '搜索',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'search' })
 
     store.activateTab('workspace:tools')
     store.closeTab('workspace:tools')
@@ -87,10 +72,7 @@ describe('workbench session controller', () => {
   it('selects the left adjacent tab when closing the last tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openWorkspaceSurface({
-      surfaceId: 'tools',
-      title: 'Tool',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'tools' })
 
     store.closeTab('workspace:tools')
 
@@ -100,15 +82,9 @@ describe('workbench session controller', () => {
   it('moves tabs including the default surface tab', () => {
     const store = createWorkbenchSessionController()
 
-    store.openWorkspaceSurface({
-      surfaceId: 'tools',
-      title: 'Tool',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'tools' })
 
-    store.openWorkspaceSurface({
-      surfaceId: 'search',
-      title: '搜索',
-    })
+    store.openWorkspaceSurface({ surfaceId: 'search' })
 
     store.moveTab('workspace:search', 1)
 

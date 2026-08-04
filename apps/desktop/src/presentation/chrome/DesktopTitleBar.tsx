@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynaui/icons-react'
 import { Button } from '@poietica/ui'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace/react'
 import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
 import './desktop-title-bar.css'
@@ -34,8 +35,6 @@ export interface DesktopTitleBarProps {
   readonly onMinimize: () => void
   readonly onMaximize: () => void
   readonly onClose: () => void
-  readonly onSidebarToggle: () => void
-  readonly isSidebarOpen: boolean
   readonly isMaximized: boolean
   readonly windowControlsDisabled?: boolean
 }
@@ -69,11 +68,16 @@ export function DesktopTitleBar({
   onMinimize,
   onMaximize,
   onClose,
-  onSidebarToggle,
-  isSidebarOpen,
   isMaximized,
   windowControlsDisabled = false,
 }: DesktopTitleBarProps) {
+  /*
+   * 侧栏开合是布局意图，store 是它唯一的所有者。此前这两件事由组合根订阅、
+   * 再作为 props 钻两层下来 —— 代价是组合根跟着拖拽的每一帧重渲，整棵工作区
+   * 的元素随之重建。这里直接读，重渲就只发生在这一条上。
+   */
+  const { sidebarOpen } = useWorkspaceLayoutState()
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
       {/*
@@ -96,14 +100,14 @@ export function DesktopTitleBar({
        */}
       <div className="desktop-title-bar__toggle-zone" data-tauri-drag-region>
         <Button
-          aria-label={isSidebarOpen ? '收起侧边栏' : '展开侧边栏'}
+          aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
           className={CHROME_BUTTON_CLASS}
-          onClick={onSidebarToggle}
+          onClick={workspaceLayoutStore.toggleSidebar}
           size="icon"
           type="button"
           variant="ghost"
         >
-          {isSidebarOpen ? (
+          {sidebarOpen ? (
             <PanelLeftClose aria-hidden="true" className="size-4" />
           ) : (
             <PanelLeftOpen aria-hidden="true" className="size-4" />
@@ -118,7 +122,7 @@ export function DesktopTitleBar({
          * 不在场时也没有可指的对象。ml-auto 让它们吸在右边界上，所以位置仍由
          * 上面那个 max() 唯一决定，没有第二份坐标。
          */}
-        {isSidebarOpen ? (
+        {sidebarOpen ? (
           <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-2">
             <Button
               aria-label="切换到上一个标签页"
@@ -146,7 +150,7 @@ export function DesktopTitleBar({
           </div>
         ) : null}
 
-        <span aria-hidden="true" className="desktop-title-bar__edge" data-visible={isSidebarOpen} />
+        <span aria-hidden="true" className="desktop-title-bar__edge" data-visible={sidebarOpen} />
       </div>
 
       <div className="flex min-w-0 flex-1 items-stretch" data-tauri-drag-region>

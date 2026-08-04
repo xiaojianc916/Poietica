@@ -1,10 +1,7 @@
 import { cn } from '@poietica/ui'
 import type { WorkspaceSurfaceId } from '../../../contracts/workbench'
-import {
-  describeWorkspaceSurface,
-  type SurfaceIcon,
-  WORKSPACE_NAVIGATION_ORDER,
-} from '../surface-registry'
+import { describeWorkspaceSurface, WORKSPACE_NAVIGATION_ORDER } from '../../../domain/index'
+import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 
 export interface SidebarNavProps {
   /** 当前高亮的导航项，等于当前活动表面；非表面形态为 null。 */
@@ -35,20 +32,20 @@ export function SidebarNav({
         <li>
           <NavRow
             active={activeNavigationId === 'ai'}
-            icon={describeWorkspaceSurface('ai').icon}
+            icon={surfaceIcon('ai')}
             label={describeWorkspaceSurface('ai').title}
             onClick={onCreateConversation}
           />
         </li>
 
         {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
-          const { title, icon } = describeWorkspaceSurface(surfaceId)
+          const { title } = describeWorkspaceSurface(surfaceId)
 
           return (
             <li key={surfaceId}>
               <NavRow
                 active={surfaceId === activeNavigationId}
-                icon={icon}
+                icon={surfaceIcon(surfaceId)}
                 label={title}
                 onClick={() => {
                   onSurfaceActivate(surfaceId)
