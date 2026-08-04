@@ -1,6 +1,6 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { readSubAgent, type SubAgentBrief } from '../domain/sub-agent'
-import { toToolCallView } from '../domain/tool-call-content'
+import { toToolCallView, withoutArgumentEcho } from '../domain/tool-call-content'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -107,7 +107,13 @@ export function ToolCallCard({
    * Zed 的工具卡片都是这么收的。
    */
   const { isOpen, toggle } = useDisclosure(isRunning)
-  const { diffStat, parts } = toToolCallView(item.content)
+  /*
+   * 抽屉里画的是产出，不是入参。
+   *
+   * 上游建卡时就把入参的 JSON 全文写进了 content —— 那是同一份 rawInput 的降级重复。
+   * 摘掉它之后，运行期的空抽屉是真的空，那句「还在运行，暂时没有输出」才成立。
+   */
+  const { diffStat, parts } = withoutArgumentEcho(toToolCallView(item.content), item)
 
   /*
    * 这次调用是不是一次子代理派发。
@@ -203,7 +209,21 @@ export function ToolCallCard({
             </ul>
           ) : null}
 
-          {parts.length === 0 ? (
+          {/*
+           * 子代理的抽屉里放它领到的任务书。
+           *
+           * 标一行「派给它的」是因为这确实不是产出 —— 它的过程上游不回传，所以在
+           * 结果回来之前，这张卡片能诚实交出的最有价值的东西就是这段任务书本身。
+           * 有产出之后就让位：那时 parts 不空。
+           */}
+          {brief !== null && parts.length === 0 && brief.task.length > 0 ? (
+            <div className="timeline-tool__task">
+              <p className="timeline-tool__task-label">派给它的</p>
+              <p className="timeline-tool__task-text">{brief.task}</p>
+            </div>
+          ) : null}
+
+          {parts.length === 0 && (brief === null || brief.task.length === 0) ? (
             <p className="timeline-tool__empty">{emptyNoteOf(brief, isRunning)}</p>
           ) : null}
 

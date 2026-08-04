@@ -1186,3 +1186,30 @@
   color: var(--cp-ink-subtle);
   white-space: nowrap;
 }
+
+/*
+ * 子代理领到的任务书。
+ *
+ * pre-wrap：那是一段人写给模型的话，换行是它的一部分。给一个高度上限并让它自己
+ * 滚 —— 一段几百字的任务书不该把整条转录顶开。
+ */
+.timeline-tool__task {
+  display: grid;
+  gap: var(--cp-control-gap);
+}
+
+.timeline-tool__task-label {
+  margin: 0;
+  font: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.timeline-tool__task-text {
+  margin: 0;
+  max-height: 12em;
+  overflow-y: auto;
+  font: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

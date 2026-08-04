@@ -3,7 +3,7 @@
  *
  * ACP 里没有「子代理」这个概念：派一个子代理，在线上就是一次普通的工具调用。
  * 而上游把子代理自己的 session/update 全部挡在外面（agentId 不是主代理就 return），
- * 所以那张卡片从头到尾没有内容、标题只有一个工具名 —— 在屏幕上和卡死没有区别。
+ * 所以那张卡片整段运行期都没有它的过程 —— 在屏幕上和卡死没有区别。
  *
  * 但派发的入参是照常送过来的：ToolCallTimelineItem.rawInput 里就写着派了哪一种
  * 子代理、让它干什么、是不是后台跑。这一层只把已经在手里的东西读出来 —— 不新增
@@ -25,16 +25,23 @@ export interface SubAgentBrief {
   readonly gist: string
   /** 标题栏那一行的成品。 */
   readonly label: string
+  /**
+   * 它领到的任务书，整段。
+   *
+   * 抽屉里画的就是这一段。它是入参而不是产出 —— 上游把这段 JSON 化之后当 content
+   * 推过来，那份回显已经在 withoutArgumentEcho 里摘掉了；这里从结构化的入参重新
+   * 取一次，拿到的是没有转义引号的原文。
+   */
+  readonly task: string
   /** 后台跑：它不占这一轮的前台，答复会晚一些回来。 */
   readonly isBackground: boolean
 }
 
 /*
- * 一行的上限。
+ * 标题栏那一行的上限。
  *
- * prompt 是发给子代理的整段任务书，动辄几百字；标题栏只有一行的位置，截断在这一
- * 层做而不是交给 CSS —— text-overflow 截的是像素，读屏与 title 提示拿到的仍是那
- * 整段。description 是上游专门为「给人看」写的短语，所以它优先。
+ * 截断在这一层做而不是交给 CSS —— text-overflow 截的是像素，读屏与 title 提示拿到
+ * 的仍是整段。抽屉里的 task 不截：那里有滚动条。
  */
 const GIST = 80
 
@@ -75,12 +82,14 @@ export function readSubAgent(rawInput: unknown): SubAgentBrief | null {
   }
 
   const said = textOf(rawInput, 'description')
-  const gist = firstLine(said.length > 0 ? said : textOf(rawInput, 'prompt'))
+  const task = textOf(rawInput, 'prompt')
+  const gist = firstLine(said.length > 0 ? said : task)
 
   return {
     gist,
     isBackground: Reflect.get(rawInput, 'run_in_background') === true,
     label: gist.length === 0 ? type : `${type} · ${gist}`,
+    task,
     type,
   }
 }
