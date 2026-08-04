@@ -1,6 +1,7 @@
 import type { WorkspaceSurfaceRenderers } from '../../contracts/surface'
 import type { WorkspaceSurfaceId } from '../../contracts/workbench'
-import { describeWorkspaceSurface } from './surface-registry'
+import { describeWorkspaceSurface } from '../../domain/index'
+import { surfaceIcon } from './surface-icons'
 
 export interface WorkspaceSurfaceProps {
   readonly surfaceId: WorkspaceSurfaceId
@@ -21,7 +22,12 @@ export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps
     return <>{render()}</>
   }
 
-  const { title, description, icon: Icon } = describeWorkspaceSurface(surfaceId)
+  /*
+   * 描述符只说得出 iconId：领域层不持有 React 组件，组件由这一层查表得到。
+   * 这是同一条规则的第四个落点（另三处：SidebarNav、WorkbenchTab、SidebarFooter）。
+   */
+  const { title, description } = describeWorkspaceSurface(surfaceId)
+  const Icon = surfaceIcon(surfaceId)
 
   return (
     <section

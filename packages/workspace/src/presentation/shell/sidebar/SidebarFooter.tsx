@@ -15,7 +15,7 @@ import {
 
 import type { ReactNode } from 'react'
 
-import type { SurfaceIcon } from '../surface-registry'
+import type { SurfaceIcon } from '../surface-icons'
 
 /*
  * 仓库地址。
@@ -31,8 +31,8 @@ export interface SidebarFooterProps {
   /**
    * 底部行左端的插槽，排在帮助按钮之前。
    *
-   * 是插槽而不是一个具体控件：这一层不认识"更新"这件事，正如它不认识助手面板
-   * （见 contracts/shell.ts 里 sidebarPanel 那段）。具体节点由 apps 组合根注入。
+   * 是插槽而不是一个具体控件：这一层不认识"更新"这件事，正如它不认识助手面板。
+   * 具体节点由 apps 组合根注入 —— 外壳只摆放已经接好线的 Part。
    */
   readonly leading?: ReactNode
   readonly onSettingsOpen: () => void
