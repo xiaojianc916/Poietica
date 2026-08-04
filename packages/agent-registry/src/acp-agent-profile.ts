@@ -40,6 +40,25 @@ export interface AcpAgentProfile {
    */
   readonly env: Readonly<Record<string, string>>
   readonly defaultConfigOptions: Readonly<Record<string, AgentConfigOptionValue>>
+  /*
+   * 以下四格不属于用户，用户也填不出来 —— 它们是 AcpAgentDescriptor 往磁盘上的
+   * 一次单向投影，reconcileAcpAgentProfiles 每次无条件覆盖。
+   *
+   * 为什么必须落盘：原生侧那五个读取点（commands/agent_config.rs 的
+   * agent_program、home_var_of、own_home_of、agent_install_spec、
+   * declared_env_of）读的就是磁盘上这条档案。名单在 TypeScript 里，那个进程读
+   * 不到它，agents.json 是两侧唯一的接触面。上一版把这几格删掉时只改了这一侧,
+   * 于是四个读取点结构上永远取不到东西 —— 其中 home_var_of 恒为 None 意味着受控
+   * home 那个变量从来没被设过,agent 一直在读用户全局的配置。
+   *
+   * 为什么这不是把「任意命令执行」放回来：值只有一个产地。磁盘上写着什么都不
+   * 作数，下一次启动就被描述符里的值盖掉;原生侧的 validate_program 仍然独立
+   * 校验一遍。从前那七格是「读时覆盖、落盘保留用户值」,这里是落盘即覆盖。
+   */
+  readonly command?: string | undefined
+  readonly homeVar?: string | undefined
+  readonly ownHomeDirectory?: string | undefined
+  readonly install?: Readonly<{ packageName: string; versionArgs: readonly string[] }> | undefined
 }
 
 export interface AcpAgentProfileSet {
@@ -123,6 +142,15 @@ const ProfileSchema = v.object({
     ),
     {},
   ),
+  command: v.nullish(text(MAX_TEXT, '可执行文件名必须是非空字符串')),
+  homeVar: v.nullish(envName('home 变量名不合法，应为大写字母、数字与下划线')),
+  ownHomeDirectory: v.nullish(text(64, '配置目录名必须是非空字符串')),
+  install: v.nullish(
+    v.object({
+      packageName: text(214, '安装包名必须是非空字符串'),
+      versionArgs: v.optional(v.array(text(MAX_TEXT, '版本参数必须是字符串')), []),
+    }),
+  ),
 })
 
 /*
@@ -149,6 +177,10 @@ function shape(parsed: v.InferOutput<typeof ProfileSchema>): AcpAgentProfile {
     cwd: parsed.cwd ?? undefined,
     env: parsed.env,
     defaultConfigOptions: parsed.defaultConfigOptions,
+    command: parsed.command ?? undefined,
+    homeVar: parsed.homeVar ?? undefined,
+    ownHomeDirectory: parsed.ownHomeDirectory ?? undefined,
+    install: parsed.install ?? undefined,
   }
 }
 
@@ -239,35 +271,78 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
 }
 
 /**
- * 这一家在启动时必须带上的变量，来自二进制里的档案。
- *
- * 原生侧读的是磁盘上那条档案的 env（commands/agent_config.rs 的
- * declared_env_of → launch_env），所以二进制里声明的值要生效，就得出现在那张表
- * 里。值仍然只有一个产地：下面两个函数都从描述符取，谁都不抄。
+ * 名单里的这一家。不在名单里返回 undefined —— 那种档案由 reconcile 移除。
  */
-function launchEnvOf(agentId: string): Readonly<Record<string, string>> {
-  return acpAgents().find((agent) => agent.id === agentId)?.launchEnv ?? {}
+function descriptorOf(agentId: string): AcpAgentDescriptor | undefined {
+  return acpAgents().find((agent) => agent.id === agentId)
+}
+
+/** 环境变量表逐键相等。键序不参与比较。 */
+function sameEnv(
+  before: Readonly<Record<string, string>>,
+  after: Readonly<Record<string, string>>,
+): boolean {
+  const names = Object.keys(after)
+
+  return (
+    names.length === Object.keys(before).length &&
+    names.every((name) => before[name] === after[name])
+  )
+}
+
+/** 安装声明相等。 */
+function sameInstall(
+  before: AcpAgentProfile['install'],
+  after: AcpAgentProfile['install'],
+): boolean {
+  if (before === undefined || after === undefined) {
+    return before === after
+  }
+
+  return (
+    before.packageName === after.packageName &&
+    before.versionArgs.length === after.versionArgs.length &&
+    before.versionArgs.every((arg, index) => arg === after.versionArgs[index])
+  )
 }
 
 /**
- * 让一条落盘档案的 env 与二进制对齐。
+ * 把一条落盘档案上「归二进制的那几格」对齐到描述符。
  *
- * 二进制的值压过用户手写的同名键，判据与原生侧那一行相同：launch_env_inner 让
- * 受控 home 后进去、压过 declared_env_of，因为「用户在 env 里手写的可能根本不
- * 成立」。这里的情形更强 —— 把 acp-v2 的开关关掉，agent 直接起不来。
+ * 覆盖是无条件的,不是合并。这几格的产地只有一个,磁盘上写着什么都不作数 ——
+ * 判据与原生侧那一行同源:launch_env_inner 让受控 home 后进去、压过
+ * declared_env_of,因为「用户在 env 里手写的可能根本不成立」。
  *
- * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化，复制一份
+ * env 是唯一例外,它同时装着用户自己的变量:用户的键保留,描述符声明的键压过
+ * 同名项。把 acp-v2 的开关关掉,agent 直接起不来。
+ *
+ * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化,复制一份
  * 会让每次启动都报「档案变了」并白写一次磁盘。
  */
-function withLaunchEnv(profile: AcpAgentProfile): AcpAgentProfile {
-  const required = launchEnvOf(profile.id)
-  const entries = Object.entries(required)
+function withDescriptorFields(profile: AcpAgentProfile): AcpAgentProfile {
+  const agent = descriptorOf(profile.id)
 
-  if (entries.every(([name, value]) => profile.env[name] === value)) {
+  if (agent === undefined) {
     return profile
   }
 
-  return { ...profile, env: { ...profile.env, ...required } }
+  const next: AcpAgentProfile = {
+    ...profile,
+    env: { ...profile.env, ...(agent.launchEnv ?? {}) },
+    command: agent.command,
+    homeVar: agent.homeVar,
+    ownHomeDirectory: agent.ownHomeDirectory,
+    install: agent.install,
+  }
+
+  const unchanged =
+    profile.command === next.command &&
+    profile.homeVar === next.homeVar &&
+    profile.ownHomeDirectory === next.ownHomeDirectory &&
+    sameInstall(profile.install, next.install) &&
+    sameEnv(profile.env, next.env)
+
+  return unchanged ? profile : next
 }
 
 /** 起一个 agent 进程要说清的三件事。 */
@@ -307,6 +382,10 @@ export function builtinAcpAgentProfiles(): readonly [AcpAgentProfile, ...AcpAgen
     cwd: undefined,
     env: { ...(agent.launchEnv ?? {}) },
     defaultConfigOptions: {},
+    command: agent.command,
+    homeVar: agent.homeVar,
+    ownHomeDirectory: agent.ownHomeDirectory,
+    install: agent.install,
   })
   const [first, ...rest] = acpAgents()
 
@@ -362,14 +441,20 @@ export function reconcileAcpAgentProfiles(
   })
 
   /*
-   * 启动变量也要在这里对齐，不能只靠内置档案。
+   * 归二进制的那几格要在这里对齐，不能只靠内置档案。
+   *
+   * 上一版这里只对齐 env 一格。那把一个通用问题当成了特例:原生侧还读 command、
+   * homeVar、ownHomeDirectory、install,四格全在磁盘上没有产地。agent_program
+   * 因此报「没有可执行文件」,home_var_of 恒为 None 让受控 home 那个变量从来没被
+   * 设过 —— 后者从安装那天起就在静默降级,只是先前没有任何代码路径写过这个文件,
+   * profile_of 更早一步就先失败了,所以谁都没看见。
    *
    * 已经装过这个软件的机器上，agents.json 里那条档案早就写好了（env 是一张空
    * 表），而内置档案只在磁盘上什么都没有时才顶上去。这个函数此前的注释说得很
    * 清楚：「现在没有任何字段要比 —— 只剩名单本身要对齐」。那句话对用户拥有的
    * 那几格成立，对二进制声明的这一格不成立 —— 它一旦缺席，agent 起不来。
    */
-  const aligned = kept.map(withLaunchEnv)
+  const aligned = kept.map(withDescriptorFields)
   const drifted = aligned.some((profile, index) => profile !== kept[index])
 
   const missing = builtinAcpAgentProfiles().filter(
