@@ -1,4 +1,4 @@
-import type { AcpAgentDescriptor } from '../acp-agent-contract'
+import type { AcpAgentDescriptor } from '../../acp-agent-contract'
 
 /*
  * Kimi Code CLI 的档案。
