@@ -14,7 +14,6 @@ import { ImageLightbox, type PreviewableImage } from '../media/ImageLightbox'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { attachmentIntake, type ComposerAsset } from './attachment-intake'
-import { useAutosize } from './use-autosize'
 
 /*
  * The composer input.
@@ -474,22 +473,14 @@ export function PromptInputAttachments({ className, ...props }: ComponentProps<'
 export function PromptInputTextarea({ className, ...props }: ComponentProps<'textarea'>) {
   const { registerTextarea, requestSubmit, setText } = usePromptInputActions()
   const text = usePromptInputText()
-  const autosize = useAutosize(text)
 
-  /* 一个 ref 两件事：谁持有这个元素归 PromptInput，让它跟着内容长高归 use-autosize。 */
-  const bind = useCallback(
-    (node: HTMLTextAreaElement | null) => {
-      registerTextarea(node)
-
-      const detach = autosize(node)
-
-      return () => {
-        detach?.()
-        registerTextarea(null)
-      }
-    },
-    [autosize, registerTextarea],
-  )
+  /*
+   * ref 只有一件事：谁持有这个元素。
+   *
+   * 高度归样式表（field-sizing: content），所以不再需要一层把「持有」与「量高」
+   * 缝在一起的回调。registerTextarea 本身是零依赖的 useCallback，终身同一个函数，
+   * React 在卸载时会用 null 再调它一次。
+   */
 
   return (
     <textarea
@@ -513,7 +504,7 @@ export function PromptInputTextarea({ className, ...props }: ComponentProps<'tex
           requestSubmit()
         }
       }}
-      ref={bind}
+      ref={registerTextarea}
       value={text}
     />
   )

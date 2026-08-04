@@ -91,22 +91,33 @@
 }
 
 /*
- * 高度只有一个所有者：composer/use-autosize.ts。
+ * 高度归浏览器。
  *
- * 那里把这个元素归零、量一次 scrollHeight，把钳制后的像素值写进行内样式，
- * 并用 Web Animations 把这段路走完。替身 div 没有了：显式关键帧不需要一个
- * 可插值的计算值，所以它从来就不是必需的。
- * 这一层因此只剩三件事：上下限、盒模型、首帧的高度。
+ * field-sizing: content 让表单控件按内容定尺寸，min-/max-block-size 仍然钳制
+ * 上下限，超出上限交给 overflow-y: auto —— 这四行就是整套「跟着内容长高」，
+ * 没有任何脚本参与。静息高度仍是 --cp-editor-idle，与此前钳制的下限同一个令牌，
+ * 所以这次改动在版式上零像素差。
  *
- * field-sizing: content 已经删掉，它不是被嫌弃，是已经不接线：行内像素值恒
- * 胜出，所以那条声明从写下 settle 的那一天起就不再决定任何一帧。同理删掉的
- * 还有配套的 @supports 分支，和一条给这个元素关闭 transition 的减弱动态规则
- * —— 这个元素身上没有 transition 了，减弱动态由 settle 里的 matchMedia 处理。
+ * 此前这里有一段注释说它「已经删掉，因为不接线：行内像素值恒胜出」。那个行内
+ * 像素值是 composer/use-autosize.ts 自己写的 —— 它把自己造成的因当成了删掉官方
+ * 能力的理由。那条路要读 getComputedStyle 取上下限、把 block-size 归零、读
+ * scrollHeight、再写回像素值：一次写后读，也就是每敲一个字符一次强制同步重排，
+ * 外加一个观察自身高度的 ResizeObserver（它会把这个 hook 写下的高度报回来，
+ * 于是还要一个 last width 去滤掉自己造出的回声）。全部由这一条声明取代。
  *
- * 上下限留在这里，是因为 use-autosize 读计算样式来取它们：一个数只写一次。
+ * 交付面只有 Windows：src-tauri/tauri.conf.json 的 bundle.targets 是 ["nsis"]，
+ * 且只配了 bundle.windows，webviewInstallMode 装的是 WebView2 Evergreen，也就是
+ * 随系统更新的 Chromium。field-sizing 自 Chromium 123 起 ship，因此这是平台已经
+ * 提供的能力，不是一次押注。
+ *
+ * 不给长高上补间，这是有意的，也是这一类输入框的通行做法（VS Code 的 chat 输入、
+ * Zed 的 message editor、GitHub 的评论框都是即时换行）：那段位移恰好是一行行高，
+ * 而人此刻正盯着插入符 —— 补间会让插入符与它真正的落点分开一百多毫秒，输入法的
+ * 候选窗还得追着动画跑。所以 --cp-motion-grow 不会回来。
  */
 [data-slot="prompt-input-textarea"] {
   display: block;
+  field-sizing: content;
   inline-size: 100%;
   min-inline-size: 0;
   min-block-size: var(--cp-editor-idle);
@@ -133,8 +144,6 @@
    */
   resize: none;
   box-sizing: border-box;
-  /* 首帧的高度。此后这一项由 composer/use-autosize.ts 写行内值。 */
-  block-size: var(--cp-editor-idle);
 }
 
 [data-slot="prompt-input-textarea"]::placeholder {
