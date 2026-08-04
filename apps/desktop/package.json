@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "test:e2e": "playwright test"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@mynaui/icons-react": "catalog:",

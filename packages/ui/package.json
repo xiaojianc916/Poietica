@@ -19,10 +19,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "catalog:",
     "@mynaui/icons-react": "catalog:",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
+    "clsx": "catalog:",
     "motion": "catalog:",
     "tailwind-merge": "catalog:"
   },
@@ -30,8 +29,8 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

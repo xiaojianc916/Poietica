@@ -11,6 +11,7 @@ allowBuilds:
   leveldown: true
 
 catalog:
+  "@base-ui/react": "1.6.0"
   "@biomejs/biome": "2.5.6"
   "@mynaui/icons-react": "0.4.11"
   "@streamdown/cjk": "1.0.3"
@@ -24,6 +25,7 @@ catalog:
   "@types/react-dom": "19.2.4"
   "@typescript/typescript6": "6.0.2"
   "@vitejs/plugin-react": "6.0.5"
+  "clsx": "2.1.1"
   diff: 9.0.0
   katex: 0.18.1
   "motion": "12.43.0"
@@ -38,28 +40,19 @@ catalog:
   "valibot": "1.4.2"
   "vite": "8.2.0"
   "vitest": "4.1.10"
-  yet-another-react-lightbox: ^3.25.0
+  "yet-another-react-lightbox": "3.32.2"
 
 catalogs:
   tauri:
     "@tauri-apps/api": "2.11.1"
     "@tauri-apps/cli": "2.11.4"
     "@tauri-apps/plugin-clipboard-manager": "2.3.2"
-    "@tauri-apps/plugin-dialog": "^2.0.0"
+    "@tauri-apps/plugin-dialog": "2.7.2"
     "@tauri-apps/plugin-fs": "2.5.1"
     "@tauri-apps/plugin-global-shortcut": "2.3.2"
     "@tauri-apps/plugin-notification": "2.3.3"
     "@tauri-apps/plugin-process": "2.3.1"
     "@tauri-apps/plugin-shell": "2.3.5"
-
-  testing:
-    "@playwright/test": "^1.58.0"
-    "@testing-library/dom": "^10.4.0"
-    "@testing-library/jest-dom": "^6.9.0"
-    "@testing-library/react": "^16.3.0"
-    "@testing-library/user-event": "^14.6.1"
-    jsdom: "^27.0.0"
-    vitest: "4.1.10"
 
 includeWorkspaceRoot: true
 
