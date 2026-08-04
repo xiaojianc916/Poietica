@@ -55,6 +55,29 @@ function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
 }
 
 /**
+ * 这张卡片此刻画得出东西吗。
+ *
+ * 不是「它跑完了吗」,也不是「它成功了吗」—— 是抽屉里现在有没有内容。自动展开该由
+ * 这件事决定:上游对多数工具不回传过程（toolProgressToSessionUpdate 只把 status 文本
+ * 拿去覆盖标题,stdout / stderr / progress 一概不发）,那些卡片运行期摊开的是一片空白。
+ *
+ * 而终端类恰恰相反:上游把 content 清空是因为输出走 terminal/* 反向 RPC,那是全场唯一
+ * 有实时内容的一类。所以判据不能是「在跑就不给看」—— 那会把唯一值得看的那一类关掉。
+ *
+ * toToolCallView 按 content 数组做记忆化（VIEWS 那张 WeakMap）,所以这里重算一次不额外
+ * 花钱;条件与抽屉里那两个分支读的是同一份东西,不会出现「开了但里面什么都没有」。
+ */
+function revealsProgress(item: ToolCallTimelineItem): boolean {
+  if (toToolCallView(item.content).parts.length > 0) {
+    return true
+  }
+
+  const brief = readSubAgent(item.rawInput)
+
+  return brief !== null && brief.task.length > 0
+}
+
+/**
  * One tool call, from the moment it is announced to the moment it settles.
  *
  * The title is the agent's own words and changes as work proceeds — Kimi sends
@@ -100,14 +123,16 @@ export function ToolCallCard({
    * 思考链传的是 isStreaming，这里传 isRunning：同一个 useDisclosure、同一个
    * DisclosureBody、同一个轴。
    *
-   * 活着就开着，落定就收起，异常落定也是落定。人点过之后不再自动动：override
+   * 活着而且真有东西可看才开着，落定就收起，异常落定也是落定。上游对多数工具不
+   * 回传过程，一张空抽屉自动摊开只是占版面 —— 但按钮不锁：想看的人点开会看到那句
+   * 诚实的话，那不是空白，是信息。人点过之后不再自动动：override
    * 一旦落下就压过这个默认值，那是 useDisclosure 的语义，不在这里重述第二遍。
    *
    * 失败不再自动摊开。理由不是不重要，是它不该由一张永久展开的卡片来承担：
    * 标题栏上那枚失败图标是常驻记号，点开才是一次动作 —— Claude Code、Cursor、
    * Zed 的工具卡片都是这么收的。
    */
-  const { isOpen, toggle } = useDisclosure(isRunning)
+  const { isOpen, toggle } = useDisclosure(isRunning && revealsProgress(item))
   /* content 里装的已经是产出：入参回显在投影层就没进来（acp-projection）。 */
   const { diffStat, parts } = toToolCallView(item.content)
 
