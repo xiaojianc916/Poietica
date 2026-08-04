@@ -13,6 +13,7 @@ import type {
   AcpContentBlock,
   AcpSessionUpdate,
   AcpStopReason,
+  AcpToolCallContent,
   RunEvent,
   RunStatus,
 } from '@poietica/acp'
@@ -259,6 +260,11 @@ function upsertToolCall(
   const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
   const rawInput = 'rawInput' in update ? update.rawInput : held?.rawInput
   const rawOutput = 'rawOutput' in update ? update.rawOutput : held?.rawOutput
+  /* 协议里 null 是「清空」、undefined 是「这一帧没提」。这里保持本文件原有的读法
+     （两者都退回已有内容），这次改动不顺手改它的语义。 */
+  const said = update.content ?? undefined
+  const content =
+    said === undefined ? (held?.content ?? []) : withoutArgumentEcho(said, rawInput, status)
 
   const next: ToolCallTimelineItem = {
     type: 'tool_call',
@@ -270,7 +276,7 @@ function upsertToolCall(
     title: update.title ?? held?.title ?? update.toolCallId,
     kind: update.kind ?? held?.kind ?? 'other',
     status,
-    content: update.content ?? held?.content ?? [],
+    content,
     locations: update.locations ?? held?.locations ?? [],
     startedAt: held?.startedAt ?? at,
     ...(rawInput === undefined ? {} : { rawInput }),
@@ -285,6 +291,73 @@ function upsertToolCall(
   }
 
   draft.items[position] = next
+}
+
+/**
+ * 一次调用的入参，按上游的写法字符串化。
+ *
+ * 上游用的是 JSON.stringify(args)（kimi-code 的 events-map.ts:stringifyArgs），而
+ * rawInput 就是同一份 args 解析回来的对象 —— JSON 往返保留键序，所以两边算出来是
+ * 同一个字符串。它那边 stringify 抛错时退回 String(args)，这里不跟：认不出就不认，
+ * 宁可多留一段，不肯错藏一段真产出。
+ */
+function encode(value: unknown): string | null {
+  try {
+    const text = JSON.stringify(value)
+
+    return text === undefined ? null : text
+  } catch {
+    return null
+  }
+}
+
+function isEcho(entry: AcpToolCallContent, echo: string): boolean {
+  if (entry.type !== 'content') {
+    return false
+  }
+
+  const block = entry.content
+
+  return block.type === 'text' && block.text.length > 0 && echo.startsWith(block.text)
+}
+
+/**
+ * 摘掉入参回显。
+ *
+ * 协议把这两件事分成两格，措辞是逐字的：content 是「Content produced by the tool
+ * call」，rawInput 是「Raw input parameters sent to the tool」。而上游建卡时就把入参
+ * 的 JSON 全文写进 content，流式期间还逐帧替换成累积的片段 —— 它自己的注释管这叫
+ * degraded preview。那不是这次调用的产出，是我们已经拿在手里的 rawInput 的一份降级
+ * 重复：留着它，「这次调用产出了什么」这个问题在整个读模型里就永远得不到直答。
+ *
+ * 判据是「它是入参字符串化结果的前缀」，所以流到一半的未闭合片段一样认得出。终态
+ * 之后不再摘：那时 content 已被结果帧整份替换，一个把入参回显成输出的工具，那段文
+ * 本是真的产出。终态的判据借 isTerminal，本文件里只有那一份。
+ *
+ * 这与上面 upsertToolCall 里那句「要显示什么由帧说了算，这一层不猜」不冲突：那句话
+ * 反对的是发明语义（把旧 diff 往新 content 前面拼），这里做的是一次可判定的相等比较。
+ * 而且帧原样留在事件日志里 —— 事实来源没有被改写，判错了可以重放回来。
+ *
+ * 什么都没摘就交回原来那个数组：引用稳定是下游记忆化的前提。
+ */
+export function withoutArgumentEcho(
+  content: readonly AcpToolCallContent[],
+  rawInput: unknown,
+  status: ToolCallTimelineItem['status'],
+): readonly AcpToolCallContent[] {
+  if (rawInput === undefined || isTerminal(status)) {
+    return content
+  }
+
+  const echo = encode(rawInput)
+
+  if (echo === null) {
+    return content
+  }
+
+  const kept = content.filter((entry) => !isEcho(entry, echo))
+
+  return kept.length === content.length ? content : kept
 }
 
 /**

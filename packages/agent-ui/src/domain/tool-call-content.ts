@@ -1,4 +1,4 @@
-import type { AcpToolCallContent, AcpToolCallStatus } from '@poietica/acp'
+import type { AcpToolCallContent } from '@poietica/acp'
 import { diffLines } from 'diff'
 
 /**

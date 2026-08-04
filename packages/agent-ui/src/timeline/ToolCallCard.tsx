@@ -1,6 +1,6 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { readSubAgent, type SubAgentBrief } from '../domain/sub-agent'
-import { toToolCallView, withoutArgumentEcho } from '../domain/tool-call-content'
+import { toToolCallView } from '../domain/tool-call-content'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -107,13 +107,8 @@ export function ToolCallCard({
    * Zed 的工具卡片都是这么收的。
    */
   const { isOpen, toggle } = useDisclosure(isRunning)
-  /*
-   * 抽屉里画的是产出，不是入参。
-   *
-   * 上游建卡时就把入参的 JSON 全文写进了 content —— 那是同一份 rawInput 的降级重复。
-   * 摘掉它之后，运行期的空抽屉是真的空，那句「还在运行，暂时没有输出」才成立。
-   */
-  const { diffStat, parts } = withoutArgumentEcho(toToolCallView(item.content), item)
+  /* content 里装的已经是产出：入参回显在投影层就没进来（acp-projection）。 */
+  const { diffStat, parts } = toToolCallView(item.content)
 
   /*
    * 这次调用是不是一次子代理派发。
