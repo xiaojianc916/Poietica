@@ -45,7 +45,7 @@ export function useDockClearance(): (node: HTMLElement | null) => void {
       }
 
       written = height
-      surface.style.setProperty(CLEARANCE, height + 'px')
+      surface.style.setProperty(CLEARANCE, `${height}px`)
     })
 
     observer.observe(node)

@@ -28,9 +28,9 @@ export interface ExternalStoreSource<T> {
    * 第一个订阅者到来时把真实来源接上，交回断开它的方法。
    *
    * 末个订阅者离开时调用那个方法。没有真实来源要接（值只由本模块自己写）
-   * 时不必给。
+   * 时不必给，也可以交回 undefined。
    */
-  readonly activate?: (notify: () => void) => (() => void) | void
+  readonly activate?: (notify: () => void) => (() => void) | undefined
 }
 
 export function createExternalStore<T>(source: ExternalStoreSource<T>): ExternalStore<T> {
@@ -48,7 +48,7 @@ export function createExternalStore<T>(source: ExternalStoreSource<T>): External
     listeners.add(listen)
 
     if (listeners.size === 1) {
-      detach = source.activate?.(notify) ?? undefined
+      detach = source.activate?.(notify)
     }
 
     return () => {

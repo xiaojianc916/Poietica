@@ -316,9 +316,6 @@ export function PromptInput({
             <form
               className={cx('assistant-prompt-input', className)}
               data-slot="prompt-input"
-              /* 展开排在四个处理器之前：调用方补充 props，但不静默顶掉这张卡
-                 自己的行为 —— 和下面的 ref 同一条规矩。 */
-              {...props}
               onKeyDown={onFormKeyDown}
               onMouseDown={onFormMouseDown}
               onPaste={(event) => {
