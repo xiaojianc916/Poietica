@@ -16,9 +16,8 @@ export {
   parseAcpAgentProfileSet,
   reconcileAcpAgentProfiles,
 } from './acp-agent-profile'
-export type { AcpAgentDescriptor, AcpAgentId } from './acp-agents'
-export { acpAgentById, acpAgents, defaultAcpAgent } from './acp-agents'
-export { kimiCode } from './agents/kimi'
+export type { AcpAgentDescriptor } from './acp-agents'
+export { acpAgentById, acpAgents } from './acp-agents'
 /*
  * 这里曾导出 model-catalog 与 model-provider-profile 两组符号。两个模块都删了。
  *

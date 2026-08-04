@@ -1,6 +1,6 @@
 import * as v from 'valibot'
 import type { AcpAgentDescriptor } from './acp-agent-contract'
-import { acpAgents, defaultAcpAgent } from './acp-agents'
+import { acpAgents } from './acp-agents'
 
 /** 会话配置值。对应 ACP 的 ConfigOption currentValue（string | boolean）。 */
 export type AgentConfigOptionValue = string | boolean
@@ -269,14 +269,26 @@ export function acpAgentLaunch(agent: AcpAgentDescriptor): AcpAgentLaunch {
  *
  * 它不再从描述符里抄七个字段过来 —— 那些字段现在只有一个产地。
  */
-export function builtinAcpAgentProfiles(): readonly AcpAgentProfile[] {
-  return acpAgents().map((agent) => {
-    return { id: agent.id, cwd: undefined, env: {}, defaultConfigOptions: {} }
+export function builtinAcpAgentProfiles(): readonly [AcpAgentProfile, ...AcpAgentProfile[]] {
+  const blank = (agent: AcpAgentDescriptor): AcpAgentProfile => ({
+    id: agent.id,
+    cwd: undefined,
+    env: {},
+    defaultConfigOptions: {},
   })
+  const [first, ...rest] = acpAgents()
+
+  return [blank(first), ...rest.map(blank)]
 }
 
+/*
+ * 内置档案集。默认 id 由这一份档案自己的第一条推出 —— 此前它再去查一次名单，
+ * 于是「默认哪一家」同时被名单顺序和档案集定义，两个产地。
+ */
 export function builtinAcpAgentProfileSet(): AcpAgentProfileSet {
-  return { profiles: builtinAcpAgentProfiles(), defaultProfileId: defaultAcpAgent().id }
+  const profiles = builtinAcpAgentProfiles()
+
+  return { profiles, defaultProfileId: profiles[0].id }
 }
 
 /** 一次物化的结果。changed 为真表示磁盘上那份与名单不一致。 */

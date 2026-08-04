@@ -122,10 +122,6 @@ export interface AgentConfigBridge {
   /** 改写受控 home 里的 default_model。为什么不借 agent 的 CLI，见生成绑定里 agentSetDefaultModel。 */
   readonly saveDefaultModel: (agentId: string, alias: string) => Promise<void>
   /**
-   * 拿一把刚收到的密钥问那家厂商认不认。不写任何东西，所以不进 inOrder 的队列 ——
-   * 它既不改 config.toml，也不该被一次几秒的写入挡在后面。
-   */
-  /**
    * 这个 agent 的运行时装了没有、是不是最新。
    *
    * force 为假时命中原生侧 24 小时内的缓存，既不起进程也不走网络，界面可以随便调。
@@ -133,6 +129,10 @@ export interface AgentConfigBridge {
   readonly loadInstallStatus: (agentId: string, force: boolean) => Promise<AgentInstallStatus>
   /** 安装或更新这个 agent 的运行时，完成后返回新的状态。 */
   readonly runInstall: (agentId: string) => Promise<AgentInstallStatus>
+  /**
+   * 拿一把刚收到的密钥问那家厂商认不认。不写任何东西，所以不进 inOrder 的队列 ——
+   * 它既不改 config.toml，也不该被一次几秒的写入挡在后面。
+   */
   readonly verifyProviderKey: (baseUrl: string, secret: string) => Promise<ProviderProbeOutcome>
 }
 

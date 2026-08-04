@@ -11,24 +11,22 @@ export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contrac
  *
  * 接第 N 家 = 新增一个 agents/<name>.ts，然后在这张表里加一行。通用层一个字
  * 都不用改；如果改了，就说明还没解耦干净。
+ *
+ * 类型是非空元组，不是数组：「一家都没有」在编译期就不成立，所以这里没有一句
+ * 运行期的「no ACP agent is registered」要写。此前那句 throw 防的是一个类型
+ * 本来就该排除的状态。
+ *
+ * 这里也不再由名单推出一个字面量 id 类型。那种类型今天恒等于 'kimi'，而它的
+ * 运行期同伴 acpAgentById 收的是 string —— 编译期认为世界上只有一家、运行期
+ * 认为可以有任意家，两套判据不一致。地址就是 string，唯一判据是查表。
+ *
+ * 也不再有 defaultAcpAgent：「默认哪一家」是用户在这台机器上的选择，产地是
+ * 档案集的 defaultProfileId（见 acp-agent-profile.ts），不是名单的顺序。
  */
-const AGENTS = [kimiCode] as const satisfies readonly AcpAgentDescriptor[]
+const AGENTS = [kimiCode] as const satisfies readonly [AcpAgentDescriptor, ...AcpAgentDescriptor[]]
 
-/** 名单里的 id，由名单本身推出来，不另抄一份常量。 */
-export type AcpAgentId = (typeof AGENTS)[number]['id']
-
-export function acpAgents(): readonly AcpAgentDescriptor[] {
+export function acpAgents(): readonly [AcpAgentDescriptor, ...AcpAgentDescriptor[]] {
   return AGENTS
-}
-
-export function defaultAcpAgent(): AcpAgentDescriptor {
-  const first = AGENTS[0]
-
-  if (first === undefined) {
-    throw new Error('no ACP agent is registered')
-  }
-
-  return first
 }
 
 /** 按 id 取档案。名单封闭，取不到不是常态，所以由调用方决定怎么处置。 */
