@@ -14,6 +14,7 @@ import {
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
 import { Prose } from './Prose'
+import { ToolDuration } from './ToolDuration'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
   const className = 'timeline-tool__icon'
@@ -120,6 +121,8 @@ export function ToolCallCard({
           </span>
         )}
 
+        <ToolDuration isRunning={isRunning} item={item} />
+
         {isRunning ? <SpinnerIcon aria-hidden="true" className="timeline-tool__spinner" /> : null}
 
         {/*
@@ -153,8 +156,17 @@ export function ToolCallCard({
             </ul>
           ) : null}
 
+          {/*
+           * 空的原因有两种，此前只说了一种。
+           *
+           * 「没有返回内容」对一个还在跑的调用是假的：它不是没返回，是还没返回。
+           * 子代理这一路尤其明显 —— 上游不回传子代理的过程，那张卡片整段运行期
+           * 都是空的，于是这句话会在屏幕上挂着好几分钟。
+           */}
           {parts.length === 0 ? (
-            <p className="timeline-tool__empty">这次调用没有返回内容。</p>
+            <p className="timeline-tool__empty">
+              {isRunning ? '还在运行，暂时没有输出。' : '这次调用没有返回内容。'}
+            </p>
           ) : null}
 
           {parts.map((part, index) => {

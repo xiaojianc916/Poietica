@@ -9,22 +9,21 @@
  * 不按经过毫秒算：凌晨 00:30 看昨晚 23:00 的对话，经过时间不足一天，但它属于昨天。
  */
 
-const MINUTE = 60_000
-const HOUR = 3_600_000
-const DAY = 86_400_000
+import { DAY, HOUR, MINUTE, narrowUnit } from '../domain/duration'
 
 /* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
 
-/* 其余各档是时长：只有数量和单位，没有方向。 */
+/*
+ * 其余各档是时长：只有数量和单位，没有方向。
+ *
+ * 格式器与毫秒常量都在 domain/duration —— 工具卡上的耗时读的是同一份。这三行
+ * 此前是就地现造的 NumberFormat，与那边逐字相同。
+ */
 const elapsed = {
-  day: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'day', unitDisplay: 'narrow' }),
-  hour: new Intl.NumberFormat(undefined, { style: 'unit', unit: 'hour', unitDisplay: 'narrow' }),
-  minute: new Intl.NumberFormat(undefined, {
-    style: 'unit',
-    unit: 'minute',
-    unitDisplay: 'narrow',
-  }),
+  day: narrowUnit('day'),
+  hour: narrowUnit('hour'),
+  minute: narrowUnit('minute'),
 }
 const sameYear = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 const otherYear = new Intl.DateTimeFormat(undefined, {
