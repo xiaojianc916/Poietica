@@ -668,21 +668,21 @@ pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> 
 /// 这一条已经作废的连接 —— 此前它是全进程唯一的那一份，一次这样的退出会让
 /// 下一条连接的第一轮撞上 Refusal::Busy，而屏幕上那句话答的是另一个问题。
 fn retire(taken: Option<Connection>) {
-    let Some(live) = taken else {
+    let Some(gone) = taken else {
         return;
     };
 
     // The process is going away either way, so a driver that already
     // stopped is not an error worth reporting.
-    let _ignored = live.client.shutdown();
+    let _ignored = gone.client.shutdown();
 
     /* 拿出来就丢掉。RunSlot::take 的文档写的是把这一位交回去、好让它自己
     收尾，而丢掉正是让它收尾。 */
-    let _abandoned = live.slot.take();
+    let _abandoned = gone.slot.take();
 
-    live.desk.clear();
+    gone.desk.clear();
 
-    if let Ok(mut known) = live.known.lock() {
+    if let Ok(mut known) = gone.known.lock() {
         known.clear();
     }
 }
@@ -894,8 +894,6 @@ struct Handle {
     can_load_session: bool,
     /// 这个 agent 会不会删掉一条会话。删除要按它分路。
     can_delete_session: bool,
-    /// 这条连接锚会话的记录槽。
-    slot: RunSlot,
     /// 这条连接的权限台。
     desk: PermissionDesk,
     /// 这条连接认得的会话号。
@@ -1045,7 +1043,6 @@ async fn ensure_session(
         anchor: session_id.clone(),
         can_load_session,
         can_delete_session,
-        slot,
         desk,
         known,
     };
@@ -1066,7 +1063,6 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
         anchor: live.anchor.clone(),
         can_load_session: live.can_load_session,
         can_delete_session: live.can_delete_session,
-        slot: live.slot.clone(),
         desk: live.desk.clone(),
         known: Arc::clone(&live.known),
     }))
