@@ -1,6 +1,6 @@
 import './styles/assistant.css'
 
-import { Edit, ExternalLink, Trash } from '@mynaui/icons-react'
+import { ChevronRight, Edit, ExternalLink, Trash } from '@mynaui/icons-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +11,21 @@ import {
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
 import { useHorizon, useNow } from './threads/clock'
-import { datedOf, nextChangeIn, sectionsOf } from './threads/sections'
+import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './threads/relative-time'
+import { toggleWorkspace, useCollapsedWorkspaces } from './threads/workspace-collapse'
 
 /*
  * 会话列表。
+ *
+ * 一级索引是**工作区**。此前是时间桶（今天／昨天／过去 7 天／过去 30 天／更早）：
+ * 那是个人聊天机器人的信息架构，它假设「什么时候说的」是找回一条对话的主线索。
+ * 对着一个工作目录干活的 agent 客户端不是这样 —— 主线索是「在哪个项目里」，
+ * 时间退回它本来的位置：行尾那一格的元数据。于是同一件事不再说两遍（组头写
+ * 「昨天」、行尾又写「1天」）。
+ *
+ * 分组不在这一层算。它是次序规则的一部分，住在 agent-session 的 thread-order，
+ * 与库那条 ORDER BY 同源；这一层只把分好的组画出来，并且只管两件视图自己的事：
+ * 哪些组是收起来的，每组已经展开到第几条。
  *
  * 一行是一个组件。此前整行——重命名表单、时间格、固定按钮、四项菜单——都摊在
  * 父组件 map 的匿名回调里，于是列表没有可比较的边界：时钟每跳一次、草稿每多
@@ -29,7 +40,8 @@ import { datedOf, nextChangeIn, sectionsOf } from './threads/sections'
  * 的 aria-expanded：那个属性在关闭动画的第一帧就落回 false，比弹层早消失一拍。
  *
  * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
- * 不在数据库里先造一条没人说过话的会话。
+ * 不在数据库里先造一条没人说过话的会话。组头上那一枚多带一个工作区，面板上
+ * 那一枚不带 —— 不带就是「当前那个」，由宿主回答，这一层不猜。
  */
 
 export interface AssistantThreadSummary {
@@ -39,20 +51,28 @@ export interface AssistantThreadSummary {
    * 最后一次活动的时刻，ISO-8601。
    *
    * 传时刻而不是传算好的文案：文案随墙上时间变化，只有持有时钟的这一层
-   * 才有资格算它。分段同理，它是文案的另一种切法，不是上游的数据。
+   * 才有资格算它。
    */
   readonly updatedAt: string
   readonly isMuted?: boolean
   readonly isPinned?: boolean
 }
 
+/** 一个工作区，以及它下面的对话。次序由上游定好，这一层不重排。 */
+export interface AssistantThreadWorkspaceGroup {
+  readonly id: string
+  readonly name: string
+  readonly items: readonly AssistantThreadSummary[]
+}
+
 export interface AssistantThreadListProps {
-  readonly threads: readonly AssistantThreadSummary[]
+  readonly groups: readonly AssistantThreadWorkspaceGroup[]
   /** True while the list is still being read for the first time. */
   readonly isLoading?: boolean
   readonly activeThreadId: string | null
   readonly onActivate: (threadId: string) => void
-  readonly onCreate: () => void
+  /** 不点名工作区就是「当前那个」，由宿主决定。 */
+  readonly onCreate: (workspaceId?: string) => void
   readonly onPin: (threadId: string, pinned: boolean) => void
   readonly onRename?: (threadId: string, title: string) => void
   readonly onDelete?: (threadId: string) => void
@@ -61,6 +81,17 @@ export interface AssistantThreadListProps {
 
 /** Widths that make the skeleton read as a list rather than as a bar. */
 const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
+
+/*
+ * 一组先画多少条。
+ *
+ * 侧栏不是归档界面：一个长期用着的工作区能攒上几百条，一次全画出来只会把其余
+ * 工作区推到屏幕之外。标杆客户端在这里给的是一枚「更多」，每按一次多给一页 ——
+ * 增量展开，而不是分页跳转，因为这一列没有「第 2 页」这种位置感。
+ */
+const PAGE = 10
+
+const NO_PAGES: ReadonlyMap<string, number> = new Map()
 
 /*
  * 固定与取消固定是同一枚图钉的两种填法。
@@ -370,7 +401,7 @@ const ThreadRow = memo(function ThreadRow({
 })
 
 export function AssistantThreadList({
-  threads,
+  groups,
   isLoading,
   activeThreadId,
   onActivate,
@@ -387,18 +418,40 @@ export function AssistantThreadList({
    */
   const now = useNow()
 
-  /* 两级投影：时刻与绝对文案只随数据变，相对文案与分段才随时钟变。 */
-  const dated = useMemo(() => datedOf(threads), [threads])
-  const groups = useMemo(() => sectionsOf(dated, now), [dated, now])
+  /* 两级投影：时刻与绝对文案只随数据变，相对文案才随时钟变。 */
+  const dated = useMemo(() => datedGroupsOf(groups), [groups])
+  const painted = useMemo(() => paintedGroupsOf(dated, now), [dated, now])
 
-  /* 期限从分好段的结果上求 —— 时刻在上面那一趟里已经解析过了。 */
-  useHorizon(nextChangeIn(groups, now))
+  /* 期限从解析好的时刻上求 —— 它与分组维度无关，所以只认一串数字。 */
+  const instants = useMemo(() => instantsOf(dated), [dated])
+
+  useHorizon(nextChangeIn(instants, now))
+
   const [renamingId, setRenamingId] = useState<string | null>(null)
+
+  /*
+   * 收起来的工作区，与每组展开到第几条。
+   *
+   * 两份状态都放在这一层，不放在组头里：map 里开不了 hook，而组的身份会随
+   * 数据增删变化 —— 状态跟着组件走就会在重挂载时丢。收起来那一份还要跨窗口
+   * 与重启存活，因此它住在 threads/workspace-collapse 的外部 store 里。
+   */
+  const collapsed = useCollapsedWorkspaces()
+  const [shown, setShown] = useState<ReadonlyMap<string, number>>(NO_PAGES)
+
+  const showMore = useCallback((workspaceId: string) => {
+    setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? PAGE) + PAGE))
+  }, [])
+
+  /* 面板上那一枚加号不点名工作区：不点名就是「当前那个」。 */
+  const create = useCallback(() => {
+    onCreate()
+  }, [onCreate])
 
   /*
    * 首帧给出行的形状，不给结论。
    *
-   * "还没有会话"是一个只有读完才成立的断言，把它当加载态显示，等于每次
+   * "还没有对话"是一个只有读完才成立的断言，把它当加载态显示，等于每次
    * 开窗都先告诉用户一件错误的事。骨架行是列表类界面的通行做法。
    */
   const showPlaceholders = isLoading === true && groups.length === 0
@@ -428,12 +481,12 @@ export function AssistantThreadList({
   return (
     <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
       <header className="assistant-threads__header">
-        <span className="assistant-threads__caption">会话</span>
+        <span className="assistant-threads__caption">工作区</span>
 
         <button
           aria-label="新建对话"
           className="assistant-threads__create"
-          onClick={onCreate}
+          onClick={create}
           title="新建对话"
           type="button"
         >
@@ -452,35 +505,97 @@ export function AssistantThreadList({
       ) : null}
 
       {!showPlaceholders && groups.length === 0 ? (
-        <p className="assistant-threads__empty">还没有会话。</p>
+        <p className="assistant-threads__empty">还没有对话。</p>
       ) : null}
 
-      {groups.map((section) => (
-        <section className="assistant-threads__group" key={section.id}>
-          <span className="assistant-threads__caption">{section.label}</span>
+      {painted.map((group) => {
+        const isOpen = !collapsed.has(group.id)
+        const limit = shown.get(group.id) ?? PAGE
+        const members = group.members.slice(0, limit)
+        const rest = group.members.length - members.length
+        const createLabel = `在${group.name}中新建对话`
 
-          <ul className="assistant-threads__list">
-            {section.members.map(({ absolute, elapsed, thread }) => (
-              <ThreadRow
-                absolute={absolute}
-                canRename={onRename !== undefined}
-                elapsed={elapsed}
-                isActive={thread.id === activeThreadId}
-                isRenaming={thread.id === renamingId}
-                key={thread.id}
-                onActivate={onActivate}
-                onBeginRename={beginRename}
-                onCancelRename={cancelRename}
-                onCommitRename={commitRename}
-                onDelete={onDelete}
-                onOpenInNewTab={onOpenInNewTab}
-                onPin={onPin}
-                thread={thread}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+        return (
+          <section className="assistant-threads__group" key={group.id}>
+            {/*
+                组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以
+                aria-expanded 说的是下面那张列表在不在，而不是它自己的样子。
+              */}
+            <div className="assistant-threads__group-header">
+              <button
+                aria-expanded={isOpen}
+                className="assistant-threads__toggle"
+                onClick={() => {
+                  toggleWorkspace(group.id)
+                }}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  className="assistant-threads__chevron"
+                  data-open={isOpen ? 'true' : undefined}
+                >
+                  <ChevronRight aria-hidden="true" />
+                </span>
+
+                <span className="assistant-threads__name">{group.name}</span>
+
+                {/* 条数说的是整组，不是当前展开的那几条。 */}
+                <span className="assistant-threads__count">{group.members.length}</span>
+              </button>
+
+              <button
+                aria-label={createLabel}
+                className="assistant-threads__create"
+                onClick={() => {
+                  onCreate(group.id)
+                }}
+                title={createLabel}
+                type="button"
+              >
+                <PlusIcon aria-hidden="true" />
+              </button>
+            </div>
+
+            {isOpen ? (
+              <>
+                <ul className="assistant-threads__list">
+                  {members.map(({ absolute, elapsed, thread }) => (
+                    <ThreadRow
+                      absolute={absolute}
+                      canRename={onRename !== undefined}
+                      elapsed={elapsed}
+                      isActive={thread.id === activeThreadId}
+                      isRenaming={thread.id === renamingId}
+                      key={thread.id}
+                      onActivate={onActivate}
+                      onBeginRename={beginRename}
+                      onCancelRename={cancelRename}
+                      onCommitRename={commitRename}
+                      onDelete={onDelete}
+                      onOpenInNewTab={onOpenInNewTab}
+                      onPin={onPin}
+                      thread={thread}
+                    />
+                  ))}
+                </ul>
+
+                {rest > 0 ? (
+                  <button
+                    className="assistant-threads__more"
+                    onClick={() => {
+                      showMore(group.id)
+                    }}
+                    type="button"
+                  >
+                    更多
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+          </section>
+        )
+      })}
     </nav>
   )
 }

@@ -13,6 +13,13 @@ import { useThreadsActions, useThreadsList } from '../../application/ai/threads-
  * 此前这里每次渲染都 map 出一批新对象，五个回调全是内联箭头，于是行组件
  * 上的 memo 一次都没有命中过：时钟跳一下、上游任何一个 store 动一下，整张
  * 列表连同每一行各自持有的菜单根都要重建。
+ *
+ * 分组同理不在这里算：它由 useThreadsList 一次性派生好，引用随数据走。
+ *
+ * onCreate 原样往下传，不按工作区分岔。加号点在哪个组头上，开出来的对话都
+ * 落在当前那个工作目录里 —— 因为运行期只有一个（桌面侧建对话桥不传 cwd）。
+ * 等原生侧真的逐条记下目录，这里才有第二个答案可给；在那之前多接一层只会
+ * 让界面承诺一件它做不到的事。
  */
 
 export interface AssistantSidebarPanelProps {
@@ -41,7 +48,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   onOpenInNewTab,
 }: AssistantSidebarPanelProps) {
   const threads = useThreadsActions()
-  const { isLoading, items } = useThreadsList()
+  const { groups, isLoading } = useThreadsList()
 
   const activate = useCallback(
     (threadId: string) => {
@@ -81,6 +88,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   return (
     <AssistantThreadList
       activeThreadId={activeThreadId}
+      groups={groups}
       isLoading={isLoading}
       onActivate={activate}
       onCreate={onCreate}
@@ -88,7 +96,6 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
       onOpenInNewTab={openInNewTab}
       onPin={pin}
       onRename={rename}
-      threads={items}
     />
   )
 })

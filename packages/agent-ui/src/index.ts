@@ -3,7 +3,11 @@ export { AssistantComposer } from './AssistantComposer'
 export { AssistantQuickActions } from './AssistantQuickActions'
 export type { AssistantSurfaceProps } from './AssistantSurface'
 export { AssistantSurface } from './AssistantSurface'
-export type { AssistantThreadListProps, AssistantThreadSummary } from './AssistantThreadList'
+export type {
+  AssistantThreadListProps,
+  AssistantThreadSummary,
+  AssistantThreadWorkspaceGroup,
+} from './AssistantThreadList'
 export { AssistantThreadList } from './AssistantThreadList'
 export type { AttachmentIntake, ComposerAsset } from './composer/attachment-intake'
 export { installAttachmentIntake } from './composer/attachment-intake'
