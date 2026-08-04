@@ -76,6 +76,23 @@ export const kimiCode = {
    * 首行就把子代理的请求滤掉了。证据见 docs/adr/0004。
    */
   args: ['acp-v2'],
+  /*
+   * 这个子命令要开关才存在，所以它和上面那个参数是同一个决定的两半。
+   *
+   * 上游 apps/kimi-code/src/cli/commands.ts 逐字 import { isAcpV2Enabled }，只有
+   * 它为真时才 registerAcpV2Command；判据在 cli/experimental-v2.ts 逐字：
+   *   const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on']);
+   *   isAcpV2Enabled = isTruthyEnv(KIMI_ACP_V2_ENV, env) || isKimiV2Enabled(env);
+   * 它自己的测试也是这么写的：'registers acp-v2 when the experimental flag is
+   * enabled'。开关不开时 commander 报的是 unknown command 'acp-v2' —— 那句话看
+   * 起来像「这个版本没有它」，实际是「它没被注册」。
+   *
+   * 用专用开关，不用总闸 KIMI_CODE_EXPERIMENTAL_FLAG：后者的注释逐字说它会让
+   * kimi -p 改道 v2 runner、TUI 换成 v2 harness、doctor 改用 v2 的 section
+   * registry，并且 'also enables every experimental feature flag in the engine'。
+   * 我们要的只是这一个子命令，多开的每一样都是我们没验过的行为。
+   */
+  launchEnv: { KIMI_CODE_EXPERIMENTAL_ACP_V2: '1' },
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',

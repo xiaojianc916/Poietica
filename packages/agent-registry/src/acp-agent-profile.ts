@@ -238,6 +238,38 @@ export function parseAcpAgentProfileSet(input: unknown): AcpAgentProfileSetParse
   return { value: { profiles, defaultProfileId }, issues, fallback: false }
 }
 
+/**
+ * 这一家在启动时必须带上的变量，来自二进制里的档案。
+ *
+ * 原生侧读的是磁盘上那条档案的 env（commands/agent_config.rs 的
+ * declared_env_of → launch_env），所以二进制里声明的值要生效，就得出现在那张表
+ * 里。值仍然只有一个产地：下面两个函数都从描述符取，谁都不抄。
+ */
+function launchEnvOf(agentId: string): Readonly<Record<string, string>> {
+  return acpAgents().find((agent) => agent.id === agentId)?.launchEnv ?? {}
+}
+
+/**
+ * 让一条落盘档案的 env 与二进制对齐。
+ *
+ * 二进制的值压过用户手写的同名键，判据与原生侧那一行相同：launch_env_inner 让
+ * 受控 home 后进去、压过 declared_env_of，因为「用户在 env 里手写的可能根本不
+ * 成立」。这里的情形更强 —— 把 acp-v2 的开关关掉，agent 直接起不来。
+ *
+ * 已经一致时原样返回同一个对象。调用方靠引用是否变化判断要不要物化，复制一份
+ * 会让每次启动都报「档案变了」并白写一次磁盘。
+ */
+function withLaunchEnv(profile: AcpAgentProfile): AcpAgentProfile {
+  const required = launchEnvOf(profile.id)
+  const entries = Object.entries(required)
+
+  if (entries.every(([name, value]) => profile.env[name] === value)) {
+    return profile
+  }
+
+  return { ...profile, env: { ...profile.env, ...required } }
+}
+
 /** 起一个 agent 进程要说清的三件事。 */
 export interface AcpAgentLaunch {
   readonly agentId: string
@@ -273,7 +305,7 @@ export function builtinAcpAgentProfiles(): readonly [AcpAgentProfile, ...AcpAgen
   const blank = (agent: AcpAgentDescriptor): AcpAgentProfile => ({
     id: agent.id,
     cwd: undefined,
-    env: {},
+    env: { ...(agent.launchEnv ?? {}) },
     defaultConfigOptions: {},
   })
   const [first, ...rest] = acpAgents()
@@ -329,13 +361,24 @@ export function reconcileAcpAgentProfiles(
     return false
   })
 
+  /*
+   * 启动变量也要在这里对齐，不能只靠内置档案。
+   *
+   * 已经装过这个软件的机器上，agents.json 里那条档案早就写好了（env 是一张空
+   * 表），而内置档案只在磁盘上什么都没有时才顶上去。这个函数此前的注释说得很
+   * 清楚：「现在没有任何字段要比 —— 只剩名单本身要对齐」。那句话对用户拥有的
+   * 那几格成立，对二进制声明的这一格不成立 —— 它一旦缺席，agent 起不来。
+   */
+  const aligned = kept.map(withLaunchEnv)
+  const drifted = aligned.some((profile, index) => profile !== kept[index])
+
   const missing = builtinAcpAgentProfiles().filter(
-    (builtin) => !kept.some((one) => one.id === builtin.id),
+    (builtin) => !aligned.some((one) => one.id === builtin.id),
   )
 
   return {
-    profiles: [...kept, ...missing],
-    changed: issues.length > 0 || missing.length > 0,
+    profiles: [...aligned, ...missing],
+    changed: issues.length > 0 || missing.length > 0 || drifted,
     issues,
   }
 }
