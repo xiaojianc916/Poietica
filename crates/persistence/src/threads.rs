@@ -63,7 +63,8 @@ impl AgentStore {
     /// Records which agent session a thread is holding, and whose it is.
     ///
     /// 两件事一起写，因为分开写就有一瞬间是号在而人不在，而那正是这一列要
-    /// 消灭的状态。
+    /// 消灭的状态。迁移 0012 起这不再只是这里的自觉：库上有触发器，把号写进
+    /// 去而不写下主人会被直接拒。
     ///
     /// `updated_at` is left alone. Reopening a conversation from a previous
     /// run makes it take a fresh session, and a conversation last spoken in
@@ -240,7 +241,11 @@ pub struct ThreadSummary {
     pub id: String,
     /// The agent session it is holding, where it holds one.
     pub session_id: Option<String>,
-    /// 开出那个会话的 agent。这一列存在之前写下的行是空的。
+    /// 开出那个会话的 agent。
+    ///
+    /// 空值只有一个意思：这条对话还没有握住会话。上一格与这一格要么都有、
+    /// 要么都没有 —— 迁移 0012 把存量里「有号无主」的行补实，并用触发器堵住
+    /// 了再造出一行的路，所以拿会话号去选连接的人不必准备一条空值分支。
     pub agent_id: Option<String>,
     /// The name currently shown for it.
     pub title: String,

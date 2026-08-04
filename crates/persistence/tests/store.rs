@@ -108,7 +108,7 @@ fn a_session_is_stored_with_the_agent_that_opened_it() {
 }
 
 #[test]
-fn a_thread_written_before_the_column_existed_has_no_owner() {
+fn a_thread_holding_no_session_has_no_owner() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
@@ -117,6 +117,32 @@ fn a_thread_written_before_the_column_existed_has_no_owner() {
 
     assert_eq!(
         read.agent_id, None,
-        "还没有握住会话的对话不属于任何 agent，空值就是这个意思"
+        "空值只有一个意思：这条对话还没有握住会话（迁移 0012）"
+    );
+}
+
+/// 有号无主的行进不了库 —— 而且不是靠调用方自觉。
+///
+/// attach_session 两列一起写，所以走公开接口根本造不出这种行；这条测试要证的
+/// 是「就算绕过它也造不出来」，因为下一刀要按这条不变量去选连接。所以这里
+/// 直接开同一个库文件写原始 SQL：库自己拦，才叫库保证。
+#[test]
+fn a_session_without_an_owner_is_refused_by_the_database() {
+    let directory = TempDir::new().expect("temporary directory");
+    let path = database_path(&directory);
+
+    let store = AgentStore::open(&path).expect("open");
+    let thread = store.create_thread("thread").expect("thread");
+    drop(store);
+
+    let raw = rusqlite::Connection::open(&path).expect("open the same file");
+    let written = raw.execute(
+        "UPDATE threads SET session_id = 'session-a' WHERE id = ?1",
+        rusqlite::params![thread.to_string()],
+    );
+
+    assert!(
+        written.is_err(),
+        "会话号只在开出它的 agent 那里认得，所以库里不许有一行握着号却说不出主人"
     );
 }
