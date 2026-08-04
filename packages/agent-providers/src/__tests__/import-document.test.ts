@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  agentModelDisplayName,
-  agentProviderDefaultModelId,
-  agentProviderImportDocument,
-} from '../builtin-catalog'
+import { agentProviderDefaultModelId, agentProviderImportDocument } from '../agents/kimi/catalog'
+import { agentModelDisplayName } from '../builtin-catalog'
 import type { AgentProviderState } from '../provider-state'
 
 const provider: AgentProviderState = {

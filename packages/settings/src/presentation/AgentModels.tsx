@@ -1,10 +1,10 @@
 import {
+  type AgentCatalogCodec,
   type AgentModelState,
   type AgentProviderSnapshot,
+  agentCatalogCodec,
   agentModelDisplayName,
   agentProviderCatalogAddArgs,
-  agentProviderDefaultModelId,
-  agentProviderImportDocument,
   builtinAgentProviders,
   parseAgentProviderListOutput,
 } from '@poietica/agent-providers'
@@ -72,12 +72,13 @@ interface ImportFailure {
  */
 async function importOne(input: {
   readonly agentId: string
+  readonly codec: AgentCatalogCodec
   readonly defaultModelId: string | undefined
   readonly provider: AgentProviderSnapshot['providers'][number]
   readonly registryKeyVar: string
   readonly store: AgentConfigStore
 }): Promise<ImportFailure | undefined> {
-  const { agentId, defaultModelId, provider, registryKeyVar, store } = input
+  const { agentId, codec, defaultModelId, provider, registryKeyVar, store } = input
 
   try {
     const outcome = await store.execCli({
@@ -88,7 +89,7 @@ async function importOne(input: {
         ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
       }),
       secretVar: registryKeyVar,
-      catalogDocument: agentProviderImportDocument(provider),
+      catalogDocument: codec.importDocument(provider),
       secretFromGlobalProvider: provider.id,
     })
 
@@ -235,6 +236,17 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       return
     }
 
+    /*
+     * 目录写成什么形状归这一家的编解码器。缺席就是"说不出"，于是这次导入不发生 ——
+     * 与上面那条判据同构，也是我们对"这一家不支持"的统一处置。
+     */
+    const codec = agentCatalogCodec(agentId)
+
+    if (codec === undefined) {
+      setImportNote('这个 agent 没有声明该怎么写入 provider 目录，无法导入。')
+      return
+    }
+
     const usable = globalSnapshot.providers.filter((provider) => provider.configured)
 
     if (usable.length === 0) {
@@ -253,7 +265,7 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
      * 让最后一家赢，那是随机，不是选择。
      */
     const defaultModelOwner = usable.find(
-      (provider) => agentProviderDefaultModelId(provider) !== undefined,
+      (provider) => codec.defaultModelId(provider) !== undefined,
     )
 
     setImporting(true)
@@ -266,8 +278,9 @@ export function AgentModels({ store, agentId, registryKeyVar }: AgentModelsProps
       for (const provider of usable) {
         const failure = await importOne({
           agentId,
+          codec,
           defaultModelId:
-            provider === defaultModelOwner ? agentProviderDefaultModelId(provider) : undefined,
+            provider === defaultModelOwner ? codec.defaultModelId(provider) : undefined,
           provider,
           registryKeyVar,
           store,

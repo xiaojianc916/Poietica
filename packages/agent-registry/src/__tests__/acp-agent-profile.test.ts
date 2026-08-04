@@ -5,7 +5,7 @@ import {
   parseAcpAgentProfile,
   parseAcpAgentProfileSet,
 } from '../acp-agent-profile'
-import { acpAgentById, defaultAcpAgent } from '../acp-agents'
+import { acpAgentById, acpAgents } from '../acp-agents'
 
 /* 一份档案里现在只有用户自己的东西。 */
 const valid = {
@@ -114,7 +114,7 @@ describe('parseAcpAgentProfileSet', () => {
 
 describe('acpAgentLaunch', () => {
   it('把名单里的一家翻成 agentId 加 program 加 args', () => {
-    const agent = defaultAcpAgent()
+    const agent = acpAgents()[0]
 
     expect(acpAgentLaunch(agent)).toEqual({
       agentId: agent.id,
@@ -130,7 +130,7 @@ describe('acpAgentLaunch', () => {
    */
   it('带空格的绝对路径与反斜杠原样保留', () => {
     const launch = acpAgentLaunch({
-      ...defaultAcpAgent(),
+      ...acpAgents()[0],
       command: 'C:\\Program Files\\kimi\\kimi.exe',
       args: ['acp', '--cwd', 'C:\\my notes'],
     })

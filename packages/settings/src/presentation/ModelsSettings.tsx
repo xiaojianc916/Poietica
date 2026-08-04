@@ -1,9 +1,4 @@
-import {
-  type AcpAgentProfile,
-  acpAgentById,
-  acpAgents,
-  defaultAcpAgent,
-} from '@poietica/agent-registry'
+import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agent-registry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
 import { AgentInstallAction } from './AgentInstallAction'
@@ -45,7 +40,14 @@ export interface ModelsSettingsProps {
 }
 
 export function ModelsSettings({ store }: ModelsSettingsProps) {
-  const [agentId, setAgentId] = useState<string>(() => defaultAcpAgent().id)
+  /*
+   * 首帧的占位，不是"默认那一家"。
+   *
+   * 真正的选择只有一个产地：agents.json 的 defaultAgentId，它由下面那次 store.load()
+   * 读回来并覆盖这里。这一格存在的唯一理由是下拉在第一帧要有个 value —— 所以它取名单
+   * 第一项就够了，而注册表也不再提供"默认"这个概念去让人误用。
+   */
+  const [agentId, setAgentId] = useState<string>(() => acpAgents()[0].id)
   const [profiles, setProfiles] = useState<readonly AcpAgentProfile[]>([])
   const [agentError, setAgentError] = useState<string | null>(null)
 

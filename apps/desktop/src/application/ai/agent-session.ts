@@ -8,7 +8,7 @@ import type {
 } from '@poietica/acp'
 import { parseAgentProviderListOutput } from '@poietica/agent-providers'
 import type { AcpAgentDescriptor } from '@poietica/agent-registry'
-import { acpAgentById, acpAgentLaunch, defaultAcpAgent } from '@poietica/agent-registry'
+import { acpAgentById, acpAgentLaunch, acpAgents } from '@poietica/agent-registry'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,
@@ -52,7 +52,7 @@ const agentListeners = new Set<() => void>()
 
 /** 名单里的那一家；查不到说明配置指向了一份不存在的档案。 */
 export function agentFor(agentId: string | undefined): AcpAgentDescriptor {
-  return (agentId === undefined ? undefined : acpAgentById(agentId)) ?? defaultAcpAgent()
+  return (agentId === undefined ? undefined : acpAgentById(agentId)) ?? acpAgents()[0]
 }
 
 export function currentAgent(): AcpAgentDescriptor {

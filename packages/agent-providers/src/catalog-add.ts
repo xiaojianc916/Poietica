@@ -9,7 +9,7 @@
  * execCli 带上 api.json 形状的内置目录，原生侧起一次性 loopback 服务并把官方的
  * --url 指过去。对方只读 `type`/`api`/`models.*.id` 与 `limit.context`
  * （@moonshot-ai/kosong 的 src/catalog.ts），形状由 builtin-catalog 的
- * agentProviderCatalogDocument 保证。
+ * agents/kimi/catalog.ts 的 catalogDocument 保证。
  *
  * 密钥永远不出现在这里返回的任何一个 arg 里。原生侧的 FORBIDDEN_FLAGS 会拒掉
  * --api-key，因为 Windows 上任何用户都读得到别的进程的完整命令行。密钥走

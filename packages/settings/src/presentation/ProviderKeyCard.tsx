@@ -1,8 +1,8 @@
 import {
+  type AgentCatalogCodec,
   type AgentProviderPreset,
+  agentCatalogCodec,
   agentProviderCatalogAddArgs,
-  agentProviderCatalogDocument,
-  builtinProviderDefaultModelId,
 } from '@poietica/agent-providers'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { useCallback, useEffect, useState } from 'react'
@@ -146,7 +146,7 @@ export function ProviderKeyCard({
    * 拿着这把钥匙去连。验证放在写入之后，等于验了也白验。
    */
   const write = useCallback(
-    (keyVar: string, secret: string, probe: ProviderKeyProbe) => {
+    (keyVar: string, secret: string, probe: ProviderKeyProbe, catalog: AgentCatalogCodec) => {
       /*
        * 只在配置里还没有 default_model 时，才随这次 catalog add 一起把它写掉。
        *
@@ -162,7 +162,7 @@ export function ProviderKeyCard({
         .loadDefaultModel(agentId)
         .catch(() => '')
         .then((existing) => {
-          const seed = existing === null ? builtinProviderDefaultModelId(provider) : undefined
+          const seed = existing === null ? catalog.presetDefaultModelId(provider) : undefined
 
           let args: readonly string[]
 
@@ -188,7 +188,7 @@ export function ProviderKeyCard({
               args,
               secretVar: keyVar,
               secretValue: secret,
-              catalogDocument: agentProviderCatalogDocument([provider]),
+              catalogDocument: catalog.catalogDocument([provider]),
             })
             .then(
               (outcome) => {
@@ -240,6 +240,19 @@ export function ProviderKeyCard({
      */
     const keyVar: string = registryKeyVar
 
+    /*
+     * 目录该写成什么形状，由这一家的编解码器说 —— 那是它的 CLI 的契约，不是通用事实。
+     *
+     * 缺席不是错误，是"这一家不从这里写目录"。处置与上面缺变量名那条完全同构：说出来，
+     * 不假装写了。收成本地 const 之后交给 write，不指望编译器把收窄带进闭包。
+     */
+    const catalog = agentCatalogCodec(agentId)
+
+    if (catalog === undefined) {
+      setMessage('这个 agent 没有声明该怎么写入 provider 目录，无法从这里写入。')
+      return
+    }
+
     setBusy(true)
     setMessage('正在验证密钥…')
 
@@ -254,9 +267,9 @@ export function ProviderKeyCard({
         }
 
         setMessage(null)
-        write(keyVar, secret, probe)
+        write(keyVar, secret, probe, catalog)
       })
-  }, [apiKey, provider, registryKeyVar, store, write])
+  }, [agentId, apiKey, provider, registryKeyVar, store, write])
 
   return (
     <div aria-busy={busy} className="models-card">

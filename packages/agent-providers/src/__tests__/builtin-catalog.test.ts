@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { agentProviderCatalogDocument } from '../agents/kimi/catalog'
 import {
   agentBareModelId,
-  agentProviderCatalogDocument,
   builtinAgentProviderById,
   builtinAgentProviders,
 } from '../builtin-catalog'
