@@ -6,12 +6,10 @@ use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
-    CancelNotification, ClientCapabilities, ContentBlock, DeleteSessionRequest,
-    FileSystemCapabilities, InitializeRequest, ListSessionsRequest, LoadSessionRequest,
-    NewSessionRequest, PromptRequest, ReadTextFileRequest, ReadTextFileResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SelectedPermissionOutcome, SessionId, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, TextContent, WriteTextFileRequest, WriteTextFileResponse,
+    CancelNotification, ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest,
+    LoadSessionRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome, SessionId,
+    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -23,7 +21,6 @@ use crate::commands::{AgentClient, Command, PromptImage};
 use crate::config::{ConfigControl, controls};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
-use crate::fs_host::{FsRoots, Window};
 use crate::permission::{Decision, decide};
 use crate::program::resolve_program;
 use crate::recorder::{Frames, RecordedEvent, Recorder};
@@ -128,12 +125,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     // 解析规则连同它的病历都在 program.rs 里，provider CLI 那条路径读的是
     // 同一个函数 —— 同一个程序不该有两套找法。
     let resolved = resolve_program(&program)?;
-
-    /* 文件宿主的边界就是交给 agent 的那个 cwd，同一个值，不是第二份配置。
-    在这里取，是因为下面 cwd 会被移进 session/new 的请求里。 */
-    let roots = FsRoots::new(cwd.clone());
-    let reading = roots.clone();
-    let writing = roots;
 
     /* 启动配置是 SDK 自己的类型，不是 MCP 的 wire schema。1.x 借用了 McpServerStdio，
     于是这里得先造一个没人看的服务器名、再往一个 #[non_exhaustive] 结构体的 Vec 里
@@ -285,39 +276,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 },
                 agent_client_protocol::on_receive_request!(),
             )
-            .on_receive_request(
-                async move |request: ReadTextFileRequest, responder, connection| {
-                    /* 读盘在 spawn 里，处理器立刻返回。SDK 的派发是原子的：一个
-                    处理器返回之前这条连接的入站是停摆的（docs/adr/0001 的那一条,
-                    与授权请求同一个理由）。文件读写本该很快，但"本该很快"不是
-                    可以占着派发循环的理由 —— 网络盘、大文件、正在被别人锁着的
-                    文件都会让它变慢，而变慢的表现是整个界面卡死。 */
-                    let roots = reading.clone();
-
-                    connection.spawn(async move {
-                        let window = Window::of(&request);
-
-                        match roots.read_text(&request.path, window) {
-                            Ok(text) => responder.respond(ReadTextFileResponse::new(text)),
-                            Err(refusal) => responder.respond_with_error(refusal),
-                        }
-                    })
-                },
-                agent_client_protocol::on_receive_request!(),
-            )
-            .on_receive_request(
-                async move |request: WriteTextFileRequest, responder, connection| {
-                    let roots = writing.clone();
-
-                    connection.spawn(async move {
-                        match roots.write_text(&request.path, &request.content) {
-                            Ok(()) => responder.respond(WriteTextFileResponse::new()),
-                            Err(refusal) => responder.respond_with_error(refusal),
-                        }
-                    })
-                },
-                agent_client_protocol::on_receive_request!(),
-            )
             .connect_with(agent, move |connection: ConnectionTo<Agent>| async move {
                 let mut receiver = receiver;
 
@@ -330,26 +288,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 唯一走得通的路 —— 此前这个 Ok 分支连变量都没绑定，于是每一条旧
                 对话都只能被换成一条空会话。 */
                 let initialized = match connection
-                    /* 声明的每一格都必须真的实现。fs 两格实现在 fs_host.rs;
-                    不声明它们不是"保守"，是让 acp-v2 的引擎退回自己进程里的本地
-                    盘 —— acp-server 的 acpFsService.ts 逐条按这两格分流。
-
-                    协议版本仍然是 V1，这是查过的，不是没跟上：acp-server 的
-                    version.ts 逐字 protocolVersion: 1 / specTag 'v0.10.x'，而它的
-                    SUPPORTED_VERSIONS 只有 1 这一条。"acp-v2"说的是上游那个子命令
-                    和它背后的引擎，不是协议的第 2 版。
-
-                    terminal 这一格刻意留空，见 docs/adr/0004：声明它等于承诺由我们
-                    起进程、持有、响应 kill 与 release。能力关闭时 acp-server 走
-                    execLocal，行为与今天一模一样（acpTerminalRunner.ts 的 docstring
-                    逐字如此）；声明而不实现比不声明糟。 */
-                    .send_request(
-                        InitializeRequest::new(ProtocolVersion::V1).client_capabilities(
-                            ClientCapabilities::new().fs(FileSystemCapabilities::new()
-                                .read_text_file(true)
-                                .write_text_file(true)),
-                        ),
-                    )
+                    .send_request(InitializeRequest::new(ProtocolVersion::V1))
                     .block_task()
                     .await
                 {

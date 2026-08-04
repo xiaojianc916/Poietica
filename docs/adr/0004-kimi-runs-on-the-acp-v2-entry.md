@@ -35,26 +35,31 @@
   driver.rs 读的 .delete 仍然成立 —— Rust 侧一行不动。
 - 提问卡的 content 是 q.question 本身，不再是入参 JSON。
 
-## fs 能力：声明，并且实现
+## session/close：上游有，我们从来没发过
 
-不声明它等于让 v2 引擎跑在一个 v1 能力的客户端上。上游是逐条按能力分流的：
-acp-server/src/acp-fs/acpFsService.ts 的 readText 首行逐字
-if (!this.connection.fsReadTextFile) return this.inner.readText(path, options)，
-acpConnection.ts 的 bindFsCapabilities 判据逐字 fs?.readTextFile === true。
-能力缺席时，agent 的文件读写退回它自己进程里的本地盘 —— 换了子命令、换了引擎,
-v2 多出来的这一块整块白装。
+这一条要留证，因为两份证据打架，而赢的是源码：
 
-实现在 crates/agent-runtime/src/fs_host.rs，边界与实现同处一处：
+- acp-server/test/close.test.ts 逐字
+  expect(init.agentCapabilities?.sessionCapabilities?.close).toBeDefined()，
+  随后 session/close 通过；另一条测试逐字 closing an unknown sessionId is a
+  best-effort no-op，返回 {}。
+- acp-server/test/initialize.test.ts 还多一格：sessionCapabilities 里有
+  additionalDirectories、delete、fork。（toMatchObject 允许额外键，所以它不构成
+  close 缺席的反证。）
+- 上游自己的 docs/zh/reference/kimi-acp.md 那张能力矩阵把 session/close 记成
+  缺席。那份文档过时了。别信它，信 test 和 server.ts。
 
-- 只认这条会话工作目录之下的绝对路径，边界值就是交给 session/new 的那个 cwd,
-  不是第二份配置。
-- .. 按词法消掉之后再比对。不能先 canonicalize 再比：一个还不存在的文件没有
-  canonical 形式，而写入路径上必然遇到的就是还不存在的文件。
-- 文件缺席回协议的 -32002。上游 acpFsService.ts 的 isResourceNotFound 逐字判
-  error.code === -32002，它的 appendText 靠这一条把缺席当成空文件；回别的码,
-  追加写会整个失败。
-- 读盘写盘都在 connection.spawn 里，处理器立刻返回 —— 与授权请求同一个理由
-  （见同目录 0001）：派发是原子的，占着它就是整个界面卡死。
+我们这侧：driver.rs 的握手只读 sessionCapabilities.delete，commands.rs 的
+Command 枚举里按会话的关闭一条都没有 —— 只有 Shutdown（整条连接）和
+DeleteSession（连 agent 那侧的历史一起删）。sessions.rs 的 SessionBook::close
+逐字 Forgets a session：本地忘了，从没告诉 agent。v2 是 DI x Scope 引擎，
+Session scope 持着日志写入器和一批按会话注册的服务（acpFsService.ts 逐字
+registerScopedService(LifecycleScope.Session, ...)），不 close 就是攒着。
+
+为什么这一刀不接：close 的正确调用点是"用户关掉或切走一条对话"，那在前端。
+把它塞进 Shutdown 里凑一个调用点是仪式 —— 进程紧接着就死了。下一刀先读
+apps/desktop/src-tauri 的命令表、packages/ipc、packages/agent-session 的
+ThreadPort 实现，找到那个真实的时机，再动 Command 枚举。
 
 ## 顺带白拿的
 
@@ -67,10 +72,16 @@ v2 多出来的这一块整块白装。
 
 ## 明确不做
 
-- 仍然不声明 clientCapabilities.terminal。声明即承诺由我们起进程、持有、
-  响应 kill 与 release；未实现之前声明比不声明糟。能力关闭时 acp-server 走
-  execLocal，其 docstring 逐字：behavior with the capability off is
-  therefore identical to today s。
+- 不声明 clientCapabilities.fs。理由不是"还没实现"，那种理由只会招来下一次
+  实现：这项能力存在的全部意义是客户端手上有一份比磁盘更新的事实 —— 编辑器里
+  未保存的缓冲区。Zed 实现它是因为 Zed 是编辑器。我们不是：整个前端没有 buffer
+  store，一次 fs/read_text_file 只会变成 agent 求我们读同一块盘、我们读了、把
+  字节原样递回去。零新增事实，外加三个新的出错面（路径语义、编码、行窗口）。
+  什么时候该重新考虑：我们自己开始持有文件状态的那一天，不是别的日子。
+- 不声明 clientCapabilities.terminal。声明即承诺由我们起进程、持有、响应 kill
+  与 release。能力关闭时 acp-server 走 execLocal，其 docstring 逐字：behavior
+  with the capability off is therefore identical to today s —— 关掉不丢功能,
+  只丢终端卡片。声明而不实现比不声明糟。
 - 不声明 elicitation.form。声明后提问改走 elicitation/create（原生多问、多选），
   而我们的提问卡目前只画单问单选。
 
