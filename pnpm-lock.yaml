@@ -533,6 +533,9 @@ importers:
       '@poietica/agent-session':
         specifier: workspace:*
         version: link:../agent-session
+      '@poietica/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@poietica/ui':
         specifier: workspace:*
         version: link:../ui

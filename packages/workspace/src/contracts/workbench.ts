@@ -3,7 +3,14 @@ export type WorkbenchTabId = string
 /** 一条对话的身份就是它的 thread id：一条对话最多一格。 */
 export type ConversationId = string
 
-export type WorkspaceSurfaceId = 'search' | 'ai' | 'tools' | 'automations' | 'hooks'
+import {
+  CONVERSATION_ENTRY_TITLE,
+  DEFAULT_SURFACE_ID,
+  describeWorkspaceSurface,
+  type WorkspaceSurfaceId,
+} from '../domain/index'
+
+export { CONVERSATION_ENTRY_TITLE, type WorkspaceSurfaceId }
 
 interface WorkbenchTabBase {
   readonly id: WorkbenchTabId
@@ -53,9 +60,15 @@ export interface WorkbenchViewModel {
   readonly activeSurface: WorkbenchSurfaceViewModel
 }
 
+/**
+ * 打开一个表面。
+ *
+ * 只收 id：标题是 registry 已经拥有的事实，让调用方再传一遍就是让同一个
+ * 值有两个来源——此前 WorkspaceShell 正是靠 describeWorkspaceSurface(id).title
+ * 把查出来的值又喂了回去。
+ */
 export interface OpenWorkspaceSurfaceRequest {
   readonly surfaceId: WorkspaceSurfaceId
-  readonly title: string
 }
 
 export interface OpenConversationRequest {
@@ -109,30 +122,35 @@ export interface WorkbenchSessionStore extends WorkbenchSessionCommands {
  */
 export const CONVERSATION_ENTRY_TITLE = '新建对话'
 
-export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = 'workspace:ai'
-
-const DEFAULT_TAB: WorkspaceTabViewModel = Object.freeze({
-  id: DEFAULT_SURFACE_TAB_ID,
-  kind: 'workspace',
-  title: CONVERSATION_ENTRY_TITLE,
-  isActive: true,
-  canClose: true,
-  surfaceId: 'ai',
-})
-
-const DEFAULT_SURFACE: WorkspaceSurfaceViewModel = Object.freeze({
-  kind: 'workspace',
-  tabId: DEFAULT_SURFACE_TAB_ID,
-  surfaceId: 'ai',
-  title: CONVERSATION_ENTRY_TITLE,
-})
+export const DEFAULT_SURFACE_TAB_ID: WorkbenchTabId = `workspace:${DEFAULT_SURFACE_ID}`
 
 /**
- * 会话控制器发布第一份投影之前的兜底快照。它与控制器的启动态一致（AI 表面），
- * 所以首帧不会闪出一个占位标签。
+ * 首帧兜底快照。
+ *
+ * 由 registry 派生而不是手写字面量：此前这里有 DEFAULT_TAB 与 DEFAULT_SURFACE
+ * 两个冻结对象，controller 里还有第三个 DEFAULT_ENTRY —— 同一个「默认表面」
+ * 存了三份，靠三条运行时不变量互相看住。现在只有这一处。
  */
-export const EMPTY_WORKBENCH_VIEW_MODEL: WorkbenchViewModel = Object.freeze({
-  activeTabId: DEFAULT_SURFACE_TAB_ID,
-  tabs: Object.freeze([DEFAULT_TAB]),
-  activeSurface: DEFAULT_SURFACE,
-})
+export function emptyWorkbenchViewModel(): WorkbenchViewModel {
+  const descriptor = describeWorkspaceSurface(DEFAULT_SURFACE_ID)
+
+  return {
+    activeTabId: DEFAULT_SURFACE_TAB_ID,
+    tabs: [
+      {
+        id: DEFAULT_SURFACE_TAB_ID,
+        kind: 'workspace',
+        title: descriptor.title,
+        isActive: true,
+        canClose: true,
+        surfaceId: DEFAULT_SURFACE_ID,
+      },
+    ],
+    activeSurface: {
+      kind: 'workspace',
+      tabId: DEFAULT_SURFACE_TAB_ID,
+      surfaceId: DEFAULT_SURFACE_ID,
+      title: descriptor.title,
+    },
+  }
+}

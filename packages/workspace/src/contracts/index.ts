@@ -4,7 +4,18 @@ export type {
   UICommandHandler,
 } from './command'
 export type {
-  WorkspaceChromeRenderProps,
+  WorkspacePart,
+  WorkspacePartId,
+  WorkspaceParts,
+} from './parts'
+export {
+  inMemoryWorkbenchStatePort,
+  type PersistedWorkbenchState,
+  PersistedWorkbenchStateSchema,
+  type RepositoryPort,
+  type WorkbenchStatePort,
+} from './persistence'
+export type {
   WorkspaceShellActions,
   WorkspaceShellProps,
 } from './shell'
@@ -14,7 +25,7 @@ export {
   CONVERSATION_ENTRY_TITLE,
   type ConversationId,
   type ConversationTabViewModel,
-  EMPTY_WORKBENCH_VIEW_MODEL,
+  emptyWorkbenchViewModel,
   type OpenConversationRequest,
   type OpenWorkspaceSurfaceRequest,
   type WorkbenchSessionCommands,

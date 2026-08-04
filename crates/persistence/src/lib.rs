@@ -23,3 +23,5 @@ pub use connection::DEFAULT_BUSY_TIMEOUT;
 pub use error::{Result, StoreError};
 pub use store::AgentStore;
 pub use threads::{ThreadSummary, TitleSource};
+
+pub mod workspace_state;
