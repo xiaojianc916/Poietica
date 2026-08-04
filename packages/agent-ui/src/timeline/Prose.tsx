@@ -184,25 +184,38 @@ export interface ProseProps {
  * 没变的那些一次都不动。
  */
 /*
- * 已经封口的那一段。
+ * 一段 markdown，一处配置。
  *
- * 它的输入是一个字符串，而这个字符串在整段回答期间只会变几次 —— 每封口一块变一次。
- * memo 的浅比较因此就是精确比较：思考链再长，这一半在两次封口之间一帧都不重画。
+ * 封口段与在写段此前各写一次 <Streamdown>，八个 prop 在「非流式」这一侧逐字
+ * 相同 —— 也就是说封口段本来就是 isStreaming 为假的这一个。两处声明同一件事，
+ * 改一处漏一处只是时间问题，而这个文件的每一个常量都恰恰是在讲「一个所有者、
+ * 一处配置」。
  *
- * 走静态管线，因为它就是静态的：不切块、不修补、不为未闭合标记预留过渡，代码块走
- * 官方那条优化过的静态路径。也不带 animated —— 一段早已写完的文字不需要被再写一遍，
- * 而逐词的 filter 动画是这个界面里唯一会按词数提层的东西。
+ * memo 的边界没有变，只是搬到了这里：封口段的输入在整段回答期间只变几次（每
+ * 封口一块变一次），浅比较因此就是精确比较 —— 思考链再长，那一半在两次封口
+ * 之间一帧都不重画。在写段每帧都换字，memo 不命中，也不需要命中。
+ *
+ * 静态那一侧不切块、不修补、不预留未闭合标记的过渡，代码块走官方那条优化过的
+ * 静态路径，也不带 animated：一段早已写完的文字不需要被再写一遍，而逐词的
+ * filter 动画是这个界面里唯一会按词数提层的东西。
  */
-const Sealed = memo(function Sealed({ text }: { readonly text: string }) {
+const Segment = memo(function Segment({
+  isStreaming,
+  text,
+}: {
+  readonly isStreaming: boolean
+  readonly text: string
+}) {
   return (
     <Streamdown
+      {...(isStreaming ? { animated: ANIMATION } : {})}
       className="timeline-prose__segment"
       controls={CONTROLS}
-      isAnimating={false}
+      isAnimating={isStreaming}
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
-      mode="static"
-      plugins={PLUGINS}
+      mode={isStreaming ? 'streaming' : 'static'}
+      plugins={isStreaming ? LIVE_PLUGINS : PLUGINS}
       translations={TRANSLATIONS}
     >
       {text}
@@ -230,21 +243,9 @@ export const Prose = memo(function Prose({ className, isStreaming, text }: Prose
       className={cx('timeline-prose', className)}
       data-streaming={isStreaming ? 'true' : undefined}
     >
-      {sealed === '' ? null : <Sealed text={sealed} />}
+      {sealed === '' ? null : <Segment isStreaming={false} text={sealed} />}
 
-      <Streamdown
-        {...(isStreaming ? { animated: ANIMATION } : {})}
-        className="timeline-prose__segment"
-        controls={CONTROLS}
-        isAnimating={isStreaming}
-        lineNumbers={false}
-        linkSafety={LINK_SAFETY}
-        mode={isStreaming ? 'streaming' : 'static'}
-        plugins={isStreaming ? LIVE_PLUGINS : PLUGINS}
-        translations={TRANSLATIONS}
-      >
-        {live}
-      </Streamdown>
+      <Segment isStreaming={isStreaming} text={live} />
     </div>
   )
 })

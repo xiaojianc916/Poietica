@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
-import { useState } from 'react'
 import './disclosure.css'
+
+import type { ReactNode } from 'react'
+import { useCallback, useState } from 'react'
 
 /**
  * 一段可以打开的内容。
@@ -25,12 +26,23 @@ export function useDisclosure(fallback: boolean): {
 
   const isOpen = override ?? fallback
 
-  return {
-    isOpen,
-    toggle: () => {
-      setOverride(!isOpen)
-    },
-  }
+  /*
+   * 下一个值从上一个值算出来，不从这一帧的闭包里读。
+   *
+   * 此前是 setOverride(!isOpen)，而 isOpen 是 override ?? fallback —— 两个都来自
+   * 本次渲染的闭包。React 官方对「用上一个 state 算下一个」只给一种写法，就是
+   * 更新函数；在这里那不是洁癖，是可复现的：fallback 传进来的是 isRunning /
+   * isStreaming，流式期间每帧都可能翻面，而同一批次里的两次点击读的是同一份
+   * 闭包 —— 第二次算出与第一次相同的值，面板于是不动。
+   *
+   * 顺带把 toggle 的身份钉住：它是 <button onClick> 的入参，此前每次渲染都是
+   * 一个新函数。
+   */
+  const toggle = useCallback(() => {
+    setOverride((current) => !(current ?? fallback))
+  }, [fallback])
+
+  return { isOpen, toggle }
 }
 
 /**

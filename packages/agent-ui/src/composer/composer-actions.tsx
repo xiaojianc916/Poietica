@@ -11,7 +11,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@poietica/ui'
-import type { ComponentType } from 'react'
+import { type ComponentType, memo, useMemo } from 'react'
 import {
   AgentIcon,
   AttachIcon,
@@ -88,12 +88,27 @@ export interface ComposerActionsProps {
   readonly onSelectControl: (controlId: string, value: string) => void
 }
 
-export function ComposerActions({ controls, onSelectControl }: ComposerActionsProps) {
+/*
+ * 记住不重建，与右下那一簇同一条规矩。
+ *
+ * SessionControls 已经有这道边界，左边这一簇同样的形状漏了 —— 同一份入参、同一
+ * 种分流、同样是一个菜单根加 N 个子菜单根。两处同构的东西不该只有一处有边界，
+ * 那正是「新旧杂糅」的起点。controls 只在换模型或换模式时才换引用。
+ */
+export const ComposerActions = memo(function ComposerActions({
+  controls,
+  onSelectControl,
+}: ComposerActionsProps) {
   /* 这一整棵菜单要的只是「打开文件选择器」，所以它不该随草稿重建。 */
   const { openFilePicker } = usePromptInputActions()
 
-  const mode = controls.find((control) => control.purpose === 'mode')
-  const extras = controls.filter((control) => control.purpose === 'other')
+  /* 分流是投影，不是渲染：一次 find、一次 filter，只依赖 controls。 */
+  const mode = useMemo(() => controls.find((control) => control.purpose === 'mode'), [controls])
+
+  const extras = useMemo(
+    () => controls.filter((control) => control.purpose === 'other'),
+    [controls],
+  )
 
   return (
     <>
@@ -203,7 +218,7 @@ export function ComposerActions({ controls, onSelectControl }: ComposerActionsPr
       {mode === undefined ? null : <ModePill control={mode} onSelect={onSelectControl} />}
     </>
   )
-}
+})
 
 /*
  * 选中之后留下的那一颗。

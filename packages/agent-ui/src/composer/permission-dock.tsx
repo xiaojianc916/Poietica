@@ -2,7 +2,7 @@ import './permission-dock.css'
 
 import type { AcpPermissionOption } from '@poietica/acp'
 import type { PermissionItem } from '@poietica/agent-timeline'
-import { memo, useCallback, useState } from 'react'
+import { memo, useState } from 'react'
 import { useAgentDialect } from '../domain/agent-dialect'
 
 /**
@@ -74,13 +74,18 @@ export const PermissionDock = memo(function PermissionDock({
     setSubmitted(undefined)
   }
 
-  const handleSelect = useCallback(
-    (optionId: string) => {
-      setSubmitted(optionId)
-      onResolve(item.requestId, optionId)
-    },
-    [item.requestId, onResolve],
-  )
+  /*
+   * 不包 useCallback。
+   *
+   * 它唯一的读者是下面那个内联箭头（onClick={() => handleSelect(...)}），而那个
+   * 箭头每次渲染都是新的 —— 稳定这一层的身份因此没有任何人在读，换来的只是每次
+   * 渲染多一次依赖数组的分配与比较。要么两处都稳，要么两处都不稳；三四颗按钮
+   * 不值得为它引一层 per-option 的回调缓存。
+   */
+  const handleSelect = (optionId: string) => {
+    setSubmitted(optionId)
+    onResolve(item.requestId, optionId)
+  }
 
   const lead = leadOf(item.options)
 
