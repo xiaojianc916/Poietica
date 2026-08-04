@@ -33,15 +33,53 @@ describe('内置 agent 档案', () => {
     }
   })
 
-  /* 档案里不许再出现启动身份的任何一格，否则它就又有了第二个产地。 */
-  it('档案里只有用户自己的那几格', () => {
+  /*
+   * 原生侧从档案里读的那四格必须在，而且必须与名单一致。
+   *
+   * 「不许出现」是上一版的规矩，它换来的是四条死路（见 acp-agent-profile.test.ts
+   * 里那段）。现在的规矩是「必须在，但不归用户」：写进 agents.json 的值只能是名单
+   * 投影下来的那一份，所以手改那个文件改不动启动身份，而原生侧读得到东西。
+   */
+  it('档案里带齐原生侧要读的那几格', () => {
     for (const profile of builtinAcpAgentProfileSet().profiles) {
       expect(Object.keys(profile).sort(), profile.id).toEqual([
+        'command',
         'cwd',
         'defaultConfigOptions',
         'env',
+        'homeVar',
         'id',
+        'install',
+        'ownHomeDirectory',
       ])
+    }
+  })
+
+  /*
+   * 投影必须逐字，不能只是「有值」。
+   *
+   * 差一个字符的 command 就是一个起不来的 agent，而它起不来的地方在原生侧，
+   * 报出来的话与用户刚做的任何动作都对不上号。
+   */
+  it('档案里的启动身份逐字来自名单', () => {
+    for (const profile of builtinAcpAgentProfileSet().profiles) {
+      const agent = acpAgentById(profile.id)
+
+      expect(agent, profile.id).toBeDefined()
+
+      if (!agent) {
+        continue
+      }
+
+      expect(profile.command, profile.id).toBe(agent.command)
+      expect(profile.homeVar, profile.id).toBe(agent.homeVar)
+      expect(profile.ownHomeDirectory, profile.id).toBe(agent.ownHomeDirectory)
+
+      /* 声明了启动变量的，那些变量必须已经在 env 里 —— 它就是靠这一格
+      经 declared_env_of 走到子进程的。 */
+      for (const [name, value] of Object.entries(agent.launchEnv ?? {})) {
+        expect(profile.env[name], `${profile.id}:${name}`).toBe(value)
+      }
     }
   })
 })

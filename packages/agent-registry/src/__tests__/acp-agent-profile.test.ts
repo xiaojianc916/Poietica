@@ -39,23 +39,42 @@ describe('parseAcpAgentProfile', () => {
   })
 
   /*
-   * 回归护栏：磁盘上多写的键不该变成档案的一部分。
+   * 回归护栏：「起哪个程序」只能有一个产地 —— 但产地不是靠解析时剥掉来保证的。
    *
-   * 老版本写下的 command 与 args 还留在很多人的 agents.json 里。它们必须被忽略 ——
-   * 一旦有一天又被读出来当真，「起哪个程序」就重新有了第二个产地。
+   * 原生侧有五个函数从这份档案里读东西：agent_program 读 command，home_var_of 读
+   * homeVar，own_home_of 读 ownHomeDirectory，agent_install_spec 读 install，
+   * declared_env_of 读 env。上一版把前四格从档案里删了，却没有改那四个函数，于是
+   * 它们在结构上变成了死路 —— 屏幕上是「kimi 的接入档案里没有可执行文件」，而受控
+   * home 的那个变量从此再没有被设过一次。
+   *
+   * 所以四格回到了档案里，但它们不属于用户：reconcileAcpAgentProfiles 每次都从
+   * 描述符无条件盖回去（见下面那份 reconcile 测试的「手写的 command 活不过一次
+   * 对齐」）。解析这一层因此不再负责剥掉它们 —— 一个只在内存里存在半个函数调用
+   * 的值，谁都读不到。
+   *
+   * args 是另一回事：原生侧从不从档案读它，启动参数走 IPC 的 acpAgentLaunch。
+   * 它至今不是档案的一格，这一条仍然要守。
    */
-  it('忽略磁盘上遗留的启动字段', () => {
+  it('磁盘上遗留的 args 不进档案，归描述符的四格恒定在场', () => {
     const result = parseAcpAgentProfile({ ...valid, command: 'evil', args: ['--rm-rf'] })
 
     expect(result.ok).toBe(true)
 
     if (result.ok) {
       expect(Object.keys(result.profile).sort()).toEqual([
+        'command',
         'cwd',
         'defaultConfigOptions',
         'env',
+        'homeVar',
         'id',
+        'install',
+        'ownHomeDirectory',
       ])
+
+      /* 键面恒定：没写 command 的档案也有这一格，值是 undefined。原生侧读到
+      缺席与读到空串是同一个结果，所以这里要的是「结构上一定有这一格」。 */
+      expect('args' in result.profile).toBe(false)
     }
   })
 })

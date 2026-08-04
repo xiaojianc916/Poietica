@@ -4,13 +4,20 @@ import {
   builtinAcpAgentProfiles,
   reconcileAcpAgentProfiles,
 } from '../acp-agent-profile'
+import { acpAgentById } from '../acp-agents'
 
 /*
  * agents.json 是名单的一份物化，不是第二个来源。
  *
- * 物化现在只做一件事：让磁盘上的那几条与封闭名单对齐。此前它还要逐格比对七个
- * 启动字段，那是因为那七格既在磁盘上又在二进制里 —— 现在它们只在二进制里，那
- * 一整类「拷贝停在旧版本」的故障因此在结构上不存在了。
+ * 物化把磁盘上那几条与封闭名单对齐，而「对齐」对两类格子是两种意思。
+ *
+ * 归用户的三格（cwd、env、defaultConfigOptions）原样保留：那是他自己填的。
+ * 归名单的四格（command、homeVar、ownHomeDirectory、install）无条件盖回：原生侧
+ * 的 agent_program、home_var_of、own_home_of、agent_install_spec 就是从磁盘上这
+ * 四格读的，它们必须在，但它们不是用户的东西。
+ *
+ * 「拷贝停在旧版本」那一类故障因此仍然不存在 —— 不是因为那几格不落盘，而是因为
+ * 每次读都盖一遍。手改 agents.json 换掉 command，活不过下一次启动。
  */
 
 const builtins = builtinAcpAgentProfiles()
@@ -51,10 +58,37 @@ describe('内置档案的物化', () => {
     const result = reconcileAcpAgentProfiles([mine])
     const profile = result.profiles[0]
 
-    expect(result.changed).toBe(false)
     expect(profile?.cwd).toBe('/work')
-    expect(profile?.env).toEqual({ EXTRA: '1' })
     expect(profile?.defaultConfigOptions).toEqual({ a: true })
+
+    /*
+     * env 是唯一两边共用的一格：用户写的留着，名单声明的启动变量合进去。
+     * 期望值从描述符现算，不写死 —— 写死等于让这条测试认准某一家 agent。
+     *
+     * 这里不断言 changed：它取决于这一家有没有声明启动变量，而那不是这条
+     * 测试要说的事。手写值会不会被盖，由下面那条单独说。
+     */
+    expect(profile?.env).toEqual({
+      EXTRA: '1',
+      ...(acpAgentById(first.id)?.launchEnv ?? {}),
+    })
+  })
+
+  /*
+   * 这四格在磁盘上，但它不是一个可写的入口。
+   *
+   * agents.json 是一个能用文本编辑器改的文件，而 command 会被交给
+   * resolve_program 去起一个进程 —— 上一版把这四格从档案里删掉，正是为了堵住
+   * 「渲染层报一个程序路径过来」那条任意命令执行的路。堵住它的办法现在不是
+   * 「档案里没有这一格」，而是「这一格每次都被名单盖掉」，加上原生侧
+   * validate_program 仍然独立把关。
+   */
+  it('手写的 command 活不过一次对齐', () => {
+    const result = reconcileAcpAgentProfiles([{ ...first, command: 'evil' }])
+    const profile = result.profiles[0]
+
+    expect(result.changed).toBe(true)
+    expect(profile?.command).toBe(acpAgentById(first.id)?.command)
   })
 
   /*

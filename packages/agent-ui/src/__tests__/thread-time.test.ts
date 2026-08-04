@@ -1,138 +1,159 @@
 import { describe, expect, it } from 'vitest'
 
-import { datedOf, formatElapsed, nextChangeIn, sectionsOf } from '../threads/sections'
-
-const at = (iso: string) => Date.parse(iso)
-
-interface Row {
-  readonly updatedAt: string
-  readonly isPinned?: boolean
-}
+import { DAY, HOUR, MINUTE } from '../domain/duration'
+import {
+  datedGroupsOf,
+  formatAbsolute,
+  formatElapsed,
+  instantsOf,
+  nextChangeIn,
+  paintedGroupsOf,
+} from '../threads/relative-time'
 
 /*
- * 走真实管线：数据一趟（datedOf），时钟一趟（sectionsOf）。
- *
- * 期限同样只有整屏这一个入口。单行那道阶梯不再单独导出，也不该单独断言：
- * 「这一行下一次什么时候变」在屏幕上没有意义，午夜那道边界只在整屏这一层成立，
- * 而此前那条用单行入口写的断言钉住的正是一个在整屏上恒不生效的返回值。
+ * 一个固定的本地时刻，远离午夜：期限那几条要跨过分钟与小时的边界，而不该
+ * 顺带撞上「下一个本地午夜」那条无条件的边界。
  */
-const sectionsAt = (rows: readonly Row[], now: number) => sectionsOf(datedOf(rows), now)
+const noon = new Date(2026, 7, 4, 12, 0, 0, 0).getTime()
 
-const horizonOf = (instants: readonly number[], now: number) =>
-  nextChangeIn(
-    sectionsAt(
-      instants.map((instant) => ({ updatedAt: new Date(instant).toISOString() })),
-      now,
-    ),
-    now,
-  )
+const midnightAfter = (instant: number): number => {
+  const at = new Date(instant)
 
-describe('会话时间', () => {
-  it('凌晨看昨晚的对话，属于昨天而不是今天', () => {
-    const now = at('2026-07-29T00:30:00')
-    const sections = sectionsAt([{ updatedAt: '2026-07-28T23:00:00' }], now)
+  at.setHours(0, 0, 0, 0)
+  at.setDate(at.getDate() + 1)
 
-    expect(sections.map((section) => section.id)).toEqual(['yesterday'])
+  return at.getTime()
+}
+
+const row = (updatedAt: string) => ({ updatedAt })
+
+describe('formatElapsed', () => {
+  /*
+   * 不足一分钟是一句话，不是「0 分钟」。这一档由 RelativeTimeFormat 的
+   * numeric: 'auto' 说，所以这里只断言「同一句话」，不断言那句话是什么。
+   */
+  it('一分钟之内始终是同一句话', () => {
+    expect(formatElapsed(noon, noon)).toBe(formatElapsed(noon - 30 * 1000, noon))
+    expect(formatElapsed(noon - (MINUTE - 1), noon)).toBe(formatElapsed(noon, noon))
   })
 
-  it('段次序固定，与数据到达先后无关', () => {
-    const now = at('2026-07-29T12:00:00')
-    const sections = sectionsAt(
-      [
-        { updatedAt: '2026-06-01T12:00:00' },
-        { updatedAt: '2026-07-29T11:00:00' },
-        { isPinned: true, updatedAt: '2026-07-20T12:00:00' },
-      ],
-      now,
-    )
-
-    expect(sections.map((section) => section.id)).toEqual(['pinned', 'today', 'earlier'])
+  /* 时钟偏差会给出未来时刻。它读作「现在」，不是一个负数。 */
+  it('未来时刻读作现在', () => {
+    expect(formatElapsed(noon + 5 * MINUTE, noon)).toBe(formatElapsed(noon, noon))
   })
 
-  it('段内按最近活动倒序', () => {
-    const now = at('2026-07-29T12:00:00')
-    const sections = sectionsAt(
-      [{ updatedAt: '2026-07-29T08:00:00' }, { updatedAt: '2026-07-29T11:00:00' }],
-      now,
-    )
+  /*
+   * 一周是时长与日期的分界：时长在近处有用，在远处只剩噪声。两侧各取一个
+   * 样本，断言它们不是同一种说法 —— 具体的词由平台给。
+   */
+  it('一周之内给时长，更久给日期', () => {
+    const withinWeek = formatElapsed(noon - 3 * DAY, noon)
+    const beyondWeek = formatElapsed(noon - 30 * DAY, noon)
 
-    expect(sections.at(0)?.members.map((member) => member.thread.updatedAt)).toEqual([
-      '2026-07-29T11:00:00',
-      '2026-07-29T08:00:00',
-    ])
+    expect(withinWeek).not.toBe(beyondWeek)
+
+    /* 更久的那一档是一个日期，所以它一定带着这一天的号数。 */
+    expect(beyondWeek).toContain(String(new Date(noon - 30 * DAY).getDate()))
   })
 
-  it('绝对文案是时刻的函数，不进时钟那一趟', () => {
-    const dated = datedOf([{ updatedAt: '2026-07-29T11:00:00' }])
+  /* 跨年的那一档要带上年份，否则「3月2日」是哪一年说不清。 */
+  it('跨年的日期带上年份', () => {
+    const lastYear = new Date(2025, 2, 2, 12, 0, 0, 0).getTime()
 
-    expect(dated.at(0)?.absolute).not.toBeNull()
-    expect(sectionsOf(dated, at('2026-07-29T12:00:00')).at(0)?.members.at(0)?.absolute).toBe(
-      dated.at(0)?.absolute,
-    )
+    expect(formatElapsed(lastYear, noon)).toContain('2025')
+  })
+})
+
+describe('nextChangeIn', () => {
+  /*
+   * 午夜无条件算进去：跨过它，一天以上的那些行要一起改口，哪怕列表是空的。
+   * 一天以上没有属于自己的期限，这正是它交回 Infinity 的意思。
+   */
+  it('空列表也在下一个午夜到期', () => {
+    expect(nextChangeIn([], noon)).toBe(midnightAfter(noon))
   })
 
-  it('一周以上给日期，不再报「多少天前」', () => {
-    const now = at('2026-07-29T12:00:00')
-
-    expect(formatElapsed(at('2026-07-01T12:00:00'), now)).not.toMatch(/\d+\s*天/)
+  it('一天以上的行不自带期限，仍然只等午夜', () => {
+    expect(nextChangeIn([noon - 5 * DAY], noon)).toBe(midnightAfter(noon))
   })
 
-  it('不足一分钟由 Intl 说，不写死中文', () => {
-    const now = at('2026-07-29T12:00:00')
+  /* 一分钟之内的那一行，在它自己那一分钟满的时候改口。 */
+  it('取最近的那一行的边界', () => {
+    const fresh = noon - 10 * 1000
 
-    expect(formatElapsed(now - 5_000, now)).toBe(
-      new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(0, 'second'),
-    )
+    expect(nextChangeIn([fresh, noon - 5 * DAY], noon)).toBe(fresh + MINUTE)
   })
 
-  it('时长只有数量与单位，不带方向词，也不写死中文', () => {
-    const now = at('2026-07-29T12:00:00')
-    const unit = new Intl.NumberFormat(undefined, {
-      style: 'unit',
-      unit: 'minute',
-      unitDisplay: 'narrow',
-    })
+  it('小时那一档在下一个整点差改口', () => {
+    const instant = noon - (2 * HOUR + 15 * MINUTE)
 
-    expect(formatElapsed(now - 31 * 60_000, now)).toBe(unit.format(31))
+    expect(nextChangeIn([instant], noon)).toBe(instant + 3 * HOUR)
   })
 
-  it('期限落在文案真正改变的那一刻，不是一个猜出来的周期', () => {
-    const now = at('2026-07-29T12:00:00')
-    /* 31 分 20 秒前：现在读作 31 分钟，下一次改口是它自己的第 32 分钟。 */
-    const instant = now - (31 * 60_000 + 20_000)
+  /* 解析不出来的时刻不参与期限：它那一行根本不画时间。 */
+  it('跳过解析不出来的时刻', () => {
+    expect(nextChangeIn([Number.NaN], noon)).toBe(midnightAfter(noon))
+  })
+})
 
-    expect(horizonOf([instant], now)).toBe(instant + 32 * 60_000)
+describe('两级投影', () => {
+  const groups = [
+    {
+      id: 'D:\\\\xiaojianc',
+      name: 'xiaojianc',
+      items: [row('2026-08-04T03:00:00.000Z'), row('not a date')],
+    },
+    { id: 'default', name: null, items: [row('2026-08-03T03:00:00.000Z')] },
+  ]
+
+  /*
+   * 时刻与绝对文案只是 updatedAt 的函数，所以它们算在这一趟：时钟跳一次
+   * 不该让整屏重跑一遍 Date.parse 与 dateStyle: 'full'。
+   */
+  it('数据那一趟给出时刻与准确说法', () => {
+    const dated = datedGroupsOf(groups)
+    const first = dated[0]?.members[0]
+
+    expect(first?.instant).toBe(Date.parse('2026-08-04T03:00:00.000Z'))
+    expect(first?.absolute).toBe(formatAbsolute(Date.parse('2026-08-04T03:00:00.000Z')))
   })
 
-  it('一天以上的行不报自己的期限，整屏仍在本地午夜改口', () => {
-    const now = at('2026-07-29T12:00:00')
+  /* 解析不出来的时刻不编一个：NaN 与 null，而不是 0 与一句假话。 */
+  it('解析不出来的时刻不被编造', () => {
+    const broken = datedGroupsOf(groups)[0]?.members[1]
 
-    expect(horizonOf([at('2026-07-20T08:00:00')], now)).toBe(at('2026-07-30T00:00:00'))
+    expect(Number.isNaN(broken?.instant ?? 0)).toBe(true)
+    expect(broken?.absolute).toBeNull()
   })
 
-  it('列表为空也要等一次午夜：分段会在那时改口', () => {
-    const now = at('2026-07-29T12:00:00')
+  /*
+   * 没有名字的那一组原样带过。补一个名字，无论补在哪一层，都是同一个编造 ——
+   * 界面据此决定不画组头，而不是画一个用户找不到的地方。
+   */
+  it('没有名字的那一组两趟都不被补名', () => {
+    const dated = datedGroupsOf(groups)
 
-    expect(nextChangeIn([], now)).toBe(at('2026-07-30T00:00:00'))
+    expect(dated[1]?.name).toBeNull()
+    expect(paintedGroupsOf(dated, noon)[1]?.name).toBeNull()
   })
 
-  it('整屏取最早的那个期限', () => {
-    const now = at('2026-07-29T12:00:00')
-    const fresh = now - 90_000
-    const stale = at('2026-07-01T09:00:00')
+  it('时钟那一趟只添相对文案，时刻与准确说法原样带过', () => {
+    const dated = datedGroupsOf(groups)
+    const painted = paintedGroupsOf(dated, noon)
+    const before = dated[0]?.members[0]
+    const after = painted[0]?.members[0]
 
-    expect(horizonOf([stale], now)).toBe(at('2026-07-30T00:00:00'))
-    /* 90 秒前读作 1 分钟，下一次改口是它自己的第 2 分钟 —— 写出那个时刻，
-       而不是拿被测的实现再算一遍当作期望值。 */
-    expect(horizonOf([stale, fresh], now)).toBe(fresh + 2 * 60_000)
+    expect(after?.instant).toBe(before?.instant)
+    expect(after?.absolute).toBe(before?.absolute)
+    expect(after?.elapsed).toBe(formatElapsed(before?.instant ?? 0, noon))
   })
 
-  it('无法解析的时刻归入更早，且不参与排序', () => {
-    const now = at('2026-07-29T12:00:00')
-    const [earlier] = sectionsAt([{ updatedAt: 'not-a-date' }], now)
+  it('解析不出来的那一行不画时间', () => {
+    expect(paintedGroupsOf(datedGroupsOf(groups), noon)[0]?.members[1]?.elapsed).toBeNull()
+  })
 
-    expect(earlier?.id).toBe('earlier')
-    expect(earlier?.members.at(0)?.instant).toBeNaN()
-    expect(earlier?.members.at(0)?.absolute).toBeNull()
+  /* 期限要的是整屏所有行的时刻，跨组拉平。 */
+  it('时刻跨组拉平交给期限', () => {
+    expect(instantsOf(datedGroupsOf(groups))).toHaveLength(3)
   })
 })
