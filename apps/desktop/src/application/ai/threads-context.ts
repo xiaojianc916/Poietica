@@ -1,6 +1,7 @@
 import type { SessionConfigControl } from '@poietica/acp'
-import type { ThreadsList, ThreadsStore } from '@poietica/agent-session'
-import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
+import type { ThreadsStore, ThreadWorkspaceList } from '@poietica/agent-session'
+import { groupByWorkspace } from '@poietica/agent-session'
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react'
 
 /*
  * One conversation state, shared by the sidebar and the tab strip.

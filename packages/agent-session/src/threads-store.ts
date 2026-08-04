@@ -7,7 +7,7 @@ import type {
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { SessionControlsStore } from './session-controls-store'
-import { byRecency, type ThreadListItem, type ThreadsList } from './thread-order'
+import { byRecency, type ThreadListItem, type ThreadsList, workspaceIdOf } from './thread-order'
 import { nameOf, shorten } from './thread-title'
 import type { TranscriptSink } from './transcript-sink'
 
@@ -462,7 +462,13 @@ export class ThreadsStore {
       return last
     }
 
-    return { id: thread.threadId, title, isPinned, updatedAt: thread.updatedAt }
+    return {
+      id: thread.threadId,
+      title,
+      isPinned,
+      updatedAt: thread.updatedAt,
+      workspaceId: workspaceIdOf(thread),
+    }
   }
 
   /**

@@ -1,40 +1,133 @@
 import type { ThreadRecord } from '@poietica/acp'
 
 /*
- * 侧栏那张列表的形状与顺序。两者都不依赖 store 的任何实例状态。
+ * 会话列表的次序与分组，一份规则。
+ *
+ * 一级索引是**工作区**，不是时间。时间桶（今天／昨天／过去 7 天）曾经长在视图
+ * 组件里（agent-ui 的 threads/sections.ts），那是个人聊天机器人的信息架构：它
+ * 假设「什么时候说的」是找回一条对话的主线索。对着一个工作目录干活的 agent
+ * 客户端不是那样 —— 主线索是「在哪个项目里」，时间退回行尾那一格的元数据。
+ *
+ * 「已固定」那个独立段也一并没了：它与工作区正交，会把某个工作区的固定项抽到
+ * 别的工作区之上。固定优先本来就写在 byRecency 里，一处足够，两处必然分叉。
  */
 
-/**
- * 一行会话在列表里的样子。
- *
- * 名字在投影时就已经定下来了：三个来源在 store 里分出胜负，渲染层拿到的是结论。
- */
+/** 一条对话，列表需要它的样子。 */
 export interface ThreadListItem {
   readonly id: string
   readonly title: string
   readonly isPinned: boolean
   readonly updatedAt: string
+  /** 它属于哪个工作区。见 workspaceIdOf。 */
+  readonly workspaceId: string
 }
 
-/** 侧栏要的那一片：只有这三样变了，侧栏才需要重画。 */
 export interface ThreadsList {
   readonly items: readonly ThreadListItem[]
   readonly isLoading: boolean
   readonly failure: string | null
 }
 
-/**
- * 置顶在前，然后按活动时间倒序。
- *
- * 时间是 RFC 3339 且两侧都写 UTC（库用 now()，本地用 toISOString），所以
- * 字典序就是时间序，不需要解析成 Date 再比 —— 那是每次排序为每一行各建两个对象。
- */
-export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
-  const pinned = left.pinned === true
+/** 一个工作区，以及它下面的对话。 */
+export interface ThreadWorkspaceGroup {
+  readonly id: string
+  readonly name: string
+  readonly items: readonly ThreadListItem[]
+}
 
-  if (pinned !== (right.pinned === true)) {
-    return pinned ? -1 : 1
+/** 分好组的列表。侧栏读的就是这个。 */
+export interface ThreadWorkspaceList {
+  readonly groups: readonly ThreadWorkspaceGroup[]
+  readonly isLoading: boolean
+  readonly failure: string | null
+}
+
+/*
+ * 还没有被记下工作目录的那些对话归这一个。
+ *
+ * 平台今天对每一条对话报的 workspaceRoot 都是缺席：桌面侧建对话桥时不传 cwd
+ * （application/ai/agent-session.ts），IPC 一路送 cwd: cwd ?? null。也就是说
+ * 运行期只有一个工作目录，存量对话本来就都在它里面 —— 所以缺席不是「不知道」，
+ * 缺席就是「默认那一个」，它有确定的含义，不需要迁移代码，也不需要兼容层。
+ *
+ * 原生侧开始逐条记录目录之后，这一格自然带上路径，分组按目录名裂开，这一层
+ * 与视图都不用改。
+ */
+export const DEFAULT_WORKSPACE_ID = 'default'
+
+const DEFAULT_WORKSPACE_NAME = '默认工作区'
+
+/** 这条对话属于哪个工作区。缺席就是默认那一个。 */
+export function workspaceIdOf(thread: ThreadRecord): string {
+  const root = thread.workspaceRoot
+
+  return root === null || root === undefined || root.length === 0 ? DEFAULT_WORKSPACE_ID : root
+}
+
+/*
+ * 一个工作区叫什么：路径的最后一段。
+ *
+ * 侧栏那一列窄得放不下一条绝对路径，而人认的是项目名。两种分隔符都切，因为
+ * 这个字符串来自原生侧，Windows 上是反斜杠。
+ */
+export function workspaceNameOf(id: string): string {
+  if (id === DEFAULT_WORKSPACE_ID) {
+    return DEFAULT_WORKSPACE_NAME
   }
 
-  return right.updatedAt.localeCompare(left.updatedAt)
+  const segments = id.split(/[\\/]+/).filter((segment) => segment.length > 0)
+
+  return segments.at(-1) ?? id
+}
+
+/**
+ * 组内次序：固定的在前，其余按最近活动倒序。
+ *
+ * 与库那条 ORDER BY 同一条规则（crates/persistence/src/threads.rs 的
+ * list_threads：ORDER BY pinned DESC, updated_at DESC）。
+ */
+export function byRecency(left: ThreadRecord, right: ThreadRecord): number {
+  const pinned = Number(right.pinned === true) - Number(left.pinned === true)
+
+  return pinned === 0 ? right.updatedAt.localeCompare(left.updatedAt) : pinned
+}
+
+/** 组内次序，作用在列表项上。规则与 byRecency 同一条。 */
+function byRecencyOfItem(left: ThreadListItem, right: ThreadListItem): number {
+  const pinned = Number(right.isPinned) - Number(left.isPinned)
+
+  return pinned === 0 ? right.updatedAt.localeCompare(left.updatedAt) : pinned
+}
+
+/**
+ * 按工作区分组。
+ *
+ * 组的次序 = 组内最近一次活动，倒序；组内 = byRecency（固定优先）。两者用的是
+ * 两道不同的尺子，这是故意的：一条被固定的老对话不该把它整个工作区顶到最上面。
+ *
+ * 实现上只走一趟：先按纯活动时间倒序，于是每个组第一次出现的先后本身就是组序，
+ * 不需要第二次排序去求「组内最大 updatedAt」。
+ */
+export function groupByWorkspace(
+  items: readonly ThreadListItem[],
+): readonly ThreadWorkspaceGroup[] {
+  const held = new Map<string, ThreadListItem[]>()
+
+  for (const item of [...items].sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  )) {
+    const members = held.get(item.workspaceId)
+
+    if (members === undefined) {
+      held.set(item.workspaceId, [item])
+    } else {
+      members.push(item)
+    }
+  }
+
+  return [...held].map(([id, members]) => ({
+    id,
+    name: workspaceNameOf(id),
+    items: members.sort(byRecencyOfItem),
+  }))
 }

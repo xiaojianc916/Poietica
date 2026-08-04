@@ -6,7 +6,18 @@ export {
   refreshAgentCapabilities,
   useAgentControls,
 } from './agent-capability-store'
-export type { ThreadListItem, ThreadsList } from './thread-order'
+export type {
+  ThreadListItem,
+  ThreadsList,
+  ThreadWorkspaceGroup,
+  ThreadWorkspaceList,
+} from './thread-order'
+export {
+  DEFAULT_WORKSPACE_ID,
+  groupByWorkspace,
+  workspaceIdOf,
+  workspaceNameOf,
+} from './thread-order'
 export { shorten } from './thread-title'
 export { ThreadsStore } from './threads-store'
 export type { TranscriptSink } from './transcript-sink'
