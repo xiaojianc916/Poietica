@@ -294,9 +294,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 {
                     Ok(initialized) => initialized,
                     Err(error) => {
-                        let _ignored = ready.send(Err(AcpError::Handshake {
-                            message: error.to_string(),
-                        }));
+                        let _ignored =
+                            ready.send(Err(handshake_failed(error.to_string(), &diagnostics)));
 
                         return Err(error);
                     }
@@ -319,9 +318,8 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 {
                     Ok(session) => session,
                     Err(error) => {
-                        let _ignored = ready.send(Err(AcpError::Handshake {
-                            message: error.to_string(),
-                        }));
+                        let _ignored =
+                            ready.send(Err(handshake_failed(error.to_string(), &diagnostics)));
 
                         return Err(error);
                     }
@@ -996,6 +994,34 @@ fn blocks_of(text: &str, images: Vec<PromptImage>) -> Option<Vec<ContentBlock>> 
     }
 
     (!blocks.is_empty()).then_some(blocks)
+}
+
+/// 握手没能走完，说出它为什么没成 —— 连 agent 自己那句一起。
+///
+/// initialize 上的 incoming_transport_closed 说的是「对面把管子关了」：那是传输
+/// 层看到的现象，不是原因。原因几乎总在 agent 自己的错误流里 —— 可执行文件不在
+/// 搜索路径上、它要求先登录、provider 拒了这把密钥、协议版本谈不拢。
+///
+/// 这条流本来就有人收（stderr.rs 的 StderrLog，留最后 40 行），轮次结束那一路
+/// 一直在用它（recorder.set_diagnostics）。只有握手失败这两处一个字都不带，于是
+/// 这个应用最容易失败的一步，恰好是唯一一步说不出原因的。
+///
+/// 不给 AcpError::Handshake 加字段：它的 message 就是「这次握手为什么没成」的
+/// 完整说法，agent 那句话属于这同一件事，不是第二格。加一格会打破每一处已经在
+/// 按 Handshake { message } 匹配的地方，而它们要显示的仍然是这一句。
+///
+/// 流可能是空的：进程死得比 observer 收到那几行更快。那种时候就只有传输层这一
+/// 句，与此前一样 —— 空着不硬凑，比拼一段 `agent 说：` 后面什么都没有要好。
+fn handshake_failed(reported: String, diagnostics: &StderrLog) -> AcpError {
+    let said = diagnostics.tail();
+
+    let message = if said.is_empty() {
+        reported
+    } else {
+        format!("{reported}\n\nagent 在错误流上说：\n{said}")
+    };
+
+    AcpError::Handshake { message }
 }
 
 /// The response that carries a decision back to the agent.

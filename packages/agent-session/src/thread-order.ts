@@ -31,7 +31,15 @@ export interface ThreadsList {
 /** 一个工作区，以及它下面的对话。 */
 export interface ThreadWorkspaceGroup {
   readonly id: string
-  readonly name: string
+  /**
+   * 这个工作区叫什么，null 表示它的目录还没有被记下来。
+   *
+   * 没有名字不等于没有工作区：会话本来就是对着一个目录开的
+   * （agent-runtime 的 AgentSpawn.cwd 是必填的 PathBuf）。缺的是这个目录到
+   * 这一层的那条路，所以这一格如实说「不知道」，由视图决定不知道时画什么，
+   * 而不是在这里编一个名字塞进去。
+   */
+  readonly name: string | null
   readonly items: readonly ThreadListItem[]
 }
 
@@ -55,8 +63,6 @@ export interface ThreadWorkspaceList {
  */
 export const DEFAULT_WORKSPACE_ID = 'default'
 
-const DEFAULT_WORKSPACE_NAME = '默认工作区'
-
 /** 这条对话属于哪个工作区。缺席就是默认那一个。 */
 export function workspaceIdOf(thread: ThreadRecord): string {
   const root = thread.workspaceRoot
@@ -65,14 +71,20 @@ export function workspaceIdOf(thread: ThreadRecord): string {
 }
 
 /*
- * 一个工作区叫什么：路径的最后一段。
+ * 一个工作区叫什么：路径的最后一段；路径不知道时没有名字。
+ *
+ * 默认那一个交回 null，而不是一句文案。此前这里写的是「默认工作区」——
+ * 那是拿文案去填数据的缺口：屏幕上于是多出一个标题，而用户问「这个工作区在
+ * 哪里」时界面答不上来，因为这一层自己也不知道。目录是有的（session/new 与
+ * session/load 都带着 cwd），只是它没有跨过 IPC，也没有落库；这一格的诚实
+ * 说法就是没有名字，视图据此不画组头。
  *
  * 侧栏那一列窄得放不下一条绝对路径，而人认的是项目名。两种分隔符都切，因为
  * 这个字符串来自原生侧，Windows 上是反斜杠。
  */
-export function workspaceNameOf(id: string): string {
+export function workspaceNameOf(id: string): string | null {
   if (id === DEFAULT_WORKSPACE_ID) {
-    return DEFAULT_WORKSPACE_NAME
+    return null
   }
 
   const segments = id.split(/[\\/]+/).filter((segment) => segment.length > 0)

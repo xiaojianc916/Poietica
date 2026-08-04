@@ -167,21 +167,26 @@ export interface PaintedMember<T> extends DatedMember<T> {
   readonly elapsed: string | null
 }
 
+/*
+ * name 可以是 null：那一组的目录还没有被记下来，见 agent-session 的
+ * workspaceNameOf。这三个形状只是同一份数据的两级投影，所以它们原样带过
+ * 这件事，不在中途替它补一个名字 —— 补在哪一层，都是同一个编造。
+ */
 export interface Grouped<T> {
   readonly id: string
-  readonly name: string
+  readonly name: string | null
   readonly items: readonly T[]
 }
 
 export interface DatedGroup<T> {
   readonly id: string
-  readonly name: string
+  readonly name: string | null
   readonly members: readonly DatedMember<T>[]
 }
 
 export interface PaintedGroup<T> {
   readonly id: string
-  readonly name: string
+  readonly name: string | null
   readonly members: readonly PaintedMember<T>[]
 }
 

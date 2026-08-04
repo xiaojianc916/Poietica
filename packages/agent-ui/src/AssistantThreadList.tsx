@@ -61,7 +61,8 @@ export interface AssistantThreadSummary {
 /** 一个工作区，以及它下面的对话。次序由上游定好，这一层不重排。 */
 export interface AssistantThreadWorkspaceGroup {
   readonly id: string
-  readonly name: string
+  /** 叫什么，null 表示目录还没有被记下来 —— 这一组不画组头。 */
+  readonly name: string | null
   readonly items: readonly AssistantThreadSummary[]
 }
 
@@ -400,6 +401,67 @@ const ThreadRow = memo(function ThreadRow({
   )
 })
 
+interface WorkspaceHeaderProps {
+  readonly workspaceId: string
+  /** 这个工作区叫什么。没有名字的组不画组头，所以这里不接受 null。 */
+  readonly name: string
+  /** 整组的条数，不是当前展开的那几条。 */
+  readonly count: number
+  readonly isOpen: boolean
+  readonly onCreate: (workspaceId?: string) => void
+}
+
+/*
+ * 一个工作区的组头。
+ *
+ * 抽成组件是为了把「有名字」收进类型：组头要写标题，还要给新建按钮一句说得出
+ * 工作区名字的标签，两件事都以名字存在为前提。名字缺席的那一组不画组头，于是
+ * 这里的 name 是 string 而不是 string | null —— 收窄一次，内部就不必各自兜底。
+ *
+ * 组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以 aria-expanded
+ * 说的是下面那张列表在不在，而不是它自己的样子。
+ */
+function WorkspaceHeader({ workspaceId, name, count, isOpen, onCreate }: WorkspaceHeaderProps) {
+  const createLabel = `在${name}中新建对话`
+
+  return (
+    <div className="assistant-threads__group-header">
+      <button
+        aria-expanded={isOpen}
+        className="assistant-threads__toggle"
+        onClick={() => {
+          toggleWorkspace(workspaceId)
+        }}
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="assistant-threads__chevron"
+          data-open={isOpen ? 'true' : undefined}
+        >
+          <ChevronRight aria-hidden="true" />
+        </span>
+
+        <span className="assistant-threads__name">{name}</span>
+
+        <span className="assistant-threads__count">{count}</span>
+      </button>
+
+      <button
+        aria-label={createLabel}
+        className="assistant-threads__create"
+        onClick={() => {
+          onCreate(workspaceId)
+        }}
+        title={createLabel}
+        type="button"
+      >
+        <PlusIcon aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
 export function AssistantThreadList({
   groups,
   isLoading,
@@ -509,53 +571,35 @@ export function AssistantThreadList({
       ) : null}
 
       {painted.map((group) => {
-        const isOpen = !collapsed.has(group.id)
+        /*
+         * 名字缺席的那一组不长组头。
+         *
+         * 缺席说的是「这些对话的工作目录还没有被记下来」，不是「它们没有工作
+         * 区」：会话本来就是对着一个目录开的。缺的是那个目录到这一层的路，所以
+         * 这里没有任何东西可以写在组头上。替它编一个名字（此前写的是「默认工作
+         * 区」）不是省事，是造一个用户问得出「它在哪」而界面答不上来的标题。
+         *
+         * 于是这一组按它本来的样子画：一列对话，没有标题，也没有折叠 —— 收不收
+         * 起一个说不出名字的东西，不是一个能提给用户的选择。原生侧把目录记下来
+         * 之后，它自然长出名字与组头，这一层不用再改。
+         */
+        const named = group.name
+        const isOpen = named === null || !collapsed.has(group.id)
         const limit = shown.get(group.id) ?? PAGE
         const members = group.members.slice(0, limit)
         const rest = group.members.length - members.length
-        const createLabel = `在${group.name}中新建对话`
 
         return (
           <section className="assistant-threads__group" key={group.id}>
-            {/*
-                组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以
-                aria-expanded 说的是下面那张列表在不在，而不是它自己的样子。
-              */}
-            <div className="assistant-threads__group-header">
-              <button
-                aria-expanded={isOpen}
-                className="assistant-threads__toggle"
-                onClick={() => {
-                  toggleWorkspace(group.id)
-                }}
-                type="button"
-              >
-                <span
-                  aria-hidden="true"
-                  className="assistant-threads__chevron"
-                  data-open={isOpen ? 'true' : undefined}
-                >
-                  <ChevronRight aria-hidden="true" />
-                </span>
-
-                <span className="assistant-threads__name">{group.name}</span>
-
-                {/* 条数说的是整组，不是当前展开的那几条。 */}
-                <span className="assistant-threads__count">{group.members.length}</span>
-              </button>
-
-              <button
-                aria-label={createLabel}
-                className="assistant-threads__create"
-                onClick={() => {
-                  onCreate(group.id)
-                }}
-                title={createLabel}
-                type="button"
-              >
-                <PlusIcon aria-hidden="true" />
-              </button>
-            </div>
+            {named === null ? null : (
+              <WorkspaceHeader
+                count={group.members.length}
+                isOpen={isOpen}
+                name={named}
+                onCreate={onCreate}
+                workspaceId={group.id}
+              />
+            )}
 
             {isOpen ? (
               <>
