@@ -35,6 +35,27 @@
   driver.rs 读的 .delete 仍然成立 —— Rust 侧一行不动。
 - 提问卡的 content 是 q.question 本身，不再是入参 JSON。
 
+## fs 能力：声明，并且实现
+
+不声明它等于让 v2 引擎跑在一个 v1 能力的客户端上。上游是逐条按能力分流的：
+acp-server/src/acp-fs/acpFsService.ts 的 readText 首行逐字
+if (!this.connection.fsReadTextFile) return this.inner.readText(path, options)，
+acpConnection.ts 的 bindFsCapabilities 判据逐字 fs?.readTextFile === true。
+能力缺席时，agent 的文件读写退回它自己进程里的本地盘 —— 换了子命令、换了引擎,
+v2 多出来的这一块整块白装。
+
+实现在 crates/agent-runtime/src/fs_host.rs，边界与实现同处一处：
+
+- 只认这条会话工作目录之下的绝对路径，边界值就是交给 session/new 的那个 cwd,
+  不是第二份配置。
+- .. 按词法消掉之后再比对。不能先 canonicalize 再比：一个还不存在的文件没有
+  canonical 形式，而写入路径上必然遇到的就是还不存在的文件。
+- 文件缺席回协议的 -32002。上游 acpFsService.ts 的 isResourceNotFound 逐字判
+  error.code === -32002，它的 appendText 靠这一条把缺席当成空文件；回别的码,
+  追加写会整个失败。
+- 读盘写盘都在 connection.spawn 里，处理器立刻返回 —— 与授权请求同一个理由
+  （见同目录 0001）：派发是原子的，占着它就是整个界面卡死。
+
 ## 顺带白拿的
 
 - tool_call 带 locations（toolCallLocations，只发绝对路径，缺则省略不编造）。
@@ -46,7 +67,7 @@
 
 ## 明确不做
 
-- 不声明 clientCapabilities.terminal 与 fs。声明即承诺由我们起进程、持有、
+- 仍然不声明 clientCapabilities.terminal。声明即承诺由我们起进程、持有、
   响应 kill 与 release；未实现之前声明比不声明糟。能力关闭时 acp-server 走
   execLocal，其 docstring 逐字：behavior with the capability off is
   therefore identical to today s。

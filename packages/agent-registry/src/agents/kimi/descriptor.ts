@@ -3,13 +3,15 @@ import type { AcpAgentDescriptor } from '../../acp-agent-contract'
 /*
  * Kimi Code CLI 的档案。
  *
- * 事实来源是它自己的源码，不是观察和猜测：
- * MoonshotAI/kimi-code，packages/acp-adapter/src/。每一条下面都注明具体是哪个函数。
+ * 事实来源是它自己的源码，不是观察和猜测：MoonshotAI/kimi-code。每一条下面都
+ * 注明具体是哪个文件的哪个函数。
  *
- * 那个包是上游自己叫作 legacy 的那一套（acp-v2.ts 逐字："the legacy
- * @moonshot-ai/acp-adapter over the SDK harness"）。另有一套 @moonshot-ai/acp-server
- * 挂在 kimi acp-v2 下，终端反向 RPC、文件宿主、session/close 只在那一套里。
- * 我们接哪一套、为什么、什么条件下才切，见 docs/adr/0004。
+ * 我们接的是 kimi acp-v2：@moonshot-ai/acp-server + agent-core-v2 引擎。为什么不
+ * 接上游自称 legacy 的 @moonshot-ai/acp-adapter，见 docs/adr/0004（一句话：那一套
+ * 在事件流首行按 MAIN_AGENT_ID 过滤，子代理的审批永远到不了客户端）。
+ *
+ * 下面这两张表对两套都成立：审批与提问的 optionId 方言逐字相同，所以接上一个
+ * 旧版本的进程也不会露出英文。
  */
 
 /**
@@ -55,14 +57,9 @@ const OPTION_LABELS = {
 } as const
 
 /*
- * 启动方式取自上游 README 给 ACP 客户端的配置：command "kimi"，args ["acp"]。
- * 它是一个可执行名加一串参数，不是一行待解析的命令行 —— 拼成字符串再拆开只会
- * 凭空长出一个引号和转义的问题。
- *
- * 不是 acp-v2，这是一个决定而不是疏忽：那一套上游标着 experimental，它的
- * runAcpServer 调用没有传 slashCommands（命令面板会整个消失），而它多出来的
- * terminal/* 与 fs/* 都是客户端侧方法 —— 要先由我们实现并如实声明能力，
- * 声明而不实现比不声明糟。三条前置条件写在 docs/adr/0004。
+ * 启动是一个可执行名加一串参数，不是一行待解析的命令行：拼成字符串再拆回来是
+ * 有损的 —— Windows 路径里的反斜杠会被 POSIX 词法当成转义符吃掉，带空格的路径
+ * 会被切断。
  */
 export const kimiCode = {
   id: 'kimi',

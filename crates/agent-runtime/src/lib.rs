@@ -24,6 +24,7 @@ mod desk;
 mod driver;
 mod error;
 mod frame;
+mod fs_host;
 mod permission;
 mod program;
 mod recorder;

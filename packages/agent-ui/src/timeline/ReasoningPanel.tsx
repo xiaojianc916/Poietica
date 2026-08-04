@@ -62,7 +62,7 @@ const BOTTOM_THRESHOLD_PX = 32
  * 一件都对，但同一个问题不该有两个答案 —— 那个 hook 连同它的文件已经删掉，不留
  * 兼容层。
  *
- * 一块 markdown 就是一行。切分归 blockSplit，渲染归 ProseSegment，两者与回答那一
+ * 一块 markdown 就是一行。切分归 createBlockScanner，渲染归 ProseSegment，两者与回答
  * 条流完全同款；这一层只回答「哪些块此刻在屏幕上」。
  */
 export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
