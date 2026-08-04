@@ -117,7 +117,20 @@
   font-size: var(--cp-font);
   line-height: var(--cp-line-ratio);
   color: var(--cp-ink);
-  caret-color: var(--cp-accent);
+  /*
+   * 这里不声明 caret-color。
+   *
+   * 此前是 var(--cp-accent) —— 那是发送键的品牌色（见本文件
+   * [data-slot="prompt-input-submit"] 的 background，同一个令牌）。光标不是强调
+   * 件：它标的是下一个字形要落在哪里，所以它的颜色就是那个字形的颜色。
+   *
+   * caret-color 的初始值是 auto，解析为 currentColor，也就是上一行的 --cp-ink。
+   * 因此「默认颜色」由删掉声明得到，而不是补一条 caret-color: auto —— 那是用一
+   * 条声明去表达「没有声明」，下一个人还得再判断它盖掉了什么。
+   *
+   * 全仓其余输入框（会话行的 __rename-field、设置页那几个）从来没有声明过它，
+   * 所以这一条删掉之后，输入光标在整个应用里只有一种颜色，公共层不需要兜底。
+   */
   resize: none;
   box-sizing: border-box;
   /* 首帧的高度。此后这一项由 composer/use-autosize.ts 写行内值。 */

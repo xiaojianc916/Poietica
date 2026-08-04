@@ -50,6 +50,13 @@ const toSlides = (images: readonly PreviewableImage[]): Slide[] =>
  * Fullscreen image preview. Controlled: the caller owns the open index, so the
  * same overlay can be driven from a thumbnail grid, a keyboard shortcut, or a
  * transcript message without duplicating state.
+ *
+ * carousel.padding 是显式给的，因为库的默认值是 "16px"：配上默认的
+ * imageFit: "contain"，一张图会被放大到离窗口边缘只剩 16px，打开的第一眼是「顶
+ * 满」而不是「看清」。取百分比而不是像素，是因为 computeSlideRect 按容器宽度折
+ * 算它 —— 窗口拉大留白同比例跟随，一个数管所有窗口尺寸。
+ *
+ * 缩略图那两档尺寸不在这里：它们是列表里的物件，与打开后的观看尺度无关。
  */
 export function ImageLightbox({ images, index, onIndexChange }: ImageLightboxProps) {
   const slides = useMemo(() => toSlides(images), [images])
@@ -66,7 +73,7 @@ export function ImageLightbox({ images, index, onIndexChange }: ImageLightboxPro
   return (
     <Lightbox
       animation={{ fade: 160, swipe: 260 }}
-      carousel={{ finite: true, preload: 1 }}
+      carousel={{ finite: true, padding: '8%', preload: 1 }}
       className="poietica-lightbox"
       close={handleClose}
       controller={{ closeOnBackdropClick: true, closeOnPullDown: true }}

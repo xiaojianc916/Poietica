@@ -91,6 +91,12 @@ interface FeedProjection {
   readonly rowOf: readonly number[]
   readonly rows: readonly FeedRow[]
   readonly live: boolean
+  /**
+   * 这一份投影是按哪一个段号算的。
+   *
+   * turnStart 只随换段移动（见下方求值处），所以复用它需要的正是这一格。
+   */
+  readonly runIndex: number
   /** 当前这一轮从哪一条开始。它之前的条目一律不在飞。 */
   readonly turnStart: number
 }
@@ -231,8 +237,21 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
     return held.rows
   }
 
-  /* 在飞的范围就是当前这一段。没在跑就没有人在飞，整条对话都不在。 */
-  const turnStart = live ? turnStartOf(items, state.runIndex) : items.length
+  /*
+   * 在飞的范围就是当前这一段。没在跑就没有人在飞，整条对话都不在。
+   *
+   * 段的起点不随流式追加移动：新条目一律带着当前段号追加在末尾，而已有条目的段号
+   * 一旦写下就不再改（reducer 的就地替换整份沿用 turn）。所以段号没变时，它恒是
+   * 上一帧那个数。
+   *
+   * 此前每一帧都从末端倒扫一遍整段去求它 —— 代价是这一轮的长度乘以帧率，而答案
+   * 每一帧都相同。倒扫现在只发生在换段的那一帧，那时段里只有一条。
+   */
+  const turnStart = !live
+    ? items.length
+    : held !== undefined && held.live && held.runIndex === state.runIndex
+      ? held.turnStart
+      : turnStartOf(items, state.runIndex)
 
   /*
    * 在飞的范围变了，共享前缀就不能一路沿用到底：那一段里的行还带着上一次的
@@ -255,7 +274,7 @@ export function selectFeedRows(state: TimelineState): readonly FeedRow[] {
   /* 内容没变就交还上一份数组：下游按引用判等。 */
   const settled = held !== undefined && isSettled(held, items, shared, rows) ? held.rows : rows
 
-  FEEDS.set(anchor, { items, rowOf, rows: settled, live, turnStart })
+  FEEDS.set(anchor, { items, rowOf, rows: settled, live, runIndex: state.runIndex, turnStart })
 
   return settled
 }

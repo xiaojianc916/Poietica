@@ -13,10 +13,21 @@ import type { PermissionItem, TimelineItem, TimelineState } from './timeline-con
  * 有一个导出的选择器在回答这个问题，却没有人调用它。现在它是行投影的输入。
  */
 
-/** 这个问题只需要转录的两格，所以只收这两格。草稿和已封版的状态都喂得进来。 */
+/* 没人在等时交出同一个对象：这条路径每帧都要走，而它什么都不必分配。 */
+const NOBODY_WAITING = { first: undefined, count: 0 } as const
+
+/** 这个问题只需要转录的三格，所以只收这三格。草稿和已封版的状态都喂得进来。 */
 export interface PermissionScope {
   readonly items: readonly TimelineItem[]
   readonly runIndex: number
+  /**
+   * 这一轮此刻的状态。
+   *
+   * 它是「有没有人在等」的权威：permission_requested 写下 awaiting_permission，
+   * permission_resolved 又拿这里的答案把它算回 running（见 acp-projection）。
+   * 收下它，倒扫就只发生在真的有人在等的时候。
+   */
+  readonly status: TimelineState['status']
 }
 
 /**
@@ -71,6 +82,22 @@ function waitingIn(scope: PermissionScope): {
   readonly first: PermissionItem | undefined
   readonly count: number
 } {
+  /*
+   * 没在等人，就没有人在等。
+   *
+   * 这不是一层缓存，是把问题问到它的答案所在的那一格：状态由帧驱动，逐帧维护着
+   * 这件事。此前每一帧都为这个问题倒扫整段 —— 而这两个导出各是一条切片订阅，
+   * getSnapshot 在渲染期与提交期各被调一次，于是一帧至少四趟，趟趟的答案都是「没有」。
+   *
+   * 它同时改掉一处语义错：一轮已经落定（completed / failed / cancelled）时，那条
+   * 没等到答复的请求不再被交出来 —— 原生侧的桌子早已随轮次收走，摊在输入框上方的
+   * 是一条按下去没有任何效果的审批带。判据与工具卡片那一处同源：轮次一停，它就
+   * 不再是活的。
+   */
+  if (scope.status !== 'awaiting_permission') {
+    return NOBODY_WAITING
+  }
+
   const items = scope.items
   let first: PermissionItem | undefined
   let count = 0

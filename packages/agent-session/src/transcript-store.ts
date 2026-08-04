@@ -172,7 +172,31 @@ export type Paint = (flush: () => void) => void
  *
  * 没有屏幕的地方（测试、SSR）退回微任务：同一句语义（下一个空档），换一个时基。
  */
+/**
+ * 没有画面时的节拍。
+ *
+ * 它只需要粗到不浪费、细到让队列有界：一轮回答的帧以毫秒计到达，四分之一秒一折，
+ * 攒下的量与前台时同阶。
+ */
+const HIDDEN_TEMPO_MS = 250
+
 const onNextPaint: Paint = (flush) => {
+  /*
+   * 隐藏的窗口不画帧。
+   *
+   * requestAnimationFrame 在 document 隐藏时整个停摆（HTML 规范），于是 #pending
+   * 会跟着一整轮回答无界增长 —— 帧只进不出，回到前台的那一刻一次全折进去。
+   *
+   * 折叠是状态的事，画面只是它的默认时基，不是它的前提。所以没有帧可等的时候按
+   * 一个粗节拍折：同一句语义（下一个空档），换一个时基 —— 与下面那条微任务退路
+   * 同一个道理。
+   */
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    setTimeout(flush, HIDDEN_TEMPO_MS)
+
+    return
+  }
+
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(() => {
       flush()

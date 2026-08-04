@@ -94,8 +94,20 @@ export interface StreamBlock {
   readonly text: string
 }
 
-function blockAt(lines: readonly string[], start: number, end: number): StreamBlock {
-  return { key: start, lines: end - start, text: lines.slice(start, end).join('\n') }
+/**
+ * 行数，不分配。
+ *
+ * 估高要的是一个数，而 split('\n') 交出来的是一份完整的行表：为一篇长文本分配
+ * 成千个字符串，其中没有一个被读过。
+ */
+function countLines(text: string): number {
+  let lines = 1
+
+  for (let at = text.indexOf('\n'); at >= 0; at = text.indexOf('\n', at + 1)) {
+    lines += 1
+  }
+
+  return lines
 }
 
 /**
@@ -106,54 +118,114 @@ function blockAt(lines: readonly string[], start: number, end: number): StreamBl
  * 的那一种」另留一条分支。
  */
 export function wholeText(text: string): readonly StreamBlock[] {
-  return [{ key: 0, lines: text.split('\n').length, text }]
+  return [{ key: 0, lines: countLines(text), text }]
 }
+
+/**
+ * 一次可以接着往下走的扫描。
+ *
+ * 切点是前缀确定的（理由见文件头），所以一次流式追加本来只需要扫新到的那几行。
+ * 此前每一帧都把整篇重扫一遍：一次 split('\n') 分配整份行表，再对每一行跑两条
+ * 正则 —— 第 n 帧扫 n 行，一轮下来 O(n²)，n 是这条回答的长度。这正是文件头那句
+ * 话在说的事，只是它此前只对「解析」成立，对「切分」自己不成立。
+ *
+ * 停点落在「它后面那一行也已经完整」的位置：一个空行是不是边界要看它的下一行
+ * （separates），而正在写的那一行随时会变。因此停点之前的判据永不重算。
+ *
+ * 只留一条状态：同一时刻只有一段文本在长（末块才是流式的那一块），别的块由调用
+ * 方的 useMemo 挡住，本来就不会重扫。认不出前缀时整篇重扫，逐字退化成没有这份
+ * 状态时的行为。
+ */
+interface Scan {
+  /** 上一次交进来的那篇文本，也就是续扫的前缀判据。 */
+  readonly source: string
+  /** 上一次交出去的那一份，供同一篇文本被问第二次时原样交回。 */
+  readonly result: readonly StreamBlock[]
+  /** 已经封口的块。 */
+  readonly blocks: StreamBlock[]
+  /** 停点：下一行从这个字符开始，而它是第 line 行。 */
+  readonly at: number
+  readonly line: number
+  /** 还没封口那一段从哪个字符、第几行开始。 */
+  readonly from: number
+  readonly start: number
+  /** 停点之前最后一个非空行。 */
+  readonly previous: string
+  /** 停点处落在哪一种围栏里。 */
+  readonly open: Fence
+}
+
+let held: Scan | null = null
 
 /**
  * 把一篇还在写的 markdown 切成块。
  *
  * 最后一块就是正在写的那一块：它后面没有安全切点，所以它是唯一还可能变的一块。前面
- * 每一块都已封口 —— 内容不再变，也就不该被解析第二次。
+ * 每一块都已封口 —— 内容不再变，也就不该被解析第二次，也不该被切第二次。
  *
  * 至少交回一块（可能是空串）：一篇还没有任何内容的思考也有一个正在写的位置。
  *
  * 相邻两块之间少掉的正是切点那一个空行，而空行是块之间的分隔符本身：它属于分隔，
  * 不属于任何一块。
- *
- * 切点是前缀确定的：一个空行是不是边界，只取决于它前面的内容与紧随其后的那一行，
- * 而围栏状态只由前缀决定。于是块只会追加、不会重新划分 —— 虚拟化那一层拿起始行号
- * 当身份，靠的就是这一条。
  */
 export function blockSplit(text: string): readonly StreamBlock[] {
-  const lines = text.split('\n')
-  const blocks: StreamBlock[] = []
+  const scan = held
 
-  let open: Fence = 'none'
-  let previous = ''
-  let start = 0
+  /* 同一篇文本被问第二次（一次渲染里 getSnapshot 会被调用不止一次）：原样交回。 */
+  if (scan !== null && scan.source === text) {
+    return scan.result
+  }
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? ''
+  /* 只追加就接着扫。判据是一次原生前缀比较，不分配。 */
+  const resumed =
+    scan !== null && text.length > scan.source.length && text.startsWith(scan.source) ? scan : null
+
+  const blocks = resumed === null ? [] : resumed.blocks
+
+  let at = resumed?.at ?? 0
+  let line = resumed?.line ?? 0
+  let from = resumed?.from ?? 0
+  let start = resumed?.start ?? 0
+  let previous = resumed?.previous ?? ''
+  let open: Fence = resumed?.open ?? 'none'
+
+  for (;;) {
+    const end = text.indexOf('\n', at)
+
+    /* 最后那一行还在写：它不是一个可判定的边界，留给下一趟。 */
+    if (end < 0) {
+      break
+    }
+
+    /* 下一行也得完整：空行是不是边界要看它。停点因此永远可续。 */
+    const after = text.indexOf('\n', end + 1)
+
+    if (after < 0) {
+      break
+    }
+
+    const row = text.slice(at, end)
     const inside = open !== 'none'
 
-    open = fenceAfter(line, open)
+    open = fenceAfter(row, open)
 
     /*
      * 只有「围栏外的空行」才有资格当边界。围栏内的行、围栏本身那两行、以及任何
      * 有字的行，都只是内容。
      *
-     * 注意空行不更新 previous —— 这不是疏忽，是 previous 的定义：它是上一个非空
-     * 行。连续空行时它不能被冲掉，否则第二个空行会看见一个空的左邻居，边界就丢了。
+     * 空行不更新 previous —— 这不是疏忽，是 previous 的定义：它是上一个非空行。
      */
-    if (inside || open !== 'none' || line.trim() !== '') {
-      previous = line
-      continue
+    if (inside || open !== 'none' || row.trim() !== '') {
+      previous = row
+    } else if (separates(previous, text.slice(end + 1, after))) {
+      /* 切点那一行不属于任何一块：块止于它前面那个换行。 */
+      blocks.push({ key: start, lines: line - start, text: text.slice(from, at - 1) })
+      start = line + 1
+      from = end + 1
     }
 
-    if (separates(previous, lines[index + 1] ?? '')) {
-      blocks.push(blockAt(lines, start, index))
-      start = index + 1
-    }
+    at = end + 1
+    line += 1
   }
 
   /*
@@ -161,7 +233,11 @@ export function blockSplit(text: string): readonly StreamBlock[] {
    * 全都落在这个未闭合围栏开始之前。而这正是最需要封口的场景 —— 一个正在被一行行写
    * 出来的代码块，前面那些已经写完的段落没有理由陪着它一起重新解析。
    */
-  blocks.push(blockAt(lines, start, lines.length))
+  const tailText = text.slice(from)
+  const last: StreamBlock = { key: start, lines: countLines(tailText), text: tailText }
+  const result = blocks.length === 0 ? [last] : [...blocks, last]
 
-  return blocks
+  held = { source: text, result, blocks, at, line, from, start, previous, open }
+
+  return result
 }
