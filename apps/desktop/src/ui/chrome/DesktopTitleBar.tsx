@@ -1,6 +1,10 @@
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynaui/icons-react'
 import { Button } from '@poietica/ui'
-import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace/ui'
+import {
+  useWorkspaceLayoutMode,
+  useWorkspaceLayoutState,
+  workspaceLayoutStore,
+} from '@poietica/workspace/ui'
 import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
 import './desktop-title-bar.css'
@@ -78,6 +82,13 @@ export function DesktopTitleBar({
    */
   const { sidebarOpen } = useWorkspaceLayoutState()
 
+  /*
+   * 窄窗口里侧栏是收起的（SidebarRegion 由布局模式派生），没有可开合的
+   * 东西：留着可点，点一下改的是一份看不见的状态，扩回宽屏时「侧栏怎么
+   * 没回来」就是这么来的。
+   */
+  const layoutMode = useWorkspaceLayoutMode()
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
       {/*
@@ -102,6 +113,7 @@ export function DesktopTitleBar({
         <Button
           aria-label={sidebarOpen ? '收起侧边栏' : '展开侧边栏'}
           className={CHROME_BUTTON_CLASS}
+          disabled={layoutMode === 'narrow'}
           onClick={workspaceLayoutStore.toggleSidebar}
           size="icon"
           type="button"

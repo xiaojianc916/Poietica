@@ -16,6 +16,10 @@ export {
   type SidebarFooterProps,
 } from './shell/sidebar/SidebarFooter'
 export { WorkspaceSidebar } from './shell/sidebar/WorkspaceSidebar'
+export {
+  useWorkspaceLayoutMode,
+  type WorkspaceLayoutMode,
+} from './shell/useWorkspaceLayout'
 export { WorkspaceShell } from './shell/WorkspaceShell'
 export {
   WorkspaceSurface,
