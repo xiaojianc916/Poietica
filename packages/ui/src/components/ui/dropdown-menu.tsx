@@ -31,7 +31,15 @@ export function DropdownMenuTrigger({ className, ...props }: ComponentProps<type
   )
 }
 
-type DropdownMenuContentProps = ComponentProps<typeof Menu.Popup> & {
+/*
+ * 一张浮层，说一次。
+ *
+ * 主菜单与子菜单此前是两份逐字节相同的类型声明，加两份逐字节相同的
+ * Portal → Positioner → Popup。两者真正的差别只有两个默认值：贴哪一边、离多远。
+ * 这个文件上面刚把两份相同的行样式合成 itemClassName，同一份文件里不该有两套
+ * 标准。
+ */
+type DropdownMenuPopupProps = ComponentProps<typeof Menu.Popup> & {
   readonly sideOffset?: number
   readonly side?: ComponentProps<typeof Menu.Positioner>['side']
   readonly align?: ComponentProps<typeof Menu.Positioner>['align']
@@ -39,13 +47,13 @@ type DropdownMenuContentProps = ComponentProps<typeof Menu.Popup> & {
 
 const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1')
 
-export function DropdownMenuContent({
+function MenuPopup({
   align = 'start',
   className,
-  side = 'bottom',
-  sideOffset = 6,
+  side,
+  sideOffset,
   ...props
-}: DropdownMenuContentProps) {
+}: DropdownMenuPopupProps) {
   return (
     <Menu.Portal>
       <Menu.Positioner
@@ -58,6 +66,15 @@ export function DropdownMenuContent({
       </Menu.Positioner>
     </Menu.Portal>
   )
+}
+
+/* 主菜单贴下沿。6 与 4 的差别是有意的：子菜单贴着父行展开，离得更近。 */
+export function DropdownMenuContent({
+  side = 'bottom',
+  sideOffset = 6,
+  ...props
+}: DropdownMenuPopupProps) {
+  return <MenuPopup side={side} sideOffset={sideOffset} {...props} />
 }
 
 /*
@@ -166,29 +183,11 @@ export function DropdownMenuSubTrigger({
   )
 }
 
-type DropdownMenuSubContentProps = ComponentProps<typeof Menu.Popup> & {
-  readonly sideOffset?: number
-  readonly side?: ComponentProps<typeof Menu.Positioner>['side']
-  readonly align?: ComponentProps<typeof Menu.Positioner>['align']
-}
-
+/* 子菜单朝右展开。 */
 export function DropdownMenuSubContent({
-  align = 'start',
-  className,
   side = 'right',
   sideOffset = 4,
   ...props
-}: DropdownMenuSubContentProps) {
-  return (
-    <Menu.Portal>
-      <Menu.Positioner
-        align={align}
-        className={popupPositionerClassName}
-        side={side}
-        sideOffset={sideOffset}
-      >
-        <Menu.Popup className={cn(popupClassName, className)} {...props} />
-      </Menu.Positioner>
-    </Menu.Portal>
-  )
+}: DropdownMenuPopupProps) {
+  return <MenuPopup side={side} sideOffset={sideOffset} {...props} />
 }

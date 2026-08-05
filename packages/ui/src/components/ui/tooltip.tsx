@@ -1,10 +1,10 @@
 import { Tooltip } from '@base-ui/react/tooltip'
-import { Children, type ComponentProps, isValidElement } from 'react'
+import type { ComponentProps } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName } from './popup-surface'
 
 /*
- * 两个部件都从 Base UI 的命名空间直接展平，不再手搓转发。
+ * 三个部件都从 Base UI 的命名空间直接展平，不再手搓转发。
  *
  * 此前 Provider 是个函数包装：它只转发三个属性，却把类型声明成 Tooltip.Provider
  * 的全部属性，而那一行里没有 rest spread —— 于是把别的属性传进来，类型检查通得
@@ -17,16 +17,21 @@ const TooltipProvider = Tooltip.Provider
 
 const TooltipRoot = Tooltip.Root
 
-function TooltipTrigger({
-  asChild = false,
-  children,
-  ...props
-}: ComponentProps<typeof Tooltip.Trigger> & { readonly asChild?: boolean }) {
-  const child = Children.only(children)
-  const renderElement = asChild && isValidElement(child) ? child : undefined
-
-  return <Tooltip.Trigger render={renderElement} {...props} />
-}
+/*
+ * 触发器也是展平，理由比另外两个硬：那个包装不是多余，是错的。
+ *
+ * 它把 children 解构出来，然后再没往下传。默认不置位那个布尔量的时候，传下去
+ * 的 render 是 undefined，children 又被吃掉了 —— 渲染出来是一个空按钮。基元本身
+ * 的标准用法恰恰就是直接给 children（官方示例里是一个图标加一个 aria-label）。
+ *
+ * 第二处：Children.only 是无条件调用的，排在那个布尔量的判断之前。于是「一个图标
+ * 加一段文字」这种再普通不过的 children 直接抛异常，哪怕此时包装本该什么都不做。
+ *
+ * 上面那段注释批评旧 Provider「把别的属性传进来，类型检查通得过，运行时被静默
+ * 丢掉」—— 这个函数对 children 犯的是同一个错。全仓唯一的调用点恰好置位了那个
+ * 布尔量，雷才一直没踩到。
+ */
+const TooltipTrigger = Tooltip.Trigger
 
 /*
  * 反色是有意的：提示气泡与它解释的界面对调明暗，才不会被读成界面的一部分。

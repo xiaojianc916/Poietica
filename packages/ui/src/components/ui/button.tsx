@@ -1,11 +1,5 @@
 import { useRender } from '@base-ui/react/use-render'
-import {
-  type ComponentProps,
-  cloneElement,
-  type HTMLAttributes,
-  isValidElement,
-  type ReactElement,
-} from 'react'
+import { cloneElement, type HTMLAttributes, isValidElement, type ReactElement } from 'react'
 import { cn } from '../../lib/utils'
 
 /*
@@ -84,40 +78,37 @@ function buttonVariants(options: ButtonVariantOptions = {}): string {
   return cn(BASE, VARIANT[variant ?? 'default'], SIZE[size ?? 'default'], className)
 }
 
-export interface ButtonProps extends ComponentProps<'button'> {
+/*
+ * 外部属性用 useRender.ComponentProps 表达，这是官方给「支持 render 的组件」
+ * 准备的那个接口：它等于 ComponentPropsWithRef<'button'> 再加一个 render 键 ——
+ * ref 与 render 一次到位，不必自己拼。
+ */
+export interface ButtonProps extends useRender.ComponentProps<'button'> {
   readonly variant?: ButtonVariant | null | undefined
   readonly size?: ButtonSize | null | undefined
-  readonly asChild?: boolean
 }
 
 /*
- * ref 交给 useRender 自己的 ref 参数，不再塞进 props。
+ * render 属性，不是那个布尔量。
  *
- * 官方文档把 ref 列为 useRender 的一个独立参数（还支持 ref: [a, b] 合并多个），
- * 此前它是被夹在 props 对象里传下去的 —— 靠 React 19「ref 就是普通属性」才恰好
- * 成立，但那不是这个 API 的用法。
+ * Radix 的形制把 children 这一个通道重载成两种含义：平时是内容，置位时变成
+ * 「要渲染成的那个元素」。歧义要在函数体里拆，于是有了
+ * children: renderElement ? undefined : children 这样一行。基元不这么做 ——
+ * useRender 的 render 参数直接收那个元素，children 永远只是 children，两个
+ * 局部变量和那个三元一起消失。
+ *
+ * 这不只是换拼法。Biome 的 a11y 规则认得 render（useAnchorContent 的文档里
+ * 举的例子就是 <Button render={<a … />}>Home</Button>），认不得那个布尔量 ——
+ * 侧边栏底部那条 biome-ignore 记的就是这笔账。
+ *
+ * 而且全仓一处调用都没有：这个属性从加进来到现在没被用过。
  *
  * 下面那段 cloneElement 保留，它不是冗余：useRender 的 props 参数会把 className
  * 字符串拼接起来，而本仓的 cn 是 twMerge —— 做的是冲突消解。render 元素自带的
  * 类名要在冲突时赢过变体类名，只有走 cn 才成立。
  */
-function Button({
-  asChild = false,
-  children,
-  className,
-  ref,
-  size,
-  variant,
-  ...props
-}: ButtonProps) {
-  const renderElement = asChild && isValidElement(children) ? children : undefined
-
-  const element = useRender({
-    defaultTagName: 'button',
-    ref,
-    render: renderElement,
-    props: { ...props, children: renderElement ? undefined : children },
-  })
+function Button({ className, ref, render, size, variant, ...props }: ButtonProps) {
+  const element = useRender({ defaultTagName: 'button', ref, render, props })
 
   const classNameValue = buttonVariants({ variant, size, className })
 

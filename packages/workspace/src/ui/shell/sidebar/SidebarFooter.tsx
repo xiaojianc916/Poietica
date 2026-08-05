@@ -82,20 +82,22 @@ interface FooterButtonProps {
 function FooterButton({ label, icon: Icon, onClick, active = false }: FooterButtonProps) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          aria-label={label}
-          className={`size-7 hover:bg-sidebar-accent hover:text-foreground ${
-            active ? 'bg-sidebar-accent text-foreground' : 'text-muted-foreground'
-          }`}
-          onClick={onClick}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          <Icon aria-hidden="true" />
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            className={`size-7 hover:bg-sidebar-accent hover:text-foreground ${
+              active ? 'bg-sidebar-accent text-foreground' : 'text-muted-foreground'
+            }`}
+            onClick={onClick}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <Icon aria-hidden="true" />
+          </Button>
+        }
+      />
 
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>

@@ -50,4 +50,11 @@ function ScrollArea({ children, className, ...props }: ComponentProps<typeof Bas
   )
 }
 
-export { ScrollArea, ScrollBar }
+/*
+ * 滚动条不外露。
+ *
+ * 它此前是包的公开导出，而全仓一处引用都没有。更要紧的是：容器自己已经渲染了
+ * 一条，而 children 落在 Content 里面 —— 外部真传一条进去，它会跟着内容一起滚，
+ * 位置是错的。一个没人用、且用法必错的导出，留着只会等人踩。
+ */
+export { ScrollArea }
