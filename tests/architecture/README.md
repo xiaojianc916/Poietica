@@ -16,9 +16,12 @@ disk at load time; this file does not restate it.
 - `no-cross-boundary-relative-imports` — relative imports do not cross package boundaries;
 - `design-system-token-authority` — design-system components consume `--ui-*` tokens, not raw utility classes;
 - `no-task-scoped-guards` — no `check-*.mjs` file may exist in this directory;
-- `capability-scoped-directory-names` — architectural directories are `contracts`, `domain`, `state`, `ui`;
+- `capability-scoped-directory-names` — no directory is named after a DDD layer or a catch-all bucket;
 - `native-crates-stay-host-agnostic` — native crates depend on neither Tauri nor each other, and declare `[lints] workspace = true`;
 - `file-size-ratchet` — `size-budget.json` freezes existing debt; entries may only shrink.
+- `workspace-manifest-conventions` — workspace manifests share one shape: exports, subpath names, side-effect globs, script names, orchestration, and version ranges.
+- `wildcard-module-declarations` — a wildcard `declare module` is global, so the repository holds exactly one.
+- `documented-scripts-exist` — a colon-scoped `pnpm` script named in documentation exists in a manifest.
 
 A rule carries either a `pattern` (a regular expression matched against source
 files) or a `check` (a function handed the single filesystem inventory). Both

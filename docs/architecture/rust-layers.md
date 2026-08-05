@@ -50,10 +50,3 @@
 `[lints] workspace = true`。第四条「领域实体定义在 native crate，不在
 `src-tauri`」**没有机器执行** —— 它需要语义分析，不是正则或清单判得出来的，
 所以这里不假装它被守住了。「命令函数是薄封装」同理，只由体量棘轮从旁侧压住。
-允许变小，基线外的生产源文件不得越过字节上限。债只能往下走，不会再悄悄长大。
-
-上面「规则」一节的四条，目前有三条由 `pnpm test:architecture` 的
-`native-crates-stay-host-agnostic` 执行：不依赖 `tauri`、互不依赖、必须写
-`[lints] workspace = true`。第四条「领域实体定义在 native crate，不在
-`src-tauri`」**没有机器执行** —— 它需要语义分析，不是正则或清单判得出来的，
-所以这里不假装它被守住了。「命令函数是薄封装」同理，只由体量棘轮从旁侧压住。

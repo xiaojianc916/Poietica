@@ -31,3 +31,17 @@ tests/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 - 新增包必须先在分层表中定层，否则架构检查抛错。
 - 跨包访问只走公开 exports，禁止 deep import 与跨包相对路径。
 - 每一类状态只能有一个权威来源与一条写入路径。
+
+## 这个目录里有什么
+
+| 文档 | 内容 |
+| --- | --- |
+| [`acp-capabilities.md`](./acp-capabilities.md) | ACP 能力通道目录 |
+| [`acp-client.md`](./acp-client.md) | The ACP client |
+| [`agent-activity-feed.md`](./agent-activity-feed.md) | AI activity feed |
+| [`agent-persistence.md`](./agent-persistence.md) | AI persistence |
+| [`data-layout.md`](./data-layout.md) | 磁盘布局 |
+| [`rust-layers.md`](./rust-layers.md) | Rust Crate 分层 |
+| [`scaffold-policy.md`](./scaffold-policy.md) | 架构脚手架策略 |
+| [`ui-authority-boundaries.md`](./ui-authority-boundaries.md) | UI authority boundaries |
+| [`window-lifecycle.md`](./window-lifecycle.md) | Window Lifecycle |

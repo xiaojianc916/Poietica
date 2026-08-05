@@ -257,7 +257,7 @@ const capabilityScopedDirectoryNames = (inventory) =>
     .filter((directory) => forbiddenDirectoryNames.has(path.basename(directory)))
     .map((directory) => ({
       file: directory,
-      message: '目录名不声明能力边界：架构性目录只允许 contracts / domain / state / ui',
+      message: '目录名不声明能力边界：DDD 层名与万能桶名在任何层级都不允许，目录名必须是具体能力',
     }))
 
 /*
@@ -380,7 +380,7 @@ const fileSizeRatchet = async (inventory) => {
 /*
  * 工作区 manifest 的公共契约面。
  *
- * 判据版本：v6（重复脚本 + shell 编排 + 通配符声明）
+ * 判据版本：v7（重复脚本 + shell 编排 + 通配符声明 + 文档命令）
  *
  * 十四份 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
  * 前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
@@ -553,12 +553,93 @@ const wildcardModuleDeclarations = async (inventory) => {
     )
 }
 
+/* 规则里拼出来的路径要与 run.mjs 的 inventory 同形：一律正斜杠。 */
+const toPosixPath = (value) => value.split(path.sep).join('/')
+
+/*
+ * 文档里写的 pnpm 脚本必须真的存在。
+ *
+ * README 曾经列过 pnpm format:check —— 根 package.json 里只有 format，照着敲直接失败。
+ * 命令表是最容易腐烂的一类文档：它抄的是别处的可执行事实，而没有任何东西在它腐烂时
+ * 喊一声。
+ *
+ * 判据收缩到单个文件就能证明的形状：只认带冒号的调用。pnpm 的内置命令没有一个带冒号，
+ * 所以带冒号的一定是仓库脚本 —— 不需要穷举 pnpm 的命令表，那是个会变的开放集合，
+ * 此前两次栽在穷举开放集合上。不带冒号的调用漏过去，零误报优先于全覆盖。
+ *
+ * 根 README 与 AGENTS.md 不在 inventoryRoots 下，这里自己读 —— 与 fileSizeRatchet
+ * 读 size-budget.json 同一个路子，不为一条规则改变所有规则的扫描面。
+ */
+const DOCUMENTED_SCRIPT = /(?<=\bpnpm\s(?:run\s)?)[a-z][\w-]*:[\w:-]+/g
+
+const documentationFiles = () => {
+  const found = ['AGENTS.md', 'README.md'].filter((file) =>
+    existsSync(path.join(repositoryRoot, file)),
+  )
+
+  const docsRoot = path.join(repositoryRoot, 'docs')
+
+  if (existsSync(docsRoot)) {
+    for (const entry of readdirSync(docsRoot, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith('.md')) {
+        continue
+      }
+
+      const absolute = path.join(entry.parentPath, entry.name)
+
+      found.push(toPosixPath(path.relative(repositoryRoot, absolute)))
+    }
+  }
+
+  return found.sort()
+}
+
+const declaredScriptNames = async (inventory) => {
+  const names = new Set(
+    Object.keys(
+      JSON.parse(readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')).scripts ?? {},
+    ),
+  )
+
+  for (const file of inventory.files) {
+    if (!/^(?:apps|packages)\/[\w-]+\/package\.json$/.test(file)) {
+      continue
+    }
+
+    for (const name of Object.keys(JSON.parse(await inventory.read(file)).scripts ?? {})) {
+      names.add(name)
+    }
+  }
+
+  return names
+}
+
+const documentedScriptsExist = async (inventory) => {
+  const declared = await declaredScriptNames(inventory)
+  const defects = []
+
+  for (const file of documentationFiles()) {
+    const source = readFileSync(path.join(repositoryRoot, file), 'utf8')
+
+    for (const match of source.matchAll(DOCUMENTED_SCRIPT)) {
+      if (!declared.has(match[0])) {
+        defects.push({
+          file,
+          message: `文档写着 pnpm ${match[0]}，但没有任何 manifest 声明这个脚本`,
+        })
+      }
+    }
+  }
+
+  return defects
+}
 const governanceRules = [
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
   { id: 'file-size-ratchet', check: fileSizeRatchet },
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
   { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
+  { id: 'documented-scripts-exist', check: documentedScriptsExist },
 ]
 
 export const rules = [
