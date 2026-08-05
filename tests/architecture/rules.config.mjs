@@ -380,27 +380,26 @@ const fileSizeRatchet = async (inventory) => {
 /*
  * 工作区 manifest 的公共契约面。
  *
- * 判据版本：v4（重复脚本 + shell 编排）
+ * 判据版本：v6（重复脚本 + shell 编排 + 通配符声明）
  *
  * 十四份 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
  * 前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
- * 仓库里的对照实验）；同一个 .ts 目标一半写裸串一半写 { types, default }，而对象
- * 里两个条件指的是同一个文件；子路径名一半照 src/ 下的路径、一半照框架名。Biome
- * 的 useSortedKeys 是 off，turbo 不看 manifest 形状，tsc 只看解析结果 —— 这些此前
- * 不受任何工具约束。
+ * 仓库里的对照实验）；同一个 .ts 目标一半写裸串一半写条件对象；子路径名一半照
+ * src 下的路径、一半照框架名。Biome 的 useSortedKeys 是 off，turbo 不看 manifest
+ * 形状，tsc 只看解析结果 —— 这些此前不受任何工具约束。
  *
- * 判据只写这份文件自己能证明的事。曾经这里断言过「check 没有调用方」，那需要穷举
+ * 判据只写这些文件自己能证明的事。曾经这里断言过「check 没有调用方」，那需要穷举
  * 全仓所有调用路径 —— 规则做不到，于是成了硬编码断言，两轮都被证伪（一次是根
- * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。现在的判据都不
- * 需要外部知识：重复脚本、shell 编排，看 manifest 自己就能判。
+ * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。
  *
  * 双下划线目录（__fixtures__ 与 __tests__ 同族）不进公共路径名，显式豁免。
- * tests/package.json 不在 inventoryRoots 里，这条规则够不着它 —— 洞就是洞。
+ * tests/package.json 不在 inventoryRoots 里，manifest 那几条够不着它 —— 洞就是洞。
  */
 const CONVENTION_EXEMPT_TARGET = /\/__[\w-]+__\//
 
-/* 编排型工具：同一个 script 里出现两次，那就是在 shell 里排 task。 */
 const ORCHESTRATED_TOOLS = ['tsc', 'vitest', 'biome']
+
+const WILDCARD_MODULE = /declare\s+module\s+['"](\*\.[\w.]+)['"]/g
 
 const canonicalSubpath = (target) =>
   `./${target.replace(/^\.\/src\//, '').replace(/(?:\/index)?\.tsx?$/, '')}`
@@ -427,9 +426,7 @@ const manifestExportDefects = (file, exportMap) =>
       : [{ file, message: `exports["${subpath}"] 指向 ${target}，子路径名必须是 ${expected}` }]
   })
 
-/*
- * 两个脚本一字不差 —— 调用方分不清该用哪个，而其中一个注定不会被更新。
- */
+/* 两个脚本一字不差 —— 调用方分不清该用哪个，而其中一个注定不会被更新。 */
 const manifestScriptDefects = (file, scripts) => {
   const seen = new Map()
 
@@ -447,9 +444,9 @@ const manifestScriptDefects = (file, scripts) => {
 }
 
 /*
- * 同一个 script 里用 && 串起两次同一个程序 —— 那是 task 编排：前一个红了后一个
- * 不跑，两份结果也汇不到一处，缓存粒度还被绑死成一个黑盒。这个仓库有 turbo，
- * 编排是它的活。只认同名程序：vite build && tauri build 是真的顺序依赖，不在此列。
+ * 同一个 script 里用 && 串两次同一个程序 —— 那是 task 编排：前一个红了后一个不跑，
+ * 缓存粒度也被绑成一个黑盒。这个仓库有 turbo，编排是它的活。只认同名程序，
+ * vite build && tauri build 是真的顺序依赖，不在此列。
  */
 const manifestOrchestrationDefects = (file, scripts) =>
   Object.entries(scripts ?? {}).flatMap(([name, body]) => {
@@ -465,7 +462,7 @@ const manifestOrchestrationDefects = (file, scripts) =>
       return segments.filter((segment) => invocation.test(segment)).length > 1
     }).map((tool) => ({
       file,
-      message: `脚本 "${name}" 用 && 串了两次 ${tool}：前一个红了后一个不跑，编排交给 turbo 的 task 图`,
+      message: `脚本 "${name}" 用 && 串了两次 ${tool}：编排交给 turbo 的 task 图`,
     }))
   })
 
@@ -476,7 +473,7 @@ const manifestVersionDefects = (file, manifest) =>
       .filter(([, range]) => /^[\^~]/.test(range))
       .map(([dep, range]) => ({
         file,
-        message: `${block}.${dep} 是范围 "${range}"：saveExact 之下版本只能来自 catalog: 或精确号`,
+        message: `${block}.${dep} 是范围 "${range}"：saveExact 之下只能用 catalog: 或精确号`,
       })),
   )
 
@@ -507,7 +504,7 @@ const workspaceManifestConventions = async (inventory) => {
       if (typeof entry === 'string' && entry.startsWith('*') && !entry.startsWith('**/')) {
         defects.push({
           file,
-          message: `sideEffects "${entry}" 不含 **/：各家 bundler 对无斜杠 glob 的匹配基准不一致`,
+          message: `sideEffects "${entry}" 的 glob 没有目录前缀：各家 bundler 匹配基准不一致`,
         })
       }
     }
@@ -520,11 +517,48 @@ const workspaceManifestConventions = async (inventory) => {
   return defects
 }
 
+/*
+ * 通配符模块声明是全局的：写在哪个包里，效果都是整个编译单元。此前四个包各写一份
+ * 对 CSS 的声明，给出三种互相矛盾的定义（简写 any、空模块、导出具名 content），
+ * 哪一份生效取决于当前编译到哪个包 —— 这种东西只能有一份。
+ *
+ * 只看每个 .d.ts 自己写了什么，不需要知道谁 import 了谁。
+ */
+const wildcardModuleDeclarations = async (inventory) => {
+  const owners = new Map()
+
+  for (const file of inventory.files) {
+    if (!file.endsWith('.d.ts')) {
+      continue
+    }
+
+    const source = await inventory.read(file)
+
+    for (const match of source.matchAll(WILDCARD_MODULE)) {
+      const pattern = match[1]
+      const seen = owners.get(pattern) ?? []
+
+      seen.push(file)
+      owners.set(pattern, seen)
+    }
+  }
+
+  return [...owners.entries()]
+    .filter(([, files]) => files.length > 1)
+    .flatMap(([pattern, files]) =>
+      files.map((file) => ({
+        file,
+        message: `declare module "${pattern}" 还出现在 ${files.filter((other) => other !== file).join('、')} —— 通配符声明是全局的，只能有一份`,
+      })),
+    )
+}
+
 const governanceRules = [
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
   { id: 'file-size-ratchet', check: fileSizeRatchet },
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
+  { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
 ]
 
 export const rules = [

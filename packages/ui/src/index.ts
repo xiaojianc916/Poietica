@@ -1,3 +1,4 @@
+/// <reference path="./css.d.ts" />
 export {
   ClockTenIcon,
   GithubMark,
