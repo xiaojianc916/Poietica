@@ -1,9 +1,8 @@
 /*
  * 这个包的唯一出口。
  *
- * agent-registry 与 agent-providers 曾是两个包，切分依据是历史而非职责：
- * 两边都按 agentId 定址、都开了 <id>/ 子目录、注释互相引用对方的分法。
- * 合并之后按 agentId 分文件，不再按"契约 / 名单"分包。
+ * 包内按 agentId 分文件，不按「契约 / 名单」分。这个形状是怎么来的，
+ * 见 docs/architecture/README.md 的「包边界的由来」。
  */
 
 export type { AcpAgentInstall, AcpQuestionDialect } from './acp-agent-contract'

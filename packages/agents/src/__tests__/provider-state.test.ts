@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { parseAgentProviderList, parseAgentProviderListOutput } from '../provider-state'
 
 /*
- * 合成 provider 的 id 由调用方从 agent 档案给，解析层不认识任何一家 —— 这个包
+ * 合成 provider 的 id 由调用方从 agent 档案给，解析层不认识任何一家 —— 这个模块
  * 连 agent 名单都不认识，所以这里写字面量。它与 kimi 档案里那一格对得上，由
- * agent-registry 自己的 agent-descriptor.test.ts 钉住；两边走样时那一条先响。
+ * kimi/__tests__/descriptor.test.ts 钉住；两边走样时那一条先响。
  */
 const SYNTHETIC = '__kimi_env__'
 

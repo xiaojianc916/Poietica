@@ -4,9 +4,9 @@ import { kimiCode } from '../descriptor'
 /*
  * 档案里「怎么问这一家的模型清单」那两格。
  *
- * 它们此前钉在 provider 解析的测试里，而那份测试随解析一起搬去了
- * @poietica/agent-providers —— 那个包不认识任何一家 agent。护栏留在这边：
- * 声明一家 agent 长什么样，是这个包的事。
+ * 它们此前钉在 provider 解析的测试里，而解析那一侧不认识任何一家 agent ——
+ * 它只认调用方递进来的字面量。护栏留在这边：声明一家 agent 长什么样，是档案
+ * 这一侧的事。
  */
 describe('kimi 的接入档案', () => {
   /*

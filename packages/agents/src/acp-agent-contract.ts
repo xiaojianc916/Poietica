@@ -122,9 +122,9 @@ export interface AcpAgentDescriptor {
    * 各家 CLI 的子命令名不同（kimi 是 provider list --json），而通用层拿它去
    * 执行的那一行对谁都一样 —— 变的是值，所以是声明。
    *
-   * 此前它是 provider 解析那一侧的一个模块常量（那一侧今天是
-   * @poietica/agent-providers 的 provider-state.ts），也就是说通用层写死了
-   * 一家的子命令名。缺席表示这一家没有这种查询，界面就不给这个入口。
+   * 此前它是 provider 解析那一侧的一个模块常量（同包的 provider-state.ts），
+   * 也就是说通用层写死了一家的子命令名。缺席表示这一家没有这种查询，界面就
+   * 不给这个入口。
    */
   readonly providerListArgs?: readonly string[] | undefined
   /**
