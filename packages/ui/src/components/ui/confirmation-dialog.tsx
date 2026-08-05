@@ -1,6 +1,21 @@
 import { Button } from './button'
 import { Dialog } from './dialog'
 
+/*
+ * 定值就写成模块常量。
+ *
+ * 此前页脚那串类名是一个零参数函数：没有入参、返回定值，却每次渲染都 join
+ * 一遍拼出同一个字符串；对话框自身那串是行内数组字面量，每次渲染新建一个
+ * 数组再 join。本目录既有的形制是模块常量（itemClassName / popupClassName / BASE）。
+ */
+const DIALOG_CLASS_NAME = [
+  '!max-w-[26rem]',
+  '!border-b-2 !border-b-foreground/20',
+  '!shadow-[0_14px_30px_-22px_rgb(15_23_42_/_0.35)]',
+].join(' ')
+
+const FOOTER_CLASS_NAME = 'flex flex-wrap justify-end gap-2.5'
+
 export interface ConfirmationDialogProps {
   readonly open: boolean
   readonly title: string
@@ -34,15 +49,11 @@ export function ConfirmationDialog({
   return (
     <Dialog
       busy={busy}
-      className={[
-        '!max-w-[26rem]',
-        '!border-b-2 !border-b-foreground/20',
-        '!shadow-[0_14px_30px_-22px_rgb(15_23_42_/_0.35)]',
-      ].join(' ')}
+      className={DIALOG_CLASS_NAME}
       closeOnOverlayClick={!busy}
       description={description}
       footer={
-        <div className={cnFooter()}>
+        <div className={FOOTER_CLASS_NAME}>
           <Button
             className="bg-accent/55 px-3 hover:bg-accent"
             disabled={busy}
@@ -74,8 +85,4 @@ export function ConfirmationDialog({
       title={title}
     />
   )
-}
-
-function cnFooter(): string {
-  return ['flex flex-wrap', 'justify-end gap-2.5'].join(' ')
 }

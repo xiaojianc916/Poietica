@@ -1,13 +1,6 @@
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { Check, ChevronsUpDown, Search } from '@mynaui/icons-react'
-import {
-  type ComponentPropsWithoutRef,
-  createContext,
-  forwardRef,
-  type ReactNode,
-  useContext,
-  useMemo,
-} from 'react'
+import { type ComponentProps, createContext, type ReactNode, useContext, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
@@ -82,146 +75,120 @@ export function Combobox({
   )
 }
 
-export type ComboboxTriggerProps = ComponentPropsWithoutRef<typeof BaseCombobox.Trigger>
+export type ComboboxTriggerProps = ComponentProps<typeof BaseCombobox.Trigger>
 
-export const ComboboxTrigger = forwardRef<HTMLButtonElement, ComboboxTriggerProps>(
-  function ComboboxTrigger({ children, className, ...props }, forwardedRef) {
-    const { data, type, value } = useComboboxContext()
+export function ComboboxTrigger({ children, className, ...props }: ComboboxTriggerProps) {
+  const { data, type, value } = useComboboxContext()
 
-    const selectedItem = data.find((item) => item.value === value)
+  const selectedItem = data.find((item) => item.value === value)
 
-    return (
-      <BaseCombobox.Trigger
+  return (
+    <BaseCombobox.Trigger
+      className={cn(
+        'flex h-[var(--ui-control-height-lg)] w-full items-center justify-between gap-2',
+        'rounded-md border border-input',
+        'bg-background px-3 text-left text-sm text-foreground',
+        'shadow-sm outline-none',
+        'transition-[border-color,box-shadow,background-color]',
+        'hover:bg-muted/40',
+        'focus-visible:ring-2 focus-visible:ring-ring',
+        'data-[popup-open]:border-ring',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+      type="button"
+      {...props}
+    >
+      {children ?? (
+        <>
+          <span className="min-w-0 flex-1 truncate">{selectedItem?.label ?? `选择${type}…`}</span>
+
+          <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        </>
+      )}
+    </BaseCombobox.Trigger>
+  )
+}
+
+export type ComboboxContentProps = ComponentProps<typeof BaseCombobox.Popup>
+
+export function ComboboxContent({ className, style, ...props }: ComboboxContentProps) {
+  return (
+    <BaseCombobox.Portal>
+      <BaseCombobox.Positioner align="start" className={popupPositionerClassName} sideOffset={4}>
+        <BaseCombobox.Popup
+          className={cn(popupSurfaceClassName, 'shadow-[var(--ui-shadow-lg)]', className)}
+          style={{ inlineSize: 'var(--anchor-width)', ...style }}
+          {...props}
+        />
+      </BaseCombobox.Positioner>
+    </BaseCombobox.Portal>
+  )
+}
+
+export type ComboboxInputProps = ComponentProps<typeof BaseCombobox.Input>
+
+export function ComboboxInput({ className, placeholder, ...props }: ComboboxInputProps) {
+  const { type } = useComboboxContext()
+
+  return (
+    <div className="flex items-center gap-2 border-b border-divider px-3">
+      <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+
+      <BaseCombobox.Input
+        aria-label={props['aria-label'] ?? `搜索${type}`}
         className={cn(
-          'flex h-[var(--ui-control-height-lg)] w-full items-center justify-between gap-2',
-          'rounded-md border border-input',
-          'bg-background px-3 text-left text-sm text-foreground',
-          'shadow-sm outline-none',
-          'transition-[border-color,box-shadow,background-color]',
-          'hover:bg-muted/40',
-          'focus-visible:ring-2 focus-visible:ring-ring',
-          'data-[popup-open]:border-ring',
+          'h-[var(--ui-control-height-lg)] min-w-0 flex-1',
+          'bg-transparent text-sm text-foreground',
+          'outline-none',
+          'placeholder:text-muted-foreground',
           'disabled:cursor-not-allowed disabled:opacity-50',
           className,
         )}
-        ref={forwardedRef}
-        type="button"
+        placeholder={placeholder ?? `搜索${type}…`}
         {...props}
-      >
-        {children ?? (
-          <>
-            <span className="min-w-0 flex-1 truncate">{selectedItem?.label ?? `选择${type}…`}</span>
+      />
+    </div>
+  )
+}
 
-            <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-          </>
-        )}
-      </BaseCombobox.Trigger>
-    )
-  },
-)
+export type ComboboxEmptyProps = ComponentProps<typeof BaseCombobox.Empty>
 
-export type ComboboxContentProps = ComponentPropsWithoutRef<typeof BaseCombobox.Popup>
-
-export const ComboboxContent = forwardRef<HTMLDivElement, ComboboxContentProps>(
-  function ComboboxContent({ className, style, ...props }, ref) {
-    return (
-      <BaseCombobox.Portal>
-        <BaseCombobox.Positioner align="start" className={popupPositionerClassName} sideOffset={4}>
-          <BaseCombobox.Popup
-            className={cn(popupSurfaceClassName, 'shadow-[var(--ui-shadow-lg)]', className)}
-            ref={ref}
-            style={{ inlineSize: 'var(--anchor-width)', ...style }}
-            {...props}
-          />
-        </BaseCombobox.Positioner>
-      </BaseCombobox.Portal>
-    )
-  },
-)
-
-export type ComboboxInputProps = ComponentPropsWithoutRef<typeof BaseCombobox.Input>
-
-export const ComboboxInput = forwardRef<HTMLInputElement, ComboboxInputProps>(
-  function ComboboxInput({ className, placeholder, ...props }, ref) {
-    const { type } = useComboboxContext()
-
-    return (
-      <div className="flex items-center gap-2 border-b border-divider px-3">
-        <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-
-        <BaseCombobox.Input
-          aria-label={props['aria-label'] ?? `搜索${type}`}
-          className={cn(
-            'h-[var(--ui-control-height-lg)] min-w-0 flex-1',
-            'bg-transparent text-sm text-foreground',
-            'outline-none',
-            'placeholder:text-muted-foreground',
-            'disabled:cursor-not-allowed disabled:opacity-50',
-            className,
-          )}
-          placeholder={placeholder ?? `搜索${type}…`}
-          ref={ref}
-          {...props}
-        />
-      </div>
-    )
-  },
-)
-
-export type ComboboxEmptyProps = ComponentPropsWithoutRef<typeof BaseCombobox.Empty>
-
-export const ComboboxEmpty = forwardRef<HTMLDivElement, ComboboxEmptyProps>(function ComboboxEmpty(
-  { children, className, ...props },
-  ref,
-) {
+export function ComboboxEmpty({ children, className, ...props }: ComboboxEmptyProps) {
   const { type } = useComboboxContext()
 
   return (
     <BaseCombobox.Empty
       className={cn('px-3 py-6 text-center text-sm text-muted-foreground', className)}
-      ref={ref}
       {...props}
     >
       {children ?? `没有找到匹配的${type}。`}
     </BaseCombobox.Empty>
   )
-})
+}
 
-export type ComboboxListProps = ComponentPropsWithoutRef<typeof BaseCombobox.List>
+export type ComboboxListProps = ComponentProps<typeof BaseCombobox.List>
 
-export const ComboboxList = forwardRef<HTMLDivElement, ComboboxListProps>(function ComboboxList(
-  { className, ...props },
-  ref,
-) {
+export function ComboboxList({ className, ...props }: ComboboxListProps) {
   return (
     <BaseCombobox.List
       className={cn('max-h-64 overflow-y-auto overscroll-contain p-1', 'outline-none', className)}
-      ref={ref}
       {...props}
     />
   )
-})
+}
 
-export type ComboboxGroupProps = ComponentPropsWithoutRef<typeof BaseCombobox.Group>
+export type ComboboxGroupProps = ComponentProps<typeof BaseCombobox.Group>
 
-export const ComboboxGroup = forwardRef<HTMLDivElement, ComboboxGroupProps>(function ComboboxGroup(
-  { className, ...props },
-  ref,
-) {
-  return <BaseCombobox.Group className={cn('grid gap-0.5', className)} ref={ref} {...props} />
-})
+export function ComboboxGroup({ className, ...props }: ComboboxGroupProps) {
+  return <BaseCombobox.Group className={cn('grid gap-0.5', className)} {...props} />
+}
 
-export type ComboboxItemProps = Omit<
-  ComponentPropsWithoutRef<typeof BaseCombobox.Item>,
-  'value'
-> & {
+export type ComboboxItemProps = Omit<ComponentProps<typeof BaseCombobox.Item>, 'value'> & {
   readonly value: string
 }
 
-export const ComboboxItem = forwardRef<HTMLDivElement, ComboboxItemProps>(function ComboboxItem(
-  { children, className, value, ...props },
-  ref,
-) {
+export function ComboboxItem({ children, className, value, ...props }: ComboboxItemProps) {
   return (
     <BaseCombobox.Item
       className={cn(
@@ -235,7 +202,6 @@ export const ComboboxItem = forwardRef<HTMLDivElement, ComboboxItemProps>(functi
         'data-[disabled]:opacity-50',
         className,
       )}
-      ref={ref}
       value={value}
       {...props}
     >
@@ -246,18 +212,12 @@ export const ComboboxItem = forwardRef<HTMLDivElement, ComboboxItemProps>(functi
       </BaseCombobox.ItemIndicator>
     </BaseCombobox.Item>
   )
-})
+}
 
-export type ComboboxSeparatorProps = ComponentPropsWithoutRef<typeof BaseCombobox.Separator>
+export type ComboboxSeparatorProps = ComponentProps<typeof BaseCombobox.Separator>
 
-export const ComboboxSeparator = forwardRef<HTMLDivElement, ComboboxSeparatorProps>(
-  function ComboboxSeparator({ className, ...props }, ref) {
-    return (
-      <BaseCombobox.Separator
-        className={cn('-mx-1 my-1 h-px bg-divider', className)}
-        ref={ref}
-        {...props}
-      />
-    )
-  },
-)
+export function ComboboxSeparator({ className, ...props }: ComboboxSeparatorProps) {
+  return (
+    <BaseCombobox.Separator className={cn('-mx-1 my-1 h-px bg-divider', className)} {...props} />
+  )
+}

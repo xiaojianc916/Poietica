@@ -1,5 +1,5 @@
 import { Tooltip } from '@base-ui/react/tooltip'
-import { Children, type ComponentPropsWithoutRef, forwardRef, isValidElement } from 'react'
+import { Children, type ComponentProps, isValidElement } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName } from './popup-surface'
 
@@ -17,16 +17,16 @@ const TooltipProvider = Tooltip.Provider
 
 const TooltipRoot = Tooltip.Root
 
-const TooltipTrigger = forwardRef<
-  HTMLButtonElement,
-  ComponentPropsWithoutRef<typeof Tooltip.Trigger> & { readonly asChild?: boolean }
->(({ asChild = false, children, ...props }, ref) => {
+function TooltipTrigger({
+  asChild = false,
+  children,
+  ...props
+}: ComponentProps<typeof Tooltip.Trigger> & { readonly asChild?: boolean }) {
   const child = Children.only(children)
   const renderElement = asChild && isValidElement(child) ? child : undefined
 
-  return <Tooltip.Trigger ref={ref} render={renderElement} {...props} />
-})
-TooltipTrigger.displayName = 'TooltipTrigger'
+  return <Tooltip.Trigger render={renderElement} {...props} />
+}
 
 /*
  * 反色是有意的：提示气泡与它解释的界面对调明暗，才不会被读成界面的一部分。
@@ -40,32 +40,34 @@ TooltipTrigger.displayName = 'TooltipTrigger'
  * 一串 animate-in / data-[state=closed] ——前者来自没有安装的 tailwindcss-animate，
  * 后者是 Radix 的属性名，Base UI 从不发出。整串类名一个都没生效过。
  */
-const TooltipContent = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Tooltip.Popup> & {
-    readonly sideOffset?: number
-    readonly side?: Tooltip.Positioner.Props['side']
-  }
->(({ className, sideOffset = 4, side, ...props }, ref) => (
-  <Tooltip.Portal>
-    <Tooltip.Positioner className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
-      <Tooltip.Popup
-        className={cn(
-          'overflow-hidden rounded-md px-3 py-1.5 text-xs',
-          'bg-foreground text-background',
-          'origin-[var(--transform-origin)]',
-          'transition-[transform,scale,opacity]',
-          'duration-[var(--ui-duration-fast)] ease-[var(--ui-ease-standard)]',
-          'data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
-          'data-[ending-style]:scale-95 data-[ending-style]:opacity-0',
-          className,
-        )}
-        ref={ref}
-        {...props}
-      />
-    </Tooltip.Positioner>
-  </Tooltip.Portal>
-))
-TooltipContent.displayName = 'TooltipContent'
+function TooltipContent({
+  className,
+  side,
+  sideOffset = 4,
+  ...props
+}: ComponentProps<typeof Tooltip.Popup> & {
+  readonly sideOffset?: number
+  readonly side?: Tooltip.Positioner.Props['side']
+}) {
+  return (
+    <Tooltip.Portal>
+      <Tooltip.Positioner className={popupPositionerClassName} side={side} sideOffset={sideOffset}>
+        <Tooltip.Popup
+          className={cn(
+            'overflow-hidden rounded-md px-3 py-1.5 text-xs',
+            'bg-foreground text-background',
+            'origin-[var(--transform-origin)]',
+            'transition-[transform,scale,opacity]',
+            'duration-[var(--ui-duration-fast)] ease-[var(--ui-ease-standard)]',
+            'data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
+            'data-[ending-style]:scale-95 data-[ending-style]:opacity-0',
+            className,
+          )}
+          {...props}
+        />
+      </Tooltip.Positioner>
+    </Tooltip.Portal>
+  )
+}
 
 export { TooltipContent, TooltipProvider, TooltipRoot as Tooltip, TooltipTrigger }

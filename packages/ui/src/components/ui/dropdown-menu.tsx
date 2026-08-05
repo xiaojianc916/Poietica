@@ -1,6 +1,6 @@
 import { Menu } from '@base-ui/react/menu'
 import { ChevronRight } from '@mynaui/icons-react'
-import { type ComponentPropsWithoutRef, forwardRef } from 'react'
+import type { ComponentProps } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
@@ -14,10 +14,7 @@ export const DropdownMenuRadioGroup = Menu.RadioGroup
 
 export const DropdownMenuRadioItemIndicator = Menu.RadioItemIndicator
 
-export const DropdownMenuTrigger = forwardRef<
-  HTMLButtonElement,
-  ComponentPropsWithoutRef<typeof Menu.Trigger>
->(function DropdownMenuTrigger({ className, ...props }, ref) {
+export function DropdownMenuTrigger({ className, ...props }: ComponentProps<typeof Menu.Trigger>) {
   return (
     <Menu.Trigger
       className={cn(
@@ -29,39 +26,39 @@ export const DropdownMenuTrigger = forwardRef<
         'disabled:opacity-50',
         className,
       )}
-      ref={ref}
       {...props}
     />
   )
-})
+}
 
-type DropdownMenuContentProps = ComponentPropsWithoutRef<typeof Menu.Popup> & {
+type DropdownMenuContentProps = ComponentProps<typeof Menu.Popup> & {
   readonly sideOffset?: number
-  readonly side?: ComponentPropsWithoutRef<typeof Menu.Positioner>['side']
-  readonly align?: ComponentPropsWithoutRef<typeof Menu.Positioner>['align']
+  readonly side?: ComponentProps<typeof Menu.Positioner>['side']
+  readonly align?: ComponentProps<typeof Menu.Positioner>['align']
 }
 
 const popupClassName = cn(popupSurfaceClassName, 'min-w-32 p-1')
 
-export const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>(
-  function DropdownMenuContent(
-    { className, sideOffset = 6, side = 'bottom', align = 'start', ...props },
-    ref,
-  ) {
-    return (
-      <Menu.Portal>
-        <Menu.Positioner
-          align={align}
-          className={popupPositionerClassName}
-          side={side}
-          sideOffset={sideOffset}
-        >
-          <Menu.Popup className={cn(popupClassName, className)} ref={ref} {...props} />
-        </Menu.Positioner>
-      </Menu.Portal>
-    )
-  },
-)
+export function DropdownMenuContent({
+  align = 'start',
+  className,
+  side = 'bottom',
+  sideOffset = 6,
+  ...props
+}: DropdownMenuContentProps) {
+  return (
+    <Menu.Portal>
+      <Menu.Positioner
+        align={align}
+        className={popupPositionerClassName}
+        side={side}
+        sideOffset={sideOffset}
+      >
+        <Menu.Popup className={cn(popupClassName, className)} {...props} />
+      </Menu.Positioner>
+    </Menu.Portal>
+  )
+}
 
 /*
  * One menu row, stated once.
@@ -106,12 +103,12 @@ const itemClassName = [
  * default. onSelect is a DOM event about text selection, and passing it here
  * type-checks, builds, and never fires.
  */
-export const DropdownMenuItem = forwardRef<
-  HTMLDivElement,
-  Omit<ComponentPropsWithoutRef<typeof Menu.Item>, 'onSelect'>
->(function DropdownMenuItem({ className, ...props }, ref) {
-  return <Menu.Item className={cn(itemClassName, className)} ref={ref} {...props} />
-})
+export function DropdownMenuItem({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Menu.Item>, 'onSelect'>) {
+  return <Menu.Item className={cn(itemClassName, className)} {...props} />
+}
 
 /*
  * A row that reports which value is in force.
@@ -120,59 +117,46 @@ export const DropdownMenuItem = forwardRef<
  * belong to the group rather than to a data attribute: RadioGroup holds the
  * value, and the row whose value matches is the one that shows its indicator.
  */
-export const DropdownMenuRadioItem = forwardRef<
-  HTMLDivElement,
-  Omit<ComponentPropsWithoutRef<typeof Menu.RadioItem>, 'onSelect'>
->(function DropdownMenuRadioItem({ className, ...props }, ref) {
-  return <Menu.RadioItem className={cn(itemClassName, className)} ref={ref} {...props} />
-})
+export function DropdownMenuRadioItem({
+  className,
+  ...props
+}: Omit<ComponentProps<typeof Menu.RadioItem>, 'onSelect'>) {
+  return <Menu.RadioItem className={cn(itemClassName, className)} {...props} />
+}
 
-export const DropdownMenuLabel = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Menu.GroupLabel>
->(function DropdownMenuLabel({ className, ...props }, ref) {
+export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof Menu.GroupLabel>) {
   return (
     <Menu.GroupLabel
       className={cn('px-2 py-1.5', 'text-sm font-semibold', 'text-foreground', className)}
-      ref={ref}
       {...props}
     />
   )
-})
+}
 
-export const DropdownMenuSeparator = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Menu.Separator>
->(function DropdownMenuSeparator({ className, ...props }, ref) {
+export function DropdownMenuSeparator({
+  className,
+  ...props
+}: ComponentProps<typeof Menu.Separator>) {
+  return <Menu.Separator className={cn('-mx-1 my-1 h-px', 'bg-divider', className)} {...props} />
+}
+
+export function DropdownMenuShortcut({ className, ...props }: ComponentProps<'span'>) {
   return (
-    <Menu.Separator
-      className={cn('-mx-1 my-1 h-px', 'bg-divider', className)}
-      ref={ref}
+    <span
+      className={cn('ml-auto', 'text-xs tracking-widest', 'text-muted-foreground', className)}
       {...props}
     />
   )
-})
+}
 
-export const DropdownMenuShortcut = forwardRef<HTMLSpanElement, ComponentPropsWithoutRef<'span'>>(
-  function DropdownMenuShortcut({ className, ...props }, ref) {
-    return (
-      <span
-        className={cn('ml-auto', 'text-xs tracking-widest', 'text-muted-foreground', className)}
-        ref={ref}
-        {...props}
-      />
-    )
-  },
-)
-
-export const DropdownMenuSubTrigger = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<typeof Menu.SubmenuTrigger>
->(function DropdownMenuSubTrigger({ className, children, ...props }, ref) {
+export function DropdownMenuSubTrigger({
+  className,
+  children,
+  ...props
+}: ComponentProps<typeof Menu.SubmenuTrigger>) {
   return (
     <Menu.SubmenuTrigger
       className={cn(itemClassName, 'data-[popup-open]:bg-accent', className)}
-      ref={ref}
       {...props}
     >
       {children}
@@ -180,30 +164,31 @@ export const DropdownMenuSubTrigger = forwardRef<
       <ChevronRight aria-hidden="true" className="ml-auto size-4 text-muted-foreground" />
     </Menu.SubmenuTrigger>
   )
-})
-
-type DropdownMenuSubContentProps = ComponentPropsWithoutRef<typeof Menu.Popup> & {
-  readonly sideOffset?: number
-  readonly side?: ComponentPropsWithoutRef<typeof Menu.Positioner>['side']
-  readonly align?: ComponentPropsWithoutRef<typeof Menu.Positioner>['align']
 }
 
-export const DropdownMenuSubContent = forwardRef<HTMLDivElement, DropdownMenuSubContentProps>(
-  function DropdownMenuSubContent(
-    { className, sideOffset = 4, side = 'right', align = 'start', ...props },
-    ref,
-  ) {
-    return (
-      <Menu.Portal>
-        <Menu.Positioner
-          align={align}
-          className={popupPositionerClassName}
-          side={side}
-          sideOffset={sideOffset}
-        >
-          <Menu.Popup className={cn(popupClassName, className)} ref={ref} {...props} />
-        </Menu.Positioner>
-      </Menu.Portal>
-    )
-  },
-)
+type DropdownMenuSubContentProps = ComponentProps<typeof Menu.Popup> & {
+  readonly sideOffset?: number
+  readonly side?: ComponentProps<typeof Menu.Positioner>['side']
+  readonly align?: ComponentProps<typeof Menu.Positioner>['align']
+}
+
+export function DropdownMenuSubContent({
+  align = 'start',
+  className,
+  side = 'right',
+  sideOffset = 4,
+  ...props
+}: DropdownMenuSubContentProps) {
+  return (
+    <Menu.Portal>
+      <Menu.Positioner
+        align={align}
+        className={popupPositionerClassName}
+        side={side}
+        sideOffset={sideOffset}
+      >
+        <Menu.Popup className={cn(popupClassName, className)} {...props} />
+      </Menu.Positioner>
+    </Menu.Portal>
+  )
+}

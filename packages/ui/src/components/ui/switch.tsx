@@ -1,10 +1,10 @@
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
-import { type ComponentPropsWithoutRef, forwardRef } from 'react'
+import type { ComponentProps } from 'react'
 import { cn } from '../../lib/utils'
 
 export type SwitchSize = 'sm' | 'md'
 
-export type SwitchProps = ComponentPropsWithoutRef<typeof BaseSwitch.Root> & {
+export type SwitchProps = ComponentProps<typeof BaseSwitch.Root> & {
   /** sm 用于设置页这类密集列表，md 为默认尺寸。 */
   readonly size?: SwitchSize
 }
@@ -31,10 +31,7 @@ const THUMB_SIZE: Record<SwitchSize, string> = {
  * Base UI owns interaction semantics and keyboard behavior.
  * The design system owns sizing, motion, focus and visual states.
  */
-export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
-  { className, children, size = 'md', ...props },
-  forwardedRef,
-) {
+export function Switch({ className, children, size = 'md', ...props }: SwitchProps) {
   return (
     <BaseSwitch.Root
       className={cn(
@@ -67,7 +64,6 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
         'motion-reduce:transition-none',
         className,
       )}
-      ref={forwardedRef}
       {...props}
     >
       <BaseSwitch.Thumb
@@ -91,4 +87,4 @@ export const Switch = forwardRef<HTMLSpanElement, SwitchProps>(function Switch(
       {children}
     </BaseSwitch.Root>
   )
-})
+}

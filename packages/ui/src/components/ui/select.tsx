@@ -1,13 +1,6 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
 import { Check, ChevronDown } from '@mynaui/icons-react'
-import {
-  type ComponentPropsWithoutRef,
-  createContext,
-  forwardRef,
-  type ReactNode,
-  useContext,
-  useMemo,
-} from 'react'
+import { type ComponentProps, createContext, type ReactNode, useContext, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
@@ -112,7 +105,7 @@ export type SelectTriggerSize = 'sm' | 'md'
 
 export type SelectTriggerTone = 'outline' | 'plain'
 
-export type SelectTriggerProps = ComponentPropsWithoutRef<typeof BaseSelect.Trigger> & {
+export type SelectTriggerProps = ComponentProps<typeof BaseSelect.Trigger> & {
   /** plain 去掉边框与阴影，背景透明因此与所在卡片同色。 */
   readonly tone?: SelectTriggerTone
 }
@@ -158,65 +151,64 @@ const POPUP_MAX_INLINE_SIZE: Record<SelectTriggerSize, string> = {
   md: '320px',
 }
 
-export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
-  function SelectTrigger({ children, className, tone = 'outline', ...props }, forwardedRef) {
-    const { data, type, value, size } = useSelectContext()
-    const selectedItem = data.find((item) => item.value === value)
+export function SelectTrigger({
+  children,
+  className,
+  tone = 'outline',
+  ...props
+}: SelectTriggerProps) {
+  const { data, type, value, size } = useSelectContext()
+  const selectedItem = data.find((item) => item.value === value)
 
-    return (
-      <BaseSelect.Trigger
-        className={cn(
-          'flex items-center justify-between',
-          'text-left text-foreground',
-          'outline-none',
-          'transition-[border-color,box-shadow,background-color]',
-          'focus-visible:ring-2',
-          'focus-visible:ring-ring',
-          'disabled:cursor-not-allowed',
-          'disabled:opacity-50',
-          TRIGGER_SIZE[size],
-          TRIGGER_TONE[tone],
-          className,
-        )}
-        ref={forwardedRef}
-        type="button"
-        {...props}
-      >
-        {children ?? (
-          <>
-            <span className={cn('min-w-0 flex-1', 'truncate')}>
-              {selectedItem?.label ?? `选择${type}…`}
-            </span>
+  return (
+    <BaseSelect.Trigger
+      className={cn(
+        'flex items-center justify-between',
+        'text-left text-foreground',
+        'outline-none',
+        'transition-[border-color,box-shadow,background-color]',
+        'focus-visible:ring-2',
+        'focus-visible:ring-ring',
+        'disabled:cursor-not-allowed',
+        'disabled:opacity-50',
+        TRIGGER_SIZE[size],
+        TRIGGER_TONE[tone],
+        className,
+      )}
+      type="button"
+      {...props}
+    >
+      {children ?? (
+        <>
+          <span className={cn('min-w-0 flex-1', 'truncate')}>
+            {selectedItem?.label ?? `选择${type}…`}
+          </span>
 
-            {/*
-              ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
-              走"，那是 combobox / 步进器的记号（见 combobox.tsx）。这里是有限
-              离散值的弹出菜单，说的是"下面会展开一张列表"。
-            */}
-            <BaseSelect.Icon>
-              <ChevronDown
-                aria-hidden="true"
-                className={cn(TRIGGER_ICON[size], 'shrink-0', 'text-muted-foreground')}
-              />
-            </BaseSelect.Icon>
-          </>
-        )}
-      </BaseSelect.Trigger>
-    )
-  },
-)
+          {/*
+            ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
+            走"，那是 combobox / 步进器的记号（见 combobox.tsx）。这里是有限
+            离散值的弹出菜单，说的是"下面会展开一张列表"。
+          */}
+          <BaseSelect.Icon>
+            <ChevronDown
+              aria-hidden="true"
+              className={cn(TRIGGER_ICON[size], 'shrink-0', 'text-muted-foreground')}
+            />
+          </BaseSelect.Icon>
+        </>
+      )}
+    </BaseSelect.Trigger>
+  )
+}
 
 /** 面板沿触发器的哪一条边展开。值右对齐的行用 end，与触发器同一条边。 */
 export type SelectContentAlign = 'start' | 'end'
 
-export type SelectContentProps = ComponentPropsWithoutRef<typeof BaseSelect.Popup> & {
+export type SelectContentProps = ComponentProps<typeof BaseSelect.Popup> & {
   readonly align?: SelectContentAlign
 }
 
-export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(function SelectContent(
-  { align = 'start', className, style, ...props },
-  ref,
-) {
+export function SelectContent({ align = 'start', className, style, ...props }: SelectContentProps) {
   const { size } = useSelectContext()
 
   return (
@@ -229,7 +221,6 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
       >
         <BaseSelect.Popup
           className={cn(popupSurfaceClassName, className)}
-          ref={ref}
           style={{
             minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
             maxInlineSize: POPUP_MAX_INLINE_SIZE[size],
@@ -240,14 +231,11 @@ export const SelectContent = forwardRef<HTMLDivElement, SelectContentProps>(func
       </BaseSelect.Positioner>
     </BaseSelect.Portal>
   )
-})
+}
 
-export type SelectListProps = ComponentPropsWithoutRef<typeof BaseSelect.List>
+export type SelectListProps = ComponentProps<typeof BaseSelect.List>
 
-export const SelectList = forwardRef<HTMLDivElement, SelectListProps>(function SelectList(
-  { className, ...props },
-  ref,
-) {
+export function SelectList({ className, ...props }: SelectListProps) {
   return (
     <BaseSelect.List
       className={cn(
@@ -257,22 +245,18 @@ export const SelectList = forwardRef<HTMLDivElement, SelectListProps>(function S
         'p-1 outline-none',
         className,
       )}
-      ref={ref}
       {...props}
     />
   )
-})
+}
 
-export type SelectGroupProps = ComponentPropsWithoutRef<typeof BaseSelect.Group>
+export type SelectGroupProps = ComponentProps<typeof BaseSelect.Group>
 
-export const SelectGroup = forwardRef<HTMLDivElement, SelectGroupProps>(function SelectGroup(
-  { className, ...props },
-  ref,
-) {
-  return <BaseSelect.Group className={cn('grid gap-0.5', className)} ref={ref} {...props} />
-})
+export function SelectGroup({ className, ...props }: SelectGroupProps) {
+  return <BaseSelect.Group className={cn('grid gap-0.5', className)} {...props} />
+}
 
-export type SelectItemProps = Omit<ComponentPropsWithoutRef<typeof BaseSelect.Item>, 'value'> & {
+export type SelectItemProps = Omit<ComponentProps<typeof BaseSelect.Item>, 'value'> & {
   readonly value: string
 }
 
@@ -291,10 +275,7 @@ const ITEM_SHAPE: Record<SelectTriggerSize, string> = {
   md: 'rounded-sm',
 }
 
-export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function SelectItem(
-  { children, className, value, ...props },
-  ref,
-) {
+export function SelectItem({ children, className, value, ...props }: SelectItemProps) {
   const { size } = useSelectContext()
 
   return (
@@ -318,7 +299,6 @@ export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function S
         'data-[disabled]:opacity-50',
         className,
       )}
-      ref={ref}
       value={value}
       {...props}
     >
@@ -331,18 +311,12 @@ export const SelectItem = forwardRef<HTMLDivElement, SelectItemProps>(function S
       </BaseSelect.ItemIndicator>
     </BaseSelect.Item>
   )
-})
+}
 
-export type SelectSeparatorProps = ComponentPropsWithoutRef<typeof BaseSelect.Separator>
+export type SelectSeparatorProps = ComponentProps<typeof BaseSelect.Separator>
 
-export const SelectSeparator = forwardRef<HTMLDivElement, SelectSeparatorProps>(
-  function SelectSeparator({ className, ...props }, ref) {
-    return (
-      <BaseSelect.Separator
-        className={cn('-mx-1 my-1 h-px', 'bg-divider', className)}
-        ref={ref}
-        {...props}
-      />
-    )
-  },
-)
+export function SelectSeparator({ className, ...props }: SelectSeparatorProps) {
+  return (
+    <BaseSelect.Separator className={cn('-mx-1 my-1 h-px', 'bg-divider', className)} {...props} />
+  )
+}

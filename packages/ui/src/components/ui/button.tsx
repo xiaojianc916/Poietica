@@ -1,8 +1,7 @@
 import { useRender } from '@base-ui/react/use-render'
 import {
-  type ButtonHTMLAttributes,
+  type ComponentProps,
   cloneElement,
-  forwardRef,
   type HTMLAttributes,
   isValidElement,
   type ReactElement,
@@ -85,33 +84,50 @@ function buttonVariants(options: ButtonVariantOptions = {}): string {
   return cn(BASE, VARIANT[variant ?? 'default'], SIZE[size ?? 'default'], className)
 }
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ComponentProps<'button'> {
   readonly variant?: ButtonVariant | null | undefined
   readonly size?: ButtonSize | null | undefined
   readonly asChild?: boolean
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
-    const renderElement = asChild && isValidElement(children) ? children : undefined
+/*
+ * ref 交给 useRender 自己的 ref 参数，不再塞进 props。
+ *
+ * 官方文档把 ref 列为 useRender 的一个独立参数（还支持 ref: [a, b] 合并多个），
+ * 此前它是被夹在 props 对象里传下去的 —— 靠 React 19「ref 就是普通属性」才恰好
+ * 成立，但那不是这个 API 的用法。
+ *
+ * 下面那段 cloneElement 保留，它不是冗余：useRender 的 props 参数会把 className
+ * 字符串拼接起来，而本仓的 cn 是 twMerge —— 做的是冲突消解。render 元素自带的
+ * 类名要在冲突时赢过变体类名，只有走 cn 才成立。
+ */
+function Button({
+  asChild = false,
+  children,
+  className,
+  ref,
+  size,
+  variant,
+  ...props
+}: ButtonProps) {
+  const renderElement = asChild && isValidElement(children) ? children : undefined
 
-    const element = useRender({
-      defaultTagName: 'button',
-      render: renderElement,
-      props: { ...props, children: renderElement ? undefined : children, ref },
+  const element = useRender({
+    defaultTagName: 'button',
+    ref,
+    render: renderElement,
+    props: { ...props, children: renderElement ? undefined : children },
+  })
+
+  const classNameValue = buttonVariants({ variant, size, className })
+
+  if (isValidElement(element)) {
+    return cloneElement(element as ReactElement<HTMLAttributes<HTMLElement>>, {
+      className: cn(classNameValue, (element.props as HTMLAttributes<HTMLElement>).className),
     })
+  }
 
-    const classNameValue = buttonVariants({ variant, size, className })
-
-    if (isValidElement(element)) {
-      return cloneElement(element as ReactElement<HTMLAttributes<HTMLElement>>, {
-        className: cn(classNameValue, (element.props as HTMLAttributes<HTMLElement>).className),
-      })
-    }
-
-    return element
-  },
-)
-Button.displayName = 'Button'
+  return element
+}
 
 export { Button, buttonVariants }
