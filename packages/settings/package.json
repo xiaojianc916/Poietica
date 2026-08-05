@@ -8,8 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./react": {
-      "types": "./src/presentation/index.ts",
-      "default": "./src/presentation/index.ts"
+      "types": "./src/ui/index.ts",
+      "default": "./src/ui/index.ts"
     }
   },
   "scripts": {

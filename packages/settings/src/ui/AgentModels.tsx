@@ -10,7 +10,7 @@ import {
 import { acpAgentById } from '@poietica/agent-registry'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
-import type { AgentConfigStore } from '../ports/agent-config-store'
+import type { AgentConfigStore } from '../contracts/agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'
 import { ProviderKeyCard } from './ProviderKeyCard'
 import { useAgentProviders } from './useAgentProviders'

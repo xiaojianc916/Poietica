@@ -6,18 +6,16 @@
 
 ## TypeScript 包分层
 
-| 层 | 包 | 职责 |
-|----|----|------|
-| 0 foundations | `core` `observability` `serialization` `test-kit` `ui` | 与产品无关的基础能力；不依赖任何产品包 |
-| 1 protocol | `acp` | Agent Client Protocol 的类型与编解码 |
-| 2 domain | `agent-registry` `agent-session` `agent-timeline` | 会话、时间线、agent 注册的产品规则 |
-| 3 transport | `ipc` | 与原生宿主之间的类型安全 DTO 通道 |
-| 4 features | `agent-ui` `settings` `workspace` | 面向用户的功能域 |
-| 5 composition | `desktop-runtime` | 把功能域与原生能力接线成桌面运行时 |
-| 6 application | `apps/desktop` | 最终装配与入口 |
+分层表、依赖方向、原生宿主白名单、目录命名与体量债的**唯一事实来源**是
+`tests/architecture/rules.config.mjs`，由 `pnpm test:architecture` 执行。
+
+这里不再重抄一份 —— 此前 README.md、AGENTS.md、本文件与
+tests/architecture/README.md 各存一份手抄表，四份互相矛盾（本文件曾把磁盘上
+不存在的 `test-kit` 列进 foundations，又漏掉 `agent-providers`），而唯一被
+执行的是那份配置。手抄表只会制造第二个真相。
 
 依赖只能指向同层或更低层。允许直连 `@tauri-apps/*` 的只有 `ipc`、
-`desktop-runtime` 与 `apps/desktop`。
+`desktop-adapters` 与 `apps/desktop`。
 
 ## 强制约束
 

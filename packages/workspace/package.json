@@ -11,10 +11,6 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./application": {
-      "types": "./src/application/index.ts",
-      "default": "./src/application/index.ts"
-    },
     "./contracts": {
       "types": "./src/contracts/index.ts",
       "default": "./src/contracts/index.ts"
@@ -24,8 +20,12 @@
       "default": "./src/domain/index.ts"
     },
     "./react": {
-      "types": "./src/presentation/index.ts",
-      "default": "./src/presentation/index.ts"
+      "types": "./src/ui/index.ts",
+      "default": "./src/ui/index.ts"
+    },
+    "./state": {
+      "types": "./src/state/index.ts",
+      "default": "./src/state/index.ts"
     }
   },
   "scripts": {

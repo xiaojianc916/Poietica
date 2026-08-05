@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/acp'
 import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useRef, useState } from 'react'
-import { useThreadsActions } from '../../application/ai/threads-context'
+import { useThreadsActions } from '../../state/ai/threads-context'
 import { ConversationSurface } from './ConversationSurface'
 
 /*

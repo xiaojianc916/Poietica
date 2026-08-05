@@ -2,8 +2,8 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
-import { type AgentDialect, AgentDialectContext } from '../domain/agent-dialect'
-import { isQuestionRequest } from '../domain/ask-user-question'
+import { type AgentDialect, AgentDialectContext } from '../semantics/agent-dialect'
+import { isQuestionRequest } from '../semantics/ask-user-question'
 import { PermissionRecord } from '../timeline/PermissionRecord'
 
 /*

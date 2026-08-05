@@ -176,14 +176,13 @@ pnpm dev
 
 Poietica is a monorepo with intentionally strict ownership boundaries.
 
-```text
-agent/         Agent protocol, registry, runtime, timeline, transport, UI, persistence
-apps/          Final desktop application composition
-features/      Workspace, settings, and product-facing capabilities
-foundations/   Shared primitives and design-system building blocks
-platforms/     Desktop runtime adapters and typed IPC contracts
+```
+apps/desktop/  Desktop application: web entry (src/) and Tauri composition root (src-tauri/)
+crates/        Native Rust crates: agent-runtime, desktop-runtime, persistence
+packages/      TypeScript workspace packages; tier and dependency direction are enforced
 docs/          Architecture notes, ADRs, RFCs, and operational guides
-tests/         Architecture, integration, and product verification
+scripts/       Repository tooling: release, git hooks, clean, tauri wrapper
+tests/         Architecture rules and cross-package verification
 ```
 
 > **Important:** the agent event log is the source of truth for every run.  

@@ -1,5 +1,5 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
-import { formatDuration, nextTickOf } from '../domain/duration'
+import { formatDuration, nextTickOf } from '../semantics/duration'
 import { useHorizon, useNow } from '../threads/clock'
 
 /*

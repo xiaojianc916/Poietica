@@ -150,9 +150,9 @@ importers:
       '@poietica/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@poietica/desktop-runtime':
+      '@poietica/desktop-adapters':
         specifier: workspace:*
-        version: link:../../packages/desktop-runtime
+        version: link:../../packages/desktop-adapters
       '@poietica/ipc':
         specifier: workspace:*
         version: link:../../packages/ipc
@@ -374,7 +374,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.0(@types/node@26.1.2)(jiti@2.7.0))
 
-  packages/desktop-runtime:
+  packages/desktop-adapters:
     dependencies:
       '@poietica/agent-registry':
         specifier: workspace:*

@@ -1,7 +1,7 @@
 import { applyThemePreference } from '@poietica/ui'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { SettingsStore } from '../contracts/settings-store'
 import type { AppSettings } from '../domain/settings'
-import type { SettingsStore } from '../ports/settings-store'
 
 export type SettingsOperation = 'load' | 'save' | 'reset'
 

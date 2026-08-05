@@ -1,7 +1,4 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
-import { readSubAgent, type SubAgentBrief } from '../domain/sub-agent'
-import { toToolCallView } from '../domain/tool-call-content'
-import { readToolIntent, type ToolIntent } from '../domain/tool-intent'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,
@@ -15,6 +12,9 @@ import {
   ToolIcon,
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
+import { readSubAgent, type SubAgentBrief } from '../semantics/sub-agent'
+import { toToolCallView } from '../semantics/tool-call-content'
+import { readToolIntent, type ToolIntent } from '../semantics/tool-intent'
 import { Prose } from './Prose'
 import { ToolDuration } from './ToolDuration'
 

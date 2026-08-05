@@ -1,8 +1,8 @@
 import { AssistantThreadList } from '@poietica/agent-ui'
 import { memo, useCallback } from 'react'
 
-import { useThreadsActions, useThreadsList } from '../../application/ai/threads-context'
-import { toggleWorkspace, useCollapsedWorkspaces } from '../../application/ai/workspace-collapse'
+import { useThreadsActions, useThreadsList } from '../../state/ai/threads-context'
+import { toggleWorkspace, useCollapsedWorkspaces } from '../../state/ai/workspace-collapse'
 
 /*
  * 侧栏的会话列表。

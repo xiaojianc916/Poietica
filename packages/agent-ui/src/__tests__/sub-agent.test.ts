@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { readSubAgent } from '../domain/sub-agent'
+import { readSubAgent } from '../semantics/sub-agent'
 
 /*
  * 子代理派发的判据。

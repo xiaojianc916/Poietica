@@ -6,8 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { type CommandRegistry, createCommandRegistry } from '../../application/command-registry'
 import type { RegisteredCommand } from '../../contracts/command'
+import { type CommandRegistry, createCommandRegistry } from '../../state/command-registry'
 
 interface CommandContextValue {
   readonly commands: readonly RegisteredCommand[]

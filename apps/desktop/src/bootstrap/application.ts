@@ -9,14 +9,14 @@ import {
   type MainWindowController,
   readAppVersion,
   type SettingsStore,
-} from '@poietica/desktop-runtime'
+} from '@poietica/desktop-adapters'
+import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
 import {
   type CommandRegistry,
   createCommandRegistry,
   createWorkbenchSessionController,
-} from '@poietica/workspace/application'
-import type { WorkbenchSessionStore } from '@poietica/workspace/contracts'
-import { adoptAgent, createDesktopAgentSession } from '../application/ai/agent-session'
+} from '@poietica/workspace/state'
+import { adoptAgent, createDesktopAgentSession } from '../state/ai/agent-session'
 
 export interface ApplicationRuntime {
   readonly workspace: WorkbenchSessionStore

@@ -3,7 +3,7 @@ import type { AgentConfigStore } from '@poietica/settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace/contracts'
 import type { ReactNode } from 'react'
 
-import { currentAgentId } from '../../application/ai/agent-session'
+import { currentAgentId } from '../../state/ai/agent-session'
 import { AssistantPane } from './AssistantPane'
 import { ConversationSurface } from './ConversationSurface'
 

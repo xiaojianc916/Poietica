@@ -18,8 +18,8 @@ import {
 } from './composer/prompt-input'
 import { QuestionPanel } from './composer/question-panel'
 import { SessionControls } from './composer/session-controls'
-import type { QuestionAnswer, QuestionDeck } from './domain/ask-user-question'
 import { MicIcon } from './primitives/icons'
+import type { QuestionAnswer, QuestionDeck } from './semantics/ask-user-question'
 
 /*
  * The composer, declared rather than driven.

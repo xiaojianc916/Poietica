@@ -74,12 +74,12 @@ const tiers = [
   },
   { name: 'transport', packages: ['ipc'] },
   { name: 'features', packages: ['agent-ui', 'settings', 'workspace'] },
-  { name: 'composition', packages: ['desktop-runtime'] },
+  { name: 'composition', packages: ['desktop-adapters'] },
   { name: 'application', packages: ['desktop'] },
 ]
 
 /* 只有这三个包可以直连原生宿主。其余任何一个碰 @tauri-apps 都是越界。 */
-const nativeAllowed = new Set(['desktop', 'desktop-runtime', 'ipc'])
+const nativeAllowed = new Set(['desktop', 'desktop-adapters', 'ipc'])
 
 /*
  * 分层表与工作区对账，一次做完。
@@ -233,3 +233,217 @@ export const rules = [
       restrictedUtilityClasses.find((rule) => rule.token === match)?.replacement ?? null,
   },
 ]
+
+/* ════════════════════════════════════════════════════════════════════════
+ * 地基治理
+ *
+ * 为什么写在这份配置里而不是新开一个 check-*.mjs：run.mjs 有一条
+ * no-task-scoped-guards —— tests/architecture/ 下任何 check-*.mjs 一律判违规。
+ * 规则必须住在配置里，这是这个仓库自己定的、也是对的。
+ *
+ * 下面全部是加载期对账，与上面「分层表与磁盘包一一对账」共用同一个失败通道：
+ * 一次收集，一次抛出，pnpm test:architecture 直接红。
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const governanceRoot = path.resolve(import.meta.dirname, '..', '..')
+const governanceRoots = ['apps', 'crates', 'packages']
+const governanceIgnored = new Set([
+  '.git',
+  '.refactor-backup',
+  '.turbo',
+  'build',
+  'dist',
+  'generated',
+  'node_modules',
+  'target',
+])
+
+/* 换行符归一后再量，避免 CRLF checkout 把体量基线整体顶高 */
+const measureBytes = (absolute) => readFileSync(absolute, 'utf8').split('\r\n').join('\n').length
+
+const isGovernedSource = (file) =>
+  /\.(?:rs|ts|tsx)$/.test(file) &&
+  !/\.(?:test|spec)\.[jt]sx?$/.test(file) &&
+  !file.includes('/__tests__/') &&
+  !/(?:^|\/)tests\//.test(file)
+
+const governedFiles = []
+const governedDirectories = []
+
+const walkGoverned = (relative) => {
+  for (const entry of readdirSync(path.join(governanceRoot, relative), { withFileTypes: true })) {
+    const next = relative + '/' + entry.name
+
+    if (entry.isDirectory()) {
+      if (governanceIgnored.has(entry.name)) continue
+      governedDirectories.push(next)
+      walkGoverned(next)
+      continue
+    }
+
+    if (entry.isFile()) governedFiles.push(next)
+  }
+}
+
+for (const root of governanceRoots) walkGoverned(root)
+
+const defects = []
+
+/* ── 1. 目录名必须声明能力边界 ─────────────────────────────────────────
+ * application / presentation / ports 是 DDD 的层名；services / stores /
+ * managers / helpers / common / utils / types 根本不声明任何边界。
+ *
+ * 上面那张 tiers 表已经用包边界承担了分层 —— 包内部再套第二套分层就是两套架构
+ * 叠在一起。zed 的 crates/ 是 acp_thread、agent_ui、project、settings_ui；
+ * codex-rs 是 core、protocol、app-server-transport、thread-store；VS Code 是
+ * base/platform/editor/workbench + common/browser/node。三家一个 DDD 层名都没有。
+ *
+ * AGENTS.md 早就写了这条禁令（且只限根级），此前没有任何配置执行它。
+ * 架构性目录名只允许四个：contracts / domain / state / ui。 */
+const forbiddenDirectoryNames = new Set([
+  'application',
+  'common',
+  'helpers',
+  'managers',
+  'ports',
+  'presentation',
+  'services',
+  'stores',
+  'types',
+  'utils',
+])
+
+for (const directory of governedDirectories) {
+  const name = directory.slice(directory.lastIndexOf('/') + 1)
+
+  if (forbiddenDirectoryNames.has(name)) {
+    defects.push(
+      directory +
+        ' 的目录名不声明能力边界 —— 架构性目录只允许 contracts / domain / state / ui，其余必须是具体能力名',
+    )
+  }
+}
+
+/* ── 2. Rust 分层规则从文档变成闸门 ───────────────────────────────────
+ * docs/architecture/rust-layers.md 写了四条硬规则：三个 native crate 不得依赖
+ * tauri、不得互相依赖、领域实体不留在 src-tauri、每个 crate 必须写
+ * [lints] workspace = true。此前一条都没有机器执行。
+ *
+ * 而这份配置的注释自己痛斥过 TS 侧「十四个包一行没被扫过，Architecture rules
+ * passed. 是空转出来的绿」—— Rust 侧原封不动重演了同一个错误。现在补上。 */
+const nativeCrates = ['agent-runtime', 'desktop-runtime', 'persistence']
+
+for (const crate of nativeCrates) {
+  const manifestPath = path.join(governanceRoot, 'crates', crate, 'Cargo.toml')
+
+  if (!existsSync(manifestPath)) {
+    defects.push('crates/' + crate + '/Cargo.toml 不存在 —— native crate 清单必须与磁盘一致')
+    continue
+  }
+
+  const manifest = readFileSync(manifestPath, 'utf8')
+
+  /* 精确取 [lints] 段。不能用宽松匹配 —— [dependencies] 里的
+   * serde = { workspace = true } 会让宽松匹配假通过。 */
+  const lintsSection = /\n\[lints\]\r?\n([\s\S]*?)(?=\n\[|$)/.exec('\n' + manifest)
+
+  if (!lintsSection || !/^\s*workspace\s*=\s*true\s*$/m.test(lintsSection[1])) {
+    defects.push(
+      'crates/' +
+        crate +
+        '/Cargo.toml 缺少 [lints] workspace = true —— 工作区的 unsafe_code = "deny" 与 non_ascii_idents = "forbid" 对它不生效',
+    )
+  }
+
+  if (/^\s*tauri[\w.-]*\s*=/m.test(manifest)) {
+    defects.push(
+      'crates/' + crate + '/Cargo.toml 依赖了 tauri —— 宿主耦合只允许出现在 apps/desktop/src-tauri',
+    )
+  }
+
+  for (const other of nativeCrates) {
+    if (other === crate) continue
+
+    if (new RegExp('path\\s*=\\s*"\\.\\./' + other + '"').test(manifest)) {
+      defects.push(
+        'crates/' + crate + ' 依赖了 crates/' + other + ' —— 三个 native crate 必须互不依赖',
+      )
+    }
+  }
+}
+
+for (const file of governedFiles) {
+  if (!file.startsWith('crates/') || !file.endsWith('.rs')) continue
+  if (/(?:^|\/)tests\//.test(file)) continue
+
+  const hit = /\btauri(?:_[a-z_]+)?\s*::/.exec(
+    readFileSync(path.join(governanceRoot, file), 'utf8'),
+  )
+
+  if (hit) defects.push(file + ' 引用了 ' + hit[0] + ' —— native crate 不得耦合宿主')
+}
+
+/* ── 3. 体量债棘轮 ───────────────────────────────────────────────────
+ * rust-layers.md 的「已知偏差」点名了 commands/agent.rs、agent_config.rs、
+ * agent_install.rs、asset_protocol.rs，写着「这些是待偿还的债」。债被写进文档，
+ * 却没有任何东西阻止它继续长大 —— 文档里的债等于没有债。
+ *
+ * 专业做法是 baseline ratchet（TypeScript 的 baseline 快照、Chromium 的 DEPS
+ * 白名单），不是 markdown 里的一段自我批评。size-budget.json 由 refactor.mjs
+ * 实测生成，不是手抄的。两条规则：基线里的文件只能变小；基线外的不得越过上限。 */
+const budgetPath = path.join(import.meta.dirname, 'size-budget.json')
+
+if (!existsSync(budgetPath)) {
+  defects.push('tests/architecture/size-budget.json 缺失 —— 棘轮没有基线等于没有闸门')
+} else {
+  const budget = JSON.parse(readFileSync(budgetPath, 'utf8'))
+  const frozen = new Map(Object.entries(budget.files))
+
+  for (const [file, allowance] of frozen) {
+    const absolute = path.join(governanceRoot, file)
+
+    if (!existsSync(absolute)) {
+      defects.push(file + ' 已不存在 —— 债还完了就把这一行从 size-budget.json 删掉，基线不留幽灵')
+      continue
+    }
+
+    const actual = measureBytes(absolute)
+
+    if (actual > allowance) {
+      defects.push(file + ' 从 ' + allowance + ' 涨到 ' + actual + ' 字节 —— 体量债只允许下降')
+    }
+  }
+
+  for (const file of governedFiles) {
+    if (!isGovernedSource(file) || frozen.has(file)) continue
+
+    const actual = measureBytes(path.join(governanceRoot, file))
+
+    if (actual > budget.limit) {
+      defects.push(
+        file +
+          ' 有 ' +
+          actual +
+          ' 字节，超过 ' +
+          budget.limit +
+          ' 字节上限 —— 拆成有名字的模块，不要长成上帝文件',
+      )
+    }
+  }
+}
+
+/* ── 4. 把规则洞显式记下来 ───────────────────────────────────────────
+ * pnpm-workspace.yaml 把 tests 列为工作区包（tests/package.json 存在），但分层
+ * 对账只遍历 apps 与 packages，所以「新增包必须先定层」抓不到它。
+ * 洞就是洞 —— 显式豁免比隐式遗漏可信。 */
+for (const directory of ['tests']) {
+  if (!existsSync(path.join(governanceRoot, directory, 'package.json'))) {
+    defects.push(directory + '/package.json 不存在 —— 豁免名单必须与 pnpm-workspace.yaml 一致')
+  }
+}
+
+if (defects.length > 0) {
+  throw new Error(
+    ['architecture: 地基治理未通过：', ...defects.map((defect) => '  · ' + defect)].join('\n'),
+  )
+}

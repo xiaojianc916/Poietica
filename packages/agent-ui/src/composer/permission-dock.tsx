@@ -3,7 +3,7 @@ import './permission-dock.css'
 import type { AcpPermissionOption } from '@poietica/acp'
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useState } from 'react'
-import { useAgentDialect } from '../domain/agent-dialect'
+import { useAgentDialect } from '../semantics/agent-dialect'
 
 /**
  * 要批准的那一件事，就在下一句话的正上方。

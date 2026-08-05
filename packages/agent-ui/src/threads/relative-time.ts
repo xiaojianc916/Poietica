@@ -13,7 +13,7 @@
  * 的函数，时钟跳一次不该让整屏重跑一遍 Date.parse 和 dateStyle: 'full'。
  */
 
-import { DAY, HOUR, MINUTE, narrowUnit } from '../domain/duration'
+import { DAY, HOUR, MINUTE, narrowUnit } from '../semantics/duration'
 
 /* 「不足一分钟」是一句话，让语言自己说，用 numeric: 'auto'。 */
 const spoken = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })

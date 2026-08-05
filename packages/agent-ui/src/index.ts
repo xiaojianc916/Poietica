@@ -13,8 +13,6 @@ export type { AttachmentIntake, ComposerAsset } from './composer/attachment-inta
 export { installAttachmentIntake } from './composer/attachment-intake'
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
 export type { SessionControlsProps } from './composer/session-controls'
-export type { AgentDialect } from './domain/agent-dialect'
-export { AgentDialectContext } from './domain/agent-dialect'
 export type {
   ImageLightboxProps,
   ImageThumbnailGridProps,
@@ -22,3 +20,5 @@ export type {
 } from './media/ImageLightbox'
 export { ImageLightbox, ImageThumbnailGrid } from './media/ImageLightbox'
 export { createExternalStore } from './primitives/external-store'
+export type { AgentDialect } from './semantics/agent-dialect'
+export { AgentDialectContext } from './semantics/agent-dialect'

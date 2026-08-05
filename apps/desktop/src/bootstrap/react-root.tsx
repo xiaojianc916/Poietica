@@ -2,7 +2,7 @@ import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
 import { FatalErrorHost } from '../fatal/FatalErrorHost'
 import { markReactFatalHostMounted, reportFatalIncident } from '../fatal/fatal-runtime'
-import { AppShell } from '../presentation/AppShell'
+import { AppShell } from '../ui/AppShell'
 import { createApplicationRuntime } from './application'
 
 export interface MountedReactApplication {

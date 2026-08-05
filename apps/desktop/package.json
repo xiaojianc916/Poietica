@@ -19,7 +19,7 @@
     "@poietica/agent-session": "workspace:*",
     "@poietica/agent-ui": "workspace:*",
     "@poietica/core": "workspace:*",
-    "@poietica/desktop-runtime": "workspace:*",
+    "@poietica/desktop-adapters": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/observability": "workspace:*",
     "@poietica/settings": "workspace:*",

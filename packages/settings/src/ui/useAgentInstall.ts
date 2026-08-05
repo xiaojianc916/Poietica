@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentConfigStore, AgentInstallStatus } from '../ports/agent-config-store'
+import type { AgentConfigStore, AgentInstallStatus } from '../contracts/agent-config-store'
 import { describeAgentCliFailure } from './agentCliText'
 
 /**

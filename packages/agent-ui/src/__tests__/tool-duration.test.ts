@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDuration, HOUR, MINUTE, nextTickOf, SECOND } from '../domain/duration'
+import { formatDuration, HOUR, MINUTE, nextTickOf, SECOND } from '../semantics/duration'
 
 /*
  * 工具调用的耗时。

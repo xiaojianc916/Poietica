@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DAY, HOUR, MINUTE } from '../domain/duration'
+import { DAY, HOUR, MINUTE } from '../semantics/duration'
 import {
   datedGroupsOf,
   formatAbsolute,

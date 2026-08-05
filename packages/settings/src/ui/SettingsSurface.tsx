@@ -24,9 +24,9 @@ import {
   useMemo,
   useState,
 } from 'react'
+import type { AgentConfigStore } from '../contracts/agent-config-store'
+import type { SettingsStore } from '../contracts/settings-store'
 import type { AppSettings } from '../domain/settings'
-import type { AgentConfigStore } from '../ports/agent-config-store'
-import type { SettingsStore } from '../ports/settings-store'
 import { ModelsSettings } from './ModelsSettings'
 import {
   type SettingsController,

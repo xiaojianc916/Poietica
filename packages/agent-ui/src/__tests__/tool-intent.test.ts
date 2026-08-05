@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { readToolIntent } from '../domain/tool-intent'
+import { readToolIntent } from '../semantics/tool-intent'
 
 /*
  * 意图的读法。

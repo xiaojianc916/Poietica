@@ -1,6 +1,6 @@
 import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agent-registry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { AgentConfigSnapshot, AgentConfigStore } from '../ports/agent-config-store'
+import type { AgentConfigSnapshot, AgentConfigStore } from '../contracts/agent-config-store'
 import { AgentInstallAction } from './AgentInstallAction'
 import { AgentModels } from './AgentModels'
 import { describeAgentCliFailure } from './agentCliText'

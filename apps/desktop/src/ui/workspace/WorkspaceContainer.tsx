@@ -20,7 +20,7 @@ import {
   WorkspaceSurface,
 } from '@poietica/workspace/react'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
-import { useThreadsActions } from '../../application/ai/threads-context'
+import { useThreadsActions } from '../../state/ai/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
 import { AssistantSidebarPanel } from './AssistantSidebarPanel'
 import { createAssistantWiring } from './assistant-wiring'

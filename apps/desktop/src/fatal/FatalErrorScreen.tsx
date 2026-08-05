@@ -1,9 +1,9 @@
 import { CheckCircle, Copy, Refresh } from '@mynaui/icons-react'
-import { createMainWindowController } from '@poietica/desktop-runtime'
+import { createMainWindowController } from '@poietica/desktop-adapters'
 import { useEffect, useMemo, useState } from 'react'
-import type { TerminalFailureIncident } from '../application/failures/failure-coordinator'
-import { useWindowChrome } from '../presentation/chrome/use-window-chrome'
-import { WindowControls } from '../presentation/chrome/WindowControls'
+import type { TerminalFailureIncident } from '../state/failures/failure-coordinator'
+import { useWindowChrome } from '../ui/chrome/use-window-chrome'
+import { WindowControls } from '../ui/chrome/WindowControls'
 import errorRobotIllustration from './assets/error-robot.svg'
 import { createTerminalFailureViewModel } from './terminal-failure-view-model'
 

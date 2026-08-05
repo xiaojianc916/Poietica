@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import type { QuestionAnswer, QuestionDeck } from '../domain/ask-user-question'
+import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 
 /*
  * 输入框长出来的问答面板。

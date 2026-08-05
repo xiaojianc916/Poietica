@@ -4,12 +4,12 @@ import {
   type MainWindowController,
   type NativeCrashReport,
   takePreviousNativeCrashReport,
-} from '@poietica/desktop-runtime'
+} from '@poietica/desktop-adapters'
 import { mountReactApplication } from './bootstrap/react-root'
 import { reportFatalIncident } from './fatal/fatal-runtime'
-import { installContextMenuGuard } from './presentation/chrome/context-menu-guard'
-import { installExternalLinks } from './presentation/chrome/external-links'
-import { installScrollbarSize } from './presentation/chrome/scrollbar-size'
+import { installContextMenuGuard } from './ui/chrome/context-menu-guard'
+import { installExternalLinks } from './ui/chrome/external-links'
+import { installScrollbarSize } from './ui/chrome/scrollbar-size'
 
 void bootstrapApplication()
 

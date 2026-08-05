@@ -1,4 +1,4 @@
-import { failureCoordinator } from '../application/failures/failure-coordinator'
+import { failureCoordinator } from '../state/failures/failure-coordinator'
 import { installFatalCollectors } from './fatal-collectors'
 import { isReactFatalHostMounted } from './fatal-runtime'
 import type { TerminalFailureViewModel } from './terminal-failure-view-model'
@@ -47,7 +47,7 @@ function renderPreReactFatalScreen(model: TerminalFailureViewModel): void {
  * 永远不会挂载，所以崩溃屏必须自己把窗口叫出来。
  */
 function presentWindow(): void {
-  void import('@poietica/desktop-runtime')
+  void import('@poietica/desktop-adapters')
     .then(({ createMainWindowController }) => createMainWindowController().present())
     .catch(() => {
       // 窗口无法呈现时没有可用的补救界面；原生日志里仍然留有记录。

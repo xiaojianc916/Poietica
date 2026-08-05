@@ -1,7 +1,7 @@
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo } from 'react'
-import { useAgentDialect } from '../domain/agent-dialect'
-import { parseQuestionOptionId, readQuestionPrompt } from '../domain/ask-user-question'
+import { useAgentDialect } from '../semantics/agent-dialect'
+import { parseQuestionOptionId, readQuestionPrompt } from '../semantics/ask-user-question'
 import { OutcomeCard } from './OutcomeCard'
 
 /**

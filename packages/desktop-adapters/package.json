@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/desktop-runtime",
+  "name": "@poietica/desktop-adapters",
   "version": "0.1.0",
   "type": "module",
   "private": true,

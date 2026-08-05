@@ -3,7 +3,7 @@ import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { replayRunEvents } from '@poietica/agent-timeline'
 import { recordedToolTurn } from '@poietica/agent-timeline/fixtures'
 import { describe, expect, it } from 'vitest'
-import { toToolContentParts } from '../domain/tool-call-content'
+import { toToolContentParts } from '../semantics/tool-call-content'
 
 /**
  * The tool card, fed by the turn that actually happened.

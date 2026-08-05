@@ -6,16 +6,16 @@ import {
   useAgentControls,
 } from '@poietica/agent-session'
 import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
-import { createAttachmentIntake } from '@poietica/desktop-runtime'
+import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useEffect } from 'react'
-import { desktopAgentCapabilities } from '../../application/ai/agent-session'
+import { desktopAgentCapabilities } from '../../state/ai/agent-session'
 import {
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadsActions,
-} from '../../application/ai/threads-context'
-import { reportFailure } from '../../application/failures/failure-policy'
+} from '../../state/ai/threads-context'
+import { reportFailure } from '../../state/failures/failure-policy'
 
 /*
  * 一格只画一条对话。

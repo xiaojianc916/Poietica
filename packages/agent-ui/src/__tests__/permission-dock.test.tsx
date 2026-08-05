@@ -2,7 +2,7 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
-import { type AgentDialect, AgentDialectContext } from '../domain/agent-dialect'
+import { type AgentDialect, AgentDialectContext } from '../semantics/agent-dialect'
 
 /*
  * 审批带是唯一会把 agent 卡住、非等用户点一下不可的界面，因此它显示错字的代价

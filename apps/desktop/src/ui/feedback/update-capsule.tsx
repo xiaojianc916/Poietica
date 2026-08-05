@@ -1,5 +1,5 @@
 import { ArrowDown, Refresh, Spinner } from '@mynaui/icons-react'
-import type { AppUpdateState, AppUpdateStore } from '@poietica/desktop-runtime'
+import type { AppUpdateState, AppUpdateStore } from '@poietica/desktop-adapters'
 import { useSyncExternalStore } from 'react'
 
 import './update-capsule.css'

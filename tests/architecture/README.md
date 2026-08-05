@@ -6,13 +6,18 @@ violations as `file:line:column`.
 
 ## Enforced invariants
 
-- foundations do not depend on higher-level packages;
-- editor code stays independent of desktop application and platform packages;
-- features do not import Tauri or desktop runtime packages directly;
-- platform packages do not depend on application entry packages;
-- cross-package imports use public package exports instead of `src/` deep paths;
-- relative imports do not cross top-level package boundaries;
-- design-system components consume `--ui-*` tokens instead of raw utility classes.
+Every invariant below maps to a rule id emitted by `run.mjs`. The tier table
+itself lives in `rules.config.mjs` and is reconciled against the packages on
+disk at load time; this file does not restate it.
+
+- `{pkg}-depends-downward` — a package imports only its own tier and below;
+- `{pkg}-owns-its-entry` — a package is reached through its own entry point;
+- `public-package-exports` — cross-package imports use package exports, not `src/` deep paths;
+- `no-cross-boundary-relative-imports` — relative imports do not cross package boundaries;
+- `design-system-token-authority` — design-system components consume `--ui-*` tokens, not raw utility classes;
+- `no-task-scoped-guards` — no `check-*.mjs` file may exist in this directory;
+- load-time governance — directory naming, the four native-crate rules from
+  `docs/architecture/rust-layers.md`, and the `size-budget.json` ratchet.
 
 ## Adding a rule
 

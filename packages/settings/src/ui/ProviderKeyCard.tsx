@@ -5,7 +5,7 @@ import {
 } from '@poietica/agent-providers'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentConfigStore, ProviderKeyProbe } from '../ports/agent-config-store'
+import type { AgentConfigStore, ProviderKeyProbe } from '../contracts/agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from './agentCliText'
 import { SubField } from './models-fields'
 

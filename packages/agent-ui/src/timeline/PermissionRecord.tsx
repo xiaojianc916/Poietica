@@ -1,6 +1,6 @@
 import type { PermissionItem } from '@poietica/agent-timeline'
-import { useAgentDialect } from '../domain/agent-dialect'
-import { isQuestionRequest } from '../domain/ask-user-question'
+import { useAgentDialect } from '../semantics/agent-dialect'
+import { isQuestionRequest } from '../semantics/ask-user-question'
 import { QuestionOutcome } from './QuestionOutcome'
 
 /**

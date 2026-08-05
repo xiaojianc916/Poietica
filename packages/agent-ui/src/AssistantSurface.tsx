@@ -14,15 +14,15 @@ import { AssistantQuickActions } from './AssistantQuickActions'
 import { PermissionDock } from './composer/permission-dock'
 import type { PromptInputHandle } from './composer/prompt-input'
 import { useDockClearance } from './dock-clearance'
-import { useAgentDialect } from './domain/agent-dialect'
-import type { QuestionAnswer } from './domain/ask-user-question'
+import { modelProviderOf } from './primitives/model-provider'
+import { ProviderIcon } from './primitives/provider-icon'
+import { useAgentDialect } from './semantics/agent-dialect'
+import type { QuestionAnswer } from './semantics/ask-user-question'
 import {
   buildQuestionDeck,
   isQuestionRequest,
   readQuestionPrompt,
-} from './domain/ask-user-question'
-import { modelProviderOf } from './primitives/model-provider'
-import { ProviderIcon } from './primitives/provider-icon'
+} from './semantics/ask-user-question'
 import { TranscriptView } from './TranscriptView'
 import { TimelineRow } from './timeline/TimelineRow'
 export interface AssistantSurfaceProps {

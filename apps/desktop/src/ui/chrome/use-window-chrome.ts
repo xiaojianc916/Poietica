@@ -1,6 +1,6 @@
-import type { MainWindowController } from '@poietica/desktop-runtime'
+import type { MainWindowController } from '@poietica/desktop-adapters'
 import { useCallback, useEffect, useState } from 'react'
-import { reportFailure } from '../../application/failures/failure-policy'
+import { reportFailure } from '../../state/failures/failure-policy'
 
 export interface WindowChrome {
   readonly isMaximized: boolean

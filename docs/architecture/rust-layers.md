@@ -42,4 +42,4 @@
 
 `src-tauri/src/commands/` 下的 `agent.rs`、`agent_config.rs`、
 `agent_install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
-`asset_protocol.rs` 同样过大。这些是待偿还的债，不是本文档认可的做法。
+这些偏差已被 `tests/architecture/size-budget.json` 的体量棘轮冻结：基线里的文件只允许变小，基线外的生产源文件不得越过字节上限。债只能往下走，不会再悄悄长大。本文件的四条 crate 规则（不依赖 tauri、互不依赖、实体不留在 `src-tauri`、必须写 `[lints] workspace = true`）现在由 `pnpm test:architecture` 执行，不再只是文字。
