@@ -48,11 +48,30 @@ function rank(purpose: SessionConfigControl['purpose']): number {
   return found < 0 ? ORDER.length : found
 }
 
+/*
+ * 组内条目不重复组名。
+ *
+ * 上游给取值起名是按「单独出现」起的（kimi-code 的 thinkingOptionName 逐字
+ * 是 `Thinking ${...}`），而它在这一格里从不单独出现 —— 行标签已经说了
+ * 这是 Thinking，每个条目再把组名背一遍，就是「Thinking / Thinking Max」
+ * 这种把一件事说两遍的菜单。剥的是显示文本里重复的那一半；值是数据键，
+ * 一个字符不动。剥完是空的（条目名恰好等于组名）就原样显示。
+ */
+function labelOf(
+  control: SessionConfigControl,
+  choice: SessionConfigControl['choices'][number],
+): string {
+  const prefix = `${control.label} `
+  const stripped = choice.label.startsWith(prefix) ? choice.label.slice(prefix.length) : ''
+
+  return stripped.length > 0 ? stripped : choice.label
+}
+
 /** The name the agent gave the value in force, falling back to the value. */
 function chosen(control: SessionConfigControl): string {
-  return (
-    control.choices.find((choice) => choice.value === control.current)?.label ?? control.current
-  )
+  const found = control.choices.find((choice) => choice.value === control.current)
+
+  return found === undefined ? control.current : labelOf(control, found)
 }
 
 /*
@@ -206,7 +225,9 @@ export const SessionControls = memo(function SessionControls({
                     key={choice.value}
                     value={choice.value}
                   >
-                    <span className="assistant-config-option__label">{choice.label}</span>
+                    <span className="assistant-config-option__label">
+                      {labelOf(control, choice)}
+                    </span>
 
                     {choice.detail === undefined ? null : (
                       <span className="assistant-config-option__detail">{choice.detail}</span>
