@@ -20,9 +20,6 @@ describe('工作区表面注册表', () => {
 
     expect([...WORKSPACE_NAVIGATION_ORDER]).toEqual(expected)
 
-    /* 手写第二份顺序时漏掉的就是它：仓库表面因此在侧栏里没有入口。 */
-    expect(WORKSPACE_NAVIGATION_ORDER).toContain('repositories')
-
     /* 新建对话是动作而非导航目标，由导航条单独渲染。 */
     expect(WORKSPACE_NAVIGATION_ORDER).not.toContain('ai')
     expect(new Set(WORKSPACE_NAVIGATION_ORDER).size).toBe(WORKSPACE_NAVIGATION_ORDER.length)

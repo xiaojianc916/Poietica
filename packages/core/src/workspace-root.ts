@@ -8,8 +8,13 @@
  * 算法，必然分叉。
  *
  * 身份就是归一化之后的路径本身，不是它的散列：D:\a 与 D:\a\b 是两个平级、
- * 互不隶属的作用域，而一个路径已经是全局唯一的名字了。散列只在需要一个文件名
+ * 互不隶属的作用域，而一条路径已经是全局唯一的名字了。散列只在需要一个文件名
  * 的时候出场，见 workspaceRootKey。
+ *
+ * 下面三个实现是从 packages/workspace/src/domain/repository.ts 逐字节搬来的，
+ * 只统一了形参名：搬家不改语义。此前这里被顺手重写过一遍，代价是三处静默漂移
+ * —— 少了 .trim()、C:/ 的结尾分隔符被保留、散列从 UTF-16 码元换成了码点。
+ * 归一化要不要再管 NFC、. 与 ..、UNC 路径，是另一件事，得单独一笔带测试地改。
  */
 
 /**
@@ -17,33 +22,34 @@
  *
  * 反斜杠归一成正斜杠、重复分隔符收成一个、去掉结尾的分隔符、盘符大写 ——
  * 这四条都是「同一个目录的两种写法」的来源，而它们必须先消掉，分组才不会把
- * D:\a 和 d:/a/ 算成两个。根（/ 或 C:/）保留它的结尾分隔符：那一个不是修饰，
- * 是路径本身。
+ * D:\a 和 d:/a/ 算成两个。
  */
 export function normalizeWorkspaceRoot(rootPath: string): string {
-  const slashed = rootPath.replaceAll('\\', '/').replaceAll(/\/{2,}/gu, '/')
-  const drive = slashed.replace(
-    /^([a-z]):/u,
-    (_whole, letter: string) => `${letter.toUpperCase()}:`,
+  const unified = rootPath
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/')
+  const driveCased = unified.replace(
+    /^([a-z]):\//,
+    (_match, drive: string) => `${drive.toUpperCase()}:/`,
   )
+  const trimmed = driveCased.replace(/\/+$/, '')
 
-  return drive.length > 1 && drive.endsWith('/') && !drive.endsWith(':/')
-    ? drive.slice(0, -1)
-    : drive
+  return trimmed.length > 0 ? trimmed : '/'
 }
 
 /**
  * 人认的那个名字：路径的最后一段。
  *
- * 侧栏那一列窄得放不下一条绝对路径，而项目名足以让人认出来。根目录没有末段，
+ * 侧栏那一列窄得放不下一条绝对路径，而项目名足以让人认出来。根没有末段，
  * 那时候路径本身就是它的名字。
  */
 export function workspaceRootName(rootPath: string): string {
-  const segments = normalizeWorkspaceRoot(rootPath)
-    .split('/')
-    .filter((segment) => segment.length > 0)
+  const normalized = normalizeWorkspaceRoot(rootPath)
+  const lastSlash = normalized.lastIndexOf('/')
+  const tail = lastSlash < 0 ? normalized : normalized.slice(lastSlash + 1)
 
-  return segments.at(-1) ?? normalizeWorkspaceRoot(rootPath)
+  return tail.length > 0 ? tail : normalized
 }
 
 /**
@@ -54,15 +60,17 @@ export function workspaceRootName(rootPath: string): string {
  * （crates/persistence/src/workspace_state.rs 的 validate_repository_id）。
  *
  * 选 FNV-1a 是因为这里要的就是「短、稳定、纯函数」，不是抗碰撞：撞了两个目录
- * 共用一份工作台标签状态，代价是一次布局错乱，不是安全问题。Math.imul 保证乘法
- * 在 32 位里回绕，与规范一致。
+ * 共用一份工作台标签状态，代价是一次布局错乱，不是安全问题。Math.imul 保证
+ * 乘法在 32 位里回绕，与规范一致。
  */
 export function workspaceRootKey(rootPath: string): string {
-  let hash = 0x811c_9dc5
+  const normalized = normalizeWorkspaceRoot(rootPath)
+  let hash = 0x811c9dc5
 
-  for (const character of normalizeWorkspaceRoot(rootPath)) {
-    hash = Math.imul(hash ^ character.codePointAt(0)!, 0x0100_0193)
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
   }
 
-  return (hash >>> 0).toString(16).padStart(8, '0')
+  return hash.toString(16).padStart(8, '0')
 }

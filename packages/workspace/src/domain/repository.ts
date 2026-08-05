@@ -22,40 +22,6 @@ export interface RepositoryRef {
   readonly lastOpenedAt: number
 }
 
-: string {
-  const unified = raw
-    .trim()
-    .replace(/\\/g, '/')
-    .replace(/\/{2,}/g, '/')
-  const driveCased = unified.replace(
-    /^([a-z]):\//,
-    (_match, drive: string) => `${drive.toUpperCase()}:/`,
-  )
-  const trimmed = driveCased.replace(/\/+$/, '')
-
-  return trimmed.length > 0 ? trimmed : '/'
-}
-
-: string {
-  const normalized = normalizeWorkspaceRoot(rootPath)
-  const lastSlash = normalized.lastIndexOf('/')
-  const tail = lastSlash < 0 ? normalized : normalized.slice(lastSlash + 1)
-
-  return tail.length > 0 ? tail : normalized
-}
-
-: RepositoryId {
-  const normalized = normalizeWorkspaceRoot(rootPath)
-  let hash = 0x811c9dc5
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193) >>> 0
-  }
-
-  return hash.toString(16).padStart(8, '0')
-}
-
 export const RepositoryRefSchema = v.object({
   id: v.pipe(v.string(), v.nonEmpty()),
   rootPath: v.pipe(v.string(), v.nonEmpty(), v.transform(normalizeWorkspaceRoot)),

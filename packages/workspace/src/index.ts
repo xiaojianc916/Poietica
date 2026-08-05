@@ -36,7 +36,6 @@ export {
   type WorkspaceTabViewModel,
 } from './contracts/workbench'
 export {
-  normalizeWorkspaceRoot,
   type RepositoryId,
   type RepositoryRef,
   RepositoryRefSchema,
@@ -44,6 +43,4 @@ export {
   WORKSPACE_NAVIGATION_ORDER,
   WORKSPACE_SURFACE_REGISTRY,
   type WorkspaceSurfaceDescriptor,
-  workspaceRootKey,
-  workspaceRootName,
 } from './domain/index'
