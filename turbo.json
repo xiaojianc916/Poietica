@@ -40,6 +40,22 @@
       "dependsOn": ["^typecheck"],
       "outputs": []
     },
+    "@poietica/desktop#typecheck": {
+      "dependsOn": [
+        "^typecheck",
+        "@poietica/desktop#typecheck:browser",
+        "@poietica/desktop#typecheck:node"
+      ],
+      "outputs": []
+    },
+    "@poietica/desktop#typecheck:browser": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "@poietica/desktop#typecheck:node": {
+      "inputs": ["vite.config.ts", "vite-plugins/**", "tsconfig.node.json"],
+      "outputs": []
+    },
     "build": {
       "dependsOn": ["^build", "typecheck"],
       "inputs": [

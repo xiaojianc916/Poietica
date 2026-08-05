@@ -380,7 +380,7 @@ const fileSizeRatchet = async (inventory) => {
 /*
  * 工作区 manifest 的公共契约面。
  *
- * 判据版本：v3（重复脚本）
+ * 判据版本：v4（重复脚本 + shell 编排）
  *
  * 十四份 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
  * 前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
@@ -391,13 +391,16 @@ const fileSizeRatchet = async (inventory) => {
  *
  * 判据只写这份文件自己能证明的事。曾经这里断言过「check 没有调用方」，那需要穷举
  * 全仓所有调用路径 —— 规则做不到，于是成了硬编码断言，两轮都被证伪（一次是根
- * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。现在的判据不需要
- * 外部知识：同一份 manifest 里两个脚本一字不差，其中一个必然是历史残留。
+ * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。现在的判据都不
+ * 需要外部知识：重复脚本、shell 编排，看 manifest 自己就能判。
  *
  * 双下划线目录（__fixtures__ 与 __tests__ 同族）不进公共路径名，显式豁免。
  * tests/package.json 不在 inventoryRoots 里，这条规则够不着它 —— 洞就是洞。
  */
 const CONVENTION_EXEMPT_TARGET = /\/__[\w-]+__\//
+
+/* 编排型工具：同一个 script 里出现两次，那就是在 shell 里排 task。 */
+const ORCHESTRATED_TOOLS = ['tsc', 'vitest', 'biome']
 
 const canonicalSubpath = (target) =>
   `./${target.replace(/^\.\/src\//, '').replace(/(?:\/index)?\.tsx?$/, '')}`
@@ -426,7 +429,6 @@ const manifestExportDefects = (file, exportMap) =>
 
 /*
  * 两个脚本一字不差 —— 调用方分不清该用哪个，而其中一个注定不会被更新。
- * 这条只看 manifest 自己，不需要知道谁在调用谁。
  */
 const manifestScriptDefects = (file, scripts) => {
   const seen = new Map()
@@ -443,6 +445,29 @@ const manifestScriptDefects = (file, scripts) => {
     return [{ file, message: `脚本 "${name}" 与 "${twin}" 一字不差：同一件事两个名字` }]
   })
 }
+
+/*
+ * 同一个 script 里用 && 串起两次同一个程序 —— 那是 task 编排：前一个红了后一个
+ * 不跑，两份结果也汇不到一处，缓存粒度还被绑死成一个黑盒。这个仓库有 turbo，
+ * 编排是它的活。只认同名程序：vite build && tauri build 是真的顺序依赖，不在此列。
+ */
+const manifestOrchestrationDefects = (file, scripts) =>
+  Object.entries(scripts ?? {}).flatMap(([name, body]) => {
+    const segments = body.split('&&').map((part) => part.trim())
+
+    if (segments.length < 2) {
+      return []
+    }
+
+    return ORCHESTRATED_TOOLS.filter((tool) => {
+      const invocation = new RegExp(`(?:^|\\s)${tool}(?:\\s|$)`)
+
+      return segments.filter((segment) => invocation.test(segment)).length > 1
+    }).map((tool) => ({
+      file,
+      message: `脚本 "${name}" 用 && 串了两次 ${tool}：前一个红了后一个不跑，编排交给 turbo 的 task 图`,
+    }))
+  })
 
 /* pnpm-workspace.yaml 声明了 saveExact，版本只能来自 catalog: 或精确号。 */
 const manifestVersionDefects = (file, manifest) =>
@@ -488,6 +513,7 @@ const workspaceManifestConventions = async (inventory) => {
     }
 
     defects.push(...manifestScriptDefects(file, manifest.scripts))
+    defects.push(...manifestOrchestrationDefects(file, manifest.scripts))
     defects.push(...manifestVersionDefects(file, manifest))
   }
 

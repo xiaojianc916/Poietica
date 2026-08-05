@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.node.json --noEmit",
+    "typecheck:browser": "tsc --project tsconfig.json --noEmit",
+    "typecheck:node": "tsc --project tsconfig.node.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
