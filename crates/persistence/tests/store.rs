@@ -17,8 +17,8 @@ fn a_conversation_is_listed_once_someone_has_spoken_in_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let quiet = store.create_thread("新建对话").expect("thread");
-    let spoken = store.create_thread("新建对话").expect("thread");
+    let quiet = store.create_thread("新建对话", None).expect("thread");
+    let spoken = store.create_thread("新建对话", None).expect("thread");
 
     store
         .record_prompt(spoken, "帮我看看这段代码")
@@ -48,8 +48,8 @@ fn speaking_again_moves_a_conversation_up_without_renaming_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let earlier = store.create_thread("新建对话").expect("thread");
-    let later = store.create_thread("新建对话").expect("thread");
+    let earlier = store.create_thread("新建对话", None).expect("thread");
+    let later = store.create_thread("新建对话", None).expect("thread");
 
     store
         .record_prompt(earlier, "第一句")
@@ -91,7 +91,7 @@ fn a_session_is_stored_with_the_agent_that_opened_it() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let thread = store.create_thread("thread").expect("thread");
+    let thread = store.create_thread("thread", None).expect("thread");
 
     store
         .attach_session(thread, "session-a", "kimi")
@@ -112,7 +112,7 @@ fn a_thread_holding_no_session_has_no_owner() {
     let directory = TempDir::new().expect("temporary directory");
     let store = AgentStore::open(&database_path(&directory)).expect("open");
 
-    let thread = store.create_thread("thread").expect("thread");
+    let thread = store.create_thread("thread", None).expect("thread");
     let read = store.thread(thread).expect("read").expect("the thread");
 
     assert_eq!(
@@ -132,7 +132,7 @@ fn a_session_without_an_owner_is_refused_by_the_database() {
     let path = database_path(&directory);
 
     let store = AgentStore::open(&path).expect("open");
-    let thread = store.create_thread("thread").expect("thread");
+    let thread = store.create_thread("thread", None).expect("thread");
     drop(store);
 
     let raw = rusqlite::Connection::open(&path).expect("open the same file");
@@ -144,5 +144,53 @@ fn a_session_without_an_owner_is_refused_by_the_database() {
     assert!(
         written.is_err(),
         "会话号只在开出它的 agent 那里认得，所以库里不许有一行握着号却说不出主人"
+    );
+}
+
+/// 对话记得它是在哪个目录里开的。
+///
+/// 两条读路径各有一份 SELECT（`thread` 与 `list_threads`），所以两条都要问：
+/// 只给一份加上这一列，症状是「侧栏分组对了，而打开那条对话又跑回默认目录」，
+/// 那是最难查的一类不一致。
+///
+/// 空不是「不知道」。迁移 0013 之前写下的行没有这一格，而那时候运行期只有一个
+/// 工作目录，它们本来就都在它里面 —— 所以空的含义是「默认那一个工作区」。这条
+/// 测试把这个含义一并钉住，否则总会有人来加一段回填。
+#[test]
+fn a_conversation_remembers_the_directory_it_was_opened_in() {
+    const PROJECT: &str = "D:/com.xiaojianc/my_desktop_app";
+
+    let directory = TempDir::new().expect("temporary directory");
+    let store = AgentStore::open(&database_path(&directory)).expect("open");
+
+    let here = store
+        .create_thread("新建对话", Some(PROJECT))
+        .expect("thread");
+    let anywhere = store.create_thread("新建对话", None).expect("thread");
+
+    store.record_prompt(here, "这个项目").expect("opening line");
+    store
+        .record_prompt(anywhere, "另一处")
+        .expect("opening line");
+
+    let read = store.thread(here).expect("read").expect("the thread");
+
+    assert_eq!(
+        read.workspace_root.as_deref(),
+        Some(PROJECT),
+        "会话开在哪个目录里，是这条对话自己的属性"
+    );
+
+    let listed = store.list_threads().expect("list");
+
+    assert!(
+        listed
+            .iter()
+            .any(|thread| thread.workspace_root.as_deref() == Some(PROJECT)),
+        "整表那一条 SELECT 也要带上这一列，否则侧栏无从分组"
+    );
+    assert!(
+        listed.iter().any(|thread| thread.workspace_root.is_none()),
+        "空是迁移之前那些行的样子，它的含义是默认那一个工作区"
     );
 }

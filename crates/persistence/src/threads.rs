@@ -10,17 +10,20 @@ use crate::store::{AgentStore, now};
 impl AgentStore {
     /// Creates a thread and returns its identifier.
     ///
+    /// `workspace_root` 是这条对话开在哪个目录里。空表示默认那一个工作区 ——
+    /// 迁移 0013 之前写下的行都是空的，含义相同，所以它可空而不是必填。
+    ///
     /// # Errors
     ///
     /// Fails when the insert is rejected.
-    pub fn create_thread(&self, title: &str) -> Result<Uuid> {
+    pub fn create_thread(&self, title: &str, workspace_root: Option<&str>) -> Result<Uuid> {
         let id = Uuid::now_v7();
         let timestamp = now()?;
 
         self.write(
-            "INSERT INTO threads (id, title, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?3)",
-            rusqlite::params![id.to_string(), title, timestamp],
+            "INSERT INTO threads (id, title, created_at, updated_at, workspace_root)
+             VALUES (?1, ?2, ?3, ?3, ?4)",
+            rusqlite::params![id.to_string(), title, timestamp, workspace_root],
         )?;
 
         Ok(id)
@@ -37,7 +40,8 @@ impl AgentStore {
     // 迁移 0009 在删表之前把存量对齐过，列表成员一行不差。
     pub fn list_threads(&self) -> Result<Vec<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned
+            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
+                    workspace_root
                FROM threads
               WHERE title_source <> 'fallback'
               ORDER BY pinned DESC, updated_at DESC",
@@ -53,6 +57,7 @@ impl AgentStore {
                     title_source: row.get(4)?,
                     updated_at: row.get(5)?,
                     pinned: row.get::<_, i64>(6)? != 0,
+                    workspace_root: row.get(7)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -95,7 +100,8 @@ impl AgentStore {
     /// Fails when the query is rejected.
     pub fn thread(&self, id: Uuid) -> Result<Option<ThreadSummary>> {
         let mut statement = self.connection.prepare_cached(
-            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned
+            "SELECT id, session_id, agent_id, title, title_source, updated_at, pinned,
+                    workspace_root
                FROM threads
               WHERE id = ?1",
         )?;
@@ -111,6 +117,7 @@ impl AgentStore {
                 title_source: row.get(4)?,
                 updated_at: row.get(5)?,
                 pinned: row.get::<_, i64>(6)? != 0,
+                workspace_root: row.get(7)?,
             })),
             None => Ok(None),
         }
@@ -255,6 +262,11 @@ pub struct ThreadSummary {
     pub updated_at: String,
     /// Whether it is held at the top of the list.
     pub pinned: bool,
+    /// 这条对话开在哪个工作目录里。
+    ///
+    /// 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」，不是「不知道」：
+    /// 那时候运行期只有一个工作目录，它们本来就都在它里面。
+    pub workspace_root: Option<String>,
 }
 
 /// Where a thread name came from, in the order they outrank each other.

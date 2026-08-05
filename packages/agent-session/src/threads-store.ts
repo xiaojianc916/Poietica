@@ -65,6 +65,18 @@ export class ThreadsStore {
   /* 值没变的行复用同一个对象，行组件因此可以被跳过。 */
   #items = new Map<string, ThreadListItem>()
 
+  /*
+   * 刚开出来、还没有人开口的那些对话在哪个目录里。
+   *
+   * 它们不在平台报的列表里（没人说过话的对话不进列表），而第一句话会先在本地
+   * 造一行出来（见 noteUserMessage）。那一行也得落进正确的组，否则新建的对话
+   * 会先出现在「默认」下面 —— 而且不会自己纠正：提问之后没有任何一处 refresh。
+   *
+   * 权威仍然只有一个。这里存的就是 open 那一趟平台自己报回来的值，不是本地
+   * 猜的；平台认下它之后（refresh）这一格当场删掉。
+   */
+  #roots = new Map<string, string | null>()
+
   #list: ThreadsList = { items: NO_ITEMS, isLoading: true, failure: null }
 
   readonly #transcripts: TranscriptSink | undefined
@@ -162,6 +174,11 @@ export class ThreadsStore {
     try {
       const found = await port.list()
 
+      /* 平台认下的行自带工作目录，本地那份替身到此为止。 */
+      for (const thread of found) {
+        this.#roots.delete(thread.threadId)
+      }
+
       this.#commit({ threads: found, failure: null, isLoading: false })
     } catch (reason) {
       this.#commit({ failure: describeFailure(reason), isLoading: false })
@@ -178,6 +195,8 @@ export class ThreadsStore {
     try {
       const opened = await port.open()
       const threadId = opened.thread.threadId
+
+      this.#roots.set(threadId, opened.thread.workspaceRoot ?? null)
 
       /* 路由、经过、选择器：一份答复到手之后的一切，都在会话那一侧落地。 */
       this.#controls.opened(opened)
@@ -237,6 +256,10 @@ export class ThreadsStore {
       return
     }
 
+    /* 这一行要落进它自己那个组，所以带上 open 时平台报的目录。undefined 是
+    「这条不是本次运行开出来的」，那时缺席仍然是缺席。 */
+    const root = this.#roots.get(threadId)
+
     const pending = this.#held.pending.some((thread) => thread.threadId === threadId)
       ? this.#held.pending
       : [
@@ -247,6 +270,7 @@ export class ThreadsStore {
             title: shorten(message),
             titleSource: 'message' as const,
             updatedAt: at,
+            ...(root === undefined ? {} : { workspaceRoot: root }),
           },
         ]
 
@@ -309,6 +333,7 @@ export class ThreadsStore {
 
     /* 会话那一侧按对话记的每一格，一句话作废：它们的家在那个文件里。 */
     this.#controls.forget(threadId)
+    this.#roots.delete(threadId)
 
     this.#commit({
       threads: this.#held.threads.filter((thread) => thread.threadId !== threadId),
@@ -451,13 +476,17 @@ export class ThreadsStore {
   #itemFor(thread: ThreadRecord): ThreadListItem {
     const title = nameOf(thread, this.#held.provisional.get(thread.threadId))
     const isPinned = thread.pinned === true
+    const workspaceId = workspaceIdOf(thread)
     const last = this.#items.get(thread.threadId)
 
+    /* 分组也是这一行的样子的一部分。漏掉它，一条换了工作目录、而标题／置顶／
+    时间都没变的对话会留在上一个组里。 */
     if (
       last !== undefined &&
       last.title === title &&
       last.isPinned === isPinned &&
-      last.updatedAt === thread.updatedAt
+      last.updatedAt === thread.updatedAt &&
+      last.workspaceId === workspaceId
     ) {
       return last
     }
@@ -467,7 +496,7 @@ export class ThreadsStore {
       title,
       isPinned,
       updatedAt: thread.updatedAt,
-      workspaceId: workspaceIdOf(thread),
+      workspaceId,
     }
   }
 

@@ -1334,6 +1334,11 @@ pub struct AgentThread {
     pub updated_at: String,
     /// Whether it is held at the top of the list.
     pub pinned: bool,
+    /// 它是在哪个工作目录里开的。列表按它分组。
+    ///
+    /// 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」（见
+    /// thread-order.ts 的 DEFAULT_WORKSPACE_ID），不是「不知道」。
+    pub workspace_root: Option<String>,
 }
 
 /// 这条对话挂着的一张附件，以及它该出现在哪里。
@@ -1466,14 +1471,17 @@ pub async fn agent_open_thread(
     assets: State<'_, AssetProtocolRegistry>,
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
+    let asked = request.cwd.clone();
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     let named = if let Some(given) = request.thread_id {
         given
     } else {
-        on_store(&state, |store| {
+        /* 新建的这一条属于此刻这个工作目录，而且从此属于它：之后每一次为这条
+        对话开会话都照这一行，不照「渲染层此刻选的那个」。 */
+        on_store(&state, move |store| {
             store
-                .create_thread(FALLBACK_THREAD_TITLE)
+                .create_thread(FALLBACK_THREAD_TITLE, asked.as_deref())
                 .map(|id| id.to_string())
                 .map_err(persistence)
         })
@@ -1666,6 +1674,7 @@ fn retitle(thread: poietica_agent_persistence_native::ThreadSummary) -> AgentThr
         },
         updated_at: thread.updated_at,
         pinned: thread.pinned,
+        workspace_root: thread.workspace_root,
     }
 }
 
@@ -1843,7 +1852,10 @@ fn recognised(live: &Handle, session_id: &str) -> Result<bool> {
 /// 没有副本可拿。空本身不是问题，不作声才是 —— 所以每一条返回路径都带一个
 /// `history`，说清这一次的空是"刚建"、"本来就在"，还是"打不开，以及为什么"。
 ///
-/// 会话的工作目录是平台给的答案（state.root），不是进程的当前目录。
+/// 会话的工作目录由这条对话自己那一行说了算（迁移 0013 的 workspace_root）。
+/// 空的才回落到平台给的那个 home —— 那是迁移之前写下的行，那时候只有一个工作
+/// 目录，所以回落是一条事实，不是兜底。取进程的当前目录回答的是另一个问题：
+/// 开发运行时它是 Rust 的构建目录。
 async fn session_for(
     state: &State<'_, AgentRuntime>,
     live: &Handle,
@@ -1860,9 +1872,17 @@ async fn session_for(
     /* 号和持有者分开拿。此前它们被 and_then + filter 折成一个 Option，于是
     "这条对话属于别的 agent"与"这条对话还没有会话"在类型上不可分辨 —— 那正是
     这一路说不出话的原因：折叠丢掉的不是数据，是问句的答案。 */
-    let (session_id, owner) = match stored {
-        Some(thread) => (thread.session_id, thread.agent_id),
-        None => (None, None),
+    let (session_id, owner, recorded) = match stored {
+        Some(thread) => (thread.session_id, thread.agent_id, thread.workspace_root),
+        None => (None, None, None),
+    };
+
+    /* 目录是对话的属性，不是这一刻的选择：从项目 A 的一条旧对话里说话，不该
+    跑到项目 B 的目录里去。此前这两处都写死 state.root，也就是家目录 —— 于是
+    人选的那个工作目录只影响起进程那一次，agent 实际在哪里读写与它无关。 */
+    let workspace = match recorded {
+        Some(path) => PathBuf::from(path),
+        None => state.root.clone(),
     };
 
     /* 空的持有者是这一列存在之前写下的行：那时候只装得下一个 agent，所以按
@@ -1898,7 +1918,7 @@ async fn session_for(
             /* 上次运行留下的。号不变，让 agent 把它装载回来。 */
             match live
                 .client
-                .load_session(session_id.clone(), state.root.clone())
+                .load_session(session_id.clone(), workspace.clone())
                 .await
             {
                 Ok(loaded) => {
@@ -1978,7 +1998,7 @@ async fn session_for(
 
     let opened = live
         .client
-        .new_session(state.root.clone())
+        .new_session(workspace)
         .await
         .map_err(translate)?;
 

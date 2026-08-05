@@ -1141,7 +1141,14 @@ updatedAt: string;
 /**
  * Whether it is held at the top of the list.
  */
-pinned: boolean }
+pinned: boolean; 
+/**
+ * 它是在哪个工作目录里开的。列表按它分组。
+ * 
+ * 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」（见
+ * thread-order.ts 的 DEFAULT_WORKSPACE_ID），不是「不知道」。
+ */
+workspaceRoot: string | null }
 /**
  * 这条对话挂着的一张附件，以及它该出现在哪里。
  * 
