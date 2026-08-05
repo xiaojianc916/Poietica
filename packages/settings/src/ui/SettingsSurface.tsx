@@ -45,11 +45,6 @@ type SettingsSection =
   | 'privacy'
   | 'about'
 
-interface SectionDefinition {
-  readonly id: SettingsSection
-  readonly label: string
-}
-
 /*
  * 导航只列产品当前真的有的东西。
  *
@@ -60,41 +55,25 @@ interface SectionDefinition {
  * privacy 里的每一项都写进 AppSettings 并落盘。models / keymap / hooks /
  * tools 在 AppSettings 里还没有任何字段，所以它们渲染明确的空状态，而不是
  * 拨得动却存不下的假开关。
+ *
+ * 分类到标签是一张按分类穷尽的表，不是一个待搜索的数组：全文没有一处遍历它，
+ * 两个调用点都是拿 id 去搜，再对搜不到的情况判空、抛错。而 id 的类型就是这八个
+ * 字面量的联合 —— 那个分支在类型上不可能走到，它把编译期已经证明的事挪到运行时
+ * 又验了一遍，代价是每次渲染一次线性扫描，和一条永远读不到的错误文案。
+ *
+ * 写成 Record 之后查找是索引，缺键在 typecheck 阶段就是错误。下面的
+ * SECTION_GLYPHS 与 SECTION_PATHS 本来就是这个形状，这里跟它们对齐。
  */
-const SECTIONS: readonly SectionDefinition[] = [
-  {
-    id: 'general',
-    label: '通用',
-  },
-  {
-    id: 'appearance',
-    label: '外观',
-  },
-  {
-    id: 'models',
-    label: '模型',
-  },
-  {
-    id: 'keymap',
-    label: '快捷键',
-  },
-  {
-    id: 'hooks',
-    label: '钩子',
-  },
-  {
-    id: 'tools',
-    label: 'Tool',
-  },
-  {
-    id: 'privacy',
-    label: '隐私',
-  },
-  {
-    id: 'about',
-    label: '关于',
-  },
-]
+const SECTIONS: Record<SettingsSection, string> = {
+  general: '通用',
+  appearance: '外观',
+  models: '模型',
+  keymap: '快捷键',
+  hooks: '钩子',
+  tools: 'Tool',
+  privacy: '隐私',
+  about: '关于',
+}
 
 /**
  * 导航分组。图二用间距而不是标题分隔分组，所以这里只描述分组关系，
@@ -105,16 +84,6 @@ const SECTION_GROUPS: readonly (readonly SettingsSection[])[] = [
   ['models', 'keymap', 'hooks', 'tools'],
   ['privacy', 'about'],
 ]
-
-function findSection(id: SettingsSection): SectionDefinition {
-  const section = SECTIONS.find((item) => item.id === id)
-
-  if (!section) {
-    throw new Error(`未知的设置分类：${id}`)
-  }
-
-  return section
-}
 
 /*
  * 设置导航与设置内容是外壳栅格里两个互不嵌套的格子（第 1 列与第 2 列）。
@@ -223,7 +192,7 @@ export function SettingsContentRegion() {
   return (
     <div aria-live="polite" className="settings-content">
       <div className="settings-content__inner">
-        <h2 className="settings-content__title">{findSection(section).label}</h2>
+        <h2 className="settings-content__title">{SECTIONS[section]}</h2>
 
         {controller.loading ? (
           <div className="settings-state">
@@ -313,7 +282,7 @@ const SettingsNavigation = memo(function SettingsNavigation({
                 >
                   <SectionIcon section={id} />
 
-                  <span>{findSection(id).label}</span>
+                  <span>{SECTIONS[id]}</span>
                 </button>
               )
             })}
@@ -727,6 +696,46 @@ const SECTION_GLYPHS: Record<GlyphSection, GlyphComponent> = {
   tools: Box,
 }
 
+/*
+ * 描边路径与上面那张字形表同级、同纪律。
+ *
+ * 它此前造在 SectionIcon 的函数体里：五棵 JSX 子树每次渲染全部新建，用掉一棵、
+ * 扔掉四棵，侧边栏八个按钮每重画一次就是四十棵。而这个文件对静态表本来就有
+ * 定论 —— COLOR_MODES / LANGUAGES 那段注释说的就是这件事。
+ */
+const SECTION_PATHS: Record<PathSection, ReactNode> = {
+  appearance: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+    </>
+  ),
+  models: (
+    <>
+      <rect height="12" rx="2" width="12" x="6" y="6" />
+      <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
+    </>
+  ),
+  keymap: (
+    <>
+      <rect height="12" rx="2" width="18" x="3" y="6" />
+      <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
+    </>
+  ),
+  privacy: (
+    <>
+      <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Z" />
+      <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  about: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+}
+
 function isGlyphSection(section: SettingsSection): section is GlyphSection {
   return section === 'general' || section === 'hooks' || section === 'tools'
 }
@@ -736,39 +745,6 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
     const Glyph = SECTION_GLYPHS[section]
 
     return <Glyph aria-hidden="true" className="settings-navigation__icon" />
-  }
-
-  const paths: Record<PathSection, ReactNode> = {
-    appearance: (
-      <>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
-      </>
-    ),
-    models: (
-      <>
-        <rect height="12" rx="2" width="12" x="6" y="6" />
-        <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
-      </>
-    ),
-    keymap: (
-      <>
-        <rect height="12" rx="2" width="18" x="3" y="6" />
-        <path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8" />
-      </>
-    ),
-    privacy: (
-      <>
-        <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Z" />
-        <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-    about: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 11v5M12 8h.01" />
-      </>
-    ),
   }
 
   return (
@@ -782,7 +758,7 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
       strokeWidth="1.7"
       viewBox="0 0 24 24"
     >
-      {paths[section]}
+      {SECTION_PATHS[section]}
     </svg>
   )
 }
