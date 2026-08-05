@@ -6,6 +6,7 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
+  useMemo,
 } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
@@ -70,15 +71,23 @@ export function Select({
   onValueChange,
   onOpenChange,
 }: SelectProps) {
+  /*
+   * context 的值必须有稳定身份，否则每次渲染都让触发器、面板与每一行重画一遍。
+   *
+   * 同仓另外两个 provider（CommandProvider、SettingsProvider）本来就是这么写的，
+   * 这里此前是行内字面量 —— 同一件事的三种写法里最差的那一种。
+   *
+   * 注意这只把库这一侧修对了：设置页每次渲染仍然新建一个 data 数组交进来，那一
+   * 半的根治是让 data 消失（Base UI 的 Select.Value + Root 的 items 就是为此存在，
+   * 触发器不必再自己 find 一次），但那要先核对 1.6.0 的类型签名，不在这一轮。
+   */
+  const selection = useMemo<SelectContextValue>(
+    () => ({ data, type, value, size }),
+    [data, size, type, value],
+  )
+
   return (
-    <SelectContext.Provider
-      value={{
-        data,
-        type,
-        value,
-        size,
-      }}
-    >
+    <SelectContext value={selection}>
       <BaseSelect.Root<string>
         defaultOpen={defaultOpen}
         disabled={disabled}
@@ -95,7 +104,7 @@ export function Select({
       >
         {children}
       </BaseSelect.Root>
-    </SelectContext.Provider>
+    </SelectContext>
   )
 }
 

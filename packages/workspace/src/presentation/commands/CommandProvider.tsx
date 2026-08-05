@@ -1,5 +1,3 @@
-'use client'
-
 import {
   createContext,
   type ReactNode,
@@ -33,7 +31,7 @@ export function CommandProvider({ children, registry: providedRegistry }: Comman
   )
   const value = useMemo(() => ({ commands, registry }), [commands, registry])
 
-  return <CommandContext.Provider value={value}>{children}</CommandContext.Provider>
+  return <CommandContext value={value}>{children}</CommandContext>
 }
 
 export function useCommands(): CommandContextValue {

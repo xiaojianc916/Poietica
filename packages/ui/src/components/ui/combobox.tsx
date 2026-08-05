@@ -6,6 +6,7 @@ import {
   forwardRef,
   type ReactNode,
   useContext,
+  useMemo,
 } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
@@ -54,8 +55,14 @@ export function Combobox({
   onValueChange,
   onOpenChange,
 }: ComboboxProps) {
+  /* 与 select.tsx 同一条理由：provider 的值换身份，下游全部重画。 */
+  const selection = useMemo<ComboboxContextValue>(
+    () => ({ data, type, value }),
+    [data, type, value],
+  )
+
   return (
-    <ComboboxContext.Provider value={{ data, type, value }}>
+    <ComboboxContext value={selection}>
       <BaseCombobox.Root<string>
         disabled={disabled}
         onOpenChange={(nextOpen) => {
@@ -71,7 +78,7 @@ export function Combobox({
       >
         {children}
       </BaseCombobox.Root>
-    </ComboboxContext.Provider>
+    </ComboboxContext>
   )
 }
 

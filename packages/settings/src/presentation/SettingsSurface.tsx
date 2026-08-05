@@ -196,7 +196,7 @@ export function SettingsProvider({
     [agentConfigStore, appVersion, controller, section],
   )
 
-  return <SettingsSurfaceContext.Provider value={value}>{children}</SettingsSurfaceContext.Provider>
+  return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
 }
 
 export interface SettingsNavigationRegionProps {
@@ -787,6 +787,24 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
   )
 }
 
+/*
+ * 两张静态表，和 SECTIONS / SECTION_GROUPS 一样属于模块。
+ *
+ * 此前它们是 JSX 里的行内字面量：一份从不改变的数据，每次渲染新建一个数组，
+ * 进 SettingsSelect 又被 map 成第二个，再进 Select 的 context 成为第三个身份。
+ * 下游拿 memo 也留不住。这个文件对静态表本来就有定论，照它写。
+ */
+const COLOR_MODES: readonly (readonly [AppSettings['theme'], string])[] = [
+  ['light', '浅色'],
+  ['dark', '深色'],
+  ['system', '跟随系统'],
+]
+
+const LANGUAGES: readonly (readonly [AppSettings['language'], string])[] = [
+  ['zh-CN', '简体中文'],
+  ['en', 'English'],
+]
+
 const AppearanceSettings = memo(function AppearanceSettings({
   settings,
   controller,
@@ -803,11 +821,7 @@ const AppearanceSettings = memo(function AppearanceSettings({
                 theme,
               }))
             }}
-            options={[
-              ['light', '浅色'],
-              ['dark', '深色'],
-              ['system', '跟随系统'],
-            ]}
+            options={COLOR_MODES}
             value={settings.theme}
           />
         </SettingRow>
@@ -821,10 +835,7 @@ const AppearanceSettings = memo(function AppearanceSettings({
                 language: value,
               }))
             }}
-            options={[
-              ['zh-CN', '简体中文'],
-              ['en', 'English'],
-            ]}
+            options={LANGUAGES}
             value={settings.language}
           />
         </SettingRow>

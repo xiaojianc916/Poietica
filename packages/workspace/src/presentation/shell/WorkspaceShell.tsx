@@ -29,7 +29,7 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   const isTabPanel = parts.main.label === undefined
 
   return (
-    <TooltipProvider delayDuration={450}>
+    <TooltipProvider delay={450}>
       <WorkspaceFrame
         chrome={
           <header className="workspace-shell__chrome min-h-0 min-w-0 bg-chrome">

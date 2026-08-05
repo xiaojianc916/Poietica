@@ -3,19 +3,17 @@ import { Children, type ComponentPropsWithoutRef, forwardRef, isValidElement } f
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName } from './popup-surface'
 
-const TooltipProvider = ({
-  delayDuration,
-  children,
-  closeDelay,
-  timeout,
-}: ComponentPropsWithoutRef<typeof Tooltip.Provider> & {
-  readonly delayDuration?: number
-}) => (
-  <Tooltip.Provider closeDelay={closeDelay} delay={delayDuration} timeout={timeout}>
-    {children}
-  </Tooltip.Provider>
-)
-TooltipProvider.displayName = 'TooltipProvider'
+/*
+ * 两个部件都从 Base UI 的命名空间直接展平，不再手搓转发。
+ *
+ * 此前 Provider 是个函数包装：它只转发三个属性，却把类型声明成 Tooltip.Provider
+ * 的全部属性，而那一行里没有 rest spread —— 于是把别的属性传进来，类型检查通得
+ * 过，运行时被静默丢掉。它对外收的也是 Radix 那个属性名，不是 Base UI 的 delay。
+ *
+ * 与下面注释里记着的 animate-in / data-[state=closed] 是同一笔账：从 Radix 迁到
+ * Base UI 只做了一半 —— 类名换完了，属性名和包装留在原地。
+ */
+const TooltipProvider = Tooltip.Provider
 
 const TooltipRoot = Tooltip.Root
 
