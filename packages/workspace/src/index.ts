@@ -11,7 +11,6 @@ export type {
 export {
   type PersistedWorkbenchState,
   PersistedWorkbenchStateSchema,
-  type RepositoryPort,
   type WorkbenchStatePort,
 } from './contracts/persistence'
 export type { WorkspaceShellActions, WorkspaceShellProps } from './contracts/shell'
@@ -36,10 +35,6 @@ export {
   type WorkspaceTabViewModel,
 } from './contracts/workbench'
 export {
-  type RepositoryId,
-  type RepositoryRef,
-  RepositoryRefSchema,
-  repositoryRefFromRootPath,
   WORKSPACE_NAVIGATION_ORDER,
   WORKSPACE_SURFACE_REGISTRY,
   type WorkspaceSurfaceDescriptor,

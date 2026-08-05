@@ -56,6 +56,5 @@ export {
 export { optionalProperty } from './object'
 export {
   normalizeWorkspaceRoot,
-  workspaceRootKey,
   workspaceRootName,
 } from './workspace-root'

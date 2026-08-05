@@ -11,7 +11,6 @@ export type {
 export {
   type PersistedWorkbenchState,
   PersistedWorkbenchStateSchema,
-  type RepositoryPort,
   type WorkbenchStatePort,
 } from './persistence'
 export type {

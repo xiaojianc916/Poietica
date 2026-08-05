@@ -1,6 +1,5 @@
 import * as v from 'valibot'
 
-import type { RepositoryId, RepositoryRef } from '../domain/repository'
 import { isWorkspaceSurfaceId, type WorkspaceSurfaceId } from '../domain/surface-registry'
 
 /**
@@ -47,16 +46,19 @@ export const PersistedWorkbenchStateSchema = v.object({
 export type PersistedTab = v.InferOutput<typeof PersistedTabSchema>
 export type PersistedWorkbenchState = v.InferOutput<typeof PersistedWorkbenchStateSchema>
 
-/** 按仓库分域的工作台状态读写。读不到返回 null，而不是抛错。 */
+/**
+ * 按工作区分域的工作台状态读写。读不到返回 null，而不是抛错。
+ *
+ * 键是一个由归一化根路径派生的、文件名安全的定长 token：一条绝对路径当不了
+ * 文件名（自带分隔符、有长度上限、还分大小写），原生侧那一层也只收 hex
+ * （crates/persistence/src/workspace_state.rs）。派生它的那个函数与它的第一个
+ * 调用方同一笔落地，不提前摆在这里。
+ *
+ * 键的类型就是 string，不另立别名：一个等于 string 的类型别名在 TypeScript 里
+ * 不产生任何检查，它挡不住把一条对话 id 传进来，只是把「这是什么」从参数名搬
+ * 到别处再说一遍。
+ */
 export interface WorkbenchStatePort {
-  read(repositoryId: RepositoryId): Promise<PersistedWorkbenchState | null>
-  write(repositoryId: RepositoryId, state: PersistedWorkbenchState): Promise<void>
-}
-
-/** 仓库清单与探测。对应 Cursor 仓库选择器的 Recents / Repos 两栏。 */
-export interface RepositoryPort {
-  listRecent(): Promise<readonly RepositoryRef[]>
-  probe(rootPath: string): Promise<RepositoryRef | null>
-  remember(ref: RepositoryRef): Promise<void>
-  forget(id: RepositoryId): Promise<void>
+  read(workspaceKey: string): Promise<PersistedWorkbenchState | null>
+  write(workspaceKey: string, state: PersistedWorkbenchState): Promise<void>
 }

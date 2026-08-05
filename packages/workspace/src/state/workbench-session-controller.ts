@@ -17,7 +17,6 @@ import {
   CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
   describeWorkspaceSurface,
-  type RepositoryId,
   type WorkspaceSurfaceId,
 } from '../domain/index'
 
@@ -294,15 +293,15 @@ function decode(persisted: PersistedWorkbenchState): WorkbenchState {
 }
 
 export interface WorkbenchSessionControllerOptions {
-  /** 工作台状态按仓库分域。缺省则不落盘（单测与 storybook）。 */
-  readonly repositoryId?: RepositoryId | undefined
+  /** 工作台状态按工作区分域，键见 WorkbenchStatePort。缺省则不落盘。 */
+  readonly workspaceKey?: string | undefined
   readonly persistence?: WorkbenchStatePort | undefined
 }
 
 export function createWorkbenchSessionController(
   options: WorkbenchSessionControllerOptions = {},
 ): WorkbenchSessionStore {
-  const { repositoryId, persistence } = options
+  const { workspaceKey, persistence } = options
 
   let state = INITIAL_STATE
   let snapshot = project(state)
@@ -321,21 +320,21 @@ export function createWorkbenchSessionController(
       listener()
     }
 
-    if (repositoryId !== undefined && persistence !== undefined) {
+    if (workspaceKey !== undefined && persistence !== undefined) {
       /*
        * 写盘失败只影响下次启动的还原，不该把用户这次的操作打断，
        * 所以在这里终结而不是往上抛；但不吞掉——交给宿主的错误通道。
        */
-      void persistence.write(repositoryId, encode(state)).catch((cause: unknown) => {
+      void persistence.write(workspaceKey, encode(state)).catch((cause: unknown) => {
         reportPersistFailure(cause)
       })
     }
   }
 
-  /* 启动还原：仓库自己的工作台状态，重启后原样回来。 */
-  if (repositoryId !== undefined && persistence !== undefined) {
+  /* 启动还原：这个工作区自己的工作台状态，重启后原样回来。 */
+  if (workspaceKey !== undefined && persistence !== undefined) {
     void persistence
-      .read(repositoryId)
+      .read(workspaceKey)
       .then((persisted) => {
         if (persisted !== null) {
           commit(decode(persisted))
