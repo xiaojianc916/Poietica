@@ -2,7 +2,7 @@ import './composer/composer-actions.css'
 import './composer/question-panel.css'
 
 import type { ChatStatus, SessionConfigControl } from '@poietica/acp'
-import { memo, type RefObject } from 'react'
+import { memo, type Ref } from 'react'
 import type { ComposerAsset } from './composer/attachment-intake'
 import { ComposerActions } from './composer/composer-actions'
 import type { PromptInputHandle } from './composer/prompt-input'
@@ -39,7 +39,7 @@ export interface AssistantComposerProps {
   }) => void
   readonly onCancel?: (() => void) | undefined
   /** How the surface writes a starter into the draft it does not own. */
-  readonly handle?: RefObject<PromptInputHandle | null> | undefined
+  readonly ref?: Ref<PromptInputHandle> | undefined
   /** Everything the session (or, before one exists, the agent config) offers. */
   readonly controls: readonly SessionConfigControl[]
   readonly controlsFailure?: string | undefined
@@ -57,6 +57,19 @@ export interface AssistantComposerProps {
   readonly onAnswerQuestions?: ((answers: readonly QuestionAnswer[]) => void) | undefined
 }
 
+/*
+ * 只声明这一层真的兑现的那几项。
+ *
+ * 此前是 Omit<…, 'onSubmit' | 'placeholder'>:题组、答复出口、以及输入框的 ref 都在
+ * 类型里,而这一层一个都不转发。同一条规矩已经在 PromptInputProps 上写过 —— 类型邀请
+ * 调用方传,实现静默丢掉。ref 成为普通 prop 之后这件事更硬:一个声明了 ref 却不转发的
+ * 函数组件会把调用方的 ref 悄悄吃掉。
+ */
+type ComposerToolbarProps = Pick<
+  AssistantComposerProps,
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl'
+> & { readonly status: ChatStatus }
+
 function ComposerToolbar({
   controls,
   controlsFailure,
@@ -64,7 +77,7 @@ function ComposerToolbar({
   onRetryControls,
   onSelectControl,
   status,
-}: Omit<AssistantComposerProps, 'onSubmit' | 'placeholder'> & { readonly status: ChatStatus }) {
+}: ComposerToolbarProps) {
   /*
    * 这一层不再问草稿任何事。
    *
@@ -126,10 +139,10 @@ function ComposerToolbar({
  * 这一层浅比较因此几乎总是命中：一轮对话里它至多重渲两次。
  */
 export const AssistantComposer = memo(function AssistantComposer({
-  handle,
   onAnswerQuestions,
   placeholder = '问我任何问题…',
   questionDeck,
+  ref,
   status = 'ready',
   onSubmit,
   ...toolbar
@@ -158,9 +171,9 @@ export const AssistantComposer = memo(function AssistantComposer({
   return (
     <PromptInput
       className={asking ? 'assistant-prompt-input--question' : undefined}
-      handle={handle}
       multiple
       onSubmit={onSubmit}
+      ref={ref}
     >
       {asking ? (
         /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这正

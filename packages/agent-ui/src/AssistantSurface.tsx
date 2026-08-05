@@ -240,13 +240,13 @@ export const AssistantSurface = memo(function AssistantSurface({
       <AssistantComposer
         controls={controls}
         controlsFailure={controlsFailure}
-        handle={composer}
         onAnswerQuestions={answerQuestions}
         onCancel={assistant.cancel}
         onRetryControls={onRetryControls}
         onSelectControl={onSelectControl}
         onSubmit={submit}
         questionDeck={questionDeck}
+        ref={composer}
         status={assistant.status}
       />
     </div>

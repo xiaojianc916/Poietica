@@ -1,5 +1,5 @@
 import type { ChatStatus } from '@poietica/acp'
-import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react'
+import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
   createContext,
   useCallback,
@@ -117,9 +117,12 @@ export function usePromptInputDraft(): PromptInputDraft {
  * focus travels with the text, because a phrase the user is meant to finish is
  * useless in an unfocused field.
  *
- * Its own prop, not a ref: the form's ref is already spoken for by
- * requestSubmit, and a caller-supplied one would land after the spread and win
- * silently.
+ * 它就是 ref。React 19 起，函数组件的 ref 是一个普通 prop，useImperativeHandle
+ * 收下它并交出这张卡 —— 不需要 forwardRef，也不需要另起一个名字。
+ *
+ * 此前它叫 handle，理由写的是「调用方给的 ref 会排在展开之后静默胜出」。那个展开
+ * 已经不存在（form 的 props 逐个写明，这个接口也不再 extends ComponentProps<'form'>），
+ * 而 formRef 是这个组件内部的东西，与它对外收不收 ref 无关。
  */
 export interface PromptInputHandle {
   readonly setText: (text: string) => void
@@ -137,7 +140,7 @@ export interface PromptInputHandle {
 export interface PromptInputProps {
   readonly children?: ReactNode
   readonly className?: string | undefined
-  readonly handle?: RefObject<PromptInputHandle | null> | undefined
+  readonly ref?: Ref<PromptInputHandle> | undefined
   readonly multiple?: boolean
   readonly maxFiles?: number
   readonly onSubmit: (message: PromptInputMessage) => void
@@ -146,10 +149,10 @@ export interface PromptInputProps {
 export function PromptInput({
   children,
   className,
-  handle,
   maxFiles,
   multiple = false,
   onSubmit,
+  ref,
 }: PromptInputProps) {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<readonly ComposerAsset[]>([])
@@ -198,7 +201,7 @@ export function PromptInput({
     editor.setSelectionRange(editor.value.length, editor.value.length)
   }, [])
 
-  useImperativeHandle(handle, () => ({ setText, focus: focusTextarea }), [focusTextarea])
+  useImperativeHandle(ref, () => ({ setText, focus: focusTextarea }), [focusTextarea])
 
   const removeAttachment = useCallback((assetToken: string) => {
     setAttachments((current) => {

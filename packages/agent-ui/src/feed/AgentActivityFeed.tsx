@@ -93,14 +93,14 @@ const READING_ANCHOR_RATIO = 1 / 3
  * 不该在产品代码里复刻。浏览器原生的滚动锚定因此在样式里显式关闭:两个纠正者对
  * 同一次尺寸变化各补偿一次,位移就会翻倍。
  *
- * 本组件不做任何几何计算 —— 除了四个派生量,而它们共用一次读取:转录相对滚动区
- * 的偏移、人是不是贴在末端、视线落在哪一行、视口顶端是哪一行。四者是同一次布局
- * 的四个侧面,合在一处意味着一次布局只读一次几何,也意味着它们在时间上不会错开。
+ * 本组件不做任何几何计算 —— 除了两个派生量,而它们共用一次读取:视线落在哪一行、
+ * 视口顶端是哪一行。两者是同一次布局的两个侧面,一次布局只读一次几何,它们在时间
+ * 上因此不会错开。「贴没贴末端」不在其中:那归虚拟器的 scrollEndThreshold。
  *
- * 这次读取挂在两处:滚动事件,以及每一次布局之后。只挂滚动是不够的 —— 流式输出
- * 把行撑高、面板被拖窄、抽屉展开,都会让同一个滚动位置对应到另一行上,而它们都
- * 不产生滚动事件。挂在布局之后同时把面板缩放一并解决了:虚拟器本来就观察滚动
- * 容器的尺寸并在变化时重渲染,所以这里不需要第二个观察者。
+ * 这次读取挂在两处:滚动事件,以及尺寸变化。只挂滚动是不够的 —— 流式输出把行撑高、
+ * 面板被拖窄、抽屉展开,都会让同一个滚动位置对应到另一行上,而它们都不产生滚动
+ * 事件。通知走 ResizeObserver,不是「每一次布局之后重读一遍」:后者是拿一次强制回流,
+ * 去换一个本来就有的通知。
  *
  * 它不认识条目类型 —— 除了估高。条目从渲染插槽进来,所以思考链与工具卡片的演化
  * 不触碰滚动。
@@ -409,7 +409,6 @@ export function AgentActivityFeed({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => viewportRef.current,
-    /* 两个选项函数的身份恒定，定义与理由见上方 rowsRef。 */
     estimateSize,
     getItemKey,
     scrollMargin,
@@ -478,16 +477,11 @@ export function AgentActivityFeed({
    * 「输入框长高时最后一行与它的距离会变」这件事仍然成立，但解法只能在唯一那个
    * 所有者里面：改这几个数的含义，或者换掉整套锚定模型。
    */
-  const measureBounds = useCallback(() => {
+  const measureMargin = useCallback(() => {
     const transcript = transcriptRef.current
-    const tail = tailRef.current
 
     if (transcript !== null) {
       setScrollMargin(transcript.offsetTop)
-    }
-
-    if (tail !== null) {
-      setTailSize(tail.offsetHeight)
     }
   }, [])
 
@@ -546,8 +540,19 @@ export function AgentActivityFeed({
      * 决定，随滚动区一起变；尾部的高度由尾部自己报，它就在下面的名单上。转录
      * 唯一能贡献的是宽度变化，而宽度变化必然伴随滚动区的尺寸变化。
      */
-    const observer = new ResizeObserver(() => {
-      measureBounds()
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        /* 尾部的高度由派发它的那条通知自己带着,理由见下面观察它的那一句。 */
+        if (entry.target === tailRef.current) {
+          const [box] = entry.borderBoxSize
+
+          if (box !== undefined) {
+            setTailSize(box.blockSize)
+          }
+        }
+      }
+
+      measureMargin()
       scheduleSync()
     })
 
@@ -569,8 +574,14 @@ export function AgentActivityFeed({
      * 就偏小，而通知永远不来。一轮对话开头或结尾「自己好一下」，是等待指示器
      * 的出现与消失改变了内容盒，顺带把当时的正确值读了回来。
      *
-     * measureBounds 读的一直是 offsetHeight，也就是边框盒。观察哪个盒子，就得
-     * 是读哪个盒子 —— 两边说的必须是同一个量。
+     * 而这个量不必回头去 DOM 里问一遍:观察者派发的 entry.borderBoxSize 就是它
+     * 本身,且是分数。offsetHeight 同样是边框盒,但它取整 —— 而这个盒子的高度整个
+     * 来自 --cp-dock-clearance,那个数由 dock-clearance 用同一个 borderBoxSize 写入,
+     * 本身就带小数。取整一次,交给虚拟器的 paddingEnd 就与实物差最多半个像素,而半个
+     * 像素正是上面 snapToDevicePixels 存在的全部理由。
+     *
+     * 转录的偏移仍是一次 offsetTop:转录故意不在观察名单里(观察它等于给每一帧接上
+     * 一条回路),所以那一个量没有免费来源。
      */
     if (tailRef.current !== null) {
       observer.observe(tailRef.current, { box: 'border-box' })
@@ -579,7 +590,7 @@ export function AgentActivityFeed({
     return () => {
       observer.disconnect()
     }
-  }, [measureBounds, scheduleSync])
+  }, [measureMargin, scheduleSync])
 
   /*
    * 跳转是意图的效应,不是点击的副作用。
