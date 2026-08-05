@@ -398,34 +398,14 @@
   min-block-size: 0;
   flex: 1 1 0;
   flex-direction: column;
-  gap: var(--cp-pad-tile);
+  /* 段与段之间没有空隙：与行距同一条 —— 组只是这一列里的另一行。 */
+  gap: calc(var(--ui-hairline) * 2);
   overflow-y: auto;
   padding-block: var(--cp-mast-gap);
   padding-inline: var(--ui-row-inset);
-  --assistant-threads-action-size: 20px;
 }
 
-.assistant-threads__header {
-  display: flex;
-  block-size: var(--cp-header);
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-inline-start: var(--ui-row-lead);
-  padding-inline-end: var(--ui-row-trail);
-}
-
-/*
- * 这个类被「会话」（在 __header 里）和「今天／昨天」（在 __group 里）共用，
- * 所以它只管字号和颜色。位置由容器给：__header 自己有缩进，__group 没有，
- * 于是缩进补在 __group 的子选择器上。共用的类一带位置，两处就会不齐。
- */
-.assistant-threads__caption {
-  font-size: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-/* 读完之后才成立的一句话，说得和段标题一样轻。 */
+/* 读完之后才成立的一句话，说得和列表行一样轻。 */
 .assistant-threads__empty {
   margin: 0;
   padding-block: var(--cp-optical);
@@ -1357,77 +1337,72 @@ svg.assistant-provider-icon {
 }
 
 /*
- * 组头：一个工作区的名字、它下面有多少条、以及在它里面新建。
+ * 组头就是这一列里的另一行。
  *
- * 高度与左右留白走行的那几个令牌，不另立一套：组头与行同处一列，两套数字必然
- * 在某次改动后错开半个像素。
+ * 行高、缩进、圆角、间距、名字的字号与墨色、悬停底色 —— 全部与会话行
+ * 读同一批令牌、同一条判定，不再另立一套。此前它是「段标题」：12px 手转
+ * 箭头、micro 号灰字、行尾计数，同一列上下两段各用一套尺子。
  *
- * 箭头只有一个字形，朝向由 transform 给 —— 收起与展开是同一枚箭头的两个角度，
- * 换图标会让这两个状态看起来像两件不同的事。prefers-reduced-motion 下不转场，
- * 那是系统偏好，不是可选装饰。
+ * 悬停判定与 .assistant-thread 同一条（:hover / :has(:focus-visible)），
+ * 不用 :focus-within —— 那个伪类对鼠标点击同样成立，点开一次组头就常亮，
+ * 这个文件上面已经为它栽过一次。
+ *
+ * 文件夹与会话行的 ThreadIcon 同族：同一个图标库、同一张 24px 网格、同
+ * 一份线宽，尺寸读同一枚 --ui-row-icon-size，中线因此天然对齐。
  */
 .assistant-threads__group-header {
   display: flex;
+  block-size: var(--ui-row-height, 28px);
   align-items: center;
-  gap: 2px;
-  min-height: var(--ui-row-height, 28px);
-  padding-inline: var(--ui-row-lead, 8px) var(--ui-row-trail, 6px);
+  border-radius: var(--ui-row-radius);
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--ui-row-lead, 8px);
+  padding-inline-end: var(--ui-row-trail, 6px);
+  font-size: var(--cp-font-caption);
+}
+
+.assistant-threads__group-header:hover,
+.assistant-threads__group-header:has(:focus-visible) {
+  background: var(--ui-sidebar-accent);
 }
 
 .assistant-threads__toggle {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-row-gap);
   min-width: 0;
   padding: 0;
   border: 0;
   background: none;
-  color: var(--cp-ink-subtle);
   font: inherit;
-  font-size: var(--cp-font-micro, 11px);
-  letter-spacing: 0.02em;
   text-align: start;
   cursor: default;
 }
 
-.assistant-threads__chevron {
+.assistant-threads__folder {
   display: inline-flex;
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
   flex: none;
-  color: var(--cp-icon);
-  transition: transform var(--cp-motion-swift, 120ms) var(--cp-motion-ease, ease);
-}
-
-.assistant-threads__chevron svg {
-  width: 12px;
-  height: 12px;
-}
-
-.assistant-threads__chevron[data-open="true"] {
-  transform: rotate(90deg);
+  color: var(--cp-ink-muted);
 }
 
 .assistant-threads__name {
   overflow: hidden;
+  color: var(--cp-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 数字用等宽字形：条数变化时名字不会跟着抖。 */
-.assistant-threads__count {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.55;
-}
-
-/* 组内新建只在这一组被介入时出现，安静时组头只有名字与条数。 */
+/* 组内新建只在这一组被介入时出现，安静时组头只有名字。 */
 .assistant-threads__group-header .assistant-threads__create {
   flex: none;
   opacity: 0;
 }
 
 .assistant-threads__group-header:hover .assistant-threads__create,
-.assistant-threads__group-header:focus-within .assistant-threads__create {
+.assistant-threads__group-header:has(:focus-visible) .assistant-threads__create {
   opacity: 1;
 }
 
@@ -1435,7 +1410,8 @@ svg.assistant-provider-icon {
 .assistant-threads__more {
   display: block;
   width: 100%;
-  padding: 4px var(--ui-row-trail, 6px) 4px calc(var(--ui-row-lead, 8px) + 16px);
+  padding: 4px var(--ui-row-trail, 6px) 4px
+    calc(var(--ui-row-lead, 8px) + var(--ui-row-icon-size, 16px) + var(--ui-row-gap, 6px));
   border: 0;
   background: none;
   color: var(--cp-ink-subtle);
@@ -1447,12 +1423,6 @@ svg.assistant-provider-icon {
 
 .assistant-threads__more:hover {
   color: var(--cp-ink);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .assistant-threads__chevron {
-    transition: none;
-  }
 }
 
 /*
@@ -1470,6 +1440,8 @@ svg.assistant-provider-icon {
   block-size: 100%;
   min-block-size: 0;
   flex-direction: column;
+  /* 行内操作按钮的尺寸：面板里只有一种，picker 与列表共读。 */
+  --assistant-threads-action-size: 20px;
 }
 
 /*
@@ -1477,58 +1449,86 @@ svg.assistant-provider-icon {
  *
  * 它是侧栏的一行，所以它读侧栏的行几何（--ui-row-*），与会话行、导航行同高
  * 同缩进；菜单读 --am-* 那一族，与会话行的菜单是同一张皮。这里不新增任何令牌。
+ *
+ * 行本身不是动作，所以没有悬停底色：悬停只属于行尾那枚图标。名字的
+ * 左缘落在会话行图标的中线上，图标的右缘与组头加号对齐。
  */
 .workspace-picker {
-  flex: none;
-  padding-block: var(--cp-mast-gap) 0;
-  padding-inline: var(--ui-row-inset);
-}
-
-.workspace-picker__button {
   display: flex;
   block-size: var(--ui-row-height);
-  inline-size: 100%;
+  flex: none;
   align-items: center;
-  gap: 4px;
-  border: 0;
-  border-radius: var(--ui-row-radius);
-  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
-  background: transparent;
-  color: var(--cp-ink);
-  font: inherit;
-  font-size: var(--cp-font-caption);
-  text-align: start;
-  cursor: default;
-}
-
-.workspace-picker__button:hover,
-.workspace-picker__button[aria-expanded="true"] {
-  background: var(--ui-sidebar-accent);
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  margin-block-start: var(--cp-mast-gap);
+  padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
+  padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
 }
 
 .workspace-picker__name {
   overflow: hidden;
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 与组头同一枚字形、同一个旋转手法，朝下表示「在这里展开一张菜单」。 */
-.workspace-picker__chevron {
-  display: inline-flex;
+/* 几何与行内操作按钮同一枚令牌；底色与它共享的 --ui-sidebar-accent 同源。 */
+.workspace-picker__browse {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
   flex: none;
-  margin-inline-start: auto;
-  color: var(--cp-icon);
-  transform: rotate(90deg);
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
-.workspace-picker__chevron svg {
-  block-size: 12px;
-  inline-size: 12px;
+.workspace-picker__browse svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.workspace-picker__browse:hover,
+.workspace-picker__browse[aria-expanded="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.workspace-picker__browse:active {
+  transform: scale(0.94);
 }
 
 .workspace-picker__menu[data-assistant-skin] {
   min-inline-size: 216px;
   font-size: var(--cp-font-caption);
+}
+
+/* 搜索是弹层的标题栏：吸住上沿，与名单隔一条线。 */
+.workspace-picker__search {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin: 0 0 var(--am-pad);
+  border: 0;
+  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  padding: 4px 8px 8px;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  outline: none;
+}
+
+.workspace-picker__search::placeholder {
+  color: var(--cp-placeholder);
 }
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item {
@@ -1544,6 +1544,19 @@ svg.assistant-provider-icon {
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
   outline: none;
   background: var(--cp-hover);
+}
+
+.workspace-picker__item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-picker__none {
+  margin: 0;
+  padding: 4px 8px 8px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
 }
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {

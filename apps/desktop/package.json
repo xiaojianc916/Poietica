@@ -25,6 +25,7 @@
     "@poietica/settings": "workspace:*",
     "@poietica/ui": "workspace:*",
     "@poietica/workspace": "workspace:*",
+    "@tauri-apps/api": "catalog:tauri",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

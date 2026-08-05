@@ -1,6 +1,6 @@
 import './styles/assistant.css'
 
-import { ChevronRight, Edit, ExternalLink, Trash } from '@mynaui/icons-react'
+import { Edit, ExternalLink, Trash } from '@mynaui/icons-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +9,15 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { MoreIcon, PinFilledIcon, PinIcon, PlusIcon, ThreadIcon } from './primitives/icons'
+import {
+  FolderFilledIcon,
+  FolderIcon,
+  MoreIcon,
+  PinFilledIcon,
+  PinIcon,
+  PlusIcon,
+  ThreadIcon,
+} from './primitives/icons'
 import { useHorizon, useNow } from './threads/clock'
 import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './threads/relative-time'
 
@@ -44,8 +52,8 @@ import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './thre
  * 的 aria-expanded：那个属性在关闭动画的第一帧就落回 false，比弹层早消失一拍。
  *
  * 加号是入口，不是记录：它把「新建会话」那一格交给工作台去开或去激活，
- * 不在数据库里先造一条没人说过话的会话。组头上那一枚多带一个工作区，面板上
- * 那一枚不带 —— 不带就是「当前那个」，由宿主回答，这一层不猜。
+ * 不在数据库里先造一条没人说过话的会话。它只长在组头上 —— 面板顶那一栏是
+ * 工作目录本身（WorkspacePicker），不是这张列表的标题，新建跟着工作区走。
  */
 
 export interface AssistantThreadSummary {
@@ -438,8 +446,6 @@ interface WorkspaceHeaderProps {
   readonly workspaceId: string
   /** 这个工作区叫什么。没有名字的组不画组头，所以这里不接受 null。 */
   readonly name: string
-  /** 整组的条数，不是当前展开的那几条。 */
-  readonly count: number
   readonly isOpen: boolean
   readonly onCreate: (workspaceId?: string) => void
   readonly onToggle: (workspaceId: string) => void
@@ -448,23 +454,30 @@ interface WorkspaceHeaderProps {
 /*
  * 一个工作区的组头。
  *
- * 抽成组件是为了把「有名字」收进类型：组头要写标题，还要给新建按钮一句说得出
- * 工作区名字的标签，两件事都以名字存在为前提。名字缺席的那一组不画组头，于是
- * 这里的 name 是 string 而不是 string | null —— 收窄一次，内部就不必各自兜底。
+ * 它就是这一列里的另一行：与会话行同高、同缩进、同圆角、同悬停底色，
+ * 名字同字号同墨色。区别只在于它说的是「下面这张列表属于哪个目录」，
+ * 而不是一条对话。此前它是另一套东西：12px 的手转箭头、micro 号灰色
+ * 小字、行尾一枚计数 —— 三个数都来自「段标题」这个旧的自我定位，
+ * 于是同一列上下两段各用一套尺子。
  *
- * 组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以 aria-expanded
- * 说的是下面那张列表在不在，而不是它自己的样子。收与展是往上报的一件事，不是
- * 在这里就地去写一份全局状态 —— 这一格和它旁边那枚加号现在遵守同一条规矩。
+ * 开与合是同一枚文件夹的两种填法，不是一枚箭头的两个角度：组头回答
+ * 的是「哪个目录」，文件夹是目录的字形，箭头不是。图标库没有 folder-open
+ * 这枚字形，于是展开画实心、收起画线稿 —— 同族字形、同一轮廓，语义由
+ * 填充承担，与图钉（PinIcon / PinFilledIcon）同一个办法。两者与会话行的
+ * ThreadIcon 同族（同一个图标库、同一张 24px 网格、同一份线宽），尺寸
+ * 读同一枚 --ui-row-icon-size，中线因此天然对齐。
+ *
+ * 不数条数：条数是一个没有人问过的问题，它占着行尾，只是让名字在
+ * 数字变化时多抖一次。
+ *
+ * 组头是一个按钮，不是一行装饰文字：它要能收起这个工作区，所以
+ * aria-expanded 说的是下面那张列表在不在，而不是它自己的样子。收与展
+ * 是往上报的一件事，不是在这里就地去写一份全局状态 —— 这一格和它旁边
+ * 那枚加号现在遵守同一条规矩。
  */
-function WorkspaceHeader({
-  workspaceId,
-  name,
-  count,
-  isOpen,
-  onCreate,
-  onToggle,
-}: WorkspaceHeaderProps) {
+function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
+  const Glyph = isOpen ? FolderFilledIcon : FolderIcon
 
   return (
     <div className="assistant-threads__group-header">
@@ -476,17 +489,9 @@ function WorkspaceHeader({
         }}
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="assistant-threads__chevron"
-          data-open={isOpen ? 'true' : undefined}
-        >
-          <ChevronRight aria-hidden="true" />
-        </span>
+        <Glyph aria-hidden="true" className="assistant-threads__folder" />
 
         <span className="assistant-threads__name">{name}</span>
-
-        <span className="assistant-threads__count">{count}</span>
       </button>
 
       <button
@@ -549,11 +554,6 @@ export function AssistantThreadList({
     setShown((held) => new Map(held).set(workspaceId, (held.get(workspaceId) ?? PAGE) + PAGE))
   }, [])
 
-  /* 面板上那一枚加号不点名工作区：不点名就是「当前那个」。 */
-  const create = useCallback(() => {
-    onCreate()
-  }, [onCreate])
-
   /*
    * 首帧给出行的形状，不给结论。
    *
@@ -588,20 +588,6 @@ export function AssistantThreadList({
 
   return (
     <nav aria-label="AI 会话记录" className="assistant-threads" data-assistant-skin>
-      <header className="assistant-threads__header">
-        <span className="assistant-threads__caption">工作区</span>
-
-        <button
-          aria-label="新建对话"
-          className="assistant-threads__create"
-          onClick={create}
-          title="新建对话"
-          type="button"
-        >
-          <PlusIcon aria-hidden="true" />
-        </button>
-      </header>
-
       {showPlaceholders ? (
         <ul aria-hidden="true" className="assistant-threads__list">
           {PLACEHOLDER_WIDTHS.map((width) => (
@@ -637,7 +623,6 @@ export function AssistantThreadList({
           <section className="assistant-threads__group" key={group.id}>
             {named === null ? null : (
               <WorkspaceHeader
-                count={group.members.length}
                 isOpen={isOpen}
                 name={named}
                 onCreate={onCreate}

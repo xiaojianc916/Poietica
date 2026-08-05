@@ -2,6 +2,7 @@ import { ThreadsStore, TranscriptStore, TranscriptsContext } from '@poietica/age
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
+import { defaultWorkspaceId, defaultWorkspaceReady } from '../workspace-root'
 import { desktopSessionConfig, desktopThreads } from './agent-session'
 import { ThreadsContext } from './threads-context'
 
@@ -31,13 +32,23 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
     const transcriptStore = new TranscriptStore()
 
     return {
-      store: new ThreadsStore(desktopThreads(), desktopSessionConfig(), transcriptStore),
+      store: new ThreadsStore(
+        desktopThreads(),
+        desktopSessionConfig(),
+        transcriptStore,
+        defaultWorkspaceId,
+      ),
       transcripts: transcriptStore,
     }
   })
 
   useEffect(() => {
-    void store.refresh()
+    /*
+     * 第一次启动，主目录还在解析（workspace-root 的 defaultWorkspaceReady）：
+     * 等它落定再读第一遍列表，没记下目录的存量一次就进对组，不会先落进
+     * 哨兵组再跳一次。缓存命中时这个 Promise 已经兑现，与原来同帧。
+     */
+    void defaultWorkspaceReady().then(() => store.refresh())
 
     /*
      * 模型清单曾在这里装上，用的是 defaultAcpAgent() —— 一个写死的 agent。它按

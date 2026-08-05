@@ -91,3 +91,56 @@ export function setActiveWorkspaceRoot(rootPath: string | null): void {
 export function useActiveWorkspaceRoot(): string | null {
   return useSyncExternalStore(store.subscribe, store.read, readServer)
 }
+
+/*
+ * 用户主目录 —— 没有记下目录的那些对话所在的工作区。
+ *
+ * 这是一个 OS 事实，不是一句文案：官方能力 @tauri-apps/api 的 path.homeDir()
+ * 回答它，不手写 %USERPROFILE% / $HOME 猜测 —— 各自的边界情况是平台已经
+ * 解决的问题。这一层是组合根，直连 @tauri-apps/* 名正言顺（架构规则
+ * nativeAllowed）；动态 import 与 packages/ipc 的 agent.ts 同一个手法，
+ * 非 Tauri 宿主里答案是 null，分组落回无名哨兵。
+ *
+ * 与上面的 activeRoot 同一条管线、同一个理由：一次解析，进程里一个答案，
+ * localStorage 缓存让第二次启动的第一帧就有值；首次解析落定后由
+ * ThreadsProvider 等它再 refresh，不会先把存量落进哨兵组再跳一次。
+ */
+
+const HOME_KEY = 'poietica.workspace.homeRoot'
+
+let home: string | null = storedHome()
+
+function storedHome(): string | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(HOME_KEY)
+
+    return typeof raw === 'string' && raw.length > 0 ? normalizeWorkspaceRoot(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const resolving: Promise<string | null> = import('@tauri-apps/api/path')
+  .then(({ homeDir }) => homeDir())
+  .then((dir) => {
+    home = normalizeWorkspaceRoot(dir)
+
+    try {
+      globalThis.localStorage?.setItem(HOME_KEY, home)
+    } catch {
+      /* 写不进去只是下次启动晚一帧有答案。 */
+    }
+
+    return home
+  })
+  .catch(() => null)
+
+/** 没有记下目录的对话落在哪个工作区；还没解析出来时落 thread-order 的哨兵。 */
+export function defaultWorkspaceId(): string | null {
+  return home
+}
+
+/** 主目录解析落定的那一刻。第一次启动的第一次列表读取等它。 */
+export function defaultWorkspaceReady(): Promise<unknown> {
+  return resolving
+}

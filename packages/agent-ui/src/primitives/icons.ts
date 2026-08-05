@@ -18,6 +18,8 @@ export {
   Dots as MoreIcon,
   Edit as PencilIcon,
   File as FileIcon,
+  Folder as FolderIcon,
+  FolderSolid as FolderFilledIcon,
   Globe as GlobeIcon,
   Message as ThreadIcon,
   Microphone as MicIcon,

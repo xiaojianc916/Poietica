@@ -80,9 +80,25 @@ export class ThreadsStore {
 
   readonly #transcripts: TranscriptSink | undefined
 
-  constructor(port?: ThreadPort, config?: SessionConfigPort, transcripts?: TranscriptSink) {
+  /*
+   * 没有记下目录的对话落在哪个工作区 —— 一次求值，不是一个值。
+   *
+   * 与 ipc 的 cwd 同一条规矩（packages/ipc 的 AgentBridgeOptions）：答案
+   * 属于宿主，这里不猜。宿主不给，就落回 thread-order 的无名哨兵。复用
+   * 缓存按 workspaceId 逐行比较（thread-projection 的 #itemFor），兜底
+   * 到达时旧行自然换组，不需要额外的失效逻辑。
+   */
+  readonly #defaultWorkspaceId: (() => string | null) | undefined
+
+  constructor(
+    port?: ThreadPort,
+    config?: SessionConfigPort,
+    transcripts?: TranscriptSink,
+    defaultWorkspaceId?: () => string | null,
+  ) {
     this.#port = port
     this.#transcripts = transcripts
+    this.#defaultWorkspaceId = defaultWorkspaceId
 
     /*
      * 会话那一侧自己记状态，但通知汇到这一条订阅上。
@@ -441,6 +457,7 @@ export class ThreadsStore {
       this.#held.threads,
       this.#held.pending,
       this.#held.provisional,
+      this.#defaultWorkspaceId?.() ?? undefined,
     )
 
     this.#byId = byId

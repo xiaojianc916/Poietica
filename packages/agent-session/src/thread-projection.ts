@@ -59,6 +59,7 @@ export class ThreadProjection {
     threads: readonly ThreadRecord[],
     pending: readonly ThreadRecord[],
     provisional: ReadonlyMap<string, string>,
+    fallbackWorkspaceId?: string,
   ): ProjectedThreads {
     const listed = ordered(threads, pending)
     const byId = new Map<string, ThreadRecord>()
@@ -69,7 +70,7 @@ export class ThreadProjection {
     for (const [index, thread] of listed.entries()) {
       byId.set(thread.threadId, thread)
 
-      const item = this.#itemFor(thread, provisional)
+      const item = this.#itemFor(thread, provisional, fallbackWorkspaceId)
 
       kept.set(thread.threadId, item)
       items.push(item)
@@ -85,10 +86,14 @@ export class ThreadProjection {
     return { byId, items: this.#last }
   }
 
-  #itemFor(thread: ThreadRecord, provisional: ReadonlyMap<string, string>): ThreadListItem {
+  #itemFor(
+    thread: ThreadRecord,
+    provisional: ReadonlyMap<string, string>,
+    fallbackWorkspaceId?: string,
+  ): ThreadListItem {
     const title = nameOf(thread, provisional.get(thread.threadId))
     const isPinned = thread.pinned === true
-    const workspaceId = workspaceIdOf(thread)
+    const workspaceId = workspaceIdOf(thread, fallbackWorkspaceId)
     const last = this.#items.get(thread.threadId)
 
     /* 分组也是这一行的样子的一部分。漏掉它，一条换了工作目录、而标题／置顶／

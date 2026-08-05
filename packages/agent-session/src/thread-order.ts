@@ -63,13 +63,23 @@ export interface ThreadWorkspaceList {
  */
 export const DEFAULT_WORKSPACE_ID = 'default'
 
-/** 这条对话属于哪个工作区。缺席就是默认那一个。 */
-export function workspaceIdOf(thread: ThreadRecord): string {
+/*
+ * 这条对话属于哪个工作区。
+ *
+ * 缺席就是默认那一个 —— 而「默认那一个」从此由宿主回答：桌面宿主说它
+ * 是用户主目录（组合根用官方的 path.homeDir() 求出，见 apps/desktop 的
+ * state/workspace-root.ts），于是迁移 0013 之前的存量落在主目录那一组，
+ * 有名、有组头、可折叠。只有给不出这个答案的宿主（单元测试、纯浏览器）
+ * 才落回无名哨兵，那一组照旧不画组头 —— 见 workspaceNameOf。
+ */
+export function workspaceIdOf(thread: ThreadRecord, fallbackId?: string): string {
   const root = thread.workspaceRoot
 
-  return root === null || root === undefined || root.length === 0
-    ? DEFAULT_WORKSPACE_ID
-    : normalizeWorkspaceRoot(root)
+  if (root !== null && root !== undefined && root.length > 0) {
+    return normalizeWorkspaceRoot(root)
+  }
+
+  return fallbackId ?? DEFAULT_WORKSPACE_ID
 }
 
 /*
