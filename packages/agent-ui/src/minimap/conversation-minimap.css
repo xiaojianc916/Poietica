@@ -1,7 +1,7 @@
 /*
  * The turn rail.
  *
- * It stands on the trailing edge of the panel, over the scrollport and outside
+ * It stands on the leading edge of the panel, over the scrollport and outside
  * it, so it never moves with the run. Its own metrics are the only numbers it
  * declares, and they are declared once, at the top: everything below is a
  * calc() over them and over the surface tokens.
@@ -74,7 +74,7 @@
   position: absolute;
   z-index: 2;
   inset-block-start: 50%;
-  inset-inline-end: var(--cp-optical);
+  inset-inline-start: var(--cp-optical);
   display: flex;
   flex-direction: column;
   translate: 0 -50%;
@@ -120,7 +120,7 @@
  * 换宽度,挂在它 100% 上的卡片就跟着横向漂移 14px。那也是"逐帧测量卡片右边界"
  * 那条路走不通的根因:卡片到轨道的距离恒等于一个间距,量它回答的是另一个问题。
  *
- * 固定之后:卡片的右边界是一条真正不动的竖线;轨道整体的盒子不再逐帧改变尺寸,
+ * 固定之后:卡片的左边界是一条真正不动的竖线;轨道整体的盒子不再逐帧改变尺寸,
  * 逐帧布局被关进单根横条内部;而卡片只在权重接近 1、横条已接近最大宽度时才
  * 可见,所以它最终停的位置几乎不变 —— 变的只是淡入过程中的那段漂移。
  *
@@ -148,7 +148,7 @@
 
   block-size: var(--cp-rail-hit);
   inline-size: calc(var(--cp-rail-len) + var(--cp-rail-gain));
-  justify-content: flex-end;
+  justify-content: flex-start;
   border: 0;
   padding: 0;
   background: transparent;
@@ -251,7 +251,7 @@
  * The preview card.
  *
  * A real element, not ::after, because it needs two rows (question + reply)
- * with distinct typography. It lives to the left of the bar, vertically
+ * with distinct typography. It lives to the right of the bar, vertically
  * centred on the button's hit area — and now at a fixed horizontal position,
  * because the button it hangs off no longer changes width.
  *
@@ -270,7 +270,7 @@
 .conversation-minimap__card {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-end: calc(100% + var(--cp-pad-mid));
+  inset-inline-start: calc(100% + var(--cp-pad-mid));
   translate: 0 calc(var(--cp-rail-card-y, 0px) - 50%);
   inline-size: 220px;
   overflow: hidden;

@@ -69,7 +69,7 @@
 .workspace-shell:has(.workspace-sidebar-splitter:hover),
 .workspace-shell:has(.workspace-sidebar-splitter:focus-visible),
 .workspace-shell:has(.workspace-sidebar-splitter[data-resizing="true"]) {
-  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 8%, var(--color-divider));
+  --workspace-divider-ink: color-mix(in oklab, var(--color-foreground) 3%, var(--color-divider));
   --workspace-divider-width: calc(var(--ui-region-divider-width) * 2);
 }
 

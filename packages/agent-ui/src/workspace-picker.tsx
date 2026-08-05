@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { useState } from 'react'
-import { FolderIcon } from './primitives/icons'
+import { FolderIcon, FolderPlusIcon, SearchIcon } from './primitives/icons'
 
 /*
  * 当前的工作目录，以及换一个。
@@ -19,7 +19,8 @@ import { FolderIcon } from './primitives/icons'
  *
  * 行本身没有悬停：它不是动作，只说「现在在哪」。整行唯一的动作是右侧那
  * 枚图标，所以悬停也只属于它。点开一张弹层：上面是搜索，中间是最近的
- * 工作目录，下面是「打开文件夹…」。
+ * 工作目录，下面是「打开文件夹…」。条目带目录字形，动作带 FolderPlus ——
+ * 一张纯文字的菜单读起来是一张便签，不是选择器。
  *
  * 「最近」不是一份新名单。已经有对话的工作区就是最近用过的工作区，而那份
  * 分组侧栏本来就在画（agent-session 的 groupByWorkspace）—— 所以它从
@@ -95,22 +96,26 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
            * 搜索是这张弹层的标题栏。菜单的 typeahead 与输入框抢键盘，
            * 所以按键不上冒 —— Escape 除外：关弹层是它本来的事。
            */}
-          <input
-            aria-label="搜索工作目录"
-            autoFocus
-            className="workspace-picker__search"
-            onChange={(event) => {
-              setQuery(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') {
-                event.stopPropagation()
-              }
-            }}
-            placeholder="搜索目录…"
-            type="search"
-            value={query}
-          />
+          <div className="workspace-picker__field">
+            <SearchIcon aria-hidden="true" />
+
+            <input
+              aria-label="搜索工作目录"
+              autoFocus
+              className="workspace-picker__search"
+              onChange={(event) => {
+                setQuery(event.target.value)
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') {
+                  event.stopPropagation()
+                }
+              }}
+              placeholder="搜索目录…"
+              type="search"
+              value={query}
+            />
+          </div>
 
           {matches.map((choice) => (
             <DropdownMenuItem
@@ -121,6 +126,8 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
               }}
               title={choice.id}
             >
+              <FolderIcon aria-hidden="true" />
+
               <span className="workspace-picker__item-name">{choice.name}</span>
             </DropdownMenuItem>
           ))}
@@ -134,7 +141,9 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
           <DropdownMenuSeparator className="workspace-picker__separator" />
 
           <DropdownMenuItem className="workspace-picker__item" onClick={onBrowse}>
-            打开文件夹…
+            <FolderPlusIcon aria-hidden="true" />
+
+            <span className="workspace-picker__item-name">打开文件夹…</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

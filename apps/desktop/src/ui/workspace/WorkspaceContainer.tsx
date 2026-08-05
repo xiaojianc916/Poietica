@@ -129,12 +129,13 @@ export function WorkspaceContainer({
     workbench.activeSurface.kind === 'conversation' ? workbench.activeSurface.threadId : null
 
   /*
-   * 一条对话就是 ai 表面的实体化，所以看着一条对话时亮的仍是「新建对话」那一行。
-   * 标签条上的图标同一条规则（见 WorkbenchTab.resolveTabIcon）：同一个表面在两个
-   * 地方不该长着两张脸。
+   * 高亮只有一处：看着一条对话时，亮的是列表里那一行，导航不陪着亮 ——
+   * 此前这里恒为 'ai'，于是导航行与对话行两个「当前位置」同时亮。「新建
+   * 对话」只在入口表面真的在屏幕上时才亮；标签条上的图标规则不受影响
+   * （见 WorkbenchTab.resolveTabIcon），那是另一格的事。
    */
   const activeNavigationId =
-    workbench.activeSurface.kind === 'workspace' ? workbench.activeSurface.surfaceId : 'ai'
+    workbench.activeSurface.kind === 'workspace' ? workbench.activeSurface.surfaceId : null
 
   /*
    * 一条对话开口说话的那一刻，AI 那一格就变成这条对话。

@@ -120,7 +120,7 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
      * 三个来源,一个答案。
      *
      * 键盘焦点压过指针:人按了 Tab 就是在用键盘,这时候鼠标停在哪里是历史遗留。
-     * data-aimed 压过 :hover,因为鱼眼的判定范围向左探出 28px —— 指针还没压到
+     * data-aimed 压过 :hover,因为鱼眼的判定范围朝内容侧探出 28px —— 指针还没压到
      * 轨道上,预览就该出来了,这是原来的行为,不能因为换了实现就丢掉。
      * :hover 兜底:粗指针和减弱动效两种情况下鱼眼直接提前返回,不写 data-aimed。
      */

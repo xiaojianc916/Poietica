@@ -19,6 +19,7 @@ export {
   Edit as PencilIcon,
   File as FileIcon,
   Folder as FolderIcon,
+  FolderPlus as FolderPlusIcon,
   FolderSolid as FolderFilledIcon,
   Globe as GlobeIcon,
   Message as ThreadIcon,

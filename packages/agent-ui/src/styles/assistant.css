@@ -1511,15 +1511,28 @@ svg.assistant-provider-icon {
   font-size: var(--cp-font-caption);
 }
 
-/* 搜索是弹层的标题栏：吸住上沿，与名单隔一条线。 */
-.workspace-picker__search {
-  display: block;
-  box-sizing: border-box;
-  inline-size: 100%;
-  margin: 0 0 var(--am-pad);
-  border: 0;
+/* 搜索是弹层的标题栏：图标在左，与名单隔一条线。 */
+.workspace-picker__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px var(--am-pad);
   border-block-end: var(--cp-px) solid var(--cp-hairline);
-  padding: 4px 8px 8px;
+  padding: 4px 4px 8px;
+  color: var(--cp-ink-subtle);
+}
+
+.workspace-picker__field svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+}
+
+.workspace-picker__search {
+  min-inline-size: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
   background: transparent;
   color: var(--cp-ink);
   font: inherit;
@@ -1535,10 +1548,19 @@ svg.assistant-provider-icon {
   display: flex;
   min-block-size: 28px;
   align-items: center;
+  gap: 8px;
   border-radius: var(--am-item);
   padding: 0 8px;
   color: var(--cp-ink);
   cursor: pointer;
+}
+
+/* 条目图标与会话行菜单同一尺寸、同一墨色；悬停不换色，它不是状态。 */
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
 }
 
 .workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {

@@ -12,18 +12,20 @@ import { RAIL_PITCH_PX, railCentre } from './rail-groups'
 const FALLOFF_PX = RAIL_PITCH_PX * 2
 
 /**
- * Where the pull begins, counted left from the rail's own edge.
+ * Where the pull begins, counted toward the content from the rail's own edge.
  *
- * This is the one number to turn. Larger arms the rail earlier; smaller waits
- * until the hand is nearly there. Past roughly 96 the rail starts answering to
- * pointer traffic that was never headed for it.
+ * The rail stands on the panel's leading edge, so the boundary that matters
+ * extends rightward, into the transcript. This is the one number to turn.
+ * Larger arms the rail earlier; smaller waits until the hand is nearly there.
+ * Past roughly 96 the rail starts answering to pointer traffic that was never
+ * headed for it.
  */
-const REACH_LEFT_PX = 28
+const REACH_INWARD_PX = 28
 
 /** Slack on the other three sides — tolerance, not a second geometry. */
 const REACH_TOP_PX = 8
 const REACH_BOTTOM_PX = 8
-const REACH_RIGHT_PX = 16
+const REACH_OUTWARD_PX = 16
 
 const WEIGHT_VAR = '--cp-rail-weight'
 
@@ -40,11 +42,11 @@ const REACH_PX = FALLOFF_PX * 3
 /** 一帧要处理的柱子区间，闭区间；to < from 表示空。 */
 type Span = { from: number; to: number }
 
-/** 指针是否在进入边界之内。左边是真正的边界，其余三边只是容差。 */
+/** 指针是否在进入边界之内。朝内容那一侧是真正的边界，其余三边只是容差。 */
 const inReach = (rect: DOMRect, x: number, y: number): boolean =>
   !Number.isNaN(x) &&
-  x >= rect.left - REACH_LEFT_PX &&
-  x <= rect.right + REACH_RIGHT_PX &&
+  x >= rect.left - REACH_OUTWARD_PX &&
+  x <= rect.right + REACH_INWARD_PX &&
   y >= rect.top - REACH_TOP_PX &&
   y <= rect.bottom + REACH_BOTTOM_PX
 
