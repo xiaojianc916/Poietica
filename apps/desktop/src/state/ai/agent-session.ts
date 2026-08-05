@@ -21,6 +21,8 @@ import {
 import { error as reportError } from '@poietica/observability'
 import type { AgentConfigStore } from '@poietica/settings'
 
+import { activeWorkspaceRoot } from '../workspace-root'
+
 /*
  * Where the agent session port is actually built.
  *
@@ -215,7 +217,10 @@ export interface DesktopAgentSession {
 
 export function createDesktopAgentSession(): DesktopAgentSession {
   const port = createIpcSession({
-    bridge: createAgentCommandBridge({ launch: () => acpAgentLaunch(currentAgent()) }),
+    bridge: createAgentCommandBridge({
+      cwd: activeWorkspaceRoot,
+      launch: () => acpAgentLaunch(currentAgent()),
+    }),
 
     source: createAgentEventSource({
       onListenFailure: (cause) => {
@@ -263,7 +268,10 @@ export function desktopThreads(): ThreadPort {
  * 读会话列表的地方各自问一遍，同一份列表被读了不止一次。
  */
 function buildThreadPort(): ThreadPort {
-  const bridge = createAgentThreadBridge({ launch: () => acpAgentLaunch(currentAgent()) })
+  const bridge = createAgentThreadBridge({
+    cwd: activeWorkspaceRoot,
+    launch: () => acpAgentLaunch(currentAgent()),
+  })
 
   /*
    * 原样交出去，这也是这个文件开头就声明过的事（Nothing is adapted here）。

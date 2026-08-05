@@ -9,7 +9,7 @@
  * 领域层不认识 React，descriptor 里不会出现组件引用。
  */
 
-export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'folder' | 'message' | 'search' | 'webhook'
+export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
 
 export interface WorkspaceSurfaceDescriptor {
   readonly title: string
@@ -32,35 +32,29 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     iconId: 'message',
     navigationOrder: null,
   },
-  repositories: {
-    title: '仓库',
-    description: '按仓库组织会话、自动化与工具。',
-    iconId: 'folder',
-    navigationOrder: 0,
-  },
   search: {
     title: '搜索',
     description: '跨仓库检索文件与会话。',
     iconId: 'search',
-    navigationOrder: 1,
+    navigationOrder: 0,
   },
   tools: {
     title: 'Tool',
     description: '查看与管理可调用工具。',
     iconId: 'box',
-    navigationOrder: 2,
+    navigationOrder: 1,
   },
   automations: {
     title: '自动化',
     description: '按计划或事件触发的任务。',
     iconId: 'clock',
-    navigationOrder: 3,
+    navigationOrder: 2,
   },
   hooks: {
     title: 'Hook',
     description: '在生命周期节点注入自定义行为。',
     iconId: 'webhook',
-    navigationOrder: 4,
+    navigationOrder: 3,
   },
 } as const satisfies Record<string, WorkspaceSurfaceDescriptor>
 

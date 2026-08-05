@@ -1,4 +1,5 @@
 import type { ThreadRecord } from '@poietica/acp'
+import { normalizeWorkspaceRoot, workspaceRootName } from '@poietica/core'
 
 /*
  * 会话列表的次序与分组，一份规则。
@@ -67,7 +68,9 @@ export const DEFAULT_WORKSPACE_ID = 'default'
 export function workspaceIdOf(thread: ThreadRecord): string {
   const root = thread.workspaceRoot
 
-  return root === null || root === undefined || root.length === 0 ? DEFAULT_WORKSPACE_ID : root
+  return root === null || root === undefined || root.length === 0
+    ? DEFAULT_WORKSPACE_ID
+    : normalizeWorkspaceRoot(root)
 }
 
 /*
@@ -87,9 +90,7 @@ export function workspaceNameOf(id: string): string | null {
     return null
   }
 
-  const segments = id.split(/[\\/]+/).filter((segment) => segment.length > 0)
-
-  return segments.at(-1) ?? id
+  return workspaceRootName(id)
 }
 
 /**

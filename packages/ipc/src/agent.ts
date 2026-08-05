@@ -86,8 +86,14 @@ export interface AgentBridgeOptions {
    * 猜测钉死一整个进程。
    */
   readonly launch: () => AgentLaunchDescription
-  /** The working directory the session is created against. */
-  readonly cwd?: string
+  /**
+   * 这一次在哪个工作目录里开会话。
+   *
+   * 与上面的 launch 同一条规矩，理由也同一个：桥在启动时就建好，而人可以
+   * 随时换一个工作目录。捕获建桥那一刻的答案，等于把第一帧的猜测钉死一整个
+   * 进程 —— 此前这一格是个值，而组合层连那个值都没有传。
+   */
+  readonly cwd?: () => string | null
 }
 
 /**
@@ -188,7 +194,7 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
             assetToken: asset.assetToken,
           })),
           launch: nativeLaunch(launch()),
-          cwd: cwd ?? null,
+          cwd: cwd?.() ?? null,
         }),
       )
 
@@ -311,7 +317,7 @@ export function createAgentCapabilityBridge({
   return {
     read: async () => {
       const offered = await throughIpc(() =>
-        commands.agentCapabilities({ launch: nativeLaunch(launch()), cwd: cwd ?? null }),
+        commands.agentCapabilities({ launch: nativeLaunch(launch()), cwd: cwd?.() ?? null }),
       )
 
       return offered.map(controlOf)
@@ -339,7 +345,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
         commands.agentOpenThread({
           threadId: threadId ?? null,
           launch: nativeLaunch(launch()),
-          cwd: cwd ?? null,
+          cwd: cwd?.() ?? null,
         }),
       )
 

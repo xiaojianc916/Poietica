@@ -16,6 +16,7 @@
     "@poietica/acp": "workspace:*",
     "@poietica/agent-registry": "workspace:*",
     "@poietica/agent-timeline": "workspace:*",
+    "@poietica/core": "workspace:*",
     "valibot": "catalog:"
   },
   "devDependencies": {

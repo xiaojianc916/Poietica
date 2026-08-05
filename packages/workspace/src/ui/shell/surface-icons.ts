@@ -1,4 +1,4 @@
-import { Box, Folder, Message, Search } from '@mynaui/icons-react'
+import { Box, Message, Search } from '@mynaui/icons-react'
 import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
 import type { ComponentType } from 'react'
 
@@ -27,7 +27,6 @@ export type SurfaceIcon = ComponentType<{
 const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
   box: Box,
   clock: ClockTenIcon,
-  folder: Folder,
   message: Message,
   search: Search,
   webhook: WebhookIcon,

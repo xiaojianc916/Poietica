@@ -54,3 +54,8 @@ export {
   type WindowId,
 } from './id'
 export { optionalProperty } from './object'
+export {
+  normalizeWorkspaceRoot,
+  workspaceRootKey,
+  workspaceRootName,
+} from './workspace-root'

@@ -37,10 +37,11 @@
     "@mynaui/icons-react": "catalog:",
     "@poietica/acp": "workspace:*",
     "@poietica/agent-session": "workspace:*",
+    "@poietica/core": "workspace:*",
+    "@poietica/observability": "workspace:*",
     "@poietica/ui": "workspace:*",
     "motion": "catalog:",
-    "valibot": "catalog:",
-    "@poietica/observability": "workspace:*"
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

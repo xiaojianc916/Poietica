@@ -1,10 +1,7 @@
 export {
-  deriveRepositoryName,
-  normalizeRootPath,
   type RepositoryId,
   type RepositoryRef,
   RepositoryRefSchema,
-  repositoryIdFromRootPath,
   repositoryRefFromRootPath,
 } from './repository'
 export {

@@ -36,14 +36,14 @@ export {
   type WorkspaceTabViewModel,
 } from './contracts/workbench'
 export {
-  deriveRepositoryName,
-  normalizeRootPath,
+  normalizeWorkspaceRoot,
   type RepositoryId,
   type RepositoryRef,
   RepositoryRefSchema,
-  repositoryIdFromRootPath,
   repositoryRefFromRootPath,
   WORKSPACE_NAVIGATION_ORDER,
   WORKSPACE_SURFACE_REGISTRY,
   type WorkspaceSurfaceDescriptor,
+  workspaceRootKey,
+  workspaceRootName,
 } from './domain/index'

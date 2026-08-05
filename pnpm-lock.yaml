@@ -255,6 +255,9 @@ importers:
       '@poietica/agent-timeline':
         specifier: workspace:*
         version: link:../agent-timeline
+      '@poietica/core':
+        specifier: workspace:*
+        version: link:../core
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
@@ -543,6 +546,9 @@ importers:
       '@poietica/agent-session':
         specifier: workspace:*
         version: link:../agent-session
+      '@poietica/core':
+        specifier: workspace:*
+        version: link:../core
       '@poietica/observability':
         specifier: workspace:*
         version: link:../observability
