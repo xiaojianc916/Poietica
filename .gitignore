@@ -209,9 +209,6 @@ refactor.mjs
 .env.local
 trace.txt
 
-# refactor.mjs 过程产物
-refactor-report.json
-
 dist-release/
 
 release.mjs

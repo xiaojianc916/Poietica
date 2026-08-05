@@ -9,7 +9,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@poietica/agent-registry": "workspace:*",
@@ -18,5 +19,9 @@
     "@poietica/settings": "workspace:*",
     "@tauri-apps/api": "catalog:tauri",
     "@tauri-apps/plugin-dialog": "catalog:tauri"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
