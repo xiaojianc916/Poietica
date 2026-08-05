@@ -1,8 +1,11 @@
-import { AssistantThreadList } from '@poietica/agent-ui'
-import { memo, useCallback } from 'react'
+import { AssistantThreadList, WorkspacePicker } from '@poietica/agent-ui'
+import { workspaceRootName } from '@poietica/core'
+import { pickWorkspaceRoot } from '@poietica/ipc'
+import { memo, useCallback, useMemo } from 'react'
 
 import { useThreadsActions, useThreadsList } from '../../state/ai/threads-context'
 import { toggleWorkspace, useCollapsedWorkspaces } from '../../state/ai/workspace-collapse'
+import { setActiveWorkspaceRoot, useActiveWorkspaceRoot } from '../../state/workspace-root'
 
 /*
  * 侧栏的会话列表。
@@ -17,10 +20,15 @@ import { toggleWorkspace, useCollapsedWorkspaces } from '../../state/ai/workspac
  *
  * 分组同理不在这里算：它由 useThreadsList 一次性派生好，引用随数据走。
  *
- * onCreate 原样往下传，不按工作区分岔。加号点在哪个组头上，开出来的对话都
- * 落在当前那个工作目录里 —— 因为运行期只有一个（桌面侧建对话桥不传 cwd）。
- * 等原生侧真的逐条记下目录，这里才有第二个答案可给；在那之前多接一层只会
- * 让界面承诺一件它做不到的事。
+ * 加号点在哪个组头上，就先切到哪个工作区。
+ *
+ * 这里此前写着不分岔的理由：「等原生侧真的逐条记下目录，这里才有第二个答案可
+ * 给」。那个前提已经兑现 —— threads 表有 workspace_root，桌面侧的对话桥也带着
+ * cwd。前提没了还留着不分岔，就正好变成那句话要避免的事：界面写着「在 X 中新建
+ * 对话」，开出来的却是当前那个目录。
+ *
+ * 工作目录本身在这一格上方选。「最近」那一列就是已经有对话的那些工作区 ——
+ * 分组已经算好了，不需要第二份名单，也不需要第二处存储。
  */
 
 export interface AssistantSidebarPanelProps {
@@ -56,6 +64,43 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   const threads = useThreadsActions()
   const { failure, groups, isLoading } = useThreadsList()
   const collapsedWorkspaces = useCollapsedWorkspaces()
+  const activeRoot = useActiveWorkspaceRoot()
+
+  /* 名字缺席的那一组说的是「目录没被记下来」，它不是一个能切过去的地方。 */
+  const choices = useMemo(
+    () =>
+      groups.flatMap((group) => (group.name === null ? [] : [{ id: group.id, name: group.name }])),
+    [groups],
+  )
+
+  const current = useMemo(
+    () =>
+      activeRoot === null
+        ? null
+        : { id: activeRoot, name: workspaceRootName(activeRoot) ?? activeRoot },
+    [activeRoot],
+  )
+
+  /* 选完就换过去；人按了取消就什么都不改。 */
+  const browse = useCallback(() => {
+    void pickWorkspaceRoot().then((picked) => {
+      if (picked !== null) {
+        setActiveWorkspaceRoot(picked)
+      }
+    })
+  }, [])
+
+  /* 不点名工作区就是「当前那个」，点了名就先切过去 —— 见上面那段。 */
+  const create = useCallback(
+    (workspaceId?: string) => {
+      if (workspaceId !== undefined) {
+        setActiveWorkspaceRoot(workspaceId)
+      }
+
+      onCreate()
+    },
+    [onCreate],
+  )
 
   const activate = useCallback(
     (threadId: string) => {
@@ -93,19 +138,28 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   )
 
   return (
-    <AssistantThreadList
-      activeThreadId={activeThreadId}
-      collapsedWorkspaces={collapsedWorkspaces}
-      failure={failure}
-      groups={groups}
-      isLoading={isLoading}
-      onActivate={activate}
-      onCreate={onCreate}
-      onDelete={remove}
-      onOpenInNewTab={openInNewTab}
-      onPin={pin}
-      onRename={rename}
-      onToggleWorkspace={toggleWorkspace}
-    />
+    <div className="assistant-panel">
+      <WorkspacePicker
+        choices={choices}
+        current={current}
+        onBrowse={browse}
+        onChoose={setActiveWorkspaceRoot}
+      />
+
+      <AssistantThreadList
+        activeThreadId={activeThreadId}
+        collapsedWorkspaces={collapsedWorkspaces}
+        failure={failure}
+        groups={groups}
+        isLoading={isLoading}
+        onActivate={activate}
+        onCreate={create}
+        onDelete={remove}
+        onOpenInNewTab={openInNewTab}
+        onPin={pin}
+        onRename={rename}
+        onToggleWorkspace={toggleWorkspace}
+      />
+    </div>
   )
 })

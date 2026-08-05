@@ -395,6 +395,8 @@
 .assistant-threads {
   display: flex;
   block-size: 100%;
+  min-block-size: 0;
+  flex: 1 1 0;
   flex-direction: column;
   gap: var(--cp-pad-tile);
   overflow-y: auto;
@@ -1451,4 +1453,101 @@ svg.assistant-provider-icon {
   .assistant-threads__chevron {
     transition: none;
   }
+}
+
+/*
+ * 侧栏这一格的框。
+ *
+ * 此前列表就是框：.assistant-threads 自己 block-size: 100%，并且自己就是那个
+ * 滚动盒。它在列表是独子时成立，工作目录那一行进来之后不成立 —— 两个兄弟，
+ * 占满 100% 的那个会把另一个挤出容器。
+ *
+ * 所以框上移一层，列表改成吃剩余空间。flex: 1 1 0 只在父级是 flex 容器时说话，
+ * block-size: 100% 原样留着 —— 任何仍旧把列表当独子摆的地方，行为一个像素不变。
+ */
+.assistant-panel {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  flex-direction: column;
+}
+
+/*
+ * 工作目录那一行。
+ *
+ * 它是侧栏的一行，所以它读侧栏的行几何（--ui-row-*），与会话行、导航行同高
+ * 同缩进；菜单读 --am-* 那一族，与会话行的菜单是同一张皮。这里不新增任何令牌。
+ */
+.workspace-picker {
+  flex: none;
+  padding-block: var(--cp-mast-gap) 0;
+  padding-inline: var(--ui-row-inset);
+}
+
+.workspace-picker__button {
+  display: flex;
+  block-size: var(--ui-row-height);
+  inline-size: 100%;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--ui-row-radius);
+  padding-inline: var(--ui-row-lead) var(--ui-row-trail);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  text-align: start;
+  cursor: default;
+}
+
+.workspace-picker__button:hover,
+.workspace-picker__button[aria-expanded="true"] {
+  background: var(--ui-sidebar-accent);
+}
+
+.workspace-picker__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 与组头同一枚字形、同一个旋转手法，朝下表示「在这里展开一张菜单」。 */
+.workspace-picker__chevron {
+  display: inline-flex;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--cp-icon);
+  transform: rotate(90deg);
+}
+
+.workspace-picker__chevron svg {
+  block-size: 12px;
+  inline-size: 12px;
+}
+
+.workspace-picker__menu[data-assistant-skin] {
+  min-inline-size: 216px;
+  font-size: var(--cp-font-caption);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item {
+  display: flex;
+  min-block-size: 28px;
+  align-items: center;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
+  outline: none;
+  background: var(--cp-hover);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {
+  block-size: var(--cp-px);
+  margin: var(--am-pad) 8px;
+  background: var(--cp-hairline);
 }

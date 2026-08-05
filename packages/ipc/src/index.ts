@@ -46,3 +46,4 @@ export {
   isIpcError,
   throughIpc,
 } from './error'
+export { pickWorkspaceRoot } from './workspace'

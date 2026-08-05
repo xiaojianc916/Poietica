@@ -10,3 +10,4 @@ pub mod provider_probe;
 pub mod settings;
 pub mod updates;
 pub mod window;
+pub mod workspace;

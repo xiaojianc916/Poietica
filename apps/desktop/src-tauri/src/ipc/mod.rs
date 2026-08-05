@@ -79,6 +79,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::updates::update_check,
             crate::commands::updates::update_download,
             crate::commands::updates::update_relaunch,
+            crate::commands::workspace::workspace_pick_root,
         ])
         .events(tauri_specta::collect_events![UpdateProgress])
         .typ::<AgentPromptRequest>()
