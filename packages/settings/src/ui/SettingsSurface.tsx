@@ -4,12 +4,7 @@ import {
   ErrorState,
   LoadingState,
   Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
   type SelectOption,
-  SelectTrigger,
   Switch,
   WebhookIcon,
 } from '@poietica/ui'
@@ -575,55 +570,6 @@ function ToggleRow({ checked, label, description, onChange }: ToggleRowProps) {
   )
 }
 
-interface SettingsSelectProps<TValue extends string> {
-  readonly ariaLabel: string
-  readonly value: TValue
-  readonly options: readonly (readonly [TValue, string])[]
-  readonly disabled?: boolean
-  readonly onChange: (value: TValue) => void
-}
-
-function SettingsSelect<TValue extends string>({
-  ariaLabel,
-  value,
-  options,
-  disabled = false,
-  onChange,
-}: SettingsSelectProps<TValue>) {
-  const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
-    value: optionValue,
-    label,
-  }))
-
-  return (
-    <Select
-      data={data}
-      disabled={disabled}
-      onValueChange={(nextValue) => {
-        onChange(nextValue as TValue)
-      }}
-      size="sm"
-      type={ariaLabel}
-      value={value}
-    >
-      <SelectTrigger aria-label={ariaLabel} className="settings-select-trigger" tone="plain" />
-
-      {/* 值是右对齐的（.settings-row__control），菜单也从同一条边长出来。 */}
-      <SelectContent align="end">
-        <SelectList>
-          <SelectGroup>
-            {options.map(([optionValue, label]) => (
-              <SelectItem key={optionValue} value={optionValue}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectList>
-      </SelectContent>
-    </Select>
-  )
-}
-
 interface SettingsErrorBannerProps {
   readonly operation: SettingsOperation | undefined
   readonly message: string
@@ -766,19 +712,20 @@ function SectionIcon({ section }: { readonly section: SettingsSection }) {
 /*
  * 两张静态表，和 SECTIONS / SECTION_GROUPS 一样属于模块。
  *
- * 此前它们是 JSX 里的行内字面量：一份从不改变的数据，每次渲染新建一个数组，
- * 进 SettingsSelect 又被 map 成第二个，再进 Select 的 context 成为第三个身份。
- * 下游拿 memo 也留不住。这个文件对静态表本来就有定论，照它写。
+ * 上一版它们已经不再是 JSX 里的行内字面量，但形状还是 [value, label] 元组 —— 于是
+ * 每次渲染仍要 map 成基元认的 { value, label }，末端还欠一次 as 断言把闭合联合接
+ * 回去。形状直接写成基元认的那一种，两样一起没有了：类型参数保住「只可能是这几个
+ * 字面量」，onValueChange 的入参因此就是 AppSettings 上那个字段本身。
  */
-const COLOR_MODES: readonly (readonly [AppSettings['theme'], string])[] = [
-  ['light', '浅色'],
-  ['dark', '深色'],
-  ['system', '跟随系统'],
+const COLOR_MODES: readonly SelectOption<AppSettings['theme']>[] = [
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+  { value: 'system', label: '跟随系统' },
 ]
 
-const LANGUAGES: readonly (readonly [AppSettings['language'], string])[] = [
-  ['zh-CN', '简体中文'],
-  ['en', 'English'],
+const LANGUAGES: readonly SelectOption<AppSettings['language']>[] = [
+  { value: 'zh-CN', label: '简体中文' },
+  { value: 'en', label: 'English' },
 ]
 
 const AppearanceSettings = memo(function AppearanceSettings({
@@ -789,29 +736,33 @@ const AppearanceSettings = memo(function AppearanceSettings({
     <SettingsPage>
       <SettingsGroup title="主题与语言">
         <SettingRow description="浅色、深色或跟随系统" label="颜色模式">
-          <SettingsSelect
-            ariaLabel="颜色模式"
-            onChange={(theme) => {
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={COLOR_MODES}
+            onValueChange={(theme) => {
               controller.update((current) => ({
                 ...current,
                 theme,
               }))
             }}
-            options={COLOR_MODES}
+            type="颜色模式"
             value={settings.theme}
           />
         </SettingRow>
 
         <SettingRow description="界面文案使用的语言" label="界面语言">
-          <SettingsSelect
-            ariaLabel="界面语言"
-            onChange={(value) => {
+          <Select
+            align="end"
+            className="settings-select-trigger"
+            data={LANGUAGES}
+            onValueChange={(language) => {
               controller.update((current) => ({
                 ...current,
-                language: value,
+                language,
               }))
             }}
-            options={LANGUAGES}
+            type="界面语言"
             value={settings.language}
           />
         </SettingRow>

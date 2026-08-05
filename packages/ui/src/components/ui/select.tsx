@@ -1,329 +1,185 @@
 import { Select as BaseSelect } from '@base-ui/react/select'
 import { Check, ChevronDown } from '@mynaui/icons-react'
-import { type ComponentProps, createContext, type ReactNode, useContext, useMemo } from 'react'
 import { cn } from '../../lib/utils'
 import { popupPositionerClassName, popupSurfaceClassName } from './popup-surface'
 
-export interface SelectOption {
-  readonly value: string
+/**
+ * 一项可选值。
+ *
+ * 类型参数让调用点把「这张表里只可能出现这几个字面量」说出来。设置页的颜色模式
+ * 与语言各自是一个闭合联合，此前它们为了保住这个约束，只能声明成 [value, label]
+ * 元组数组，再在渲染期转成这个形状 —— 同一份数据两种形状，转换每帧一次，末端还
+ * 要一次 as 断言把类型接回去。有了参数，元组那一份就没有存在的理由。
+ */
+export interface SelectOption<TValue extends string = string> {
+  readonly value: TValue
   readonly label: string
 }
 
-/*
- * context 里只放基元不知道的东西。
- *
- * 选项表与当前值它都知道 —— 前者由 Root 的 items 收着，后者本来就是 Root 的
- * 状态。此前两样各被交出去两遍：一遍给基元，一遍给这个 context，于是"现在选中
- * 的是哪一项"有了两个出处，只靠同一个 prop 同时喂两边才恰好不打架。
- *
- * 剩下这两个是本仓自己的概念：type 只为那句占位文案存在，size 要让触发器、
- * 面板与每一行同档，而档位在 render 期间就得定下来。
- */
-interface SelectContextValue {
-  readonly type: string
-  readonly size: SelectTriggerSize
-}
-
-const SelectContext = createContext<SelectContextValue | null>(null)
-
-function useSelectContext(): SelectContextValue {
-  const context = useContext(SelectContext)
-
-  if (!context) {
-    throw new Error('Select components must be rendered inside <Select>.')
-  }
-
-  return context
-}
-
-export interface SelectProps {
-  readonly children: ReactNode
-  readonly data: readonly SelectOption[]
-  readonly type: string
-  readonly value: string
-  readonly open?: boolean
-  readonly defaultOpen?: boolean
-  readonly disabled?: boolean
+export interface SelectProps<TValue extends string = string> {
+  /** 全部可选值。触发器上的标签与列表里的行都由它渲染，只有这一个产地。 */
+  readonly data: readonly SelectOption<TValue>[]
   /**
-   * 触发器与选项行必须同档，所以档位属于整个 Select，不属于触发器：
-   * 它在 render 期间就进 context，选项行首帧即正确。
+   * 这个下拉在选什么。
+   *
+   * 一处声明，两处使用：占位文案是「选择{type}…」，触发器的可访问名也是它。此前
+   * 两个调用点都把同一个串分别喂给 type 与 aria-label 两个入口，没有任何东西保证
+   * 它们一致 —— 那不是两件事，是一件事被写了两遍。
    */
-  readonly size?: SelectTriggerSize
-  readonly onValueChange: (value: string) => void
-  readonly onOpenChange?: (open: boolean) => void
-}
-
-/**
- * Select is intended for finite,
- * non-searchable option sets.
- *
- * Use Combobox when the option set is large
- * enough to require filtering.
- */
-export function Select({
-  children,
-  data,
-  type,
-  value,
-  open,
-  defaultOpen,
-  disabled = false,
-  size = 'md',
-  onValueChange,
-  onOpenChange,
-}: SelectProps) {
-  /* context 的值必须有稳定身份，否则每次渲染都让触发器、面板与每一行重画一遍。 */
-  const selection = useMemo<SelectContextValue>(() => ({ type, size }), [size, type])
-
-  return (
-    <SelectContext value={selection}>
-      {/*
-       * 选项表交给基元。
-       *
-       * 官方文档：指定 items 之后，Select.Value 渲染的是选中项的标签而不是原始
-       * 值；而当每一项的形状是 { value, label } 时，标签会被自动取用，连
-       * itemToStringLabel 都不必写 —— 本仓的 SelectOption 恰好就是这个形状。
-       *
-       * 它不接管列表渲染：官方示例里 items 与手写的 Item 子节点是并存的，前者只
-       * 是一张查找表。所以调用点一处都不用改。
-       *
-       * 顺带解掉了另一半：此前设置页每次渲染新建一个数组交进来，那个数组是
-       * context 值的依赖之一，于是下游整片重画。现在它不再进 context。
-       */}
-      <BaseSelect.Root<string>
-        defaultOpen={defaultOpen}
-        disabled={disabled}
-        items={data}
-        onOpenChange={(nextOpen) => {
-          onOpenChange?.(nextOpen)
-        }}
-        onValueChange={(nextValue) => {
-          if (nextValue !== null) {
-            onValueChange(nextValue)
-          }
-        }}
-        open={open}
-        value={value || null}
-      >
-        {children}
-      </BaseSelect.Root>
-    </SelectContext>
-  )
-}
-
-export type SelectTriggerSize = 'sm' | 'md'
-
-export type SelectTriggerTone = 'outline' | 'plain'
-
-export type SelectTriggerProps = ComponentProps<typeof BaseSelect.Trigger> & {
-  /** plain 去掉边框与阴影，背景透明因此与所在卡片同色。 */
-  readonly tone?: SelectTriggerTone
+  readonly type: string
+  readonly value: TValue
+  /** 面板沿触发器的哪一条边展开。值右对齐的行用 end，与触发器同一条边。 */
+  readonly align?: 'start' | 'end'
+  /** 触发器在所在版面里的宽度约束。面板与每一行的样式不对外开放。 */
+  readonly className?: string
+  readonly onValueChange: (value: TValue) => void
 }
 
 /*
- * 高度、内距、字号与图标尺寸必须一起换档，否则文字会顶到箭头上。
- * 尺寸只有这几张表，使用方通过 size / tone 选择，不通过样式覆盖。
+ * 触发器只有一种形制。
+ *
+ * 此前这里是两张按档位与色调索引的表（sm|md × outline|plain），而全仓两个调用点
+ * 都写 size="sm" tone="plain" —— md 与 outline 这两个默认值一次都没有被取到。一个
+ * 从不切换的开关不是可配置性，是一条走不到的分支。它还带着连带成本：档位要在
+ * render 期间同时到达触发器、面板与每一行，于是这个文件养了一个 React context，
+ * 外加一个 useMemo 和一句「必须渲染在 Select 里」的运行时抛错。档位收成常量、
+ * 组合结构收回来之后，那套东西一起没有了内容。
+ *
+ * 参数顺序照旧：cn 靠后的类在 Tailwind 冲突时压过靠前的，调用点传进来的
+ * className 仍然排在最后。
  */
-const TRIGGER_SIZE: Record<SelectTriggerSize, string> = {
-  sm: 'h-[26px] gap-1 px-2 text-xs',
-  md: 'h-[var(--ui-control-height-lg)] gap-2 px-3 text-sm',
-}
+const TRIGGER = cn(
+  'flex items-center justify-between',
+  'text-left text-foreground',
+  'outline-none',
+  'transition-[border-color,box-shadow,background-color]',
+  'focus-visible:ring-2',
+  'focus-visible:ring-ring',
+  'disabled:cursor-not-allowed',
+  'disabled:opacity-50',
+  'h-[26px] gap-1 px-2 text-xs',
+  'w-auto max-w-full rounded-lg border-0 bg-transparent shadow-none hover:bg-accent data-[popup-open]:bg-accent',
+)
 
-const TRIGGER_TONE: Record<SelectTriggerTone, string> = {
-  outline:
-    'w-full rounded-md border border-input bg-background shadow-sm hover:bg-muted/40 data-[popup-open]:border-ring',
-  plain:
-    'w-auto max-w-full rounded-lg border-0 bg-transparent shadow-none hover:bg-accent data-[popup-open]:bg-accent',
-}
+const VALUE = cn('min-w-0 flex-1', 'truncate')
 
-const TRIGGER_ICON: Record<SelectTriggerSize, string> = {
-  sm: 'size-3.5',
-  md: 'size-4',
-}
+/*
+ * ChevronDown 而不是 ChevronsUpDown：双向箭头说的是「有一根轴能上下走」，那是
+ * 步进器与可搜索输入的记号。这里是有限离散值的弹出菜单，说的是「下面会展开一
+ * 张列表」。
+ */
+const ICON = cn('size-3.5', 'shrink-0', 'text-muted-foreground')
+
+/*
+ * 列表与分组合成一层。
+ *
+ * Base UI 的 Select.Group 是给带组标题的分组用的（配 Select.GroupLabel）。两个
+ * 调用点都只有一个组、都不带标题 —— 那不是分组，是一层只为了挂 gap 而存在的
+ * div。间距落到列表本身，DOM 少一层，视觉不变。
+ */
+const LIST = cn(
+  'max-h-64',
+  'overflow-y-auto',
+  'overscroll-contain',
+  'p-1 outline-none',
+  'grid gap-0.5',
+)
+
+/*
+ * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
+ *
+ * 高亮是中性的：勾号说「当前生效的值」，高亮说「指针或键盘现在指着谁」。用
+ * --ui-accent 去画一个瞬时指向，等于给临时状态派了个语义色，而它还是命令面板
+ * 与菜单的全局强调色，改动波及整个应用。
+ */
+const ITEM = cn(
+  'group relative flex',
+  'min-h-7 px-2 text-xs',
+  'cursor-default select-none',
+  'items-center gap-2',
+  'rounded-[5px]',
+  'outline-none',
+  'transition-colors',
+  'data-[highlighted]:bg-[var(--ui-sidebar-accent)]',
+  'data-[highlighted]:text-[var(--ui-foreground)]',
+  'data-[disabled]:pointer-events-none',
+  'data-[disabled]:opacity-50',
+)
 
 /*
  * 弹出层宽度自适应内容，锚点宽度只是下限。
  *
- * 下限来自 Base UI Positioner 暴露的 --anchor-width，不再由 React 读
- * offsetWidth 再 setState：那既在 commit 阶段强制同步布局，又在窗口尺寸、
- * 字号与文案长度变化后不会更新，首帧还得先猜一个 200。
+ * 下限来自 Base UI Positioner 暴露的 --anchor-width，不由 React 读 offsetWidth
+ * 再 setState：那既在 commit 阶段强制同步布局，又在窗口尺寸、字号与文案长度变化
+ * 后不会更新。上限与设置页 .settings-select-trigger 同数：面板的水平范围由锚点
+ * 决定，不由内容随意撑开，否则勾号被推到很远。
  */
 const POPUP_MIN_INLINE_SIZE = '168px'
 
-/*
- * 上限跟着档位走，不是一个通用数。
+const POPUP_MAX_INLINE_SIZE = '220px'
+
+/**
+ * Select is intended for finite, non-searchable option sets.
  *
- * sm 档的 220px 与设置页 .settings-select-trigger 的上限同数：面板的水平范围
- * 由锚点决定，不由内容随意撑开，否则勾号被推到很远，和标签之间空出一大片。
+ * 触发器、面板与每一行都在这里，不对外拆开：全仓两个调用点写出的是同一棵树，
+ * 而各自把它包了一层同名同参的包装 —— 那正是把组合权交出去的代价。选项表由
+ * data 一处供给，Select.Value 依据 { value, label } 自动取标签（官方行为，不必
+ * 写 itemToStringLabel）。
  */
-const POPUP_MAX_INLINE_SIZE: Record<SelectTriggerSize, string> = {
-  sm: '220px',
-  md: '320px',
-}
-
-export function SelectTrigger({
-  children,
+export function Select<TValue extends string = string>({
+  data,
+  type,
+  value,
+  align = 'start',
   className,
-  tone = 'outline',
-  ...props
-}: SelectTriggerProps) {
-  const { type, size } = useSelectContext()
-
+  onValueChange,
+}: SelectProps<TValue>) {
   return (
-    <BaseSelect.Trigger
-      className={cn(
-        'flex items-center justify-between',
-        'text-left text-foreground',
-        'outline-none',
-        'transition-[border-color,box-shadow,background-color]',
-        'focus-visible:ring-2',
-        'focus-visible:ring-ring',
-        'disabled:cursor-not-allowed',
-        'disabled:opacity-50',
-        TRIGGER_SIZE[size],
-        TRIGGER_TONE[tone],
-        className,
-      )}
-      type="button"
-      {...props}
+    <BaseSelect.Root<TValue>
+      items={data}
+      onValueChange={(nextValue) => {
+        if (nextValue !== null) {
+          onValueChange(nextValue)
+        }
+      }}
+      value={value || null}
     >
-      {children ?? (
-        <>
-          {/*
-            标签、查找与占位都归基元。此前这里是一次线性扫描加一个 <span> 加一个
-            ?? 兜底 —— 三样东西各自重写了一遍 Select.Value 已经做的事。
-            Value 渲染的就是一个 <span>，所以类名原样落在它身上，DOM 结构不变。
-          */}
-          <BaseSelect.Value
-            className={cn('min-w-0 flex-1', 'truncate')}
-            placeholder={`选择${type}…`}
-          />
+      <BaseSelect.Trigger aria-label={type} className={cn(TRIGGER, className)} type="button">
+        <BaseSelect.Value className={VALUE} placeholder={`选择${type}…`} />
 
-          {/*
-            ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
-            走"，那是可搜索输入框与步进器的记号。这里是有限
-            离散值的弹出菜单，说的是"下面会展开一张列表"。
-          */}
-          <BaseSelect.Icon>
-            <ChevronDown
-              aria-hidden="true"
-              className={cn(TRIGGER_ICON[size], 'shrink-0', 'text-muted-foreground')}
-            />
-          </BaseSelect.Icon>
-        </>
-      )}
-    </BaseSelect.Trigger>
-  )
-}
+        <BaseSelect.Icon>
+          <ChevronDown aria-hidden="true" className={ICON} />
+        </BaseSelect.Icon>
+      </BaseSelect.Trigger>
 
-/** 面板沿触发器的哪一条边展开。值右对齐的行用 end，与触发器同一条边。 */
-export type SelectContentAlign = 'start' | 'end'
+      <BaseSelect.Portal>
+        <BaseSelect.Positioner
+          align={align}
+          alignItemWithTrigger={false}
+          className={popupPositionerClassName}
+          sideOffset={4}
+        >
+          <BaseSelect.Popup
+            className={popupSurfaceClassName}
+            style={{
+              minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
+              maxInlineSize: POPUP_MAX_INLINE_SIZE,
+            }}
+          >
+            <BaseSelect.List className={LIST}>
+              {data.map((option) => (
+                <BaseSelect.Item className={ITEM} key={option.value} value={option.value}>
+                  <BaseSelect.ItemText className={VALUE}>{option.label}</BaseSelect.ItemText>
 
-export type SelectContentProps = ComponentProps<typeof BaseSelect.Popup> & {
-  readonly align?: SelectContentAlign
-}
-
-export function SelectContent({ align = 'start', className, style, ...props }: SelectContentProps) {
-  const { size } = useSelectContext()
-
-  return (
-    <BaseSelect.Portal>
-      <BaseSelect.Positioner
-        align={align}
-        alignItemWithTrigger={false}
-        className={popupPositionerClassName}
-        sideOffset={4}
-      >
-        <BaseSelect.Popup
-          className={cn(popupSurfaceClassName, className)}
-          style={{
-            minInlineSize: `max(var(--anchor-width), ${POPUP_MIN_INLINE_SIZE})`,
-            maxInlineSize: POPUP_MAX_INLINE_SIZE[size],
-            ...style,
-          }}
-          {...props}
-        />
-      </BaseSelect.Positioner>
-    </BaseSelect.Portal>
-  )
-}
-
-export type SelectListProps = ComponentProps<typeof BaseSelect.List>
-
-export function SelectList({ className, ...props }: SelectListProps) {
-  return (
-    <BaseSelect.List
-      className={cn(
-        'max-h-64',
-        'overflow-y-auto',
-        'overscroll-contain',
-        'p-1 outline-none',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
-
-export type SelectGroupProps = ComponentProps<typeof BaseSelect.Group>
-
-export function SelectGroup({ className, ...props }: SelectGroupProps) {
-  return <BaseSelect.Group className={cn('grid gap-0.5', className)} {...props} />
-}
-
-export type SelectItemProps = Omit<ComponentProps<typeof BaseSelect.Item>, 'value'> & {
-  readonly value: string
-}
-
-/*
- * 行高比触发器高 2px，字号与触发器同档：菜单是控件的展开，不是新界面。
- * sm 档的 28px / 12px 与编排器菜单同值。
- */
-const ITEM_SIZE: Record<SelectTriggerSize, string> = {
-  sm: 'min-h-7 px-2 text-xs',
-  md: 'min-h-9 px-2 py-1.5 text-sm',
-}
-
-/* 行圆角比面板圆角小一档，且都不用卡片圆角。 */
-const ITEM_SHAPE: Record<SelectTriggerSize, string> = {
-  sm: 'rounded-[5px]',
-  md: 'rounded-sm',
-}
-
-export function SelectItem({ children, className, value, ...props }: SelectItemProps) {
-  const { size } = useSelectContext()
-
-  return (
-    <BaseSelect.Item
-      className={cn(
-        'group relative flex',
-        ITEM_SIZE[size],
-        'cursor-default select-none',
-        'items-center gap-2',
-        ITEM_SHAPE[size],
-        'outline-none',
-        'transition-colors',
-        /*
-         * 高亮是中性的：勾号说"当前生效的值"，高亮说"指针或键盘现在指着谁"。
-         * 用 --ui-accent 去画一个瞬时指向，等于给临时状态派了个语义色，而它
-         * 还是命令面板与菜单的全局强调色，改动波及整个应用。
-         */
-        'data-[highlighted]:bg-[var(--ui-sidebar-accent)]',
-        'data-[highlighted]:text-[var(--ui-foreground)]',
-        'data-[disabled]:pointer-events-none',
-        'data-[disabled]:opacity-50',
-        className,
-      )}
-      value={value}
-      {...props}
-    >
-      <BaseSelect.ItemText className={cn('min-w-0 flex-1', 'truncate')}>
-        {children}
-      </BaseSelect.ItemText>
-
-      <BaseSelect.ItemIndicator className="ml-auto shrink-0">
-        <Check aria-hidden="true" className="size-4" />
-      </BaseSelect.ItemIndicator>
-    </BaseSelect.Item>
+                  <BaseSelect.ItemIndicator className="ml-auto shrink-0">
+                    <Check aria-hidden="true" className="size-4" />
+                  </BaseSelect.ItemIndicator>
+                </BaseSelect.Item>
+              ))}
+            </BaseSelect.List>
+          </BaseSelect.Popup>
+        </BaseSelect.Positioner>
+      </BaseSelect.Portal>
+    </BaseSelect.Root>
   )
 }

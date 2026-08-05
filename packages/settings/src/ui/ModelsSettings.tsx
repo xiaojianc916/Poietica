@@ -1,10 +1,10 @@
 import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agent-registry'
+import { Select, type SelectOption } from '@poietica/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../contracts/agent-config-store'
 import { AgentInstallAction } from './AgentInstallAction'
 import { AgentModels } from './AgentModels'
 import { describeAgentCliFailure } from './agentCliText'
-import { OptionSelect } from './models-fields'
 import './models-settings.css'
 
 /*
@@ -28,9 +28,10 @@ import './models-settings.css'
  * 名单来自 @poietica/agent-registry，是封闭的 —— 用户在注册过的几家里选，不能自带一条
  * 命令。今天只注册了一家，所以下拉里只会有一项；接第二家时这里一个字都不用改。
  */
-const AGENT_OPTIONS: readonly (readonly [string, string])[] = acpAgents().map(
-  (agent) => [agent.id, agent.displayName] as const,
-)
+const AGENT_OPTIONS: readonly SelectOption[] = acpAgents().map((agent) => ({
+  value: agent.id,
+  label: agent.displayName,
+}))
 
 /** agents.json 那条写入失败时说什么。两个调用点共用一句。 */
 const AGENT_ACTION_FAILED = 'agent 配置操作失败，请重试。'
@@ -155,10 +156,11 @@ export function ModelsSettings({ store }: ModelsSettingsProps) {
             <div className="models-row__control">
               <AgentInstallAction agentId={agentId} store={store} />
 
-              <OptionSelect
-                ariaLabel="ACP Agent"
-                onChange={selectAgent}
-                options={AGENT_OPTIONS}
+              <Select
+                className="models-select-trigger"
+                data={AGENT_OPTIONS}
+                onValueChange={selectAgent}
+                type="ACP Agent"
                 value={agentId}
               />
             </div>

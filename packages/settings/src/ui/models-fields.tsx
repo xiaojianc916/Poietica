@@ -1,19 +1,12 @@
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
-  type SelectOption,
-  SelectTrigger,
-} from '@poietica/ui'
-
 /*
- * 设置 · 模型页共用的两个字段控件。
+ * 设置 · 模型页的字段控件。
  *
- * 它们本来是 ModelsSettings 里的私有函数。厂商卡把它们也用上了之后，留在原处只有两条
- * 路：从组件文件里 import 一个非导出的东西（做不到），或者抄第二份。所以搬到这里 ——
- * 两个调用点，一份实现。
+ * 它本来是 ModelsSettings 里的私有函数，厂商卡也要用，所以搬到这里。
+ *
+ * 这里此前还有一个枚举下拉，是设计系统 Select 的一层包装 —— 而一模一样的另一层包装
+ * 同时住在 SettingsSurface 里。上面那句「一份实现」防住了函数层面的复制，没防住包装
+ * 层面的复制，因为基元当时逼着每个调用点自己手写同一棵组合树。两层包装都撤了，树回到
+ * 基元内部，这个文件也就只剩下它真正独有的那一个控件。
  */
 
 interface SubFieldProps {
@@ -57,38 +50,5 @@ export function SubField({
         />
       </div>
     </div>
-  )
-}
-
-/* 通用的枚举下拉。它只认 [value, label]，喂模型还是喂 agent 对它没区别。 */
-interface OptionSelectProps {
-  readonly ariaLabel: string
-  readonly value: string
-  readonly options: readonly (readonly [string, string])[]
-  readonly onChange: (value: string) => void
-}
-
-export function OptionSelect({ ariaLabel, value, options, onChange }: OptionSelectProps) {
-  const data: readonly SelectOption[] = options.map(([optionValue, label]) => ({
-    value: optionValue,
-    label,
-  }))
-
-  return (
-    <Select data={data} onValueChange={onChange} size="sm" type={ariaLabel} value={value}>
-      <SelectTrigger aria-label={ariaLabel} className="models-select-trigger" tone="plain" />
-
-      <SelectContent>
-        <SelectList>
-          <SelectGroup>
-            {options.map(([optionValue, label]) => (
-              <SelectItem key={optionValue} value={optionValue}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectList>
-      </SelectContent>
-    </Select>
   )
 }

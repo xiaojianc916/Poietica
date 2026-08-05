@@ -24,15 +24,7 @@ export {
   DropdownMenuTrigger,
 } from './components/ui/dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './components/ui/feedback'
-export {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectList,
-  type SelectOption,
-  SelectTrigger,
-} from './components/ui/select'
+export { Select, type SelectOption } from './components/ui/select'
 export { Switch } from './components/ui/switch'
 export { type ToastNotice, ToastRegion } from './components/ui/toast'
 export {
