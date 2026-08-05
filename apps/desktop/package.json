@@ -1,14 +1,14 @@
 {
   "name": "@poietica/desktop",
   "version": "0.1.4",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "typecheck": "tsc --project tsconfig.json --noEmit && tsc --project tsconfig.node.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

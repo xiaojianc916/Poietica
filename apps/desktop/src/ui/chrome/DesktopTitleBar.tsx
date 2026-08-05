@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynaui/icons-react'
 import { Button } from '@poietica/ui'
-import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace/react'
+import { useWorkspaceLayoutState, workspaceLayoutStore } from '@poietica/workspace/ui'
 import type { ReactNode } from 'react'
 import { WindowControls } from './WindowControls'
 import './desktop-title-bar.css'

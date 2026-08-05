@@ -377,10 +377,108 @@ const fileSizeRatchet = async (inventory) => {
   return defects
 }
 
+/*
+ * 工作区 manifest 的公共契约面。
+ *
+ * 十四份 manifest 此前有四套写法并存：main/types 与 exports 并存（Bundler 解析
+ * 下前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
+ * 仓库里的对照实验）；同一个 .ts 目标一半写裸串一半写 { types, default }，而对象
+ * 里两个条件指的是同一个文件；子路径名一半照 src/ 下的路径、一半照框架名；check
+ * 与 typecheck 逐字重复，而 turbo 的 task 表里根本没有 check。
+ *
+ * Biome 的 useSortedKeys 是 off，turbo 不看 manifest 形状，tsc 只看解析结果 ——
+ * 这四套写法此前不受任何工具约束。判据写在这里，它们就长不回来。
+ *
+ * 双下划线目录（__fixtures__ 与 __tests__ 同族）不进公共路径名，显式豁免。
+ * tests/package.json 不在 inventoryRoots 里，这条规则够不着它 —— 洞就是洞。
+ */
+const CONVENTION_EXEMPT_TARGET = /\/__[\w-]+__\//
+
+const canonicalSubpath = (target) =>
+  `./${target.replace(/^\.\/src\//, '').replace(/(?:\/index)?\.tsx?$/, '')}`
+
+const manifestExportDefects = (file, exportMap) =>
+  Object.entries(exportMap).flatMap(([subpath, target]) => {
+    if (typeof target !== 'string') {
+      return [
+        {
+          file,
+          message: `exports["${subpath}"] 用了条件对象：目标是 .ts，types 与 default 同值`,
+        },
+      ]
+    }
+
+    if (subpath === '.' || !/\.tsx?$/.test(target) || CONVENTION_EXEMPT_TARGET.test(target)) {
+      return []
+    }
+
+    const expected = canonicalSubpath(target)
+
+    return subpath === expected
+      ? []
+      : [{ file, message: `exports["${subpath}"] 指向 ${target}，子路径名必须是 ${expected}` }]
+  })
+
+const manifestVersionDefects = (file, manifest) =>
+  ['dependencies', 'devDependencies'].flatMap((block) =>
+    Object.entries(manifest[block] ?? {})
+      .filter(([, range]) => /^[\^~]/.test(range))
+      .map(([dep, range]) => ({
+        file,
+        message: `${block}.${dep} 是范围 "${range}"：pnpm-workspace.yaml 声明了 saveExact，版本只能来自 catalog: 或精确号`,
+      })),
+  )
+
+const workspaceManifestConventions = async (inventory) => {
+  const defects = []
+
+  for (const file of inventory.files) {
+    if (!/^(?:apps|packages)\/[\w-]+\/package\.json$/.test(file)) {
+      continue
+    }
+
+    const manifest = JSON.parse(await inventory.read(file))
+
+    if (manifest.exports !== undefined) {
+      for (const field of ['main', 'types']) {
+        if (manifest[field] !== undefined) {
+          defects.push({
+            file,
+            message: `"${field}" 与 exports 并存：Bundler 解析只读 exports，这一行永远不生效`,
+          })
+        }
+      }
+
+      defects.push(...manifestExportDefects(file, manifest.exports))
+    }
+
+    for (const entry of manifest.sideEffects ?? []) {
+      if (typeof entry === 'string' && entry.startsWith('*') && !entry.startsWith('**/')) {
+        defects.push({
+          file,
+          message: `sideEffects "${entry}" 不含 **/：各家 bundler 对无斜杠 glob 的匹配基准不一致`,
+        })
+      }
+    }
+
+    if (manifest.scripts?.check !== undefined) {
+      defects.push({
+        file,
+        message: '"check" 没有调用方：turbo 的 task 表里只有 dev / typecheck / build / test',
+      })
+    }
+
+    defects.push(...manifestVersionDefects(file, manifest))
+  }
+
+  return defects
+}
+
 const governanceRules = [
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
   { id: 'file-size-ratchet', check: fileSizeRatchet },
+  { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
 ]
 
 export const rules = [

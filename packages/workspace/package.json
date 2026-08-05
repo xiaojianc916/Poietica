@@ -7,31 +7,16 @@
     "**/*.css"
   ],
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    },
-    "./contracts": {
-      "types": "./src/contracts/index.ts",
-      "default": "./src/contracts/index.ts"
-    },
-    "./domain": {
-      "types": "./src/domain/index.ts",
-      "default": "./src/domain/index.ts"
-    },
-    "./react": {
-      "types": "./src/ui/index.ts",
-      "default": "./src/ui/index.ts"
-    },
-    "./state": {
-      "types": "./src/state/index.ts",
-      "default": "./src/state/index.ts"
-    }
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./state": "./src/state/index.ts",
+    "./ui": "./src/ui/index.ts"
   },
   "scripts": {
-    "check": "tsc --project tsconfig.json --noEmit",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "check": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
@@ -46,8 +31,8 @@
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

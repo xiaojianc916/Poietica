@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./composer/attachment-intake": "./src/composer/attachment-intake.ts"
@@ -41,9 +42,6 @@
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
-  "sideEffects": [
-    "**/*.css"
-  ],
   "peerDependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

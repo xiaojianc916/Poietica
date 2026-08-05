@@ -4,7 +4,7 @@ import {
   SettingsContentRegion,
   SettingsNavigationRegion,
   SettingsProvider,
-} from '@poietica/settings/react'
+} from '@poietica/settings/ui'
 import type {
   WorkbenchSessionStore,
   WorkbenchTabId,
@@ -18,7 +18,7 @@ import {
   WorkspaceShell,
   WorkspaceSidebar,
   WorkspaceSurface,
-} from '@poietica/workspace/react'
+} from '@poietica/workspace/ui'
 import { type ReactNode, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useThreadsActions } from '../../state/ai/threads-context'
 import { type ActiveTabSequence, DesktopTitleBar } from '../chrome/DesktopTitleBar'
