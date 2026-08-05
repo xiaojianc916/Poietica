@@ -380,6 +380,8 @@ const fileSizeRatchet = async (inventory) => {
 /*
  * 工作区 manifest 的公共契约面。
  *
+ * 判据版本：v3（重复脚本）
+ *
  * 十四份 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
  * 前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
  * 仓库里的对照实验）；同一个 .ts 目标一半写裸串一半写 { types, default }，而对象
@@ -387,11 +389,10 @@ const fileSizeRatchet = async (inventory) => {
  * 的 useSortedKeys 是 off，turbo 不看 manifest 形状，tsc 只看解析结果 —— 这些此前
  * 不受任何工具约束。
  *
- * 判据只写这份文件自己能证明的事。上一版这里曾断言「check 没有调用方」，那需要
- * 穷举全仓所有调用路径，规则做不到，于是成了硬编码的断言 —— 而根 package.json 里
- * 恰好另有一个同名的聚合脚本 check（pnpm check:web && pnpm check:rust），被
- * release.yml 调用着。断言错了，闸门就红在自己身上。现在换成不需要外部知识的判据：
- * 同一份 manifest 里两个脚本一字不差，其中一个必然是历史残留。
+ * 判据只写这份文件自己能证明的事。曾经这里断言过「check 没有调用方」，那需要穷举
+ * 全仓所有调用路径 —— 规则做不到，于是成了硬编码断言，两轮都被证伪（一次是根
+ * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。现在的判据不需要
+ * 外部知识：同一份 manifest 里两个脚本一字不差，其中一个必然是历史残留。
  *
  * 双下划线目录（__fixtures__ 与 __tests__ 同族）不进公共路径名，显式豁免。
  * tests/package.json 不在 inventoryRoots 里，这条规则够不着它 —— 洞就是洞。

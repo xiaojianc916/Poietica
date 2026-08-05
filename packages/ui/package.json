@@ -12,8 +12,7 @@
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "check": "tsc --project tsconfig.json --noEmit"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
