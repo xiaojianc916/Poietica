@@ -1183,116 +1183,6 @@ fn translate(error: AcpError) -> Error {
     }
 }
 
-/// Where a new session should be opened, and how to start the agent if it
-/// is not running yet.
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentNewSessionRequest {
-    /// 起哪个 agent。
-    pub launch: AgentLaunch,
-    /// The working directory the session is created against.
-    pub cwd: Option<String>,
-}
-
-/// A session the agent just opened, and what it offers for that session.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentOpenedSession {
-    /// The name every frame of this session carries.
-    pub session_id: String,
-    /// What may be chosen for this session, as the agent reported it.
-    pub selectors: Vec<AgentConfigControl>,
-}
-
-/// One line of the agent's own session list.
-#[derive(Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentSessionSummary {
-    /// The session this line describes.
-    pub session_id: String,
-    /// The title the agent gave it, if it has given one yet.
-    pub title: Option<String>,
-    /// When the agent last saw activity on it, as it reported it.
-    pub updated_at: Option<String>,
-}
-
-/// Opens one more session on the running agent.
-///
-/// One agent process keeps many sessions, and every frame the agent sends
-/// names the session it belongs to, so a second session is a second
-/// conversation rather than a second process. The selectors come back with
-/// it because they belong to the session, not to the connection: what one
-/// session has chosen as its model or reasoning level says nothing about
-/// what another has chosen.
-///
-/// # Errors
-///
-/// Fails when the agent cannot be started, when a turn is in flight on the
-/// connection, or when the agent refuses to open a session.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_new_session(
-    app: AppHandle,
-    state: State<'_, AgentRuntime>,
-    request: AgentNewSessionRequest,
-) -> AgentCommandResult<AgentOpenedSession> {
-    let asked = request.cwd.clone();
-    let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
-
-    // The session root is the platform's answer, not the process's, so a
-    // caller that names no directory gets the same one the first session
-    // was created against.
-    let working_directory = match asked {
-        Some(given) => PathBuf::from(given),
-        None => state.root.clone(),
-    };
-
-    let opened = live
-        .client
-        .new_session(working_directory)
-        .await
-        .map_err(translate)?;
-
-    /* 这个会话号只在这条连接里有意义，寻址之前必须先认得它。 */
-    remember(&live, &opened.session_id)?;
-
-    Ok(AgentOpenedSession {
-        session_id: opened.session_id,
-        selectors: opened.selectors.into_iter().map(restate).collect(),
-    })
-}
-
-/// Lists the sessions the agent itself keeps.
-///
-/// The title is whatever the agent wrote in its own store when it created
-/// the session, reported here unchanged. It is not a conversation name and
-/// is not treated as one: this program names its own conversations, because
-/// an agent that never revises New Session would otherwise name every one
-/// of them that.
-///
-/// # Errors
-///
-/// Fails when no session is running, when a turn is in flight, or when the
-/// agent refuses to list its sessions.
-#[tauri::command]
-#[specta::specta]
-pub async fn agent_sessions(
-    state: State<'_, AgentRuntime>,
-) -> AgentCommandResult<Vec<AgentSessionSummary>> {
-    let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
-
-    let listed = live.client.sessions().await.map_err(translate)?;
-
-    Ok(listed
-        .into_iter()
-        .map(|info| AgentSessionSummary {
-            session_id: info.session_id,
-            title: info.title,
-            updated_at: info.updated_at,
-        })
-        .collect())
-}
-
 /// The name a conversation carries before anything has named it.
 const FALLBACK_THREAD_TITLE: &str = "新建对话";
 
@@ -1334,10 +1224,8 @@ pub struct AgentThread {
     pub updated_at: String,
     /// Whether it is held at the top of the list.
     pub pinned: bool,
-    /// 它是在哪个工作目录里开的。列表按它分组。
-    ///
-    /// 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」（见
-    /// thread-order.ts 的 DEFAULT_WORKSPACE_ID），不是「不知道」。
+    /// 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
+    /// （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
     pub workspace_root: Option<String>,
 }
 

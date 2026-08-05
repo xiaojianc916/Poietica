@@ -49,8 +49,6 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::agent::agent_shutdown,
             crate::commands::agent::agent_set_config_option,
             crate::commands::agent::agent_capabilities,
-            crate::commands::agent::agent_new_session,
-            crate::commands::agent::agent_sessions,
             crate::commands::agent::agent_threads,
             crate::commands::agent::agent_open_thread,
             crate::commands::agent::agent_rename_thread,

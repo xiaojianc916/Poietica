@@ -7,7 +7,8 @@ import type {
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { SessionControlsStore } from './session-controls-store'
-import { byRecency, type ThreadListItem, type ThreadsList, workspaceIdOf } from './thread-order'
+import type { ThreadsList } from './thread-order'
+import { NO_ITEMS, ThreadProjection } from './thread-projection'
 import { nameOf, shorten } from './thread-title'
 import type { TranscriptSink } from './transcript-sink'
 
@@ -18,8 +19,6 @@ interface Held {
   readonly isLoading: boolean
   readonly failure: string | null
 }
-
-const NO_ITEMS: readonly ThreadListItem[] = []
 
 const EMPTY: Held = {
   threads: [],
@@ -59,11 +58,11 @@ export class ThreadsStore {
   /* 想知道「某条对话没了」的人。 */
   #removed = new Set<(threadId: string) => void>()
 
-  /* 一次索引，而不是每一行各扫一遍整张表。 */
-  #byId = new Map<string, ThreadRecord>()
+  /* 一次索引，而不是每一行各扫一遍整张表。投影交出来的那一份。 */
+  #byId: ReadonlyMap<string, ThreadRecord> = new Map()
 
-  /* 值没变的行复用同一个对象，行组件因此可以被跳过。 */
-  #items = new Map<string, ThreadListItem>()
+  /* 快照投影成列表的那一段，连同它逐行复用的缓存。 */
+  readonly #projection = new ThreadProjection()
 
   /*
    * 刚开出来、还没有人开口的那些对话在哪个目录里。
@@ -432,95 +431,30 @@ export class ThreadsStore {
   }
 
   /*
-   * 把快照投影成列表要用的形状，一次。
+   * 投影住在 thread-projection：一行长什么样、按什么次序，与分组同一个模块。
    *
-   * 逐行复用值没变的对象，整张列表没变时连数组本身都不换——于是「某条对话
-   * 拿到了选择器」不会让侧栏的任何一行重画。
+   * 「整张列表没变就连数组都不换」在那一侧完成，所以这里只剩一次引用比较 ——
+   * 它与此前那个 same 提前返回是同一个判据，只是短了。
    */
   #project(): void {
-    const listed = this.#listed()
-    const byId = new Map<string, ThreadRecord>()
-
-    for (const thread of listed) {
-      byId.set(thread.threadId, thread)
-    }
+    const { byId, items } = this.#projection.of(
+      this.#held.threads,
+      this.#held.pending,
+      this.#held.provisional,
+    )
 
     this.#byId = byId
 
-    const kept = new Map<string, ThreadListItem>()
-    const items: ThreadListItem[] = []
-    let same = listed.length === this.#list.items.length
-
-    for (const [index, thread] of listed.entries()) {
-      const item = this.#itemFor(thread)
-
-      kept.set(thread.threadId, item)
-      items.push(item)
-
-      if (same && this.#list.items[index] !== item) {
-        same = false
-      }
-    }
-
-    this.#items = kept
-
     const { failure, isLoading } = this.#held
 
-    if (same && this.#list.isLoading === isLoading && this.#list.failure === failure) {
+    if (
+      items === this.#list.items &&
+      this.#list.isLoading === isLoading &&
+      this.#list.failure === failure
+    ) {
       return
     }
 
-    this.#list = { items: same ? this.#list.items : items, isLoading, failure }
-  }
-
-  #itemFor(thread: ThreadRecord): ThreadListItem {
-    const title = nameOf(thread, this.#held.provisional.get(thread.threadId))
-    const isPinned = thread.pinned === true
-    const workspaceId = workspaceIdOf(thread)
-    const last = this.#items.get(thread.threadId)
-
-    /* 分组也是这一行的样子的一部分。漏掉它，一条换了工作目录、而标题／置顶／
-    时间都没变的对话会留在上一个组里。 */
-    if (
-      last !== undefined &&
-      last.title === title &&
-      last.isPinned === isPinned &&
-      last.updatedAt === thread.updatedAt &&
-      last.workspaceId === workspaceId
-    ) {
-      return last
-    }
-
-    return {
-      id: thread.threadId,
-      title,
-      isPinned,
-      updatedAt: thread.updatedAt,
-      workspaceId,
-    }
-  }
-
-  /**
-   * 列表的顺序，只有这一处说了算。
-   *
-   * 置顶在前，然后按活动时间倒序 —— 与库里那条 ORDER BY 同一条规则，因为它
-   * 们排的是同一个列表。库那份是初次读回来时的顺序；而说一句话之后 updatedAt
-   * 是先在本地改的（见 noteUserMessage），排序必须跟着在本地重算一次，否则
-   * 「刚说过话的对话浮上来」要等到下一次整表刷新才发生。
-   *
-   * 这不是两个真源：规则只写了一遍，执行了两次 —— 一次在读回来的那一刻，一次
-   * 在本地推进的那一刻。
-   *
-   * 刚开口、平台还没记下的那些自带此刻的时间戳，所以它们自然排在最前，不需要
-   * 一条额外的「pending 优先」规则。
-   */
-  #listed(): readonly ThreadRecord[] {
-    const { pending, threads } = this.#held
-
-    const known = new Set(threads.map((thread) => thread.threadId))
-    const extra = pending.filter((thread) => !known.has(thread.threadId))
-    const all = extra.length === 0 ? threads : [...extra, ...threads]
-
-    return [...all].sort(byRecency)
+    this.#list = { items, isLoading, failure }
   }
 }

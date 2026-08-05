@@ -107,41 +107,6 @@ async agentCapabilities(request: AgentCapabilitiesRequest) : Promise<AgentConfig
     return await TAURI_INVOKE("agent_capabilities", { request });
 },
 /**
- * Opens one more session on the running agent.
- * 
- * One agent process keeps many sessions, and every frame the agent sends
- * names the session it belongs to, so a second session is a second
- * conversation rather than a second process. The selectors come back with
- * it because they belong to the session, not to the connection: what one
- * session has chosen as its model or reasoning level says nothing about
- * what another has chosen.
- * 
- * # Errors
- * 
- * Fails when the agent cannot be started, when a turn is in flight on the
- * connection, or when the agent refuses to open a session.
- */
-async agentNewSession(request: AgentNewSessionRequest) : Promise<AgentOpenedSession> {
-    return await TAURI_INVOKE("agent_new_session", { request });
-},
-/**
- * Lists the sessions the agent itself keeps.
- * 
- * The title is whatever the agent wrote in its own store when it created
- * the session, reported here unchanged. It is not a conversation name and
- * is not treated as one: this program names its own conversations, because
- * an agent that never revises New Session would otherwise name every one
- * of them that.
- * 
- * # Errors
- * 
- * Fails when no session is running, when a turn is in flight, or when the
- * agent refuses to list its sessions.
- */
-async agentSessions() : Promise<AgentSessionSummary[]> {
-    return await TAURI_INVOKE("agent_sessions");
-},
-/**
  * Lists the stored conversations, newest first.
  * 
  * A read, and nothing but a read. It used to open with a round trip to the
@@ -890,19 +855,6 @@ program: string;
  */
 args: string[] }
 /**
- * Where a new session should be opened, and how to start the agent if it
- * is not running yet.
- */
-export type AgentNewSessionRequest = { 
-/**
- * 起哪个 agent。
- */
-launch: AgentLaunch; 
-/**
- * The working directory the session is created against.
- */
-cwd: string | null }
-/**
  * 要打开的对话，以及必要时怎样启动 agent。
  */
 export type AgentOpenThreadRequest = { 
@@ -918,18 +870,6 @@ launch: AgentLaunch;
  * The working directory the session is created against.
  */
 cwd: string | null }
-/**
- * A session the agent just opened, and what it offers for that session.
- */
-export type AgentOpenedSession = { 
-/**
- * The name every frame of this session carries.
- */
-sessionId: string; 
-/**
- * What may be chosen for this session, as the agent reported it.
- */
-selectors: AgentConfigControl[] }
 /**
  * A conversation that was just opened, and what its session offers.
  */
@@ -1099,22 +1039,6 @@ configId: string;
  */
 value: string }
 /**
- * One line of the agent's own session list.
- */
-export type AgentSessionSummary = { 
-/**
- * The session this line describes.
- */
-sessionId: string; 
-/**
- * The title the agent gave it, if it has given one yet.
- */
-title: string | null; 
-/**
- * When the agent last saw activity on it, as it reported it.
- */
-updatedAt: string | null }
-/**
  * One conversation, as a list of conversations and a tab strip need it.
  */
 export type AgentThread = { 
@@ -1143,10 +1067,8 @@ updatedAt: string;
  */
 pinned: boolean; 
 /**
- * 它是在哪个工作目录里开的。列表按它分组。
- * 
- * 空是迁移 0013 之前写下的行，含义是「默认那一个工作区」（见
- * thread-order.ts 的 DEFAULT_WORKSPACE_ID），不是「不知道」。
+ * 它是在哪个工作目录里开的。列表按它分组；空表示默认那一个工作区
+ * （thread-order.ts 的 DEFAULT_WORKSPACE_ID 那一段说明了为什么）。
  */
 workspaceRoot: string | null }
 /**
