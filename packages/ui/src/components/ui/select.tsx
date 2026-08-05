@@ -9,10 +9,18 @@ export interface SelectOption {
   readonly label: string
 }
 
+/*
+ * context 里只放基元不知道的东西。
+ *
+ * 选项表与当前值它都知道 —— 前者由 Root 的 items 收着，后者本来就是 Root 的
+ * 状态。此前两样各被交出去两遍：一遍给基元，一遍给这个 context，于是"现在选中
+ * 的是哪一项"有了两个出处，只靠同一个 prop 同时喂两边才恰好不打架。
+ *
+ * 剩下这两个是本仓自己的概念：type 只为那句占位文案存在，size 要让触发器、
+ * 面板与每一行同档，而档位在 render 期间就得定下来。
+ */
 interface SelectContextValue {
-  readonly data: readonly SelectOption[]
   readonly type: string
-  readonly value: string
   readonly size: SelectTriggerSize
 }
 
@@ -64,26 +72,28 @@ export function Select({
   onValueChange,
   onOpenChange,
 }: SelectProps) {
-  /*
-   * context 的值必须有稳定身份，否则每次渲染都让触发器、面板与每一行重画一遍。
-   *
-   * 同仓另外两个 provider（CommandProvider、SettingsProvider）本来就是这么写的，
-   * 这里此前是行内字面量 —— 同一件事的三种写法里最差的那一种。
-   *
-   * 注意这只把库这一侧修对了：设置页每次渲染仍然新建一个 data 数组交进来，那一
-   * 半的根治是让 data 消失（Base UI 的 Select.Value + Root 的 items 就是为此存在，
-   * 触发器不必再自己 find 一次），但那要先核对 1.6.0 的类型签名，不在这一轮。
-   */
-  const selection = useMemo<SelectContextValue>(
-    () => ({ data, type, value, size }),
-    [data, size, type, value],
-  )
+  /* context 的值必须有稳定身份，否则每次渲染都让触发器、面板与每一行重画一遍。 */
+  const selection = useMemo<SelectContextValue>(() => ({ type, size }), [size, type])
 
   return (
     <SelectContext value={selection}>
+      {/*
+       * 选项表交给基元。
+       *
+       * 官方文档：指定 items 之后，Select.Value 渲染的是选中项的标签而不是原始
+       * 值；而当每一项的形状是 { value, label } 时，标签会被自动取用，连
+       * itemToStringLabel 都不必写 —— 本仓的 SelectOption 恰好就是这个形状。
+       *
+       * 它不接管列表渲染：官方示例里 items 与手写的 Item 子节点是并存的，前者只
+       * 是一张查找表。所以调用点一处都不用改。
+       *
+       * 顺带解掉了另一半：此前设置页每次渲染新建一个数组交进来，那个数组是
+       * context 值的依赖之一，于是下游整片重画。现在它不再进 context。
+       */}
       <BaseSelect.Root<string>
         defaultOpen={defaultOpen}
         disabled={disabled}
+        items={data}
         onOpenChange={(nextOpen) => {
           onOpenChange?.(nextOpen)
         }}
@@ -157,8 +167,7 @@ export function SelectTrigger({
   tone = 'outline',
   ...props
 }: SelectTriggerProps) {
-  const { data, type, value, size } = useSelectContext()
-  const selectedItem = data.find((item) => item.value === value)
+  const { type, size } = useSelectContext()
 
   return (
     <BaseSelect.Trigger
@@ -180,9 +189,15 @@ export function SelectTrigger({
     >
       {children ?? (
         <>
-          <span className={cn('min-w-0 flex-1', 'truncate')}>
-            {selectedItem?.label ?? `选择${type}…`}
-          </span>
+          {/*
+            标签、查找与占位都归基元。此前这里是一次线性扫描加一个 <span> 加一个
+            ?? 兜底 —— 三样东西各自重写了一遍 Select.Value 已经做的事。
+            Value 渲染的就是一个 <span>，所以类名原样落在它身上，DOM 结构不变。
+          */}
+          <BaseSelect.Value
+            className={cn('min-w-0 flex-1', 'truncate')}
+            placeholder={`选择${type}…`}
+          />
 
           {/*
             ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
