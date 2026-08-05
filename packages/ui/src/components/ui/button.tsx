@@ -11,9 +11,11 @@ import { cn } from '../../lib/utils'
  * THUMB_SIZE 最直白）。为一个只服务一处、且已停更的依赖养着第二种变体写法，
  * 是两套管线，不是灵活。
  *
- * 对外签名一字不改：buttonVariants({ variant, size, className }) 仍返回一个
- * class 字符串。档位从"由 cva 推导"变成写出来的联合类型 —— 有哪几档，现在在
- * 类型里直接读得到。
+ * 档位从"由 cva 推导"变成写出来的联合类型 —— 有哪几档，现在在类型里直接读得到。
+ *
+ * 这张表不出这个文件。它此前是包的公开导出，而全仓没有任何一处引用它：变体表是
+ * Button 表达自己的方式，不是一份供人拼接 class 的公共资产。留在模块内部之后，
+ * 改它不必先想会不会有人在外面接着。
  */
 
 const BASE =
@@ -65,7 +67,7 @@ const SIZE: Record<ButtonSize, string> = {
  * 提供。cva 时代 VariantProps 只提取 variant 键、不含 className，所以这个区别
  * 一直被掩盖着。
  */
-export interface ButtonVariantOptions {
+interface ButtonVariantOptions {
   readonly variant?: ButtonVariant | null | undefined
   readonly size?: ButtonSize | null | undefined
   readonly className?: string | undefined
@@ -121,4 +123,4 @@ function Button({ className, ref, render, size, variant, ...props }: ButtonProps
   return element
 }
 
-export { Button, buttonVariants }
+export { Button }

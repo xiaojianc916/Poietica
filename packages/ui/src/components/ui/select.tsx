@@ -327,11 +327,3 @@ export function SelectItem({ children, className, value, ...props }: SelectItemP
     </BaseSelect.Item>
   )
 }
-
-export type SelectSeparatorProps = ComponentProps<typeof BaseSelect.Separator>
-
-export function SelectSeparator({ className, ...props }: SelectSeparatorProps) {
-  return (
-    <BaseSelect.Separator className={cn('-mx-1 my-1 h-px', 'bg-divider', className)} {...props} />
-  )
-}

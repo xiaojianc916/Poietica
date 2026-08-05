@@ -1,5 +1,4 @@
-import { DangerCircle, Inbox, Spinner } from '@mynaui/icons-react'
-import type { ReactNode } from 'react'
+import { DangerCircle, Spinner } from '@mynaui/icons-react'
 import { Button } from './button'
 
 /*
@@ -22,30 +21,6 @@ export function LoadingState({ label = '正在加载…' }: { readonly label?: s
         {label}
       </span>
     </div>
-  )
-}
-
-export function EmptyState({
-  title,
-  description,
-  action,
-}: {
-  readonly title: string
-  readonly description: string
-  readonly action?: ReactNode
-}) {
-  return (
-    <section className="grid min-h-40 place-items-center px-6 text-center">
-      <div>
-        <Inbox aria-hidden="true" className="mx-auto size-8 text-muted-foreground" />
-
-        <h3 className="mt-3 text-sm font-semibold">{title}</h3>
-
-        <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{description}</p>
-
-        {action ? <div className="mt-4">{action}</div> : null}
-      </div>
-    </section>
   )
 }
 

@@ -141,29 +141,11 @@ export function DropdownMenuRadioItem({
   return <Menu.RadioItem className={cn(itemClassName, className)} {...props} />
 }
 
-export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof Menu.GroupLabel>) {
-  return (
-    <Menu.GroupLabel
-      className={cn('px-2 py-1.5', 'text-sm font-semibold', 'text-foreground', className)}
-      {...props}
-    />
-  )
-}
-
 export function DropdownMenuSeparator({
   className,
   ...props
 }: ComponentProps<typeof Menu.Separator>) {
   return <Menu.Separator className={cn('-mx-1 my-1 h-px', 'bg-divider', className)} {...props} />
-}
-
-export function DropdownMenuShortcut({ className, ...props }: ComponentProps<'span'>) {
-  return (
-    <span
-      className={cn('ml-auto', 'text-xs tracking-widest', 'text-muted-foreground', className)}
-      {...props}
-    />
-  )
 }
 
 export function DropdownMenuSubTrigger({
