@@ -2,8 +2,7 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
-import { AgentDialectProvider } from '../domain/AgentDialectProvider'
-import type { AgentDialect } from '../domain/agent-dialect'
+import { type AgentDialect, AgentDialectContext } from '../domain/agent-dialect'
 
 /*
  * 审批带是唯一会把 agent 卡住、非等用户点一下不可的界面，因此它显示错字的代价
@@ -42,18 +41,23 @@ function permission(overrides: Partial<PermissionItem> = {}): PermissionItem {
 
 function render(item: PermissionItem, waiting = 1): string {
   return renderToStaticMarkup(
-    <AgentDialectProvider dialect={DIALECT}>
+    <AgentDialectContext value={DIALECT}>
       <PermissionDock item={item} onResolve={() => {}} waiting={waiting} />
-    </AgentDialectProvider>,
+    </AgentDialectContext>,
   )
 }
 
 describe('审批带', () => {
-  it('没有 provider 就当场抛，不带着错文案画出来', () => {
-    /* 缺表时宁可炸在测试里，也不能悄悄套用另一家 agent 的说法。 */
+  it('没有 context 就当场抛，不带着错文案画出来', () => {
+    /*
+     * 缺表时宁可炸在测试里，也不能悄悄套用另一家 agent 的说法。
+     *
+     * 咬 context 的名字而不是消息里那句话：名字是真实符号，下一次改名先由
+     * typecheck 拦住；咬散文的话，一次改名会经由一个字符串把这条断言打红。
+     */
     expect(() =>
       renderToStaticMarkup(<PermissionDock item={permission()} onResolve={() => {}} waiting={1} />),
-    ).toThrow(/AgentDialectProvider is missing/)
+    ).toThrow(/没有 AgentDialectContext/)
   })
 
   it('同一个 kind 的两枚选项，显示的是各自的字', () => {

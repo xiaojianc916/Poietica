@@ -1,7 +1,7 @@
 import type { AgentSessionPort } from '@poietica/acp'
 import { refreshAgentCapabilities } from '@poietica/agent-session'
 import type { AgentDialect } from '@poietica/agent-ui'
-import { AgentDialectProvider } from '@poietica/agent-ui'
+import { AgentDialectContext } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-runtime'
 import { AppUpdateStore } from '@poietica/desktop-runtime'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
@@ -249,7 +249,7 @@ export function AppShell({ runtime }: AppShellProps) {
      * 它比工作区更宽：侧栏的列表、标签条上的那一格、输入框旁的选择器读的是
      * 同一份，否则列表亮着一条而标签停在另一条。
      */
-    <AgentDialectProvider dialect={dialect}>
+    <AgentDialectContext value={dialect}>
       <ThreadsProvider>
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
@@ -277,7 +277,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
         <UiFeedbackRegion />
       </ThreadsProvider>
-    </AgentDialectProvider>
+    </AgentDialectContext>
   )
 }
 

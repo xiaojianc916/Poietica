@@ -74,6 +74,12 @@ export interface AssistantThreadListProps {
   readonly groups: readonly AssistantThreadWorkspaceGroup[]
   /** True while the list is still being read for the first time. */
   readonly isLoading?: boolean
+  /**
+   * 读不出来时的说法。
+   *
+   * 空列表与读失败是两件事，此前它们画的是同一句「还没有对话」。
+   */
+  readonly failure?: string | null
   readonly activeThreadId: string | null
   /** 收起来的工作区，以及收起／展开它的动作。两者都要活过重启，所以住在宿主。 */
   readonly collapsedWorkspaces: ReadonlySet<string>
@@ -100,6 +106,26 @@ const PLACEHOLDER_WIDTHS = ['72%', '54%', '64%', '46%']
 const PAGE = 10
 
 const NO_PAGES: ReadonlyMap<string, number> = new Map()
+
+/** 读完了，确实没有。这句话只有读成功才说得出口。 */
+const EMPTY = '还没有对话。'
+
+/*
+ * 列表本体之外那一句话。
+ *
+ * 三种处境互斥，而此前只分了两种：还在读就画骨架，读完是空的就说「还没有对话」——
+ * 读失败也落在同一句上。那是一个只有读成功才成立的断言，被用来报告读失败。而失败
+ * 的说法一直是有的：store 算出 failure（agent-session 的 ThreadWorkspaceList），
+ * 一路交到 useThreadsList，然后在侧栏被丢掉。这个文件自己的注释早写明了这条道理，
+ * 只兑现了加载那一半。
+ */
+function noticeOf(failure: string | null | undefined, count: number): string | null {
+  if (failure !== null && failure !== undefined) {
+    return failure
+  }
+
+  return count === 0 ? EMPTY : null
+}
 
 /*
  * 固定与取消固定是同一枚图钉的两种填法。
@@ -481,6 +507,7 @@ function WorkspaceHeader({
 export function AssistantThreadList({
   groups,
   isLoading,
+  failure,
   activeThreadId,
   collapsedWorkspaces,
   onToggleWorkspace,
@@ -535,6 +562,8 @@ export function AssistantThreadList({
    */
   const showPlaceholders = isLoading === true && groups.length === 0
 
+  const notice = showPlaceholders ? null : noticeOf(failure, groups.length)
+
   const beginRename = useCallback((threadId: string) => {
     setRenamingId(threadId)
   }, [])
@@ -583,9 +612,7 @@ export function AssistantThreadList({
         </ul>
       ) : null}
 
-      {!showPlaceholders && groups.length === 0 ? (
-        <p className="assistant-threads__empty">还没有对话。</p>
-      ) : null}
+      {notice === null ? null : <p className="assistant-threads__empty">{notice}</p>}
 
       {painted.map((group) => {
         /*

@@ -2,8 +2,7 @@ import type { PermissionItem } from '@poietica/agent-timeline'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
-import { AgentDialectProvider } from '../domain/AgentDialectProvider'
-import type { AgentDialect } from '../domain/agent-dialect'
+import { type AgentDialect, AgentDialectContext } from '../domain/agent-dialect'
 import { isQuestionRequest } from '../domain/ask-user-question'
 import { PermissionRecord } from '../timeline/PermissionRecord'
 
@@ -84,18 +83,18 @@ function consent(): PermissionItem {
 /** 转录侧。 */
 function record(item: PermissionItem): string {
   return renderToStaticMarkup(
-    <AgentDialectProvider dialect={DIALECT}>
+    <AgentDialectContext value={DIALECT}>
       <PermissionRecord item={item} />
-    </AgentDialectProvider>,
+    </AgentDialectContext>,
   )
 }
 
 /** 输入框侧。 */
 function dock(item: PermissionItem): string {
   return renderToStaticMarkup(
-    <AgentDialectProvider dialect={DIALECT}>
+    <AgentDialectContext value={DIALECT}>
       <PermissionDock item={item} onResolve={() => {}} waiting={1} />
-    </AgentDialectProvider>,
+    </AgentDialectContext>,
   )
 }
 

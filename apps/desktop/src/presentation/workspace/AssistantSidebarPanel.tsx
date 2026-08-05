@@ -54,7 +54,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
   onOpenInNewTab,
 }: AssistantSidebarPanelProps) {
   const threads = useThreadsActions()
-  const { groups, isLoading } = useThreadsList()
+  const { failure, groups, isLoading } = useThreadsList()
   const collapsedWorkspaces = useCollapsedWorkspaces()
 
   const activate = useCallback(
@@ -96,6 +96,7 @@ export const AssistantSidebarPanel = memo(function AssistantSidebarPanel({
     <AssistantThreadList
       activeThreadId={activeThreadId}
       collapsedWorkspaces={collapsedWorkspaces}
+      failure={failure}
       groups={groups}
       isLoading={isLoading}
       onActivate={activate}

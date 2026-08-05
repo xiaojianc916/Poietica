@@ -10,7 +10,7 @@ import type { QuestionDialect } from './ask-user-question'
  *
  * 为什么是 context 不是 prop：从组合根到用得上它的那两个组件隔着五层，中间三
  * 层跟 agent 方言毫无关系，让它们签收一个自己不看的包裹只会把无关的东西绑在
- * 一起。同一个问题仓里已经有答案（ThreadsProvider / useSharedThreads），这里
+ * 一起。同一个问题仓里已经有答案（threads-context.ts 的 ThreadsContext），这里
  * 沿用它，不另起一种范式。
  *
  * 没有默认值。给一张兜底的表，等于第二家 agent 悄悄套用第一家的文案：界面照样
@@ -20,9 +20,12 @@ import type { QuestionDialect } from './ask-user-question'
  * 类型在这里声明，不从 registry 引进来：UI 不该认识名单。registry 的档案在结构
  * 上满足它，两边在组合根那一行由类型系统对账。
  *
- * 组件不在这里，在 AgentDialectProvider.tsx。理由与 threads-context.ts 同：
- * context 的身份是模块执行的产物，混合导出的模块在热更新时会被整个重跑，跑出
- * 来的就是另一个 context。
+ * 这里没有 provider 组件，别处也没有。React 19 起 context 本身就是 provider
+ * （<AgentDialectContext value={dialect}>），所以此前那个单独的包装模块 —— 整个
+ * 函数体只有一次 context 交接 —— 没有存在的理由，组合根直接写 context。
+ *
+ * 这个模块因此仍然只导出非组件，那条纪律没有松：context 的身份是模块执行的产物，
+ * 混合导出的模块在热更新时会被整个重跑，跑出来的就是另一个 context。
  */
 
 export interface AgentDialect {
@@ -38,9 +41,7 @@ export function useAgentDialect(): AgentDialect {
   const dialect = useContext(AgentDialectContext)
 
   if (dialect === null) {
-    throw new Error(
-      'AgentDialectProvider is missing: an assistant surface must be told which agent it is talking to',
-    )
+    throw new Error('这棵组件树上没有 AgentDialectContext，不知道对面是哪家 agent。')
   }
 
   return dialect

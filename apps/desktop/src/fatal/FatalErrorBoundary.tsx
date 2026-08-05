@@ -1,5 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { reportFatalIncident } from './fatal-runtime'
+import { Component, type ReactNode } from 'react'
 
 export interface FatalErrorBoundaryProps {
   readonly children: ReactNode
@@ -9,6 +8,13 @@ interface FatalErrorBoundaryState {
   readonly crashed: boolean
 }
 
+/*
+ * 只管画什么，不管报什么。
+ *
+ * 上报归 root 的 onCaughtError（见 bootstrap/react-root.tsx），那里同时收得到没被
+ * 接住的与已恢复的两种。留 getDerivedStateFromError 就足以成为错误边界 ——
+ * componentDidCatch 从来不是成为边界的条件，它只是第二个上报口。
+ */
 export class FatalErrorBoundary extends Component<
   FatalErrorBoundaryProps,
   FatalErrorBoundaryState
@@ -21,26 +27,6 @@ export class FatalErrorBoundary extends Component<
     return {
       crashed: true,
     }
-  }
-
-  override componentDidCatch(error: Error, info: ErrorInfo): void {
-    const componentStack = info.componentStack ?? undefined
-
-    reportFatalIncident({
-      impact: 'application-fatal',
-      error,
-      kind: 'render',
-      phase: 'running',
-      code: 'FATAL_REACT_RENDER_ERROR',
-      ...(componentStack === undefined
-        ? {}
-        : {
-            componentStack,
-          }),
-      context: {
-        collector: 'react-error-boundary',
-      },
-    })
   }
 
   override render(): ReactNode {

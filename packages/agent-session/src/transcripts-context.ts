@@ -12,20 +12,21 @@ import type { TranscriptStore } from './transcript-store'
  *
  * 这是 React 对「外部 store 接进组件树」给出的形状：实例由组合根造出来，经 Context
  * 交给下面所有人，useSyncExternalStore 订的是拿到手的那一个，不是 import 来的那一
- * 个。同一层的对话列表早就是这个形制（threads-context.ts）。
+ * 个。同一层的对话列表是同一个形制（threads-context.ts）：导出 context 本体与读它
+ * 的 hook，provider 就是 context —— React 19 起 <Context value> 是官方形制，旧的那个
+ * 内层属性会被废弃。此前这里额外导出了一个指向它的别名，那不只是多一种写法：使用处
+ * 写的是那个别名，全仓按旧形制搜根本搜不到它，一次半迁移就这样藏了下来。
  *
  * 没有默认实例：拿不到就是接线漏了，那要当场说出来，而不是让半棵组件树安静地对着
  * 另一份永远不会更新的空转录。
  */
-const TranscriptsContext = createContext<TranscriptStore | null>(null)
-
-export const TranscriptsProvider = TranscriptsContext.Provider
+export const TranscriptsContext = createContext<TranscriptStore | null>(null)
 
 export function useTranscripts(): TranscriptStore {
   const store = useContext(TranscriptsContext)
 
   if (store === null) {
-    throw new Error('这棵组件树上没有 TranscriptsProvider，转录无处可读。')
+    throw new Error('这棵组件树上没有 TranscriptsContext，转录无处可读。')
   }
 
   return store
