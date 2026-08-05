@@ -6,9 +6,10 @@ import type { AcpAgentDescriptor } from '../acp-agent-contract'
  * 事实来源是它自己的源码，不是观察和猜测：MoonshotAI/kimi-code。每一条下面都
  * 注明具体是哪个文件的哪个函数。
  *
- * 我们接的是 kimi acp-v2：@moonshot-ai/acp-server + agent-core-v2 引擎。为什么不
- * 接上游自称 legacy 的 @moonshot-ai/acp-adapter，见 docs/adr/0004（一句话：那一套
- * 在事件流首行按 MAIN_AGENT_ID 过滤，子代理的审批永远到不了客户端）。
+ * 我们接的是 kimi acp。0.33.0（上游 #2627）起它就是 v2：acp 子命令默认跑
+ * agent-core-v2 引擎，KIMI_CODE_LEGACY_FLAG=1 才回落 legacy。为什么不接 legacy，
+ * 见 docs/adr/0004（一句话：那一套在事件流首行按 MAIN_AGENT_ID 过滤，子代理的
+ * 审批永远到不了客户端）。
  *
  * 下面这两张表对两套都成立：审批与提问的 optionId 方言逐字相同，所以接上一个
  * 旧版本的进程也不会露出英文。
@@ -66,30 +67,14 @@ export const kimiCode = {
   displayName: 'Kimi Code',
   command: 'kimi',
   /*
-   * 子命令决定接的是上游哪一套 ACP 实现。上游两套并存：
-   * acp 是 @moonshot-ai/acp-adapter（acp-v2.ts 逐字称它 legacy），
-   * acp-v2 是 @moonshot-ai/acp-server + agent-core-v2。
-   * 走 v2 是为了子代理的审批能到达客户端 —— legacy 在事件流
-   * 首行就把子代理的请求滤掉了。证据见 docs/adr/0004。
+   * 子命令决定接的是上游哪一套 ACP 实现。0.33.0 起 acp 默认就是
+   * agent-core-v2 —— 正是当初要接的那一套（子代理的审批能到达客户端，
+   * 证据见 docs/adr/0004）。acp-v2 子命令与它的实验开关 KIMI_CODE_EXPERIMENTAL_ACP_V2
+   * 在 0.33.0 一并退役（上游 cli/experimental-v2.ts 现在只有 KIMI_CODE_LEGACY_FLAG），
+   * 所以这里不再有 launchEnv：给一个不存在的环境变量留键，是把垃圾放进
+   * 每一个进程的启动环境。
    */
-  args: ['acp-v2'],
-  /*
-   * 这个子命令要开关才存在，所以它和上面那个参数是同一个决定的两半。
-   *
-   * 上游 apps/kimi-code/src/cli/commands.ts 逐字 import { isAcpV2Enabled }，只有
-   * 它为真时才 registerAcpV2Command；判据在 cli/experimental-v2.ts 逐字：
-   *   const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on']);
-   *   isAcpV2Enabled = isTruthyEnv(KIMI_ACP_V2_ENV, env) || isKimiV2Enabled(env);
-   * 它自己的测试也是这么写的：'registers acp-v2 when the experimental flag is
-   * enabled'。开关不开时 commander 报的是 unknown command 'acp-v2' —— 那句话看
-   * 起来像「这个版本没有它」，实际是「它没被注册」。
-   *
-   * 用专用开关，不用总闸 KIMI_CODE_EXPERIMENTAL_FLAG：后者的注释逐字说它会让
-   * kimi -p 改道 v2 runner、TUI 换成 v2 harness、doctor 改用 v2 的 section
-   * registry，并且 'also enables every experimental feature flag in the engine'。
-   * 我们要的只是这一个子命令，多开的每一样都是我们没验过的行为。
-   */
-  launchEnv: { KIMI_CODE_EXPERIMENTAL_ACP_V2: '1' },
+  args: ['acp'],
   // apps/kimi-code/src/config/paths.ts 的 resolveKimiHome：
   // homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
   homeVar: 'KIMI_CODE_HOME',
