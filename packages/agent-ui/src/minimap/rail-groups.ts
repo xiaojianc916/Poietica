@@ -3,9 +3,10 @@ import type { ConversationTurn } from '@poietica/agent-timeline'
 /* poietica:conversation-minimap-density@v23 */
 
 /*
- * 像素预算与并格是同一件事的两半：一边算「装得下几格」，一边算「一格装几轮」。
- * 它们此前隔着一个文件，于是 use-fisheye 要越过并格去 import 步距。同一层的模型
- * 放在同一处，行为 hook 另行安置。
+ * 轨道的度量模型：一格多高、一格在哪、总共几格、一格装几轮。四个问题一处回答，
+ * 行为 hook 只消费，不各自重算。
+ *
+ * 「装得下几格」这一问已经删掉 —— 它的答案永远不是那个更小的数，理由见 railSlots。
  */
 
 /**
@@ -22,39 +23,30 @@ import type { ConversationTurn } from '@poietica/agent-timeline'
 export const RAIL_PITCH_PX = 12
 
 /**
- * 轨道上下各让出多少,与样式表里的 --cp-rail-inset 是同一个数。
+ * 第 index 格的中线,在轨道自身的坐标里。
  *
- * 它必须出现在这里:max-block-size 会把超出的部分裁掉,所以父容器的高度不是
- * 可用高度 —— 差的正是这两倍。少减它,分桶就会算出一个装不下的格数,末尾那格
- * 被护栏静默切掉;多减它,就是又一次白白浪费像素,也就是这一版在修的毛病。
+ * 算出来的,不是量出来的。样式表把每格声明成 block-size: var(--cp-rail-hit) 且
+ * flex-shrink: 0,轨道本身没有内边距,格与格之间没有间距 —— 所以第 index 格的上沿
+ * 就是 index × 步距,一个字都不必问布局。offsetTop 会给出同一个数,代价是强制
+ * flush 一遍布局。
+ *
+ * 它在这里而不是在某个 hook 里,是因为鱼眼和预览卡都要这个数。同一个量两处各算
+ * 一遍,就是两处可以各自算错。
  */
-export const RAIL_INSET_PX = 2
+export const railCentre = (index: number): number => index * RAIL_PITCH_PX + RAIL_PITCH_PX / 2
 
 /**
- * 这段高度装得下几格。
+ * 轨道上该有几根杠。
  *
- * 未测量时返回 Infinity —— 意思是"还不知道",于是分桶不介入,首帧照旧一轮一
- * 格。样式表上的 max-block-size 兜住这一帧,ResizeObserver 随后给出真值。
- */
-export function railCapacity(availablePx: number): number {
-  if (!Number.isFinite(availablePx) || availablePx <= 0) {
-    return Number.POSITIVE_INFINITY
-  }
-
-  const usable = availablePx - RAIL_INSET_PX * 2
-
-  return Math.max(1, Math.floor(usable / RAIL_PITCH_PX))
-}
-
-/**
- * 轨道上该有几根杠 —— 这与「放得下几根」是两个问题。
+ * 不是「放得下几根」—— 那两个问题此前分开算再取小,而取小这一步已经没有意义:
+ * 一块 800px 高的面板放得下六十多根,可六十根竖在边上的短横不是目录,是噪声
+ * (没有哪个专业软件的导航条会这么干:Xcode 的 jump bar、IDEA 的 structure 都在
+ * 十几项封顶),而超出十来根之后,「一眼看见全局」这个唯一的用途本身就没了 ——
+ * 再多的格子只是把眼睛的活变重。
  *
- * railCapacity 回答的是物理上限，一块 800px 高的面板能塞六十多根。但六十根竖
- * 在边上的短横不是目录，是噪声:没有哪个专业软件的导航条会这么干(Xcode 的
- * jump bar、IDEA 的 structure 都在十几项封顶),而超出十来根之后,「一眼看见
- * 全局」这个唯一的用途本身就没了 —— 再多的格子只是把眼睛的活变重。
- *
- * 所以密度另有上限,与物理上限取小:
+ * 于是密度这一档恒在 8–10,而「放得下几根」要到轨道矮于 100px 才会更小(8 × 12
+ * 加上下两条护栏),窗口的 minHeight 是 600 —— 那个数永远取不到。量高度那条线整
+ * 个删了,格数只由轮数决定:
  *
  *   常态 8 根。轮数每翻一番才准多一根,硬顶 10 根。
  *
@@ -68,14 +60,13 @@ export const RAIL_SLOTS_MAX = 10
 /** 低于这个轮数一律最少那一档;之上每翻一番 +1。 */
 const RAIL_SLOTS_BASE = 16
 
-export function railSlots(turnCount: number, availablePx: number): number {
+export function railSlots(turnCount: number): number {
   const grown =
     turnCount < RAIL_SLOTS_BASE
       ? RAIL_SLOTS_MIN
       : RAIL_SLOTS_MIN + Math.floor(Math.log2(turnCount / RAIL_SLOTS_BASE))
 
-  /* 密度上限在前,物理上限在后:矮面板仍然说了算,它只会更小。 */
-  return Math.min(Math.min(grown, RAIL_SLOTS_MAX), railCapacity(availablePx))
+  return Math.min(grown, RAIL_SLOTS_MAX)
 }
 
 /**
@@ -271,7 +262,8 @@ export function groupTurns(
     return []
   }
 
-  if (!Number.isFinite(capacity) || turns.length <= capacity) {
+  /* capacity 恒是 8–10 的整数(railSlots)。放得下就不并;非数不必防,没人产得出。 */
+  if (turns.length <= capacity) {
     return turns.map((turn, index) => one(turn, index))
   }
 

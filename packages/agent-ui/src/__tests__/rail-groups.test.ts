@@ -1,6 +1,6 @@
 import type { ConversationTurn } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
-import { groupTurns, RAIL_INSET_PX, RAIL_PITCH_PX, railCapacity } from '../minimap/rail-groups'
+import { groupTurns, railCentre, railSlots } from '../minimap/rail-groups'
 import { turnIndexAtRow } from '../ordered-lookup'
 
 /* poietica:conversation-minimap-density@v23 */
@@ -29,23 +29,57 @@ function span(item: ReturnType<typeof groupTurns>[number]): readonly [number, nu
   return item.kind === 'cluster' ? [item.from, item.to] : [item.ordinal, item.ordinal]
 }
 
-describe('railCapacity', () => {
-  it('未测量时不介入', () => {
-    expect(railCapacity(Number.POSITIVE_INFINITY)).toBe(Number.POSITIVE_INFINITY)
-    expect(railCapacity(0)).toBe(Number.POSITIVE_INFINITY)
-    expect(railCapacity(Number.NaN)).toBe(Number.POSITIVE_INFINITY)
+/*
+ * 中线是算出来的,而这份算术是与样式表的契约:rail-groups 只声明它,use-fisheye 和
+ * use-rail-card 都读它,谁也不再去量。
+ *
+ * 所以这里写死 12 和 6,不 import RAIL_PITCH_PX —— import 进来的话,把步距改成 13
+ * 的那次提交会让这条测试跟着变绿,而 --cp-rail-hit 还停在 12。那正是要拦的事故。
+ */
+describe('railCentre', () => {
+  it('第一格的中线是半格', () => {
+    expect(railCentre(0)).toBe(6)
   })
 
-  it('扣掉护栏裁掉的那两条边', () => {
-    const tenRows = RAIL_PITCH_PX * 10 + RAIL_INSET_PX * 2
+  it('逐格前进一个步距', () => {
+    expect(railCentre(1)).toBe(18)
+    expect(railCentre(9)).toBe(114)
 
-    expect(railCapacity(tenRows)).toBe(10)
-    /* 少一个像素就装不下第十格 —— 护栏会裁,容量就得先认。 */
-    expect(railCapacity(tenRows - 1)).toBe(9)
+    for (let index = 1; index < 10; index += 1) {
+      expect(railCentre(index) - railCentre(index - 1)).toBe(12)
+    }
+  })
+})
+
+/*
+ * 格数只由轮数决定,不再问轨道有多高:密度上限恒在 8–10,而「放得下几根」要到轨道
+ * 矮于 100px 才会更小,窗口的 minHeight 是 600。
+ *
+ * 同样写死 8 和 10。把常态密度改成 6 的那次提交应该让这里红,而不是让这里跟着改口。
+ */
+describe('railSlots', () => {
+  it('短会话是常态密度', () => {
+    for (const length of [0, 1, 8, 15]) {
+      expect(railSlots(length)).toBe(8)
+    }
   })
 
-  it('再矮也至少留一格', () => {
-    expect(railCapacity(1)).toBe(1)
+  it('长会话封顶,不随轮数增长', () => {
+    for (const length of [128, 1000, 100_000]) {
+      expect(railSlots(length)).toBe(10)
+    }
+  })
+
+  it('单调不减,且永不越界', () => {
+    let previous = 0
+
+    for (let length = 0; length <= 512; length += 1) {
+      const slots = railSlots(length)
+
+      expect(slots).toBeGreaterThanOrEqual(previous)
+      expect(slots).toBeLessThanOrEqual(10)
+      previous = slots
+    }
   })
 })
 
@@ -61,8 +95,8 @@ describe('groupTurns', () => {
     expect(items.every((item) => item.kind === 'turn')).toBe(true)
   })
 
-  it('未测量时不并格', () => {
-    const items = groupTurns(conversation(1000), Number.POSITIVE_INFINITY)
+  it('预算宽于会话时一轮一格', () => {
+    const items = groupTurns(conversation(1000), 1000)
 
     expect(items).toHaveLength(1000)
   })
@@ -80,16 +114,16 @@ describe('groupTurns', () => {
    * 六个规模一起跑,是因为"在 N=8 的截图里评审通过"正是这个控件出问题的方式。
    */
   it.each([1, 5, 20, 60, 200, 1000])('N=%i 时格数不超过预算', (length) => {
-    const capacity = railCapacity(720)
+    const capacity = railSlots(length)
     const items = groupTurns(conversation(length), capacity)
 
-    expect(items.length).toBeLessThanOrEqual(Math.max(capacity, 0))
+    expect(items.length).toBeLessThanOrEqual(capacity)
     expect(items.length).toBeLessThanOrEqual(length)
     expect(items.length).toBeGreaterThan(0)
   })
 
   it.each([1, 5, 20, 60, 200, 1000])('N=%i 时 rowIndex 严格递增', (length) => {
-    const items = groupTurns(conversation(length), railCapacity(720))
+    const items = groupTurns(conversation(length), railSlots(length))
 
     for (let index = 1; index < items.length; index += 1) {
       const previous = items[index - 1]
@@ -108,7 +142,7 @@ describe('groupTurns', () => {
    * 就是在谎报位置,而这比少画几根横条严重得多。
    */
   it.each([1, 5, 20, 60, 200, 1000])('N=%i 时区间无缝且完整', (length) => {
-    const items = groupTurns(conversation(length), railCapacity(720))
+    const items = groupTurns(conversation(length), railSlots(length))
     const spans = items.map(span)
 
     expect(spans[0]?.[0]).toBe(1)
@@ -125,7 +159,7 @@ describe('groupTurns', () => {
 
   it('并格之后二分仍然指得对', () => {
     const turns = conversation(200)
-    const items = groupTurns(turns, railCapacity(720))
+    const items = groupTurns(turns, railSlots(turns.length))
 
     for (const [index, item] of items.entries()) {
       /* 段首那一行,落在这一格。 */

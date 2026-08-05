@@ -73,15 +73,27 @@ const play = (shot: Shot, from: number | undefined) => {
  * 卸载的节点留成幽灵层。整列同时滑动才是这一下的主导运动,先不为那 3px 建一
  * 套机制。
  *
- * 不带依赖数组:这个组件被 memo 包着,滚动帧里根本不重渲染,所以每一次重渲染
- * 几乎都伴随布局变化。没变的格子 delta 为 0,直接跳过,不会平白起一个动画。
+ * 依赖是格子的身份序列,不是「每次渲染」—— 理由见下面 useLayoutEffect 上方那段。
  */
-export function useFoldFlip(signature: string): (node: HTMLElement | null) => void {
+export function useFoldFlip(
+  signature: string,
+): (node: HTMLElement | null) => (() => void) | undefined {
   const nodeRef = useRef<HTMLElement | null>(null)
   const beforeRef = useRef<Map<string, number>>(new Map())
 
+  /*
+   * 交回清理函数,和这个子系统里另外两个 ref 一样。
+   *
+   * 此前它什么都不返回,靠 React 19 保留的那次 null 调用撒手 —— 而调用方把三路
+   * ref 合并成了一个返回清理函数的回调,React 于是不再以 null 调用它,那次撒手被
+   * 吃掉了,节点在卸载之后仍被攥着。一个协议,三个参与者。
+   */
   const ref = useCallback((node: HTMLElement | null) => {
     nodeRef.current = node
+
+    return () => {
+      nodeRef.current = null
+    }
   }, [])
 
   /*

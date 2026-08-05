@@ -6,7 +6,6 @@ import { turnIndexAtRow } from '../ordered-lookup'
 import { groupTurns, railSlots } from './rail-groups'
 import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
-import { useRailBudget } from './use-rail-budget'
 import { useRailCard } from './use-rail-card'
 
 /* poietica:conversation-minimap-card@v25 */
@@ -19,7 +18,7 @@ import { useRailCard } from './use-rail-card'
  * scrolling, and this owns nothing but the pointing.
  *
  * 为什么要并格,而不是让轨道自己滚动:一个需要自己滚动的导航条已经不是导航条
- * 了,它把"看见全局"这唯一的用途还给了被导航的东西。像素预算有限而轮次无界,
+ * 了,它把"看见全局"这唯一的用途还给了被导航的东西。格数有上限而轮次无界,
  * 只能压缩表示,不能延长轨道。
  *
  * Native buttons in a nav, so keyboard order, focus and activation come from
@@ -35,16 +34,15 @@ export interface ConversationMinimapProps {
 function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const fisheye = useFisheye()
   const card = useRailCard()
-  const { ref: measure, available } = useRailBudget()
 
   /*
-   * 先算装得下几格,再决定一格代表几轮。
+   * 先算总共几格,再决定一格代表几轮。
    *
    * 不包 useMemo,理由和下面的二分一样:这是一次 O(N) 的遍历,N 是屏幕上放得
    * 下的格子数量级,而这个组件被 memo 包着、滚动帧里根本不重渲染。
    */
   const focus = turnIndexAtRow(turns, activeRow)
-  const items = groupTurns(turns, railSlots(turns.length, available), focus)
+  const items = groupTurns(turns, railSlots(turns.length), focus)
 
   /*
    * 有序数组上求"最后一个不晚于当前行的一格",这是二分。
@@ -61,27 +59,27 @@ function Rail({ turns, activeRow, onSelect }: ConversationMinimapProps) {
   const flip = useFoldFlip(items.map((item) => item.id).join('|'))
 
   /*
-   * 两个 ref 落在同一个节点上:一个要指针,一个要尺寸。
+   * 三件事落在同一个节点上:指针、预览卡、折叠动画。
    *
-   * 两者都返回清理函数,合并之后也必须返回一个 —— React 19 在卸载时调用它。
-   * 依赖都是引用稳定的(useCallback 空依赖),所以这个回调不会每帧换身份,
-   * 节点也就不会每帧被反复解绑重绑。
+   * 一套协议,三个参与者:每一路都收下节点、都交回一个清理函数,合并之后仍然只是
+   * 一个清理函数 —— React 19 在卸载时调用它,而返回了清理函数的 ref 回调不会再被
+   * 以 null 调用一次。此前 flip 是唯一的例外:它不返回清理,靠的正是那次 null 调用
+   * 撒手,而合并把那次调用吃掉了。
+   *
+   * 依赖都是引用稳定的(useCallback 空依赖),所以这个回调不会每帧换身份,节点也就
+   * 不会每帧被反复解绑重绑。
    */
   const setRail = useCallback(
     (node: HTMLElement | null) => {
-      const detachFisheye = fisheye(node)
-      const detachMeasure = measure(node)
-      const detachCard = card(node)
-
-      flip(node)
+      const detach = [fisheye(node), card(node), flip(node)]
 
       return () => {
-        detachFisheye?.()
-        detachMeasure?.()
-        detachCard?.()
+        for (const off of detach) {
+          off?.()
+        }
       }
     },
-    [card, fisheye, flip, measure],
+    [card, fisheye, flip],
   )
 
   /* 每格都要念一遍「共 N 轮」，但 N 一格一格地不会变。 */

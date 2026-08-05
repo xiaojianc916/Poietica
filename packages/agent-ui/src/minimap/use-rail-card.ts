@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { railCentre } from './rail-groups'
 
 /* poietica:conversation-minimap-card@v25 */
 
@@ -126,6 +127,25 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
     const targetOf = (): HTMLElement | null =>
       focused ?? node.querySelector<HTMLElement>(`${TURN}[data-aimed]`) ?? hovered
 
+    /*
+     * 第几格 —— 数前面的兄弟,不问布局。
+     *
+     * 卡片也是 nav 的直接子节点,所以按类名数而不是按位置数。matches 走的是选择器
+     * 匹配,与这份文件上面提到的 ':hover' / ':focus-visible' 不同,不需要先把样式
+     * 解析出来。格数封顶 10,这一趟最多走十步。
+     */
+    const slotOf = (cell: HTMLElement): number => {
+      let index = 0
+
+      for (let at = cell.previousElementSibling; at !== null; at = at.previousElementSibling) {
+        if (at.matches(TURN)) {
+          index += 1
+        }
+      }
+
+      return index
+    }
+
     const fill = ({ box, kicker, question, reply }: Slots, turn: HTMLElement): void => {
       const kickerText = turn.getAttribute('data-card-kicker')
       const replyText = turn.getAttribute('data-card-reply')
@@ -144,11 +164,18 @@ export function useRailCard(): (node: HTMLElement | null) => (() => void) | unde
         reply.hidden = replyText === null
       }
 
-      /* 定位到这一格的中线。卡片是 nav 的绝对定位子节点,量的是格子在 nav 里的位置。 */
-      box.style.setProperty(
-        '--cp-rail-card-y',
-        `${String(turn.offsetTop + turn.offsetHeight / 2)}px`,
-      )
+      /*
+       * 定位到这一格的中线,而这个数是算出来的。
+       *
+       * 此前是 turn.offsetTop + turn.offsetHeight / 2。这套布局里两个读数都是常量
+       * (格高恒为 --cp-rail-hit、flex-shrink: 0、轨道无内边距、格间无间距),所以它
+       * 恒等于 railCentre(第几格)。区别只在 offsetTop 会强制 flush 一遍布局 —— 而
+       * 这一帧的布局刚被鱼眼写脏:它按权重改每根横条的 inline-size。
+       *
+       * use-fisheye 里那段「算出来的,不是量出来的」正是为这件事写的,当时只改了它
+       * 自己;剩下的这一条就是它说的第二条管线。
+       */
+      box.style.setProperty('--cp-rail-card-y', `${String(railCentre(slotOf(turn)))}px`)
     }
 
     const settle = (): void => {

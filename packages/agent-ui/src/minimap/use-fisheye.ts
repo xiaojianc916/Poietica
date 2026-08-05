@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { RAIL_PITCH_PX } from './rail-groups'
+import { RAIL_PITCH_PX, railCentre } from './rail-groups'
 
 /* poietica:conversation-minimap-perf@v17 */
 
@@ -36,20 +36,6 @@ const EPSILON = 0.002
 
 /** 参与计算的邻域半径：高斯在三个半宽之外已经低于 EPSILON。 */
 const REACH_PX = FALLOFF_PX * 3
-
-/**
- * 一根柱子的中心，在轨道自身的坐标里。
- *
- * 算出来的，不是量出来的。此前这里是 offsetTop + offsetHeight / 2，每帧在二分
- * 里调 O(log N) 次、在邻域填充里再调 O(k) 次，每一次都强制 flush 一遍布局 ——
- * 量的却是一个早就写死的数：样式表声明 block-size: var(--cp-rail-hit) 且
- * flex-shrink: 0，rail-groups 那边把 RAIL_PITCH_PX 称作「契约，不是建议」，
- * 容量模型整个建立在它之上。
- *
- * 既然它是契约，就该被当成契约用。布局按这个数排，脚本再反过来把这个数量一遍，
- * 那不是「更准」，那是两条管线量同一件事 —— 而其中一条还要付强制回流的钱。
- */
-const centreOf = (index: number): number => index * RAIL_PITCH_PX + RAIL_PITCH_PX / 2
 
 /** 一帧要处理的柱子区间，闭区间；to < from 表示空。 */
 type Span = { from: number; to: number }
@@ -93,7 +79,7 @@ const applyWeights = (
       continue
     }
 
-    const ratio = (centreOf(index) - anchor) / FALLOFF_PX
+    const ratio = (railCentre(index) - anchor) / FALLOFF_PX
     const weight = Math.exp(-(ratio * ratio))
     const next = weight < EPSILON ? '0' : weight.toFixed(3)
 
