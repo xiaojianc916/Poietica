@@ -12,12 +12,15 @@ import type { CommandRegistry } from '@poietica/workspace/state'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { agentFor, currentAgentId, subscribeAgent } from '../state/ai/agent-session'
 import { ThreadsProvider } from '../state/ai/ThreadsProvider'
+import {
+  type ApplicationCommandContext,
+  registerApplicationCommands,
+} from '../state/application-commands'
 import { failureCoordinator } from '../state/failures/failure-coordinator'
 import { reportFailure } from '../state/failures/failure-policy'
-import { type ApplicationCommandContext, registerApplicationCommands } from './application-commands'
 import { useWindowChrome } from './chrome/use-window-chrome'
-import { UiFeedbackRegion } from './ui/ui-feedback'
-import { UpdateCapsule } from './ui/update-capsule'
+import { UiFeedbackRegion } from './feedback/ui-feedback'
+import { UpdateCapsule } from './feedback/update-capsule'
 import { type AppCapabilities, WorkspaceContainer } from './workspace/WorkspaceContainer'
 
 /*

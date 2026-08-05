@@ -24,7 +24,7 @@
     "build:release": "pnpm --filter @poietica/desktop exec tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json",
     "build:web": "turbo run build",
     "check": "pnpm check:web && pnpm check:rust",
-    "check:rust": "cargo fmt --check && pnpm clippy && pnpm test:rust && pnpm ipc:check",
+    "check:rust": "cargo fmt --all -- --check && pnpm clippy && pnpm test:rust && pnpm ipc:check",
     "check:versions": "node scripts/release/check-versions.mjs",
     "check:web": "biome ci . && node tests/architecture/run.mjs && turbo run typecheck test --continue",
     "clean": "node scripts/clean.mjs",
