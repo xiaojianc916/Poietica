@@ -1,4 +1,4 @@
-import type { AgentCatalogAddRequest } from '../../catalog-contract'
+import type { AgentCatalogAddRequest } from '../catalog-contract'
 
 /*
  * Kimi Code 的 provider catalog add 参数。

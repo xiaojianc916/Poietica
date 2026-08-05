@@ -1,7 +1,7 @@
-import type { AgentCatalogCodec } from '../../catalog-contract'
-import { agentBareModelId, agentModelDisplayName } from '../../model-display'
-import type { AgentProviderPreset } from '../../provider-presets'
-import type { AgentProviderState } from '../../provider-state'
+import type { AgentCatalogCodec } from '../catalog-contract'
+import { agentBareModelId, agentModelDisplayName } from '../model-display'
+import type { AgentProviderPreset } from '../provider-presets'
+import type { AgentProviderState } from '../provider-state'
 import { kimiCatalogAddArgs } from './catalog-add'
 
 /*

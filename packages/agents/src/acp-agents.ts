@@ -1,5 +1,5 @@
 import type { AcpAgentDescriptor } from './acp-agent-contract'
-import { kimiCode } from './agents/kimi/descriptor'
+import { kimiCode } from './kimi/descriptor'
 
 export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contract'
 
@@ -9,7 +9,7 @@ export type { AcpAgentDescriptor, AcpQuestionDialect } from './acp-agent-contrac
  * 名单是封闭的：用户在这几家里选，不能自带一条命令。所以这里没有解析、没有
  * 校验、没有反注入 —— 那些是给「用户可以填任意命令」准备的，而这个入口不存在。
  *
- * 接第 N 家 = 新增一个 agents/<id>/descriptor.ts，然后在这张表里加一行。通用层一个字
+ * 接第 N 家 = 新增一个 <id>/descriptor.ts，然后在这张表里加一行。通用层一个字
  * 都不用改；如果改了，就说明还没解耦干净。
  *
  * 类型是非空元组，不是数组：「一家都没有」在编译期就不成立，所以这里没有一句

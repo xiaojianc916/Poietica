@@ -2,7 +2,7 @@ import {
   type AgentCatalogCodec,
   type AgentProviderPreset,
   agentCatalogCodec,
-} from '@poietica/agent-providers'
+} from '@poietica/agents'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentConfigStore, ProviderKeyProbe } from '../contracts/agent-config-store'

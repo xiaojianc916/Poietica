@@ -1,3 +1,11 @@
+/*
+ * 这个包的唯一出口。
+ *
+ * agent-registry 与 agent-providers 曾是两个包，切分依据是历史而非职责：
+ * 两边都按 agentId 定址、都开了 <id>/ 子目录、注释互相引用对方的分法。
+ * 合并之后按 agentId 分文件，不再按"契约 / 名单"分包。
+ */
+
 export type { AcpAgentInstall, AcpQuestionDialect } from './acp-agent-contract'
 export type {
   AcpAgentLaunch,
@@ -18,6 +26,23 @@ export {
 } from './acp-agent-profile'
 export type { AcpAgentDescriptor } from './acp-agents'
 export { acpAgentById, acpAgents } from './acp-agents'
+export { agentCatalogCodec } from './catalog-codec'
+export type { AgentCatalogAddRequest, AgentCatalogCodec } from './catalog-contract'
+export { agentBareModelId, agentModelDisplayName } from './model-display'
+export type {
+  AgentProviderPreset,
+  AgentProviderPresetModel,
+  AgentProviderPresetModelThinking,
+} from './provider-presets'
+export { builtinAgentProviderById, builtinAgentProviders } from './provider-presets'
+export type {
+  AgentCredentialKind,
+  AgentModelState,
+  AgentProviderSnapshot,
+  AgentProviderState,
+} from './provider-state'
+export { parseAgentProviderList, parseAgentProviderListOutput } from './provider-state'
+
 /*
  * 这里曾导出 model-catalog 与 model-provider-profile 两组符号。两个模块都删了。
  *

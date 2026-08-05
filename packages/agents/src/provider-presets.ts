@@ -16,7 +16,7 @@
  * 这里不放密钥，一个字节都不放。密钥经环境变量交给 agent，写入由它自己完成。
  *
  * 这个模块此前叫 builtin-catalog.ts，还兼着两件不属于它的事：某一家 agent 的目录文档
- * 格式（已搬去 agents/kimi/catalog.ts），以及别名与显示名的换算（已搬去
+ * 格式（已搬去 kimi/catalog.ts），以及别名与显示名的换算（已搬去
  * model-display.ts）。现在它只剩一张常量表，因此一个 import 都没有 —— 一张表反向依赖
  * 运行时快照类型（AgentModelState），方向本来就是错的。
  */

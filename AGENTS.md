@@ -57,7 +57,7 @@ AI 对用户作品的提案必须提供预览或显式应用操作；一旦应�
 |----|----|----------|
 | 0 foundations | `core` `observability` `serialization` `ui` | 仅同层 |
 | 1 protocol | `acp` | foundations 及以下 |
-| 2 domain | `agent-providers` `agent-registry` `agent-session` `agent-timeline` | protocol 及以下 |
+| 2 domain | `agent-session` `agent-timeline` `agents` | protocol 及以下 |
 | 3 transport | `ipc` | domain 及以下 |
 | 4 features | `agent-ui` `settings` `workspace` | transport 及以下 |
 | 5 composition | `desktop-adapters` | features 及以下 |

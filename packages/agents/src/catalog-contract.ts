@@ -8,7 +8,7 @@ import type { AgentProviderState } from './provider-state'
  * 校验名单怎么算，没有一条是 ACP 协议规定的。所以这些事按 agentId 定址，通用层只认
  * 这个接口，不认任何一家的函数名与文档格式。
  *
- * 契约与名单分开两个文件，与 agent-registry 那边同一件事的分法一致
+ * 契约与名单分开两个文件，与同包里同一件事的分法一致
  * （acp-agent-contract.ts 放形状，acp-agents.ts 放名单）：接第 N 家时要动的是名单，
  * 契约不该跟着谁的实现走。
  *
@@ -21,7 +21,7 @@ import type { AgentProviderState } from './provider-state'
  * 我们想让 agent 做的那件事：把这一家 provider 加进它的目录。
  *
  * 这是请求，不是命令行。它是通用的（三格都是我们自己的概念），翻成谁的 argv 才是
- * 那一家的事 —— 见 agents/<id>/catalog-add.ts。
+ * 那一家的事 —— 见 <id>/catalog-add.ts。
  */
 export interface AgentCatalogAddRequest {
   readonly providerId: string

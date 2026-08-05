@@ -1,4 +1,4 @@
-import { parseAcpAgentProfileSet, reconcileAcpAgentProfiles } from '@poietica/agent-registry'
+import { parseAcpAgentProfileSet, reconcileAcpAgentProfiles } from '@poietica/agents'
 import {
   type AgentConfigSnapshot as AgentConfigSnapshotDto,
   createAgentConfigBridge,

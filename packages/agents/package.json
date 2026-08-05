@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/agent-providers",
+  "name": "@poietica/agents",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,10 @@
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@poietica/acp": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

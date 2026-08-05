@@ -8,7 +8,7 @@
     "apps/desktop/src-tauri/src/commands/asset.rs": 15195,
     "crates/agent-runtime/src/driver.rs": 38952,
     "crates/agent-runtime/src/recorder.rs": 14439,
-    "packages/agent-registry/src/acp-agent-profile.ts": 13370,
+    "packages/agents/src/acp-agent-profile.ts": 13370,
     "packages/agent-session/src/threads-store.ts": 12684,
     "packages/agent-session/src/transcript-store.ts": 19934,
     "packages/agent-timeline/src/__fixtures__/permission-turn.generated.ts": 38920,

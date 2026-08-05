@@ -64,22 +64,19 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
  * 层次不是从目录名或包名前缀推断的 —— 上一版正是这么做的，命名法一改
  * 规则就整体失效，而且失效时不报错。这里是一张显式的表，加载时逐条断言。
  *
- * 分层依据是十五份 manifest 里真实存在的三十条工作区边，不是设想中的目标态。
+ * 分层依据是工作区 manifest 里真实存在的那些边，不是设想中的目标态。
  * 每一条现存的边都指向同层或更低层，所以这套规则开启时零违规。
  *
  * transport 与 composition 分成两层，而不是合成一个 "platform"：
- * ipc 只依赖 acp，被 settings / desktop-runtime / desktop 依赖，位置在 features
- * 之下；desktop-runtime 依赖 agent-registry + ipc + settings，且只被应用入口
+ * ipc 只依赖 acp，被 settings / desktop-adapters / desktop 依赖，位置在 features
+ * 之下；desktop-adapters 依赖 agents + ipc + settings，且只被应用入口
  * 依赖，位置在 features 之上。上一版把两者塞进同一层，于是不得不写一段注释
  * 解释为什么 platform 可以反向依赖 features。分开之后，那个破例不存在了。
  */
 const tiers = [
   { name: 'foundations', packages: ['core', 'observability', 'serialization', 'ui'] },
   { name: 'protocol', packages: ['acp'] },
-  {
-    name: 'domain',
-    packages: ['agent-providers', 'agent-registry', 'agent-session', 'agent-timeline'],
-  },
+  { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
   { name: 'transport', packages: ['ipc'] },
   { name: 'features', packages: ['agent-ui', 'settings', 'workspace'] },
   { name: 'composition', packages: ['desktop-adapters'] },

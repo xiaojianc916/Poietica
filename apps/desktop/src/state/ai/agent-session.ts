@@ -6,9 +6,13 @@ import type {
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/acp'
-import { parseAgentProviderListOutput } from '@poietica/agent-providers'
-import type { AcpAgentDescriptor } from '@poietica/agent-registry'
-import { acpAgentById, acpAgentLaunch, acpAgents } from '@poietica/agent-registry'
+import type { AcpAgentDescriptor } from '@poietica/agents'
+import {
+  acpAgentById,
+  acpAgentLaunch,
+  acpAgents,
+  parseAgentProviderListOutput,
+} from '@poietica/agents'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,

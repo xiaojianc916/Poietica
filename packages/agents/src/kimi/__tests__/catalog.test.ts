@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { builtinAgentProviderById, builtinAgentProviders } from '../../../provider-presets'
-import type { AgentProviderState } from '../../../provider-state'
+import { builtinAgentProviderById, builtinAgentProviders } from '../../provider-presets'
+import type { AgentProviderState } from '../../provider-state'
 import { kimiCatalogCodec } from '../catalog'
 
 /*

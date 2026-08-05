@@ -303,5 +303,5 @@ export function parseAgentProviderListOutput(
   }
 }
 
-/* importDocument（今在 agents/kimi/catalog.ts）曾在这里。它需要查内置表补显示名，
+/* importDocument（今在 kimi/catalog.ts）曾在这里。它需要查内置表补显示名，
  * 而内置表（provider-presets.ts）反过来查快照类型就成环了 —— 依赖只许一个方向。 */

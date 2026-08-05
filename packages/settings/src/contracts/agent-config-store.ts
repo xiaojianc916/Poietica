@@ -1,4 +1,4 @@
-import type { AcpAgentProfile } from '@poietica/agent-registry'
+import type { AcpAgentProfile } from '@poietica/agents'
 
 /**
  * 一次受控的 agent CLI 调用。

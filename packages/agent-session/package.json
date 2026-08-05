@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@poietica/acp": "workspace:*",
-    "@poietica/agent-registry": "workspace:*",
+    "@poietica/agents": "workspace:*",
     "@poietica/agent-timeline": "workspace:*",
     "@poietica/core": "workspace:*",
     "valibot": "catalog:"

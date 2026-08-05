@@ -3,7 +3,7 @@ import { builtinAgentProviders } from '../provider-presets'
 
 /*
  * 内置表自己要成立的两条，与任何一家 agent 的文档形状无关 —— 那些用例在
- * agents/kimi/__tests__ 下。
+ * kimi/__tests__ 下。
  */
 
 describe('builtinAgentProviders', () => {
