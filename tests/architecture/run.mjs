@@ -12,21 +12,36 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { ignoredDirectories, rules, sourceExtensions, sourceRoots } from './rules.config.mjs'
+import {
+  ignoredDirectories,
+  inventoryRoots,
+  rules,
+  sourceExtensions,
+  sourceRoots,
+} from './rules.config.mjs'
 
 const checkDirectory = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(checkDirectory, '../..')
 
 const toPosix = (value) => value.replaceAll(path.sep, '/')
 
-async function collectSources() {
+/*
+ * 一次遍历，两个视图。
+ *
+ * pattern 规则只看 sourceRoots 下的 .ts/.tsx；check 规则要看 crates 里的 .rs、
+ * 目录名和文件体量。上一版让后者住在 rules.config.mjs 的加载期，各走一套遍历、
+ * 各带一份忽略名单，而且一 throw 就把 pattern 规则的全部结果掩掉 —— 与本文件
+ * 开头那句 "Never short-circuits." 直接冲突。现在遍历一次、汇报一次。
+ */
+async function collectInventory() {
+  const directories = []
   const files = []
 
-  for (const sourceRoot of sourceRoots) {
+  for (const root of inventoryRoots) {
     let entries
 
     try {
-      entries = await readdir(path.join(repositoryRoot, sourceRoot), {
+      entries = await readdir(path.join(repositoryRoot, root), {
         withFileTypes: true,
         recursive: true,
       })
@@ -39,26 +54,22 @@ async function collectSources() {
     }
 
     for (const entry of entries) {
-      if (!entry.isFile()) {
-        continue
-      }
-
       const absolute = path.join(entry.parentPath, entry.name)
-      const file = toPosix(path.relative(repositoryRoot, absolute))
+      const entryPath = toPosix(path.relative(repositoryRoot, absolute))
 
-      if (file.split('/').some((segment) => ignoredDirectories.has(segment))) {
+      if (entryPath.split('/').some((segment) => ignoredDirectories.has(segment))) {
         continue
       }
 
-      if (!sourceExtensions.has(path.extname(file))) {
-        continue
+      if (entry.isDirectory()) {
+        directories.push(entryPath)
+      } else if (entry.isFile()) {
+        files.push(entryPath)
       }
-
-      files.push(file)
     }
   }
 
-  return files.sort()
+  return { directories: directories.sort(), files: files.sort() }
 }
 
 function positionOf(source, index) {
@@ -68,16 +79,33 @@ function positionOf(source, index) {
   return { line: preceding.split('\n').length, column: index - lineBreak }
 }
 
+const inventory = await collectInventory()
+
+const contents = new Map()
+
+/* 同一个文件只读一次，pattern 规则与 check 规则共用这份缓存。 */
+const read = async (file) => {
+  if (!contents.has(file)) {
+    contents.set(file, await readFile(path.join(repositoryRoot, file), 'utf8'))
+  }
+
+  return contents.get(file)
+}
+
+const isPatternTarget = (file) =>
+  sourceExtensions.has(path.extname(file)) &&
+  sourceRoots.some((root) => file.startsWith(`${root}/`))
+
 const violations = []
 
-for (const file of await collectSources()) {
-  const applicable = rules.filter((rule) => rule.appliesTo(file))
+for (const file of inventory.files.filter(isPatternTarget)) {
+  const applicable = rules.filter((rule) => rule.pattern !== undefined && rule.appliesTo(file))
 
   if (applicable.length === 0) {
     continue
   }
 
-  const source = await readFile(path.join(repositoryRoot, file), 'utf8')
+  const source = await read(file)
 
   for (const rule of applicable) {
     for (const match of source.matchAll(rule.pattern)) {
@@ -92,6 +120,26 @@ for (const file of await collectSources()) {
         message: hint === null ? rule.message : `${rule.message} (use ${hint})`,
       })
     }
+  }
+}
+
+/*
+ * check 规则拿到的是同一次遍历的产物，报出来的也进同一个 violations 列表。
+ * 判据看的是目录名、清单文件或文件体量时，正则匹配不出位置，行列记 1。
+ */
+for (const rule of rules) {
+  if (rule.check === undefined) {
+    continue
+  }
+
+  for (const defect of await rule.check({ ...inventory, read })) {
+    violations.push({
+      file: defect.file,
+      line: defect.line ?? 1,
+      column: defect.column ?? 1,
+      rule: rule.id,
+      message: defect.message,
+    })
   }
 }
 
@@ -113,6 +161,12 @@ for (const entry of await readdir(checkDirectory)) {
     message: 'architecture rules belong in rules.config.mjs, not in a standalone script',
   })
 }
+
+/* pattern 与 check 两路汇进来，顺序按文件位置定，输出才是确定的。 */
+violations.sort(
+  (left, right) =>
+    left.file.localeCompare(right.file) || left.line - right.line || left.column - right.column,
+)
 
 if (violations.length === 0) {
   console.log('Architecture rules passed.')

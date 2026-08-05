@@ -16,8 +16,15 @@ disk at load time; this file does not restate it.
 - `no-cross-boundary-relative-imports` — relative imports do not cross package boundaries;
 - `design-system-token-authority` — design-system components consume `--ui-*` tokens, not raw utility classes;
 - `no-task-scoped-guards` — no `check-*.mjs` file may exist in this directory;
-- load-time governance — directory naming, the four native-crate rules from
-  `docs/architecture/rust-layers.md`, and the `size-budget.json` ratchet.
+- `capability-scoped-directory-names` — architectural directories are `contracts`, `domain`, `state`, `ui`;
+- `native-crates-stay-host-agnostic` — native crates depend on neither Tauri nor each other, and declare `[lints] workspace = true`;
+- `file-size-ratchet` — `size-budget.json` freezes existing debt; entries may only shrink.
+
+A rule carries either a `pattern` (a regular expression matched against source
+files) or a `check` (a function handed the single filesystem inventory). Both
+report through the same violation list. Neither may throw at import time: that
+would hide every other rule's findings, which is what this runner exists to
+prevent.
 
 ## Adding a rule
 

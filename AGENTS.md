@@ -71,7 +71,7 @@ apps/desktop/src-tauri ──► crates/agent-runtime + crates/desktop-runtime +
 - 每个包的目录名必须等于 `@poietica/<目录名>`，新增包必须先在分层表中定层，否则架构检查直接失败。
 - `crates/persistence` 只有 Rust crate，没有 `package.json`，不在 TypeScript 包图里。
 - 跨包访问必须使用公开 exports，禁止 deep import。
-- 包内架构性目录只允许 `contracts` / `domain` / `state` / `ui`，其余目录必须是具体能力名；`application`、`presentation`、`ports`、`services`、`stores`、`managers`、`helpers`、`common`、`utils`、`types` 在任何层级都不允许 —— 由 `tests/architecture/rules.config.mjs` 的地基治理段执行。
+- 包内架构性目录只允许 `contracts` / `domain` / `state` / `ui`，其余目录必须是具体能力名；`application`、`presentation`、`ports`、`services`、`stores`、`managers`、`helpers`、`common`、`utils`、`types` 在任何层级都不允许 —— 由 `tests/architecture/` 的 `capability-scoped-directory-names` 规则执行。
 
 ## AI、网络与安全边界
 
