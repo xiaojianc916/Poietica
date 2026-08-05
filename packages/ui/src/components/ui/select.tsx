@@ -201,7 +201,7 @@ export function SelectTrigger({
 
           {/*
             ChevronDown 而不是 ChevronsUpDown：双向箭头说的是"有一根轴能上下
-            走"，那是 combobox / 步进器的记号（见 combobox.tsx）。这里是有限
+            走"，那是可搜索输入框与步进器的记号。这里是有限
             离散值的弹出菜单，说的是"下面会展开一张列表"。
           */}
           <BaseSelect.Icon>

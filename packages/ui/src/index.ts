@@ -7,27 +7,6 @@ export {
 } from './components/icons/local-glyphs'
 export { Button, type ButtonProps, buttonVariants } from './components/ui/button'
 export {
-  Combobox,
-  ComboboxContent,
-  type ComboboxContentProps,
-  ComboboxEmpty,
-  type ComboboxEmptyProps,
-  ComboboxGroup,
-  type ComboboxGroupProps,
-  ComboboxInput,
-  type ComboboxInputProps,
-  ComboboxItem,
-  type ComboboxItemProps,
-  ComboboxList,
-  type ComboboxListProps,
-  type ComboboxOption,
-  type ComboboxProps,
-  ComboboxSeparator,
-  type ComboboxSeparatorProps,
-  ComboboxTrigger,
-  type ComboboxTriggerProps,
-} from './components/ui/combobox'
-export {
   CommandMenu,
   type CommandMenuItem,
   type CommandMenuProps,
