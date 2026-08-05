@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import type { QuestionAnswer, QuestionDeck } from '../domain/ask-user-question'
 
@@ -87,6 +87,24 @@ function MarkIcon({ selected }: { readonly selected: boolean }) {
   )
 }
 
+/*
+ * 整组跳过时，每题回它自己的 skipOptionId；没有 skip 的题不出现在结果里。
+ *
+ * 它此前是一个 useMemo。官方对 useMemo 的口径是「只有计算明显昂贵时才划算」，而这里是
+ * 个位数张卡片的一次 flatMap —— memo 的净收益是负的：换来的是每次渲染一次依赖比较加
+ * 一个闭包分配。而且它只在点「跳过全部」的那一刻才被读，压根不必每次渲染都算好等着。
+ *
+ * 同文件里的 collect() 是同构的派生，本来就是一个普通函数：一处 memo 一处不 memo，是
+ * 同一条管线上的两种写法。
+ */
+function skipsOf(deck: QuestionDeck): readonly QuestionAnswer[] {
+  return deck.cards.flatMap((entry) =>
+    entry.skipOptionId === undefined
+      ? []
+      : [{ requestId: entry.requestId, optionId: entry.skipOptionId }],
+  )
+}
+
 export interface QuestionPanelProps {
   readonly deck: QuestionDeck
   /**
@@ -119,16 +137,6 @@ export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
 
   const total = deck.cards.length
   const card = deck.cards[Math.min(index, total - 1)]
-
-  const skipAnswers = useMemo<readonly QuestionAnswer[]>(
-    () =>
-      deck.cards.flatMap((entry) =>
-        entry.skipOptionId === undefined
-          ? []
-          : [{ requestId: entry.requestId, optionId: entry.skipOptionId }],
-      ),
-    [deck],
-  )
 
   if (card === undefined) {
     return null
@@ -203,7 +211,7 @@ export function QuestionPanel({ deck, onAnswer }: QuestionPanelProps) {
                 className="assistant-question-panel__dismiss"
                 disabled={sent}
                 onClick={() => {
-                  answer(skipAnswers)
+                  answer(skipsOf(deck))
                 }}
                 type="button"
               >

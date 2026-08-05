@@ -142,26 +142,6 @@ export function AgentActivityFeed({
   footer,
   overlay,
 }: AgentActivityFeedProps) {
-  /*
-   * 本帧的行表，给虚拟器的选项函数同步读。
-   *
-   * 官方对 getItemKey 与 estimateSize 的要求是把函数 memo 住 —— 它们是虚拟器
-   * 判断测量缓存要不要作废的依据。而把 rows 写进依赖数组等于没有 memo：转录
-   * 每帧重投影（reducer 的 freeze 交出新 items，选择器据此重排 rows），rows
-   * 于是恒定每帧换引用，[rows] 这个依赖数组永远不命中。上一版把内联箭头换成
-   * useCallback 时行为一个字节都没变，只多了一次依赖比较 —— 注释说自己 memo
-   * 住了，依赖数组说没有。
-   *
-   * 结果是流式输出的每一个 token 都换一次身份函数，测量缓存整表作废，虚拟化
-   * 的收益被反转成每帧全表重测。
-   *
-   * 镜像进 ref 之后两个函数的身份恒定，而读到的仍是本帧的行。赋值只能发生在
-   * 渲染期：虚拟器就是在渲染期调用它们的，推迟到效应里就晚了一帧。
-   */
-  const rowsRef = useRef(rows)
-
-  rowsRef.current = rows
-
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const tailRef = useRef<HTMLDivElement | null>(null)
@@ -270,15 +250,7 @@ export function AgentActivityFeed({
   } = useRevealIntent()
 
   /*
-   * 虚拟器此刻铺出来的区间表。
-   *
-   * 同步回调要用它做二分,而回调在滚动事件里跑、拿不到渲染期的值,所以把本帧
-   * 的表镜像进 ref —— 与上面的 rowsRef 同一处做法、同一个时机。
-   *
-   * 此前它走 useLayoutEffect([items])。而 items 是 getVirtualItems() 的返回值,
-   * 每帧都是新数组:那个效应因此每帧必跑一次加一次依赖比较,做的事与一行赋值
-   * 逐字相同。同一个文件里两种相反的做法,注释还互相打脸——上面那句说"赋值只能
-   * 发生在渲染期",这里说"渲染期间不写 ref"。留一个。
+   * 虚拟器此刻铺出来的区间表，给滚动回调里的那次二分用。
    */
   const spansRef = useRef<readonly RowSpan[]>([])
 
@@ -407,31 +379,32 @@ export function AgentActivityFeed({
   const revealing = pending !== null
 
   /*
-   * 条目的身份函数，记住不重建。
+   * 条目的身份函数与估高，依赖如实声明。
    *
-   * 官方在 getItemKey 的说明里专门补了一句：虚拟器虽然会自行判断哪些选项影响测量
-   * 并适时作废缓存，仍然建议把它 memo 住。此前是内联箭头，每次渲染换一个身份函数 ——
-   * 流式输出每个 token 一次渲染，就是每个 token 换一次，而它恰好是末端锚定跨数据
-   * 变化认人的那个函数。
+   * 身份是 id 不是序号：恢复会话与回填历史都会让每一条换序号，用序号当身份，锚点会在
+   * 那之后落到别的条目上。官方点名过这一条 ——「Index keys cannot distinguish prepends
+   * from appends after items shift」。
    *
-   * 身份是 id 不是序号：恢复会话与回填历史都会让每一条换序号，用序号当身份，锚点
-   * 会在那之后落到别的条目上。官方同样点名过这一条 ——「Index keys cannot distinguish
-   * prepends from appends after items shift」。
+   * 依赖是 rows，不是一份在渲染期写进去的镜像。React 的规矩没有例外：渲染必须是纯的，
+   * ref 不在渲染期读写（Referencing Values with Refs 逐字：Do not write or read
+   * ref.current during rendering）。StrictMode 会把渲染跑两遍，并发渲染会丢弃渲染 ——
+   * 镜像因此不是一次优化，是一次赌它不行使这个权利。
+   *
+   * 换掉的代价是可算的，而且比此前那段注释说的小两个量级：getItemKey 换身份只让虚拟器
+   * 重算 measurements 这一层备忘（它的依赖里有 getItemKey），而实测高度存在以 item key
+   * 为索引的 itemSizeCache 里，不随之作废 —— 重算是纯算术，measureElement 一次都不会
+   * 被重新调用。「每帧全表重测」从来没有发生过。
    */
-  const getItemKey = useCallback((index: number) => rowsRef.current[index]?.item.id ?? index, [])
+  const getItemKey = useCallback((index: number) => rows[index]?.item.id ?? index, [rows])
 
-  const estimateSize = useCallback((index: number) => {
-    const type = rowsRef.current[index]?.item.type
+  const estimateSize = useCallback(
+    (index: number) => {
+      const type = rows[index]?.item.type
 
-    /*
-     * 只剩一个分支：有没有这一行。
-     *
-     * 此前那个 ?? 是类型宽度的产物 —— 表的键宽到能接任何字符串,编译器于是再也
-     * 证明不了它是全的,兜底成了必需品。收窄之后它可证不可达:留着它,读的人会以
-     * 为存在某个条目类型落不进这张表。
-     */
-    return type === undefined ? ESTIMATED_FALLBACK_PX : ESTIMATED_ROW_PX[type]
-  }, [])
+      return type === undefined ? ESTIMATED_FALLBACK_PX : ESTIMATED_ROW_PX[type]
+    },
+    [rows],
+  )
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -482,8 +455,15 @@ export function AgentActivityFeed({
 
   const items = virtualizer.getVirtualItems()
 
-  /* 区间表是渲染的产物,不是几何的产物:这里一个布局量都不读。 */
-  spansRef.current = items
+  /*
+   * 区间表在提交之后镜像一次。
+   *
+   * 它唯一的读者是滚动回调里的那次二分，而回调永远发生在提交之后 —— 所以这份镜像
+   * 没有任何理由写在渲染期，也就不必违反渲染纯度。
+   */
+  useLayoutEffect(() => {
+    spansRef.current = items
+  }, [items])
 
   /*
    * 量，然后交出去。这里一个字都不写回 DOM。

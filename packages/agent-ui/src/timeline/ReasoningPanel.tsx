@@ -77,18 +77,6 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
 
   const blocks = useMemo(() => split(text), [split, text])
 
-  /*
-   * 本帧的块表，给虚拟器的选项函数同步读。
-   *
-   * 理由与 AgentActivityFeed 的 rowsRef 逐字相同：官方要求把 getItemKey 与
-   * estimateSize memo 住，而块表每一帧换引用，写进依赖数组等于没有 memo。这一处
-   * 与那一处是同一个待偿项（React 官方不建议渲染期读写 ref），所以做法保持一致，
-   * 将来一起换掉，而不是在这里另立第二种。
-   */
-  const blocksRef = useRef(blocks)
-
-  blocksRef.current = blocks
-
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   /* 落点要踩在设备像素上：半个像素会把块里 1px 的边摊到两行、墨色减半。 */
@@ -100,13 +88,16 @@ export function ReasoningPanel({ isStreaming, text }: ReasoningPanelProps) {
    * 块只追加，封口之后内容不再变，所以这个数恒定且唯一 —— 而且正在写的那一块封口
    * 时它的起始行号不变，于是它已经测到的高度不会因为「它现在算封口的了」而作废。
    */
-  const getItemKey = useCallback((index: number) => blocksRef.current[index]?.key ?? index, [])
+  const getItemKey = useCallback((index: number) => blocks[index]?.key ?? index, [blocks])
 
-  const estimateSize = useCallback((index: number) => {
-    const block = blocksRef.current[index]
+  const estimateSize = useCallback(
+    (index: number) => {
+      const block = blocks[index]
 
-    return block === undefined ? ESTIMATED_LINE_PX : block.lines * ESTIMATED_LINE_PX
-  }, [])
+      return block === undefined ? ESTIMATED_LINE_PX : block.lines * ESTIMATED_LINE_PX
+    },
+    [blocks],
+  )
 
   const virtualizer = useVirtualizer({
     count: blocks.length,

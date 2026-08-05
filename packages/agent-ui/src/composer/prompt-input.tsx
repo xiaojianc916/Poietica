@@ -308,10 +308,10 @@ export function PromptInput({
   }
 
   return (
-    <ActionsContext.Provider value={actions}>
-      <TextContext.Provider value={text}>
-        <AttachmentsContext.Provider value={attachments}>
-          <DraftContext.Provider value={draft}>
+    <ActionsContext value={actions}>
+      <TextContext value={text}>
+        <AttachmentsContext value={attachments}>
+          <DraftContext value={draft}>
             <form
               className={cx('assistant-prompt-input', className)}
               data-slot="prompt-input"
@@ -359,10 +359,10 @@ export function PromptInput({
             >
               {children}
             </form>
-          </DraftContext.Provider>
-        </AttachmentsContext.Provider>
-      </TextContext.Provider>
-    </ActionsContext.Provider>
+          </DraftContext>
+        </AttachmentsContext>
+      </TextContext>
+    </ActionsContext>
   )
 }
 
