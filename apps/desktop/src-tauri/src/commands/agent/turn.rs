@@ -4,9 +4,10 @@
 
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
-use poietica_agent_runtime_native::{ACP_UPDATE, FrameSink, RecordedEvent};
-use std::time::Instant;
+use poietica_agent_runtime_native::{FrameSink, RecordedEvent};
 use tauri::{AppHandle, Emitter, State, async_runtime};
+use tokio::sync::mpsc;
+use tokio::time::{Instant, timeout_at};
 
 use super::addressing::{Wanted, session_for};
 use super::attachment::{Kept, keep_bytes};
@@ -42,8 +43,7 @@ pub async fn agent_prompt(
     let text = request.text.trim().to_owned();
     let attached = request.assets;
 
-    /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话 ——
-    此前这里只看 text，那种消息就死在这一行上，屏幕上是一句「请求参数无效」。 */
+    /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话。 */
     if text.is_empty() && attached.is_empty() {
         return Err(Error::Validation("the prompt is empty".to_owned()).into());
     }
@@ -51,18 +51,14 @@ pub async fn agent_prompt(
     /* 这里不再验类型、不再验大小。字节进注册表的那一刻就已经验过：内容类型
     由文件头嗅出来（asset.rs 的 sniff，不看扩展名），交付得了才收得下
     （validate_content_type），单张上限由 MAX_ASSET_BYTES 卡。同一件事只判一次，
-    而且判在字节所在的那一侧 —— 此前门口这三条判的是渲染层自己报的 MIME 与一个
-    base64 字符串的长度，两样都不是事实本身。
+    而且判在字节所在的那一侧。
 
     这一路唯一还会失败的事，是那两个令牌指不到东西，由 keep_bytes 说出来。 */
 
     let session = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
-    // 一条对话持有一个会话，这一轮就发往它。
-    //
-    // 此前的兜底是"查不到就用连接上的第一条会话"，于是在第二条对话里
-    // 提问，带的是第一条的上下文与模型。命名的对话若还没有会话，就在
-    // 这里为它开一个并记下来——这是 ACP 的会话模型，不是补丁。
+    // 一条对话持有一个会话，这一轮就发往它。命名的对话若还没有会话，就在
+    // 这里为它开一个并记下来 —— 这是 ACP 的会话模型。
     let named = request
         .thread_id
         .as_deref()
@@ -112,14 +108,18 @@ pub async fn agent_prompt(
     )
     .await?;
 
-    for attachment in ledger {
-        on_store(&state, move |store| {
+    /* 一句话里的图写的是同一张表、属于同一句话：一次借用，一趟阻塞线程。逐张
+    各走一次 `on_store`，就是各排一次线程池、各抢一次那把库锁。 */
+    on_store(&state, move |store| {
+        for attachment in ledger {
             store
                 .remember_attachment(thread_id, &attachment)
-                .map_err(persistence)
-        })
-        .await?;
-    }
+                .map_err(persistence)?;
+        }
+
+        Ok(())
+    })
+    .await?;
 
     let frames = batched(app);
 
@@ -150,39 +150,42 @@ pub async fn agent_prompt(
 
 /// 帧攒着走，一拍一趟。
 ///
-/// 每一帧一次 emit，就是每一个 token 一次 `RecordedEvent` 全量序列化、一次跨
-/// 进程投递、一次 webview 事件派发；一段长回答几千趟。而收帧的那一侧本来就只
-/// 按屏幕的节拍看一眼，所以投递的频率此前绑在 token 速率上，消费的频率绑在屏
-/// 幕上 —— 两条时钟不同源，中间那一段必然是白付的，而且 agent 越快付得越多。
+/// 一帧一次 emit，就是一个 token 一次全量序列化、一次跨进程投递、一次 webview
+/// 事件派发；而收帧的那一侧只按屏幕的节拍看一眼（transcript-store 的 `#paint`）。
+/// 投递因此服从屏幕，不服从 agent 吐字的速度。
 ///
-/// 这里让前者服从后者：一拍之内的帧攒成一批，一次上线。
+/// 攒批站在自己的任务上，不站在 ACP 读循环上：序列化与跨进程投递是这条路上最
+/// 贵的两件事，留在读循环里就等于让 agent 的标准输出以它们为节拍被读取。
 ///
-/// 不需要定时器，也就没有第二条时间线要管。「一拍之内不会再有下一帧」的处境
-/// 只有两种，两种都不是流：一轮的最后一帧必然是 `run_finished` 或 `run_failed`，
-/// 而权限请求之后 agent 就闭嘴等人答话。所以流以外的每一种帧都立刻发，连同
-/// 它前面攒着的那些，顺序原样 —— 攒着的批不可能卡在谁的手里。
+/// 每一帧的等待有上界：一批从它的第一帧起算，满 [`FRAME_INTERVAL`] 就交货，其
+/// 间没有新帧也一样。上界是这条通道唯一的时间承诺 —— 靠「下一帧会来」推动交货
+/// 给不出上界，而一次工具调用宣告之后 agent 正是沉默着去干活的。
 fn batched(app: AppHandle) -> FrameSink {
-    let mut held: Vec<RecordedEvent> = Vec::new();
-    let mut sent = Instant::now();
+    let (arrived, mut arriving) = mpsc::unbounded_channel::<RecordedEvent>();
+
+    async_runtime::spawn(async move {
+        let mut held: Vec<RecordedEvent> = Vec::new();
+
+        while let Some(first) = arriving.recv().await {
+            let deadline = Instant::now() + FRAME_INTERVAL;
+
+            held.push(first);
+
+            while let Ok(Some(next)) = timeout_at(deadline, arriving.recv()).await {
+                held.push(next);
+            }
+
+            // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
+            // 随 agent_open_thread 一起交回来。
+            let _ignored = app.emit(AGENT_EVENT, &held);
+
+            held.clear();
+        }
+    });
 
     Box::new(move |event: &RecordedEvent| {
-        /* 判别式由帧自己说，这一侧不另立一套分类。 */
-        let streaming = event.frame.kind() == ACP_UPDATE;
-        let now = Instant::now();
-
-        held.push(event.clone());
-
-        if streaming && now.duration_since(sent) < FRAME_INTERVAL {
-            return;
-        }
-
-        sent = now;
-
-        // 渲染层没在听不是错：这条对话下次打开时，历史由持有它的 agent
-        // 随 agent_open_thread 一起交回来。
-        let _ignored = app.emit(AGENT_EVENT, &held);
-
-        held.clear();
+        /* 收批的那一端与这条连接同寿；它先走了，这一轮剩下的帧就没有去处。 */
+        let _closed = arrived.send(event.clone());
     })
 }
 
@@ -215,8 +218,6 @@ pub fn agent_resolve_permission(
 ///
 /// 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
 /// 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
-/// 此前这里点名的是一个轮次号，为它在内存里另养了一张 runId → sessionId 的表，
-/// 一轮开始时写、结束时删：那张表回答的问题，库里本来就有答案。
 ///
 /// 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
 /// 还没开过口的对话新开一个会话，那是纯副作用。
