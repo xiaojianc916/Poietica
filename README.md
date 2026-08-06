@@ -177,7 +177,7 @@ crates/                  Native Rust crates — host-agnostic, testable without 
 packages/                TypeScript workspace packages, tiered, dependencies point downward
 docs/                    Architecture notes, decision records, proposals, runbooks
 scripts/                 Repository tooling: release, git hooks, clean, tauri wrapper
-tests/architecture/      The machine-executable half of the architecture
+tools/architecture/      The machine-executable half of the architecture
 ```
 
 Three invariants hold everywhere:
@@ -190,7 +190,7 @@ Three invariants hold everywhere:
    `@tauri-apps/*`; platform capability never leaks into domain or foundation packages.
 3. **Every kind of state has one owner and one write path.**
 
-The tier table itself lives in [`tests/architecture/rules.config.mjs`](./tests/architecture/rules.config.mjs)
+The tier table itself lives in [`tools/architecture/rules.config.mjs`](./tools/architecture/rules.config.mjs)
 and is reconciled against the packages on disk every time the checks run. No document
 restates it — four hand-copied copies once disagreed with each other, and only the
 configuration was ever executed.
@@ -201,7 +201,7 @@ configuration was ever executed.
 | --- | --- |
 | [Engineering guide](./AGENTS.md) | Product invariants, architectural boundaries, and the rules a change must satisfy. Start here. |
 | [Architecture notes](./docs/architecture/README.md) | System boundaries, native layering, disk layout, UI authority. |
-| [Architecture checks](./tests/architecture/README.md) | Every machine-enforced rule and how to add one. |
+| [Architecture checks](./tools/architecture/README.md) | Every machine-enforced rule and how to add one. |
 
 ## Contributing
 

@@ -6,10 +6,10 @@ import {
   takePreviousNativeCrashReport,
 } from '@poietica/desktop-adapters'
 import { mountReactApplication } from './bootstrap/react-root'
+import { installContextMenuGuard } from './chrome/context-menu-guard'
+import { installExternalLinks } from './chrome/external-links'
+import { installScrollbarSize } from './chrome/scrollbar-size'
 import { reportFatalIncident } from './fatal/fatal-runtime'
-import { installContextMenuGuard } from './ui/chrome/context-menu-guard'
-import { installExternalLinks } from './ui/chrome/external-links'
-import { installScrollbarSize } from './ui/chrome/scrollbar-size'
 
 void bootstrapApplication()
 

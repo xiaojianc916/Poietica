@@ -50,7 +50,7 @@ built.
 ## Checking the host
 
 ```bash
-node tests/architecture/run.mjs
+node tools/architecture/run.mjs
 ```
 
 The script exits non-zero and prints the install command for anything missing.

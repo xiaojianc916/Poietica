@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ImageLightbox, type PreviewableImage } from '../media/ImageLightbox'
+import { ImageLightbox, type PreviewableImage } from '../media/image-lightbox'
 import { cx } from '../primitives/class-names'
 import { CloseIcon, FileIcon, SpinnerIcon, StopIcon, SubmitIcon } from '../primitives/icons'
 import { attachmentIntake, type ComposerAsset } from './attachment-intake'

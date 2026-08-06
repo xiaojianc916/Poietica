@@ -1,6 +1,6 @@
 import type { RunEvent } from '@poietica/acp'
 import { describe, expect, it } from 'vitest'
-import { SAMPLE_RUN_EVENTS } from '../__fixtures__'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__/index'
 import { replayRunEvents } from '../index'
 import { createReplaySession } from '../replay-session'
 

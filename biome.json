@@ -157,7 +157,14 @@
         "useSelfClosingElements": "error",
         "useShorthandAssign": "error",
         "useTemplate": "error",
-        "useThrowOnlyError": "error"
+        "useThrowOnlyError": "error",
+        "useFilenamingConvention": {
+          "level": "error",
+          "options": {
+            "filenameCases": ["kebab-case"],
+            "requireAscii": true
+          }
+        }
       },
       "suspicious": {
         "noArrayIndexKey": "warn",
@@ -254,7 +261,7 @@
       }
     },
     {
-      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "*.mjs"],
+      "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "*.mjs", "tools/**/*.mjs"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -273,6 +280,16 @@
       },
       "assist": {
         "enabled": false
+      }
+    },
+    {
+      "includes": ["**/*.config.ts", "**/*.config.mjs", "**/*.d.ts", "**/*.generated.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": "off"
+          }
+        }
       }
     }
   ]

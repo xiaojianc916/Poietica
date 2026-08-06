@@ -12,7 +12,7 @@ The agent feed was going to be built on AI Elements, vendored through the
 shadcn registry. Three problems surfaced during integration.
 
 AI Elements is built on the Radix flavour of shadcn/ui. This repository's
-design system is Base UI, and `tests/architecture/check-ui-boundaries.mjs`
+design system is Base UI, and `tools/architecture/check-ui-boundaries.mjs`
 already treats Base UI as the only primitives library allowed outside the
 design system. There is no Base UI build of AI Elements; the request has been
 open upstream since February 2026 as vercel/ai-elements#383, filed by someone

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'
 import { type AgentDialect, AgentDialectContext } from '../semantics/agent-dialect'
 import { isQuestionRequest } from '../semantics/ask-user-question'
-import { PermissionRecord } from '../timeline/PermissionRecord'
+import { PermissionRecord } from '../timeline/permission-record'
 
 /*
  * 提问闸门。

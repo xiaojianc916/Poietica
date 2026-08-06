@@ -9,8 +9,8 @@
 
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
-| 包分层与依赖方向 | `tests/architecture/rules.config.mjs` | `pnpm test:architecture` |
-| 体量债基线 | `tests/architecture/size-budget.json` | 同上 |
+| 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
+| 体量债基线 | `tools/architecture/size-budget.json` | 同上 |
 | 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
 | IPC 契约 | Rust 侧类型，导出到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
@@ -18,7 +18,7 @@
 与本文冲突时以上表为准，并回来修本文。
 
 **不要在这里重抄任何一张表。** README、本文、`docs/architecture/README.md` 与
-`tests/architecture/README.md` 曾各存一份手抄分层表，四份互相矛盾 —— 其中一份列了
+`tools/architecture/README.md` 曾各存一份手抄分层表，四份互相矛盾 —— 其中一份列了
 磁盘上不存在的包，另一份漏掉了一个真实存在的包，而被执行的始终只有配置那一份。
 手抄表不会让事实更清楚，只会制造第二个事实。
 
@@ -47,7 +47,7 @@ apps/desktop/src/        产品界面与应用编排
 apps/desktop/src-tauri/  唯一的组合根：建窗、注册命令、在边界上做 DTO 与领域类型互转
 crates/                  native crate，与宿主无关，可脱离 Tauri 单独测试
 packages/                TypeScript 工作区包，分层，依赖单向向下
-tests/architecture/      机器执行的那部分架构
+tools/architecture/      机器执行的那部分架构
 ```
 
 ### 为什么按层切，而不是按技术种类切
@@ -109,7 +109,7 @@ TypeScript 侧的绑定是生成物，不手改：改完 Rust 侧类型跑 `pnpm
 ## 你会撞上的墙
 
 `pnpm test:architecture` 是机器执行的那部分架构。它不给建议，只报违规位置。规则清单与
-判据见 `tests/architecture/README.md` —— 这里说的是撞上去意味着什么。
+判据见 `tools/architecture/README.md` —— 这里说的是撞上去意味着什么。
 
 - **方向墙。** 依赖指向了更高层，或非白名单包碰了 `@tauri-apps/*`。这是分层被破坏，不是
   允许集漏了谁：先想清楚这个能力该归谁，不要去改允许集。
@@ -182,4 +182,4 @@ pnpm check
 | `docs/adr/` | 已接受的技术决策及其理由 |
 | `docs/rfcs/` | 进行中的技术与产品提案 |
 | `docs/runbooks/` | 开发、维护与运维流程 |
-| `tests/architecture/README.md` | 机器执行的那部分架构 |
+| `tools/architecture/README.md` | 机器执行的那部分架构 |

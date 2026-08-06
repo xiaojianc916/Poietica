@@ -79,4 +79,4 @@ export function assertUnreachable(value: never, context?: Record<string, unknown
 // NOTE: Domain-specific errors are intentionally NOT defined here. Foundations
 // owns only error shapes that every layer shares; anything that names a product
 // concept belongs to the package that owns that concept (see
-// tests/architecture/rules.config.mjs for the layering).
+// tools/architecture/rules.config.mjs for the layering).

@@ -9,7 +9,7 @@
   就住在谁的包里 —— 它随包一起被移动、被改名、被删除。
 - `tests/unit/architecture/`：仓库级不变量。目前是依赖图闸门：
   任何包都不得 import 一个自己没有在 package.json 里声明的 `@poietica/*`。
-- `tests/architecture/`：正则形态的架构规则（`rules.config.mjs` 是数据，
+- `tools/architecture/`：正则形态的架构规则（`rules.config.mjs` 是数据，
   `run.mjs` 是执行器）。加一条规则等于加一个对象，不等于加一个脚本。
 
 不要在 `tests/` 下新建只服务于某一次迁移的目录或守卫文件。

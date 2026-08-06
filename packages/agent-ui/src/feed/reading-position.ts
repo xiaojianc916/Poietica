@@ -1,4 +1,4 @@
-import { lastAtOrBefore } from '../ordered-lookup'
+import { lastAtOrBefore } from '../threads/ordered-lookup'
 
 /**
  * 一行在滚动内容坐标里的起点。

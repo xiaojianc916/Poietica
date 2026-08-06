@@ -7,11 +7,7 @@
     "**/*.css"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./contracts": "./src/contracts/index.ts",
-    "./domain": "./src/domain/index.ts",
-    "./state": "./src/state/index.ts",
-    "./ui": "./src/ui/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",

@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics.ts'
+import { customErrorDiagnosticsPlugin } from './vite-plugins/custom-error-diagnostics'
 
 /*
  * Tauri 在构建时注入这两个变量。process.env 的类型是索引签名，而仓库开了

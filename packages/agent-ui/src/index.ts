@@ -1,14 +1,6 @@
-export type { AssistantComposerProps } from './AssistantComposer'
-export { AssistantComposer } from './AssistantComposer'
-export { AssistantQuickActions } from './AssistantQuickActions'
-export type { AssistantSurfaceProps } from './AssistantSurface'
-export { AssistantSurface } from './AssistantSurface'
-export type {
-  AssistantThreadListProps,
-  AssistantThreadSummary,
-  AssistantThreadWorkspaceGroup,
-} from './AssistantThreadList'
-export { AssistantThreadList } from './AssistantThreadList'
+export type { AssistantComposerProps } from './composer/assistant-composer'
+export { AssistantComposer } from './composer/assistant-composer'
+export { AssistantQuickActions } from './composer/assistant-quick-actions'
 export type { AttachmentIntake, ComposerAsset } from './composer/attachment-intake'
 export { installAttachmentIntake } from './composer/attachment-intake'
 export type { ChatStatus, PromptInputMessage } from './composer/prompt-input'
@@ -17,10 +9,18 @@ export type {
   ImageLightboxProps,
   ImageThumbnailGridProps,
   PreviewableImage,
-} from './media/ImageLightbox'
-export { ImageLightbox, ImageThumbnailGrid } from './media/ImageLightbox'
+} from './media/image-lightbox'
+export { ImageLightbox, ImageThumbnailGrid } from './media/image-lightbox'
 export { createExternalStore } from './primitives/external-store'
 export type { AgentDialect } from './semantics/agent-dialect'
 export { AgentDialectContext } from './semantics/agent-dialect'
-export type { WorkspaceChoice, WorkspacePickerProps } from './workspace-picker'
-export { WorkspacePicker } from './workspace-picker'
+export type { AssistantSurfaceProps } from './surface/assistant-surface'
+export { AssistantSurface } from './surface/assistant-surface'
+export type {
+  AssistantThreadListProps,
+  AssistantThreadSummary,
+  AssistantThreadWorkspaceGroup,
+} from './threads/assistant-thread-list'
+export { AssistantThreadList } from './threads/assistant-thread-list'
+export type { WorkspaceChoice, WorkspacePickerProps } from './threads/workspace-picker'
+export { WorkspacePicker } from './threads/workspace-picker'

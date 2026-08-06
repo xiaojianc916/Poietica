@@ -1,15 +1,11 @@
-/// <reference path="./css.d.ts" />
-export {
-  ClockTenIcon,
-  GithubMark,
-  LightbulbIcon,
-  WebhookIcon,
-} from './components/icons/local-glyphs'
-export { Button } from './components/ui/button'
-export { CommandMenu, type CommandMenuItem } from './components/ui/command-menu'
-export { ConfirmationDialog } from './components/ui/confirmation-dialog'
-export { Dialog } from './components/ui/dialog'
-export { Drawer } from './components/ui/drawer'
+/// <reference path="./css.d" />
+
+export { Button } from './button'
+export { cn } from './class-names'
+export { CommandMenu, type CommandMenuItem } from './command-menu'
+export { ConfirmationDialog } from './confirmation-dialog'
+export { Dialog } from './dialog'
+export { Drawer } from './drawer'
 export {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,16 +19,21 @@ export {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from './components/ui/dropdown-menu'
-export { ErrorState, InlineSpinner, LoadingState } from './components/ui/feedback'
-export { Select, type SelectOption } from './components/ui/select'
-export { Switch } from './components/ui/switch'
-export { type ToastNotice, ToastRegion } from './components/ui/toast'
+} from './dropdown-menu'
+export { ErrorState, InlineSpinner, LoadingState } from './feedback'
+export {
+  ClockTenIcon,
+  GithubMark,
+  LightbulbIcon,
+  WebhookIcon,
+} from './local-glyphs'
+export { Select, type SelectOption } from './select'
+export { Switch } from './switch'
+export { applyThemePreference } from './theme-controller'
+export { type ToastNotice, ToastRegion } from './toast'
 export {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from './components/ui/tooltip'
-export { cn } from './lib/utils'
-export { applyThemePreference } from './theme-controller'
+} from './tooltip'

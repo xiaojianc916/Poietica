@@ -42,7 +42,7 @@
 
 `src-tauri/src/commands/` 下的 `agent.rs`、`agent_config.rs`、
 `agent_install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
-这些偏差已被 `tests/architecture/size-budget.json` 的体量棘轮冻结：基线里的文件只
+这些偏差已被 `tools/architecture/size-budget.json` 的体量棘轮冻结：基线里的文件只
 允许变小，基线外的生产源文件不得越过字节上限。债只能往下走，不会再悄悄长大。
 
 上面「规则」一节的四条，目前有三条由 `pnpm test:architecture` 的

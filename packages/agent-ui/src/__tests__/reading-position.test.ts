@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RowSpan, rowAtAnchor } from '../feed/reading-position'
-import { turnIndexAtRow } from '../ordered-lookup'
+import { turnIndexAtRow } from '../threads/ordered-lookup'
 
 /* poietica:conversation-minimap-audit@v15 */
 

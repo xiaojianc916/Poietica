@@ -1,4 +1,4 @@
-import type { AttachmentIntake, ComposerAsset } from '@poietica/agent-ui/composer/attachment-intake'
+import type { AttachmentIntake, ComposerAsset } from '@poietica/agent-ui'
 import {
   type AssetFormat,
   importAssets,

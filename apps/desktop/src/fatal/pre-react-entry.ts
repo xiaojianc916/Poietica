@@ -1,4 +1,4 @@
-import { failureCoordinator } from '../state/failures/failure-coordinator'
+import { failureCoordinator } from '../failures/failure-coordinator'
 import { installFatalCollectors } from './fatal-collectors'
 import { isReactFatalHostMounted } from './fatal-runtime'
 import type { TerminalFailureViewModel } from './terminal-failure-view-model'

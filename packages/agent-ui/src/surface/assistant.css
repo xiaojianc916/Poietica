@@ -1,0 +1,1588 @@
+@import "../composer/composer-metrics.css";
+
+/*
+ * Assistant skin. Every length and duration is a token or a calc() over
+ * tokens. The composer card is the input itself: it owns the border, the
+ * elevation and the click target, and nothing inside it draws a second frame.
+ */
+
+.assistant-visually-hidden {
+  position: absolute;
+  clip-path: inset(50%);
+  block-size: var(--cp-px);
+  inline-size: var(--cp-px);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/*
+ * The surface is the frame of one scroller.
+ *
+ * It gives the scroller the height of the panel and the paint of the ground,
+ * and holds nothing else: the reading measure, the free space and the resting
+ * states all belong to the scroller, because they are all inside the scroll
+ * box. A frame that also scrolled would give the wheel two owners.
+ */
+.assistant-surface {
+  /* 回放那段空白里的加载图标绝对定位于此。 */
+  position: relative;
+  display: flex;
+  /* 自上而下:相位那一棵,输入框,以及入口态才有的压舱块。 */
+  flex-direction: column;
+  block-size: 100%;
+  overflow: hidden;
+  background: var(--cp-ground);
+  color: var(--cp-ink);
+  font-size: var(--cp-font);
+}
+
+.assistant-masthead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cp-mast-gap);
+}
+
+.assistant-masthead__mark {
+  display: block;
+  block-size: var(--cp-mark);
+  inline-size: var(--cp-mark);
+  object-fit: contain;
+}
+
+.assistant-masthead__title {
+  margin: 0;
+  font-size: var(--cp-font-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+[data-slot="prompt-input"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-lift);
+  cursor: text;
+}
+
+[data-slot="prompt-input-body"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+[data-slot="prompt-input-textarea"],
+[data-slot="prompt-input-textarea"]:hover,
+[data-slot="prompt-input-textarea"]:focus,
+[data-slot="prompt-input-textarea"]:focus-visible,
+[data-slot="prompt-input-textarea"]:active {
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/*
+ * 高度归浏览器。
+ *
+ * field-sizing: content 让表单控件按内容定尺寸，min-/max-block-size 仍然钳制
+ * 上下限，超出上限交给 overflow-y: auto —— 这四行就是整套「跟着内容长高」，
+ * 没有任何脚本参与。静息高度仍是 --cp-editor-idle，与此前钳制的下限同一个令牌，
+ * 所以这次改动在版式上零像素差。
+ *
+ * 此前这里有一段注释说它「已经删掉，因为不接线：行内像素值恒胜出」。那个行内
+ * 像素值是 composer/use-autosize.ts 自己写的 —— 它把自己造成的因当成了删掉官方
+ * 能力的理由。那条路要读 getComputedStyle 取上下限、把 block-size 归零、读
+ * scrollHeight、再写回像素值：一次写后读，也就是每敲一个字符一次强制同步重排，
+ * 外加一个观察自身高度的 ResizeObserver（它会把这个 hook 写下的高度报回来，
+ * 于是还要一个 last width 去滤掉自己造出的回声）。全部由这一条声明取代。
+ *
+ * 交付面只有 Windows：src-tauri/tauri.conf.json 的 bundle.targets 是 ["nsis"]，
+ * 且只配了 bundle.windows，webviewInstallMode 装的是 WebView2 Evergreen，也就是
+ * 随系统更新的 Chromium。field-sizing 自 Chromium 123 起 ship，因此这是平台已经
+ * 提供的能力，不是一次押注。
+ *
+ * 不给长高上补间，这是有意的，也是这一类输入框的通行做法（VS Code 的 chat 输入、
+ * Zed 的 message editor、GitHub 的评论框都是即时换行）：那段位移恰好是一行行高，
+ * 而人此刻正盯着插入符 —— 补间会让插入符与它真正的落点分开一百多毫秒，输入法的
+ * 候选窗还得追着动画跑。所以 --cp-motion-grow 不会回来。
+ */
+[data-slot="prompt-input-textarea"] {
+  display: block;
+  field-sizing: content;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--cp-editor-idle);
+  max-block-size: var(--cp-editor-max);
+  overflow-y: auto;
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+  font-family: inherit;
+  font-size: var(--cp-font);
+  line-height: var(--cp-line-ratio);
+  color: var(--cp-ink);
+  /*
+   * 这里不声明 caret-color。
+   *
+   * 此前是 var(--cp-accent) —— 那是发送键的品牌色（见本文件
+   * [data-slot="prompt-input-submit"] 的 background，同一个令牌）。光标不是强调
+   * 件：它标的是下一个字形要落在哪里，所以它的颜色就是那个字形的颜色。
+   *
+   * caret-color 的初始值是 auto，解析为 currentColor，也就是上一行的 --cp-ink。
+   * 因此「默认颜色」由删掉声明得到，而不是补一条 caret-color: auto —— 那是用一
+   * 条声明去表达「没有声明」，下一个人还得再判断它盖掉了什么。
+   *
+   * 全仓其余输入框（会话行的 __rename-field、设置页那几个）从来没有声明过它，
+   * 所以这一条删掉之后，输入光标在整个应用里只有一种颜色，公共层不需要兜底。
+   */
+  resize: none;
+  box-sizing: border-box;
+}
+
+[data-slot="prompt-input-textarea"]::placeholder {
+  color: var(--cp-placeholder);
+}
+
+[data-slot="prompt-input-toolbar"] {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-inset);
+}
+
+[data-slot="prompt-input-tools"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.assistant-toolbar__spacer {
+  flex: 1;
+}
+
+.assistant-control--round,
+.assistant-control--ghost {
+  display: inline-grid;
+  block-size: var(--cp-control);
+  inline-size: var(--cp-control);
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: var(--cp-optical);
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-control--round {
+  border: var(--cp-px) solid var(--cp-hairline);
+}
+
+.assistant-control--round:hover,
+.assistant-control--ghost:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-control--round svg,
+.assistant-control--ghost svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+[data-slot="prompt-input-submit"] {
+  display: inline-grid;
+  block-size: var(--cp-control);
+  inline-size: var(--cp-control);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: 0;
+  background: var(--cp-accent);
+  color: var(--cp-accent-foreground);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--cp-accent-foreground) 28%, transparent),
+    0 1px 2px color-mix(in srgb, var(--cp-accent) 32%, transparent);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+[data-slot="prompt-input-submit"] svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+[data-slot="prompt-input-submit"]:hover:not(:disabled) {
+  background: var(--cp-accent-hover);
+}
+
+[data-slot="prompt-input-submit"]:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+[data-slot="prompt-input-submit"]:disabled {
+  background: var(--cp-accent-idle);
+  box-shadow: none;
+  cursor: default;
+}
+
+[data-slot="prompt-input-submit"][data-status="submitted"] svg {
+  animation: assistant-spin 900ms linear infinite;
+}
+
+@keyframes assistant-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes assistant-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--cp-motion-rise)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.assistant-model-select__label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+[data-slot="prompt-input-attachments"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cp-control-gap);
+  padding: var(--cp-pad-top) var(--cp-pad-x) 0;
+}
+
+[data-slot="prompt-input-attachment"] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+  border: var(--cp-px) solid var(--cp-hairline);
+  border-radius: var(--cp-radius-menu);
+  padding: var(--cp-optical) var(--cp-inset);
+  background: var(--cp-surface);
+}
+
+.assistant-attachment__icon {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  color: var(--cp-ink-muted);
+}
+
+.assistant-attachment__meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-attachment__name {
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink);
+}
+
+.assistant-attachment__type {
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+}
+
+.assistant-attachment__remove {
+  display: inline-grid;
+  block-size: var(--cp-control-xs);
+  inline-size: var(--cp-control-xs);
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--cp-ink-subtle);
+  cursor: pointer;
+}
+
+.assistant-attachment__remove:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-attachment__remove svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.assistant-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--cp-control-gap);
+}
+
+.assistant-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: var(--cp-px) solid var(--cp-edge);
+  border-radius: var(--cp-radius-tile);
+  padding: var(--cp-pad-tile) var(--cp-pad-x);
+  background: var(--cp-surface);
+  box-shadow: none;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    box-shadow var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-tile:hover {
+  box-shadow: var(--cp-lift);
+}
+
+/* 位移取偶数像素：1px 在 dpr 1.5 上是 1.5 个设备像素，整张卡会糊一帧。 */
+.assistant-tile:active {
+  transform: translateY(2px);
+}
+
+.assistant-tile__icon {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  color: var(--cp-ink-muted);
+}
+
+.assistant-tile__title {
+  font-size: var(--cp-font-label);
+  font-weight: 600;
+}
+
+.assistant-tile__subtitle {
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
+/*
+ * 行几何全部来自设计系统的 --ui-row-* 一族：会话行与侧边栏上方五个导航行是
+ * 同一种行，中线、内缩、行高、图标尺寸各只有一个所有者。
+ *
+ * 这一族令牌曾经声明在 workspace 的 .workspace-sidebar 上，本包读得到它们靠的
+ * 是渲染树的巧合 —— 本包不依赖 workspace，两者同为特性层的平级包。现在它们在
+ * 第 0 层，这条依赖是名正言顺的。
+ *
+ * 此前这里把「中线 − 内缩 − 图标半宽」重算了一遍，并且给中线补了 24px 兜底 ——
+ * 那是 workspace-layout.ts 里 navIconCenter 的影子副本，上游改了它不会跟，两段
+ * 于是各走一条线，而且不会报错。同时 padding 写了两遍，后一句把 --cp-pad-mid
+ * 覆盖掉，那个值从来没生效过。
+ *
+ * 留下的那个令牌才是会话列表自己的事：行内操作按钮的尺寸。
+ *
+ * 底部渐隐的高度曾经也在这里，连同它那两条 [data-fade] 规则一起删了 —— 那段
+ * 渐隐从来没有出现过。写它的注释说「由 use-scroll-fade 量出来写成 data-fade」，
+ * 但 AssistantThreadList.tsx 里没有那个 hook、没有 ref，全文不出现 data-fade：
+ * 属性没有人写，选择器一次都没命中过。注释描述的是一条从未接线的管线。
+ */
+.assistant-threads {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  /* 段与段之间没有空隙：与行距同一条 —— 组只是这一列里的另一行。 */
+  gap: calc(var(--ui-hairline) * 2);
+  overflow-y: auto;
+  padding-block: var(--cp-mast-gap);
+  padding-inline: var(--ui-row-inset);
+}
+
+/* 读完之后才成立的一句话，说得和列表行一样轻。 */
+.assistant-threads__empty {
+  margin: 0;
+  padding-block: var(--cp-optical);
+  padding-inline-start: var(--ui-row-lead);
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-subtle);
+}
+
+.assistant-threads__create {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+  margin-inline: 0;
+}
+
+/* Keep the Plus library glyph optically aligned with the group caption. */
+.assistant-threads__create svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.assistant-threads__create:hover {
+  background: var(--cp-hover);
+}
+
+.assistant-threads__create:active {
+  background: color-mix(in srgb, var(--ui-foreground) 12%, transparent);
+  transform: scale(0.94);
+}
+
+.assistant-threads__create:focus-visible {
+  outline: var(--cp-px) solid var(--cp-accent);
+  outline-offset: var(--cp-px);
+}
+
+.assistant-threads__list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--ui-hairline) * 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * 行高读侧边栏的行高，不读编排器的控件尺寸。
+ *
+ * 此前 block-size 是 --cp-control（输入框工具栏那一套），min-block-size 又是
+ * --ui-control-height-sm，实际高度是两者的较大者 —— 没人决定过它，它是撞出来
+ * 的，还让同一列侧边栏上下两段行不同高。
+ */
+.assistant-thread {
+  position: relative;
+  display: flex;
+  block-size: var(--ui-row-height);
+  align-items: center;
+  border-radius: var(--ui-row-radius);
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--ui-row-lead);
+  padding-inline-end: var(--ui-row-trail);
+  font-size: var(--cp-font-caption);
+}
+
+/*
+ * 会话行是侧边栏的行，不是编排器的控件，所以它和上面五个导航行读同一个
+ * --ui-sidebar-accent。原先读 --cp-hover：那是编排器卡片自己的色板，还被
+ * 菜单项与模型选择器共用，于是同一列侧边栏上下两段各用一套
+ * 色板，深色主题下更是各算各的。
+ */
+/*
+ * 一行只有一种「被介入」的状态，判定写一次。
+ *
+ * 三个等价来源：指针在行上、键盘落在行内、这一行的菜单开着。底色与行尾那一格
+ * 因此由同一条规则同时决定 —— 此前它们散在四条选择器、两个文件段落里，于是
+ * 「菜单开着但指针已经移走」这种再普通不过的组合，会出现底色没了、图标还在、
+ * 时间又冒出来的画面。
+ *
+ * :focus-within 换成 :has(:focus-visible)。前者对鼠标点击同样成立 —— 点开一个
+ * 会话，那一行的按钮就此持有焦点，于是这一行的时间永远不再回来，直到你去点别
+ * 处。这不是「有时乱」，这是必然乱。:focus-visible 只在键盘导航时命中，鼠标点
+ * 击不命中，正是这里要的语义。
+ *
+ * 菜单是否打开由 React 说了算（data-menu-open），不再嗅探触发器的 aria-expanded。
+ */
+.assistant-thread:hover,
+.assistant-thread:has(:focus-visible),
+.assistant-thread[data-menu-open="true"] {
+  background: var(--ui-sidebar-accent);
+  --thread-trail-time: 0;
+  --thread-trail-actions: 1;
+}
+
+/* 当前会话常亮，但它说的仍然是时间：选中不是介入。 */
+.assistant-thread[data-active="true"] {
+  background: var(--ui-sidebar-accent);
+}
+
+.assistant-thread[data-muted="true"] {
+  opacity: 0.45;
+}
+
+.assistant-thread__open {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  margin-inline: 0;
+  font-size: inherit;
+}
+
+.assistant-thread__icon {
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.assistant-thread__title {
+  overflow: hidden;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 行尾只有一格。
+ *
+ * 时间是静息态，两个图标是悬停态，它们放在同一个网格单元里彼此叠放，由
+ * 同一条选择器决定谁在画。此前是两条互不相干的条件——时间只在 :hover 时
+ * 隐藏，图标还认 :focus-within 与菜单打开——菜单开着而指针已经离开时两条
+ * 同时成立，绝对定位的图标于是压在时间上。同格还顺带解决了宽度：这一格
+ * 取两者中较宽者，切换时行内不会有任何位移。
+ */
+.assistant-thread__trail {
+  display: grid;
+  flex: none;
+  align-items: center;
+  justify-items: end;
+  margin-inline-start: auto;
+}
+
+.assistant-thread__trail > * {
+  grid-area: 1 / 1;
+}
+
+/*
+ * 行尾那一格：静息说时间，介入说操作。
+ *
+ * 谁在画由行自己的两个自定义属性决定，而它们只在上面那条判定里被赋值一次 ——
+ * 静息值写在这里的 var() 回退里。自定义属性表示「覆盖」，不表示「默认」，这是
+ * 分割线那次消失之后立下的规矩：静息态直接读得到值，不依赖任何一次赋值发生。
+ *
+ * 不再管理 pointer-events。操作按钮只有在指针落在行上时才可能被指到，而指针落
+ * 在行上这件事本身就把它们点亮了 —— 「隐形可点」在几何上不存在。时间正相反：
+ * 它任何时候都不是控件，所以无条件不接指针，否则指针明明停在两个图标上，浏览
+ * 器却会把它 title 里的绝对时刻弹出来。
+ *
+ * 操作始终参与布局，只有涂色在变。这一条不能退回 display: none：菜单关闭动画
+ * 里触发器若离开布局，定位引擎会量到一个没有盒子的锚点，弹层因此在窗口左上角
+ * 闪一帧。
+ */
+.assistant-thread__time {
+  font-size: var(--cp-font-micro);
+  color: var(--cp-ink-subtle);
+  opacity: var(--thread-trail-time, 1);
+  pointer-events: none;
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-thread__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: var(--thread-trail-actions, 0);
+  transition: opacity var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-thread__action {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+.assistant-thread__action svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.assistant-thread__action:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-thread-menu.assistant-thread-menu {
+  overflow: hidden;
+  font-family: inherit;
+  line-height: 1.25;
+  color: var(--cp-ink);
+}
+
+/*
+ * The design-system dropdown supplies behavior, focus management and
+ * positioning. These selectors intentionally have higher specificity than
+ * its utility classes, because geometry and visual language belong to the
+ * compact AI thread sidebar.
+ */
+.assistant-thread-menu .assistant-thread-menu__item {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--cp-ink);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.assistant-thread-menu .assistant-thread-menu__item svg {
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.assistant-thread-menu .assistant-thread-menu__item[data-highlighted],
+.assistant-thread-menu .assistant-thread-menu__item:focus-visible {
+  outline: none;
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted],
+.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible {
+  background: color-mix(in srgb, var(--ui-destructive) 12%, transparent);
+  color: var(--ui-destructive);
+}
+
+.assistant-thread-menu .assistant-thread-menu__item--destructive[data-highlighted] svg,
+.assistant-thread-menu .assistant-thread-menu__item--destructive:focus-visible svg {
+  color: currentcolor;
+}
+
+.assistant-thread-menu .assistant-thread-menu__separator {
+  block-size: var(--cp-px);
+  background: var(--cp-hairline);
+}
+
+.assistant-thread-menu .assistant-thread-menu__meta {
+  padding: 0;
+  border: 0;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--cp-ink-subtle);
+}
+
+/*
+ * 两个静止态的几何。中间没有任何可插值的量。
+ *
+ * 此前入口态与会话态是同一棵树的两种姿势:开场白与快捷入口靠 grid-template-rows
+ * 从 1fr 补间到 0fr 收起,滚动区与两个伪元素靠 flex-grow 换手。位置因此是一串
+ * 数字,而数字可以被补间 —— "半落"这个中间态是可以表达的,于是它会被表达出来。
+ *
+ * 现在入口态与会话态各挂各的东西:会话态挂一个占满剩余空间的滚动区,入口态挂
+ * 上下两块各占一半自由空间的兄弟。挂载与卸载不可补间。
+ *
+ * 居中的几何是原来那一份,逐字照搬:入口块的上下内边距等于原滚动区的
+ * (--cp-gutter / --cp-dock-dissolve),左右内边距与滚动区相同,快捷入口仍在输入
+ * 框下方 --cp-stack。所以这次改动在版式上是零像素差。
+ */
+.assistant-surface__entry {
+  display: flex;
+  min-block-size: 0;
+  min-inline-size: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-block: var(--cp-gutter) var(--cp-dock-dissolve);
+  padding-inline: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
+}
+
+/* 输入框下方的另一半自由空间。它只有这一个作用,所以它只有这一条声明。 */
+.assistant-surface__ballast {
+  flex: 1 1 0;
+}
+
+/*
+ * 输入框那一带。
+ *
+ * 从 agent-activity-feed.css 搬来,取值逐字未动:左右内边距与滚动区相同,这是它
+ * 与气泡对齐的唯一依据。它换了所有者,是因为它两个相位都在,而那个组件只在会话
+ * 态存在。
+ */
+.assistant-surface__dock {
+  position: relative;
+  flex: none;
+  min-inline-size: 0;
+  padding-block: var(--cp-pad-mid) var(--cp-gutter);
+  padding-inline: max(
+    var(--cp-gutter),
+    round(calc((100% - var(--cp-grid)) / 2), var(--ui-hairline))
+  );
+}
+
+.assistant-surface__starters {
+  margin-block-start: var(--cp-stack);
+}
+
+.assistant-surface__composer {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+}
+
+/* --- round 71: the provider mark --- */
+
+/*
+ * The mark sits on the text baseline of its control, so it is sized in the
+ * font of the toolbar rather than in pixels of its own.
+ */
+.assistant-provider-icon {
+  block-size: 1.15em;
+  inline-size: 1.15em;
+  flex: 0 0 auto;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* An unknown provider is quieter than a known one, and never invisible. */
+.assistant-provider-icon[data-fallback="true"] {
+  opacity: 0.75;
+}
+
+/* --- the picker stands with the tools, at the leading edge --- */
+
+/*
+ * The picker says how the next turn will be sent, which is what the leading
+ * cluster is for: the attach menu, then the session selectors. The trailing
+ * edge is the act of sending, and the two are not mixed — the same division
+ * Zed's agent panel, Copilot Chat and Cursor draw. It used to sit beside the
+ * send key, and the place it now occupies was held by a pill that named the
+ * agent and could not be clicked.
+ *
+ * 它是一枚 chip，所以它用 chip 的尺子。
+ *
+ * 此前这里写着「it keeps that pill's metrics, which were the right ones: the
+ * control height, the optical inset」—— 那句话自称继承了一颗胶囊的度量，实际
+ * 继承的是按钮的高度令牌（--cp-control，32px）加图标按钮的光学内缩
+ * （--cp-optical，6px）。32px 高、左右各 6px、全圆角，装一个 13px 的字：圆角
+ * 半径 16px 比整个横向留白还大，圆头咬进文字，上下各空 9.5px 的死气。三个数
+ * 各有出处，凑起来不是一个形状。
+ *
+ * 正确的一族就在 composer-metrics.css，且已经写明了它为什么存在：「它不是按钮，
+ * 所以不借 --cp-control」。26px 的壳给出上下各 5px，是 Fluent chip / Material
+ * assist chip / GitHub Label 那一档的内容留白比例。这一族此前只有模式胶囊在用，
+ * 而这里和它是同一种东西。
+ *
+ * 左右取同一个数。--cp-pill-lead 比 --cp-pill-trail 紧 4px，那是为了补偿一枚
+ * 圆形字形的光学重心比外接方框靠里；图标已经不在了，纯文字的 chip 两侧对称，
+ * 再留那 4px 差就是把补偿留给了一个不存在的东西。
+ *
+ * line-height 锁 1：壳高固定，字身若还带着继承来的 1.625，CJK 基线会被半行
+ * 间距顶偏，文字与胶囊差半个像素 —— 与模式胶囊同因，那里已经栽过一次。
+ *
+ * Two states are worth showing and no more: the pointer is over it, and its
+ * menu is open. Both are painted on the capsule.
+ */
+.assistant-model-select__button {
+  display: inline-flex;
+  block-size: var(--cp-pill);
+  /* 工具条挤时它不许被压扁：一枚 chip 被压窄就变成了另一个控件。 */
+  flex: none;
+  align-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding-inline: var(--cp-pill-trail);
+  background: transparent;
+  font-size: var(--cp-font-caption);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/*
+ * The capsule is the target, not the mark inside it.
+ *
+ * A pointer aims at a control, so the control answers: one wash of the hover
+ * token across the whole capsule, and the label darkens with it. The mark
+ * carries no state of its own, which is why no rule here ever names it.
+ */
+.assistant-model-select__button:hover {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.assistant-model-select__button[aria-expanded="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/* A long name is truncated rather than allowed to squeeze the editor. */
+.assistant-model-select__button .assistant-model-select__label {
+  max-inline-size: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing to offer is stated quietly, and offers nothing to click. */
+.assistant-model-select__button[data-empty="true"] {
+  color: var(--cp-ink-subtle);
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------- */
+/* The session selectors: one menu, a row per selector, values on the right */
+/*                                                                        */
+/* Menu chrome is its own scale. The composer surface is a large, soft     */
+/* panel; a menu is a small, dense, sharply drawn one, so it carries its   */
+/* own radii and its own edge rather than borrowing either.                */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * 面板与子面板不再自己定位,也不再自己画外框。
+ *
+ * 它们是 Base UI 的 Popup,位置由 Menu.Positioner 计算(side / align /
+ * sideOffset 都从组件传入),这里再写一次 position: absolute 加 inset 等于
+ * 两套坐标打架;外框统一来自 .assistant-menu-surface。这里只剩尺寸。
+ *
+ * 前缀由后代改成自身限定:面板是 Portal 渲染到 body 的,data-assistant-skin
+ * 挂在它自己身上,它没有带该属性的祖先 —— 原先的后代选择器一条都没命中过,
+ * 菜单一直在用设计系统的默认皮肤。两个类名的特异性也压得住工具类。
+ */
+.assistant-config-menu__panel[data-assistant-skin],
+.assistant-config-menu__submenu[data-assistant-skin] {
+  min-inline-size: 184px;
+}
+
+[data-assistant-skin] .assistant-config-menu__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: var(--am-item);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  text-align: start;
+  cursor: default;
+}
+
+/*
+ * 子菜单开着时,发起它的那一行保持高亮。
+ *
+ * Base UI 的 SubTrigger 发的是布尔属性 data-popup-open,不带取值 —— 同仓的
+ * dropdown-menu.tsx 自己用的就是 data-[popup-open]。此前这里按 Radix 的写法
+ * 去比较字符串,一次都没命中过:指针移到子菜单上、离开父行的那一刻,父行就灭
+ * 了,而它明明还是当前打开项的来源。
+ */
+[data-assistant-skin] .assistant-config-menu__row:hover,
+[data-assistant-skin] .assistant-config-menu__row[data-popup-open] {
+  background: var(--cp-hover);
+}
+
+[data-assistant-skin] .assistant-config-menu__row-label {
+  white-space: nowrap;
+}
+
+[data-assistant-skin] .assistant-config-menu__row-value {
+  margin-inline-start: auto;
+  overflow: hidden;
+  color: var(--cp-ink-subtle);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 箭头由 DropdownMenuSubTrigger 自带,子面板的位置、悬停意图与安全三角归
+ * Base UI —— 于是手绘的旋转箭头、手写的 inset 定位、那条给指针过桥用的
+ * ::before,以及平铺菜单才需要的段标题与空态,一并删除。
+ */
+.assistant-config-menu__submenu[data-assistant-skin] {
+  min-inline-size: 200px;
+}
+
+[data-assistant-skin] .assistant-config-option {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 26px 5px 8px;
+  border: 0;
+  border-radius: var(--am-item);
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  text-align: start;
+  cursor: default;
+}
+
+[data-assistant-skin] .assistant-config-option:hover,
+[data-assistant-skin] .assistant-config-option[data-highlighted] {
+  outline: none;
+  background: var(--cp-hover);
+}
+
+[data-assistant-skin] .assistant-config-option__label {
+  display: block;
+  font-size: var(--cp-font-caption);
+  line-height: 1.35;
+}
+
+[data-assistant-skin] .assistant-config-option__detail {
+  display: block;
+  margin-block-start: 1px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+  line-height: 1.35;
+}
+
+/*
+ * The tick: two borders and a rotation, drawn rather than imported.
+ *
+ * It is the indicator element itself, which the radio group mounts only for the
+ * row whose value is in force, so no rule here has to know which row that is.
+ */
+[data-assistant-skin] .assistant-config-option__indicator {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 10px;
+  width: 4px;
+  height: 8px;
+  margin-block-start: -6px;
+  border-inline-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
+  border-block-end: calc(var(--ui-hairline) * 2) solid var(--cp-ink);
+  transform: rotate(45deg);
+}
+
+/* --- round 103: one menu chrome, reused --- */
+
+/*
+ * A menu is a menu wherever it opens.
+ *
+ * The sidebar overflow popup and the composer session selector draw the same
+ * frame from the same four values, declared once here. They are deliberately
+ * tighter than --cp-radius-menu and --cp-radius-item: those are card radii,
+ * and a card radius on a 28px row reads as a bubble, not as a menu.
+ */
+[data-assistant-skin] {
+  --am-radius: 8px;
+  --am-item: 5px;
+  --am-pad: 4px;
+  --am-line: var(--ui-divider);
+  /*
+   * 菜单的边只画一遍。此前第一层是 0 0 0 1px 的阴影环，而
+   * .assistant-menu-surface 本来就有 border: var(--ui-hairline) solid ——
+   * 同一条边画了两次，和输入框底边是同一种病。高度并入公共的那一档。
+   */
+  --am-shadow: var(--cp-lift-menu);
+}
+
+/* The reusable frame. Anything that opens as a menu carries this class. */
+.assistant-menu-surface {
+  border: var(--ui-hairline) solid var(--am-line);
+  border-radius: var(--am-radius);
+  padding: var(--am-pad);
+  background: var(--cp-surface);
+  box-shadow: var(--am-shadow);
+}
+
+/*
+ * The sidebar popup, at menu scale.
+ *
+ * The design-system dropdown keeps behaviour, focus order and positioning.
+ * Chrome and geometry are ours, and they are the same ones the selector uses.
+ */
+.assistant-thread-menu[data-assistant-skin].assistant-thread-menu {
+  min-inline-size: 216px;
+  font-size: var(--cp-font-caption);
+}
+
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item {
+  min-block-size: 28px;
+  gap: 8px;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  font-size: var(--cp-font-caption);
+}
+
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__separator {
+  margin: var(--am-pad) 8px;
+}
+
+.assistant-thread-menu[data-assistant-skin] .assistant-thread-menu__meta {
+  margin: 2px 8px 0;
+  font-size: var(--cp-font-micro);
+}
+
+/*
+ * 行尾那一格的状态已经并进上面 .assistant-thread 的那一条判定里，这里不再有
+ * 第二处声明。此前这四条规则（外加上面的裸类名声明）是同一批属性的两个所有
+ * 者，后者靠 [data-assistant-skin] 前缀压特异性 —— 那不是设计，那是打架。
+ */
+
+/*
+ * 入场与退场。
+ *
+ * Base UI 在 Popup 上发 data-open 与 data-closed 两个布尔属性。此前这两条规
+ * 则认的是 Radix 的 data-state,所以一条都没命中过 —— 下面那句「没有退场绘
+ * 制所以立即卸载」描述的是一条从未生效的规则,而入场动画也从来没有播过。
+ */
+.assistant-thread-menu[data-assistant-skin][data-open] {
+  animation: assistant-menu-in var(--cp-motion-swift) var(--cp-motion-ease) both;
+}
+
+/* No exit paint, and no animation left to wait on, so the popup unmounts at once. */
+.assistant-thread-menu[data-assistant-skin][data-closed] {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/*
+ * 会话列表的首帧。
+ *
+ * 行的形状先到，结论后到：读取落定之前不说“还没有会话”。
+ */
+.assistant-thread[data-placeholder="true"] {
+  pointer-events: none;
+}
+
+/*
+ * 居中由 .assistant-thread 的 align-items 给，不是手算的 7px（那是「10px 的条
+ * 在当时那个行高里居中」的差值，行高一改就偏）。左右也不再另留边距：骨架的
+ * 左边缘落在真实行图标的位置上，首帧到落定之间没有横向跳动。
+ */
+.assistant-thread__ghost {
+  display: block;
+  block-size: 10px;
+  margin: 0;
+  border-radius: 4px;
+  background: var(--am-line);
+  animation: assistant-thread-ghost 1200ms ease-in-out infinite;
+}
+
+@keyframes assistant-thread-ghost {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-thread__ghost {
+    animation: none;
+  }
+}
+
+/*
+ * 内联重命名。
+ *
+ * 输入框与标题同字号、同一格，替换的是文字本身而不是行的形状：行高、行尾
+ * 那一格、缩进都不变，所以进入和提交时界面不会弹一下。
+ */
+.assistant-thread__rename {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+
+.assistant-thread__rename-field {
+  min-inline-size: 0;
+  flex: 1;
+  block-size: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  color: inherit;
+  outline: none;
+}
+
+/*
+ * 这里曾有三条规则：关掉重命名行的操作、关掉它的时间、关掉占位行的行尾。
+ * 它们一次都没有命中过 —— JSX 里 isRenaming 分支只渲染 RenameField，占位行只
+ * 渲染一个 __ghost，两者的 DOM 里根本没有 __trail 这个元素。删掉的是描述，
+ * 不是行为。
+ */
+
+/*
+ * 图钉只负责居中，状态由字形本身表达。
+ *
+ * 实心与线稿是图标库里的同族两枚字形，所以这里不再需要 position: relative
+ * 和那道伪元素斜线；「已固定」额外提一档墨色，让填充在静息态也读得出来。
+ */
+.assistant-thread__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.assistant-thread__glyph[data-pinned="true"] {
+  color: var(--cp-ink);
+} /* --- 开场那枚标记 --- */
+
+/*
+ * 同一张图，两个尺度。
+ *
+ * .assistant-provider-icon 在本文件里排在 .assistant-masthead__mark 之后，
+ * 两者特异性相同，后来者胜——所以开场那枚标记必须自己提一档，否则它会缩成
+ * 工具条里那个 1em。几何仍然只有 --cp-mark 一个来源。
+ */
+.assistant-masthead__mark.assistant-provider-icon {
+  block-size: var(--cp-mark);
+  inline-size: var(--cp-mark);
+}
+
+/*
+ * 还没有答案的那几帧。
+ *
+ * 尺寸全部来自上面那两条既有规则 —— 占位和真图是同一个类，所以它们本来就
+ * 一样大，这里不再写第二份几何。只补一个 display：img 是替换元素，天生吃
+ * block-size / inline-size；span 不是，不给它 display 就会塌成零高。
+ *
+ * 一笔都不画。
+ *
+ * 此前这里画一枚 currentcolor 压到 8% 的圆，说法是「软件确实还不知道对面是
+ * 谁，界面就应该照实说」。可开场那一格有 --cp-mark 那么大，浅色主题下它落在
+ * #e7e7e6 一带 —— 人看见的不是一句诚实的话，是一块几秒后凭空消失的灰饼，
+ * 而它出现的位置正是厂商标记将要出现的位置。一个只在等待期间存在、且与最终
+ * 内容形状相同的色块，读起来只会是「加载失败」或「画错了」。
+ *
+ * 那一格仍然占位：几何撤掉，答案到达时标题会向下弹一次，把一个色块换成一次
+ * 跳版，更糟。所以留形不留墨 —— 真图到达时由下面的 assistant-mark-in 淡入，
+ * 观感就是标记直接出现在一片本来就空着的地方。
+ */
+.assistant-provider-icon[data-pending="true"] {
+  display: inline-block;
+  visibility: hidden;
+}
+
+/*
+ * 占位是 span、真图是 img，标签不同，所以答案到达时 React 换的是节点本身，
+ * 入场动画因此每条对话只播一次，不会跟着任何一帧转录重放。
+ */
+svg.assistant-provider-icon {
+  animation: assistant-mark-in var(--cp-motion-swift) var(--cp-motion-ease) both;
+}
+
+@keyframes assistant-mark-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  svg.assistant-provider-icon {
+    animation: none;
+  }
+}
+
+/*
+ * 会话态：输入框盖在转录上。
+ *
+ * 此前它是滚动区的兄弟，于是滚动盒的高度天生等于「面板减去输入框」，滚动条
+ * 画不到那一段 —— 那正是当初要自绘一层浮层滚动条的理由。让它浮起来之后，
+ * 滚动盒就是整个界面，原生的条自然贯通全高，那一层手搓也就不必存在。
+ *
+ * 只在会话态浮。入口态输入框是居中的，浮起来会掉到底部 —— 两个静止态各挂
+ * 各的版式，这是本文件既定的做法，不是为这次改动新开的分支。
+ *
+ * 最后一条消息不会被压住：末端由虚拟器的 paddingEnd 空出输入框那么高，
+ * 数值由 dock-clearance 实测写进 --cp-dock-clearance。
+ */
+.assistant-surface[data-phase="live"] .assistant-surface__dock {
+  position: absolute;
+  inset-block-end: 0;
+  /*
+   * 右边让开滚动条那条沟。一句话修两件事。
+   *
+   * 其一，下面那层渐隐横跨整条带子，不让开就会盖住滚动条的最后一段，常驻
+   * 贯通就废了一半。
+   *
+   * 其二 —— 这条才是真的 bug：滚动盒的 padding-inline 里那个百分比按包含块
+   * 算，也就是整个界面宽 W，不减那条沟；而它自己的内容宽还要再减掉沟。于是
+   * 消息列的中心落在 W/2 减去半条沟的位置，整宽的带子却把输入框摆在 W/2 ——
+   * 输入框比消息列右偏半条沟、宽出一整条沟。这是上一轮 scrollbar-gutter:
+   * stable 落地那一刻起就存在的，只是还没有人盯着它看。
+   *
+   * 让开之后带子的内容宽解出 768 − 沟，与消息列逐像素相同，中心也重合。
+   *
+   * 兜底 0px 而不是省略：那个变量由 chrome 层在启动时写，React 挂载早于它是
+   * 不可能的，但一个读不到值的 var() 会让整条 inset-inline 失效，代价是带子
+   * 整个塌掉。这种回退不值得赌。
+   */
+  inset-inline: 0 var(--desktop-scrollbar-size, 0px);
+  /*
+   * 带子是整宽的，但它不是一个可以点的东西。
+   *
+   * 不让开指针，输入框左右两侧那两片空白就会吞掉滚轮 —— 鼠标停在那里滚不
+   * 动页面，而人眼看到的是一片什么都没有的地方。收指针的只有输入框本体。
+   */
+  pointer-events: none;
+}
+
+.assistant-surface[data-phase="live"] .assistant-surface__composer {
+  /*
+   * 输入框必须是定位元素，否则它在渐隐下面。
+   *
+   * 渐隐是带子的 ::before，position: absolute。CSS 2.1 附录 E 的绘制顺序里，
+   * 定位元素整体压在流内块级内容之上 —— 树序只在同一层内部说话。所以
+   * 「::before 在前所以被压住」是错的：它在第 8 层，普通流内块在第 4 层。
+   *
+   * 两者同为定位元素之后，树序才生效，而输入框排在 ::before 之后。
+   *
+   * 不用 z-index: -1 把渐隐压下去：.assistant-surface 是 position: relative;
+   * z-index: auto，不构成层叠上下文，负值会穿过它一路沉到转录内容底下。
+   */
+  position: relative;
+  pointer-events: auto;
+}
+
+/*
+ * 内容在够到输入框之前化掉。
+ *
+ * 关键是渐变在哪里结束，不是它有多长。
+ *
+ * 上一版把终点放在带子的上沿：alpha 在那里到 1，而输入框卡片还在下面
+ * --cp-pad-mid 处。于是有一条看得见的折点 —— 线以上透内容，线以下一片实色
+ * 直到卡片顶。人眼对「渐变什么时候停」极敏感，那条折点就被读成一块与背景
+ * 同色的方块。
+ *
+ * 现在终点落在卡片的上沿。卡片不透明，所以 alpha 到 1 的那一刻正好被它盖
+ * 住，折点永远不出现，露在外面的只有爬升段。可见高度还是
+ * --assistant-dock-veil，一点没加；多出来的一小截整个藏在卡片底下。
+ *
+ * 停靠点按总长取比例，两端缓、中间匀，最陡的一段落在藏起来的尾巴里。可见
+ * 边界（总长的八成三处）alpha 约 0.78，剩下两成透过来的内容离卡片只有几个
+ * 像素，分辨不出。
+ *
+ * 一个颜色，一张遮罩：底色写死 var(--cp-ground)，alpha 全交给 mask。不把渐
+ * 变写进 background，是因为 transparent 在插值里是 rgba(0, 0, 0, 0)，浅色
+ * 主题下中段会往灰里偏。一个颜色加一张 alpha 遮罩，全程没有颜色可以插错。
+ *
+ * 遮罩同时管住 backdrop-filter：两者同属这一层，同受这一张遮罩，所以模糊与
+ * 底色共用一条曲线，不会各走各的。模糊只在这一段里有意义，往下 alpha 已经
+ * 是 1，背后什么也透不过来。
+ *
+ * 是 ::before 而不是 ::after：两者都是定位元素，树序因此生效，而输入框排在
+ * 它后面。带子整体 pointer-events: none，这一层也就不吃滚轮。
+ */
+.assistant-surface[data-phase="live"] .assistant-surface__dock::before {
+  /* 露在卡片上方、看得见的那一段。 */
+  --assistant-dock-veil: var(--cp-dock-dissolve);
+
+  /* 渐变的总长：一直画到卡片上沿，终点因此藏在卡片背后。 */
+  --assistant-dock-veil-end: calc(var(--assistant-dock-veil) + var(--cp-pad-mid));
+  --assistant-dock-veil-blur: 8px;
+
+  position: absolute;
+  inset: calc(-1 * var(--assistant-dock-veil)) 0 0;
+  background: var(--cp-ground);
+  backdrop-filter: blur(var(--assistant-dock-veil-blur));
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0) 0,
+    rgb(0 0 0 / 0.02) calc(var(--assistant-dock-veil-end) * 0.14),
+    rgb(0 0 0 / 0.07) calc(var(--assistant-dock-veil-end) * 0.28),
+    rgb(0 0 0 / 0.17) calc(var(--assistant-dock-veil-end) * 0.42),
+    rgb(0 0 0 / 0.32) calc(var(--assistant-dock-veil-end) * 0.55),
+    rgb(0 0 0 / 0.5) calc(var(--assistant-dock-veil-end) * 0.67),
+    rgb(0 0 0 / 0.7) calc(var(--assistant-dock-veil-end) * 0.78),
+    rgb(0 0 0 / 0.87) calc(var(--assistant-dock-veil-end) * 0.88),
+    rgb(0 0 0 / 0.96) calc(var(--assistant-dock-veil-end) * 0.95),
+    rgb(0 0 0 / 1) var(--assistant-dock-veil-end)
+  );
+  content: "";
+}
+
+/*
+ * 组头就是这一列里的另一行。
+ *
+ * 行高、缩进、圆角、间距、名字的字号与墨色、悬停底色 —— 全部与会话行
+ * 读同一批令牌、同一条判定，不再另立一套。此前它是「段标题」：12px 手转
+ * 箭头、micro 号灰字、行尾计数，同一列上下两段各用一套尺子。
+ *
+ * 悬停判定与 .assistant-thread 同一条（:hover / :has(:focus-visible)），
+ * 不用 :focus-within —— 那个伪类对鼠标点击同样成立，点开一次组头就常亮，
+ * 这个文件上面已经为它栽过一次。
+ *
+ * 文件夹与会话行的 ThreadIcon 同族：同一个图标库、同一张 24px 网格、同
+ * 一份线宽，尺寸读同一枚 --ui-row-icon-size，中线因此天然对齐。
+ */
+.assistant-threads__group-header {
+  display: flex;
+  block-size: var(--ui-row-height, 28px);
+  align-items: center;
+  border-radius: var(--ui-row-radius);
+  gap: var(--ui-row-gap);
+  padding-inline-start: var(--ui-row-lead, 8px);
+  padding-inline-end: var(--ui-row-trail, 6px);
+  font-size: var(--cp-font-caption);
+}
+
+.assistant-threads__group-header:hover,
+.assistant-threads__group-header:has(:focus-visible) {
+  background: var(--ui-sidebar-accent);
+}
+
+.assistant-threads__toggle {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: default;
+}
+
+.assistant-threads__folder {
+  display: inline-flex;
+  block-size: var(--ui-row-icon-size);
+  inline-size: var(--ui-row-icon-size);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.assistant-threads__name {
+  overflow: hidden;
+  color: var(--cp-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 组内新建只在这一组被介入时出现，安静时组头只有名字。 */
+.assistant-threads__group-header .assistant-threads__create {
+  flex: none;
+  opacity: 0;
+}
+
+.assistant-threads__group-header:hover .assistant-threads__create,
+.assistant-threads__group-header:has(:focus-visible) .assistant-threads__create {
+  opacity: 1;
+}
+
+/* 「更多」对齐标题那一列，因为它接的是列表，不是组头。 */
+.assistant-threads__more {
+  display: block;
+  width: 100%;
+  padding: 4px var(--ui-row-trail, 6px) 4px
+    calc(var(--ui-row-lead, 8px) + var(--ui-row-icon-size, 16px) + var(--ui-row-gap, 6px));
+  border: 0;
+  background: none;
+  color: var(--cp-ink-subtle);
+  font: inherit;
+  font-size: var(--cp-font-micro, 11px);
+  text-align: start;
+  cursor: default;
+}
+
+.assistant-threads__more:hover {
+  color: var(--cp-ink);
+}
+
+/*
+ * 侧栏这一格的框。
+ *
+ * 此前列表就是框：.assistant-threads 自己 block-size: 100%，并且自己就是那个
+ * 滚动盒。它在列表是独子时成立，工作目录那一行进来之后不成立 —— 两个兄弟，
+ * 占满 100% 的那个会把另一个挤出容器。
+ *
+ * 所以框上移一层，列表改成吃剩余空间。flex: 1 1 0 只在父级是 flex 容器时说话，
+ * block-size: 100% 原样留着 —— 任何仍旧把列表当独子摆的地方，行为一个像素不变。
+ */
+.assistant-panel {
+  display: flex;
+  block-size: 100%;
+  min-block-size: 0;
+  flex-direction: column;
+  /* 行内操作按钮的尺寸：面板里只有一种，picker 与列表共读。 */
+  --assistant-threads-action-size: 20px;
+}
+
+/*
+ * 工作目录那一行。
+ *
+ * 它是侧栏的一行，所以它读侧栏的行几何（--ui-row-*），与会话行、导航行同高
+ * 同缩进；菜单读 --am-* 那一族，与会话行的菜单是同一张皮。这里不新增任何令牌。
+ *
+ * 行本身不是动作，所以没有悬停底色：悬停只属于行尾那枚图标。名字的
+ * 左缘落在会话行图标的中线上，图标的右缘与组头加号对齐。
+ */
+.workspace-picker {
+  display: flex;
+  block-size: var(--ui-row-height);
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  margin-block-start: var(--cp-mast-gap);
+  padding-inline-start: calc(var(--ui-row-inset) + var(--ui-row-lead));
+  padding-inline-end: calc(var(--ui-row-inset) + var(--ui-row-trail));
+}
+
+.workspace-picker__name {
+  overflow: hidden;
+  color: var(--cp-ink);
+  font-size: var(--cp-font-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 几何与行内操作按钮同一枚令牌；底色与它共享的 --ui-sidebar-accent 同源。 */
+.workspace-picker__browse {
+  display: grid;
+  block-size: var(--assistant-threads-action-size);
+  inline-size: var(--assistant-threads-action-size);
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: var(--cp-optical);
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    transform var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+.workspace-picker__browse svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+}
+
+.workspace-picker__browse:hover,
+.workspace-picker__browse[aria-expanded="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+.workspace-picker__browse:active {
+  transform: scale(0.94);
+}
+
+.workspace-picker__menu[data-assistant-skin] {
+  min-inline-size: 216px;
+  font-size: var(--cp-font-caption);
+}
+
+/* 搜索是弹层的标题栏：图标在左，与名单隔一条线。 */
+.workspace-picker__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 4px var(--am-pad);
+  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  padding: 4px 4px 8px;
+  color: var(--cp-ink-subtle);
+}
+
+.workspace-picker__field svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+}
+
+.workspace-picker__search {
+  min-inline-size: 0;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cp-ink);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  outline: none;
+}
+
+.workspace-picker__search::placeholder {
+  color: var(--cp-placeholder);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item {
+  display: flex;
+  min-block-size: 28px;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--am-item);
+  padding: 0 8px;
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+
+/* 条目图标与会话行菜单同一尺寸、同一墨色；悬停不换色，它不是状态。 */
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item svg {
+  block-size: var(--cp-icon);
+  inline-size: var(--cp-icon);
+  flex: none;
+  color: var(--cp-ink-muted);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__item[data-highlighted] {
+  outline: none;
+  background: var(--cp-hover);
+}
+
+.workspace-picker__item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-picker__none {
+  margin: 0;
+  padding: 4px 8px 8px;
+  color: var(--cp-ink-subtle);
+  font-size: var(--cp-font-micro);
+}
+
+.workspace-picker__menu[data-assistant-skin] .workspace-picker__separator {
+  block-size: var(--cp-px);
+  margin: var(--am-pad) 8px;
+  background: var(--cp-hairline);
+}

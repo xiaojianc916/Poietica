@@ -7,8 +7,7 @@
     "**/*.css"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./composer/attachment-intake": "./src/composer/attachment-intake.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",

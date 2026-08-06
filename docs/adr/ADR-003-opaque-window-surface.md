@@ -55,7 +55,7 @@ Poietica 使用 Tauri 2 承载 React 和 WebView2。
    - 负责应用运行期的根表面。
 
 仓库必须通过
-`tests/architecture/check-window-surface.mjs`
+`tools/architecture/check-window-surface.mjs`
 验证三个层级没有发生漂移。
 
 ## Explicitly rejected approaches

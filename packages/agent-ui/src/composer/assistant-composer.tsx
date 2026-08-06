@@ -1,0 +1,199 @@
+import './composer-actions.css'
+import './question-panel.css'
+
+import type { ChatStatus, SessionConfigControl } from '@poietica/acp'
+import { memo, type Ref } from 'react'
+import { MicIcon } from '../primitives/icons'
+import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
+import type { ComposerAsset } from './attachment-intake'
+import { ComposerActions } from './composer-actions'
+import type { PromptInputHandle } from './prompt-input'
+import {
+  PromptInput,
+  PromptInputAttachments,
+  PromptInputBody,
+  PromptInputButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+} from './prompt-input'
+import { QuestionPanel } from './question-panel'
+import { SessionControls } from './session-controls'
+
+/*
+ * The composer, declared rather than driven.
+ *
+ * It holds no state and runs no effect. The draft, the attachments, the focus
+ * and the file picker all belong to PromptInput, which is the element they are
+ * actually part of; reading them back out through the document was how two
+ * owners of one textbox got away with it for as long as they did.
+ */
+
+export interface AssistantComposerProps {
+  readonly placeholder?: string
+  readonly status?: ChatStatus
+  readonly onSubmit: (input: {
+    readonly text: string
+    readonly assets: readonly ComposerAsset[]
+  }) => void
+  readonly onCancel?: (() => void) | undefined
+  /** How the surface writes a starter into the draft it does not own. */
+  readonly ref?: Ref<PromptInputHandle> | undefined
+  /** Everything the session (or, before one exists, the agent config) offers. */
+  readonly controls: readonly SessionConfigControl[]
+  readonly controlsFailure?: string | undefined
+  /** 读失败之后重新问一次。 */
+  readonly onRetryControls?: (() => void) | undefined
+  readonly onSelectControl: (controlId: string, value: string) => void
+  /**
+   * 待答的题组。
+   *
+   * 非空时输入框不再是输入框：它自己长成问答面板。空着就是平常那个 composer，
+   * 所以这条 prop 不给也一切照旧。
+   */
+  readonly questionDeck?: QuestionDeck | null | undefined
+  /** 面板交出整组答案时走这里 —— 发送与整组跳过是同一个出口，差别写在答案里。 */
+  readonly onAnswerQuestions?: ((answers: readonly QuestionAnswer[]) => void) | undefined
+}
+
+/*
+ * 只声明这一层真的兑现的那几项。
+ *
+ * 此前是 Omit<…, 'onSubmit' | 'placeholder'>:题组、答复出口、以及输入框的 ref 都在
+ * 类型里,而这一层一个都不转发。同一条规矩已经在 PromptInputProps 上写过 —— 类型邀请
+ * 调用方传,实现静默丢掉。ref 成为普通 prop 之后这件事更硬:一个声明了 ref 却不转发的
+ * 函数组件会把调用方的 ref 悄悄吃掉。
+ */
+type ComposerToolbarProps = Pick<
+  AssistantComposerProps,
+  'controls' | 'controlsFailure' | 'onCancel' | 'onRetryControls' | 'onSelectControl'
+> & { readonly status: ChatStatus }
+
+function ComposerToolbar({
+  controls,
+  controlsFailure,
+  onCancel,
+  onRetryControls,
+  onSelectControl,
+  status,
+}: ComposerToolbarProps) {
+  /*
+   * 这一层不再问草稿任何事。
+   *
+   * 「有没有东西可发」由 PromptInputSubmit 自己订 —— 它是唯一用到那两个布尔的
+   * 节点。订在这里，翻转一次就要重渲整条工具栏，连同 ComposerActions 与
+   * SessionControls 两个菜单根。收窄 context 的粒度只减少了触发次数，把消费点
+   * 放对了层才真正把范围关住。
+   *
+   * 于是这一层无状态、无 hook、无副作用：纯粹是一次声明。
+   */
+  return (
+    <PromptInputToolbar>
+      <PromptInputTools>
+        {/*
+          左下这一簇回答两个问题:往这一句里加什么,以及这一句怎么被处理。
+          模式因此在这里,不在发送键那一侧 —— 那一侧回答的是"谁来答"。
+
+          此前这里还有「命令」「上下文」「终端命令」三行,它们的实现是往草稿
+          末尾拼一个字符(insertText)。那不是命令面板,那是替用户按了一下键,
+          而菜单里一条读起来像功能的行必须真的是功能。
+        */}
+        <ComposerActions controls={controls} onSelectControl={onSelectControl} />
+      </PromptInputTools>
+
+      <span className="assistant-toolbar__spacer" />
+
+      {/*
+        模型选择器站在右下这一簇，麦克风之前。
+
+        它挨着「发」，因为它说的正是这一句将被谁回答：ChatGPT、Claude、Cursor
+        都把它放在发送键这一侧。左下那一簇回答的是另一个问题——往这句话里加
+        什么。
+      */}
+      <SessionControls
+        controls={controls}
+        failure={controlsFailure}
+        onRetry={onRetryControls}
+        onSelect={onSelectControl}
+      />
+
+      <PromptInputButton aria-label="语音输入" className="assistant-control--ghost">
+        <MicIcon aria-hidden="true" />
+      </PromptInputButton>
+
+      {/* 判据同源。「有没有东西可发」现在只从 PromptInput 自己那份草稿读，
+          按钮与 onSubmit 看的是同一个所有者 —— 两份读法分家的那一天不需要谁
+          犯错：拖进来的图片曾经鼠标发不出去、回车发得出去。 */}
+      <PromptInputSubmit onCancel={onCancel} status={status} />
+    </PromptInputToolbar>
+  )
+}
+
+/*
+ * 记住不重建。
+ *
+ * 它此前长在 AssistantSurface 的渲染体里，而那一层订着整条转录：模型每吐一个
+ * 字，PromptInput 连同草稿、附件、模型选择器与发送键整棵树 reconcile 一次 ——
+ * 一棵与转录内容毫无关系的树。上游的订阅粒度已经收窄，入参也全部引用稳定，
+ * 这一层浅比较因此几乎总是命中：一轮对话里它至多重渲两次。
+ */
+export const AssistantComposer = memo(function AssistantComposer({
+  onAnswerQuestions,
+  placeholder = '问我任何问题…',
+  questionDeck,
+  ref,
+  status = 'ready',
+  onSubmit,
+  ...toolbar
+}: AssistantComposerProps) {
+  /*
+   * 有题在等，输入框就不是输入框了。
+   *
+   * 换掉的只是壳里的内容：外面仍是同一个 PromptInput、同一个 form、同一层
+   * assistant-prompt-input。所以这是输入框自己长成了面板，不是有个东西浮在
+   * 它上面——后者会在滚动、聚焦和 Esc 上处处露馅。
+   *
+   * textarea 和工具栏一并让位。提问期间没有自由输入这回事：agent 那头等的是
+   * 一个 optionId，不是一段话，留个能打字的框只会让人以为打了有用。
+   *
+   * 分支在孩子身上，不在壳身上。此前是两个 return，各写一次 <PromptInput> —— 于是
+   * 「打了一半的字和已经拖进来的图能熬过一次提问」全靠两处调用点恰好写成同一个组件、
+   * 恰好排在同一个位置来维持。那是对的行为，但它当时是巧合而不是保证，而巧合已经不
+   * 成立过一次：两处的 props 并不相同，提问那一支漏了 multiple。multiple 一旦转假，
+   * addAssets 的第一件事就是把已经攒着的整批丢掉（next = multiple ? [...current] : []），
+   * 而丢掉的那几张没有经过 removeAttachment —— 原生注册表里那几份字节也就没人放。
+   *
+   * 一个所有者、一处配置，identity 由结构保证。
+   */
+  const asking = questionDeck != null && questionDeck.cards.length > 0
+
+  return (
+    <PromptInput
+      className={asking ? 'assistant-prompt-input--question' : undefined}
+      multiple
+      onSubmit={onSubmit}
+      ref={ref}
+    >
+      {asking ? (
+        /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这正
+           是 key 的用处，不是再加一个 effect 去复位三个 state。 */
+        <QuestionPanel
+          deck={questionDeck}
+          key={questionDeck.toolCallId}
+          onAnswer={onAnswerQuestions}
+        />
+      ) : (
+        <>
+          <PromptInputBody>
+            <PromptInputAttachments />
+
+            <PromptInputTextarea placeholder={placeholder} />
+          </PromptInputBody>
+
+          <ComposerToolbar status={status} {...toolbar} />
+        </>
+      )}
+    </PromptInput>
+  )
+})
