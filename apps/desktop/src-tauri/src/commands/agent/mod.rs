@@ -17,39 +17,27 @@
 use crate::error::IpcError;
 use std::time::Duration;
 
+/*
+ * 本模块不做 re-export：命令与 DTO 一律按定义它们的子模块引用。
+ *
+ * #[tauri::command] 除函数外，还在同一个模块里生成 __cmd__x! 宏与
+ * __tauri_command_name_x 常量（specta 再加 __specta__fn__x），而
+ * generate_handler! 只会在你写的那条路径下找它们。pub use turn::agent_prompt
+ * 只搬走四个符号里的一个，collect_commands! 当场报 could not find
+ * __cmd__agent_prompt in agent；能搬全的只有 pub use turn::*，而 glob 让这个
+ * 模块交出去的东西不可枚举。两条都不要：清单在 ipc::surface 一处，路径指向定义处。
+ */
 mod addressing;
 mod attachment;
-mod config;
-mod dto;
+pub mod config;
+pub mod dto;
 mod failure;
-mod runtime;
+pub mod runtime;
 mod store;
-mod thread;
-mod turn;
+pub mod thread;
+pub mod turn;
 
-/// 这个模块交出去的东西：十一条命令、它们签名里的 DTO，以及托管状态。
-///
-/// 一条一条写出来，不用通配。此前那九行里有四行 —— addressing、attachment、
-/// failure、store —— 一个 pub 项都没有，编译器对每一行都报了 glob import
-/// doesn't reexport anything：通配让「这里到底导出了什么」读不出来，那四行
-/// 才会一直躺着没人发现。这张清单与 crate::ipc::surface 的 collect_commands!
-/// 是同一张，漏掉一条，编译当场就会指出来。
-pub use config::{agent_capabilities, agent_set_config_option};
-pub use dto::{
-    AgentCancelRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
-    AgentConfigPurpose, AgentHistory, AgentHistoryLoss, AgentLaunch, AgentOpenThreadRequest,
-    AgentOpenedThread, AgentPinThreadRequest, AgentPromptAsset, AgentPromptRequest,
-    AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
-    AgentSelectConfigRequest, AgentSelectorReport, AgentThread, AgentThreadAttachment,
-    AgentThreadRequest, AgentTitleSource,
-};
-pub use runtime::AgentRuntime;
-pub use thread::{
-    agent_delete_thread, agent_open_thread, agent_pin_thread, agent_rename_thread, agent_threads,
-};
-pub use turn::{agent_cancel, agent_prompt, agent_resolve_permission, agent_shutdown};
-
-type AgentCommandResult<T> = std::result::Result<T, IpcError>;
+type AgentCommandResult<T> = Result<T, IpcError>;
 
 /// The event the renderer listens on to receive run frames.
 pub const AGENT_EVENT: &str = "ai-run-event";

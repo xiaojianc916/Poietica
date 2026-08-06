@@ -17,7 +17,7 @@ use tauri::Wry;
 use tauri_specta::{Builder, ErrorHandlingMode};
 
 use crate::commands::{
-    agent::{
+    agent::dto::{
         AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
         AgentPinThreadRequest, AgentPromptRequest, AgentPromptResult, AgentRenameThreadRequest,
         AgentResolvePermissionRequest, AgentSelectConfigRequest, AgentThreadRequest,
@@ -44,17 +44,17 @@ pub fn surface() -> Builder<Wry> {
     Builder::<Wry>::new()
         .error_handling(ErrorHandlingMode::Throw)
         .commands(tauri_specta::collect_commands![
-            crate::commands::agent::agent_prompt,
-            crate::commands::agent::agent_cancel,
-            crate::commands::agent::agent_resolve_permission,
-            crate::commands::agent::agent_shutdown,
-            crate::commands::agent::agent_set_config_option,
-            crate::commands::agent::agent_capabilities,
-            crate::commands::agent::agent_threads,
-            crate::commands::agent::agent_open_thread,
-            crate::commands::agent::agent_rename_thread,
-            crate::commands::agent::agent_delete_thread,
-            crate::commands::agent::agent_pin_thread,
+            crate::commands::agent::turn::agent_prompt,
+            crate::commands::agent::turn::agent_cancel,
+            crate::commands::agent::turn::agent_resolve_permission,
+            crate::commands::agent::turn::agent_shutdown,
+            crate::commands::agent::config::agent_set_config_option,
+            crate::commands::agent::config::agent_capabilities,
+            crate::commands::agent::thread::agent_threads,
+            crate::commands::agent::thread::agent_open_thread,
+            crate::commands::agent::thread::agent_rename_thread,
+            crate::commands::agent::thread::agent_delete_thread,
+            crate::commands::agent::thread::agent_pin_thread,
             crate::commands::asset::asset_formats,
             crate::commands::asset::asset_session_open,
             crate::commands::asset::asset_import,

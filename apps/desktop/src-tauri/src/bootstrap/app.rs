@@ -108,7 +108,7 @@ pub fn build() -> tauri::Builder<Wry> {
             app.store(SETTINGS_STORE)?;
             app.store(AGENTS_STORE)?;
             app.store(AUTOMATIONS_STORE)?;
-            let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
+            let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;
 

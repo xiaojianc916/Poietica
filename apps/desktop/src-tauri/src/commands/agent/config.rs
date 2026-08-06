@@ -6,7 +6,8 @@ use tauri::{AppHandle, State};
 
 use super::addressing::{Wanted, session_for};
 use super::dto::{
-    AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentSelectConfigRequest,
+    AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentConfigPurpose,
+    AgentSelectConfigRequest,
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
