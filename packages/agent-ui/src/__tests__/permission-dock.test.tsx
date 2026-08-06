@@ -106,4 +106,19 @@ describe('审批带', () => {
 
     expect(markup.match(/data-lead="true"/g)).toHaveLength(1)
   })
+
+  it('说得出要批准的那件事，不是只有一个工具名', () => {
+    /*
+     * 上游在 ACP 边界上把 command 类的 displayBlock 一律丢掉（见 tool-intent），
+     * 送到这里的 title 只剩 "Bash"。人要放行的是那条命令，不是那两个字。
+     */
+    const markup = render(
+      permission({
+        title: 'Bash',
+        toolCall: { toolCallId: 'call-1', rawInput: { command: 'pnpm check' } },
+      }),
+    )
+
+    expect(markup).toContain('pnpm check')
+  })
 })

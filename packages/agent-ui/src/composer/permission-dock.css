@@ -1,13 +1,19 @@
 /*
- * 审批带咬在输入框上。
+ * 审批带是输入框那张卡顶上的一格。
  *
- * 输入框自己一个像素不动 —— 它的圆角、边框、内距全归 [data-slot="prompt-input"]。
- * 这条带子只画上面两个角，下边不画：那条边输入框已经画过了，画第二遍就是两条
- * 1px 叠在一起（同仓 --am-shadow 那次踩过的同一个坑）。于是两块之间零间隙，
- * 而输入框顶部仍带着自己的圆角 —— 相接处的凹凸就是这么来的，不是画出来的。
+ * 它自己不画边、不画外圆角、不投阴影 —— 那三样归卡片本身（assistant.css 的
+ * [data-slot="prompt-input"]）。此前它是卡片的兄弟，靠自己画左右上三条边、把下边
+ * 置零、再把上圆角抄一遍来假装贴着；而卡片的上边框仍然画在接缝上，于是那里始终
+ * 是两个盒子的交界，不是一个盒子的分格。现在它是卡片的第一个孩子，接缝由构造
+ * 保证，没有任何一处约定需要两边同步。
  *
- * 底色取 --cp-ground（页面地色），输入框是 --cp-surface（卡面）。两块因此天然
- * 分出深浅，不需要第二条分割线。
+ * 分格只靠底色：--cp-shelf 比地色深一档、比卡面深两档，读起来就是卡顶凹下去的
+ * 一格；与正文之间只有一条 hairline，由这一格自己画下边，别处不再画第二条。
+ *
+ * 左缘对占位符那一列（--cp-pad-x），右缘对发送键那一列（--cp-inset）。两个数都是
+ * 卡片已有的两条沟，不是为这条带子新挑的：卡里的字从 --cp-pad-x 起排，卡里的圆钮
+ * 贴 --cp-inset 收边，而这条带子左边是字、右边是钮。此前两侧都写 --cp-inset，
+ * 题面因此比占位符靠左 6px —— 那正是「没对齐」看得见的那 6 个像素。
  */
 
 .assistant-approval {
@@ -16,35 +22,21 @@
    *
    * 猜一个够大的 max-height，缓动曲线的头一半就跑在没有内容的空气里，观感是
    * 「先慢后猛」；grid 行高插的是内容的真实高度，所以它自然。
+   *
+   * 不再过冲，也不再位移。这一格长出来会把 textarea 整体往下推，而人此刻正盯着
+   * 插入符 —— 过冲量会让插入符越过它真正的落点再弹回来，输入法的候选窗还得追着
+   * 动画跑。同一条结论 assistant.css 已经为输入框长高写过一次。曲线因此读抽屉那
+   * 一族（开合正是它的用途），时长与此前逐毫秒相同，仓里也少一个私有令牌。
    */
-  position: relative;
   display: grid;
   grid-template-rows: 1fr;
-
-  /*
-   * 带子整体是 pointer-events: none（见 assistant.css：整宽的带子不该吞掉两侧
-   * 的滚轮），可点的只有输入框本体。这一条也是可点的，所以它自己收回来。
-   *
-   * position: relative 不是为了定位，是为了绘制顺序：带子的 ::before 那层渐隐
-   * 是定位元素，普通流内的块级内容在它下面（CSS 2.1 附录 E）。不定位就被盖住。
-   */
-  pointer-events: auto;
-
-  /*
-   * 一条局部曲线。它带一点点过冲 —— 一个东西弹出来时略微越过终点再回落，是
-   * 现实里所有有质量的东西的样子。这不是系统令牌：过冲量属于这一个元素的性格，
-   * 提进全局就会有人拿它去做别的东西，然后再也改不动。
-   */
-  --assistant-approval-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
-
-  animation: assistant-approval-open 260ms var(--assistant-approval-spring) both;
+  animation: assistant-approval-open var(--cp-motion-drawer) var(--cp-motion-drawer-ease) both;
 }
 
 @keyframes assistant-approval-open {
   from {
     grid-template-rows: 0fr;
     opacity: 0;
-    transform: translateY(var(--cp-motion-rise));
   }
 }
 
@@ -55,11 +47,11 @@
   gap: var(--cp-control-gap);
   /* 行高从 0fr 长起来时，内容必须被裁住，否则它会溢出到转录上。 */
   overflow: hidden;
-  border: var(--cp-px) solid var(--cp-edge);
-  border-block-end: 0;
-  border-radius: var(--cp-radius) var(--cp-radius) 0 0;
-  padding: var(--cp-pad-mid) var(--cp-inset);
-  background: var(--cp-ground);
+  border-block-end: var(--cp-px) solid var(--cp-hairline);
+  /* 内圆角 = 外圆角 − 边宽，两条弧才同心。卡片的边由卡片画，这里只跟着它收口。 */
+  border-radius: calc(var(--cp-radius) - var(--cp-px)) calc(var(--cp-radius) - var(--cp-px)) 0 0;
+  padding: var(--cp-pad-mid) var(--cp-inset) var(--cp-pad-mid) var(--cp-pad-x);
+  background: var(--cp-shelf);
   animation: assistant-approval-turn var(--cp-motion-swift) var(--cp-motion-ease) both;
 }
 
@@ -79,59 +71,97 @@
 }
 
 /*
- * 一行，截断，不展开。
+ * 工具名退居次席。
  *
- * 这条带子是一个控件，不是一段内容：它长高会把输入框往下推，而输入框的位置
- * 是人打字时唯一的锚。想看全的人有 title 提示，真要读的东西在工具卡里。
+ * 一屏的 Bash、Read、Glob 之间没有区别，把这一次和那一次分开的是它要做什么 ——
+ * 与工具卡片标题栏同一条排法（timeline-tool__title / __intent）。
  */
 .assistant-approval__title {
   min-inline-size: 0;
-  flex: 1;
+  flex: 0 1 auto;
   overflow: hidden;
+  font-size: var(--cp-font-caption);
+  color: var(--cp-ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 一行，截断，不展开。
+ *
+ * 这条带子是一个控件，不是一段内容：它长高会把输入框往下推，而输入框的位置是人
+ * 打字时唯一的锚。想看全的人有 title 提示，真要读的东西在工具卡里。
+ *
+ * 等宽字：它是一条命令、一个路径、一个 glob，不是一句话。比例字体会把 l 与 1、
+ * 连续空格画成读不准的样子，而人正要照着它决定放不放行。
+ */
+.assistant-approval__intent {
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-family: var(--cp-font-mono);
   font-size: var(--cp-font-caption);
   color: var(--cp-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* 说不出意图时按钮仍然靠右：那一列对着发送键，与有没有第二段字无关。 */
 .assistant-approval__options {
   display: flex;
   flex: none;
   align-items: center;
   gap: 6px;
+  margin-inline-start: auto;
 }
 
+/*
+ * 按钮不画边。
+ *
+ * 一圈描边会把一次选择读成一个待填的输入位（question-panel 已经为同一件事写过
+ * 一次）；而这一格本来就比卡面深一档，形状由底色分出来就够了。
+ */
 .assistant-approval__option {
   display: inline-flex;
   block-size: var(--cp-pill);
   align-items: center;
-  border: var(--cp-px) solid var(--cp-edge);
+  border: 0;
   border-radius: 9999px;
   padding-inline: var(--cp-pill-trail);
-  background: var(--cp-surface);
+  background: transparent;
   font: inherit;
   font-size: var(--cp-font-caption);
   font-weight: 500;
   /* 壳高固定，字身若还带着继承来的行距，CJK 基线会被顶偏半个像素。 */
   line-height: 1;
-  color: var(--cp-ink);
+  color: var(--cp-ink-muted);
   cursor: pointer;
   transition: background-color var(--cp-motion-swift) var(--cp-motion-ease);
 }
 
 .assistant-approval__option:hover:not(:disabled) {
   background: var(--cp-hover);
+  color: var(--cp-ink);
 }
 
+/*
+ * 主按钮是被抬起来的那一颗，不是被染色的那一颗。
+ *
+ * 品牌色实心块是「提交表单」的语言。这里要人做的是一次带风险的放行：Claude Code、
+ * Zed 的 ACP 审批、Cursor 的 run 确认都不用主色喊话，默认动作靠位置、字重和一层
+ * 抬起说清楚。同屏已经有一颗蓝色实心圆（发送键），第二颗只会分掉它的注意力。
+ *
+ * 抬起用的就是卡面色：地色 → 这一格 → 卡面，三档正好是这张卡已有的三层，深浅两套
+ * 主题各自成立，不需要为它挑第二个颜色。
+ */
 .assistant-approval__option[data-lead="true"] {
-  border-color: transparent;
-  background: var(--cp-accent);
-  color: var(--cp-accent-foreground);
+  background: var(--cp-surface);
+  color: var(--cp-ink);
   font-weight: 600;
 }
 
 .assistant-approval__option[data-lead="true"]:hover:not(:disabled) {
-  background: var(--cp-accent-hover);
+  background: color-mix(in srgb, var(--ui-foreground) 6%, var(--cp-surface));
 }
 
 .assistant-approval__option[data-pending="true"] {
@@ -142,12 +172,13 @@
   cursor: default;
 }
 
+/* 焦点环仍然用强调色：那是可达性，不是装饰。 */
 .assistant-approval__option:focus-visible {
   outline: calc(var(--ui-hairline) * 2) solid var(--cp-accent);
   outline-offset: 2px;
 }
 
-/* 位移与撑开都撤掉，只留淡入 —— 出现这件事本身仍然要被看见。 */
+/* 撑开撤掉，只留淡入 —— 出现这件事本身仍然要被看见。 */
 @media (prefers-reduced-motion: reduce) {
   .assistant-approval {
     animation: none;

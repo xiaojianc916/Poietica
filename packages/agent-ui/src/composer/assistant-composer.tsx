@@ -7,6 +7,7 @@ import { MicIcon } from '../primitives/icons'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'
 import type { ComposerAsset } from './attachment-intake'
 import { ComposerActions } from './composer-actions'
+import { PermissionDock, type PermissionDockProps } from './permission-dock'
 import type { PromptInputHandle } from './prompt-input'
 import {
   PromptInput,
@@ -55,6 +56,17 @@ export interface AssistantComposerProps {
   readonly questionDeck?: QuestionDeck | null | undefined
   /** 面板交出整组答案时走这里 —— 发送与整组跳过是同一个出口，差别写在答案里。 */
   readonly onAnswerQuestions?: ((answers: readonly QuestionAnswer[]) => void) | undefined
+  /**
+   * 待答的那一次审批。
+   *
+   * 与题组是同一条协议通道上的两支，也因此是同一张卡上的两处：题组把卡的内容整个
+   * 换成面板（答案是对话的一部分），审批只在卡顶加一格（它拦的是 agent 的下一步，
+   * 不是人的下一句，所以输入框照常能打字）。空着就是平常那个 composer。
+   *
+   * 收的是那一格自己的整副入参，不是三个各走各的 prop：这一层不解释它，只负责把它
+   * 摆进卡里，所以类型就该是它的 props 本身 —— 少一格、多一格都由编译器说话。
+   */
+  readonly approval?: PermissionDockProps | null | undefined
 }
 
 /*
@@ -139,6 +151,7 @@ function ComposerToolbar({
  * 这一层浅比较因此几乎总是命中：一轮对话里它至多重渲两次。
  */
 export const AssistantComposer = memo(function AssistantComposer({
+  approval,
   onAnswerQuestions,
   placeholder = '问我任何问题…',
   questionDeck,
@@ -175,6 +188,12 @@ export const AssistantComposer = memo(function AssistantComposer({
       onSubmit={onSubmit}
       ref={ref}
     >
+      {/*
+        审批那一格，在卡顶。它与题面板互斥 —— 两者同源于唯一那个待答请求（见
+        AssistantSurface 的 blocked），所以这里不需要再判一次谁压过谁。
+      */}
+      {approval == null ? null : <PermissionDock {...approval} />}
+
       {asking ? (
         /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这正
            是 key 的用处，不是再加一个 effect 去复位三个 state。 */

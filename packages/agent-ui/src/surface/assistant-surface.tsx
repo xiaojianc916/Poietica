@@ -12,7 +12,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { AssistantQuickActions } from '../composer/assistant-quick-actions'
 import { useDockClearance } from '../composer/dock-clearance'
-import { PermissionDock } from '../composer/permission-dock'
+import type { PermissionDockProps } from '../composer/permission-dock'
 import type { PromptInputHandle } from '../composer/prompt-input'
 import { modelProviderOf } from '../primitives/model-provider'
 import { ProviderIcon } from '../primitives/provider-icon'
@@ -140,11 +140,21 @@ export const AssistantSurface = memo(function AssistantSurface({
   /*
    * 待答的权限请求里，不是提问的那一类。
    *
-   * 两者借同一条通道，去处却相反：提问让输入框自己长成面板（答案是对话的
-   * 一部分），审批停在输入框上方那条带子里（它是一道闸）。判据仍然只有一处
-   * —— domain 的 isQuestionRequest，认方言而不是认工具名。
+   * 两者借同一条通道，去处却相反：提问让输入框自己长成面板（答案是对话的一部分），
+   * 审批在同一张卡的顶上加一格（它是一道闸）。判据仍然只有一处 —— domain 的
+   * isQuestionRequest，认方言而不是认工具名。
+   *
+   * 交出去的是那一格自己的整副入参，不是三个各走各的 prop：这一层不再摆它，只是
+   * 把它交给持有那张卡的人。引用只随「换了一个请求」或「分母变了」而变，所以流式
+   * 追加动不了被 memo 过的 composer。
    */
-  const approval = blocked !== undefined && !asking ? blocked : undefined
+  const approval = useMemo<PermissionDockProps | null>(() => {
+    if (blocked === undefined || asking) {
+      return null
+    }
+
+    return { item: blocked, onResolve: assistant.resolvePermission, waiting }
+  }, [asking, assistant.resolvePermission, blocked, waiting])
 
   const questionDeck = useMemo(() => {
     if (pending === undefined) {
@@ -238,6 +248,7 @@ export const AssistantSurface = memo(function AssistantSurface({
   const dock = (
     <div className="assistant-surface__composer">
       <AssistantComposer
+        approval={approval}
         controls={controls}
         controlsFailure={controlsFailure}
         onAnswerQuestions={answerQuestions}
@@ -286,19 +297,11 @@ export const AssistantSurface = memo(function AssistantSurface({
         </div>
       )}
 
+      {/*
+        审批那一格现在长在输入框那张卡里，所以它的高度照样进了 useDockClearance
+        的实测值（量的是整条带子），转录末端跟着让位 —— 没有第二条管线。
+      */}
       <div className="assistant-surface__dock" ref={dockRef}>
-        {/*
-          审批在输入框之上，且在同一带子里 —— 于是它的高度自动进了
-          useDockClearance 的实测值，转录末端跟着让位，没有第二条管线。
-        */}
-        {approval === undefined ? null : (
-          <PermissionDock
-            item={approval}
-            onResolve={assistant.resolvePermission}
-            waiting={waiting}
-          />
-        )}
-
         {dock}
 
         {live ? null : (

@@ -49,7 +49,7 @@ const OPTION_LABELS = {
   Allow: '批准',
   'Allow Always': '始终批准',
   Approve: '批准',
-  'Approve for this session': '本次会话内始终批准',
+  'Approve for this session': '始终批准',
   'Approve once': '批准',
   Reject: '拒绝',
   'Reject and Exit': '拒绝并退出',

@@ -135,6 +135,21 @@
   --cp-surface: var(--ui-surface);
   --cp-ground: var(--ui-background);
 
+  /*
+   * 卡片顶上凹下去的那一格（审批带）。
+   *
+   * 相对地色兑 5% 墨，与「我」说的话那一格同一条式子（--cp-timeline-user-surface）
+   * —— 那里已经量过：浅色下解出 #ebebeb，与地色差 0.040 明度，一眼分得开又不至于
+   * 变成一个色块；深色下同一条式子把白色兑进去，它自动变亮而不是变暗，因为那时
+   * 地色已经是最暗的一层。
+   *
+   * 必须是一个实色，不能是一层半透明墨（--cp-hover 那种）：它铺在卡面上，而卡面
+   * 是亮的，兑出来的方向会反过来。
+   *
+   * 名字按用途取，与 --cp-error-rule 同一条规矩：将来要单独调只改这一处。
+   */
+  --cp-shelf: color-mix(in oklab, var(--ui-foreground) 5%, var(--ui-background));
+
   /* 悬停是一层墨,不是一个固定的灰:深色下它必须变亮而不是变暗。 */
   --cp-hover: color-mix(in srgb, var(--ui-foreground) 6%, transparent);
   --cp-hairline: var(--ui-divider-subtle);

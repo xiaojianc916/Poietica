@@ -4,14 +4,23 @@ import type { AcpPermissionOption } from '@poietica/acp'
 import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
+import { readToolIntent } from '../semantics/tool-intent'
 
 /**
  * 要批准的那一件事，就在下一句话的正上方。
  *
- * 它不是转录的一行。一次审批是拦在「继续」前面的一道闸，而闸属于操作区 ——
- * 放进流里，它会跟着滚动条走开，人得先找回它才能放行；放在这里，它和输入框
- * 是同一块东西的两截，视线不必移动。ChatGPT 的工具确认、Codex 的状态带、
- * Cursor 的 run 确认都在这个位置。
+ * 它不是转录的一行：一次审批是拦在「继续」前面的一道闸，闸属于操作区，放进流里
+ * 它会跟着滚动条走开，人得先找回它才能放行。它也不是浮在输入框上的第二块东西 ——
+ * 操作区在这个界面上是一张卡（assistant.css 的 [data-slot="prompt-input"]），
+ * 所以这条带子是那张卡顶上的一格，是它的第一个孩子。
+ *
+ * 兄弟那一版靠三处约定假装贴着：自己画左右上三条边、把下边置零、把上圆角抄成和
+ * 卡一样 —— 而卡片自己的上边框照画不误，于是接缝处始终是两个盒子摞着，不是一个
+ * 盒子分了两格。同一个坑仓里记过两次（--am-shadow 的双重边、输入框底边的加粗）。
+ *
+ * 同一条结论也已经写过一次：题组来的时候输入框自己长成面板（见 assistant-composer
+ * 那段「后者会在滚动、聚焦和 Esc 上处处露馅」），而不是浮一个面板上去。审批与提问
+ * 借的是同一条协议通道，没有理由用两种范式。
  *
  * 一次只画一个。并行的请求彼此独立，一个个答与一叠一起答在协议上没有分别，
  * 而一个个答不需要把这条带子改成队列 —— 序号只报分母（见 pendingPermissionCount）。
@@ -87,6 +96,23 @@ export const PermissionDock = memo(function PermissionDock({
     onResolve(item.requestId, optionId)
   }
 
+  /*
+   * 要批准的那件事本身。
+   *
+   * title 只是一个工具名：上游在 ACP 边界上把 command / search / url_fetch 三类
+   * displayBlock 一律丢掉（convert.ts 的 displayBlockToAcpContent），送到这里的
+   * 就只剩一个 "Bash"。而「要不要允许 Bash」不是一个能回答的问题。
+   *
+   * 入参是完整的，请求随身带着（PermissionItem.toolCall），所以意图没有真的丢。
+   * 重建它的那份判据仓里已经有了，工具卡片正在用 —— 这里读同一个函数，不抄第二份：
+   * 两份「这次调用要做什么」漂开的那天，带子和卡片会各说一套。
+   */
+  const call = item.toolCall
+  const intent =
+    call === undefined
+      ? null
+      : readToolIntent({ locations: call.locations ?? [], rawInput: call.rawInput })
+
   const lead = leadOf(item.options)
 
   const isSubmitting = submitted !== undefined
@@ -105,6 +131,13 @@ export const PermissionDock = memo(function PermissionDock({
         <span className="assistant-approval__title" title={item.title}>
           {item.title}
         </span>
+
+        {/* 工具名让位，意图占主位：一屏的 Bash、Read、Glob 之间没有区别。 */}
+        {intent === null ? null : (
+          <span className="assistant-approval__intent" title={intent.full}>
+            {intent.text}
+          </span>
+        )}
 
         <div className="assistant-approval__options">
           {item.options.map((option) => (
