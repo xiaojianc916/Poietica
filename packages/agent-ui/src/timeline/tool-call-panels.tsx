@@ -8,10 +8,10 @@ import { VirtualProse } from './virtual-prose'
 /**
  * 抽屉里的两个面：左边是我们送出去的，右边是它交回来的。
  *
- * 一个面就是一段 markdown —— 投影层已经把参数、路径、diff、回执全部拼好了。这一层
- * 因此不再有四路 switch、不再有 diff 两栏、不再有一张裸 ul。
+ * 一个面就是一段 markdown —— 投影层已经把入参、路径、diff、写入的内容全部拼好了。
+ * 这一层因此不再有四路 switch、不再有 diff 两栏、不再有一张裸 ul。
  *
- * 面板是抽屉里唯一的滚动容器，也是虚拟窗口量高度的那个盒子。它归这一层，不归
+ * 面板是抽屉里唯一的纵向滚动容器，也是虚拟窗口量高度的那个盒子。它归这一层，不归
  * VirtualProse —— 因为只有这一层知道它此刻是不是一个 tabpanel。
  */
 
@@ -52,22 +52,18 @@ export function ToolCallPanels({
   readonly facets: ToolCallFacets
   readonly isRunning: boolean
 }) {
-  const { brief, isReceipt, request, response } = facets
+  const { brief, request, response } = facets
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   /*
-   * 停在哪一面是派生的，不是一次性初值 —— 与 useDisclosure 同一条语义，人点过一次
-   * 之后以人为准。上游没送入参时只有一面，那一面恒定是 Response。
-   *
-   * 产出只是一句回执时停在入参那一面：Write 交回来的「Wrote 127 bytes to …」是一句
-   * 确认，这次调用真正的内容（那份要写进去的正文）在入参里。文件内容不搬到响应面 ——
-   * 那是我们送出去的东西，把它印在 Response 上等于伪造一份服务端没给过的答复。改的
-   * 只是默认落在哪一页，这样一展开看到的就是写了什么。
+   * 停在哪一面是派生的，不是一次性初值 —— 与 useDisclosure 同一条语义：还没有产出就
+   * 停在入参那一面（运行中唯一到齐的就是它），产出到了自动让位，人点过一次之后以人
+   * 为准。上游没送入参时只有一面，那一面恒定是 Response。
    */
-  const settled = response !== null && !isReceipt
-  const activeId = request === null ? RESPONSE : (chosen ?? (settled ? RESPONSE : REQUEST))
+  const activeId =
+    request === null ? RESPONSE : (chosen ?? (response === null ? REQUEST : RESPONSE))
 
   const text =
     activeId === REQUEST && request !== null ? request : (response ?? emptyNoteOf(brief, isRunning))

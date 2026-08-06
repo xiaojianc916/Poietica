@@ -1184,10 +1184,9 @@
  * 同一句话说两遍；卡片已经有一圈边，再套一圈就是卡中卡（这张表在表格那一节已经为
  * 同一个毛病做过一次同样的手术）。
  *
- * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它让围栏成为面板里
- * 第二个滚动容器，而「一个面板一个滚动容器」正是上面那条规则的全部内容。所以把
- * 滚动权交还给面板，长行改折行 —— 取值与它取代的 __diff-old / __diff-new 逐条一致，
- * 而虚拟化的估高按逻辑行算，折行只会让 measureElement 补偿一次。
+ * 最要紧的是 code-block-body 那个 max-block-size：它让围栏成为面板里第二个纵向滚动
+ * 容器，而「一个面板一个纵向滚动容器」正是上面那条规则的全部内容。所以纵轴交还给面
+ * 板；横轴留给围栏自己，因为代码不折行 —— 那一条紧跟在下面单独说。
  *
  * 判据是「围栏在哪」，不是「围栏是什么」：这四条与上面那四条特异性相同，靠书写顺序
  * 决定胜负，而这里在后面。
@@ -1209,34 +1208,27 @@
 
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
   max-block-size: none;
-  overflow: visible;
+  overflow: auto hidden;
   padding: 0;
 }
 
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 /*
- * 折行之后，缩进还在。
+ * 代码不折行。
  *
- * 上一条把横向滚动换成了折行 —— 被裁掉的字符取不回来，所以这个方向是对的 —— 但代价
- * 是续行顶格：一条 15 行的命令、一份深层嵌套的 JSON 折下来之后，层级在视觉上全平了，
- * 屏幕上就是一整块看不出结构的字。
+ * 上一版这里是 pre-wrap 加 anywhere，理由是「被裁掉的字符取不回来」。前半句对，后半
+ * 句选错了出口：一条十几行的命令、一份深层嵌套的 JSON 折下来之后层级全平，屏幕上是
+ * 一整块看不出结构的字 —— 那不是把字符还给读者，是把结构拿走了。上一版还为此补了一
+ * 条悬挂缩进去救，一个补丁上再摞一个补丁，两条一起删。
  *
- * 修法是悬挂缩进，而不是回到横滚：整段内缩两个字符，首行用等量的负 text-indent 抵回
- * 去，于是续行对齐在本行的起点之后。这正是编辑器 soft wrap 的标准行为
- *（VS Code 的 editor.wrappingIndent、Sublime、GitHub 的 diff 折行），一条 CSS，
- * 不需要任何脚本参与。
+ * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的
+ * 全部价值就在于列是对齐的，而折行按定义会破坏列。出口给横向滚动，字符一个不少。
  *
- * 落点是行盒而不是 pre：Streamdown 每个源码行发一个 span，上面那条
- *「A highlighted line has to be a line」已经把它们变成块级元素 —— 悬挂缩进只对块级
- * 生效，所以它必须落在这里。2ch 跟着等宽字号走，不是一个写死的像素。
+ * 轴写死成「横向 auto、纵向 hidden」，与表格滚动盒那一节同一条：max-block-size 已经
+ * 交还给面板，这个盒子纵向永远不会溢出，而一个不会滚的滚动轴不是中性的 —— 它会被浮层
+ * 当成一条候选轨道。抽屉里的纵向滚动容器仍然只有 __panel 一个。
  */
-.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre code > span {
-  padding-inline-start: 2ch;
-  text-indent: -2ch;
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
+  white-space: pre;
 }
 
 /*

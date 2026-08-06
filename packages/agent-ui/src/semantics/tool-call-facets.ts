@@ -6,27 +6,28 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
 /**
  * 一次工具调用的两个面：送出去的那一份，和交回来的那一份。
  *
- * 两个面交出去的都是 markdown，因为渲染它们的只有一条管线（Streamdown + Shiki，
- * 抽屉里由样式摘掉围栏的外壳）。这一层只负责说清楚「这一段是什么」。
+ * 两个面交出去的都是 markdown，因为渲染它们的只有一条管线 —— 带语言标注的围栏交给
+ * Streamdown，Shiki 上色，围栏的外壳（语言胶囊、复制按钮、内框）由样式在抽屉作用域
+ * 里摘掉。这一层只负责说清楚「这一段是什么」。
  *
- * ## 入参不是一份 JSON 文档，是一组参数
+ * ## 入参就是入参的 JSON
  *
- * 此前这里是 JSON.stringify(rawInput, null, 2)。那一步在把数据变成 JSON 源码，而
- * JSON 的编码规则规定：字符串里的真换行写成 \\n，反斜杠写成两个，引号写成 \\"。
- * 于是一条 15 行的命令在屏幕上是一坨转义符，一个 Windows 路径印出双反斜杠 ——
- * stringify 没有错，错的是让人去读线路编码。JSON 是传输格式，不是呈现格式。
+ * 曾经试过把它拆成一行行具名参数（标量一行、长文本一块）。那是 DevTools Payload 面板
+ * 的 parsed 视图，读单个字段确实更快，但它把「这次到底送出去了什么」这件事拆散了 ——
+ * 而抽屉里的这一面要回答的正是这一件事。所以这里回到 JSON.stringify(value, null, 2)：
+ * 一份完整、可比对、可原样复制的请求体，和 DevTools 的 view source、Postman 的 Pretty、
+ * jq 的默认输出是同一个东西。
  *
- * 专业软件在这一格的做法一致：DevTools 的 Payload 面板默认是 parsed 视图（一行一个
- * 字段、值已解码），view source 是次要选项；Anthropic Console 的 tool_use、OpenAI
- * Playground、Claude Code、Cursor、Zed 的 agent 面板全部按具名参数渲染。所以这里也
- * 按参数渲染：标量一行，多行或过长的字符串独占一块围栏，嵌套结构才回到 JSON —— 因为
- * 那时候 JSON 确实是它天然的形状。
+ * 随之而来的转义不是缺陷，是语法：JSON 里字符串中的反斜杠写成两个、换行写成 \\n
+ *（RFC 8259 §7）。任何显示 JSON 源码的工具都这样，想看解码后的值就只能不显示 JSON。
+ * 这一面显示的是 JSON。
  *
- * ## 语言从扩展名来，而扩展名直接交给 Shiki
+ * ## 一次写入交回来的应该是那份内容
  *
- * Shiki 的 language alias 表里本来就收着 ts / tsx / py / rs / sh / yml 这些扩展名。
- * 所以这里不做 ext → lang 的翻译，只做一次准入：认得的原样交出去，认不得的一律 text。
- * 自己维护一张映射表，就是在上游那张表旁边再放一张会过期的。
+ * ACP 规定 edit 类调用回传一段 diff（AcpToolCallContent 的 diff 分支），可实际拿到的
+ * 常常只有一句「Wrote 127 bytes to …」—— 那是确认，不是结果。Cursor、Cline、Claude
+ * Code 在这一格都不等服务端：它们从入参自己合成那份内容。这里同理，判据全部来自协议，
+ * 不认工具名。见 writtenOf。
  *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
  * 只依赖 @poietica/acp 是同一条边界。
@@ -35,7 +36,9 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */
 export interface ToolCallFacetSource {
   readonly content: readonly AcpToolCallContent[]
-  /** 这次调用要碰的文件。只取 path —— 行号是标题栏与编辑器的事，不是这一面的事。 */
+  /** ACP 的工具类别枚举。edit 那一支决定要不要为它合成写入的内容。 */
+  readonly kind?: string
+  /** 这次调用要碰的文件。只取 path —— 行号是标题栏与编辑器的事。 */
   readonly locations?: readonly { readonly path: string }[]
   readonly rawInput?: unknown
   readonly rawOutput?: unknown
@@ -45,16 +48,6 @@ export interface ToolCallFacets {
   /** 这次派发的任务书概要；不是子代理派发就是 null。 */
   readonly brief: SubAgentBrief | null
   readonly diffStat: DiffStat | null
-  /**
-   * 产出只是一句回执。
-   *
-   * Write 这类调用的服务端答复常常是「Wrote 127 bytes to …」—— 一行确认，而这次
-   * 调用真正的内容在入参里。把回执换成文件内容是 UI 在伪造响应（DevTools 不会把
-   * POST body 印进 Response 面板），但默认停在哪一面是可以由它来定的。
-   *
-   * 判据是形状，不是工具名：单行、短、没有围栏。
-   */
-  readonly isReceipt: boolean
   /** 送出去的那一面，一段 markdown；上游没送入参就是 null。 */
   readonly request: string | null
   /** 交回来的那一面，一段 markdown；什么都还没有就是 null。 */
@@ -70,12 +63,6 @@ export interface ToolCallFacets {
  */
 const CAP = 64 * 1024
 
-/** 一个值长到这个数就不再挤在行里，独占一块。约等于一行能容下的字符数。 */
-const INLINE_MAX = 96
-
-/** 一句回执的上限。超过这个长度的单行已经是内容，不是确认。 */
-const RECEIPT_MAX = 160
-
 function clamp(text: string): string {
   if (text.length <= CAP) {
     return text
@@ -89,9 +76,9 @@ function clamp(text: string): string {
 /**
  * 围栏得比正文里最长的那串反引号还长一格。
  *
- * 固定写三个是一个真实的缺口：工具输出里出现三连反引号一点都不罕见（读一份
- * markdown、抓一个页面、让子代理写文档），而 CommonMark 规定闭合围栏不短于开启
- * 围栏 —— 正文里那一行会把围栏提前收口，后面半段掉出去当散文渲染。
+ * 固定写三个是一个真实的缺口：工具输出里出现三连反引号一点都不罕见（读一份 markdown、
+ * 抓一个页面、让子代理写文档），而 CommonMark 规定闭合围栏不短于开启围栏 —— 正文里
+ * 那一行会把围栏提前收口，后面半段掉出去当散文渲染。
  */
 function railFor(body: string, floor: number): string {
   const runs = body.match(/`+/g)
@@ -117,11 +104,8 @@ function block(lang: string, body: string): string {
 /**
  * 一个值印在行里。
  *
- * 走行内代码而不是裸文本，是为了让反斜杠原样留下：markdown 的正文会把 \\ 当转义
- * 前缀吃掉，一个 Windows 路径印出来就少一半分隔符。行内代码里不发生任何转义。
- *
- * 首尾贴着反引号或空白时补一个空格 —— 那是 CommonMark 对行内代码定的规则，补上的
- * 空格由解析器自己吃掉，不会出现在屏幕上。
+ * 走行内代码而不是裸文本，是为了让反斜杠原样留下：markdown 的正文会把它当转义前缀
+ * 吃掉，一个 Windows 路径印出来就少一半分隔符。行内代码里不发生任何转义。
  */
 function inlineCode(value: string): string {
   if (value === '') {
@@ -136,7 +120,8 @@ function inlineCode(value: string): string {
 
 /*
  * Shiki 注册的语言别名里本来就有这些扩展名，所以准入表里放的是扩展名本身，不做翻译。
- * 认不得的一律 text：Shiki 对未注册的 info string 会整块降级，那比猜错语言更安全。
+ * 自己维护一张 ext → lang 的映射，就是在上游那张表旁边再放一张会过期的。认不得的一律
+ * text：Shiki 对未注册的 info string 会整块降级，那比猜错语言更安全。
  */
 const SHIKI_ALIASES: ReadonlySet<string> = new Set([
   'astro',
@@ -230,12 +215,6 @@ function jsonBlock(value: unknown): string | null {
   return text === undefined ? null : block('json', text)
 }
 
-function isOneLiner(text: string): boolean {
-  const line = text.trim()
-
-  return !line.includes('\n') && line.length <= RECEIPT_MAX
-}
-
 /* ── 送出去的那一面 ───────────────────────────────────────── */
 
 /* 空信封不算一面：无参工具的入参常常就是一个 {}，为它开一个页签只会给出两个大括号。 */
@@ -243,76 +222,31 @@ function isEmptyBag(value: object): boolean {
   return Array.isArray(value) ? value.length === 0 : Reflect.ownKeys(value).length === 0
 }
 
-/** 一个值该不该独占一块：带换行的，或者长到一行放不下的。 */
-function needsBlock(value: string): boolean {
-  return value.includes('\n') || value.length > INLINE_MAX
-}
-
-function requestOf(source: ToolCallFacetSource, lang: string): string | null {
+function requestOf(source: ToolCallFacetSource): string | null {
   const bag = source.rawInput
 
   if (bag === undefined || bag === null) {
     return null
   }
 
-  if (typeof bag !== 'object') {
-    return inlineCode(String(bag))
-  }
-
-  if (isEmptyBag(bag)) {
+  if (typeof bag === 'object' && isEmptyBag(bag)) {
     return null
   }
 
-  /* 顶层是数组的入参没有参数名可言，JSON 就是它天然的形状。 */
-  if (Array.isArray(bag)) {
-    return jsonBlock(bag)
-  }
+  const json = jsonBlock(bag)
 
-  const rows: string[] = []
-  const blocks: string[] = []
-  const printed = new Set<string>()
-
-  for (const [key, value] of Object.entries(bag)) {
-    if (value === undefined) {
-      continue
-    }
-
-    if (typeof value === 'string') {
-      if (needsBlock(value)) {
-        blocks.push(`**${inlineCode(key)}**\n\n${textBlock(value, lang)}`)
-        continue
-      }
-
-      printed.add(value)
-      rows.push(`${inlineCode(key)} ${inlineCode(value)}`)
-      continue
-    }
-
-    if (value === null || typeof value === 'number' || typeof value === 'boolean') {
-      rows.push(`${inlineCode(key)} ${inlineCode(String(value))}`)
-      continue
-    }
-
-    const nested = jsonBlock(value)
-
-    if (nested !== null) {
-      blocks.push(`**${inlineCode(key)}**\n\n${nested}`)
-    }
+  if (json === null) {
+    return null
   }
 
   /*
-   * 受影响的文件排在最前：它说的是这次调用要碰什么，那是意图，不是结果。已经作为
-   * 某个参数的值印过的路径不再印第二遍 —— 同一个路径在同一面出现两次是纯冗余。
+   * 受影响的文件排在 JSON 前面：它说的是这次调用要碰什么，那是意图，不是结果 ——
+   * 编辑器拿它做的也正是「跟着 agent 的视线走」。走行内代码，所以路径里的反斜杠是
+   * 真的反斜杠，与下面 JSON 里那份编码过的各归各位。
    */
-  const marks = (source.locations ?? [])
-    .filter((location) => !printed.has(location.path))
-    .map((location) => inlineCode(location.path))
+  const marks = (source.locations ?? []).map((location) => inlineCode(location.path))
 
-  const head = marks.length > 0 ? [marks.join(' · ')] : []
-  const body = rows.length > 0 ? [rows.join('\n\n')] : []
-  const all = [...head, ...body, ...blocks]
-
-  return all.length === 0 ? null : all.join('\n\n')
+  return marks.length === 0 ? json : `${marks.join(' · ')}\n\n${json}`
 }
 
 /* ── 交回来的那一面 ───────────────────────────────────────── */
@@ -338,7 +272,7 @@ function diffBody(oldText: string | null, newText: string): string {
   return oldText === null ? added : `${mark(oldText, '-')}\n${added}`
 }
 
-function partMarkdown(part: ToolContentPart, lang: string): string {
+function partMarkdown(part: ToolContentPart): string {
   if (part.type === 'text') {
     return textBlock(part.text, 'text')
   }
@@ -354,34 +288,82 @@ function partMarkdown(part: ToolContentPart, lang: string): string {
   return part.label
 }
 
-interface Response {
-  readonly isReceipt: boolean
-  readonly markdown: string | null
+/** 协议只给了 rawOutput 的时候，它就是这一面唯一交得出来的东西。 */
+function outputOf(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value === '' ? null : textBlock(value, 'text')
+  }
+
+  return jsonBlock(value)
 }
 
-function responseOf(parts: readonly ToolContentPart[], rawOutput: unknown, lang: string): Response {
-  if (parts.length > 0) {
-    const only = parts.length === 1 ? parts[0] : undefined
+/**
+ * 这次写进去的是什么。
+ *
+ * 「Wrote 127 bytes to …」是一句确认，不是这次调用的结果 —— 结果是那份内容。协议本来
+ * 有位置放它（AcpToolCallContent 的 diff 分支），只是不少服务端不填。所以这里自己从
+ * 入参合成，与 Cursor / Cline / Claude Code 在同一格的做法一致。
+ *
+ * 三条判据都来自协议或形状，一条都不认工具名：
+ *   kind === 'edit'        —— ACP 的 AcpToolKind 枚举，卡片的图标分流用的也是它；
+ *   产出里没有 diff        —— 服务端已经给了就不必代劳，那份才是权威；
+ *   入参里最长的字符串     —— 一次写入的入参只有路径和内容两样，路径已被排除。
+ */
+function writtenOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
+  if (source.kind !== 'edit') {
+    return null
+  }
 
-    return {
-      isReceipt: only?.type === 'text' && isOneLiner(only.text),
-      markdown: parts.map((part) => partMarkdown(part, lang)).join('\n\n'),
+  for (const part of parts) {
+    if (part.type === 'diff') {
+      return null
     }
   }
 
-  /* 协议只给了 rawOutput 的时候，它就是这一面唯一交得出来的东西。 */
-  if (typeof rawOutput === 'string') {
-    return {
-      isReceipt: isOneLiner(rawOutput),
-      markdown: rawOutput === '' ? null : textBlock(rawOutput, 'text'),
+  const bag = source.rawInput
+
+  if (typeof bag !== 'object' || bag === null || Array.isArray(bag)) {
+    return null
+  }
+
+  const path = source.locations?.[0]?.path
+  let body: string | null = null
+
+  for (const value of Object.values(bag)) {
+    if (typeof value !== 'string' || value === path || value === '') {
+      continue
+    }
+
+    if (body === null || value.length > body.length) {
+      body = value
     }
   }
 
-  if (rawOutput === undefined || rawOutput === null) {
-    return { isReceipt: false, markdown: null }
+  return body === null ? null : textBlock(body, langOf(source.locations))
+}
+
+function responseOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
+  const pieces: string[] = parts.map((part) => partMarkdown(part))
+
+  if (pieces.length === 0) {
+    const output = outputOf(source.rawOutput)
+
+    if (output !== null) {
+      pieces.push(output)
+    }
   }
 
-  return { isReceipt: false, markdown: jsonBlock(rawOutput) }
+  const written = writtenOf(source, parts)
+
+  if (written !== null) {
+    pieces.push(written)
+  }
+
+  return pieces.length === 0 ? null : pieces.join('\n\n')
 }
 
 /**
@@ -392,14 +374,11 @@ function responseOf(parts: readonly ToolContentPart[], rawOutput: unknown, lang:
  */
 export function toToolCallFacets(source: ToolCallFacetSource): ToolCallFacets {
   const { diffStat, parts } = toToolCallView(source.content)
-  const lang = langOf(source.locations)
-  const response = responseOf(parts, source.rawOutput, lang)
 
   return {
     brief: readSubAgent(source.rawInput),
     diffStat,
-    isReceipt: response.isReceipt,
-    request: requestOf(source, lang),
-    response: response.markdown,
+    request: requestOf(source),
+    response: responseOf(source, parts),
   }
 }
