@@ -542,39 +542,48 @@
 }
 
 /*
- * 一块思考。位置由虚拟器给出，尺寸由自身内容决定并被 measureElement 读回 —— 与转录
- * 那一层的行是同一种东西，理由不在这里重述第二遍（见 agent-activity-feed.css 的
- * __row：绝对定位不是负担，它让位置只有一个来源）。
+ * 一块。位置由虚拟器给出，尺寸由自身内容决定并被 measureElement 读回 —— 与转录那一
+ * 层的行是同一种东西，理由不在这里重述第二遍（见 agent-activity-feed.css 的 __row：
+ * 绝对定位不是负担，它让位置只有一个来源）。
  *
  * 块的上边距照旧归块自己（.timeline-prose 那套节奏，标题与分隔线仍然拿更大的那一
  * 档）：这个包裹层挡在中间，首块清零那两条选择器够不到它。绝对定位另外顺手解决一
  * 件事 —— 它建立独立的 BFC，上边距因此留在盒子里、被量进这一块的高度，而不是穿出去。
+ *
+ * 宽度对拉：inset-inline 两侧同时为 0，块的 border box 恰好等于包含块的宽度。散文
+ * 因此按面板的宽度换行 —— 一段话的宽度本来就由容器定，这是它该有的行为。
  */
 .timeline-prose__block {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-start: 0;
+  inset-inline: 0;
+  contain: style;
+}
 
-  /*
-   * 宽度由内容定，不由容器定。
-   *
-   * 此前这里是 inset-inline: 0 —— left 与 right 对拉，块的 border box 被求解为恰好
-   * 等于包含块的宽度，一个像素都不多。按 CSS Overflow 3 §3.1，滚动溢出区域计入的是
-   * 「它作为包含块的那些盒子的 border box」，于是无论围栏里那一行有多长，这个盒子都
-   * 不贡献任何横向可滚区：超出去的部分是 overflow: visible 的墨水溢出，最终被卡片外
-   * 框的 overflow: hidden 裁掉 —— 画不出去，也滚不出来。
-   *
-   * 而这不是漏写了一个属性，是虚拟化与横滚的结构性冲突：绝对定位的盒子不参与父容器
-   * 的内在尺寸计算，所以容器永远不知道内容有多宽。VS Code 的列表是显式解开的
-   * （listView.ts 自己测出最宽行，把 scrollWidth 写回滚动元素）。这里用 CSS 的等价
-   * 写法：让盒子自己长到最长那一行，溢出因此走的是上面那一条最直接的规则。
-   *
-   * min-inline-size 保证内容窄时仍然铺满一整行 —— 否则块会缩到文字宽度，将来任何按
-   * 行铺底的样式都会跟着参差。
-   */
+/*
+ * 只有围栏例外：它的宽度由内容定，不由容器定。
+ *
+ * 按 CSS Overflow 3 §3.1，滚动容器并入的是「它作为包含块的那些盒子的 border box」——
+ * 对绝对定位的后代只有 border box，不含它们内部溢出去的那一截。于是一个被对拉钉死了
+ * 宽度的块，无论围栏里那一行有多长，都不贡献任何横向可滚区：超出的部分是 visible 的
+ * 墨水溢出，最终被卡片外框的 overflow: hidden 裁掉 —— 画不出去，也滚不出来。
+ *
+ * 所以让含围栏的那些块自己长到最长的一行：解开 end 那一侧的对拉，宽度取 max-content，
+ * 面板的可滚区因此有了来源。虚拟列表里这一步通常是显式做的（VS Code 的 listView.ts 自
+ * 己测出最宽行，把 scrollWidth 写回滚动元素；TanStack 的横向示例把宽度写成
+ * getTotalSize()）—— 这里由 CSS 的内在尺寸代劳，不必自己测。
+ *
+ * 判据是 :has()，而不是给所有块一视同仁。max-content 的含义是「内容不换行时需要多
+ * 宽」，加在散文上就是把一整段拉成一条长行：面板右侧空出一大片，而散文根本不需要横
+ * 滚。切分器把围栏切成独立的块，:has() 因此刚好落在正确的粒度上。
+ *
+ * min-inline-size 保证围栏窄时仍然铺满一整行 —— 否则块会缩到文字宽度，将来任何按行
+ * 铺底的样式都会跟着参差。
+ */
+.timeline-prose__block:has([data-streamdown="code-block"]) {
+  inset-inline-end: auto;
   inline-size: max-content;
   min-inline-size: 100%;
-  contain: style;
 }
 
 /*
@@ -1293,15 +1302,12 @@
  * 全部价值就在于列是对齐的，而折行按定义会破坏列。出口给横向滚动，字符一个不少。
  *
  * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
- * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑 —— 前提是虚拟块自己长得出那个
- * 宽度。
+ * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑 —— 滚动条是滚动容器的边，不
+ * 是内容的边。
  *
- * 这一段上一版写的是「虚拟块是绝对定位的，而面板是它们的包含块，所以伸出去的那一截照
- * 常计入面板的可滚动区域」。两处都错：包含块是 .timeline-tool__prose（它自己带
- * position: relative），不是面板；而「照常计入」根本没有发生过 —— 块当时被
- * inset-inline: 0 钉成与包含块等宽，一点横向可滚区都不贡献，横条因此从来没出现过。
- * 真正让它出现的是 .timeline-prose__block 上那条 inline-size: max-content，理由写在
- * 那一节。
+ * 「照直伸出去」之后还能被滚到，靠的是含围栏的那些虚拟块把自己撑到最长那一行的宽度：
+ * 绝对定位的盒子只以 border box 计入可滚区，撑宽是唯一的来源。理由写在
+ * .timeline-prose__block 上。
  */
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
   white-space: pre;
