@@ -4,7 +4,7 @@ import {
   createFailureScopeKey,
   isNonTerminalFailureImpact,
   isTerminalFailureImpact,
-} from './failure-policy'
+} from './failure-kernel'
 
 describe('application failure policy', () => {
   it('distinguishes terminal impacts', () => {

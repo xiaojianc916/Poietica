@@ -4,7 +4,7 @@ import {
   APPLICATION_FAILURE_CODES,
   APPLICATION_FAILURE_POLICIES,
   DEGRADABLE_FEATURE_IDS,
-} from './failure-policy'
+} from './application-failures'
 
 /**
  * The declared set of degradable features and the policies that degrade them

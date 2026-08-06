@@ -27,7 +27,7 @@ export {
   type NonTerminalFailureImpact,
   type TerminalFailureImpact,
   validateFailurePolicy,
-} from './failure-policy'
+} from './failure-kernel'
 export {
   type ActorId,
   type AnyId,
