@@ -75,6 +75,14 @@ export function TemplateGallery({ onAdd }: TemplateGalleryProps) {
                     title: template.title,
                     prompt: template.prompt,
                     trigger: template.trigger,
+
+                    /*
+                     * 模板对模型没有意见。空表不是「还没填」，它是一个明确的
+                     * 取值：不改动这条对话的会话设置，用 agent 当下的默认跑。
+                     * 想把组合固定下来，打开编辑器保存一次即可 —— 那时界面上
+                     * 显示的三颗胶囊会被原样存进去。
+                     */
+                    sessionConfig: {},
                   })
                 }}
                 type="button"

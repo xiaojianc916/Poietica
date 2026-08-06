@@ -1,21 +1,28 @@
+import type { SessionConfigControl } from '@poietica/acp'
+import { useAgentControls } from '@poietica/agent-session'
 import type { Automation, AutomationTrigger } from '@poietica/ipc'
 import { ArrowLeftIcon, cn, PlayIcon } from '@poietica/ui'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
-import { sameSessionConfig, sameTrigger } from '../automation'
+import { DEFAULT_TRIGGER, sameSessionConfig, sameTrigger } from '../automation'
 import type { AutomationStore } from '../automation-store'
 import { AutomationRunHistory } from './automation-run-history'
 import { AutomationSessionConfig } from './automation-session-config'
+import { AutomationTriggerField } from './automation-trigger-field'
 
 /*
  * 一条自动化的整页编辑器。
  *
- * 头部没有横线。那条 border-b 是全宽的，而正文是居中的 max-w-2xl —— 一条
- * 横线横穿整个窗口、下面的内容却只占中间一段，读起来是「这条线属于窗口」
- * 而不是「属于这一页」。Cursor 的同一处也没有。
+ * 头部没有横线。那条 border-b 是全宽的，而正文是居中的 max-w-2xl —— 一条横线
+ * 横穿整个窗口、下面的内容却只占中间一段，读起来是「这条线属于窗口」而不是
+ * 「属于这一页」。
  *
- * 页签是胶囊式分段控件，不是下划线。下划线暗示「这是一层导航」，而设置与
- * 运行历史是同一个对象的两个视图，分段控件才是它的语义。
+ * 页签是胶囊，不是下划线：下划线暗示「这是一层导航」，而设置与运行历史是同一个
+ * 对象的两个视图。
+ *
+ * 三颗会话胶囊贴在指令框底部，不单独占一张卡片 —— 本仓库自己的输入框就是这么
+ * 排的（agent-ui 的 session-controls）。它们回答的是「这段话由谁来跑」，那是指令
+ * 的属性，不是与指令并列的另一件事。
  */
 
 export interface AutomationEditorProps {
@@ -31,18 +38,6 @@ const TABS: readonly { readonly id: EditorTab; readonly label: string }[] = [
   { id: 'runs', label: '运行历史' },
 ]
 
-function toClock(atMinuteOfDay: number): string {
-  const pad = (value: number) => value.toString().padStart(2, '0')
-
-  return `${pad(Math.floor(atMinuteOfDay / 60))}:${pad(atMinuteOfDay % 60)}`
-}
-
-function toMinuteOfDay(clock: string): number {
-  const [hours = '0', minutes = '0'] = clock.split(':')
-
-  return Number(hours) * 60 + Number(minutes)
-}
-
 /* 生成绑定给的是 Partial<Record<..>>，先把缺席的键滤掉再进状态。 */
 function pickedFrom(automation: Automation | null): Record<string, string> {
   const picked: Record<string, string> = {}
@@ -56,28 +51,40 @@ function pickedFrom(automation: Automation | null): Record<string, string> {
   return picked
 }
 
+/**
+ * 这条自动化最终要存下去的那一份会话设置。
+ *
+ * 人没动过的项，取 agent 此刻报的 current —— 那正是界面上显示的组合。所见即
+ * 所存，不留「未选择」这种第三态。
+ *
+ * 先铺 picked、再用 controls 覆盖，顺序不能反：agent 这一刻没报的项照样留在盘
+ * 上，不因为人打开过一次编辑器就被静默抹掉。
+ */
+function resolve(
+  picked: Readonly<Record<string, string>>,
+  controls: readonly SessionConfigControl[],
+): Record<string, string> {
+  const resolved: Record<string, string> = { ...picked }
+
+  for (const control of controls) {
+    resolved[control.id] = picked[control.id] ?? control.current
+  }
+
+  return resolved
+}
+
 export function AutomationEditor({ automation, onBack, store }: AutomationEditorProps) {
+  const controls = useAgentControls()
+
   const [tab, setTab] = useState<EditorTab>('settings')
   const [title, setTitle] = useState(automation?.title ?? '')
   const [prompt, setPrompt] = useState(automation?.prompt ?? '')
-  const [kind, setKind] = useState<AutomationTrigger['kind']>(automation?.trigger.kind ?? 'daily')
-  const [everyMinutes, setEveryMinutes] = useState(
-    automation?.trigger.kind === 'interval' ? automation.trigger.everyMinutes : 60,
-  )
-  const [atTime, setAtTime] = useState(
-    automation?.trigger.kind === 'daily' ? toClock(automation.trigger.atMinuteOfDay) : '09:00',
-  )
-  const [sessionConfig, setSessionConfig] = useState<Record<string, string>>(() =>
-    pickedFrom(automation),
-  )
+  const [trigger, setTrigger] = useState<AutomationTrigger>(automation?.trigger ?? DEFAULT_TRIGGER)
+  const [picked, setPicked] = useState<Record<string, string>>(() => pickedFrom(automation))
 
-  const trigger: AutomationTrigger =
-    kind === 'manual'
-      ? { kind: 'manual' }
-      : kind === 'interval'
-        ? { kind: 'interval', everyMinutes }
-        : { kind: 'daily', atMinuteOfDay: toMinuteOfDay(atTime) }
+  const sessionConfig = useMemo(() => resolve(picked, controls), [controls, picked])
 
+  const runs = automation?.runs ?? []
   const ready = title.trim().length > 0 && prompt.trim().length > 0
 
   const dirty =
@@ -87,18 +94,8 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
     !sameTrigger(automation.trigger, trigger) ||
     !sameSessionConfig(automation.sessionConfig, sessionConfig)
 
-  function choose(controlId: string, value: string | null): void {
-    setSessionConfig((current) => {
-      const next = { ...current }
-
-      if (value === null) {
-        delete next[controlId]
-      } else {
-        next[controlId] = value
-      }
-
-      return next
-    })
+  function choose(controlId: string, value: string): void {
+    setPicked((current) => ({ ...current, [controlId]: value }))
   }
 
   function save(): void {
@@ -163,13 +160,16 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
 
       <div className="mx-auto w-full max-w-2xl px-8 pb-16">
         <input
-          className="w-full bg-transparent text-2xl text-foreground outline-none placeholder:text-muted-foreground"
-          onChange={(event) => setTitle(event.target.value)}
+          aria-label="自动化名称"
+          className="w-full bg-transparent text-2xl font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+          onChange={(event) => {
+            setTitle(event.target.value)
+          }}
           placeholder="未命名"
           value={title}
         />
 
-        <div className="mt-6 flex gap-1">
+        <div className="mt-5 flex gap-1">
           {TABS.map((entry) => (
             <button
               aria-current={tab === entry.id ? 'page' : undefined}
@@ -180,71 +180,47 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
                   : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
               )}
               key={entry.id}
-              onClick={() => setTab(entry.id)}
+              onClick={() => {
+                setTab(entry.id)
+              }}
               type="button"
             >
               {entry.label}
+
+              {entry.id === 'runs' && runs.length > 0 ? (
+                <span className="ml-1.5 tabular-nums opacity-60">{runs.length}</span>
+              ) : null}
             </button>
           ))}
         </div>
 
         {tab === 'runs' ? (
-          <div className="mt-6">
-            <AutomationRunHistory runs={automation?.runs ?? []} />
+          <div className="mt-5">
+            <AutomationRunHistory runs={runs} />
           </div>
         ) : (
-          <div className="mt-6 flex flex-col gap-4">
-            <Section label="触发">
-              <div className="flex flex-wrap items-center gap-2">
-                {(['manual', 'interval', 'daily'] as const).map((option) => (
-                  <button
-                    className={cn(
-                      'rounded-full px-3 py-1 text-xs transition-colors',
-                      kind === option
-                        ? 'bg-sidebar-accent text-foreground'
-                        : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
-                    )}
-                    key={option}
-                    onClick={() => setKind(option)}
-                    type="button"
-                  >
-                    {option === 'manual' ? '手动' : option === 'interval' ? '按间隔' : '每天'}
-                  </button>
-                ))}
-
-                {kind === 'interval' ? (
-                  <input
-                    className="w-20 rounded-md bg-background px-2 py-1 text-xs text-foreground outline-none"
-                    min={1}
-                    onChange={(event) => setEveryMinutes(Math.max(1, Number(event.target.value)))}
-                    type="number"
-                    value={everyMinutes}
-                  />
-                ) : null}
-
-                {kind === 'daily' ? (
-                  <input
-                    className="rounded-md bg-background px-2 py-1 text-xs text-foreground outline-none"
-                    onChange={(event) => setAtTime(event.target.value)}
-                    type="time"
-                    value={atTime}
-                  />
-                ) : null}
+          <div className="mt-5 flex flex-col gap-3">
+            <Card hint="决定它什么时候自己跑起来。" title="触发">
+              <div className="px-4 py-4">
+                <AutomationTriggerField onChange={setTrigger} trigger={trigger} />
               </div>
-            </Section>
+            </Card>
 
-            <Section label="会话">
-              <AutomationSessionConfig onChange={choose} value={sessionConfig} />
-            </Section>
-
-            <Section label="指令">
+            <Card hint="每次到期，就把这段话发给 agent，跑在一条新开的对话里。" title="指令">
               <textarea
-                className="min-h-40 w-full resize-y rounded-md bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                onChange={(event) => setPrompt(event.target.value)}
+                aria-label="指令"
+                className="min-h-44 w-full resize-y bg-transparent px-4 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                onChange={(event) => {
+                  setPrompt(event.target.value)
+                }}
                 placeholder="到期时发给 agent 的那句话"
                 value={prompt}
               />
-            </Section>
+
+              <div className="flex flex-wrap items-center gap-1 border-t border-divider/60 px-2.5 py-2">
+                <AutomationSessionConfig controls={controls} onChange={choose} value={picked} />
+              </div>
+            </Card>
           </div>
         )}
       </div>
@@ -277,11 +253,30 @@ function IconButton({
   )
 }
 
-function Section({ children, label }: { readonly children: ReactNode; readonly label: string }) {
+/*
+ * 卡片自己不给正文留内边距。
+ *
+ * 指令那张卡片的正文是「文本域 + 控件条」，两段各自贴边、中间一条分隔线；
+ * 触发那张是普通内容。与其加一个 bodyClassName 开关，不如让调用点自己写那
+ * 一层 div —— 开关会长大，div 不会。
+ */
+function Card({
+  children,
+  hint,
+  title,
+}: {
+  readonly children: ReactNode
+  readonly hint: string
+  readonly title: string
+}) {
   return (
-    <section className="rounded-lg border border-divider/60 p-4">
-      <h2 className="mb-3 text-xs text-muted-foreground">{label}</h2>
-      {children}
+    <section className="overflow-hidden rounded-xl border border-divider bg-background">
+      <header className="px-4 pb-3 pt-3.5">
+        <h2 className="text-xs font-medium text-foreground">{title}</h2>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</p>
+      </header>
+
+      <div className="border-t border-divider/60">{children}</div>
     </section>
   )
 }

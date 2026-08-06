@@ -24,6 +24,8 @@ export { ErrorState, InlineSpinner, LoadingState } from './feedback'
 export {
   ArrowLeftIcon,
   ClockTenIcon,
+  FolderClosedIcon,
+  FolderOpenIcon,
   GithubMark,
   LightbulbIcon,
   PlayIcon,

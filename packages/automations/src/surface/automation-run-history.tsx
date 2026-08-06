@@ -1,4 +1,5 @@
 import type { Automation } from '@poietica/ipc'
+import { cn } from '@poietica/ui'
 
 import { describeMoment } from '../automation'
 
@@ -23,21 +24,31 @@ export function AutomationRunHistory({ runs }: AutomationRunHistoryProps) {
   }
 
   return (
-    <ul className="mt-6 divide-y divide-divider/60 rounded-lg border border-divider bg-background">
+    <ul className="divide-y divide-divider/60 overflow-hidden rounded-xl border border-divider bg-background">
       {runs.map((run) => (
         <li
-          className="flex items-center justify-between px-4 py-2.5 text-xs"
+          className="flex items-center gap-3 px-4 py-2.5 text-xs"
           key={run.startedAt + (run.threadId ?? '')}
         >
+          {/* 圆点只画结果这一件事，颜色之外不承载信息，所以 aria-hidden：
+              旁边那两个字已经把同一件事说清楚了，读屏不必听两遍。 */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              run.outcome === 'succeeded' ? 'bg-foreground/40' : 'bg-destructive',
+            )}
+          />
+
           <span className={run.outcome === 'succeeded' ? '' : 'text-destructive'}>
             {run.outcome === 'succeeded' ? '成功' : '失败'}
           </span>
 
-          <span className="text-muted-foreground">
+          <span className="truncate text-muted-foreground">
             {run.threadId === null ? '没有留下对话' : '留下了一条对话'}
           </span>
 
-          <span className="tabular-nums text-muted-foreground">
+          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
             {describeMoment(run.startedAt)}
           </span>
         </li>

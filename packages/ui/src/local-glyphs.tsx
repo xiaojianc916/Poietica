@@ -96,6 +96,34 @@ export function LightbulbIcon(props: GlyphProps) {
 }
 
 /**
+ * folder-closed / folder-open：一个目录收着和开着的两个样子。
+ *
+ * 成对给，因为调用点要表达的就是开合。图标库里只有收着那一枚，此前只好拿
+ * 实心文件夹当「展开」用 —— 而实心在本仓已经被图钉借去表示「已固定」，一
+ * 种填法不能说两件事。Lucide / Feather / Tabler、Finder、VS Code 的资源管
+ * 理器在这一格给的都是两枚轮廓。
+ *
+ * 几何取自 Lucide 的 folder-closed 与 folder-open（此前以 .svg 躺在仓库根
+ * 目录，无人 import），与本文件其余字形同源、同视口、同线宽。
+ */
+export function FolderClosedIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+      <path d="M2 10h20" />
+    </Glyph>
+  )
+}
+
+export function FolderOpenIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
+    </Glyph>
+  )
+}
+
+/**
  * 品牌标记。不走上面那个 Glyph 外框。
  *
  * 品牌标记与 UI 字形是两个类别：字形来自图标库、可替换、描边、粗细跟着

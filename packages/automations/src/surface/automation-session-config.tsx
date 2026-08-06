@@ -1,30 +1,25 @@
 import type { SessionConfigControl, SessionConfigPurpose } from '@poietica/acp'
-import { useAgentControls } from '@poietica/agent-session'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuRadioItemIndicator,
-  DropdownMenuTrigger,
-} from '@poietica/ui'
+import { Select, type SelectOption } from '@poietica/ui'
 import { useMemo } from 'react'
 
 /*
  * 这条自动化用哪个模型、哪档推理、哪个模式。
  *
- * 一格都不是手写的。清单来自 useAgentControls —— 与输入框上那颗胶囊同一个
- * 产地（agent-capability-store 的全进程单例），所以这里不会出现一个 agent
- * 并不支持的模型，也不需要为了画一个下拉去 spawn 一个 agent 进程。
+ * 没有「跟随默认」。上一版拿一个 \u0000 哨兵造出了「没选」这个第三态，那是错的：
+ * 一旦「没选」合法，列表要判一次它算什么、编辑器要判一次、运行时下发那段循环
+ * 还要判一次 —— 同一个问题被回答三遍，迟早三个答案。agent 报的 current 就是
+ * 默认，新建时显示的就是它，保存下去的也是它。
  *
- * 三个 purpose 就是用户嘴里的三样东西，协议里本来就是一个闭合枚举，不是三
- * 个各写一遍的特例。将来 agent 多报一类（other），它自己会出现在最后一行。
+ * 一格都不是手写的：清单来自 useAgentControls（与输入框上那颗胶囊同一个产地），
+ * 控件来自 @poietica/ui 的 Select（Base UI，自带勾号、键盘导航与宽度自适应）。
+ * 上一版在这里用 DropdownMenu + RadioGroup 手搓了一遍同样的东西，那是本仓库
+ * 已经有的能力被重造了一次。
  *
- * 不选＝跟随全局默认。这一格必须存在且必须是默认值：绝大多数自动化不该关心
- * 模型，而一个「被迫选一个」的表单会让人以为不选就跑不起来。
+ * 三个 purpose 就是用户嘴里那三样，协议里本来就是一个闭合枚举，不是三个各写
+ * 一遍的特例。将来 agent 多报一类，它自己会出现在最后。
  */
 
-/** 闭合枚举到中文的映射。与 describeTrigger 同一个性质：翻译，不是发明。 */
+/** 闭合枚举到中文。与 describeTrigger 同一个性质：翻译，不是发明。 */
 const PURPOSE_LABELS: Record<SessionConfigPurpose, string> = {
   model: '模型',
   thought: '推理强度',
@@ -34,14 +29,6 @@ const PURPOSE_LABELS: Record<SessionConfigPurpose, string> = {
 
 const ORDER: readonly SessionConfigPurpose[] = ['model', 'thought', 'mode', 'other']
 
-/*
- * 「跟随默认」在 radio group 里也得有一个值。
- *
- * 用一个不可能与 agent 取值相撞的哨兵，而不是空串 —— 空串是一个合法的
- * 协议取值，拿它当哨兵就等于把某个真实选项永久劫持掉。
- */
-const FOLLOW = '\u0000follow-default'
-
 function rank(purpose: SessionConfigPurpose): number {
   const found = ORDER.indexOf(purpose)
 
@@ -49,9 +36,9 @@ function rank(purpose: SessionConfigPurpose): number {
 }
 
 /*
- * 组内条目不重复组名：与 session-controls 同一条规矩，理由也同一个 ——
- * 上游给取值起名是按「单独出现」起的（kimi-code 的 thinkingOptionName 逐字
- * 是 Thinking 加档位名），而行标签已经说过一遍了。
+ * 条目不复述组名：与 session-controls 同一条规矩，理由也同一个 —— 上游给取值
+ * 起名是按「单独出现」起的（kimi-code 的 thinkingOptionName 逐字是 Thinking
+ * 加档位名），而胶囊的可访问名已经说过一遍了。
  */
 function labelOf(control: SessionConfigControl, value: string): string {
   const found = control.choices.find((choice) => choice.value === value)
@@ -67,14 +54,17 @@ function labelOf(control: SessionConfigControl, value: string): string {
 }
 
 export interface AutomationSessionConfigProps {
-  readonly onChange: (controlId: string, value: string | null) => void
+  readonly controls: readonly SessionConfigControl[]
+  readonly onChange: (controlId: string, value: string) => void
+  /** 人明确改过的那些。没改过的项由 control.current 顶上。 */
   readonly value: Readonly<Record<string, string>>
 }
 
-export function AutomationSessionConfig({ onChange, value }: AutomationSessionConfigProps) {
-  const controls = useAgentControls()
-
-  /* 排序是投影不是渲染：它只依赖 controls。 */
+export function AutomationSessionConfig({
+  controls,
+  onChange,
+  value,
+}: AutomationSessionConfigProps) {
   const rows = useMemo(
     () => [...controls].sort((left, right) => rank(left.purpose) - rank(right.purpose)),
     [controls],
@@ -82,87 +72,66 @@ export function AutomationSessionConfig({ onChange, value }: AutomationSessionCo
 
   if (rows.length === 0) {
     /*
-     * 还没有和没有，是两件事。
-     *
-     * 候选是第一个订阅者出现时才去问的（见 agent-capability-store 的
-     * #loadOnce），所以这一格在启动后的头一瞬间必然是空的。画一句话说明它
-     * 会自己出现，比画三个空下拉诚实。
+     * 还没有和没有，是两件事。候选是第一个订阅者出现时才去问的（见
+     * agent-capability-store 的 #loadOnce），所以启动后的头一瞬间这里必然是空的。
+     * 说一句话，比摆三个空下拉诚实。
      */
     return (
-      <p className="text-xs text-muted-foreground">
-        还没有拿到 agent 报的可选项。配好 provider
-        之后它会自己出现，在此之前这条自动化跟随全局默认。
+      <p className="px-1.5 py-1 text-xs text-muted-foreground">
+        还没有拿到 agent 报的可选项。配好 provider 之后，模型、推理强度与模式会出现在这里。
       </p>
     )
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <>
       {rows.map((control) => (
-        <ConfigRow
+        <ConfigPill
           control={control}
           key={control.id}
           onChange={onChange}
-          picked={value[control.id]}
+          picked={value[control.id] ?? control.current}
         />
       ))}
-    </div>
+    </>
   )
 }
 
-interface ConfigRowProps {
+interface ConfigPillProps {
   readonly control: SessionConfigControl
-  readonly onChange: (controlId: string, value: string | null) => void
-  readonly picked: string | undefined
+  readonly onChange: (controlId: string, value: string) => void
+  readonly picked: string
 }
 
-function ConfigRow({ control, onChange, picked }: ConfigRowProps) {
-  /*
-   * 存着的取值 agent 现在不报了。
-   *
-   * 照样显示，并且说出来。静默丢弃是这一类界面最坏的一种失败：人以为设过，
-   * 而它一次都没生效过 —— agent-capability-store 的 choose 里那段注释说的
-   * 就是同一件事。
-   */
-  const withdrawn =
-    picked !== undefined && !control.choices.some((choice) => choice.value === picked)
+function ConfigPill({ control, onChange, picked }: ConfigPillProps) {
+  const options = useMemo<readonly SelectOption[]>(() => {
+    const listed = control.choices.map((choice) => ({
+      value: choice.value,
+      label: labelOf(control, choice.value),
+    }))
+
+    /*
+     * 存着的取值 agent 现在不报了 —— 照样列出来，并且说出来。
+     *
+     * 不这么做，Select 找不到这一项就回落到占位文案，人看到的是「选择模型…」，
+     * 以为自己从来没设过。静默丢弃是这一类界面最坏的一种失败。
+     */
+    if (picked.length === 0 || listed.some((option) => option.value === picked)) {
+      return listed
+    }
+
+    return [...listed, { value: picked, label: picked + '（agent 未提供）' }]
+  }, [control, picked])
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-xs text-muted-foreground">{PURPOSE_LABELS[control.purpose]}</span>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label={PURPOSE_LABELS[control.purpose]}
-          className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs text-foreground transition-colors hover:bg-sidebar-accent"
-        >
-          <span className="truncate">
-            {picked === undefined ? '跟随默认' : labelOf(control, picked)}
-          </span>
-          {withdrawn ? <span className="text-destructive">·</span> : null}
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align="end" className="min-w-44" sideOffset={4}>
-          <DropdownMenuRadioGroup
-            onValueChange={(next) => {
-              onChange(control.id, next === FOLLOW ? null : next)
-            }}
-            value={picked ?? FOLLOW}
-          >
-            <DropdownMenuRadioItem value={FOLLOW}>
-              <span className="flex-1">跟随默认</span>
-              <DropdownMenuRadioItemIndicator />
-            </DropdownMenuRadioItem>
-
-            {control.choices.map((choice) => (
-              <DropdownMenuRadioItem key={choice.value} value={choice.value}>
-                <span className="flex-1">{labelOf(control, choice.value)}</span>
-                <DropdownMenuRadioItemIndicator />
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    <Select
+      className="max-w-44 bg-sidebar-accent/50 hover:bg-sidebar-accent data-[popup-open]:bg-sidebar-accent"
+      data={options}
+      onValueChange={(next) => {
+        onChange(control.id, next)
+      }}
+      type={PURPOSE_LABELS[control.purpose]}
+      value={picked}
+    />
   )
 }

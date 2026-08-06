@@ -18,9 +18,7 @@ export {
   Dots as MoreIcon,
   Edit as PencilIcon,
   File as FileIcon,
-  Folder as FolderIcon,
   FolderPlus as FolderPlusIcon,
-  FolderSolid as FolderFilledIcon,
   Globe as GlobeIcon,
   Message as ThreadIcon,
   Microphone as MicIcon,
@@ -38,8 +36,15 @@ export {
 } from '@mynaui/icons-react'
 
 /*
- * 思考过程的字形不在图标库里：库中没有 lightbulb，所以它是设计系统里的一个
- * 本地字形（见 components/icons/local-glyphs.tsx 的说明）。别名层在这里，
+ * 设计系统里的本地字形（packages/ui/src/local-glyphs.tsx）。别名层在这里，
  * 所以调用点一个字都不用改。
+ *
+ * 它们不在图标库里，各有各的原因：库中没有 lightbulb；文件夹的开与合，库里
+ * 只有「合」那一枚 —— 此前拿 FolderSolid 顶替 folder-open，而实心在本仓已经
+ * 是「已固定」的说法（见 PinSolid），一种填法说两件事。
  */
-export { LightbulbIcon as ThinkingIcon } from '@poietica/ui'
+export {
+  FolderClosedIcon,
+  FolderOpenIcon,
+  LightbulbIcon as ThinkingIcon,
+} from '@poietica/ui'

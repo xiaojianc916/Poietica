@@ -73,27 +73,106 @@ export function summarize(
   return { total: automations.length, succeeded, failed }
 }
 
+/*
+ * 间隔的单位。
+ *
+ * 线上只有 everyMinutes 一个数（权威是 commands/automations.rs 的
+ * AutomationTrigger）。单位是界面上的事，不进存储：存成「数量 + 单位」两个
+ * 字段，就等于允许这两个字段各自被改成互相矛盾的样子，而「90 分钟」和
+ * 「1.5 小时」本来就是同一张时刻表。
+ *
+ * 没有秒。心跳 TICK 是 30 秒（automation-store.ts），nextRunAfter 也只按
+ * 分钟落点 —— 写上「每 10 秒」就是承诺一个这套调度兑现不了的精度。界面只
+ * 摆能兑现的那几档。
+ */
+const UNIT_MINUTES = { minute: 1, hour: 60, day: 24 * 60 } as const
+
+export type IntervalUnit = keyof typeof UNIT_MINUTES
+
+const UNIT_LABELS: Record<IntervalUnit, string> = {
+  minute: '分钟',
+  hour: '小时',
+  day: '天',
+}
+
+/** 下拉里的那几行，从小到大 —— 人读时间的顺序。 */
+export const INTERVAL_UNITS: readonly { readonly value: IntervalUnit; readonly label: string }[] = [
+  { value: 'minute', label: UNIT_LABELS.minute },
+  { value: 'hour', label: UNIT_LABELS.hour },
+  { value: 'day', label: UNIT_LABELS.day },
+]
+
+/** 调度能兑现的最小间隔。下限在这里收口，输入框因此不必自己防守。 */
+export const MIN_INTERVAL_MINUTES = 1
+
+/** 新建时的触发条件。编辑器与触发字段共用同一个初值，不各写一份。 */
+export const DEFAULT_TRIGGER: AutomationTrigger = { kind: 'daily', atMinuteOfDay: 9 * 60 }
+
+/**
+ * 把分钟数还原成人当初写它时用的那个单位。
+ *
+ * 从大往小取第一个整除的：120 是「2 小时」，90 只能是「90 分钟」。存进去
+ * 什么样，再打开还是什么样 —— 少了这一步，每打开一次编辑器，界面就把用户
+ * 说过的话重新措辞一遍。
+ */
+export function splitInterval(everyMinutes: number): {
+  readonly size: number
+  readonly unit: IntervalUnit
+} {
+  const descending: readonly IntervalUnit[] = ['day', 'hour', 'minute']
+
+  for (const unit of descending) {
+    const span = UNIT_MINUTES[unit]
+
+    if (everyMinutes >= span && everyMinutes % span === 0) {
+      return { size: everyMinutes / span, unit }
+    }
+  }
+
+  return { size: Math.max(MIN_INTERVAL_MINUTES, everyMinutes), unit: 'minute' }
+}
+
+/**
+ * 反过来。
+ *
+ * size 来自 <input type="number">，清空时是空串，Number('') 是 0，而
+ * Math.max(1, NaN) 是 NaN —— 非有限值在这里挡住，不让它流进 nextRunAfter
+ * 变成一个永远算不出来的下次运行。
+ */
+export function joinInterval(size: number, unit: IntervalUnit): number {
+  const whole = Number.isFinite(size) ? Math.trunc(size) : MIN_INTERVAL_MINUTES
+
+  return Math.max(MIN_INTERVAL_MINUTES, whole * UNIT_MINUTES[unit])
+}
+
+/** 一天里的第几分钟 → HH:MM。<input type="time"> 收发的就是这个格式。 */
+export function toClock(atMinuteOfDay: number): string {
+  const pad = (value: number) => value.toString().padStart(2, '0')
+
+  return `${pad(Math.floor(atMinuteOfDay / 60))}:${pad(atMinuteOfDay % 60)}`
+}
+
+/** HH:MM → 一天里的第几分钟。空串归零。 */
+export function toMinuteOfDay(clock: string): number {
+  const [hours = '0', minutes = '0'] = clock.split(':')
+
+  return Number(hours) * 60 + Number(minutes)
+}
+
 export function describeTrigger(trigger: AutomationTrigger): string {
   switch (trigger.kind) {
     case 'manual':
       return '手动'
 
-    case 'interval':
-      return trigger.everyMinutes % 60 === 0
-        ? `每 ${trigger.everyMinutes / 60} 小时`
-        : `每 ${trigger.everyMinutes} 分钟`
+    case 'interval': {
+      const { size, unit } = splitInterval(trigger.everyMinutes)
 
-    case 'daily': {
-      const hours = Math.floor(trigger.atMinuteOfDay / 60)
-      const minutes = trigger.atMinuteOfDay % 60
-
-      return `每天 ${pad(hours)}:${pad(minutes)}`
+      return `每 ${size} ${UNIT_LABELS[unit]}`
     }
-  }
-}
 
-function pad(value: number): string {
-  return value.toString().padStart(2, '0')
+    case 'daily':
+      return `每天 ${toClock(trigger.atMinuteOfDay)}`
+  }
 }
 
 /**
