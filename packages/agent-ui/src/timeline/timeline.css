@@ -640,7 +640,7 @@
  *
  * 一个面板一个滚动容器，是 DevTools 的 Response 面板与 VS Code 输出面板的做法。上限
  * 仍是 --cp-timeline-output-max，只是它现在管的是整个面，不是其中一块；内容不满就不
- * 撑高，overscroll-behavior 把滚动链掐断在这一层。
+ * 撑高。滚动链不在这里掐断 —— 理由紧跟在下一节。
  */
 .timeline-tool__panel {
   position: relative;
@@ -1161,14 +1161,12 @@
 /*
  * 卡片里的 markdown。
  *
- * 排版本身全部来自 .timeline-prose —— Prose 组件自带那个类，所以标题级差、
- * 围栏、表格与回答里的完全同款，这里不再写第二套。
+ * 排版本身全部来自 .timeline-prose —— 标题级差、围栏、表格与回答里的完全同款，
+ * 这里不再写第二套。
  *
- * 盒子的那几条则必须自己声明，而且取值与它取代的那个 <pre> 逐条一致：底色、
- * 上限、滚动、留白。它们此前是搭在 .timeline-tool__diff-old / __diff-new 那一
- * 组选择器里的，换成 markdown 之后这个块不再属于那一组，于是三样一起没了 ——
- * 一次输出既不封顶也没有底色，白底一直铺到底。上限归 --cp-timeline-output-max，
- * 与两侧 diff 同一个 token：同一张卡里的三种输出不该有三个高度。
+ * 盒子的那几条（底色、上限、滚动、留白）已经不在这一条里了：它们归 __panel，也就是
+ * 抽屉里唯一的那个滚动容器。这一条只剩下两件属于「这一面的内容」自己的事 —— 它是
+ * 虚拟块的包含块，以及它比回答小一档。
  */
 .timeline-prose.timeline-tool__prose {
   /* 虚拟块的包含块。高度由虚拟器给出，是行内样式 —— 这里不声明第二个来源。 */
@@ -1218,6 +1216,27 @@
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/*
+ * 折行之后，缩进还在。
+ *
+ * 上一条把横向滚动换成了折行 —— 被裁掉的字符取不回来，所以这个方向是对的 —— 但代价
+ * 是续行顶格：一条 15 行的命令、一份深层嵌套的 JSON 折下来之后，层级在视觉上全平了，
+ * 屏幕上就是一整块看不出结构的字。
+ *
+ * 修法是悬挂缩进，而不是回到横滚：整段内缩两个字符，首行用等量的负 text-indent 抵回
+ * 去，于是续行对齐在本行的起点之后。这正是编辑器 soft wrap 的标准行为
+ *（VS Code 的 editor.wrappingIndent、Sublime、GitHub 的 diff 折行），一条 CSS，
+ * 不需要任何脚本参与。
+ *
+ * 落点是行盒而不是 pre：Streamdown 每个源码行发一个 span，上面那条
+ *「A highlighted line has to be a line」已经把它们变成块级元素 —— 悬挂缩进只对块级
+ * 生效，所以它必须落在这里。2ch 跟着等宽字号走，不是一个写死的像素。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre code > span {
+  padding-inline-start: 2ch;
+  text-indent: -2ch;
 }
 
 /*

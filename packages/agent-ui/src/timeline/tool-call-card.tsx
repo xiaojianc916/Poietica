@@ -204,11 +204,7 @@ export function ToolCallCard({
       <ToolCallHeader isOpen={isOpen} item={item} onToggle={toggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
-        <ToolCallPanels
-          facets={view.facets}
-          isRunning={view.isRunning}
-          locations={item.locations}
-        />
+        <ToolCallPanels facets={view.facets} isRunning={view.isRunning} />
       </DisclosureBody>
     </Surface>
   )
