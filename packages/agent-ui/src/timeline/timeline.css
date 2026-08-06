@@ -503,29 +503,29 @@
  * 上限是一个最大值：短于它的内容没有滚动区，也就没有滚动条 —— 这正是「文字不高
  * 就不出现滚动条」，不需要任何额外判断。
  *
- * 这一处，而且只有这一处，用平台原生的滚动条，不走 chrome/scrollbar-activity.ts
- * 那层 fixed 浮层。规则是一条，不是两套：
+ * 这一处，而且只有这一处，把滚动条完全交给引擎并要它常驻。
  *
- *   临时出现的滚动条不能占布局    → 浮层；
- *   常驻的滚动条按定义就占布局，而布局是引擎的事 → 引擎。
+ * 这一段此前是在和一层 fixed 浮层划分地盘（「临时出现的不占布局走浮层，常驻的占布局
+ * 走引擎」）。那层浮层已经不存在 —— 画它的 presentation/chrome/scrollbar-activity.ts
+ * 从仓库里删掉了，app.css 那条 * { scrollbar-width: none } 也改成了 auto。留着一段
+ * 描述不存在的机制的推理，比没有注释更坏：它会让下一个人按一套虚构的约束去做决定。
  *
- * 浮层撑不起常驻，是几何决定的：那层滑块是 position: fixed，而这个盒子嵌在虚拟化
- * 的转录里，随 translateY 一起移动 —— 一个常驻滑块因此必须每一帧重测一次几何，等
- * 于用一个永不停止的 rAF 去模拟引擎免费提供的东西。
+ * 现在的理由只剩几何本身：这个盒子里是一段常驻可滚的长文，而常驻的滚动条按定义占布
+ * 局，布局是引擎的事。
  *
  * 两端的三角同理，而且这里踩过一次坑：曾经用 ::-webkit-scrollbar-button 加
  * clip-path 手绘三角，画出来是两个实心方块 —— 那一族伪元素在 Chromium 里只处理
  * background / border / border-radius / box-shadow / 尺寸这几项，clip-path 不在
  * 其中，颜色照画而裁剪不发生。结论不是换一种画法，是不该自己画：
  * scrollbar-width: auto 就是平台原生滚动条，三角、长按连发、点轨道翻页、按压态、
- * 高对比度与 RTL 全都由系统给。此前它们不出现，只是被 app.css 里那条
- * * { scrollbar-width: none } 关掉了。
+ * 高对比度与 RTL 全都由系统给。这里要的正是这些，而不是因为别处把它关掉了才只能这么
+ * 写 —— thin 会连两端的按钮一起去掉，所以必须是 auto。
  *
- * 因此这里用标准属性，不用 ::-webkit-scrollbar：两者是互斥的两条路，标准的那条
- * 才被推荐，而且它只换配色、不动几何 —— thin 会连按钮一起去掉，所以必须是 auto。
+ * 因此这里用标准属性，不用 ::-webkit-scrollbar：两者是互斥的两条路，标准的那条才被
+ * 推荐，而且它只换配色、不动几何。
  *
- * 两根滑块同时在动的旧事故（见本文件末尾那一节）由 --overlay-scrollbar: none 挡住：
- * 浮层读这个令牌决定要不要接管，判定点仍然只有一个。
+ * 这里保留 scrollbar-color 而不像抽屉那面交给平台：那面要的是「用的时候才出现」，这
+ * 面要的是常驻，两个诉求不同，取值也就不同。
  *
  * scrollbar-gutter: stable 常驻留出车道：流式输出越过上限的那一刻，正文不会横向跳
  * 一次。没有溢出时车道是空的，屏幕上什么都看不到。
@@ -558,7 +558,27 @@
 .timeline-prose__block {
   position: absolute;
   inset-block-start: 0;
-  inset-inline: 0;
+  inset-inline-start: 0;
+
+  /*
+   * 宽度由内容定，不由容器定。
+   *
+   * 此前这里是 inset-inline: 0 —— left 与 right 对拉，块的 border box 被求解为恰好
+   * 等于包含块的宽度，一个像素都不多。按 CSS Overflow 3 §3.1，滚动溢出区域计入的是
+   * 「它作为包含块的那些盒子的 border box」，于是无论围栏里那一行有多长，这个盒子都
+   * 不贡献任何横向可滚区：超出去的部分是 overflow: visible 的墨水溢出，最终被卡片外
+   * 框的 overflow: hidden 裁掉 —— 画不出去，也滚不出来。
+   *
+   * 而这不是漏写了一个属性，是虚拟化与横滚的结构性冲突：绝对定位的盒子不参与父容器
+   * 的内在尺寸计算，所以容器永远不知道内容有多宽。VS Code 的列表是显式解开的
+   * （listView.ts 自己测出最宽行，把 scrollWidth 写回滚动元素）。这里用 CSS 的等价
+   * 写法：让盒子自己长到最长那一行，溢出因此走的是上面那一条最直接的规则。
+   *
+   * min-inline-size 保证内容窄时仍然铺满一整行 —— 否则块会缩到文字宽度，将来任何按
+   * 行铺底的样式都会跟着参差。
+   */
+  inline-size: max-content;
+  min-inline-size: 100%;
   contain: style;
 }
 
@@ -593,6 +613,15 @@
   cursor: pointer;
 }
 
+/*
+ * 线重归设计系统，不归字形库。
+ *
+ * 这一组此前只声明尺寸，描边宽度是字形库的默认值 —— 于是同一档尺寸下，路径密度高
+ * 的字形比稀疏的视觉重量明显更大，因为它们共用的是同一个绝对线宽，而不是同一个视
+ * 觉密度。这不是某一枚图标画错了，是这一层从来没有对线重表过态。
+ *
+ * 取值与理由在 composer-metrics.css 的 --cp-icon-stroke 上。
+ */
 .timeline-tool__icon,
 .timeline-tool__failed,
 .timeline-tool__spinner,
@@ -600,6 +629,7 @@
   flex: none;
   inline-size: 1rem;
   block-size: 1rem;
+  stroke-width: var(--cp-icon-stroke);
 }
 
 .timeline-tool__spinner {
@@ -647,10 +677,21 @@
  * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
  * 上面那两个参照物也都是这么做的。
  *
- * 滚动条取 thin。这是本表里唯一一处与思考盒不同的取值，理由是几何：这里有两根条，两根
- * auto 各占一条约 17px 的车道，横的那根还压在一个 18rem 高的面板的最后一行上。思考盒
- * 只有一根、常驻、而且那一节专门要两端的三角按钮 —— thin 会连按钮一起去掉，所以它留
- * auto。用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
+ * 滚动条整个交回平台，两个 auto。
+ *
+ * apps/desktop/src/app.css 在 * 上写了 scrollbar-color，那一句自己的注释说得很清楚：
+ * 「指定 scrollbar-color 同时也就退出了 Windows 那套会自己淡出的覆盖式滚动条：常驻
+ * 不是额外加的开关，是这一句的既定效果。」选择器是 *，所以这个盒子也被它命中，此前
+ * 这里再叠一层自己的颜色，等于把它按死在经典渲染路径上。
+ *
+ * auto 是 CSS Scrollbars Styling Level 1 的初始值，含义是「由 UA 按平台惯例决定」——
+ * 覆盖式滚动条因此回来：静息时是一条极细的指示条，指针进入或滚动时展开，停手之后自
+ * 己淡出。这是平台的实现，不是在这里补的动画；CSS 至今没有表达「滚动条淡入淡出」的
+ * 标准能力（csswg-drafts#6844，2021 年提出，至今 open），所以能不能拿到它，取决于让
+ * 不让平台自己画。
+ *
+ * 宽度一并交出去：thin 是经典路径的档位，覆盖式路径的粗细由平台定，两者不能同时说了
+ * 算。用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
  */
 .timeline-tool__panel {
   position: relative;
@@ -662,8 +703,8 @@
    * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
    */
   overflow-anchor: none;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--cp-ink) 20%, transparent) transparent;
+  scrollbar-width: auto;
+  scrollbar-color: auto;
   background: var(--cp-timeline-output-surface);
 }
 
@@ -675,9 +716,27 @@
  * 「到边界先顿一下、手势松开后再滚就带走外层」本来就是 Chromium 滚动闩锁的行为。
  */
 
-/* 切换条自占一条窄带，与下面那一面之间由 __body 的分隔线断开。 */
+/*
+ * 切换条自占一条窄带，与下面那一面之间由 __body 的分隔线断开。
+ *
+ * 带此前没有底色，透出卡面的白：下面是一片浅灰的面板，上面是一片白，胶囊浮在白上 ——
+ * 读起来像两个各自独立的部件，而不是一个抽屉的两个面。带和面板同属一张纸，就该在同
+ * 一层上。
+ *
+ * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那
+ * 一档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色
+ * 的上一档，两者的差正是设计系统在菜单那两级边界上定下的量。
+ *
+ * 悬停不必动：原语用的 4% 半透明墨叠在这层底色上解出约 10%，正好落在底色与选中态之
+ * 间，三档的次序自然成立。
+ */
 .timeline-tool__tabs {
   padding: 0.375rem 0.75rem;
+  background: var(--cp-timeline-tabs-surface);
+}
+
+.timeline-tool__tabs .tabs__tab[aria-selected="true"] {
+  background: var(--cp-timeline-tabs-active);
 }
 
 .timeline-tool__body > * + * {
@@ -1076,20 +1135,17 @@
 
 /* ── 内层滚动盒的滚动条 ──────────────────────────────────────────
  *
- * 这里不画滚动条，一根都不画。
+ * 滚动条归引擎，一根都不自己画。
  *
- * 全应用只有一套：apps/desktop/src/app.css 关掉原生的那一套（* 上的
- * scrollbar-width: none），滑块由 presentation/chrome/scrollbar-activity.ts 画在一
- * 层 fixed 浮层上。理由写在那个文件开头 —— 原生滚动条在 Windows 上占据布局宽度，
- * 出现与消失会让内容横向跳一次，而且它的轨道恒等于滚动盒自身，画不到盒子之外。
+ * 这一节此前描述的是另一套已经不存在的机制：它说 app.css 用 * { scrollbar-width: none }
+ * 关掉了原生滚动条，滑块由 presentation/chrome/scrollbar-activity.ts 画在一层 fixed
+ * 浮层上，所以这张表「一根都不画」。三句话现在都不成立 —— app.css 那一条已经是
+ * scrollbar-width: auto，那个文件本身已从仓库删除，而这张表里 __panel 与 __scroll 都
+ * 各自声明着自己的滚动条。
  *
- * 此前这里另外声明过一组原生滚动条伪元素，于是同一个盒子上有两根滑块同时在动：一
- * 根原生的贴在盒子右缘，一根浮层的画在会话面板右缘。那不是两个 bug，是两套滚动条
- * 互不知情。要么全走原生，要么全走浮层；这个应用因为上面那条几何限制选了浮层，那
- * 么这张表就不能再自己画一根。
- *
- * 内层滚动盒在这张表里只声明一件事：overflow —— 它自己会滚，以及会滚哪个轴。外观
- * 归浮层，而浮层认盒子自己的边缘作轨道。
+ * 现在的事实只有一条：滚动条由引擎画，这张表在需要时说它是哪一档（auto / thin），以及
+ * 要不要退回平台的覆盖式实现（scrollbar-color: auto）。伪元素那条路不走 ——
+ * ::-webkit-scrollbar 与标准属性互斥，选了标准的那条就不回头。
  *
  * overscroll-behavior: contain 此前写在这里的每一个内层盒子上（六处），那是一次
  * 手搓，而且拦错了东西。它按轴阻断滚动链，不问这个轴上有没有可滚的距离：表格的
@@ -1236,8 +1292,15 @@
  * 全部价值就在于列是对齐的，而折行按定义会破坏列。出口给横向滚动，字符一个不少。
  *
  * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
- * 一个滚动容器接住。虚拟块是绝对定位的，而面板是它们的包含块（position: relative），
- * 所以伸出去的那一截照常计入面板的可滚动区域 —— 横条因此钉在面板底边，不随内容上下跑。
+ * 一个滚动容器接住。横条因此钉在面板底边，不随内容上下跑 —— 前提是虚拟块自己长得出那个
+ * 宽度。
+ *
+ * 这一段上一版写的是「虚拟块是绝对定位的，而面板是它们的包含块，所以伸出去的那一截照
+ * 常计入面板的可滚动区域」。两处都错：包含块是 .timeline-tool__prose（它自己带
+ * position: relative），不是面板；而「照常计入」根本没有发生过 —— 块当时被
+ * inset-inline: 0 钉成与包含块等宽，一点横向可滚区都不贡献，横条因此从来没出现过。
+ * 真正让它出现的是 .timeline-prose__block 上那条 inline-size: max-content，理由写在
+ * 那一节。
  */
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
   white-space: pre;

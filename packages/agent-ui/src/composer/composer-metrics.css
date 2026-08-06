@@ -58,6 +58,26 @@
   --cp-control: 32px;
   --cp-control-gap: 6px;
   --cp-icon: var(--ui-icon-size-sm);
+
+  /*
+   * 图标的描边宽度。
+   *
+   * 它此前不存在，于是线重的所有权在图标库手里 —— 消费处只声明了 1rem 见方，
+   * 描边由 @mynaui/icons-react 的默认值决定。那一档是主流字形库的通例（Lucide
+   * 官方文档写明 default stroke width of 2px，Tabler、Feather 同），在 24 的
+   * viewBox 缩到 16px 显示时解出 1.33 CSS px，dpr 1.5 上就是两个设备像素。
+   *
+   * 上面那一段已经在讨论「描边宽度再正确也依然发虚」，把它当作一个独立的旋钮 ——
+   * 但那个旋钮从来没有被声明过。按本文件第一条：一个数字要么住在这里，要么不
+   * 存在。
+   *
+   * 1.5 在 2/3 的缩放下解出 1.0 CSS px，与 VS Code 的 codicon 在 16px 下同档。
+   * CSS 覆盖得了字形库写在 SVG 上的那个值：presentation attribute 的优先级等同
+   * 于作者样式表最开头的一条规则，任何选择器都压得过它，不需要 !important。
+   *
+   * 它是无单位数，跟着 viewBox 缩放走，所以换一档图标尺寸不必回来改这里。
+   */
+  --cp-icon-stroke: 1.5;
   --cp-optical: 6px;
 
   --cp-mark: calc(var(--cp-control) - 2px);
@@ -182,6 +202,23 @@
   --cp-timeline-quiet-text: var(--cp-ink-subtle);
   --cp-timeline-output-surface: color-mix(in srgb, var(--ui-foreground) 4%, transparent);
   --cp-timeline-danger-text: var(--ui-destructive);
+
+  /*
+   * 工具抽屉里那条切换带，以及它选中的那一枚。
+   *
+   * 两个浓度，同一层墨，同一条式子 —— 与上面菜单那两级边界一字不差（那里已经
+   * 量过：浅色下 6.3% 解出 #efefef，12.5% 解出 #dfdfdf）。选中态因此比底色重
+   * 一档，而这一档的量是设计系统定的，不是在这里挑的。
+   *
+   * 不复用 --cp-menu-line / --cp-menu-edge：那两个名字说的是菜单卡片的内外边界，
+   * 借过来用，将来调菜单会连带把这里调了。按用途取名，与 --cp-error-rule、
+   * --cp-timeline-danger-text 同一条规矩。
+   *
+   * 必须是实色而不是半透明墨：带铺在卡面上，卡面是亮的，兑出来的方向会反过来
+   * ——与 --cp-shelf 踩过的是同一个坑。
+   */
+  --cp-timeline-tabs-surface: color-mix(in srgb, var(--ui-foreground) 6.3%, var(--ui-surface));
+  --cp-timeline-tabs-active: color-mix(in srgb, var(--ui-foreground) 12.5%, var(--ui-surface));
 
   /*
    * 报错行两侧的那两道线。
