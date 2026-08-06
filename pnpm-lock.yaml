@@ -360,6 +360,12 @@ importers:
 
   packages/automations:
     dependencies:
+      '@poietica/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@poietica/agent-session':
+        specifier: workspace:*
+        version: link:../agent-session
       '@poietica/core':
         specifier: workspace:*
         version: link:../core

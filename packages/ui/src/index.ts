@@ -22,9 +22,11 @@ export {
 } from './dropdown-menu'
 export { ErrorState, InlineSpinner, LoadingState } from './feedback'
 export {
+  ArrowLeftIcon,
   ClockTenIcon,
   GithubMark,
   LightbulbIcon,
+  PlayIcon,
   WebhookIcon,
 } from './local-glyphs'
 export { Select, type SelectOption } from './select'

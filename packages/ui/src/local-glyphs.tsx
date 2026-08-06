@@ -39,6 +39,30 @@ function Glyph({ children, ...props }: GlyphProps) {
   )
 }
 
+/** arrow-left：返回。几何取自 Lucide 的 arrow-left。 */
+export function ArrowLeftIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="m12 19-7-7 7-7" />
+      <path d="M19 12H5" />
+    </Glyph>
+  )
+}
+
+/**
+ * play：试运行。
+ *
+ * 描边而非实心：它与旁边的返回箭头同处一行，实心三角的视觉重量会明显压过
+ * 描边字形，而这两颗按钮的分量本该相等。
+ */
+export function PlayIcon(props: GlyphProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M6 4.5v15l12-7.5-12-7.5Z" />
+    </Glyph>
+  )
+}
+
 /** clock-10：表盘 + 指向十点的时针。 */
 export function ClockTenIcon(props: GlyphProps) {
   return (

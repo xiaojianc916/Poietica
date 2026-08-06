@@ -29,6 +29,13 @@ export interface AutomationDraft {
   readonly title: string
   readonly prompt: string
   readonly trigger: AutomationTrigger
+  /**
+   * 这条自动化要给自己那次运行改掉的会话设置。
+   *
+   * 键是 agent 报的 controlId，值是它自己的词汇。这一层不认识这些字符串，
+   * 也不该认识 —— 校验的唯一时机是下发那一刻，由 agent 自己说了算。
+   */
+  readonly sessionConfig: Readonly<Record<string, string>>
 }
 
 export interface AutomationsViewModel {
@@ -183,6 +190,7 @@ export function createAutomationStore(): AutomationStore {
           title: draft.title,
           prompt: draft.prompt,
           trigger: draft.trigger,
+          sessionConfig: { ...draft.sessionConfig },
           enabled: draft.trigger.kind !== 'manual',
           createdAt: new Date(now).toISOString(),
           nextRunAt: nextRunAfter(draft.trigger, now),

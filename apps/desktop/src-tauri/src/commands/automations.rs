@@ -2,6 +2,7 @@ use crate::error::{IpcError, Result};
 use crate::paths::AUTOMATIONS_STORE;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::BTreeMap;
 use tauri::{AppHandle, command};
 use tauri_plugin_store::StoreExt;
 
@@ -66,6 +67,16 @@ pub struct Automation {
     /// 关机三天之后再打开才分得清「这次错过了」与「刚刚才排上」。cron 守护
     /// 进程与 Temporal 这类调度器的做法都是如此。
     pub next_run_at: Option<String>,
+    /// 这次运行要改掉的会话设置，按 agent 报的 controlId 记。
+    ///
+    /// 值是 agent 自己的词汇（模型别名、推理档位、模式），这一层不认识也不
+    /// 校验：候选由它在 session/new 里报出，随时可能改名或撤回。空表就是
+    /// 「跟随全局默认」，所以缺席与空表是同一个意思，serde(default) 足够。
+    ///
+    /// BTreeMap 而非 HashMap：写进 JSON 的键序要稳定，否则每次保存都是一次
+    /// 无意义的磁盘差异。生成的 TypeScript 因此是 Partial<Record<..>>。
+    #[serde(default)]
+    pub session_config: BTreeMap<String, String>,
     pub runs: Vec<AutomationRun>,
 }
 

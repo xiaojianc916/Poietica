@@ -118,6 +118,28 @@ export function sameTrigger(left: AutomationTrigger, right: AutomationTrigger): 
   }
 }
 
+/**
+ * 两份会话设置是不是同一份。
+ *
+ * 与 sameTrigger 同一个用途：编辑器判「有没有改过」。键集合取并集，不是拿
+ * 一边的键去查另一边 —— 那样「删掉一项」会被判成没变，保存按钮永远是灰的。
+ *
+ * 生成绑定给的是 Partial<Record<..>>（Rust 侧是 BTreeMap），所以缺席与
+ * undefined 在这里是同一件事，直接比较即可。
+ */
+export function sameSessionConfig(
+  left: Partial<Record<string, string>>,
+  right: Partial<Record<string, string>>,
+): boolean {
+  for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+    if (left[key] !== right[key]) {
+      return false
+    }
+  }
+
+  return true
+}
+
 /*
  * 相对时间交给平台。
  *

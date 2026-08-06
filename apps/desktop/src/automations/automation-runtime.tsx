@@ -28,14 +28,32 @@ export interface AutomationSchedulerProps {
  * 自动化不另立一套执行器，也不另存一份运行日志。
  */
 export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
-  const create = useThreadsActions().create
+  const threads = useThreadsActions()
 
   useEffect(() => {
     const dispatch = async (automation: Automation): Promise<string | null> => {
-      const threadId = await create()
+      const threadId = await threads.create()
 
       if (threadId === null) {
         return null
+      }
+
+      /*
+       * 这条自动化要的会话设置，只下发到它自己开出来的这条对话。
+       *
+       * 不走 chooseAgentControl。那一个是全进程那一份（agent-capability-store
+       * 的 #chosen）：它会改写 config.toml 的 default_model，会把人选的推理档位
+       * 与模式一并清掉（换模型时那段 for 循环），还会让 ThreadsStore 把每一条
+       * 开着的对话都对齐过去。一次后台到期改掉人正在用的模型，那是 bug。
+       *
+       * selectControl 点名一条对话，作用域正好就是这一次运行。它是尽力而为的：
+       * agent 可以拒绝、改名或撤回某个取值，失败由会话那一侧按对话记下来
+       * （selectorFailureOf），这里不替它兜底，也不假装设过。
+       */
+      for (const [controlId, value] of Object.entries(automation.sessionConfig)) {
+        if (value !== undefined) {
+          threads.selectControl(threadId, controlId, value)
+        }
       }
 
       /*
@@ -52,7 +70,7 @@ export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
     }
 
     return automationStore.start(dispatch)
-  }, [create, workspace])
+  }, [threads, workspace])
 
   return null
 }

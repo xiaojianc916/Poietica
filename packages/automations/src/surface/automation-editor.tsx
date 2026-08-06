@@ -1,31 +1,60 @@
 import type { Automation, AutomationTrigger } from '@poietica/ipc'
-import { cn } from '@poietica/ui'
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { ArrowLeftIcon, cn, PlayIcon } from '@poietica/ui'
+import { type ReactNode, useState } from 'react'
 
-import { describeMoment, describeTrigger, sameTrigger } from '../automation'
+import { sameSessionConfig, sameTrigger } from '../automation'
 import type { AutomationStore } from '../automation-store'
 import { AutomationRunHistory } from './automation-run-history'
+import { AutomationSessionConfig } from './automation-session-config'
 
-/**
- * 一条自动化的编辑器。占满自动化那一格，不开新标签页，也不弹窗。
+/*
+ * 一条自动化的整页编辑器。
  *
- * automation 为 null 就是新建 —— 与编辑共用这一屏，因为它们本来就是同一件事：
- * 一份草稿，加一个「这份草稿有没有对应的已存在记录」。
+ * 头部没有横线。那条 border-b 是全宽的，而正文是居中的 max-w-2xl —— 一条
+ * 横线横穿整个窗口、下面的内容却只占中间一段，读起来是「这条线属于窗口」
+ * 而不是「属于这一页」。Cursor 的同一处也没有。
  *
- * 有一处刻意的不一致：启用开关立即生效，标题 / 指令 / 触发要按保存。
- * 那不是漏了 —— 启用是运维开关，不是内容编辑：临时停掉一条正在捣乱的自动化时，
- * 不该被迫先把手里没写完的草稿一起提交。
+ * 页签是胶囊式分段控件，不是下划线。下划线暗示「这是一层导航」，而设置与
+ * 运行历史是同一个对象的两个视图，分段控件才是它的语义。
  */
 
 export interface AutomationEditorProps {
-  /** 正在编辑的那一条；null 表示新建。 */
   readonly automation: Automation | null
   readonly onBack: () => void
   readonly store: AutomationStore
 }
 
 type EditorTab = 'settings' | 'runs'
+
+const TABS: readonly { readonly id: EditorTab; readonly label: string }[] = [
+  { id: 'settings', label: '设置' },
+  { id: 'runs', label: '运行历史' },
+]
+
+function toClock(atMinuteOfDay: number): string {
+  const pad = (value: number) => value.toString().padStart(2, '0')
+
+  return `${pad(Math.floor(atMinuteOfDay / 60))}:${pad(atMinuteOfDay % 60)}`
+}
+
+function toMinuteOfDay(clock: string): number {
+  const [hours = '0', minutes = '0'] = clock.split(':')
+
+  return Number(hours) * 60 + Number(minutes)
+}
+
+/* 生成绑定给的是 Partial<Record<..>>，先把缺席的键滤掉再进状态。 */
+function pickedFrom(automation: Automation | null): Record<string, string> {
+  const picked: Record<string, string> = {}
+
+  for (const [id, value] of Object.entries(automation?.sessionConfig ?? {})) {
+    if (value !== undefined) {
+      picked[id] = value
+    }
+  }
+
+  return picked
+}
 
 export function AutomationEditor({ automation, onBack, store }: AutomationEditorProps) {
   const [tab, setTab] = useState<EditorTab>('settings')
@@ -38,14 +67,10 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
   const [atTime, setAtTime] = useState(
     automation?.trigger.kind === 'daily' ? toClock(automation.trigger.atMinuteOfDay) : '09:00',
   )
+  const [sessionConfig, setSessionConfig] = useState<Record<string, string>>(() =>
+    pickedFrom(automation),
+  )
 
-  /*
-   * 表单三个字段收束成一个触发条件。
-   *
-   * time 控件给出的是 "HH:mm"，落进领域时立刻变成「一天里的第几分钟」这个单一
-   * 数字 —— 字符串留到领域里，此后每一处比较都得先解析一次，而每一次解析都是
-   * 一个可能失败的地方。
-   */
   const trigger: AutomationTrigger =
     kind === 'manual'
       ? { kind: 'manual' }
@@ -55,19 +80,29 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
 
   const ready = title.trim().length > 0 && prompt.trim().length > 0
 
-  /* 没改过就没什么可存的。保存键因此不是一个永远亮着、按了也不知道有没有用的键。 */
   const dirty =
     automation === null ||
-    title.trim() !== automation.title ||
-    prompt.trim() !== automation.prompt ||
-    !sameTrigger(automation.trigger, trigger)
+    title !== automation.title ||
+    prompt !== automation.prompt ||
+    !sameTrigger(automation.trigger, trigger) ||
+    !sameSessionConfig(automation.sessionConfig, sessionConfig)
+
+  function choose(controlId: string, value: string | null): void {
+    setSessionConfig((current) => {
+      const next = { ...current }
+
+      if (value === null) {
+        delete next[controlId]
+      } else {
+        next[controlId] = value
+      }
+
+      return next
+    })
+  }
 
   function save(): void {
-    if (!ready || !dirty) {
-      return
-    }
-
-    const draft = { title: title.trim(), prompt: prompt.trim(), trigger }
+    const draft = { prompt: prompt.trim(), sessionConfig, title: title.trim(), trigger }
 
     if (automation === null) {
       store.create(draft)
@@ -79,29 +114,32 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
   }
 
   return (
-    <section className="h-full overflow-y-auto bg-ground">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-divider bg-ground px-8 py-3">
-        {/* 面包屑就是「你还在自动化里」这句话本身。左半边可点，回列表。 */}
-        <nav aria-label="位置" className="flex items-center gap-1.5 text-xs">
-          <button
-            className="rounded px-1 py-0.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            onClick={onBack}
-            type="button"
+    <div className="flex h-full flex-col overflow-y-auto bg-ground">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-ground px-8 py-3">
+        <IconButton label="返回自动化列表" onClick={onBack}>
+          <ArrowLeftIcon className="size-4" />
+        </IconButton>
+
+        <div className="flex items-center gap-1">
+          {/*
+            草稿没有 id，runNow 无从点名，所以按钮禁用而不是假装能跑。
+            标题直说原因 —— 一颗不说明理由的灰按钮是死路。
+          */}
+          <IconButton
+            disabled={automation === null}
+            label={automation === null ? '先保存才能试运行' : '试运行'}
+            onClick={() => {
+              if (automation !== null) {
+                store.runNow(automation.id)
+              }
+            }}
           >
-            自动化
-          </button>
+            <PlayIcon className="size-4" />
+          </IconButton>
 
-          <span aria-hidden="true" className="text-muted-foreground">
-            ›
-          </span>
-
-          <span className="max-w-xs truncate font-medium">{title.trim() || '未命名'}</span>
-        </nav>
-
-        <div className="flex items-center gap-2">
           {automation === null ? null : (
             <button
-              className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+              className="rounded-md px-2.5 py-1.5 text-xs text-destructive transition-colors hover:bg-sidebar-accent"
               onClick={() => {
                 store.remove(automation.id)
                 onBack()
@@ -113,7 +151,7 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
           )}
 
           <button
-            className="rounded-md border border-divider bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-sidebar-accent disabled:opacity-40"
+            className="rounded-md bg-foreground px-3 py-1.5 text-xs text-ground transition-opacity disabled:pointer-events-none disabled:opacity-40"
             disabled={!ready || !dirty}
             onClick={save}
             type="button"
@@ -123,190 +161,127 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl px-8 py-8">
+      <div className="mx-auto w-full max-w-2xl px-8 pb-16">
         <input
-          aria-label="名称"
-          className="w-full bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50"
-          onChange={(event) => {
-            setTitle(event.target.value)
-          }}
+          className="w-full bg-transparent text-2xl text-foreground outline-none placeholder:text-muted-foreground"
+          onChange={(event) => setTitle(event.target.value)}
           placeholder="未命名"
           value={title}
         />
 
-        {automation === null ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            保存后开始按计划运行（手动触发除外）。
-          </p>
-        ) : (
-          <div className="mt-3 flex items-center gap-3 text-xs">
+        <div className="mt-6 flex gap-1">
+          {TABS.map((entry) => (
             <button
-              aria-checked={automation.enabled}
+              aria-current={tab === entry.id ? 'page' : undefined}
               className={cn(
-                'relative h-4 w-7 rounded-full transition-colors',
-                automation.enabled ? 'bg-foreground' : 'bg-divider',
+                'rounded-full px-3 py-1 text-xs transition-colors',
+                tab === entry.id
+                  ? 'bg-sidebar-accent text-foreground'
+                  : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
               )}
-              onClick={() => {
-                store.setEnabled(automation.id, !automation.enabled)
-              }}
-              role="switch"
+              key={entry.id}
+              onClick={() => setTab(entry.id)}
               type="button"
             >
-              <span
-                className={cn(
-                  'absolute top-0.5 size-3 rounded-full bg-background transition-all',
-                  automation.enabled ? 'left-3.5' : 'left-0.5',
-                )}
-              />
+              {entry.label}
             </button>
-
-            <span className="text-muted-foreground">
-              {automation.enabled ? '已启用' : '已停用'}
-            </span>
-
-            {automation.nextRunAt === null ? null : (
-              <span className="text-muted-foreground">
-                下次 {describeMoment(automation.nextRunAt)}
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="mt-6 flex gap-1 border-b border-divider">
-          <Tab
-            active={tab === 'settings'}
-            label="设置"
-            onClick={() => {
-              setTab('settings')
-            }}
-          />
-          <Tab
-            active={tab === 'runs'}
-            label="运行历史"
-            onClick={() => {
-              setTab('runs')
-            }}
-          />
+          ))}
         </div>
 
         {tab === 'runs' ? (
-          <AutomationRunHistory runs={automation?.runs ?? []} />
+          <div className="mt-6">
+            <AutomationRunHistory runs={automation?.runs ?? []} />
+          </div>
         ) : (
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 flex flex-col gap-4">
             <Section label="触发">
-              <div className="flex items-center gap-2">
-                <select
-                  aria-label="触发方式"
-                  className="rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
-                  onChange={(event) => {
-                    setKind(event.target.value as AutomationTrigger['kind'])
-                  }}
-                  value={kind}
-                >
-                  <option value="daily">每天</option>
-                  <option value="interval">每隔一段时间</option>
-                  <option value="manual">手动</option>
-                </select>
+              <div className="flex flex-wrap items-center gap-2">
+                {(['manual', 'interval', 'daily'] as const).map((option) => (
+                  <button
+                    className={cn(
+                      'rounded-full px-3 py-1 text-xs transition-colors',
+                      kind === option
+                        ? 'bg-sidebar-accent text-foreground'
+                        : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
+                    )}
+                    key={option}
+                    onClick={() => setKind(option)}
+                    type="button"
+                  >
+                    {option === 'manual' ? '手动' : option === 'interval' ? '按间隔' : '每天'}
+                  </button>
+                ))}
+
+                {kind === 'interval' ? (
+                  <input
+                    className="w-20 rounded-md bg-background px-2 py-1 text-xs text-foreground outline-none"
+                    min={1}
+                    onChange={(event) => setEveryMinutes(Math.max(1, Number(event.target.value)))}
+                    type="number"
+                    value={everyMinutes}
+                  />
+                ) : null}
 
                 {kind === 'daily' ? (
                   <input
-                    aria-label="每天几点跑"
-                    className="rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
-                    onChange={(event) => {
-                      setAtTime(event.target.value)
-                    }}
+                    className="rounded-md bg-background px-2 py-1 text-xs text-foreground outline-none"
+                    onChange={(event) => setAtTime(event.target.value)}
                     type="time"
                     value={atTime}
                   />
                 ) : null}
-
-                {kind === 'interval' ? (
-                  <>
-                    <input
-                      aria-label="每隔多少分钟跑一次"
-                      className="w-16 rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
-                      min={5}
-                      onChange={(event) => {
-                        setEveryMinutes(Math.max(5, Number(event.target.value)))
-                      }}
-                      step={5}
-                      type="number"
-                      value={everyMinutes}
-                    />
-
-                    <span className="text-xs text-muted-foreground">分钟</span>
-                  </>
-                ) : null}
               </div>
+            </Section>
 
-              <p className="mt-2 text-xs text-muted-foreground">{describeTrigger(trigger)}</p>
+            <Section label="会话">
+              <AutomationSessionConfig onChange={choose} value={sessionConfig} />
             </Section>
 
             <Section label="指令">
               <textarea
-                aria-label="指令"
-                className="h-40 w-full resize-none bg-transparent text-xs leading-6 outline-none placeholder:text-muted-foreground/60"
-                onChange={(event) => {
-                  setPrompt(event.target.value)
-                }}
-                placeholder="到期时发给 AI 的那句话。写清楚要看什么、要产出什么。"
+                className="min-h-40 w-full resize-y rounded-md bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="到期时发给 agent 的那句话"
                 value={prompt}
               />
             </Section>
           </div>
         )}
       </div>
-    </section>
+    </div>
   )
 }
 
-function Tab({
-  active,
+function IconButton({
+  children,
+  disabled,
   label,
   onClick,
 }: {
-  readonly active: boolean
+  readonly children: ReactNode
+  readonly disabled?: boolean
   readonly label: string
   readonly onClick: () => void
 }) {
   return (
     <button
-      aria-current={active ? 'page' : undefined}
-      className={cn(
-        '-mb-px border-b-2 px-2.5 py-1.5 text-xs transition-colors',
-        active
-          ? 'border-foreground text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground',
-      )}
+      aria-label={label}
+      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+      disabled={disabled}
       onClick={onClick}
+      title={label}
       type="button"
     >
-      {label}
+      {children}
     </button>
   )
 }
 
 function Section({ children, label }: { readonly children: ReactNode; readonly label: string }) {
   return (
-    <div>
-      <h3 className="mb-2 text-xs font-medium text-muted-foreground">{label}</h3>
-
-      <div className="rounded-lg border border-divider bg-background p-4">{children}</div>
-    </div>
+    <section className="rounded-lg border border-divider/60 p-4">
+      <h2 className="mb-3 text-xs text-muted-foreground">{label}</h2>
+      {children}
+    </section>
   )
-}
-
-/* "HH:mm" 与「一天里的第几分钟」之间只在这两处转换，别处一律用数字。 */
-
-function toClock(atMinuteOfDay: number): string {
-  const hours = Math.floor(atMinuteOfDay / 60)
-  const minutes = atMinuteOfDay % 60
-
-  return [hours, minutes].map((value) => value.toString().padStart(2, '0')).join(':')
-}
-
-function toMinuteOfDay(clock: string): number {
-  const [hours = '0', minutes = '0'] = clock.split(':')
-
-  return Number(hours) * 60 + Number(minutes)
 }
