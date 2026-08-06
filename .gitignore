@@ -211,7 +211,5 @@ trace.txt
 
 dist-release/
 
-release.mjs
-
 # performance profiles
 .perf

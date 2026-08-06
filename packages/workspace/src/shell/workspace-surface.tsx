@@ -1,5 +1,5 @@
-import { describeWorkspaceSurface } from '../domain/index'
 import type { WorkspaceSurfaceRenderers } from '../surface'
+import { describeWorkspaceSurface } from '../surface-registry'
 import type { WorkspaceSurfaceId } from '../workbench'
 import { surfaceIcon } from './surface-icons'
 

@@ -1,5 +1,5 @@
 import { cn } from '@poietica/ui'
-import { describeWorkspaceSurface, WORKSPACE_NAVIGATION_ORDER } from '../../domain/index'
+import { describeWorkspaceSurface, WORKSPACE_NAVIGATION_ORDER } from '../../surface-registry'
 import type { WorkspaceSurfaceId } from '../../workbench'
 import { type SurfaceIcon, surfaceIcon } from '../surface-icons'
 

@@ -1,11 +1,11 @@
 import { warn } from '@poietica/observability'
+import type { PersistedWorkbenchState, WorkbenchStatePort } from './persistence'
 import {
   CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
   describeWorkspaceSurface,
   type WorkspaceSurfaceId,
-} from './domain/index'
-import type { PersistedWorkbenchState, WorkbenchStatePort } from './persistence'
+} from './surface-registry'
 import type {
   ActiveConversationViewModel,
   ConversationId,

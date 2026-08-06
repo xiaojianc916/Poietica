@@ -8,7 +8,7 @@ import {
   DEFAULT_SURFACE_ID,
   describeWorkspaceSurface,
   type WorkspaceSurfaceId,
-} from './domain/index'
+} from './surface-registry'
 
 export { CONVERSATION_ENTRY_TITLE, type WorkspaceSurfaceId }
 
