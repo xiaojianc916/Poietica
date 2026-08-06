@@ -244,7 +244,7 @@ importers:
         specifier: 'catalog:'
         version: 19.2.18
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       typescript:
         specifier: 'catalog:'
@@ -330,10 +330,10 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(@types/react@19.2.18)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
       typescript:
         specifier: 'catalog:'
@@ -386,10 +386,10 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(@types/react@19.2.18)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
       typescript:
         specifier: 'catalog:'
@@ -511,10 +511,10 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(@types/react@19.2.18)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
       typescript:
         specifier: 'catalog:'
@@ -551,10 +551,10 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(@types/react@19.2.18)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
       tailwindcss:
         specifier: 'catalog:'
@@ -600,10 +600,10 @@ importers:
         specifier: 'catalog:'
         version: 19.2.4(@types/react@19.2.18)
       react:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
       typescript:
         specifier: 'catalog:'
