@@ -351,9 +351,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
 /// 人的对话」。会话在这个模块里是一个有精确含义的协议名词：一条连接上有很多
 /// 条，每条属于一个对话。把连接叫成会话，等于让每一次读到 `state.connection` 的
 /// 人都在脑子里转换一次。
-fn lock(
-    connection: &Mutex<Option<Connection>>,
-) -> Result<MutexGuard<'_, Option<Connection>>> {
+fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<Connection>>> {
     connection
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))

@@ -295,9 +295,11 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
  * 
  * # Errors
  * 
- * Returns an error when the store cannot be opened. A store that opens but
- * holds a value of an older shape is not an error: it falls back to an empty
- * catalog so the surface stays usable. 与 settings_get 同一条判断。
+ * Returns an error when the store cannot be opened, or when the stored
+ * catalog cannot be parsed. In that case the unreadable original is first
+ * moved to the automations.corrupt backup key: falling back to an empty
+ * catalog without keeping the original would let the next save overwrite
+ * the only copy of the user's automations.
  */
 async automationsLoad() : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_load");
