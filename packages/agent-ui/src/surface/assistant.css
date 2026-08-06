@@ -1347,8 +1347,8 @@ svg.assistant-provider-icon {
  * 不用 :focus-within —— 那个伪类对鼠标点击同样成立，点开一次组头就常亮，
  * 这个文件上面已经为它栽过一次。
  *
- * 文件夹与会话行的 ThreadIcon 同族：同一个图标库、同一张 24px 网格、同
- * 一份线宽，尺寸读同一枚 --ui-row-icon-size，中线因此天然对齐。
+ * 文件夹与 ThreadIcon 来源不同（本地字形 / 图标库）而重量相同：同一张 24px
+ * 网格、线宽同由 --ui-icon-stroke 定，尺寸同读 --ui-row-icon-size，中线对齐。
  */
 .assistant-threads__group-header {
   display: flex;

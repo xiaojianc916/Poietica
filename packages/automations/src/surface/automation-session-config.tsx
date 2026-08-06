@@ -47,7 +47,7 @@ function labelOf(control: SessionConfigControl, value: string): string {
     return value
   }
 
-  const prefix = control.label + ' '
+  const prefix = `${control.label} `
   const stripped = found.label.startsWith(prefix) ? found.label.slice(prefix.length) : ''
 
   return stripped.length > 0 ? stripped : found.label
@@ -120,7 +120,7 @@ function ConfigPill({ control, onChange, picked }: ConfigPillProps) {
       return listed
     }
 
-    return [...listed, { value: picked, label: picked + '（agent 未提供）' }]
+    return [...listed, { value: picked, label: `${picked}（agent 未提供）` }]
   }, [control, picked])
 
   return (

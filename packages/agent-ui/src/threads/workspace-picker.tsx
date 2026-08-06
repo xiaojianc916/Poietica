@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@poietica/ui'
 import { useState } from 'react'
-import { FolderIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
+import { FolderClosedIcon, FolderPlusIcon, SearchIcon } from '../primitives/icons'
 
 /*
  * 当前的工作目录，以及换一个。
@@ -93,7 +93,7 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
           className="workspace-picker__browse"
           title="切换工作目录"
         >
-          <FolderIcon aria-hidden="true" />
+          <FolderClosedIcon aria-hidden="true" />
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
@@ -137,7 +137,7 @@ export function WorkspacePicker({ choices, current, onBrowse, onChoose }: Worksp
               }}
               title={choice.id}
             >
-              <FolderIcon aria-hidden="true" />
+              <FolderClosedIcon aria-hidden="true" />
 
               <span className="workspace-picker__item-name">{choice.name}</span>
             </DropdownMenuItem>

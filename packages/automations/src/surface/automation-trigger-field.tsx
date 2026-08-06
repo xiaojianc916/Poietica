@@ -182,7 +182,7 @@ export function AutomationTriggerField({ onChange, trigger }: AutomationTriggerF
       <p className="mt-3 text-xs text-muted-foreground">
         {next === null
           ? '不排期。只有你按下运行时才跑一次。'
-          : describeTrigger(preview) + ' · 下一次 ' + describeMoment(next)}
+          : `${describeTrigger(preview)} · 下一次 ${describeMoment(next)}`}
       </p>
     </div>
   )

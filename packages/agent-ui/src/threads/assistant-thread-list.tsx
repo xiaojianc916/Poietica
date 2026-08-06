@@ -10,8 +10,8 @@ import {
 } from '@poietica/ui'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import {
-  FolderFilledIcon,
-  FolderIcon,
+  FolderClosedIcon,
+  FolderOpenIcon,
   MoreIcon,
   PinFilledIcon,
   PinIcon,
@@ -460,12 +460,12 @@ interface WorkspaceHeaderProps {
  * 小字、行尾一枚计数 —— 三个数都来自「段标题」这个旧的自我定位，
  * 于是同一列上下两段各用一套尺子。
  *
- * 开与合是同一枚文件夹的两种填法，不是一枚箭头的两个角度：组头回答
- * 的是「哪个目录」，文件夹是目录的字形，箭头不是。图标库没有 folder-open
- * 这枚字形，于是展开画实心、收起画线稿 —— 同族字形、同一轮廓，语义由
- * 填充承担，与图钉（PinIcon / PinFilledIcon）同一个办法。两者与会话行的
- * ThreadIcon 同族（同一个图标库、同一张 24px 网格、同一份线宽），尺寸
- * 读同一枚 --ui-row-icon-size，中线因此天然对齐。
+ * 开与合是两枚文件夹，不是一枚箭头的两个角度，也不是一枚文件夹的两种
+ * 填法：此前库里没有 folder-open，只好展开画实心 —— 而实心在这一列已被
+ * 图钉占去表示「已固定」，同一种填法不能说两件事。现在两枚都是轮廓，几
+ * 何取自 Lucide，住在设计系统的本地字形里。它与会话行的 ThreadIcon 来源
+ * 不同而重量相同：同一张 24px 网格，线宽同由 --ui-icon-stroke 一条声明定
+ * 死，尺寸读同一枚 --ui-row-icon-size，中线因此天然对齐。
  *
  * 不数条数：条数是一个没有人问过的问题，它占着行尾，只是让名字在
  * 数字变化时多抖一次。
@@ -477,7 +477,7 @@ interface WorkspaceHeaderProps {
  */
 function WorkspaceHeader({ workspaceId, name, isOpen, onCreate, onToggle }: WorkspaceHeaderProps) {
   const createLabel = `在${name}中新建对话`
-  const Glyph = isOpen ? FolderFilledIcon : FolderIcon
+  const Glyph = isOpen ? FolderOpenIcon : FolderClosedIcon
 
   return (
     <div className="assistant-threads__group-header">
