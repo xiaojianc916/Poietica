@@ -16,41 +16,99 @@ export interface ApplicationCommandContext {
   readonly workspace: WorkbenchSessionStore
   readonly toggleCommandPalette: () => void
   readonly openAssistantSurface: () => void
+  readonly openSettings: () => void
 }
 
 type ApplicationCommand = Omit<CommandRegistration, 'execute'> & {
   readonly execute: (context: ApplicationCommandContext) => void
 }
 
+/*
+ * 这张表的先后 = 面板里的先后。
+ *
+ * 会话那一组排在它们之前，因为贡献它的组件挂在 AppShell 之内，而 effect
+ * 自下而上兑现 —— 这不是巧合，是 React 的兑现次序（见 conversation-commands）。
+ */
 const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
   {
-    id: 'application.toggle-command-palette',
-    label: '切换命令面板',
-    category: '应用',
-    shortcut: 'Mod+K',
+    id: 'ai.open-assistant',
+    label: '新建对话',
+    category: '推荐',
+    shortcut: 'Mod+J',
     execute: (context) => {
-      context.toggleCommandPalette()
+      context.openAssistantSurface()
+    },
+  },
+  {
+    id: 'automations.open',
+    label: '打开自动化',
+    category: '推荐',
+    execute: (context) => {
+      context.workspace.openWorkspaceSurface({ surfaceId: 'automations' })
+    },
+  },
+  {
+    id: 'application.open-settings',
+    label: '设置',
+    category: '设置',
+    shortcut: 'Mod+,',
+    execute: (context) => {
+      context.openSettings()
+    },
+  },
+  {
+    id: 'workspace.previous-tab',
+    label: '上一个标签页',
+    category: '导航',
+    shortcut: 'Mod+Shift+[',
+    execute: (context) => {
+      stepTab(context.workspace, -1)
+    },
+  },
+  {
+    id: 'workspace.next-tab',
+    label: '下一个标签页',
+    category: '导航',
+    shortcut: 'Mod+Shift+]',
+    execute: (context) => {
+      stepTab(context.workspace, 1)
     },
   },
   {
     id: 'workspace.toggle-sidebar',
     label: '切换侧边栏',
-    category: '视图',
+    category: '面板',
     shortcut: 'Mod+B',
     execute: () => {
       workspaceLayoutStore.toggleSidebar()
     },
   },
   {
-    id: 'ai.open-assistant',
-    label: '打开 AI 助手',
-    category: '应用',
-    shortcut: 'Mod+J',
+    id: 'application.toggle-command-palette',
+    label: '切换命令面板',
+    category: '面板',
+    shortcut: 'Mod+K',
     execute: (context) => {
-      context.openAssistantSurface()
+      context.toggleCommandPalette()
     },
   },
 ]
+
+/*
+ * 前一格／后一格。
+ *
+ * 「有没有邻居」和「邻居是谁」出自同一次查找，所以两者不可能不一致，两端也
+ * 天然不回绕 —— 与标题栏那两个箭头（describeTabSequence）是同一条规则。
+ */
+function stepTab(workspace: WorkbenchSessionStore, step: number): void {
+  const { tabs, activeTabId } = workspace.getSnapshot()
+  const index = tabs.findIndex((tab) => tab.id === activeTabId)
+  const target = index < 0 ? undefined : tabs[index + step]
+
+  if (target !== undefined) {
+    workspace.activateTab(target.id)
+  }
+}
 
 /** 把声明表接上注册表，返回按注册逆序注销的清理函数。 */
 export function registerApplicationCommands(

@@ -4,19 +4,27 @@
  * 表面集合、标题、描述、图标标识、导航次序、实现状态只在此处声明一次；
  * WorkspaceSurfaceId 由本表的键派生，不再另立字面量联合。
  *
- * status 是这张表最关键的一列。此前「还没做」不是被写下来的事实，而是
- * WorkspaceSurfaceRenderers 上的一个空位 —— 空位表达不了意图：它跟「写漏了」
- * 长得一模一样，编译器分不出来，读代码的人也分不出来。现在它是一个值：
+ * activation 是这张表最关键的一列：点这一行会发生什么。
  *
- *   ready   —— 渲染器是强制的，漏一条是编译错误（见 surface.ts）。
+ *   surface —— 主区换成这一格。渲染器是强制的，漏一条是编译错误（见 surface.ts）。
  *   planned —— 导航里画得出来，点进去是一张写明「还没实现」的页面。
+ *   command —— 点它是执行一条命令，主区不动。
  *
- * 于是路线图留在界面上，而类型系统照样看住「说做了的必须真做了」。
+ * 它此前是 status: 'ready' | 'planned'，只能表达「做没做」。于是「搜索」这种
+ * 本来就不是一格页面的东西只能挂成 planned，点下去主区换成一张「还没实现」——
+ * 一个动作被硬塞进了「地方」的形状里，而用户按下去得到的是一次假的导航。
+ *
+ * 判别联合而不是两列（status + commandId?）：两列之间存在「planned 却带着
+ * commandId」这种说不通的组合，而不变量是要靠人记住的东西。这里让它连写都
+ * 写不出来。
  */
 
 export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
 
-export type WorkspaceSurfaceStatus = 'ready' | 'planned'
+export type SurfaceActivation =
+  | { readonly kind: 'surface' }
+  | { readonly kind: 'planned' }
+  | { readonly kind: 'command'; readonly commandId: string }
 
 export interface WorkspaceSurfaceDescriptor {
   readonly title: string
@@ -30,7 +38,7 @@ export interface WorkspaceSurfaceDescriptor {
    * 读取时会直接编译失败。
    */
   readonly navigationOrder: number | null
-  readonly status: WorkspaceSurfaceStatus
+  readonly activation: SurfaceActivation
 }
 
 export const WORKSPACE_SURFACE_REGISTRY = {
@@ -39,35 +47,39 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     description: '与 AI 协作，驱动工具完成任务。',
     iconId: 'message',
     navigationOrder: null,
-    status: 'ready',
+    activation: { kind: 'surface' },
   },
   search: {
     title: '搜索',
     description: '跨仓库检索文件与会话。',
     iconId: 'search',
     navigationOrder: 0,
-    status: 'planned',
+    /*
+     * 搜索是一个动作，不是一格页面：点它开那张命令面板，主区不动。
+     * 命令本身声明在组合根（apps/desktop/src/app-commands.ts），这里只指名。
+     */
+    activation: { kind: 'command', commandId: 'application.toggle-command-palette' },
   },
   tools: {
     title: 'Tool',
     description: '查看与管理可调用工具。',
     iconId: 'box',
     navigationOrder: 1,
-    status: 'planned',
+    activation: { kind: 'planned' },
   },
   automations: {
     title: '自动化',
     description: '按计划反复执行的任务。每次运行都是一条对话。',
     iconId: 'clock',
     navigationOrder: 2,
-    status: 'ready',
+    activation: { kind: 'surface' },
   },
   hooks: {
     title: 'Hook',
     description: '在生命周期节点注入自定义行为。',
     iconId: 'webhook',
     navigationOrder: 3,
-    status: 'planned',
+    activation: { kind: 'planned' },
   },
 } as const satisfies Record<string, WorkspaceSurfaceDescriptor>
 
@@ -80,7 +92,7 @@ export type WorkspaceSurfaceId = keyof typeof WORKSPACE_SURFACE_REGISTRY
  * 跟着变，组合根少交一条渲染器立刻编译失败。
  */
 export type ReadyWorkspaceSurfaceId = {
-  [Id in WorkspaceSurfaceId]: (typeof WORKSPACE_SURFACE_REGISTRY)[Id]['status'] extends 'ready'
+  [Id in WorkspaceSurfaceId]: (typeof WORKSPACE_SURFACE_REGISTRY)[Id]['activation']['kind'] extends 'surface'
     ? Id
     : never
 }[WorkspaceSurfaceId]
@@ -108,7 +120,7 @@ export function isWorkspaceSurfaceId(value: string): value is WorkspaceSurfaceId
 /* 运行时这一份也从同一张表派生，不存在会跟类型分叉的第二份名单。 */
 const READY_SURFACE_IDS: ReadonlySet<string> = new Set(
   Object.entries(DESCRIPTORS)
-    .filter(([, descriptor]) => descriptor.status === 'ready')
+    .filter(([, descriptor]) => descriptor.activation.kind === 'surface')
     .map(([id]) => id),
 )
 

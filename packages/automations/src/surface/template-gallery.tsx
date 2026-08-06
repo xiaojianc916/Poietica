@@ -43,7 +43,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
   )
 
   return (
-    <div className="mt-10 border-t border-divider px-8 py-6">
+    <div className="mt-10 px-8 py-6">
       <h2 className="text-xs font-medium text-muted-foreground">从模板开始</h2>
 
       <div className="mt-3 flex gap-1">

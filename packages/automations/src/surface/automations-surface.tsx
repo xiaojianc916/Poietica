@@ -99,7 +99,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
           <h2 className="text-xs font-medium text-muted-foreground">我的自动化</h2>
 
           <button
-            className="rounded-md border border-divider bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-sidebar-accent"
+            className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-sidebar-accent"
             onClick={() => {
               setView({ kind: 'draft', draft: BLANK_DRAFT })
             }}

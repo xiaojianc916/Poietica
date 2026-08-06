@@ -1,18 +1,30 @@
 import { Combobox as BaseCombobox } from '@base-ui/react/combobox'
 import { Search } from '@mynaui/icons-react'
-import type { ReactNode } from 'react'
 import { cn } from './class-names'
 
 export interface CommandMenuItem {
   readonly value: string
   readonly label: string
-  readonly category?: string
+  /** 行尾那一小行灰字：同名的行靠它区分。 */
+  readonly detail?: string
   readonly shortcut?: string
-  readonly leading?: ReactNode
+}
+
+/**
+ * 一组。
+ *
+ * 组是这个控件的一等公民，不是行上的一个属性。此前 category 画在行尾，于是
+ * 同一类的十条各自重复十遍类名，而「这里开始是另一类了」这件事没有任何视觉
+ * 或语义上的表达 —— 读屏软件读到的是一条一百项的平列表。
+ */
+export interface CommandMenuGroup {
+  readonly id: string
+  readonly title: string
+  readonly items: readonly CommandMenuItem[]
 }
 
 export interface CommandMenuProps {
-  readonly items: readonly CommandMenuItem[]
+  readonly groups: readonly CommandMenuGroup[]
   readonly query: string
   readonly placeholder?: string
   readonly ariaLabel: string
@@ -27,28 +39,31 @@ export interface CommandMenuProps {
  *
  * Base UI owns:
  * - highlighted-item state
- * - list navigation
+ * - list navigation across groups
  * - Home and End behavior
  * - Enter selection
  * - active-descendant semantics
- * - input/listbox coordination
+ * - group labelling (role="group" + aria-labelledby)
  *
  * Consumers own:
  * - command registration
  * - filtering policy
+ * - grouping and section order
  * - execution
  * - business labels
  */
 export function CommandMenu({
-  items,
+  groups,
   query,
-  placeholder = '输入命令名称…',
+  placeholder = '搜索聊天',
   ariaLabel,
-  emptyTitle = '没有匹配的命令',
-  emptyDescription = '尝试输入其他命令名称或分类。',
+  emptyTitle = '没有匹配的结果',
+  emptyDescription = '换个说法，或者按 Esc 关闭。',
   onQueryChange,
   onSelect,
 }: CommandMenuProps) {
+  const items = groups.flatMap((group) => group.items)
+
   const itemValues = items.map((item) => item.value)
 
   const itemMap = new Map(items.map((item) => [item.value, item]))
@@ -79,7 +94,7 @@ export function CommandMenu({
           aria-label={ariaLabel}
           autoFocus
           className={cn(
-            'h-12 min-w-0 flex-1',
+            'h-11 min-w-0 flex-1',
             'border-0 bg-transparent',
             'px-0 text-sm',
             'text-foreground',
@@ -88,70 +103,56 @@ export function CommandMenu({
           )}
           placeholder={placeholder}
         />
-
-        <kbd
-          className={cn(
-            'rounded border',
-            'border-divider',
-            'bg-muted',
-            'px-1.5 py-0.5',
-            'text-[10px]',
-            'text-muted-foreground',
-          )}
-        >
-          Esc
-        </kbd>
       </div>
 
       <BaseCombobox.List
-        className={cn('max-h-80', 'overflow-y-auto', 'overscroll-contain', 'p-2 outline-none')}
+        className={cn('max-h-96', 'overflow-y-auto', 'overscroll-contain', 'p-1.5 outline-none')}
       >
-        {items.map((item) => (
-          <BaseCombobox.Item
-            className={cn(
-              'flex min-h-11',
-              'w-full items-center',
-              'gap-3 rounded-md',
-              'px-3 text-left',
-              'text-sm outline-none',
-              'cursor-default select-none',
-              'data-[highlighted]:bg-accent',
-              'data-[highlighted]:text-accent-foreground',
-              'data-[disabled]:pointer-events-none',
-              'data-[disabled]:opacity-50',
-            )}
-            key={item.value}
-            value={item.value}
-          >
-            {item.leading ? (
-              <span
-                aria-hidden="true"
+        {groups.map((group) => (
+          <BaseCombobox.Group className="mb-1 last:mb-0" key={group.id}>
+            <BaseCombobox.GroupLabel
+              className={cn('px-2.5 py-1.5', 'text-xs', 'text-muted-foreground')}
+            >
+              {group.title}
+            </BaseCombobox.GroupLabel>
+
+            {group.items.map((item) => (
+              <BaseCombobox.Item
                 className={cn(
-                  'grid size-4',
-                  'shrink-0 place-items-center',
-                  'text-muted-foreground',
+                  'flex min-h-8',
+                  'w-full items-center',
+                  'gap-3 rounded-md',
+                  'px-2.5 text-left',
+                  'text-sm outline-none',
+                  'cursor-default select-none',
+                  'data-[highlighted]:bg-accent',
+                  'data-[highlighted]:text-accent-foreground',
                 )}
+                key={item.value}
+                value={item.value}
               >
-                {item.leading}
-              </span>
-            ) : null}
+                <span className={cn('min-w-0 flex-1', 'truncate')}>{item.label}</span>
 
-            <span className={cn('min-w-0 flex-1', 'truncate')}>{item.label}</span>
+                {item.detail === undefined ? null : (
+                  <span
+                    className={cn('max-w-40 shrink-0 truncate', 'text-xs', 'text-muted-foreground')}
+                  >
+                    {item.detail}
+                  </span>
+                )}
 
-            {item.category ? (
-              <span className={cn('shrink-0 text-xs', 'text-muted-foreground')}>
-                {item.category}
-              </span>
-            ) : null}
-
-            {item.shortcut ? (
-              <kbd className={cn('shrink-0 text-xs', 'text-muted-foreground')}>{item.shortcut}</kbd>
-            ) : null}
-          </BaseCombobox.Item>
+                {item.shortcut === undefined ? null : (
+                  <kbd className={cn('shrink-0 text-xs', 'tabular-nums', 'text-muted-foreground')}>
+                    {item.shortcut}
+                  </kbd>
+                )}
+              </BaseCombobox.Item>
+            ))}
+          </BaseCombobox.Group>
         ))}
 
         <BaseCombobox.Empty
-          className={cn('grid min-h-32', 'place-content-center', 'gap-1 px-4', 'text-center')}
+          className={cn('grid min-h-28', 'place-content-center', 'gap-1 px-4', 'text-center')}
         >
           <span className={cn('text-sm font-medium', 'text-foreground')}>{emptyTitle}</span>
 

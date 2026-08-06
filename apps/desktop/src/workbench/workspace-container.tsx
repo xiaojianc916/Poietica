@@ -6,6 +6,7 @@ import {
   SettingsProvider,
 } from '@poietica/settings'
 import type {
+  CommandRegistry,
   WorkbenchSessionStore,
   WorkbenchTabId,
   WorkbenchTabViewModel,
@@ -42,6 +43,7 @@ export interface WorkspaceContainerProps {
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
   readonly workspace: WorkbenchSessionStore
+  readonly commands: CommandRegistry
   readonly capabilities: AppCapabilities
   readonly isSettingsOpen: boolean
   readonly onSettingsClose: () => void
@@ -68,6 +70,7 @@ export function WorkspaceContainer({
   agentSession,
   appVersion,
   workspace,
+  commands,
   capabilities,
   isSettingsOpen,
   onSettingsClose,
@@ -97,6 +100,19 @@ export function WorkspaceContainer({
    * 任何第二个删除入口都要各自记得再关一次标签，漏一个就是一个 bug。
    */
   useEffect(() => threads.onRemoved(workspace.closeConversation), [threads, workspace])
+
+  /*
+   * 导航里的动作行走命令注册表，不另接一根专线。
+   *
+   * 「搜索」那一行、Mod+K、以及面板里那一条，是同一个 id 的同一次执行 ——
+   * 三个入口一份行为，以后改行为只改一处。
+   */
+  const runCommand = useCallback(
+    (commandId: string) => {
+      void commands.execute(commandId)
+    },
+    [commands],
+  )
 
   const actions = useMemo<WorkspaceShellActions>(
     () => ({
@@ -231,6 +247,7 @@ export function WorkspaceContainer({
         <WorkspaceSidebar
           activeNavigationId={activeNavigationId}
           footerLeading={sidebarFooterSlot}
+          onCommand={runCommand}
           onCreateConversation={openAssistantEntry}
           onDeveloperToolsOpen={onDeveloperToolsOpen}
           onSettingsOpen={onSettingsOpen}

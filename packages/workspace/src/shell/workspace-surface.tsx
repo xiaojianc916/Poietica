@@ -21,7 +21,9 @@ export interface WorkspaceSurfaceProps {
  *
  *   - ready 的表面必然有渲染器（renderers 是以 ReadyWorkspaceSurfaceId 为键的
  *     全域 Record），「查不到」在类型上不成立，因此没有 ?? 兜底；
- *   - planned 的表面走下面那张明说「还没实现」的页面。
+ *   - 其余的走下面那张明说「还没实现」的页面。命令行（activation.kind 为
+ *     'command'）正常路径到不了这里 —— 点它执行命令，主区不动；只有上次会话
+ *     留下的旧标签能落到这一支，那时这张页面就是最诚实的说法。
  *
  * 此前这里是 if (render) —— 同一个分支同时承担着「还没做」和「写漏了」，
  * 而后者本该是编译错误。

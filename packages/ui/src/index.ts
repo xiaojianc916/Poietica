@@ -2,7 +2,7 @@
 
 export { Button } from './button'
 export { cn } from './class-names'
-export { CommandMenu, type CommandMenuItem } from './command-menu'
+export { CommandMenu, type CommandMenuGroup, type CommandMenuItem } from './command-menu'
 export { ConfirmationDialog } from './confirmation-dialog'
 export { Dialog } from './dialog'
 export { Drawer } from './drawer'

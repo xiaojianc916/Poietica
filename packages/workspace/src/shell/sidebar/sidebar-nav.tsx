@@ -8,6 +8,8 @@ export interface SidebarNavProps {
   readonly activeNavigationId: WorkspaceSurfaceId | null
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
   readonly onCreateConversation: () => void
+  /** 动作行按下去执行的那条命令。执行由组合根接线，这一层只报 id。 */
+  readonly onCommand: (commandId: string) => void
 }
 
 /**
@@ -20,6 +22,7 @@ export function SidebarNav({
   activeNavigationId,
   onSurfaceActivate,
   onCreateConversation,
+  onCommand,
 }: SidebarNavProps) {
   return (
     <nav aria-label="主导航" className="workspace-sidebar__nav shrink-0 pb-1 pt-2">
@@ -39,15 +42,24 @@ export function SidebarNav({
         </li>
 
         {WORKSPACE_NAVIGATION_ORDER.map((surfaceId) => {
-          const { title } = describeWorkspaceSurface(surfaceId)
+          const { title, activation } = describeWorkspaceSurface(surfaceId)
 
+          /*
+           * 动作行不参与高亮：弹窗不是「我现在在哪」，点完人还在原来那一格。
+           * 亮起来会和真正的当前位置抢同一个语义（aria-current="page"）。
+           */
           return (
             <li key={surfaceId}>
               <NavRow
-                active={surfaceId === activeNavigationId}
+                active={activation.kind !== 'command' && surfaceId === activeNavigationId}
                 icon={surfaceIcon(surfaceId)}
                 label={title}
                 onClick={() => {
+                  if (activation.kind === 'command') {
+                    onCommand(activation.commandId)
+                    return
+                  }
+
                   onSurfaceActivate(surfaceId)
                 }}
               />

@@ -11,6 +11,7 @@ export interface WorkspaceSidebarProps {
   readonly panel: ReactNode
   readonly onSurfaceActivate: (surfaceId: WorkspaceSurfaceId) => void
   readonly onCreateConversation: () => void
+  readonly onCommand: (commandId: string) => void
   readonly onSettingsOpen: () => void
   readonly onDeveloperToolsOpen: () => void
 }
@@ -34,6 +35,7 @@ export function WorkspaceSidebar({
   panel,
   onSurfaceActivate,
   onCreateConversation,
+  onCommand,
   onSettingsOpen,
   onDeveloperToolsOpen,
 }: WorkspaceSidebarProps) {
@@ -41,6 +43,7 @@ export function WorkspaceSidebar({
     <section className="workspace-sidebar flex h-full min-h-0 min-w-0 flex-col bg-sidebar">
       <SidebarNav
         activeNavigationId={activeNavigationId}
+        onCommand={onCommand}
         onCreateConversation={onCreateConversation}
         onSurfaceActivate={onSurfaceActivate}
       />

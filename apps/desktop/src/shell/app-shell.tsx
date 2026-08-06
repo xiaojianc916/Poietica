@@ -18,6 +18,7 @@ import { reportFailure } from '../failures/application-failures'
 import { failureCoordinator } from '../failures/failure-coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
 import { UpdateCapsule } from '../feedback/update-capsule'
+import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
 
 /*
@@ -185,8 +186,9 @@ export function AppShell({ runtime }: AppShellProps) {
       workspace: runtime.workspace,
       toggleCommandPalette,
       openAssistantSurface,
+      openSettings,
     }),
-    [openAssistantSurface, runtime.workspace, toggleCommandPalette],
+    [openAssistantSurface, openSettings, runtime.workspace, toggleCommandPalette],
   )
 
   /* 依赖是具体引用，不是整个 runtime：否则任一无关字段变化都会全量重注册。 */
@@ -257,11 +259,18 @@ export function AppShell({ runtime }: AppShellProps) {
          */}
         <AutomationScheduler workspace={runtime.workspace} />
 
+        {/*
+          同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是
+          「聊天」。必须在 ThreadsProvider 之内 —— 它读的就是那份列表。
+        */}
+        <ConversationCommands registry={runtime.commands} workspace={runtime.workspace} />
+
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
           agentSession={runtime.agentSession}
           appVersion={runtime.appVersion}
           capabilities={capabilities}
+          commands={runtime.commands}
           isSettingsOpen={isSettingsOpen && capabilities.settings}
           isWindowMaximized={isWindowMaximized}
           onDeveloperToolsOpen={openDeveloperTools}

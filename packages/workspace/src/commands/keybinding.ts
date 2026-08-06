@@ -15,6 +15,35 @@ import type { CommandRegistry } from '../command-registry'
 
 const APPLE = /Mac|iPhone|iPad|iPod/i.test(globalThis.navigator?.userAgent ?? '')
 
+/*
+ * 键位与它的人类写法，一张表两个方向。
+ *
+ * 匹配比的是 event.code，而键盘上的逗号发出的是 Comma 不是 ","。此前
+ * toKeyCode 只认 a-z 与 0-9，其余原样返回：声明 Mod+, 解析出 M:, ，
+ * 而键盘永远发不出这个 code —— 那条绑定一次都不会触发，界面上却照样
+ * 把它画出来。一个画得出来、按不动的快捷键，比没有更糟。
+ *
+ * 所以两个方向都从这一张表来：声明侧写 Mod+, 或 Mod+Comma 都对，显示侧
+ * 一律翻回符号。
+ */
+const KEY_LABELS: Record<string, string> = {
+  Backquote: '`',
+  Backslash: '\\',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Comma: ',',
+  Equal: '=',
+  Minus: '-',
+  Period: '.',
+  Quote: "'",
+  Semicolon: ';',
+  Slash: '/',
+}
+
+const KEY_CODES: Record<string, string> = Object.fromEntries(
+  Object.entries(KEY_LABELS).map(([code, label]) => [label, code]),
+)
+
 function toKeyCode(key: string): string {
   if (/^[a-z]$/i.test(key)) {
     return `Key${key.toUpperCase()}`
@@ -24,7 +53,7 @@ function toKeyCode(key: string): string {
     return `Digit${key}`
   }
 
-  return key
+  return KEY_CODES[key] ?? key
 }
 
 /*
@@ -65,7 +94,7 @@ export function formatKeybinding(shortcut: string): string {
         return APPLE ? '⇧' : 'Shift'
 
       default:
-        return part.length === 1 ? part.toUpperCase() : part
+        return KEY_LABELS[part] ?? (part.length === 1 ? part.toUpperCase() : part)
     }
   })
 
