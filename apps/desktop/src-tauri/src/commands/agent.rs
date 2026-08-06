@@ -24,7 +24,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_agent_persistence_native::{AgentStore, StoreError, ThreadAttachment, TitleSource};
 use poietica_agent_runtime_native::{
     ACP_UPDATE, AcpError, AgentClient, AgentConnection, AgentSpawn, ConfigControl, ConfigPurpose,
-    FrameSink, PermissionDesk, PromptImage, RecordedEvent, Refusal, RunSlot, connect,
+    FrameSink, PermissionDesk, PromptImage, RecordedEvent, Refusal, RunSlot, SessionBook, connect,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -138,11 +138,15 @@ struct Connection {
     /// request_id 由 agent 自己发，两个 agent 的号不可通约：共用一张桌子，一个
     /// 答案就可能落到另一个 agent 的问题上。
     desk: PermissionDesk,
-    /// 这条连接开出来的会话号。
+    /// 这条连接开出来的会话，以及各自的记录槽。
     ///
     /// ACP 的 sessionId 只在一条连接内有意义，而且活在这个 agent 自己的命名空间
     /// 里：进程重启之后它不认识上一次的号，另一个 agent 从来不认识它。
-    known: Arc<Mutex<HashSet<String>>>,
+    ///
+    /// 册子是驱动器的那一本，`connect()` 建立连接时就交了出来。此前这一侧把它
+    /// 丢掉，另拿一个 HashSet 记同一件事 —— 于是「这条连接开了哪些会话」在这个
+    /// 程序里有三份记载，而只有驱动器手上那一本能决定一帧到底路由到哪里。
+    book: SessionBook,
 }
 
 /// 这个进程活多久就活多久的那些东西：库、附件、根目录，以及此刻那一条连接。
@@ -635,8 +639,9 @@ pub async fn agent_cancel(
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     };
 
-    /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。 */
-    if !recognised(&live, &addressed)? {
+    /* 本次连接认不得的号是上次运行留下的：那条会话上没有这一侧发起的轮次。
+    判据取自驱动器路由帧用的同一本册子 —— 它认得，才有轮次可停。 */
+    if live.book.slot(&addressed).map_err(translate)?.is_none() {
         return Err(Error::NotFound(NOTHING_TO_STOP.to_owned()).into());
     }
 
@@ -681,10 +686,6 @@ fn retire(taken: Option<Connection>) {
     let _abandoned = gone.slot.take();
 
     gone.desk.clear();
-
-    if let Ok(mut known) = gone.known.lock() {
-        known.clear();
-    }
 }
 
 /// What a session selector is for.
@@ -896,8 +897,8 @@ struct Handle {
     can_delete_session: bool,
     /// 这条连接的权限台。
     desk: PermissionDesk,
-    /// 这条连接认得的会话号。
-    known: Arc<Mutex<HashSet<String>>>,
+    /// 这条连接的会话册子 —— 驱动器路由帧读的就是它。
+    book: SessionBook,
 }
 
 /// Returns the running session, starting one if there is none.
@@ -970,14 +971,13 @@ async fn ensure_session(
     一条会话、一条连接、一条连接。 */
     let slot = RunSlot::new();
     let desk = PermissionDesk::new();
-    let known = Arc::new(Mutex::new(HashSet::new()));
 
     let AgentConnection {
         client,
         handshake,
         driver,
         reports,
-        book: _,
+        book,
     } = connect(spawn, slot.clone(), desk.clone()).map_err(translate)?;
 
     // The crate is runtime-agnostic on purpose; this is the composition root,
@@ -1034,7 +1034,7 @@ async fn ensure_session(
         can_delete_session,
         slot: slot.clone(),
         desk: desk.clone(),
-        known: Arc::clone(&known),
+        book: book.clone(),
     });
 
     let live = Handle {
@@ -1044,11 +1044,11 @@ async fn ensure_session(
         can_load_session,
         can_delete_session,
         desk,
-        known,
+        book,
     };
 
-    /* 连接建立时自带的会话号：没有对话持有它，但寻址按号认人，所以要认得。 */
-    remember(&live, &session_id)?;
+    /* 锚会话不必在这里补记：驱动器握手时就把它归进了册子（driver.rs 的
+    `first.adopt`），而这里读的正是同一本。 */
 
     Ok(live)
 }
@@ -1064,7 +1064,7 @@ fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> {
         can_load_session: live.can_load_session,
         can_delete_session: live.can_delete_session,
         desk: live.desk.clone(),
-        known: Arc::clone(&live.known),
+        book: live.book.clone(),
     }))
 }
 
@@ -1679,39 +1679,6 @@ struct Held {
     history: AgentHistory,
 }
 
-/// 记下一个本次连接开出来的会话号。
-fn remember(live: &Handle, session_id: &str) -> Result<()> {
-    live.known
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
-        .insert(session_id.to_owned());
-
-    Ok(())
-}
-
-/// 忘掉一个会话号。
-///
-/// 与 remember 成对：agent 那侧已经没有它了，这里再认得它就是认得一个
-/// 不存在的东西。
-fn forget(live: &Handle, session_id: &str) -> Result<()> {
-    let _forgotten = live
-        .known
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
-        .remove(session_id);
-
-    Ok(())
-}
-
-/// 本次连接是否认得这个会话号。
-fn recognised(live: &Handle, session_id: &str) -> Result<bool> {
-    Ok(live
-        .known
-        .lock()
-        .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))?
-        .contains(session_id))
-}
-
 /// 这条对话所持有的、本次连接认得的会话。
 ///
 /// 整个模块只有这一条寻址规则，没有兜底。对话持有会话，`attach_session` 是写下
@@ -1785,7 +1752,7 @@ async fn session_for(
         它认得，不等于屏幕上还有东西：渲染层可以在连接活着的时候整个重来
         （Ctrl+R、第二个窗口），那一刻它手里一片空白。「有没有经过可看」是
         那一侧的事实，这一侧猜不出来，所以不猜 —— 要经过的那一路照样去装载。 */
-        let known = recognised(live, &session_id)?;
+        let known = live.book.slot(&session_id).map_err(translate)?.is_some();
 
         if !mine {
             /* 号发出去只会换回 UnknownSession，所以不发。 */
@@ -1810,7 +1777,8 @@ async fn session_for(
                 .await
             {
                 Ok(loaded) => {
-                    remember(live, &session_id)?;
+                    /* 不补记：驱动器在发出装载请求之前就 ledger.open 了这条会话，
+                    否则重放期到达的帧没有去处（driver.rs 的 load_session）。 */
 
                     /* 装载成功，这条会话确实是这个 agent 的。空的那一格在这里
                     记实，所以补写只发生一次，不是每次开对话都写一遍。 */
@@ -1902,7 +1870,7 @@ async fn session_for(
         .await?;
     }
 
-    remember(live, &opened.session_id)?;
+    /* 同样不补记：驱动器开完会话先 ledger.open，才把号交出来。 */
 
     Ok(Held {
         thread_id,
@@ -1994,7 +1962,9 @@ pub async fn agent_delete_thread(
             log::warn!("could not delete the session on the agent: {error}");
         }
 
-        forget(&live, &session_id)?;
+        /* 册子由驱动器自己销号，而且只在 agent 真的删了之后（driver.rs 的
+        Settled::Deleted 判 outcome.is_ok）。此前这一侧无论它答不答应都抹掉号，
+        于是「它说没删」与「它删了」在本地是同一个结果。 */
     }
 
     on_store(&state, move |store| {

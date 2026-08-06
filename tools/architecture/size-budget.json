@@ -4,7 +4,7 @@
     "apps/desktop/src-tauri/src/asset_protocol.rs": 1652,
     "apps/desktop/src-tauri/src/commands/agent_config.rs": 905,
     "apps/desktop/src-tauri/src/commands/agent_install.rs": 519,
-    "apps/desktop/src-tauri/src/commands/agent.rs": 2055,
+    "apps/desktop/src-tauri/src/commands/agent.rs": 2026,
     "apps/desktop/src-tauri/src/commands/asset.rs": 522,
     "crates/agent-runtime/src/driver.rs": 1036,
     "crates/agent-runtime/src/recorder.rs": 492,
