@@ -30,6 +30,7 @@
     "motion": "catalog:",
     "streamdown": "catalog:",
     "tailwind-merge": "catalog:",
+    "yaml": "catalog:",
     "yet-another-react-lightbox": "catalog:"
   },
   "devDependencies": {

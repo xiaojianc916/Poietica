@@ -1,4 +1,5 @@
 import type { AcpToolCallContent } from '@poietica/acp'
+import { stringify } from 'yaml'
 
 import { readSubAgent, type SubAgentBrief } from './sub-agent'
 import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
@@ -10,24 +11,29 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
  * Streamdown，Shiki 上色，围栏的外壳（语言胶囊、复制按钮、内框）由样式在抽屉作用域
  * 里摘掉。这一层只负责说清楚「这一段是什么」。
  *
- * ## 入参就是入参的 JSON
+ * ## 入参画成 YAML，产出保持原样
  *
- * 曾经试过把它拆成一行行具名参数（标量一行、长文本一块）。那是 DevTools Payload 面板
- * 的 parsed 视图，读单个字段确实更快，但它把「这次到底送出去了什么」这件事拆散了 ——
- * 而抽屉里的这一面要回答的正是这一件事。所以这里回到 JSON.stringify(value, null, 2)：
- * 一份完整、可比对、可原样复制的请求体，和 DevTools 的 view source、Postman 的 Pretty、
- * jq 的默认输出是同一个东西。
+ * 这两面看起来对称，其实是两种东西，所以格式也不同。
  *
- * 随之而来的转义不是缺陷，是语法：JSON 里字符串中的反斜杠写成两个、换行写成 \\n
- *（RFC 8259 §7）。任何显示 JSON 源码的工具都这样，想看解码后的值就只能不显示 JSON。
- * 这一面显示的是 JSON。
+ * 产出是服务端交回来的字节。它是什么就画什么，最多重排一次空白（Pretty print），
+ * 和 DevTools 的 Response 面板同一条。
  *
- * ## 一次写入交回来的应该是那份内容
+ * 入参是我们送出去的参数，屏幕上那一份是它的人读投影 —— 而 JSON 源码是一种很差的
+ * 人读投影：字符串里不允许有真换行，所以一条多行命令必须写成一串 \\n；反斜杠必须写
+ * 成两个，于是一个 Windows 路径的每一层都翻倍；引号必须写成 \\"，一条带 -H 的 curl
+ * 因此满屏斜杠（RFC 8259 §7）。这不是格式化没做好，是这个格式本身不适合给人读。
  *
- * ACP 规定 edit 类调用回传一段 diff（AcpToolCallContent 的 diff 分支），可实际拿到的
- * 常常只有一句「Wrote 127 bytes to …」—— 那是确认，不是结果。Cursor、Cline、Claude
- * Code 在这一格都不等服务端：它们从入参自己合成那份内容。这里同理，判据全部来自协议，
- * 不认工具名。见 writtenOf。
+ * YAML 是同一份数据的另一种写法 —— 规范 §1.3 原文说它是 JSON 的自然超集，零损失。
+ * 它恰好把上面三样全部消掉：多行值走块标量（|）原样铺开，普通与单引号标量里反斜杠
+ * 不是转义字符，引号在多数位置根本不需要。
+ *
+ * 这不是本仓的发明。Kubernetes 的 API 全是 JSON，可 kubectl -o yaml 是人读的默认，
+ * Lens / k9s / ArgoCD 展示资源一律 YAML；GitHub Actions、GitLab CI、Docker Compose、
+ * OpenAPI、Ansible、Helm 都能用 JSON 写，全都选了 YAML —— 选的理由就是多行文本和转义。
+ *
+ * 序列化交给 yaml（YAML 1.2 的完整实现，Prettier 与 ESLint 用的同一个）。不自己写：
+ * 「什么时候必须加引号」这套规则极刁 —— yes / no / on、纯数字形状的字符串、- 开头、
+ * 含「: 」、含「 #」、首尾空白、空串 —— 手写会在某一条上悄悄改掉数据。
  *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
  * 只依赖 @poietica/acp 是同一条边界。
@@ -62,6 +68,9 @@ export interface ToolCallFacets {
  * 「这段文本值不值得留在内存里被切成块」。
  */
 const CAP = 64 * 1024
+
+/** 嵌套的 JSON 字符串最多解到第几层。防的是自引用式的深结构，不是正常数据。 */
+const DEPTH = 6
 
 function clamp(text: string): string {
   if (text.length <= CAP) {
@@ -183,36 +192,96 @@ function langOf(locations: ToolCallFacetSource['locations']): string {
 }
 
 /**
- * 一段字节是不是 JSON。
+ * 一段字节是不是一份 JSON 文档；是就重排一次空白。
  *
- * 判据与 DevTools 在没有 content-type 时用的一样：形状对得上，而且真的解析得动。
- * 只看 JSON.parse 会把一行 123 的日志也认成 JSON。
+ * 判据与 DevTools 在没有 content-type 时用的一样：形状对得上，而且真的解析得动 ——
+ * 只看 JSON.parse 会把一行 123 的日志也认成 JSON。只认对象与数组：一个裸标量重排前后
+ * 一模一样，白跑一趟。
+ *
+ * 重排的是空白，不是数据 —— JSON 的空白不承载语义（RFC 8259 §2），这与 DevTools 的
+ * Pretty print、Postman 的 Pretty 是同一件事。
  */
-function reflowJson(text: string): string | null {
-  const head = text.trimStart()
+function prettyJson(text: string): string | null {
+  const head = text.trim()
 
   if (!head.startsWith('{') && !head.startsWith('[')) {
     return null
   }
 
   try {
-    return JSON.stringify(JSON.parse(head), null, 2)
+    const parsed: unknown = JSON.parse(head)
+
+    return typeof parsed === 'object' && parsed !== null ? JSON.stringify(parsed, null, 2) : null
   } catch {
     return null
   }
 }
 
-function textBlock(text: string, lang: string): string {
-  const json = reflowJson(text)
+/**
+ * 把埋在字符串里的 JSON 文档摊平成多行 —— 一次写入的 content、一个转发的 payload，
+ * 十有八九长这样。摊平之后 YAML 会自动给它一个块标量，层次就出来了。
+ *
+ * 它仍然是字符串，不被换成对象：那会谎报这次到底送出去了什么。
+ */
+function reflow(value: unknown, depth: number): unknown {
+  if (depth > DEPTH) {
+    return value
+  }
 
-  return json === null ? block(lang, text) : block('json', json)
+  if (typeof value === 'string') {
+    return prettyJson(value) ?? value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item: unknown) => reflow(item, depth + 1))
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return value
+  }
+
+  const out: Record<string, unknown> = {}
+
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = reflow(item, depth + 1)
+  }
+
+  return out
+}
+
+/*
+ * 四项配置，每一项都在挡一种回退：
+ *   blockQuote: literal  多行走 | 而不是 >，> 会重新折行、改掉命令；
+ *   lineWidth: 0         关掉自动折行，长行是长行；
+ *   singleQuote: true    需要引号时用单引号 —— 只有双引号里反斜杠才转义；
+ *   indent: 2            与这个仓库其余一切缩进一致。
+ */
+const YAML_OPTIONS = {
+  blockQuote: 'literal',
+  indent: 2,
+  lineWidth: 0,
+  singleQuote: true,
+} as const
+
+function yamlBlock(value: unknown): string | null {
+  try {
+    const text = stringify(reflow(value, 0), YAML_OPTIONS).trimEnd()
+
+    return text === '' ? null : block('yaml', text)
+  } catch {
+    return null
+  }
 }
 
 function jsonBlock(value: unknown): string | null {
-  /* stringify 对 undefined / 函数 / symbol 交回 undefined，声明里没写这一半。 */
-  const text: string | undefined = JSON.stringify(value, null, 2)
+  try {
+    /* stringify 对 undefined / 函数 / symbol 交回 undefined，声明里没写这一半。 */
+    const text: string | undefined = JSON.stringify(value, null, 2)
 
-  return text === undefined ? null : block('json', text)
+    return text === undefined ? null : block('json', text)
+  } catch {
+    return null
+  }
 }
 
 /* ── 送出去的那一面 ───────────────────────────────────────── */
@@ -222,6 +291,10 @@ function isEmptyBag(value: object): boolean {
   return Array.isArray(value) ? value.length === 0 : Reflect.ownKeys(value).length === 0
 }
 
+/*
+ * 这里此前还在 YAML 上面单印一行受影响的路径。现在不印了：YAML 里的 path 已经是一条
+ * 单反斜杠的可读路径，标题栏也有同一份，三处说同一件事只留一处。
+ */
 function requestOf(source: ToolCallFacetSource): string | null {
   const bag = source.rawInput
 
@@ -233,23 +306,16 @@ function requestOf(source: ToolCallFacetSource): string | null {
     return null
   }
 
-  const json = jsonBlock(bag)
-
-  if (json === null) {
-    return null
-  }
-
-  /*
-   * 受影响的文件排在 JSON 前面：它说的是这次调用要碰什么，那是意图，不是结果 ——
-   * 编辑器拿它做的也正是「跟着 agent 的视线走」。走行内代码，所以路径里的反斜杠是
-   * 真的反斜杠，与下面 JSON 里那份编码过的各归各位。
-   */
-  const marks = (source.locations ?? []).map((location) => inlineCode(location.path))
-
-  return marks.length === 0 ? json : `${marks.join(' · ')}\n\n${json}`
+  return yamlBlock(bag)
 }
 
 /* ── 交回来的那一面 ───────────────────────────────────────── */
+
+function textBlock(text: string, lang: string): string {
+  const pretty = prettyJson(text)
+
+  return pretty === null ? block(lang, text) : block('json', pretty)
+}
 
 function mark(text: string, sign: string): string {
   return text
@@ -312,6 +378,8 @@ function outputOf(value: unknown): string | null {
  *   kind === 'edit'        —— ACP 的 AcpToolKind 枚举，卡片的图标分流用的也是它；
  *   产出里没有 diff        —— 服务端已经给了就不必代劳，那份才是权威；
  *   入参里最长的字符串     —— 一次写入的入参只有路径和内容两样，路径已被排除。
+ *
+ * 这一块按文件自己的语言上色，不转成 YAML：它是要落到磁盘上的那份字节。
  */
 function writtenOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {
   if (source.kind !== 'edit') {
@@ -343,7 +411,7 @@ function writtenOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[
     }
   }
 
-  return body === null ? null : textBlock(body, langOf(source.locations))
+  return body === null ? null : block(langOf(source.locations), prettyJson(body) ?? body)
 }
 
 function responseOf(source: ToolCallFacetSource, parts: readonly ToolContentPart[]): string | null {

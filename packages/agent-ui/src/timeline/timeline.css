@@ -641,17 +641,29 @@
  * 一个面板一个滚动容器，是 DevTools 的 Response 面板与 VS Code 输出面板的做法。上限
  * 仍是 --cp-timeline-output-max，只是它现在管的是整个面，不是其中一块；内容不满就不
  * 撑高。滚动链不在这里掐断 —— 理由紧跟在下一节。
+ *
+ * 两个轴，不是一个。上一版把横轴留给了围栏自己（code-block-body: auto hidden），于是
+ * 那根横条贴在围栏的底边 —— 而围栏是这个面板内容流里的一个盒子，内容一滚，横条跟着
+ * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
+ * 上面那两个参照物也都是这么做的。
+ *
+ * 滚动条取 thin。这是本表里唯一一处与思考盒不同的取值，理由是几何：这里有两根条，两根
+ * auto 各占一条约 17px 的车道，横的那根还压在一个 18rem 高的面板的最后一行上。思考盒
+ * 只有一根、常驻、而且那一节专门要两端的三角按钮 —— thin 会连按钮一起去掉，所以它留
+ * auto。用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
  */
 .timeline-tool__panel {
   position: relative;
   max-block-size: var(--cp-timeline-output-max);
   padding: 0.625rem 0.75rem;
-  overflow: hidden auto;
+  overflow: auto;
   /*
    * 锚定只能有一个所有者：末端锚定与增量补偿归虚拟器，浏览器原生的滚动锚定若同时
    * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
    */
   overflow-anchor: none;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--cp-ink) 20%, transparent) transparent;
   background: var(--cp-timeline-output-surface);
 }
 
@@ -1184,9 +1196,9 @@
  * 同一句话说两遍；卡片已经有一圈边，再套一圈就是卡中卡（这张表在表格那一节已经为
  * 同一个毛病做过一次同样的手术）。
  *
- * 最要紧的是 code-block-body 那个 max-block-size：它让围栏成为面板里第二个纵向滚动
- * 容器，而「一个面板一个纵向滚动容器」正是上面那条规则的全部内容。所以纵轴交还给面
- * 板；横轴留给围栏自己，因为代码不折行 —— 那一条紧跟在下面单独说。
+ * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它让围栏成为面板里第二
+ * 个滚动容器，而「一个面板一个滚动容器」正是上面那条规则的全部内容。两个轴一起交还
+ * 给面板 —— 围栏在这里不滚，它只是长，长出来的部分由面板去滚。
  *
  * 判据是「围栏在哪」，不是「围栏是什么」：这四条与上面那四条特异性相同，靠书写顺序
  * 决定胜负，而这里在后面。
@@ -1208,7 +1220,7 @@
 
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
   max-block-size: none;
-  overflow: auto hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -1223,9 +1235,9 @@
  * 代码视图默认不折行，是 DevTools、VS Code、GitHub、Sublime 的一致行为：等宽排版的
  * 全部价值就在于列是对齐的，而折行按定义会破坏列。出口给横向滚动，字符一个不少。
  *
- * 轴写死成「横向 auto、纵向 hidden」，与表格滚动盒那一节同一条：max-block-size 已经
- * 交还给面板，这个盒子纵向永远不会溢出，而一个不会滚的滚动轴不是中性的 —— 它会被浮层
- * 当成一条候选轨道。抽屉里的纵向滚动容器仍然只有 __panel 一个。
+ * 出口在面板上，不在这里：这个盒子 overflow 是 visible，长行照直伸出去，由面板那唯一
+ * 一个滚动容器接住。虚拟块是绝对定位的，而面板是它们的包含块（position: relative），
+ * 所以伸出去的那一截照常计入面板的可滚动区域 —— 横条因此钉在面板底边，不随内容上下跑。
  */
 .timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
   white-space: pre;

@@ -16,13 +16,32 @@ import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 /**
  * 从入参里取意图的键名，按可靠度排序。
  *
- * 这是 kimi 的方言，而且是这份文件里唯一没有逐字验证过的东西：那份官方类型定义的是
- * 显示形状，不是各个工具的入参 schema。所以它被设计成安全失败 —— 一个键都对不上就
- * 交回 null，标题栏退回只有工具名的样子，绝不会显示一个错的意图。
+ * description 排在最前，因为它不是从原料反推出来的意图，它就是意图本身 —— 调用方
+ * 自己写下的那句话。Anthropic 的 Bash 工具 schema 对这个字段的定义原文是「Clear,
+ * concise description of what this command does in 5-10 words」：它存在的唯一用途
+ * 就是给界面显示，Claude Code 的 Bash 卡片显示的正是它。
+ *
+ * 这也正好补上本文件开头那段话缺的一角：上游 toolInputDisplay.ts 那份显示提示在 ACP
+ * 边界上被丢掉了，而 description 是它唯一穿过边界活下来的字段。此前把它排在 command
+ * 后面，等于捡了原料、丢了成品 —— 一屏卡片显示的是「curl.exe -s -X POST …」而不是
+ * 「解析快照提取新闻标题」。
+ *
+ * 后面那一串仍是 kimi 的方言，是这份文件里唯一没有逐字验证过的东西：那份官方类型定义
+ * 的是显示形状，不是各个工具的入参 schema。所以它被设计成安全失败 —— 一个键都对不上
+ * 就交回 null，标题栏退回只有工具名的样子，绝不会显示一个错的意图。
  *
  * 接第二家 agent 时这一整块搬进 AgentDialect。现在只有一家，搬过去就是凭空多一层。
  */
-const KEYS = ['command', 'pattern', 'query', 'url', 'file_path', 'filePath', 'path'] as const
+const KEYS = [
+  'description',
+  'command',
+  'pattern',
+  'query',
+  'url',
+  'file_path',
+  'filePath',
+  'path',
+] as const
 
 /** 标题栏是一行。太长的先在这里截断，省得把整份文件内容塞进 DOM。 */
 const CLAMP = 160
