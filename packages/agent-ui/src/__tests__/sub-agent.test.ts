@@ -46,33 +46,24 @@ describe('子代理派发', () => {
     expect(brief?.gist).not.toContain('第二段')
   })
 
-  it('标题栏截断,抽屉里那份不截', () => {
-    const prompt = `第一段\n第二段\n${'很长的一句'.repeat(30)}`
-    const brief = readSubAgent({ prompt, subagent_type: 'explorer' })
-
-    expect(brief?.task).toBe(prompt)
-    expect(brief?.task).toContain('第二段')
-  })
+  )
 
   it('描述整段是空白时退回任务书,不留一个空标题', () => {
     const brief = readSubAgent({ description: '  ', prompt: '读一遍日志', subagent_type: 'reader' })
 
     expect(brief?.label).toBe('reader · 读一遍日志')
-    expect(brief?.task).toBe('读一遍日志')
   })
 
   it('两样都没有就只报种类,不拼一个孤零零的分隔符', () => {
     const brief = readSubAgent({ subagent_type: 'reader' })
 
     expect(brief?.label).toBe('reader')
-    expect(brief?.task).toBe('')
   })
 
-  it('后台只认真正的 true,字符串 false 也是真值', () => {
+  it('后台只认真正的 true,字符串 false 也是真值', () => 
     expect(readSubAgent({ run_in_background: true, subagent_type: 'r' })?.isBackground).toBe(true)
     expect(readSubAgent({ run_in_background: 'false', subagent_type: 'r' })?.isBackground).toBe(
       false,
     )
-    expect(readSubAgent({ subagent_type: 'r' })?.isBackground).toBe(false)
-  })
+    expect(readSubAgent({ subagent_type: 'r' })?.isBackground).toBe(false))
 })

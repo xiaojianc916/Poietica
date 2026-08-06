@@ -26,14 +26,6 @@ export interface SubAgentBrief {
   readonly gist: string
   /** 标题栏那一行的成品。 */
   readonly label: string
-  /**
-   * 它领到的任务书，整段。
-   *
-   * 抽屉里画的就是这一段。它是入参而不是产出 —— 上游把这段 JSON 化之后当 content
-   * 推过来，那份回显已经在 withoutArgumentEcho 里摘掉了；这里从结构化的入参重新
-   * 取一次，拿到的是没有转义引号的原文。
-   */
-  readonly task: string
   /** 后台跑：它不占这一轮的前台，答复会晚一些回来。 */
   readonly isBackground: boolean
 }
@@ -42,7 +34,7 @@ export interface SubAgentBrief {
  * 标题栏那一行的上限。
  *
  * 截断在这一层做而不是交给 CSS —— text-overflow 截的是像素，读屏与 title 提示拿到
- * 的仍是整段。抽屉里的 task 不截：那里有滚动条。
+ * 的仍是整段。Request 面画的是完整入参，不截。
  */
 const GIST = 80
 
@@ -90,7 +82,6 @@ export function readSubAgent(rawInput: unknown): SubAgentBrief | null {
     gist,
     isBackground: Reflect.get(rawInput, 'run_in_background') === true,
     label: gist.length === 0 ? type : `${type} · ${gist}`,
-    task,
     type,
   }
 }

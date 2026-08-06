@@ -12,10 +12,9 @@ import {
   ToolIcon,
 } from '../primitives/icons'
 import { Surface } from '../primitives/surface'
-import { readSubAgent, type SubAgentBrief } from '../semantics/sub-agent'
-import { toToolCallView } from '../semantics/tool-call-content'
+import { type ToolCallFacets, toToolCallFacets } from '../semantics/tool-call-facets'
 import { readToolIntent, type ToolIntent } from '../semantics/tool-intent'
-import { Prose } from './prose'
+import { ToolCallPanels } from './tool-call-panels'
 import { ToolDuration } from './tool-duration'
 
 function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] }) {
@@ -40,84 +39,12 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
 }
 
 /*
- * 抽屉里空着，原因有三种，而此前只说了一种。
- *
- * 「没有返回内容」对一个还在跑的调用是假的：它不是没返回，是还没返回。子代理这
- * 一路更进一步 —— 它整段运行期都是空的，而且空得有原因：上游不回传子代理的过程。
- */
-function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
-  if (!isRunning) {
-    return '这次调用没有返回内容。'
-  }
-
-  return brief === null ? '还在运行，暂时没有输出。' : '子代理在自己那边干活，上游不回传它的过程。'
-}
-
-type ToolCallContentView = ReturnType<typeof toToolCallView>
-type ToolCallPartView = ToolCallContentView['parts'][number]
-
-/**
- * 这张卡片此刻是什么样子 —— 一次算完，渲染器只读不算。
- *
- * 派生集中在这里，不是为了分层好看，是因为它们互相咬着：抽屉的默认开合、任务书
- * 要不要出现、那句空话说哪一种，三者读的是同一组事实。此前它们分散在三处各自重算
- * （revealsProgress 一处、抽屉里两处），一致性靠一句「不会出现开了但里面什么都没有」
- * 的注释担保；现在由构造担保。
- *
- * 顺带去掉一次白跑：revealsProgress 里调过 readSubAgent，组件体里又调一遍。
- * toToolCallView 有 WeakMap 记忆化（原注释说的是它），readSubAgent 没有 —— 它每次
- * 都要 Reflect.get 四次、trim 三次，并对整段 prompt 做一次正则切分。
- */
-interface ToolCallCardView {
-  /** 这次派发的任务书概要；不是子代理派发就是 null。 */
-  readonly brief: SubAgentBrief | null
-  readonly diffStat: ToolCallContentView['diffStat']
-  /** 抽屉里那句诚实的话；有东西可画时是 null。 */
-  readonly emptyNote: string | null
-  /** 子代理已把意图写在标题上，所以它那一路不叠第二句。 */
-  readonly intent: ToolIntent | null
-  readonly isRunning: boolean
-  /** 活着而且真有东西可看才默认开着。人点过之后以人为准（useDisclosure 的语义）。 */
-  readonly opensByDefault: boolean
-  readonly parts: ToolCallContentView['parts']
-  /** 抽屉里画的任务书；有产出之后让位。 */
-  readonly task: string | null
-}
-
-/*
  * isRunning 的两个条件缺一不可：这一轮还在跑，并且这次调用还没有收到终态。
  * 后半句单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
  * in_progress，那张卡片会在一轮早就结束之后还在转。轮次是否还在飞由读模型说。
  *
  * 开合判据落在「它还在跑吗」，不落在「它跑成了什么」：上游对多数工具不回传过程，
- * 而终端类的实时输出走 terminal/* 反向 RPC —— 用结果轴当判据，两头都会错。
- * 失败不自动摊开：标题栏那枚失败图标是常驻记号，点开才是一次动作。
- */
-function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
-  const { diffStat, parts } = toToolCallView(item.content)
-  const brief = readSubAgent(item.rawInput)
-  const isRunning = isInFlight && (item.status === 'pending' || item.status === 'in_progress')
-  const task = brief !== null && parts.length === 0 && brief.task.length > 0 ? brief.task : null
-
-  return {
-    brief,
-    diffStat,
-    emptyNote: parts.length === 0 && task === null ? emptyNoteOf(brief, isRunning) : null,
-    intent: brief === null ? readToolIntent(item) : null,
-    isRunning,
-    opensByDefault: isRunning && (parts.length > 0 || task !== null),
-    parts,
-    task,
-  }
-}
-
-/**
- * 抽屉里的一段产出，一格一个组件。
- *
- * 种类分流属于「一段产出怎么画」，不属于「这张卡片怎么排」。种类从投影层的返回值上
- * 取，不另立一份类型：那份联合是 toToolCallView 的产出。key 由调用方给。
- */
-function ToolCallPart({ part }: { readonly part: ToolCallPartView }) {
+ * 而终端类的实时输出走 terminal: { readonly part: ToolCallPartView }) {
   /*
    * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个组件，而不是
    * 一个只会原样倒字符串的 <pre> —— 计划模式产出的整份文档此前正是因此以 # 与 |
@@ -149,8 +76,46 @@ function ToolCallPart({ part }: { readonly part: ToolCallPartView }) {
   return <p className="timeline-tool__opaque">{part.label}</p>
 }
 
+/**
+ * 这张卡片此刻是什么样子 —— 一次算完，渲染器只读不算。
+ *
+ * 两个面由投影层交回来（toToolCallFacets），这一层只做属于卡片自己的三件派生：
+ * 意图那一行、跑没跑完、抽屉默不默认开着。此前这里还要自己拼任务书、自己挑那句
+ * 空话，那两件事都是「抽屉里怎么画」，已经跟着一起搬走了。
+ */
+interface ToolCallCardView {
+  readonly facets: ToolCallFacets
+  /** 子代理已把意图写在标题上，所以它那一路不叠第二句。 */
+  readonly intent: ToolIntent | null
+  readonly isRunning: boolean
+  /** 活着而且真有东西可看才默认开着。人点过之后以人为准（useDisclosure 的语义）。 */
+  readonly opensByDefault: boolean
+}
+
+/*
+ * isRunning 的两个条件缺一不可：这一轮还在跑，并且这次调用还没有收到终态。后半句
+ * 单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
+ * in_progress，那张卡片会在一轮早就结束之后还在转。轮次是否还在飞由读模型说。
+ *
+ * 开合判据落在「它还在跑吗」，不落在「它跑成了什么」：上游对多数工具不回传过程，而
+ * 终端类的实时输出走 terminal/* 反向 RPC —— 用结果轴当判据，两头都会错。入参现在也
+ * 算「有东西可看」：运行中它往往是唯一到齐的那一份。失败不自动摊开，标题栏那枚失败
+ * 图标是常驻记号，点开才是一次动作。
+ */
+function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): ToolCallCardView {
+  const facets = toToolCallFacets(item)
+  const isRunning = isInFlight && (item.status === 'pending' || item.status === 'in_progress')
+
+  return {
+    facets,
+    intent: facets.brief === null ? readToolIntent(item) : null,
+    isRunning,
+    opensByDefault: isRunning && (facets.parts.length > 0 || facets.request !== null),
+  }
+}
+
 /** 加减了多少行。两边都是零就不占位。 */
-function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallContentView['diffStat'] }) {
+function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['diffStat'] }) {
   if (diffStat === null || diffStat.added + diffStat.removed === 0) {
     return null
   }
@@ -192,7 +157,8 @@ function ToolCallHeader({
   readonly onToggle: () => void
   readonly view: ToolCallCardView
 }) {
-  const { brief, diffStat, intent, isRunning } = view
+  const { facets, intent, isRunning } = view
+  const { brief, diffStat } = facets
 
   return (
     <button
@@ -240,19 +206,7 @@ function ToolCallHeader({
   )
 }
 
-/**
- * 抽屉里的内容。
- *
- * 子代理的抽屉里放它领到的任务书：那确实不是产出 —— 它的过程上游不回传，所以在
- * 结果回来之前，这张卡片能诚实交出的最有价值的东西就是这段任务书本身。
- *
- * parts 的 key 用下标：投影是 content 数组的纯函数，顺序即协议顺序，不重排也不
- * 中间插入，而每个渲染器都没有自己的状态。
- */
-function ToolCallBody({
-  item,
-  view,
-}: {
+: {
   readonly item: ToolCallTimelineItem
   readonly view: ToolCallCardView
 }) {
@@ -323,7 +277,11 @@ export function ToolCallCard({
       <ToolCallHeader isOpen={isOpen} item={item} onToggle={toggle} view={view} />
 
       <DisclosureBody isOpen={isOpen}>
-        <ToolCallBody item={item} view={view} />
+        <ToolCallPanels
+          facets={view.facets}
+          isRunning={view.isRunning}
+          locations={item.locations}
+        />
       </DisclosureBody>
     </Surface>
   )

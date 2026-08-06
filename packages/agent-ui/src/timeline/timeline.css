@@ -631,7 +631,32 @@
   border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
 }
 
+/*
+ * 抽屉里唯一的滚动容器。
+ *
+ * 上限此前挂在每一段产出自己身上（diff 两栏各一次、正文块一次，任务书还额外写了一个
+ * max-height: 12em 的物理属性），而面板本身一个上限都没有 —— 一次改三个文件就是三份
+ * 18rem 叠起来，同屏冒出三个互不相干的滚动容器，滚轮停在卡片里出不去。
+ *
+ * 一个面板一个滚动容器，是 DevTools 的 Response 面板与 VS Code 输出面板的做法。上限
+ * 仍是 --cp-timeline-output-max，只是它现在管的是整个面，不是其中一块；内容不满就不
+ * 撑高，overscroll-behavior 把滚动链掐断在这一层。
+ */
+.timeline-tool__panel {
+  display: grid;
+  gap: 0;
+  max-block-size: var(--cp-timeline-output-max);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* 切换条自占一条窄带，与下面那一面之间由 __body 的分隔线断开。 */
+.timeline-tool__tabs {
+  padding: 0.375rem 0.75rem;
+}
+
 .timeline-tool__body > * + *,
+.timeline-tool__panel > * + *,
 .timeline-tool__diff > * + * {
   border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
 }
@@ -652,8 +677,6 @@
 .timeline-tool__diff-old,
 .timeline-tool__diff-new {
   margin: 0;
-  max-block-size: var(--cp-timeline-output-max);
-  overflow: auto;
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface);
   font-family: var(--cp-font-mono);
@@ -1172,8 +1195,6 @@
  * 与两侧 diff 同一个 token：同一张卡里的三种输出不该有三个高度。
  */
 .timeline-prose.timeline-tool__prose {
-  max-block-size: var(--cp-timeline-output-max);
-  overflow: auto;
   padding: 0.625rem 0.75rem;
   background: var(--cp-timeline-output-surface);
   font-size: var(--ui-prose-size-aux);
@@ -1226,33 +1247,6 @@
   font: var(--cp-font-micro);
   color: var(--cp-ink-subtle);
   white-space: nowrap;
-}
-
-/*
- * 子代理领到的任务书。
- *
- * pre-wrap：那是一段人写给模型的话，换行是它的一部分。给一个高度上限并让它自己
- * 滚 —— 一段几百字的任务书不该把整条转录顶开。
- */
-.timeline-tool__task {
-  display: grid;
-  gap: var(--cp-control-gap);
-}
-
-.timeline-tool__task-label {
-  margin: 0;
-  font: var(--cp-font-micro);
-  color: var(--cp-ink-subtle);
-}
-
-.timeline-tool__task-text {
-  margin: 0;
-  max-height: 12em;
-  overflow-y: auto;
-  font: var(--cp-font-caption);
-  color: var(--cp-ink-muted);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 /*

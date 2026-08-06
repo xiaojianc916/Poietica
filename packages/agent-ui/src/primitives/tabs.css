@@ -1,0 +1,52 @@
+/*
+ * 分段切换的皮。语义、键盘与焦点在 tabs.tsx，这里只有外观。
+ *
+ * 尺寸与颜色全部取自 composer-metrics.css 的令牌 —— 这一层不挑数字，也不写十六
+ * 进制：深浅两套主题各自的取值已经在那张表里定过一次。
+ */
+
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-control-gap);
+}
+
+.tabs__tab {
+  appearance: none;
+  border: 0;
+  border-radius: var(--cp-radius-item);
+  padding-inline: 0.625rem;
+  block-size: var(--cp-control-sm);
+  background: none;
+  color: var(--cp-ink-subtle);
+  font: inherit;
+  font-size: var(--cp-font-caption);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--cp-motion-swift) var(--cp-motion-ease),
+    color var(--cp-motion-swift) var(--cp-motion-ease);
+}
+
+/* 悬停比选中浅一档：同一层墨的两个浓度，谁被选中一眼看得出。 */
+.tabs__tab:hover {
+  background: var(--cp-timeline-output-surface);
+  color: var(--cp-ink);
+}
+
+.tabs__tab[aria-selected="true"] {
+  background: var(--cp-hover);
+  color: var(--cp-ink);
+}
+
+/*
+ * 焦点圈不自己画：这里没有 outline: none，浏览器的 :focus-visible 因此照常生效。
+ * 多发明一套焦点样式，只会和界面其它地方对不上。
+ */
+
+@media (prefers-reduced-motion: reduce) {
+  .tabs__tab {
+    transition: none;
+  }
+}

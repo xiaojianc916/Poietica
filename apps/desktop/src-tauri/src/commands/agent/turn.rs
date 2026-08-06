@@ -14,7 +14,7 @@ use super::dto::{
     AgentCancelRequest, AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest,
 };
 use super::failure::translate;
-use super::runtime::{AgentRuntime, borrow, ensure_session, lock, retire};
+use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::store::{conversation, on_store, persistence};
 use super::{
     AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
@@ -276,7 +276,7 @@ pub async fn agent_cancel(
 #[tauri::command]
 #[specta::specta]
 pub fn agent_shutdown(state: State<'_, AgentRuntime>) -> AgentCommandResult<()> {
-    retire(lock(&state.connection)?.take());
+    state.disconnect()?;
 
     Ok(())
 }

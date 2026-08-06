@@ -74,7 +74,7 @@ pub struct AgentRuntime {
     /// 附件字节的根。与库文件同一个时刻解析：两者都是布局，不是某条命令的参数。
     pub(super) attachments: PathBuf,
     pub(super) root: PathBuf,
-    pub(super) connection: Mutex<Option<Connection>>,
+    connection: Mutex<Option<Connection>>,
     /// 起一条连接这件事的排队处。
     ///
     /// 上面那把锁护的是"连接现在是谁"，护不住"谁正在把它建起来"：建连接要
@@ -95,6 +95,15 @@ pub struct AgentRuntime {
 }
 
 impl AgentRuntime {
+    /// Tears down the active connection, if any.
+    ///
+    /// The lock and the `Connection` value never leave this module: callers
+    /// express intent, the runtime owns the lifecycle.
+    pub(super) fn disconnect(&self) -> Result<()> {
+        retire(lock(&self.connection)?.take());
+        Ok(())
+    }
+
     /// Prepares the runtime without starting anything.
     ///
     /// Starting the agent process at boot would make every launch pay for a
@@ -132,7 +141,7 @@ impl AgentRuntime {
 /// 于是 RunSlot::take 永远不会被调用。槽现在随连接一起走，所以收不干净只影响
 /// 这一条已经作废的连接 —— 此前它是全进程唯一的那一份，一次这样的退出会让
 /// 下一条连接的第一轮撞上 Refusal::Busy，而屏幕上那句话答的是另一个问题。
-pub(super) fn retire(taken: Option<Connection>) {
+fn retire(taken: Option<Connection>) {
     let Some(gone) = taken else {
         return;
     };
@@ -342,7 +351,7 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
 /// 人的对话」。会话在这个模块里是一个有精确含义的协议名词：一条连接上有很多
 /// 条，每条属于一个对话。把连接叫成会话，等于让每一次读到 `state.connection` 的
 /// 人都在脑子里转换一次。
-pub(super) fn lock(
+fn lock(
     connection: &Mutex<Option<Connection>>,
 ) -> Result<MutexGuard<'_, Option<Connection>>> {
     connection
