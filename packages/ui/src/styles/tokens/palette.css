@@ -19,6 +19,8 @@
   --ui-palette-neutral-150: oklch(0.945 0.005 90);
   --ui-palette-neutral-200: oklch(0.925 0.007 90);
   --ui-palette-neutral-300: oklch(0.84 0.006 90);
+  /* 占位符档。对 --ui-palette-neutral-50 底色约 3:1，比 500 整整淡一档。 */
+  --ui-palette-neutral-400: oklch(0.6 0.012 90);
   --ui-palette-neutral-500: oklch(0.47 0.012 90);
   --ui-palette-neutral-800: oklch(0.22 0.01 90);
   --ui-palette-neutral-850: oklch(0.19 0.01 90);

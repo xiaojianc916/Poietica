@@ -4,7 +4,7 @@ import type { Automation, AutomationTrigger } from '@poietica/ipc'
 import { ArrowLeftIcon, cn, PlayIcon } from '@poietica/ui'
 import { type ReactNode, useMemo, useState } from 'react'
 
-import { DEFAULT_TRIGGER, sameSessionConfig, sameTrigger } from '../automation'
+import { type AutomationDraft, sameSessionConfig, sameTrigger } from '../automation'
 import type { AutomationStore } from '../automation-store'
 import { AutomationRunHistory } from './automation-run-history'
 import { AutomationSessionConfig } from './automation-session-config'
@@ -26,7 +26,16 @@ import { AutomationTriggerField } from './automation-trigger-field'
  */
 
 export interface AutomationEditorProps {
+  /** 已经存在的那一条；新建时为 null。它只提供身份：id、运行记录、能不能试运行。 */
   readonly automation: Automation | null
+  /**
+   * 打开这一屏时表单里应该有的东西。
+   *
+   * 编辑已有的那条时是 draftOf(automation)，从模板进来时是模板那一份，直接
+   * 新建时是 BLANK_DRAFT。三个入口一个初值通道 —— 少了它，「模板预填」就会
+   * 变成编辑器内部的第二套初始化分支。
+   */
+  readonly draft: AutomationDraft
   readonly onBack: () => void
   readonly store: AutomationStore
 }
@@ -37,19 +46,6 @@ const TABS: readonly { readonly id: EditorTab; readonly label: string }[] = [
   { id: 'settings', label: '设置' },
   { id: 'runs', label: '运行历史' },
 ]
-
-/* 生成绑定给的是 Partial<Record<..>>，先把缺席的键滤掉再进状态。 */
-function pickedFrom(automation: Automation | null): Record<string, string> {
-  const picked: Record<string, string> = {}
-
-  for (const [id, value] of Object.entries(automation?.sessionConfig ?? {})) {
-    if (value !== undefined) {
-      picked[id] = value
-    }
-  }
-
-  return picked
-}
 
 /**
  * 这条自动化最终要存下去的那一份会话设置。
@@ -73,38 +69,44 @@ function resolve(
   return resolved
 }
 
-export function AutomationEditor({ automation, onBack, store }: AutomationEditorProps) {
+export function AutomationEditor({ automation, draft, onBack, store }: AutomationEditorProps) {
   const controls = useAgentControls()
 
   const [tab, setTab] = useState<EditorTab>('settings')
-  const [title, setTitle] = useState(automation?.title ?? '')
-  const [prompt, setPrompt] = useState(automation?.prompt ?? '')
-  const [trigger, setTrigger] = useState<AutomationTrigger>(automation?.trigger ?? DEFAULT_TRIGGER)
-  const [picked, setPicked] = useState<Record<string, string>>(() => pickedFrom(automation))
+  const [title, setTitle] = useState(draft.title)
+  const [prompt, setPrompt] = useState(draft.prompt)
+  const [trigger, setTrigger] = useState<AutomationTrigger>(draft.trigger)
+  const [picked, setPicked] = useState<Record<string, string>>(() => ({ ...draft.sessionConfig }))
 
   const sessionConfig = useMemo(() => resolve(picked, controls), [controls, picked])
 
   const runs = automation?.runs ?? []
   const ready = title.trim().length > 0 && prompt.trim().length > 0
 
+  /*
+   * 基准是「打开这一屏时表单里的那一份」，不是 automation 上的字段。
+   *
+   * 对已有的那条来说两者等价（draft 就是 draftOf(automation)），但只有前者
+   * 说得清模板预填：那一份没有对应的 automation，却确实有一个初始状态。
+   */
   const dirty =
     automation === null ||
-    title !== automation.title ||
-    prompt !== automation.prompt ||
-    !sameTrigger(automation.trigger, trigger) ||
-    !sameSessionConfig(automation.sessionConfig, sessionConfig)
+    title !== draft.title ||
+    prompt !== draft.prompt ||
+    !sameTrigger(draft.trigger, trigger) ||
+    !sameSessionConfig(draft.sessionConfig, sessionConfig)
 
   function choose(controlId: string, value: string): void {
     setPicked((current) => ({ ...current, [controlId]: value }))
   }
 
   function save(): void {
-    const draft = { prompt: prompt.trim(), sessionConfig, title: title.trim(), trigger }
+    const next = { prompt: prompt.trim(), sessionConfig, title: title.trim(), trigger }
 
     if (automation === null) {
-      store.create(draft)
+      store.create(next)
     } else {
-      store.update(automation.id, draft)
+      store.update(automation.id, next)
     }
 
     onBack()
@@ -161,7 +163,7 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
       <div className="mx-auto w-full max-w-2xl px-8 pb-16">
         <input
           aria-label="自动化名称"
-          className="w-full bg-transparent text-2xl font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
+          className="w-full bg-transparent text-2xl font-medium tracking-tight text-foreground outline-none placeholder:text-placeholder"
           onChange={(event) => {
             setTitle(event.target.value)
           }}
@@ -200,16 +202,16 @@ export function AutomationEditor({ automation, onBack, store }: AutomationEditor
           </div>
         ) : (
           <div className="mt-5 flex flex-col gap-3">
-            <Card hint="决定它什么时候自己跑起来。" title="触发">
+            <Card hint="决定它什么时候自己跑起来" title="触发">
               <div className="px-4 py-4">
                 <AutomationTriggerField onChange={setTrigger} trigger={trigger} />
               </div>
             </Card>
 
-            <Card hint="每次到期，就把这段话发给 agent，跑在一条新开的对话里。" title="指令">
+            <Card hint="每次到期，就把这段话发给 agent，跑在一条新开的对话里" title="指令">
               <textarea
                 aria-label="指令"
-                className="min-h-44 w-full resize-y bg-transparent px-4 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                className="min-h-44 w-full resize-y bg-transparent px-4 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-placeholder"
                 onChange={(event) => {
                   setPrompt(event.target.value)
                 }}

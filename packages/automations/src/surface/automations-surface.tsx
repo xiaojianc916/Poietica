@@ -1,7 +1,8 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
-import { summarize } from '../automation'
+import { type AutomationDraft, BLANK_DRAFT, draftOf, summarize } from '../automation'
 import type { AutomationStore } from '../automation-store'
+import { draftOfTemplate } from '../templates'
 import { AutomationEditor } from './automation-editor'
 import { AutomationList } from './automation-list'
 import { TemplateGallery } from './template-gallery'
@@ -20,8 +21,15 @@ import { TemplateGallery } from './template-gallery'
 
 type SurfaceView =
   | { readonly kind: 'list' }
-  /** automationId 为 null 就是新建。 */
-  | { readonly kind: 'editor'; readonly automationId: string | null }
+  /** 编辑已经存在的那一条。 */
+  | { readonly kind: 'editor'; readonly automationId: string }
+  /**
+   * 新建。draft 就是表单初值：一张空表，或者模板给的那一份。
+   *
+   * 和上一支分开，不是共用一个 automationId: string | null —— 「null 表示新建」
+   * 是个双关，而这两支携带的东西本来就不一样：一支带身份，一支带初值。
+   */
+  | { readonly kind: 'draft'; readonly draft: AutomationDraft }
 
 export interface AutomationsSurfaceProps {
   readonly store: AutomationStore
@@ -38,26 +46,32 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
 
   const summary = useMemo(() => summarize(automations), [automations])
 
+  function back(): void {
+    setView({ kind: 'list' })
+  }
+
+  /* 还没有身份的一份草稿，所以 automation 传 null：能删能试运行的前提是它已经存在。 */
+  if (view.kind === 'draft') {
+    return <AutomationEditor automation={null} draft={view.draft} onBack={back} store={store} />
+  }
+
+  /*
+   * 在编辑器里删掉之后这条就找不着了，于是这里自然落回列表 —— 派生出来的，
+   * 不需要在渲染期改状态，也不会悄悄退化成一张空白的新建表单。
+   */
   const editing =
-    view.kind === 'editor' && view.automationId !== null
+    view.kind === 'editor'
       ? (automations.find((candidate) => candidate.id === view.automationId) ?? null)
       : null
 
-  /*
-   * 编辑态成立的两种情况：新建，或者要编辑的那条还在。
-   *
-   * 在编辑器里删掉之后 id 落空，这个表达式自然落回列表 —— 派生出来的，不需要
-   * 在渲染期改状态，也不会悄悄退化成一张空白的新建表单。
-   */
-  if (view.kind === 'editor' && (view.automationId === null || editing !== null)) {
+  if (editing !== null) {
     return (
       <AutomationEditor
         automation={editing}
+        draft={draftOf(editing)}
         /* 换一条就换一个 key：草稿状态跟着重置，不会串到上一条身上。 */
-        key={view.automationId ?? 'new'}
-        onBack={() => {
-          setView({ kind: 'list' })
-        }}
+        key={editing.id}
+        onBack={back}
         store={store}
       />
     )
@@ -87,7 +101,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
           <button
             className="rounded-md border border-divider bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-sidebar-accent"
             onClick={() => {
-              setView({ kind: 'editor', automationId: null })
+              setView({ kind: 'draft', draft: BLANK_DRAFT })
             }}
             type="button"
           >
@@ -105,9 +119,13 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
         />
       </div>
 
+      {/*
+        点模板不落盘：摊成草稿，摆进新建界面，人看过改过按下保存才算添加。
+        直接 create 等于替人做主 —— 提示词长什么样、几点跑，他一眼都没看见。
+      */}
       <TemplateGallery
-        onAdd={(draft) => {
-          store.create(draft)
+        onPick={(template) => {
+          setView({ kind: 'draft', draft: draftOfTemplate(template) })
         }}
       />
     </section>

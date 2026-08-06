@@ -1,5 +1,7 @@
 import type { AutomationTrigger } from '@poietica/ipc'
 
+import type { AutomationDraft } from './automation'
+
 /**
  * 模板画廊。
  *
@@ -19,6 +21,24 @@ export interface AutomationTemplate {
   readonly description: string
   readonly prompt: string
   readonly trigger: AutomationTrigger
+}
+
+/**
+ * 模板摊成一份草稿。
+ *
+ * 会话设置留空：模板对模型没有意见。空表在编辑器里的意思是「显示 agent 此刻
+ * 报的组合」，人按下保存，存进去的就是屏幕上那三颗胶囊 —— 所以模板不必替人
+ * 猜一个模型名，也不会因此多出「未选择」这个第三态。
+ *
+ * 这一步在这里做，不在画廊组件里做：画廊知道的只有「人点了哪一张卡」。
+ */
+export function draftOfTemplate(template: AutomationTemplate): AutomationDraft {
+  return {
+    title: template.title,
+    prompt: template.prompt,
+    trigger: template.trigger,
+    sessionConfig: {},
+  }
 }
 
 export const AUTOMATION_TEMPLATES: readonly AutomationTemplate[] = [

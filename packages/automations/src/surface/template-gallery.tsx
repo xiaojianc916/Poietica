@@ -2,8 +2,12 @@ import { cn } from '@poietica/ui'
 import { useState } from 'react'
 
 import { describeTrigger } from '../automation'
-import type { AutomationDraft } from '../automation-store'
-import { AUTOMATION_CATEGORIES, AUTOMATION_TEMPLATES, type AutomationCategory } from '../templates'
+import {
+  AUTOMATION_CATEGORIES,
+  AUTOMATION_TEMPLATES,
+  type AutomationCategory,
+  type AutomationTemplate,
+} from '../templates'
 
 /**
  * 从模板开始。
@@ -11,19 +15,27 @@ import { AUTOMATION_CATEGORIES, AUTOMATION_TEMPLATES, type AutomationCategory } 
  * category 住在这里，不住在页面组件里：它只影响下面这排卡片，放在上一层就意味着
  * 切一下分类，统计牌和整张表格陪着重渲染一次 —— 状态该跟着用它的人走。
  *
- * 只收 onAdd 而不是整个 store：这一块要做的事就一件，多给的每一个能力都是
- * 以后可能被顺手用掉的口子。
+ * 只往上抛「人点了哪一张」，不抛草稿、更不收整个 store：这一块知道的全部就是
+ * 那张卡片。摊成草稿是模板那一层的事（draftOfTemplate），落进哪一屏是页面那
+ * 一层的事。多给的每一个能力都是以后可能被顺手用掉的口子。
+ *
+ * 按钮叫「使用」不叫「添加」：点下去不落盘，而是把这一份草稿摆进新建界面，
+ * 人看过、改过、按下保存，才算添加。一个说「添加」却不添加的按钮，是在教
+ * 用户不要相信按钮上的字。
+ *
+ * aria-label 带上模板名：六颗按钮的可见文字一模一样，读屏软件念出来就是六遍
+ * 「使用」，那等于没有名字。
  */
 
 export interface TemplateGalleryProps {
-  readonly onAdd: (draft: AutomationDraft) => void
+  readonly onPick: (template: AutomationTemplate) => void
 }
 
 const ALL_CATEGORIES = '全部' as const
 
 type CategoryTab = typeof ALL_CATEGORIES | AutomationCategory
 
-export function TemplateGallery({ onAdd }: TemplateGalleryProps) {
+export function TemplateGallery({ onPick }: TemplateGalleryProps) {
   const [category, setCategory] = useState<CategoryTab>(ALL_CATEGORIES)
 
   const templates = AUTOMATION_TEMPLATES.filter(
@@ -69,25 +81,14 @@ export function TemplateGallery({ onAdd }: TemplateGalleryProps) {
               </div>
 
               <button
+                aria-label={`使用模板：${template.title}`}
                 className="shrink-0 rounded-md border border-divider px-2.5 py-1 text-xs transition-colors hover:bg-sidebar-accent"
                 onClick={() => {
-                  onAdd({
-                    title: template.title,
-                    prompt: template.prompt,
-                    trigger: template.trigger,
-
-                    /*
-                     * 模板对模型没有意见。空表不是「还没填」，它是一个明确的
-                     * 取值：不改动这条对话的会话设置，用 agent 当下的默认跑。
-                     * 想把组合固定下来，打开编辑器保存一次即可 —— 那时界面上
-                     * 显示的三颗胶囊会被原样存进去。
-                     */
-                    sessionConfig: {},
-                  })
+                  onPick(template)
                 }}
                 type="button"
               >
-                添加
+                使用
               </button>
             </div>
           </li>

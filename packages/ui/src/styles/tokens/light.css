@@ -68,6 +68,19 @@
   --ui-muted: var(--ui-palette-neutral-100);
   --ui-muted-foreground: var(--ui-palette-neutral-500);
 
+  /*
+   * 占位符自成一档，不复用 --ui-muted-foreground。
+   *
+   * 两者是不同的东西：muted 是「次要但确实存在的信息」（卡片说明、时间戳、
+   * 表格里的次要列），占位符是「这里还没有内容」。同一个取值意味着一个空
+   * 输入框和一句说明文字一样重，人扫过去分不清哪些字是自己写的。
+   *
+   * 档位定在对底色约 3:1。占位符不承担标签职责（用它的两处输入框各自有
+   * aria-label，外面还有卡片标题），所以不背 4.5:1；但仍要看得清，不能淡
+   * 成装饰。
+   */
+  --ui-placeholder: var(--ui-palette-neutral-400);
+
   --ui-accent: var(--ui-palette-neutral-200);
   --ui-accent-foreground: oklch(0.2 0.01 90);
 

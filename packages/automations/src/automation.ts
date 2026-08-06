@@ -105,7 +105,7 @@ export const INTERVAL_UNITS: readonly { readonly value: IntervalUnit; readonly l
 /** 调度能兑现的最小间隔。下限在这里收口，输入框因此不必自己防守。 */
 export const MIN_INTERVAL_MINUTES = 1
 
-/** 新建时的触发条件。编辑器与触发字段共用同一个初值，不各写一份。 */
+/** 新建时的默认触发条件。BLANK_DRAFT 从这里取，「默认是每天九点」只写一处。 */
 export const DEFAULT_TRIGGER: AutomationTrigger = { kind: 'daily', atMinuteOfDay: 9 * 60 }
 
 /**
@@ -203,12 +203,13 @@ export function sameTrigger(left: AutomationTrigger, right: AutomationTrigger): 
  * 与 sameTrigger 同一个用途：编辑器判「有没有改过」。键集合取并集，不是拿
  * 一边的键去查另一边 —— 那样「删掉一项」会被判成没变，保存按钮永远是灰的。
  *
- * 生成绑定给的是 Partial<Record<..>>（Rust 侧是 BTreeMap），所以缺席与
- * undefined 在这里是同一件事，直接比较即可。
+ * 两边都必须是收过的形状（sessionConfigOf 的产物）。收窄入参不是洁癖：生成
+ * 绑定里 sessionConfig 是 Partial<Record<..>> | undefined，直接递进来编译就
+ * 过不去 —— 于是「忘记归一」这件事由编译器拦，不靠人记得。
  */
 export function sameSessionConfig(
-  left: Partial<Record<string, string>>,
-  right: Partial<Record<string, string>>,
+  left: Readonly<Record<string, string>>,
+  right: Readonly<Record<string, string>>,
 ): boolean {
   for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
     if (left[key] !== right[key]) {
@@ -217,6 +218,72 @@ export function sameSessionConfig(
   }
 
   return true
+}
+
+/**
+ * 一份还没有身份的自动化：编辑器里能改的全部，正好就是这四样。
+ *
+ * 住在纯函数层而不是 store 里 —— 它是这个领域的词汇，不是某一个状态容器的
+ * 私事。store 收它、模板摊出它、编辑器读它，三方共用一个名字，就不会长出
+ * 三份形状相近的初始化结构。
+ */
+export interface AutomationDraft {
+  readonly title: string
+  readonly prompt: string
+  readonly trigger: AutomationTrigger
+  /**
+   * 这条自动化要给自己那次运行改掉的会话设置。
+   *
+   * 键是 agent 报的 controlId，值是它自己的词汇。这一层不认识这些字符串，
+   * 也不该认识 —— 校验的唯一时机是下发那一刻，由 agent 自己说了算。
+   *
+   * 空表是一个正常取值，不是「还没填」：不改动，用 agent 当下的默认。模板
+   * 给的就是空表，所以编辑器打开时显示的是 agent 此刻报的组合，人按下保存，
+   * 存进去的就是屏幕上那三颗胶囊 —— 界面上没有「跟随默认」这一档，这里也
+   * 没有第三态。
+   */
+  readonly sessionConfig: Readonly<Record<string, string>>
+}
+
+/** 直接新建时表单里的东西。和模板给的那一份是同一种形状，不是另一条初始化路径。 */
+export const BLANK_DRAFT: AutomationDraft = {
+  title: '',
+  prompt: '',
+  trigger: DEFAULT_TRIGGER,
+  sessionConfig: {},
+}
+
+/**
+ * 把线上那个形状收成界面能用的形状。
+ *
+ * 生成绑定里 sessionConfig 是 Partial<Record<..>> | undefined，那是 BTreeMap
+ * 加 #[serde(default)] 的忠实翻译：老盘上的记录整张表都可能缺席，每个值也
+ * 标成可选。线上如此没有错，但界面不该一路背着它走 —— 边界上收一次，往里
+ * 只有 Record<string, string>。
+ *
+ * 此前编辑器自己在 pickedFrom 里收一次、判「有没有改过」时忘了收、运行时
+ * 那一侧干脆没收：同一件事在三处各做一遍，漏一遍就是一个类型错误。
+ */
+export function sessionConfigOf(automation: Automation): Readonly<Record<string, string>> {
+  const picked: Record<string, string> = {}
+
+  for (const [id, value] of Object.entries(automation.sessionConfig ?? {})) {
+    if (value !== undefined) {
+      picked[id] = value
+    }
+  }
+
+  return picked
+}
+
+/** 把一条已有的自动化摊回成草稿。编辑器要的初值就是它。 */
+export function draftOf(automation: Automation): AutomationDraft {
+  return {
+    title: automation.title,
+    prompt: automation.prompt,
+    trigger: automation.trigger,
+    sessionConfig: sessionConfigOf(automation),
+  }
 }
 
 /*

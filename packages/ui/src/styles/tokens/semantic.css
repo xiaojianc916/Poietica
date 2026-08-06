@@ -30,6 +30,8 @@
   --color-muted: var(--ui-muted);
   --color-muted-foreground: var(--ui-muted-foreground);
 
+  --color-placeholder: var(--ui-placeholder);
+
   --color-accent: var(--ui-accent);
   --color-accent-foreground: var(--ui-accent-foreground);
 

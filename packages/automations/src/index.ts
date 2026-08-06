@@ -4,17 +4,18 @@
  */
 
 export {
+  type AutomationDraft,
   type AutomationSummary,
   describeMoment,
   describeTrigger,
   latestRun,
   nextRunAfter,
   RUN_HISTORY_LIMIT,
+  sessionConfigOf,
   summarize,
 } from './automation'
 export {
   type AutomationDispatch,
-  type AutomationDraft,
   type AutomationStore,
   type AutomationsViewModel,
   createAutomationStore,

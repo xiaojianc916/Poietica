@@ -84,7 +84,7 @@ export function CommandMenu({
             'px-0 text-sm',
             'text-foreground',
             'outline-none shadow-none',
-            'placeholder:text-muted-foreground',
+            'placeholder:text-placeholder',
           )}
           placeholder={placeholder}
         />

@@ -26,8 +26,8 @@ import {
  * 因为它们没被清空过 —— 那是人刚刚才填的东西。
  *
  * 初值只在挂载时取一次 props：换一条自动化时，编辑器那一层已经用 key 重挂过
- * 整棵树（automations-surface.tsx 的 key={view.automationId ?? 'new'}），所以
- * 这里不需要再养一套「props 变了怎么办」的同步逻辑。
+ * 整棵树（automations-surface.tsx 的 key={editing.id}），所以这里不需要再养
+ * 一套「props 变了怎么办」的同步逻辑。
  */
 
 const KINDS: readonly { readonly kind: AutomationTrigger['kind']; readonly label: string }[] = [

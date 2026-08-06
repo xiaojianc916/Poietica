@@ -1,4 +1,4 @@
-import { createAutomationStore } from '@poietica/automations'
+import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
 import { useEffect } from 'react'
@@ -50,10 +50,8 @@ export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
        * agent 可以拒绝、改名或撤回某个取值，失败由会话那一侧按对话记下来
        * （selectorFailureOf），这里不替它兜底，也不假装设过。
        */
-      for (const [controlId, value] of Object.entries(automation.sessionConfig)) {
-        if (value !== undefined) {
-          threads.selectControl(threadId, controlId, value)
-        }
+      for (const [controlId, value] of Object.entries(sessionConfigOf(automation))) {
+        threads.selectControl(threadId, controlId, value)
       }
 
       /*

@@ -42,6 +42,9 @@
   --ui-muted: var(--ui-palette-dark-750);
   --ui-muted-foreground: rgb(255 255 255 / 65%);
 
+  /* 与浅色同构：比 muted 淡一档，对 --ui-ground 仍在 3:1 以上。 */
+  --ui-placeholder: rgb(255 255 255 / 40%);
+
   --ui-accent: var(--ui-palette-dark-800);
   --ui-accent-foreground: var(--ui-palette-white);
 

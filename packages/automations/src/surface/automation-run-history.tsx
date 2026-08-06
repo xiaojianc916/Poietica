@@ -20,7 +20,7 @@ export interface AutomationRunHistoryProps {
 
 export function AutomationRunHistory({ runs }: AutomationRunHistoryProps) {
   if (runs.length === 0) {
-    return <p className="py-10 text-center text-xs text-muted-foreground">还没有运行过。</p>
+    return <p className="py-10 text-center text-xs text-muted-foreground">暂无运行历史</p>
   }
 
   return (

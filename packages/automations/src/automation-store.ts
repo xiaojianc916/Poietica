@@ -1,9 +1,9 @@
 import { createAutomationId } from '@poietica/core'
-import type { Automation, AutomationCatalog, AutomationRun, AutomationTrigger } from '@poietica/ipc'
+import type { Automation, AutomationCatalog, AutomationRun } from '@poietica/ipc'
 import { loadAutomations, saveAutomations } from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
-import { nextRunAfter, RUN_HISTORY_LIMIT, sameTrigger } from './automation'
+import { type AutomationDraft, nextRunAfter, RUN_HISTORY_LIMIT, sameTrigger } from './automation'
 
 /**
  * 自动化的状态与调度。
@@ -24,23 +24,6 @@ const TICK = 30_000
  * 返回这次运行开出来的那条对话；开不出来返回 null。
  */
 export type AutomationDispatch = (automation: Automation) => Promise<string | null>
-
-export interface AutomationDraft {
-  readonly title: string
-  readonly prompt: string
-  readonly trigger: AutomationTrigger
-  /**
-   * 这条自动化要给自己那次运行改掉的会话设置。
-   *
-   * 键是 agent 报的 controlId，值是它自己的词汇。这一层不认识这些字符串，
-   * 也不该认识 —— 校验的唯一时机是下发那一刻，由 agent 自己说了算。
-   *
-   * 空表是一个正常取值，不是「还没填」：不改动，用 agent 当下的默认。从模板
-   * 直接添加的那些就是这样；在编辑器里保存过一次的，存的是界面上显示的那一
-   * 整组具体取值 —— 界面上没有「跟随默认」这一档，所以这里也没有第三态。
-   */
-  readonly sessionConfig: Readonly<Record<string, string>>
-}
 
 export interface AutomationsViewModel {
   readonly automations: readonly Automation[]
