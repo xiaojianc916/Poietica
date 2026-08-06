@@ -111,7 +111,12 @@ export const PermissionDock = memo(function PermissionDock({
   const intent =
     call === undefined
       ? null
-      : readToolIntent({ locations: call.locations ?? [], rawInput: call.rawInput })
+      : readToolIntent({
+          content: call.content ?? [],
+          kind: call.kind ?? 'other',
+          locations: call.locations ?? [],
+          rawInput: call.rawInput,
+        })
 
   const lead = leadOf(item.options)
 

@@ -10,7 +10,7 @@ import { readToolIntent } from '../semantics/tool-intent'
  * 必须被钉住：它是猜错时的兜底。
  */
 
-const NOWHERE = { locations: [] } as const
+const NOWHERE = { content: [], kind: 'execute', locations: [] } as const
 
 describe('工具调用的意图', () => {
   it('命令就是意图', () => {
@@ -46,6 +46,8 @@ describe('工具调用的意图', () => {
 
   it('入参里没有,就退回协议原生的 locations', () => {
     const intent = readToolIntent({
+      content: [],
+      kind: 'execute',
       locations: [{ line: 42, path: 'src/app.ts' }],
       rawInput: { unknown_key: 'x' },
     })
@@ -55,6 +57,8 @@ describe('工具调用的意图', () => {
 
   it('多处就报个数,剩下的抽屉里已经列过', () => {
     const intent = readToolIntent({
+      content: [],
+      kind: 'execute',
       locations: [{ path: 'a.ts' }, { path: 'b.ts' }],
       rawInput: {},
     })
@@ -70,5 +74,38 @@ describe('工具调用的意图', () => {
 
   it('空串和纯空白不算意图', () => {
     expect(readToolIntent({ ...NOWHERE, rawInput: { command: '   ' } })).toBeNull()
+  })
+
+  it('文件类派发是动词加文件名', () => {
+    const intent = readToolIntent({
+      content: [],
+      kind: 'read',
+      locations: [],
+      rawInput: { file_path: 'src/app.ts' },
+    })
+
+    expect(intent?.text).toBe('阅读 app.ts')
+  })
+
+  it('diff 里 oldText 缺席的那次 edit 是新建', () => {
+    const intent = readToolIntent({
+      content: [{ newText: 'x', oldText: null, path: 'src/app.ts', type: 'diff' }],
+      kind: 'edit',
+      locations: [],
+      rawInput: { file_path: 'src/app.ts' },
+    })
+
+    expect(intent?.text).toBe('新建 app.ts')
+  })
+
+  it('派发自己写的那一句排在所有线索前面', () => {
+    const intent = readToolIntent({
+      content: [],
+      kind: 'read',
+      locations: [],
+      rawInput: { command: 'pnpm test', description: '更新构建配置' },
+    })
+
+    expect(intent?.text).toBe('更新构建配置')
   })
 })
