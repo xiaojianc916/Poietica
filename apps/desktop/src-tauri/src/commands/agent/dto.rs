@@ -172,6 +172,16 @@ pub struct AgentSelectConfigRequest {
     pub value: String,
 }
 
+/// 问这个 agent 提供什么，不点名任何一条对话。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCapabilitiesRequest {
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
+}
+
 /// The name a conversation carries before anything has named it.
 pub(super) const FALLBACK_THREAD_TITLE: &str = "新建对话";
 
@@ -239,6 +249,18 @@ pub struct AgentThreadAttachment {
     pub turn: u32,
     /// 那条消息里的第几张，从 0 数起。
     pub ordinal: u32,
+}
+
+/// 要打开的对话，以及必要时怎样启动 agent。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOpenThreadRequest {
+    /// 已经存在的对话；不点名就新开一条。
+    pub thread_id: Option<String>,
+    /// 起哪个 agent。
+    pub launch: AgentLaunch,
+    /// The working directory the session is created against.
+    pub cwd: Option<String>,
 }
 
 /// A conversation that was just opened, and what its session offers.

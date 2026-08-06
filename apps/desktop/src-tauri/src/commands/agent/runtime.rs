@@ -3,27 +3,21 @@
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-use poietica_agent_persistence_native::AgentStore;
-use poietica_agent_runtime_native::{
-    AgentClient,
-    AgentConnection,
-    AgentSpawn,
-    PermissionDesk,
-    RunSlot,
-    SessionBook,
-    connect,
-};
-use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 use crate::commands::agent_config::launch_env;
 use crate::error::{Error, Result};
 use crate::paths::{agent_database, attachments_root};
+use poietica_agent_persistence_native::AgentStore;
+use poietica_agent_runtime_native::{
+    AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RunSlot, SessionBook, connect,
+};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, async_runtime};
 
-use super::{AGENT_SELECTOR_EVENT, NO_SESSION_ID, POISONED};
 use super::config::restate;
 use super::dto::{AgentLaunch, AgentSelectorReport};
-use super::failure::{fn, translate};
+use super::failure::translate;
+use super::{AGENT_SELECTOR_EVENT, NO_SESSION_ID, POISONED};
 
 /// The live connection, if one has been started.
 ///
@@ -348,7 +342,9 @@ pub(super) fn borrow(state: &State<'_, AgentRuntime>) -> Result<Option<Handle>> 
 /// 人的对话」。会话在这个模块里是一个有精确含义的协议名词：一条连接上有很多
 /// 条，每条属于一个对话。把连接叫成会话，等于让每一次读到 `state.connection` 的
 /// 人都在脑子里转换一次。
-pub(super) fn lock(connection: &Mutex<Option<Connection>>) -> Result<MutexGuard<'_, Option<Connection>>> {
+pub(super) fn lock(
+    connection: &Mutex<Option<Connection>>,
+) -> Result<MutexGuard<'_, Option<Connection>>> {
     connection
         .lock()
         .map_err(|_poisoned| Error::Internal(POISONED.to_owned()))

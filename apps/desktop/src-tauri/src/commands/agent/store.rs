@@ -2,15 +2,14 @@
 //!
 //! 连接第一次被需要时才开，之后一直留着。读写都不站在主线程上。
 
-use std::sync::{Arc, Mutex, MutexGuard};
+use crate::error::{Error, Result};
 use poietica_agent_persistence_native::{AgentStore, StoreError};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tauri::{State, async_runtime};
 use uuid::Uuid;
-use crate::error::{Error, Result};
 
+use super::runtime::AgentRuntime;
 use super::{COUNT_TOO_LARGE, NO_READ, POISONED};
-use super::failure::fn;
-use super::runtime::{AgentRuntime, lock};
 
 /// The one connection, opened the first time anything needs it.
 ///

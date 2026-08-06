@@ -3,29 +3,25 @@
 //! 进去是一句话带的图片落盘、过继进交付会话、交还给协议；出来是打开一条旧对话时
 //! 把存着的字节装回交付注册表。
 
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::sync::Arc;
+use crate::asset_protocol::{
+    AssetProtocolError, AssetProtocolRegistry, AssetSessionSnapshotEntry, asset_protocol_url,
+};
+use crate::attachments::{blob_path, store_bytes};
+use crate::error::{Error, Result};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use poietica_agent_persistence_native::ThreadAttachment;
 use poietica_agent_runtime_native::PromptImage;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::{State, async_runtime};
 use uuid::Uuid;
-use crate::asset_protocol::{
-    AssetProtocolError,
-    AssetProtocolRegistry,
-    AssetSessionSnapshotEntry,
-    asset_protocol_url,
-};
-use crate::attachments::{blob_path, store_bytes};
-use crate::error::{Error, Result};
 
-use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET, TOO_MANY_IMAGES};
 use super::dto::{AgentPromptAsset, AgentThreadAttachment};
-use super::failure::fn;
 use super::runtime::AgentRuntime;
 use super::store::{counted, on_store, persistence};
+use super::{IMAGE_TOO_LARGE, NO_READ, NO_SUCH_ASSET, TOO_MANY_IMAGES};
 
 /// 一句话里的图片落定之后的三份东西。
 ///

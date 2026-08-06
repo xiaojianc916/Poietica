@@ -1,14 +1,14 @@
 //! 把 agent 那侧的失败折进这个程序既有的错误面。
 
-use poietica_agent_runtime_native::{AcpError, Refusal};
 use crate::error::Error;
+use poietica_agent_runtime_native::{AcpError, Refusal};
 
 /// 这一侧自己判定的拒绝，说的话。
 ///
 /// 全是本仓库的字面量常量，没有一处把 agent 的回话、外部输入或系统错误拼进去
 /// —— 这正是 `Error::AgentCli` 那个变体写下来的透传判据，所以它们可以原样上屏。
 /// 而这三件恰恰是用户唯一能自己解决的事。
-pub(super) const fn refusal(reason: Refusal) -> &'static str {
+const fn refusal(reason: Refusal) -> &'static str {
     match reason {
         Refusal::UnknownSession => "这条对话的会话已经失效，请重新打开它",
         Refusal::Gone => "agent 已经退出，请重新发起对话",

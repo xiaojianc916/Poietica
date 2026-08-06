@@ -1,31 +1,22 @@
 //! 对话本身：列、开、改名、删、置顶。
 
-use poietica_agent_persistence_native::TitleSource;
-use serde::Deserialize;
-use specta::Type;
-use tauri::{AppHandle, State, async_runtime};
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::attachments::forget_blob;
 use crate::error::Error;
+use poietica_agent_persistence_native::TitleSource;
+use tauri::{AppHandle, State, async_runtime};
 
-use super::{AgentCommandResult, NO_ANSWER, TITLE_CHARS};
 use super::addressing::{Held, Wanted, session_for};
 use super::attachment::deliver_attachments;
 use super::config::restate;
 use super::dto::{
-    AgentLaunch,
-    AgentOpenedThread,
-    AgentPinThreadRequest,
-    AgentRenameThreadRequest,
-    AgentThread,
-    AgentThreadRequest,
-    AgentTitleSource,
-    FALLBACK_THREAD_TITLE,
-    NO_THREAD,
+    AgentOpenThreadRequest, AgentOpenedThread, AgentPinThreadRequest, AgentRenameThreadRequest,
+    AgentThread, AgentThreadRequest, AgentTitleSource, FALLBACK_THREAD_TITLE, NO_THREAD,
 };
-use super::failure::{fn, translate};
+use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
 use super::store::{conversation, counted, on_store, persistence};
+use super::{AgentCommandResult, NO_ANSWER, TITLE_CHARS};
 
 /// Lists the stored conversations, newest first.
 ///
@@ -49,18 +40,6 @@ pub async fn agent_threads(state: State<'_, AgentRuntime>) -> AgentCommandResult
     let stored = on_store(&state, |store| store.list_threads().map_err(persistence)).await?;
 
     Ok(stored.into_iter().map(retitle).collect())
-}
-
-/// 要打开的对话，以及必要时怎样启动 agent。
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentOpenThreadRequest {
-    /// 已经存在的对话；不点名就新开一条。
-    pub thread_id: Option<String>,
-    /// 起哪个 agent。
-    pub launch: AgentLaunch,
-    /// The working directory the session is created against.
-    pub cwd: Option<String>,
 }
 
 /// 打开一条对话：把它整条要回来。

@@ -2,33 +2,24 @@
 //!
 //! 帧不逐条发给界面 —— 攒一拍再交货，否则渲染进程被事件淹掉。
 
-use std::time::Instant;
-use poietica_agent_runtime_native::{ACP_UPDATE, FrameSink, RecordedEvent};
-use tauri::{AppHandle, Emitter, State, async_runtime};
 use crate::asset_protocol::AssetProtocolRegistry;
 use crate::error::Error;
+use poietica_agent_runtime_native::{ACP_UPDATE, FrameSink, RecordedEvent};
+use std::time::Instant;
+use tauri::{AppHandle, Emitter, State, async_runtime};
 
-use super::{
-    AGENT_EVENT,
-    AgentCommandResult,
-    FRAME_INTERVAL,
-    IMAGE_OPENER,
-    NOTHING_TO_STOP,
-    NO_CONVERSATION,
-    NO_SESSION,
-    TITLE_CHARS,
-};
 use super::addressing::{Wanted, session_for};
 use super::attachment::{Kept, keep_bytes};
 use super::dto::{
-    AgentCancelRequest,
-    AgentPromptRequest,
-    AgentPromptResult,
-    AgentResolvePermissionRequest,
+    AgentCancelRequest, AgentPromptRequest, AgentPromptResult, AgentResolvePermissionRequest,
 };
-use super::failure::{fn, translate};
+use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session, lock, retire};
 use super::store::{conversation, on_store, persistence};
+use super::{
+    AGENT_EVENT, AgentCommandResult, FRAME_INTERVAL, IMAGE_OPENER, NO_CONVERSATION, NO_SESSION,
+    NOTHING_TO_STOP, TITLE_CHARS,
+};
 
 /// Starts a turn and returns as soon as it is under way.
 ///

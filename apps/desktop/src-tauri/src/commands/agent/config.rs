@@ -1,22 +1,16 @@
 //! 会话给出的那些选择器，以及改动它们。
 
-use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose};
-use serde::Deserialize;
-use specta::Type;
-use tauri::{AppHandle, State};
 use crate::error::Error;
+use poietica_agent_runtime_native::{ConfigControl, ConfigPurpose};
+use tauri::{AppHandle, State};
 
-use super::{AgentCommandResult, NO_ANSWER, NO_CONVERSATION, NO_SESSION};
 use super::addressing::{Wanted, session_for};
 use super::dto::{
-    AgentConfigChoice,
-    AgentConfigControl,
-    AgentConfigPurpose,
-    AgentLaunch,
-    AgentSelectConfigRequest,
+    AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl, AgentSelectConfigRequest,
 };
-use super::failure::{fn, translate};
+use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
+use super::{AgentCommandResult, NO_ANSWER, NO_CONVERSATION, NO_SESSION};
 
 /// Changes one selector on the running session.
 ///
@@ -61,16 +55,6 @@ pub async fn agent_set_config_option(
         .map_err(translate)?;
 
     Ok(offered.into_iter().map(restate).collect())
-}
-
-/// 问这个 agent 提供什么，不点名任何一条对话。
-#[derive(Debug, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentCapabilitiesRequest {
-    /// 起哪个 agent。
-    pub launch: AgentLaunch,
-    /// The working directory the session is created against.
-    pub cwd: Option<String>,
 }
 
 /// 这个 agent 提供哪些选择器。

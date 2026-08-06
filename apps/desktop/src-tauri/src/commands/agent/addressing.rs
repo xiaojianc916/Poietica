@@ -3,15 +3,15 @@
 //! ACP 的 sessionId 只在一条连接内有意义，库里存的号可能是上一次运行留下的。这里
 //! 把「对话」翻成「本次连接认得的会话」，认不出就重开或装载。
 
-use std::path::PathBuf;
+use crate::error::Result;
 use poietica_agent_runtime_native::ConfigControl;
 use serde_json::Value;
+use std::path::PathBuf;
 use tauri::State;
 use uuid::Uuid;
-use crate::error::Result;
 
 use super::dto::{AgentHistory, AgentHistoryLoss};
-use super::failure::{fn, translate};
+use super::failure::translate;
 use super::runtime::{AgentRuntime, Handle};
 use super::store::{conversation, on_store, persistence};
 

@@ -14,8 +14,8 @@
 //! against the options the agent actually offered before anything is recorded
 //! or sent.
 
+use crate::error::IpcError;
 use std::time::Duration;
-use crate::error::{IpcError, Result};
 
 mod addressing;
 mod attachment;
@@ -27,15 +27,27 @@ mod store;
 mod thread;
 mod turn;
 
-pub use addressing::*;
-pub use attachment::*;
-pub use config::*;
-pub use dto::*;
-pub use failure::*;
-pub use runtime::*;
-pub use store::*;
-pub use thread::*;
-pub use turn::*;
+/// 这个模块交出去的东西：十一条命令、它们签名里的 DTO，以及托管状态。
+///
+/// 一条一条写出来，不用通配。此前那九行里有四行 —— addressing、attachment、
+/// failure、store —— 一个 pub 项都没有，编译器对每一行都报了 glob import
+/// doesn't reexport anything：通配让「这里到底导出了什么」读不出来，那四行
+/// 才会一直躺着没人发现。这张清单与 crate::ipc::surface 的 collect_commands!
+/// 是同一张，漏掉一条，编译当场就会指出来。
+pub use config::{agent_capabilities, agent_set_config_option};
+pub use dto::{
+    AgentCancelRequest, AgentCapabilitiesRequest, AgentConfigChoice, AgentConfigControl,
+    AgentConfigPurpose, AgentHistory, AgentHistoryLoss, AgentLaunch, AgentOpenThreadRequest,
+    AgentOpenedThread, AgentPinThreadRequest, AgentPromptAsset, AgentPromptRequest,
+    AgentPromptResult, AgentRenameThreadRequest, AgentResolvePermissionRequest,
+    AgentSelectConfigRequest, AgentSelectorReport, AgentThread, AgentThreadAttachment,
+    AgentThreadRequest, AgentTitleSource,
+};
+pub use runtime::AgentRuntime;
+pub use thread::{
+    agent_delete_thread, agent_open_thread, agent_pin_thread, agent_rename_thread, agent_threads,
+};
+pub use turn::{agent_cancel, agent_prompt, agent_resolve_permission, agent_shutdown};
 
 type AgentCommandResult<T> = std::result::Result<T, IpcError>;
 
