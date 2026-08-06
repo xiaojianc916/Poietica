@@ -136,6 +136,19 @@ function ResponseFacet({
   )
 }
 
+/**
+ * 这个抽屉只有两种形态，所以它就写成两种，而不是一套挂满三元表达式的标记。
+ *
+ * ARIA 角色是这个节点「是什么」，不是「此刻可能是什么」：把 role 写成分支表达式，
+ * 静态分析只能按 generic 判定，aria-labelledby 于是落空 —— 读屏拿到的也确实是一个
+ * 无名的匿名容器。两个面时它是一个真正的 tabpanel，一个面时它就是一个普通盒子，
+ * 两边的属性都是字面量。
+ *
+ * 面板不写 tabIndex：滚动容器的键盘可达性归渲染器 —— 这个应用是单引擎 WebView2
+ * （见 reasoning-panel.tsx 的 useScrollendEvent），Chromium 自 127 起让滚动容器默认
+ * 可聚焦，而同一体系里的 timeline-reasoning__scroll 也正是这么落地的。手写一份只是
+ * 给同一个问题添第二个答案。
+ */
 export function ToolCallPanels({
   facets,
   isRunning,
@@ -152,47 +165,51 @@ export function ToolCallPanels({
   /*
    * 停在哪一面是派生的，不是一次性初值 —— 与 useDisclosure 同一条语义：还没有产出就
    * 停在入参那一面（运行中唯一有内容的就是它），产出到了自动让位，人点过一次之后以
-   * 人为准。上游没送入参时切换条整条不出现，那时只有一面可停。
+   * 人为准。上游没送入参时只有一面，那一面恒定是 Response。
    */
-  const hasRequest = request !== null
   const settled = parts.length > 0 || output !== null
-  const activeId = hasRequest ? (chosen ?? (settled ? RESPONSE : REQUEST)) : RESPONSE
+  const activeId = request === null ? RESPONSE : (chosen ?? (settled ? RESPONSE : REQUEST))
+
+  const face =
+    activeId === REQUEST && request !== null ? (
+      <Prose className="timeline-tool__prose" isStreaming={false} text={request} />
+    ) : (
+      <ResponseFacet
+        brief={brief}
+        isRunning={isRunning}
+        locations={locations}
+        output={output}
+        parts={parts}
+      />
+    )
+
+  /* 一个面：没有可切的东西，就不摆一条只有一格的切换条，也不假装自己是 tabpanel。 */
+  if (request === null) {
+    return (
+      <div className="timeline-tool__body">
+        <div className="timeline-tool__panel">{face}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="timeline-tool__body">
-      {hasRequest ? (
-        <TabList
-          activeId={activeId}
-          baseId={baseId}
-          className="timeline-tool__tabs"
-          label="这次调用的两个面"
-          onSelect={setChosen}
-          options={FACETS}
-        />
-      ) : null}
+      <TabList
+        activeId={activeId}
+        baseId={baseId}
+        className="timeline-tool__tabs"
+        label="这次调用的两个面"
+        onSelect={setChosen}
+        options={FACETS}
+      />
 
-      {/*
-       * tabIndex 恒为 0：这是一个可滚动区域，键盘必须够得着（WCAG 2.1.1），
-       * 与它此刻是不是一个 tabpanel 无关。
-       */}
       <div
-        aria-labelledby={hasRequest ? tabId(baseId, activeId) : undefined}
+        aria-labelledby={tabId(baseId, activeId)}
         className="timeline-tool__panel"
-        id={hasRequest ? panelId(baseId, activeId) : undefined}
-        role={hasRequest ? 'tabpanel' : undefined}
-        tabIndex={0}
+        id={panelId(baseId, activeId)}
+        role="tabpanel"
       >
-        {activeId === REQUEST && request !== null ? (
-          <Prose className="timeline-tool__prose" isStreaming={false} text={request} />
-        ) : (
-          <ResponseFacet
-            brief={brief}
-            isRunning={isRunning}
-            locations={locations}
-            output={output}
-            parts={parts}
-          />
-        )}
+        {face}
       </div>
     </div>
   )
