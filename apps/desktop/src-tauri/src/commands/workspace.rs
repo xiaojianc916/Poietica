@@ -21,12 +21,10 @@ pub async fn workspace_pick_root(app: AppHandle) -> Option<String> {
         drop(answer.send(picked));
     });
 
-    match wait.await {
-        Ok(picked) => picked.as_ref().map(ToString::to_string),
-        Err(_) => {
+    wait.await
+        .inspect_err(|_| {
             log::warn!("the folder chooser went away without answering");
-
-            None
-        }
-    }
+        })
+        .ok()
+        .and_then(|picked| picked.as_ref().map(ToString::to_string))
 }

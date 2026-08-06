@@ -1,4 +1,4 @@
-/// <reference path="./css.d" />
+/// <reference path="./css.d.ts" />
 
 export { Button } from './button'
 export { cn } from './class-names'

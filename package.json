@@ -36,6 +36,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "prepare": "node scripts/git-hooks/install.mjs",
+    "release": "node scripts/release/release.mjs",
     "tauri": "node scripts/tauri.mjs",
     "test": "turbo run test --continue",
     "test:architecture": "node tools/architecture/run.mjs",

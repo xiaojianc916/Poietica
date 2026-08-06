@@ -1,6 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /*
@@ -11,8 +9,6 @@ import { describe, expect, it } from 'vitest'
  * 它断言的其实是本包自己的 CSS 指向哪个 token，不需要读别人的文件，
  * 所以它属于这里。
  */
-
-const here = dirname(fileURLToPath(import.meta.url))
 
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -27,7 +23,7 @@ const declOf = (css: string, name: string) => {
 }
 
 const metrics = stripComments(
-  readFileSync(join(here, '..', 'styles', 'composer-metrics.css'), 'utf8'),
+  readFileSync(new URL('../composer/composer-metrics.css', import.meta.url), 'utf8'),
 )
 
 describe('composer metrics contract', () => {
