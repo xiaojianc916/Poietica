@@ -1,9 +1,10 @@
 import type { AgentSessionPort } from '@poietica/acp'
+import { AutomationsSurface } from '@poietica/automations'
 import type { AgentConfigStore } from '@poietica/settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-
 import { currentAgentId } from '../assistant/agent-session'
+import { automationStore } from '../automations/automation-runtime'
 import { AssistantPane } from './assistant-pane'
 import { ConversationSurface } from './conversation-surface'
 
@@ -57,6 +58,13 @@ export function createAssistantWiring(
           session={session}
         />
       ),
+
+      /*
+       * 自动化那一格。渲染器现在是全域 Record（见 @poietica/workspace 的
+       * surface.ts）：注册表里登记了 automations，这里就必须交出一条，
+       * 漏掉是编译错误而不是一张空态图。
+       */
+      automations: () => <AutomationsSurface store={automationStore} />,
     },
 
     renderConversation: (threadId) => (

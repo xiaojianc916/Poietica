@@ -9,8 +9,17 @@ export type ActorId = Brand<string, 'ActorId'>
 export type RequestId = Brand<string, 'RequestId'>
 export type SessionId = Brand<string, 'SessionId'>
 export type WindowId = Brand<string, 'WindowId'>
+export type AutomationId = Brand<string, 'AutomationId'>
 
-export type AnyId = AssetId | CommandId | TransactionId | ActorId | RequestId | SessionId | WindowId
+export type AnyId =
+  | AssetId
+  | CommandId
+  | TransactionId
+  | ActorId
+  | RequestId
+  | SessionId
+  | WindowId
+  | AutomationId
 
 /**
  * 所有 id 的生成与还原是同一件事，只有品牌不同。
@@ -34,6 +43,7 @@ export const createActorId = newId<ActorId>()
 export const createRequestId = newId<RequestId>()
 export const createSessionId = newId<SessionId>()
 export const createWindowId = newId<WindowId>()
+export const createAutomationId = newId<AutomationId>()
 
 export const parseAssetId = asId<AssetId>()
 export const parseCommandId = asId<CommandId>()
@@ -42,3 +52,4 @@ export const parseActorId = asId<ActorId>()
 export const parseRequestId = asId<RequestId>()
 export const parseSessionId = asId<SessionId>()
 export const parseWindowId = asId<WindowId>()
+export const parseAutomationId = asId<AutomationId>()

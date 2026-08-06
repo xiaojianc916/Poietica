@@ -4,12 +4,17 @@
  * 表面集合、标题、描述、图标标识、导航次序只在此处声明一次；
  * WorkspaceSurfaceId 由本表的键派生，不再另立字面量联合。
  *
+ * 这张表只登记真的画得出来的表面。此前它还登记了 search / tools / hooks
+ * 三条，三条都没有渲染器 —— 一个点了只出现一张空态图的导航项不是「以后要做
+ * 的功能」，它是一次对用户的失信。渲染器现在是全域 Record（见 surface.ts），
+ * 登记一条就必须交出一条，这张表因此也不可能再长出装饰品。
+ *
  * iconId 是字面量联合而非 string：presentation 侧的图标表因此可以是
- * 全域映射（Record<WorkspaceSurfaceIconId, ...>），不需要运行时兜底分支。
- * 领域层不认识 React，descriptor 里不会出现组件引用。
+ * 全域映射，不需要运行时兜底分支。领域层不认识 React，descriptor 里不会
+ * 出现组件引用。
  */
 
-export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
+export type WorkspaceSurfaceIconId = 'clock' | 'message'
 
 export interface WorkspaceSurfaceDescriptor {
   readonly title: string
@@ -32,29 +37,11 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     iconId: 'message',
     navigationOrder: null,
   },
-  search: {
-    title: '搜索',
-    description: '跨仓库检索文件与会话。',
-    iconId: 'search',
-    navigationOrder: 0,
-  },
-  tools: {
-    title: 'Tool',
-    description: '查看与管理可调用工具。',
-    iconId: 'box',
-    navigationOrder: 1,
-  },
   automations: {
     title: '自动化',
-    description: '按计划或事件触发的任务。',
+    description: '按计划反复执行的任务。每次运行都是一条对话。',
     iconId: 'clock',
-    navigationOrder: 2,
-  },
-  hooks: {
-    title: 'Hook',
-    description: '在生命周期节点注入自定义行为。',
-    iconId: 'webhook',
-    navigationOrder: 3,
+    navigationOrder: 0,
   },
 } as const satisfies Record<string, WorkspaceSurfaceDescriptor>
 
@@ -80,9 +67,21 @@ export function isWorkspaceSurfaceId(value: string): value is WorkspaceSurfaceId
   return Object.hasOwn(WORKSPACE_SURFACE_REGISTRY, value)
 }
 
-/* 导航次序由 navigationOrder 派生，不手工维护第二份数组。 */
+/*
+ * 导航次序由 navigationOrder 派生，不手工维护第二份数组。
+ *
+ * flatMap 而不是 filter + sort：filter 之后 TypeScript 并不知道 null 已经没了，
+ * 于是上一版的比较器里挂着一个 `?? 0` —— 那是一段永远不会执行的兜底，也是
+ * 「编译期能证明的事实被降级成运行期分支」的又一处。flatMap 就地收窄类型，
+ * 兜底随之消失。
+ */
 export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = (
   Object.keys(WORKSPACE_SURFACE_REGISTRY) as WorkspaceSurfaceId[]
 )
-  .filter((id) => DESCRIPTORS[id].navigationOrder !== null)
-  .sort((a, b) => (DESCRIPTORS[a].navigationOrder ?? 0) - (DESCRIPTORS[b].navigationOrder ?? 0))
+  .flatMap((id) => {
+    const { navigationOrder } = DESCRIPTORS[id]
+
+    return navigationOrder === null ? [] : [{ id, navigationOrder }]
+  })
+  .sort((left, right) => left.navigationOrder - right.navigationOrder)
+  .map((entry) => entry.id)

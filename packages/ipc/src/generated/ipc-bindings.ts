@@ -291,6 +291,29 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
     return await TAURI_INVOKE("asset_session_close", { request });
 },
 /**
+ * Reads the persisted automations.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened. A store that opens but
+ * holds a value of an older shape is not an error: it falls back to an empty
+ * catalog so the surface stays usable. 与 settings_get 同一条判断。
+ */
+async automationsLoad() : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_load");
+},
+/**
+ * Persists the automations.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened, when the catalog cannot be
+ * serialized, or when the write does not reach disk.
+ */
+async automationsSave(catalog: AutomationCatalog) : Promise<null> {
+    return await TAURI_INVOKE("automations_save", { catalog });
+},
+/**
  * Returns and consumes the previous native process crash report.
  * 
  * The renderer receives a bounded DTO, not an arbitrary filesystem path or
@@ -1166,6 +1189,47 @@ export type AssetUploadRequest = { sessionToken: string;
  */
 base64: string }
 export type AssetUploadResult = { assetToken: string; contentHash: string; source: string; byteLength: number; contentType: string }
+export type Automation = { id: string; title: string; 
+/**
+ * 到期时发给 agent 的那句话。自动化的全部行为都由它决定。
+ */
+prompt: string; trigger: AutomationTrigger; enabled: boolean; createdAt: string; 
+/**
+ * 下一次到期的时刻，RFC 3339；manual 为 None。
+ * 
+ * 它是被存下来的状态，不是每次由 last_run 推出来的推论：只有存下来，
+ * 关机三天之后再打开才分得清「这次错过了」与「刚刚才排上」。cron 守护
+ * 进程与 Temporal 这类调度器的做法都是如此。
+ */
+nextRunAt: string | null; runs: AutomationRun[] }
+export type AutomationCatalog = { version: number; automations: Automation[] }
+/**
+ * 一次运行的账目。
+ * 
+ * 只有指针和结局，没有正文：一次运行就是一条对话，说过什么由那条对话自己
+ * 保管。这里再存一份，就是 AGENTS.md 明令禁止的第二份运行状态。
+ */
+export type AutomationRun = { 
+/**
+ * 这次运行开出来的那条对话。开不出来时为 None。
+ */
+threadId: string | null; 
+/**
+ * RFC 3339。全库其余每一处时间戳都是这个格式。
+ */
+startedAt: string; outcome: AutomationRunOutcome }
+export type AutomationRunOutcome = "succeeded" | "failed"
+/**
+ * 触发条件。
+ * 
+ * 判别联合，不是一段 cron 字符串。本地桌面只需要「每 N 分钟」与「每天几点」
+ * 两种，而一个 cron 解析器是这两件事之外多出来的一整门语言，还带来一整类
+ * 非法输入。GitHub Actions 用 cron 是因为它要表达跨时区任意周期；这里不需要。
+ * 
+ * 写成 Rust 枚举，生成的 TypeScript 就是一个判别联合，界面不必在每个分支上
+ * 各自断言一次。
+ */
+export type AutomationTrigger = { kind: "manual" } | { kind: "interval"; everyMinutes: number } | { kind: "daily"; atMinuteOfDay: number }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

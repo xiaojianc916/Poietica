@@ -5,7 +5,7 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
-use crate::paths::{AGENTS_STORE, SETTINGS_STORE};
+use crate::paths::{AGENTS_STORE, AUTOMATIONS_STORE, SETTINGS_STORE};
 
 /// Label of the only window this application declares. Matches tauri.conf.json.
 pub const MAIN_WINDOW: &str = "main";
@@ -107,6 +107,7 @@ pub fn build() -> tauri::Builder<Wry> {
 
             app.store(SETTINGS_STORE)?;
             app.store(AGENTS_STORE)?;
+            app.store(AUTOMATIONS_STORE)?;
             let _managed = app.manage(commands::agent::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

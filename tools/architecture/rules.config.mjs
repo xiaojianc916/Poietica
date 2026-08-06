@@ -78,7 +78,7 @@ const tiers = [
   { name: 'protocol', packages: ['acp'] },
   { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
   { name: 'transport', packages: ['ipc'] },
-  { name: 'features', packages: ['agent-ui', 'settings', 'workspace'] },
+  { name: 'features', packages: ['automations', 'agent-ui', 'settings', 'workspace'] },
   { name: 'composition', packages: ['desktop-adapters'] },
   { name: 'application', packages: ['desktop'] },
 ]

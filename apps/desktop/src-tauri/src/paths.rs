@@ -38,6 +38,13 @@ pub const SETTINGS_STORE: &str = "settings.json";
 /// Agent 接入档案与 models.dev 目录缓存。密钥不在其中。
 pub const AGENTS_STORE: &str = "agents.json";
 
+/// 自动化定义。由 tauri-plugin-store 管理，落在 `app_config_dir`。
+///
+/// 与设置同一类数据：小、跟人走、是用户自己写下的意图。运行记录只在其中留
+/// 指针（thread_id + 结局 + 时刻），正文在对话库里 —— 所以这个文件不会长大，
+/// 放进会漫游同步的目录是安全的。
+pub const AUTOMATIONS_STORE: &str = "automations.json";
+
 /// 上一次原生崩溃。与日志同目录（`app_log_dir`）：它是诊断产物，不是用户数据。
 pub const CRASH_REPORT_FILE_NAME: &str = "last-native-crash.json";
 

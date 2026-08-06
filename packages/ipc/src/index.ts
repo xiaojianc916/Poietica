@@ -41,6 +41,15 @@ export {
   uploadAsset,
 } from './asset'
 export {
+  type Automation,
+  type AutomationCatalog,
+  type AutomationRun,
+  type AutomationRunOutcome,
+  type AutomationTrigger,
+  loadAutomations,
+  saveAutomations,
+} from './automations'
+export {
   type IpcError,
   IpcInvocationError,
   isIpcError,

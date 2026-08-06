@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
 import { agentFor, currentAgentId, subscribeAgent } from '../assistant/agent-session'
 import { ThreadsProvider } from '../assistant/threads-provider'
+import { AutomationScheduler } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { reportFailure } from '../failures/application-failures'
 import { failureCoordinator } from '../failures/failure-coordinator'
@@ -250,6 +251,12 @@ export function AppShell({ runtime }: AppShellProps) {
      */
     <AgentDialectContext value={dialect}>
       <ThreadsProvider>
+        {/*
+         * 无渲染产出，只是让自动化的心跳与应用同寿。放在 ThreadsProvider 之内是
+         * 硬要求：一次运行要开出一条对话，而开对话的动作出自这个 provider。
+         */}
+        <AutomationScheduler />
+
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
           agentSession={runtime.agentSession}
