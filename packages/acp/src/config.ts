@@ -1,4 +1,5 @@
-// ── from session-config-contract.ts ──
+import type { ThreadId } from './address'
+
 /*
  * What the running session lets us change.
  *
@@ -39,7 +40,6 @@ export interface SessionConfigControl {
   readonly choices: readonly SessionConfigChoice[]
 }
 
-// ── from session-config-port.ts ──
 /*
  * Where the selectors come from, as far as this feature is concerned.
  *
@@ -70,7 +70,7 @@ export interface SessionConfigReport {
 
 export interface SessionConfigPort {
   readonly select: (
-    threadId: string,
+    threadId: ThreadId,
     configId: string,
     value: string,
   ) => Promise<readonly SessionConfigControl[]>

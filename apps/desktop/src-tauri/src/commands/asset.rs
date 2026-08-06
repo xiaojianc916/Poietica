@@ -267,7 +267,7 @@ pub async fn asset_import(
 /// 文件头、内容类型、扩展名长在一起，因为它们是同一条策略的三个面：拿什么判、
 /// 投递时写在 Content-Type 上的那个字符串、系统对话框里能被选中的名字。
 ///
-/// 最后一样此前住在 TypeScript 里（desktop-runtime 的 IMAGE_EXTENSIONS），靠
+/// 最后一样此前住在 TypeScript 里（desktop-adapters 的 IMAGE_EXTENSIONS），靠
 /// 一句注释和这里保持一致。漏改哪一侧都不会报错，只会安静地坏：多在对话框那
 /// 侧，用户选得中却什么也不发生；多在这一侧，新格式等于没加。
 struct Format {
@@ -363,7 +363,7 @@ pub struct AssetFormat {
 /// 收得下的格式清单。系统文件对话框的过滤器按它来。
 ///
 /// 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
-/// （desktop-runtime 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
+/// （desktop-adapters 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
 /// 报错的静默失败。
 #[tauri::command]
 #[specta::specta]

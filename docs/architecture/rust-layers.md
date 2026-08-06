@@ -1,6 +1,6 @@
 # Rust Crate 分层
 
-工作区成员见根 `Cargo.toml`。三个 crate 加一个组合根，依赖单向向下。
+工作区成员见根 `Cargo.toml`。两个 crate 加一个组合根，依赖单向向下。
 
 ## crates/agent-runtime — `poietica-agent-runtime-native`
 
@@ -18,13 +18,6 @@
 - 依赖 `rusqlite`、`serde`、`serde_json`、`time`、`uuid`、`log`。
 - **不依赖 `tauri`**。
 
-## crates/desktop-runtime — `poietica-desktop-runtime-native`
-
-拥有与业务无关的桌面平台能力：窗口、外部打开、生命周期、系统主题、
-运行时信息。
-
-- 依赖仅 `serde` 与 `thiserror`。**不依赖 `tauri`**，也不依赖另外两个 crate。
-
 ## apps/desktop/src-tauri — `poietica`
 
 唯一的组合根：初始化 Tauri 与插件、建窗、注册命令、持有 native 服务、
@@ -32,7 +25,7 @@
 
 ## 规则
 
-- 三个 native crate 都不得依赖 `tauri`，也不得互相依赖。
+- 两个 native crate 都不得依赖 `tauri`，也不得互相依赖。
 - 命令函数是薄封装，业务分支应下沉到 native crate。
 - 领域实体定义在 native crate，不在 `src-tauri`。
 - 每个 crate 都必须写 `[lints] workspace = true`，否则工作区的

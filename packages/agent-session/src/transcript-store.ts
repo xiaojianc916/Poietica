@@ -106,7 +106,7 @@ const EMPTY: Transcript = {
 /*
  * 「还没轮到下一句」的全部两种形态。
  *
- * 判据是 RunStatus 本身（run-contract.ts 的六档），不是另立一个布尔或另记一张表：
+ * 判据是 RunStatus 本身（run.ts 的六档），不是另立一个布尔或另记一张表：
  * 转录已经逐帧维护着这一格，useAssistantSession 的 toChatStatus 读的也是它。
  */
 function running(status: TimelineState['status']): boolean {

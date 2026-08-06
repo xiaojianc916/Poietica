@@ -24,14 +24,14 @@ import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace
 /*
  * 开发构建不检查更新：开发跑的版本号来自工作区，任何已发布版本都比它新，结果是
  * 每六小时提示一次一个装不上的更新。这个判断是构建期常量，放在模块级，生产构建
- * 里整个分支会被直接消掉；desktop-runtime 是适配层，不该知道自己被谁怎么打包。
+ * 里整个分支会被直接消掉；desktop-adapters 是适配层，不该知道自己被谁怎么打包。
  */
 const CHECKS_UPDATES = !import.meta.env.DEV
 
 /**
  * 对面那家 agent 的方言。
  *
- * 会话本来就是拿这份档案建起来的(见 application/ai/agent-session.ts),
+ * 会话本来就是拿这份档案建起来的(见 assistant/agent-session.ts),
  * 所以「跟谁说话」和「它怎么说话」出自同一个答案,不会各说各的。
  * 界面包不认识名单:这一层拿到的已经是一份档案,不是一次查名单。
  */

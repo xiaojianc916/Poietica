@@ -69,7 +69,7 @@ const NO_DRAFT: PromptInputDraft = { hasText: false, hasFiles: false }
  * 从扩展名猜出来的 File.type 说了算，而它骗得过：把 .svg 改名成 .png 就行。
  *
  * stampedName 与 pastedFiles 也一并没有了：命名归实现（剪贴板那一张由
- * desktop-runtime 给名字），而拖、粘、选三条路交出来的已经是同一种东西。
+ * desktop-adapters 给名字），而拖、粘、选三条路交出来的已经是同一种东西。
  */
 
 interface PromptInputActions {

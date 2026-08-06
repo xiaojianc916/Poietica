@@ -4,10 +4,7 @@ import type {
   AcpSessionNotification,
   AcpStopReason,
   AcpToolCallUpdate,
-} from './session'
-
-// ── from run-contract.ts ──
-export type ThreadId = string
+} from './protocol'
 
 export type RunStatus =
   | 'idle'
@@ -99,11 +96,10 @@ export type RunEvent =
       readonly diagnostics?: string
     }
 
-// ── from chat-status-contract.ts ──
 /*
  * What the composer shows about a run.
  *
- * RunStatus in run-contract.ts is the truth about the run itself: six states
+ * RunStatus above is the truth about the run itself: six states
  * the agent and the client can genuinely be in. ChatStatus is coarser on
  * purpose — it is the four states a send button can render, and nothing more.
  *

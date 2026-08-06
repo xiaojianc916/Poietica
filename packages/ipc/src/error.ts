@@ -40,7 +40,7 @@ export class IpcInvocationError extends Error {
  * 是为了让上层只需要认一个类型。
  *
  * 这条规则此前写在三处 —— invoke.ts、agent.ts 里的私有 call()、以及
- * desktop-runtime 的 native-crash-report.ts 各自的 try/catch。同一条规则写三遍，
+ * desktop-adapters 的 native-crash-report.ts 各自的 try/catch。同一条规则写三遍，
  * 就会有一天只改了一遍。
  */
 export async function throughIpc<T>(operation: () => Promise<T>): Promise<T> {

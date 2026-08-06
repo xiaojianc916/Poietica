@@ -2988,14 +2988,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "poietica-desktop-runtime-native"
-version = "0.1.5"
-dependencies = [
- "serde",
- "thiserror 2.0.19",
-]
-
-[[package]]
 name = "polling"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

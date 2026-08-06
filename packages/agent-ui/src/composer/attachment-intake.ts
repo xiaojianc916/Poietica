@@ -3,7 +3,7 @@
  *
  * 这一层只声明端口，不认识 Tauri —— 收件靠的是原生能力（系统文件对话框、
  * 窗口级拖放、剪贴板），而那些能力属于组合层（见 rules.config.mjs 的
- * nativeAllowed：只有 desktop / desktop-runtime / ipc 三个包碰得到）。
+ * nativeAllowed：只有 desktop / desktop-adapters / ipc 三个包碰得到）。
  * 实现由 @poietica/desktop-adapters 装进来，与 installAgentCapabilityPort
  * 是同一种形状，不是第二套做法。
  *

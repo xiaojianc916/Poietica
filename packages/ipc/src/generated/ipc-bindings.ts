@@ -205,7 +205,7 @@ async agentPinThread(request: AgentPinThreadRequest) : Promise<null> {
  * 收得下的格式清单。系统文件对话框的过滤器按它来。
  * 
  * 这条命令存在的唯一理由，是扩展名那张表不该有第二份。一个进程只问一次
- * （desktop-runtime 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
+ * （desktop-adapters 那侧缓存住），代价是一次本机往返，换掉的是一个漏改不
  * 报错的静默失败。
  */
 async assetFormats() : Promise<AssetFormat[]> {
