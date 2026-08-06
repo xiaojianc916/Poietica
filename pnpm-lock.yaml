@@ -93,9 +93,6 @@ catalogs:
     vitest:
       specifier: 4.1.10
       version: 4.1.10
-    yaml:
-      specifier: 2.8.1
-      version: 2.8.1
     yet-another-react-lightbox:
       specifier: 3.32.2
       version: 3.32.2
@@ -319,9 +316,6 @@ importers:
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.6.0
-      yaml:
-        specifier: 'catalog:'
-        version: 2.8.1
       yet-another-react-lightbox:
         specifier: 'catalog:'
         version: 3.32.2(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -4975,7 +4969,8 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  yaml@2.8.1: {}
+  yaml@2.8.1:
+    optional: true
 
   yet-another-react-lightbox@3.32.2(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
     dependencies:

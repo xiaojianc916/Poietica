@@ -1293,23 +1293,22 @@
 }
 
 /*
- * 意图占标题栏的主位。
+ * 意图就是这一行的标题。
  *
- * 名字定宽、压暗，意图吃掉剩下的宽度并单行截断 —— min-width: 0 不能省，
- * flex 子项的默认最小宽度是内容宽度，省掉它省略号永远不出现。
+ * 它和工具名共用同一个位置（分岔在 tool-call-card 里），所以这里不再有那条
+ * 「名字压暗给意图让位」的相邻选择器 —— 两者从不同时出现，它永远命不中。
  *
- * 只有意图真的在的时候名字才压暗：一张只有工具名的卡片，那个名字就是主角。
+ * 比工具名退半档：字号收到 aux，墨色收到 muted。它是标题栏里最该被读到的那句话，
+ * 但它同时也只是一句由入参派生出来的描述，不该拿到与卡片本身相同的重量。
+ *
+ * min-width: 0 不能省 —— flex 子项的默认最小宽度是内容宽度，省掉它省略号永远不出现。
  */
-.timeline-tool__title:has(+ .timeline-tool__intent) {
-  flex: 0 0 auto;
-  color: var(--cp-ink-muted);
-}
-
 .timeline-tool__intent {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--cp-ink);
+  color: var(--cp-ink-muted);
+  font-size: var(--ui-prose-size-aux);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -97,9 +97,9 @@ function ToolCallDiffStat({ diffStat }: { readonly diffStat: ToolCallFacets['dif
 /**
  * 标题栏。整行是一个按钮，所以这一层不放第二个开关。
  *
- * 标题优先用派发本身：item.title 是 agent 自己的话（Kimi 送过 Read，也送过
- * Reading README.md），对别的工具够用，对子代理不够 —— 一屏平行的子代理会得到
- * 一屏一模一样的标题。
+ * 标题那一格只有一句话。入参带 description 时印它，否则印 item.title（agent 自己
+ * 的话，Kimi 送过 Read，也送过 Reading README.md）。不并排 —— 两者说的是同一次调用
+ * 的两个层次，而类别那一层左边的图标已经在说了。
  *
  * 子代理不是一种 ACP 工具类别（AcpToolKind 里没有它），所以图标那一格的分流在
  * 这一层，不在 ToolKindIcon 的 switch 里：那个 switch 认的是协议枚举。
@@ -135,15 +135,16 @@ function ToolCallHeader({
         <ModelIcon aria-hidden="true" className="timeline-tool__icon" />
       )}
 
-      <span className="timeline-tool__title" title={brief?.gist}>
-        {brief === null ? item.title : brief.label}
-      </span>
-
       {/*
-       * 工具名让位，意图占主位：一屏的 Bash、Glob、Read 之间没有区别，真正把这次
-       * 调用和那次调用分开的是它要做什么。长了单行截断，全文进悬浮提示。
+       * 意图在就只印意图：一屏的 Bash、Glob、Read 之间没有区别，真正把这次调用和那次
+       * 调用分开的是它要做什么。工具名不再跟着一起印 —— 它是类别，而类别归左边那枚
+       * 图标。长了单行截断，全文进悬浮提示。
        */}
-      {intent === null ? null : (
+      {intent === null ? (
+        <span className="timeline-tool__title" title={brief?.gist}>
+          {brief === null ? item.title : brief.label}
+        </span>
+      ) : (
         <span className="timeline-tool__intent" title={intent.full}>
           {intent.text}
         </span>
