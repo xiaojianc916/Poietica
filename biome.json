@@ -264,6 +264,9 @@
       "includes": ["scripts/**/*.mjs", "tests/**/*.mjs", "*.mjs", "tools/**/*.mjs"],
       "linter": {
         "rules": {
+          "correctness": {
+            "noUnresolvedImports": "error"
+          },
           "suspicious": {
             "noConsole": "off"
           }

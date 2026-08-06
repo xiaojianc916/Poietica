@@ -29,7 +29,7 @@ import { createInterface } from 'node:readline/promises'
  * split('-')[0] 再自增。上一版这里手抄了一份漏掉那一步的，当前版本一旦带预发布号
  * （0.2.0-beta.1），Number('0-beta') 是 NaN，菜单会给出 0.2.NaN。
  */
-import { bumped, SEMVER } from './scripts/release/version.mjs'
+import { bumped, SEMVER } from './version.mjs'
 
 const MAIN_BRANCH = 'main'
 const CARGO = 'Cargo.toml'
