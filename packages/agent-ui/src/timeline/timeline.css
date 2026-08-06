@@ -503,15 +503,10 @@
  * 上限是一个最大值：短于它的内容没有滚动区，也就没有滚动条 —— 这正是「文字不高
  * 就不出现滚动条」，不需要任何额外判断。
  *
- * 这一处，而且只有这一处，把滚动条完全交给引擎并要它常驻。
+ * 这一处的滚动条常驻，而且要两端的三角。
  *
- * 这一段此前是在和一层 fixed 浮层划分地盘（「临时出现的不占布局走浮层，常驻的占布局
- * 走引擎」）。那层浮层已经不存在 —— 画它的 presentation/chrome/scrollbar-activity.ts
- * 从仓库里删掉了，app.css 那条 * { scrollbar-width: none } 也改成了 auto。留着一段
- * 描述不存在的机制的推理，比没有注释更坏：它会让下一个人按一套虚构的约束去做决定。
- *
- * 现在的理由只剩几何本身：这个盒子里是一段常驻可滚的长文，而常驻的滚动条按定义占布
- * 局，布局是引擎的事。
+ * 这个盒子里是一段可滚的长文，滚动条会一直在；常驻的滚动条按定义占布局，而布局是引
+ * 擎的事。
  *
  * 两端的三角同理，而且这里踩过一次坑：曾经用 ::-webkit-scrollbar-button 加
  * clip-path 手绘三角，画出来是两个实心方块 —— 那一族伪元素在 Chromium 里只处理
@@ -650,15 +645,23 @@
  * It used to be a rounded, tinted box inset by the body's padding, inside an
  * already rounded and bordered card: two frames, with a strip of the parent
  * showing on every side. Now the card's border is the only frame. The output
- * runs edge to edge, its corners come from the card's own `overflow: hidden`,
- * and structure is carried by hairlines instead of by gaps: one under the
- * header, one between each block. Collapsed, none of it is on screen — the
- * drawer clips it — so the row reads exactly as it did.
+ * runs edge to edge and its corners come from the card's own `overflow: hidden`.
+ * Collapsed, none of it is on screen — the drawer clips it — so the row reads
+ * exactly as it did.
+ *
+ * 一张纸，不是叠在一起的几块。底色在这一条上声明一次，切换带与下面那一面都不再各
+ * 自写一份 —— 两处各写一份要靠人去保证它们相等，而它们本来就是同一个平面；此前那
+ * 两处取的是两个不同的令牌，一个实色一个半透明墨，屏幕上就是深浅两块。面板那两根
+ * 滚动条的轨道也取这个颜色：轨道是纸的一部分，不是浮在纸上的另一个控件。
+ *
+ * 上面那一条线保留：它分开的是白色的标题栏与这张纸，那是两个平面之间真实存在的
+ * 边界。纸自己内部不再有线 —— 理由在切换带那一节。
  */
 .timeline-tool__body {
   display: grid;
   gap: 0;
   border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
+  background: var(--cp-timeline-drawer-surface);
 }
 
 /*
@@ -677,21 +680,27 @@
  * 上下跑。滚动条是滚动容器的边缘，不是内容的边缘：两个轴归同一个盒子，横条才钉得住。
  * 上面那两个参照物也都是这么做的。
  *
- * 滚动条整个交回平台，两个 auto。
+ * 滚动条取 thin，轨道也是这张纸。
  *
- * apps/desktop/src/app.css 在 * 上写了 scrollbar-color，那一句自己的注释说得很清楚：
- * 「指定 scrollbar-color 同时也就退出了 Windows 那套会自己淡出的覆盖式滚动条：常驻
- * 不是额外加的开关，是这一句的既定效果。」选择器是 *，所以这个盒子也被它命中，此前
- * 这里再叠一层自己的颜色，等于把它按死在经典渲染路径上。
+ * 这里试过一版两个 auto，赌的是「不写 scrollbar-color 就能拿回 Windows 那套会自己
+ * 淡出的覆盖式滚动条」。实测不成立：这个 WebView 在这个盒子上给回来的是占布局的经
+ * 典滚动条，两端带三角按钮，常驻且不淡出 —— 也就是说这里根本没有覆盖式实现可退回，
+ * 写不写颜色都一样。赌注不兑现，那一档就没有留下的理由。
  *
- * auto 是 CSS Scrollbars Styling Level 1 的初始值，含义是「由 UA 按平台惯例决定」——
- * 覆盖式滚动条因此回来：静息时是一条极细的指示条，指针进入或滚动时展开，停手之后自
- * 己淡出。这是平台的实现，不是在这里补的动画；CSS 至今没有表达「滚动条淡入淡出」的
- * 标准能力（csswg-drafts#6844，2021 年提出，至今 open），所以能不能拿到它，取决于让
- * 不让平台自己画。
+ * 连带作废一句旧结论：app.css 那条注释说「指定 scrollbar-color 同时也就退出了覆盖
+ * 式滚动条」。对那个盒子也许成立，对这一个不成立 —— 把颜色拿掉之后覆盖式并没有回来。
  *
- * 宽度一并交出去：thin 是经典路径的档位，覆盖式路径的粗细由平台定，两者不能同时说了
- * 算。用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
+ * 所以是 thin，理由回到几何：这个面板两个轴都可滚，两根 auto 各占一条约 17px 的车
+ * 道，横的那根还压在一个 18rem 高的面板的最后一行上。
+ *
+ * 轨道显式给成抽屉的纸色。scrollbar-color 是两个值 —— 只写滑块时，轨道由平台自己
+ * 画，而它并不知道下面铺了什么，于是在一张浅灰的纸上画出两条白带。滑块是半透明墨，
+ * 压在纸上跟着纸走。
+ *
+ * 思考盒那一处仍是 auto：它要的是常驻加两端的三角，而 thin 会把按钮一起去掉。两处
+ * 取值不同是因为诉求不同，不是漏改了一处。
+ *
+ * 用标准属性而不是 ::-webkit-scrollbar：两者互斥，标准的那条才被推荐。
  */
 .timeline-tool__panel {
   position: relative;
@@ -703,9 +712,8 @@
    * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
    */
   overflow-anchor: none;
-  scrollbar-width: auto;
-  scrollbar-color: auto;
-  background: var(--cp-timeline-output-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--cp-timeline-drawer-thumb) var(--cp-timeline-drawer-surface);
 }
 
 /*
@@ -717,31 +725,34 @@
  */
 
 /*
- * 切换条自占一条窄带，与下面那一面之间由 __body 的分隔线断开。
+ * 切换条自占一条窄带，它和下面那一面之间没有边界。
  *
- * 带此前没有底色，透出卡面的白：下面是一片浅灰的面板，上面是一片白，胶囊浮在白上 ——
- * 读起来像两个各自独立的部件，而不是一个抽屉的两个面。带和面板同属一张纸，就该在同
- * 一层上。
+ * 底色不在这里给 —— 带和面是同一张纸，纸色归 __body 一处声明。这一条只管留白。
  *
  * 选中态在这里重新给一次，不改 tabs.css：那一层是全局原语，别处的标签仍要它原来的那
  * 一档。底色一旦落到纸上，原语给的半透明墨叠上去只解出约 12% 的对比，偏弱；换成实色
  * 的上一档，两者的差正是设计系统在菜单那两级边界上定下的量。
  *
- * 悬停不必动：原语用的 4% 半透明墨叠在这层底色上解出约 10%，正好落在底色与选中态之
+ * 悬停不必动：原语用的 4% 半透明墨叠在这层底色上解出约 10%，正好落在纸面与选中态之
  * 间，三档的次序自然成立。
  */
 .timeline-tool__tabs {
   padding: 0.375rem 0.75rem;
-  background: var(--cp-timeline-tabs-surface);
 }
 
 .timeline-tool__tabs .tabs__tab[aria-selected="true"] {
   background: var(--cp-timeline-tabs-active);
 }
 
-.timeline-tool__body > * + * {
-  border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
-}
+/*
+ * 页签与它自己的面板之间不画线。
+ *
+ * 选中的那一枚已经在宣告下面是什么，再加一条边界等于把同一句话说两遍；而这张纸本来
+ * 就是一整张，一条横贯的线会把它切成上下两块，读起来又变回两个部件。Chrome DevTools
+ * 的面板页签、VS Code 的编辑器分组页签，都不在这一处画线。
+ *
+ * 抽屉里唯一的那条线在 __body 的上边，分开的是标题栏与这张纸。
+ */
 
 /*
  * 这里此前有八个类：diff 的容器与两栏、路径、新建提示、终端、不透明内容、那句空话，
@@ -1133,19 +1144,11 @@
   color: var(--cp-diff-removed-text);
 }
 
-/* ── 内层滚动盒的滚动条 ──────────────────────────────────────────
+/* ── 滚动链 ────────────────────────────────────────────────────
  *
- * 滚动条归引擎，一根都不自己画。
- *
- * 这一节此前描述的是另一套已经不存在的机制：它说 app.css 用 * { scrollbar-width: none }
- * 关掉了原生滚动条，滑块由 presentation/chrome/scrollbar-activity.ts 画在一层 fixed
- * 浮层上，所以这张表「一根都不画」。三句话现在都不成立 —— app.css 那一条已经是
- * scrollbar-width: auto，那个文件本身已从仓库删除，而这张表里 __panel 与 __scroll 都
- * 各自声明着自己的滚动条。
- *
- * 现在的事实只有一条：滚动条由引擎画，这张表在需要时说它是哪一档（auto / thin），以及
- * 要不要退回平台的覆盖式实现（scrollbar-color: auto）。伪元素那条路不走 ——
- * ::-webkit-scrollbar 与标准属性互斥，选了标准的那条就不回头。
+ * 滚动条由引擎画。这张表只在需要时说两件事：它是哪一档（auto / thin），以及它是什么
+ * 颜色。伪元素那条路不走 —— ::-webkit-scrollbar 与标准属性互斥，选了标准的那条就不
+ * 回头。
  *
  * overscroll-behavior: contain 此前写在这里的每一个内层盒子上（六处），那是一次
  * 手搓，而且拦错了东西。它按轴阻断滚动链，不问这个轴上有没有可滚的距离：表格的
@@ -1155,9 +1158,7 @@
  * 而「到边界先顿一下、手势松开后再滚就带走外层」本来就是引擎的行为 —— Chromium
  * 的滚动闩锁把一次手势锁在起始的滚动盒上，手势结束后才重新选目标。删掉 contain，
  * 那段阻滞感是免费的，而且与系统里其它应用一致；留着它，等于用一段拦截去覆盖一段
- * 做得更好的原生实现。
- *
- * 唯一的例外是思考过程：它自己就用引擎的滚动条，那一节在上面单独说明。
+ * 做得更好的原生实现。思考过程那一处同理，它的滚动条一样归引擎。
  */
 
 /* ── 公式与图表 ───────────────────────────────────────────────
