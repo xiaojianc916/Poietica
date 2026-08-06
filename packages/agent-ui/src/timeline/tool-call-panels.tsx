@@ -1,20 +1,20 @@
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
 import type { SubAgentBrief } from '../semantics/sub-agent'
-import type { ToolContentPart } from '../semantics/tool-call-content'
 import type { ToolCallFacets } from '../semantics/tool-call-facets'
-import { Prose } from './prose'
+import { VirtualProse } from './virtual-prose'
 
 /**
  * 抽屉里的两个面：左边是我们送出去的，右边是它交回来的。
  *
- * 此前这里是一路平铺 —— locations、任务书、那句空话、若干段产出，一件挨一件往下
- * 摞，读者得自己分辨哪一段是因、哪一段是果。而「因」还只对子代理可见。
+ * 一个面就是一段 markdown —— 投影层已经把 locations 之外的一切拼好了。这一层因此
+ * 不再有四路 switch、不再有 diff 两栏、不再有一张裸 ul：那些渲染器每一个都是同一件事
+ * 的第 n 种写法，而它们各自的样式类也跟着一起下线了。
  *
- * 抽屉里只剩一个滚动容器（.timeline-tool__panel）。上限仍是
- * --cp-timeline-output-max，只是它现在管的是整个面，不是其中一块。
+ * 面板是抽屉里唯一的滚动容器，也是虚拟窗口量高度的那个盒子。它归这一层，不归
+ * VirtualProse —— 因为只有这一层知道它此刻是不是一个 tabpanel。
  */
 
 const REQUEST = 'request'
@@ -44,96 +44,27 @@ function emptyNoteOf(brief: SubAgentBrief | null, isRunning: boolean): string {
 }
 
 /**
- * 一段产出，一格一个组件。
+ * 受影响的文件，一行说完。
  *
- * 种类分流属于「一段产出怎么画」，不属于「这张卡片怎么排」。种类直接取投影层导出的
- * 那个联合，不另立一份。key 由调用方给。
- */
-function ToolCallPart({ part }: { readonly part: ToolContentPart }) {
-  /*
-   * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个组件，而不是一个
-   * 只会原样倒字符串的 <pre> —— 计划模式产出的整份文档此前正是因此以 # 与 | 的原文
-   * 出现在卡片里。命令输出不受影响：协议把终端单列为一种 part。这里的内容已经落定，
-   * 所以流式修补与增量揭示都关掉。
-   */
-  if (part.type === 'text') {
-    return <Prose className="timeline-tool__prose" isStreaming={false} text={part.text} />
-  }
-
-  if (part.type === 'diff') {
-    return (
-      <div className="timeline-tool__diff">
-        <p className="timeline-tool__diff-path">{part.path}</p>
-        {part.oldText === null ? (
-          <p className="timeline-tool__diff-note">新建文件</p>
-        ) : (
-          <pre className="timeline-tool__diff-old">{part.oldText}</pre>
-        )}
-        <pre className="timeline-tool__diff-new">{part.newText}</pre>
-      </div>
-    )
-  }
-
-  if (part.type === 'terminal') {
-    return <p className="timeline-tool__terminal">终端 {part.terminalId}</p>
-  }
-
-  return <p className="timeline-tool__opaque">{part.label}</p>
-}
-
-/**
- * 交回来的那一面。
- *
- * 受影响的文件排在最前：它是这次调用的结果之一，而且这样一来它也进了面板那一个滚动
- * 容器 —— 此前那张 <ul> 谁都不封顶。
+ * 它归请求那一面：locations 说的是这次调用要碰哪些文件 —— 那是意图，不是结果。
+ * 编辑器拿它做的也正是「跟着 agent 的视线走」，而不是「它改完了什么」。
  *
  * 行号判的是「是不是一个数」，不是「是不是 undefined」：协议给的是
  * number | null | undefined，而此前那句 location.line === undefined 会让 null 落进
- * else，String(null) 于是把 ":null" 印在路径后面。
- *
- * parts 的 key 用下标：投影是 content 数组的纯函数，顺序即协议顺序，不重排也不中间
- * 插入，而每个渲染器都没有自己的状态。
+ * else，String(null) 于是把 \":null\" 印在路径后面。
  */
-function ResponseFacet({
-  brief,
-  isRunning,
-  locations,
-  output,
-  parts,
-}: {
-  readonly brief: SubAgentBrief | null
-  readonly isRunning: boolean
-  readonly locations: ToolCallLocations
-  readonly output: string | null
-  readonly parts: readonly ToolContentPart[]
-}) {
-  return (
-    <>
-      {locations.length > 0 ? (
-        <ul className="timeline-tool__locations">
-          {locations.map((location, index) => (
-            <li className="timeline-tool__location" key={`${location.path}:${String(index)}`}>
-              {location.path}
-              {typeof location.line === 'number' ? `:${String(location.line)}` : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+function locationLine(locations: ToolCallLocations): string {
+  if (locations.length === 0) {
+    return ''
+  }
 
-      {parts.map((part, index) => (
-        <ToolCallPart key={`${part.type}:${String(index)}`} part={part} />
-      ))}
-
-      {/* 协议只给了 rawOutput 的时候，它就是这一面唯一交得出来的东西。 */}
-      {output === null ? null : (
-        <Prose className="timeline-tool__prose" isStreaming={false} text={output} />
-      )}
-
-      {parts.length === 0 && output === null ? (
-        <p className="timeline-tool__empty">{emptyNoteOf(brief, isRunning)}</p>
-      ) : null}
-    </>
+  const marks = locations.map((location) =>
+    typeof location.line === 'number'
+      ? `\`${location.path}:${String(location.line)}\``
+      : `\`${location.path}\``,
   )
+
+  return `${marks.join(' · ')}\n\n`
 }
 
 /**
@@ -145,9 +76,8 @@ function ResponseFacet({
  * 两边的属性都是字面量。
  *
  * 面板不写 tabIndex：滚动容器的键盘可达性归渲染器 —— 这个应用是单引擎 WebView2
- * （见 reasoning-panel.tsx 的 useScrollendEvent），Chromium 自 127 起让滚动容器默认
- * 可聚焦，而同一体系里的 timeline-reasoning__scroll 也正是这么落地的。手写一份只是
- * 给同一个问题添第二个答案。
+ * （见 virtual-prose.tsx 的 useScrollendEvent），Chromium 自 127 起让滚动容器默认
+ * 可聚焦，而同一体系里的 timeline-reasoning__scroll 也正是这么落地的。
  */
 export function ToolCallPanels({
   facets,
@@ -158,36 +88,43 @@ export function ToolCallPanels({
   readonly isRunning: boolean
   readonly locations: ToolCallLocations
 }) {
-  const { brief, output, parts, request } = facets
+  const { brief, request, response } = facets
   const baseId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  /* 只有一个面时，受影响的文件跟着那一面走 —— 它不能因为没有入参就消失。 */
+  const marks = locationLine(locations)
+  const requestText = request === null ? null : `${marks}${request}`
+  const responseText = `${request === null ? marks : ''}${response ?? emptyNoteOf(brief, isRunning)}`
 
   /*
    * 停在哪一面是派生的，不是一次性初值 —— 与 useDisclosure 同一条语义：还没有产出就
    * 停在入参那一面（运行中唯一有内容的就是它），产出到了自动让位，人点过一次之后以
    * 人为准。上游没送入参时只有一面，那一面恒定是 Response。
    */
-  const settled = parts.length > 0 || output !== null
-  const activeId = request === null ? RESPONSE : (chosen ?? (settled ? RESPONSE : REQUEST))
+  const activeId =
+    requestText === null ? RESPONSE : (chosen ?? (response === null ? REQUEST : RESPONSE))
 
-  const face =
-    activeId === REQUEST && request !== null ? (
-      <Prose className="timeline-tool__prose" isStreaming={false} text={request} />
-    ) : (
-      <ResponseFacet
-        brief={brief}
-        isRunning={isRunning}
-        locations={locations}
-        output={output}
-        parts={parts}
-      />
-    )
+  const text = activeId === REQUEST && requestText !== null ? requestText : responseText
+
+  const face = (
+    <VirtualProse
+      bodyClassName="timeline-tool__prose"
+      chaseEnd={false}
+      isStreaming={false}
+      scrollRef={scrollRef}
+      text={text}
+    />
+  )
 
   /* 一个面：没有可切的东西，就不摆一条只有一格的切换条，也不假装自己是 tabpanel。 */
-  if (request === null) {
+  if (requestText === null) {
     return (
       <div className="timeline-tool__body">
-        <div className="timeline-tool__panel">{face}</div>
+        <div className="timeline-tool__panel" ref={scrollRef}>
+          {face}
+        </div>
       </div>
     )
   }
@@ -207,6 +144,7 @@ export function ToolCallPanels({
         aria-labelledby={tabId(baseId, activeId)}
         className="timeline-tool__panel"
         id={panelId(baseId, activeId)}
+        ref={scrollRef}
         role="tabpanel"
       >
         {face}

@@ -72,7 +72,7 @@ function describeToolCall(item: ToolCallTimelineItem, isInFlight: boolean): Tool
     facets,
     intent: facets.brief === null ? readToolIntent(item) : null,
     isRunning,
-    opensByDefault: isRunning && (facets.parts.length > 0 || facets.request !== null),
+    opensByDefault: isRunning && (facets.response !== null || facets.request !== null),
   }
 }
 

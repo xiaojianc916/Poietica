@@ -555,7 +555,7 @@
  * 档）：这个包裹层挡在中间，首块清零那两条选择器够不到它。绝对定位另外顺手解决一
  * 件事 —— 它建立独立的 BFC，上边距因此留在盒子里、被量进这一块的高度，而不是穿出去。
  */
-.timeline-reasoning__block {
+.timeline-prose__block {
   position: absolute;
   inset-block-start: 0;
   inset-inline: 0;
@@ -569,7 +569,7 @@
  * :first-child 会让那一块的上边距随滚动位置忽有忽无，而它的高度正被 measureElement
  * 读着 —— 那是一次自己引起自己的重测。
  */
-.timeline-reasoning__block[data-first="true"] > * > :first-child {
+.timeline-prose__block[data-first="true"] > * > :first-child {
   margin-block-start: 0;
 }
 
@@ -643,67 +643,43 @@
  * 撑高，overscroll-behavior 把滚动链掐断在这一层。
  */
 .timeline-tool__panel {
-  display: grid;
-  gap: 0;
+  position: relative;
   max-block-size: var(--cp-timeline-output-max);
-  overflow: auto;
-  overscroll-behavior: contain;
+  padding: 0.625rem 0.75rem;
+  overflow: hidden auto;
+  /*
+   * 锚定只能有一个所有者：末端锚定与增量补偿归虚拟器，浏览器原生的滚动锚定若同时
+   * 生效，同一次尺寸变化会被两个纠正者各补一次。思考盒那一层同一条。
+   */
+  overflow-anchor: none;
+  background: var(--cp-timeline-output-surface);
 }
+
+/*
+ * overscroll-behavior 不写在这里。
+ *
+ * 上一版把它写上了，而这张表末尾那一节早就为同一件事下过结论：它按轴阻断滚动链，
+ * 不问这个轴上有没有可滚的距离 —— 一个内容不满的面板会让滚轮停在卡片里出不去。
+ * 「到边界先顿一下、手势松开后再滚就带走外层」本来就是 Chromium 滚动闩锁的行为。
+ */
 
 /* 切换条自占一条窄带，与下面那一面之间由 __body 的分隔线断开。 */
 .timeline-tool__tabs {
   padding: 0.375rem 0.75rem;
 }
 
-.timeline-tool__body > * + *,
-.timeline-tool__panel > * + *,
-.timeline-tool__diff > * + * {
+.timeline-tool__body > * + * {
   border-block-start: var(--ui-region-divider-width) solid var(--surface-rule);
 }
 
-/* A diff is one unit: its parts stack flush and share its edges. */
-.timeline-tool__diff {
-  display: grid;
-}
-
-.timeline-tool__locations {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  list-style: none;
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-aux);
-}
-
-.timeline-tool__diff-old,
-.timeline-tool__diff-new {
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  background: var(--cp-timeline-output-surface);
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-line-height-normal);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.timeline-tool__diff-old {
-  background: var(--cp-timeline-diff-old);
-}
-
-.timeline-tool__diff-new {
-  background: var(--cp-timeline-diff-new);
-}
-
-.timeline-tool__diff-path,
-.timeline-tool__diff-note,
-.timeline-tool__terminal,
-.timeline-tool__opaque,
-.timeline-tool__empty {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-aux);
-}
+/*
+ * 这里此前有八个类：diff 的容器与两栏、路径、新建提示、终端、不透明内容、那句空话，
+ * 外加一张 locations 的裸 ul。它们画的是同一种东西 —— 一段等宽的机器输出 —— 却各写
+ * 了一份底色、一份留白、一份字号。现在抽屉里的一个面就是一段 markdown，围栏由
+ * Streamdown 上色（diff 走它自带的 diff 着色），排版全部来自 .timeline-prose。
+ *
+ * 八个类因此没有消费者了，一并删掉，不留兼容层。
+ */
 
 .timeline-plan {
   margin: 0;
@@ -1195,9 +1171,53 @@
  * 与两侧 diff 同一个 token：同一张卡里的三种输出不该有三个高度。
  */
 .timeline-prose.timeline-tool__prose {
-  padding: 0.625rem 0.75rem;
-  background: var(--cp-timeline-output-surface);
+  /* 虚拟块的包含块。高度由虚拟器给出，是行内样式 —— 这里不声明第二个来源。 */
+  position: relative;
   font-size: var(--ui-prose-size-aux);
+}
+
+/*
+ * 抽屉里的围栏没有外壳。
+ *
+ * 一段围栏出现在回答里，它是文章引用的一段代码：报一下语言、给一个复制按钮、用边框
+ * 把自己和正文隔开 —— 上面那四条规则说的就是这件事，它们在那个语境里是对的。
+ *
+ * 出现在抽屉里，它就是这一面的全部内容。页签上写着 Request，再挂一枚 json 胶囊是
+ * 同一句话说两遍；卡片已经有一圈边，再套一圈就是卡中卡（这张表在表格那一节已经为
+ * 同一个毛病做过一次同样的手术）。
+ *
+ * 最要紧的是 code-block-body 那个 max-block-size 加 overflow：它让围栏成为面板里
+ * 第二个滚动容器，而「一个面板一个滚动容器」正是上面那条规则的全部内容。所以把
+ * 滚动权交还给面板，长行改折行 —— 取值与它取代的 __diff-old / __diff-new 逐条一致，
+ * 而虚拟化的估高按逻辑行算，折行只会让 measureElement 补偿一次。
+ *
+ * 判据是「围栏在哪」，不是「围栏是什么」：这四条与上面那四条特异性相同，靠书写顺序
+ * 决定胜负，而这里在后面。
+ */
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block"] {
+  display: block;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-header"],
+.timeline-prose.timeline-tool__prose
+  [data-streamdown="code-block"]
+  > :has(> [data-streamdown="code-block-actions"]) {
+  display: none;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] {
+  max-block-size: none;
+  overflow: visible;
+  padding: 0;
+}
+
+.timeline-prose.timeline-tool__prose [data-streamdown="code-block-body"] pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /*
