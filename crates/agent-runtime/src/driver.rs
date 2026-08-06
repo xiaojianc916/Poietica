@@ -68,8 +68,7 @@ enum Settled {
         reply: oneshot::Sender<Result<()>>,
     },
     /* 这里没有会话号：结算这一轮要用到它的地方只有记录器，而记录器出生时就
-    拿着它。此前有一格 `asked: String` 装着它，从被填进去到被解构出来，中间没有
-    任何一个读者 —— 而那个名字读起来像是"问出去的那句话"（真正的那句叫 `text`）。 */
+    拿着它。 */
     Turn {
         ended: Ended,
         slot: RunSlot,
@@ -126,12 +125,7 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
     // 同一个函数 —— 同一个程序不该有两套找法。
     let resolved = resolve_program(&program)?;
 
-    /* 启动配置是 SDK 自己的类型，不是 MCP 的 wire schema。1.x 借用了 McpServerStdio，
-    于是这里得先造一个没人看的服务器名、再往一个 #[non_exhaustive] 结构体的 Vec 里
-    逐条 push EnvVariable。2.0 换成 AcpAgentConfig 之后这些全部消失：env 是一张字符
-    串表，Vec<(String, String)> 直接喂得进去。
-
-    仍然是直接构造，而不是先拼一行命令再让 from_str 用 shell 词法把它切回来 ——
+    /* 直接构造，而不是先拼一行命令再让 from_str 用 shell 词法把它切回来 ——
     那一趟往返是有损的：绝对路径的反斜杠会被当成转义符，带空格的路径会被切断。
 
     command 收的是 impl Into<PathBuf>，which 交回来的就是 PathBuf，无需再转。 */
@@ -362,11 +356,6 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
 
                 /*
                  * 在飞的每一件事各是一个未来，一起被推进。
-                 *
-                 * 此前这里是一个只等一个请求的 select：一轮进行中收到的每一条
-                 * 命令都得在那个 select 的分支里手写分发，而"这个任务正在等一
-                 * 个回应"就成了拒绝其他所有命令的理由 —— BUSY、AWAITING、
-                 * CHANGING 三条拒绝，没有一条来自协议。
                  *
                  * SDK 自己说得很清楚（concepts/ordering.rs）：block_task 不占用
                  * 派发循环，foreground future 里同时挂多个请求正是它的用法。
@@ -732,9 +721,8 @@ async fn open_session(
 /// 历史本身。那些帧走接收路径上同一个入口，所以只要这条会话上有人在听，它们
 /// 与当初实时收到的那一批逐字节相同。
 ///
-/// 此前没有人在听：槽只装得下记录器，而记录器离不开日志，于是「转发但不落库」
-/// 说不出来，那些帧被 [`RunSlot::record`] 静默丢掉。历史只好从本地日志再读一
-/// 份 —— 这就是第二个事实来源的由来。现在装的是一位重播听众。
+/// 听的是一位重播听众（[`Listening::Replay`]）：它转发但不落库，所以这段历史
+/// 不会在本地留下第二份。
 async fn load_session(
     connection: &ConnectionTo<Agent>,
     ledger: SessionBook,
@@ -783,11 +771,10 @@ async fn replay(
     slot.install(Listening::Replay(Frames::new(
         session_id.clone(),
         slot.seq(),
-        Box::new(move |event: &RecordedEvent| {
-            /* 帧变成 JSON 的地方只有这一处：重播帧不走 IPC，它随
-            OpenedSession 一起交回主循环，所以要在这里定形。实时那条路上
-            一次都不做 —— 帧本身就是上屏的形状，序列化只在它离开进程时
-            由 Tauri 做一次。两边形状逐字节相同，因为定形的是同一个类型。 */
+        Box::new(move |event: RecordedEvent| {
+            /* 重播帧在这里定形，理由只有一个：它随 OpenedSession 一起交回
+            主循环，而那一格的类型是 Value。实时那条路上一次都不做 —— 帧
+            本身就是上屏的形状。两边逐字节相同，因为定形的是同一个类型。 */
             if let Ok(value) = serde_json::to_value(event)
                 && let Ok(mut held) = sink.lock()
             {

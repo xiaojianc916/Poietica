@@ -41,8 +41,7 @@ impl fmt::Debug for PromptImage {
 /// What the driver is asked to do next.
 ///
 /// 每一条都是一件事，而不是一个时段：驱动器把它变成一个自己的未来推进去，
-/// 谁先回来谁先落账。此前它们是在一条命令流上排队的，于是"正在等一个回应"
-/// 这件事本身，变成了拒绝其他所有命令的理由。
+/// 谁先回来谁先落账 —— 「正在等一个回应」不该成为拒绝其他命令的理由。
 pub(crate) enum Command {
     /// Open one more session on the connection that is already running.
     NewSession {

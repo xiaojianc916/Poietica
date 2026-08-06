@@ -30,21 +30,18 @@ pub struct RecordedEvent {
     pub at: i64,
     /// 这一帧本身：判别式与载荷平铺在同一层。
     ///
-    /// 它此前是一棵已经序列化好的 `Value`。帧先被 `acp_update` 做成一棵树，
-    /// 而 `envelope` 又把那棵树整个走一遍序列化器，深拷贝出第二棵一模一样
-    /// 的——同一份内容在原生侧建两遍，每个 token 一次。而两棵都不是最终形态：
-    /// emit 还要再序列化一次才上线。
-    ///
-    /// 类型换成帧本身之后，序列化只发生在它真正离开进程的那一刻，由 Tauri
-    /// 做，一次。
+    /// 装的是帧，不是一棵序列化好的 `Value`：序列化只发生在它真正离开进程
+    /// 的那一刻，由 Tauri 做，一次。
     #[serde(flatten)]
     pub frame: RunFrame,
 }
 
 /// 一帧交出去的地方。
 ///
-/// 四处签名都要写这一串，而它们说的是同一件事。
-pub type FrameSink = Box<dyn FnMut(&RecordedEvent) + Send>;
+/// 收的是帧本身，不是它的引用。每一个接收方都要留下这一帧 —— 攒批任务把它
+/// 推进通道，重播把它变成 JSON，测试把它存起来 —— 借来的一帧只能靠深拷贝
+/// 留下，而 `RecordedEvent` 里那棵 `Value` 是按 token 计价的。
+pub type FrameSink = Box<dyn FnMut(RecordedEvent) + Send>;
 
 /// 一条会话上的序号线。
 ///
@@ -83,16 +80,11 @@ impl SeqLine {
 
 /// 一次运行的帧流：成形，然后投递。
 ///
-/// 它不认识日志。此前这三个字段长在 [`Recorder`] 上，而 [`Recorder::append`]
-/// 把「算序号」「写日志」「推给界面」焊成一个函数 —— 于是「只上屏、不落库」
-/// 在类型上说不出来，而那正是装载一条旧会话时重播帧的处境：`session/load`
-/// 期间 agent 把整条会话重放一遍，那些帧走的是同一个通知入口，此刻槽里没有
-/// 记录器，它们被静默丢掉（见 driver.rs 的 `load_session`）。历史因此只能从
-/// 本地日志再读一遍 —— 第二份真相就是这么来的。
+/// 它不认识日志：`session/load` 期间 agent 把整条会话重放一遍，那些帧要上屏
+/// 但不落库（见 driver.rs 的 `replay`），而那件事必须在类型上说得出来。
 ///
-/// 分成两步而不是一个 `emit`，是为了让序号的语义原样保留：位置在成形时只是
-/// 被算出来，投递成功才算用掉。写日志失败时这一帧不投递，序号也就不前进，
-/// 下一帧仍然占这个位置 —— 日志里不留空洞。
+/// 成形与投递分成两步，是为了让序号的语义原样保留：位置在成形时只是被算出
+/// 来，投递成功才算用掉。成形失败的那一帧不投递，序号也就不前进。
 pub struct Frames {
     session_id: String,
     seq: SeqLine,
@@ -133,8 +125,8 @@ impl Frames {
         }
     }
 
-    /// 交出去，位置就此用掉。
-    pub fn deliver(&mut self, event: &RecordedEvent) {
+    /// 交出去，位置就此用掉。帧的所有权一并交出：这一层此后不再读它。
+    pub fn deliver(&mut self, event: RecordedEvent) {
         self.seq.used(event.seq);
 
         (self.sink)(event);
@@ -151,7 +143,7 @@ impl Frames {
     pub fn record_session_update(&mut self, notification: &SessionNotification) -> Result<()> {
         let event = self.shape(acp_update(notification)?);
 
-        self.deliver(&event);
+        self.deliver(event);
 
         Ok(())
     }
@@ -411,7 +403,7 @@ impl Recorder {
     fn append(&mut self, frame: RunFrame) {
         let event = self.frames.shape(frame);
 
-        self.frames.deliver(&event);
+        self.frames.deliver(event);
     }
 
     fn remember(&mut self, outcome: Result<()>) {
@@ -438,9 +430,8 @@ fn now_millis() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由。根 Cargo.toml 说
-    // 「#[cfg(test)] 模块内层统一放开」，但仓库根没有 clippy.toml，也就没有
-    // allow-expect-in-tests —— 放开一直是逐处写出来的，这个内联模块只是漏了。
+    // 与 tests/recorder.rs 顶上那一句同一条纪律、同一个理由：仓库根没有
+    // clippy.toml，也就没有 allow-expect-in-tests，放开只能逐处写出来。
     #![allow(
         clippy::expect_used,
         reason = "a test proves itself by panicking, so a failed step must fail the test"
@@ -467,7 +458,7 @@ mod tests {
         let mut frames = Frames::new(
             "sess_alpha".to_owned(),
             SeqLine::new(),
-            Box::new(move |event: &RecordedEvent| {
+            Box::new(move |event: RecordedEvent| {
                 if let Ok(mut held) = sink.lock() {
                     held.push(event.seq);
                 }
@@ -483,7 +474,7 @@ mod tests {
             "成形两次仍是同一个位置：没有投递就没有用掉"
         );
 
-        frames.deliver(&shaped);
+        frames.deliver(shaped);
 
         assert_eq!(frames.shape(ending()).seq, 2, "投递之后位置才前进");
         assert_eq!(*seen.lock().expect("the sink is readable"), vec![1]);

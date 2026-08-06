@@ -183,9 +183,9 @@ fn batched(app: AppHandle) -> FrameSink {
         }
     });
 
-    Box::new(move |event: &RecordedEvent| {
+    Box::new(move |event: RecordedEvent| {
         /* 收批的那一端与这条连接同寿；它先走了，这一轮剩下的帧就没有去处。 */
-        let _closed = arrived.send(event.clone());
+        let _closed = arrived.send(event);
     })
 }
 
