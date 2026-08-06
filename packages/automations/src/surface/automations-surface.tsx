@@ -41,8 +41,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
         <h1 className="text-lg font-semibold tracking-tight">自动化</h1>
 
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          让重复的活儿按计划自己跑。每一次运行都会开出一条对话，做了什么、说了什么，
-          都留在那条对话里。
+          依托全天候在线的本地代理，响应环境触发事件，自动执行重复性工作
         </p>
 
         <dl className="mt-6 grid grid-cols-3 gap-3">

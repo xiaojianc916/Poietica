@@ -93,9 +93,21 @@ export function createAutomationStore(): AutomationStore {
   }
 
   async function fire(automation: Automation): Promise<void> {
-    const run = dispatch
+    /*
+     * 先快照，再用。两个理由，缺一个都会出事：
+     *
+     *   1. dispatch 是模块作用域里可变的 AutomationDispatch | null。只有快照成
+     *      const，null 检查之后的收窄才活得过下面那个 await —— 直接判 dispatch
+     *      再 await dispatch(...)，收窄会在 await 处失效。
+     *   2. start() 返回的停表函数会把 dispatch 置回 null。分两次读，就可能一次
+     *      非空、一次为空。
+     *
+     * 名字叫 invoke 不叫 run：run 归 AutomationRun —— 那是这个领域里的名词，
+     * 不该被一个装着函数的局部变量占着。
+     */
+    const invoke = dispatch
 
-    if (run === null || inFlight.has(automation.id)) {
+    if (invoke === null || inFlight.has(automation.id)) {
       return
     }
 
@@ -105,7 +117,7 @@ export function createAutomationStore(): AutomationStore {
     let threadId: string | null = null
 
     try {
-      threadId = await run(automation)
+      threadId = await invoke(automation)
     } catch (cause: unknown) {
       warn('自动化这次没有跑起来', { scope: 'automations', cause })
     } finally {

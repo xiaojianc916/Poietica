@@ -20,9 +20,13 @@ type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
 pub enum AutomationTrigger {
     Manual,
     #[serde(rename_all = "camelCase")]
-    Interval { every_minutes: u32 },
+    Interval {
+        every_minutes: u32,
+    },
     #[serde(rename_all = "camelCase")]
-    Daily { at_minute_of_day: u32 },
+    Daily {
+        at_minute_of_day: u32,
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq)]
