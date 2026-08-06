@@ -46,8 +46,6 @@ describe('子代理派发', () => {
     expect(brief?.gist).not.toContain('第二段')
   })
 
-  )
-
   it('描述整段是空白时退回任务书,不留一个空标题', () => {
     const brief = readSubAgent({ description: '  ', prompt: '读一遍日志', subagent_type: 'reader' })
 
@@ -60,10 +58,11 @@ describe('子代理派发', () => {
     expect(brief?.label).toBe('reader')
   })
 
-  it('后台只认真正的 true,字符串 false 也是真值', () => 
+  it('后台只认真正的 true,字符串 false 也是真值', () => {
     expect(readSubAgent({ run_in_background: true, subagent_type: 'r' })?.isBackground).toBe(true)
     expect(readSubAgent({ run_in_background: 'false', subagent_type: 'r' })?.isBackground).toBe(
       false,
     )
-    expect(readSubAgent({ subagent_type: 'r' })?.isBackground).toBe(false))
+    expect(readSubAgent({ subagent_type: 'r' })?.isBackground).toBe(false)
+  })
 })

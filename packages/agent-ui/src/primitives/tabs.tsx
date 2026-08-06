@@ -32,7 +32,8 @@ export function panelId(baseId: string, id: string): string {
   return `${baseId}-panel-${id}`
 }
 
-const STEP: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 }
+/* 值写成可空，这张表本来就只认得两个键。 */
+const STEP: Record<string, number | undefined> = { ArrowLeft: -1, ArrowRight: 1 }
 
 export function TabList({
   activeId,
@@ -64,8 +65,7 @@ export function TabList({
             ? -1
             : (from + step + count) % count
 
-    /* at(-1) 会绕回最后一格，所以负数必须先挡掉。 */
-    const chosen = next < 0 ? undefined : options.at(next)
+    const chosen: TabOption | undefined = next < 0 ? undefined : options[next]
 
     if (chosen === undefined) {
       return

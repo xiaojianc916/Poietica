@@ -38,50 +38,12 @@ function ToolKindIcon({ kind }: { readonly kind: ToolCallTimelineItem['kind'] })
   }
 }
 
-/*
- * isRunning 的两个条件缺一不可：这一轮还在跑，并且这次调用还没有收到终态。
- * 后半句单独用不得 —— status 是 agent 说过的话，一次没等到终态的调用会永远停在
- * in_progress，那张卡片会在一轮早就结束之后还在转。轮次是否还在飞由读模型说。
- *
- * 开合判据落在「它还在跑吗」，不落在「它跑成了什么」：上游对多数工具不回传过程，
- * 而终端类的实时输出走 terminal: { readonly part: ToolCallPartView }) {
-  /*
-   * 工具返回的正文和回答是同一种东西：一段 markdown。所以它走同一个组件，而不是
-   * 一个只会原样倒字符串的 <pre> —— 计划模式产出的整份文档此前正是因此以 # 与 |
-   * 的原文出现在卡片里。命令输出不受影响：协议把终端单列为一种 part。
-   * 这里的内容已经落定，所以流式修补与增量揭示都关掉。
-   */
-  if (part.type === 'text') {
-    return <Prose className="timeline-tool__prose" isStreaming={false} text={part.text} />
-  }
-
-  if (part.type === 'diff') {
-    return (
-      <div className="timeline-tool__diff">
-        <p className="timeline-tool__diff-path">{part.path}</p>
-        {part.oldText === null ? (
-          <p className="timeline-tool__diff-note">新建文件</p>
-        ) : (
-          <pre className="timeline-tool__diff-old">{part.oldText}</pre>
-        )}
-        <pre className="timeline-tool__diff-new">{part.newText}</pre>
-      </div>
-    )
-  }
-
-  if (part.type === 'terminal') {
-    return <p className="timeline-tool__terminal">终端 {part.terminalId}</p>
-  }
-
-  return <p className="timeline-tool__opaque">{part.label}</p>
-}
-
 /**
  * 这张卡片此刻是什么样子 —— 一次算完，渲染器只读不算。
  *
- * 两个面由投影层交回来（toToolCallFacets），这一层只做属于卡片自己的三件派生：
- * 意图那一行、跑没跑完、抽屉默不默认开着。此前这里还要自己拼任务书、自己挑那句
- * 空话，那两件事都是「抽屉里怎么画」，已经跟着一起搬走了。
+ * 抽屉里的两个面由投影层交回来（toToolCallFacets），这一层只做属于卡片自己的三件
+ * 派生：意图那一行、跑没跑完、抽屉默不默认开着。此前这里还要自己拼任务书、自己挑
+ * 那句空话 —— 那两件事都是「抽屉里怎么画」，已经跟着一起搬走了。
  */
 interface ToolCallCardView {
   readonly facets: ToolCallFacets
@@ -203,41 +165,6 @@ function ToolCallHeader({
 
       <ChevronDownIcon aria-hidden="true" className="timeline-tool__chevron disclosure__chevron" />
     </button>
-  )
-}
-
-: {
-  readonly item: ToolCallTimelineItem
-  readonly view: ToolCallCardView
-}) {
-  const { emptyNote, parts, task } = view
-
-  return (
-    <div className="timeline-tool__body">
-      {item.locations.length > 0 ? (
-        <ul className="timeline-tool__locations">
-          {item.locations.map((location) => (
-            <li className="timeline-tool__location" key={location.path}>
-              {location.path}
-              {location.line === undefined ? null : `:${String(location.line)}`}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {task === null ? null : (
-        <div className="timeline-tool__task">
-          <p className="timeline-tool__task-label">派给它的</p>
-          <p className="timeline-tool__task-text">{task}</p>
-        </div>
-      )}
-
-      {emptyNote === null ? null : <p className="timeline-tool__empty">{emptyNote}</p>}
-
-      {parts.map((part, index) => (
-        <ToolCallPart key={`${part.type}:${String(index)}`} part={part} />
-      ))}
-    </div>
   )
 }
 

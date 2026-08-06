@@ -63,6 +63,7 @@ function isEmptyBag(value: object): boolean {
 }
 
 function buildFence(value: unknown): string | null {
+  /* stringify 对 undefined / 函数 / symbol 交回 undefined，声明里没写这一半。 */
   const text: string | undefined = JSON.stringify(value, null, 2)
 
   if (text === undefined) {

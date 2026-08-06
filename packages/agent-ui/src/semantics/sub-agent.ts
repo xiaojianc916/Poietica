@@ -34,7 +34,7 @@ export interface SubAgentBrief {
  * 标题栏那一行的上限。
  *
  * 截断在这一层做而不是交给 CSS —— text-overflow 截的是像素，读屏与 title 提示拿到
- * 的仍是整段。Request 面画的是完整入参，不截。
+ * 的仍是整段。整段任务书不在这里出场：抽屉的 Request 面画的是完整入参，不截。
  */
 const GIST = 80
 

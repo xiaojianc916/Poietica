@@ -1,3 +1,4 @@
+import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { useId, useState } from 'react'
 
 import { panelId, TabList, type TabOption, tabId } from '../primitives/tabs'
@@ -24,6 +25,9 @@ const FACETS: readonly TabOption[] = [
   { id: REQUEST, label: 'Request' },
   { id: RESPONSE, label: 'Response' },
 ]
+
+/** 受影响的文件；类型从协议那一侧取，不在这里手抄一份结构。 */
+type ToolCallLocations = ToolCallTimelineItem['locations']
 
 /*
  * 抽屉里空着，原因有三种，而此前只说了一种。
@@ -83,6 +87,10 @@ function ToolCallPart({ part }: { readonly part: ToolContentPart }) {
  * 受影响的文件排在最前：它是这次调用的结果之一，而且这样一来它也进了面板那一个滚动
  * 容器 —— 此前那张 <ul> 谁都不封顶。
  *
+ * 行号判的是「是不是一个数」，不是「是不是 undefined」：协议给的是
+ * number | null | undefined，而此前那句 location.line === undefined 会让 null 落进
+ * else，String(null) 于是把 ":null" 印在路径后面。
+ *
  * parts 的 key 用下标：投影是 content 数组的纯函数，顺序即协议顺序，不重排也不中间
  * 插入，而每个渲染器都没有自己的状态。
  */
@@ -95,7 +103,7 @@ function ResponseFacet({
 }: {
   readonly brief: SubAgentBrief | null
   readonly isRunning: boolean
-  readonly locations: readonly { readonly line?: number; readonly path: string }[]
+  readonly locations: ToolCallLocations
   readonly output: string | null
   readonly parts: readonly ToolContentPart[]
 }) {
@@ -106,7 +114,7 @@ function ResponseFacet({
           {locations.map((location, index) => (
             <li className="timeline-tool__location" key={`${location.path}:${String(index)}`}>
               {location.path}
-              {location.line === undefined ? null : `:${String(location.line)}`}
+              {typeof location.line === 'number' ? `:${String(location.line)}` : null}
             </li>
           ))}
         </ul>
@@ -135,7 +143,7 @@ export function ToolCallPanels({
 }: {
   readonly facets: ToolCallFacets
   readonly isRunning: boolean
-  readonly locations: readonly { readonly line?: number; readonly path: string }[]
+  readonly locations: ToolCallLocations
 }) {
   const { brief, output, parts, request } = facets
   const baseId = useId()
