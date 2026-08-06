@@ -1,5 +1,5 @@
 import { createAutomationId } from '@poietica/core'
-import type { Automation, AutomationCatalog, AutomationTrigger } from '@poietica/ipc'
+import type { Automation, AutomationCatalog, AutomationRun, AutomationTrigger } from '@poietica/ipc'
 import { loadAutomations, saveAutomations } from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
@@ -112,13 +112,25 @@ export function createAutomationStore(): AutomationStore {
       inFlight.delete(automation.id)
     }
 
+    /*
+     * 先具名，再放进数组。
+     *
+     * 数组字面量后面挂着 .slice()，runs 那个属性的期望类型就到不了字面量内部：
+     * TS 先独立推导数组，三元的 'failed' | 'succeeded' 被拓宽成 string，然后才
+     * 拿去跟 AutomationRun[] 比 —— tsc 报错指在 runs: 上而不是 outcome: 上，
+     * 说的正是这件事。标注恢复了 contextual typing，字面量收得住；而且这条
+     * 记录本来就该有个名字。
+     */
+    const run: AutomationRun = {
+      threadId,
+      startedAt,
+      outcome: threadId === null ? 'failed' : 'succeeded',
+    }
+
     replace(automation.id, (current) => ({
       ...current,
       nextRunAt: nextRunAfter(current.trigger, Date.now()),
-      runs: [
-        { threadId, startedAt, outcome: threadId === null ? 'failed' : 'succeeded' },
-        ...current.runs,
-      ].slice(0, RUN_HISTORY_LIMIT),
+      runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT),
     }))
   }
 
