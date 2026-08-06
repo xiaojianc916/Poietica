@@ -3,7 +3,7 @@ import type { Automation, AutomationCatalog, AutomationRun, AutomationTrigger } 
 import { loadAutomations, saveAutomations } from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
-import { nextRunAfter, RUN_HISTORY_LIMIT } from './automation'
+import { nextRunAfter, RUN_HISTORY_LIMIT, sameTrigger } from './automation'
 
 /**
  * 自动化的状态与调度。
@@ -41,6 +41,8 @@ export interface AutomationStore {
   readonly getSnapshot: () => AutomationsViewModel
   readonly subscribe: (listener: () => void) => () => void
   readonly create: (draft: AutomationDraft) => void
+  /** 改一条已有的。触发条件没变就不重排下一次运行。 */
+  readonly update: (id: string, draft: AutomationDraft) => void
   readonly remove: (id: string) => void
   readonly setEnabled: (id: string, enabled: boolean) => void
   readonly runNow: (id: string) => void
@@ -188,6 +190,26 @@ export function createAutomationStore(): AutomationStore {
         },
         ...snapshot.automations,
       ])
+    },
+
+    update(id, draft) {
+      replace(id, (automation) => ({
+        ...automation,
+        title: draft.title,
+        prompt: draft.prompt,
+        trigger: draft.trigger,
+
+        /*
+         * 只有触发条件真的变了才重排。否则改一个错别字，interval 那条的下一次
+         * 运行就被推后一整个周期 —— 人动的是提示词，不是日程。
+         *
+         * 停用状态下 nextRunAt 本来就是 null（见 setEnabled），照原样留着即可。
+         */
+        nextRunAt:
+          automation.enabled && !sameTrigger(automation.trigger, draft.trigger)
+            ? nextRunAfter(draft.trigger, Date.now())
+            : automation.nextRunAt,
+      }))
     },
 
     remove(id) {

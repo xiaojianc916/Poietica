@@ -2,7 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { summarize } from '../automation'
 import type { AutomationStore } from '../automation-store'
-import { AutomationComposer } from './automation-composer'
+import { AutomationEditor } from './automation-editor'
 import { AutomationList } from './automation-list'
 import { TemplateGallery } from './template-gallery'
 
@@ -11,14 +11,18 @@ import { TemplateGallery } from './template-gallery'
  *
  * 版式取自行业里同类页面的信息架构：页头 + 统计牌 + 列表 + 模板画廊。没有取的
  * 是 Author 与 Team 两列 —— 那两列在云端多人产品里承载真实信息，在一个本地
- * 单用户应用里只会是两列恒定值。空出来的位置留给这里真正需要的：触发条件，
- * 以及最近一次运行。
+ * 单用户应用里只会是两列恒定值。
  *
- * 这一层只做编排。它自己持有的状态只有一个 composing（表单开没开），因为那是
- * 页头那颗按钮和表单之间的事，别人管不着；表单字段归 AutomationComposer，
- * 模板分类归 TemplateGallery —— 状态跟着用它的人走，切一下模板分类不该惊动
- * 统计牌和表格。
+ * 这一格自己有两屏。不是新标签页，也不是弹窗：编辑器就地占满这一格，靠面包屑
+ * 「自动化 › 名称」说明自己还在哪儿。新建与编辑是同一屏 —— 那张参照图里的
+ * Untitled 就是一条还没起名的自动化，两者要是分成两个页面，迟早长成两份几乎
+ * 一样的表单。
  */
+
+type SurfaceView =
+  | { readonly kind: 'list' }
+  /** automationId 为 null 就是新建。 */
+  | { readonly kind: 'editor'; readonly automationId: string | null }
 
 export interface AutomationsSurfaceProps {
   readonly store: AutomationStore
@@ -31,9 +35,34 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
     store.getSnapshot,
   )
 
-  const [composing, setComposing] = useState(false)
+  const [view, setView] = useState<SurfaceView>({ kind: 'list' })
 
   const summary = useMemo(() => summarize(automations), [automations])
+
+  const editing =
+    view.kind === 'editor' && view.automationId !== null
+      ? (automations.find((candidate) => candidate.id === view.automationId) ?? null)
+      : null
+
+  /*
+   * 编辑态成立的两种情况：新建，或者要编辑的那条还在。
+   *
+   * 在编辑器里删掉之后 id 落空，这个表达式自然落回列表 —— 派生出来的，不需要
+   * 在渲染期改状态，也不会悄悄退化成一张空白的新建表单。
+   */
+  if (view.kind === 'editor' && (view.automationId === null || editing !== null)) {
+    return (
+      <AutomationEditor
+        automation={editing}
+        /* 换一条就换一个 key：草稿状态跟着重置，不会串到上一条身上。 */
+        key={view.automationId ?? 'new'}
+        onBack={() => {
+          setView({ kind: 'list' })
+        }}
+        store={store}
+      />
+    )
+  }
 
   return (
     <section className="h-full overflow-y-auto bg-ground">
@@ -41,7 +70,8 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
         <h1 className="text-lg font-semibold tracking-tight">自动化</h1>
 
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          依托全天候在线的本地代理，响应环境触发事件，自动执行重复性工作
+          让重复的活儿按计划自己跑。每一次运行都会开出一条对话，做了什么、说了什么，
+          都留在那条对话里。
         </p>
 
         <dl className="mt-6 grid grid-cols-3 gap-3">
@@ -58,24 +88,22 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
           <button
             className="rounded-md border border-divider bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-sidebar-accent"
             onClick={() => {
-              setComposing((open) => !open)
+              setView({ kind: 'editor', automationId: null })
             }}
             type="button"
           >
-            {composing ? '取消' : '新建自动化'}
+            新建自动化
           </button>
         </div>
 
-        {composing ? (
-          <AutomationComposer
-            onSubmit={(draft) => {
-              store.create(draft)
-              setComposing(false)
-            }}
-          />
-        ) : null}
-
-        <AutomationList automations={automations} loaded={loaded} store={store} />
+        <AutomationList
+          automations={automations}
+          loaded={loaded}
+          onOpen={(automationId) => {
+            setView({ kind: 'editor', automationId })
+          }}
+          store={store}
+        />
       </div>
 
       <TemplateGallery

@@ -6,18 +6,19 @@ import type { AutomationStore } from '../automation-store'
 /**
  * 「我的自动化」这张表。
  *
- * 自己不持有任何状态：它是快照的一次投影，加三个直接打到 store 上的动作。
+ * 自己不持有任何状态：它是快照的一次投影，加几个直接打到 store 上的动作。
  * 收整个 store 而不是三个回调，因为它确实要用到 runNow / setEnabled / remove
- * 三个命令 —— 再拆成三个 prop 只是把同一件事写三遍。
+ * 三个命令；onOpen 单独收，因为那不是 store 的事 —— 那是这一格自己的导航。
  */
 
 export interface AutomationListProps {
   readonly automations: readonly Automation[]
   readonly loaded: boolean
+  readonly onOpen: (automationId: string) => void
   readonly store: AutomationStore
 }
 
-export function AutomationList({ automations, loaded, store }: AutomationListProps) {
+export function AutomationList({ automations, loaded, onOpen, store }: AutomationListProps) {
   /*
    * loaded 一起判：首帧和「读完了但确实一条都没有」不是同一件事，
    * 少了它空态会在启动瞬间闪一下。
@@ -44,7 +45,7 @@ export function AutomationList({ automations, loaded, store }: AutomationListPro
 
       <tbody>
         {automations.map((automation) => (
-          <Row automation={automation} key={automation.id} store={store} />
+          <Row automation={automation} key={automation.id} onOpen={onOpen} store={store} />
         ))}
       </tbody>
     </table>
@@ -53,9 +54,11 @@ export function AutomationList({ automations, loaded, store }: AutomationListPro
 
 function Row({
   automation,
+  onOpen,
   store,
 }: {
   readonly automation: Automation
+  readonly onOpen: (automationId: string) => void
   readonly store: AutomationStore
 }) {
   const run = latestRun(automation)
@@ -63,7 +66,18 @@ function Row({
   return (
     <tr className="border-b border-divider/60">
       <td className="py-2.5 pr-4">
-        <p className="truncate font-medium">{automation.title}</p>
+        {/* 标题就是入口。名字是这一行里唯一能代表整条记录的东西，
+            所以点它进编辑器，而不是再挂一个「编辑」按钮。 */}
+        <button
+          className="block w-full truncate text-left font-medium hover:underline"
+          onClick={() => {
+            onOpen(automation.id)
+          }}
+          type="button"
+        >
+          {automation.title}
+        </button>
+
         <p className="truncate text-muted-foreground">{automation.prompt}</p>
       </td>
 

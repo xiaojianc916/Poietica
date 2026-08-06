@@ -96,6 +96,28 @@ function pad(value: number): string {
   return value.toString().padStart(2, '0')
 }
 
+/**
+ * 两个触发条件是不是同一个。
+ *
+ * 存在的理由只有一个：编辑一条已有的自动化时，只有触发条件真的变了才该重排
+ * 下一次运行。无脑重算的话，改一个错别字就会把 interval 那条的下一次推后
+ * 一整个周期 —— 人只动了提示词，日程却被挪走了。
+ *
+ * 穷尽 switch，没有 default：将来多一种触发条件，编译器会在这里拦住。
+ */
+export function sameTrigger(left: AutomationTrigger, right: AutomationTrigger): boolean {
+  switch (left.kind) {
+    case 'manual':
+      return right.kind === 'manual'
+
+    case 'interval':
+      return right.kind === 'interval' && left.everyMinutes === right.everyMinutes
+
+    case 'daily':
+      return right.kind === 'daily' && left.atMinuteOfDay === right.atMinuteOfDay
+  }
+}
+
 /*
  * 相对时间交给平台。
  *
