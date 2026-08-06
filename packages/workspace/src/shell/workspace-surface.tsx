@@ -1,5 +1,7 @@
 import type { WorkspaceSurfaceRenderers } from '../surface'
+import { describeWorkspaceSurface, isReadyWorkspaceSurfaceId } from '../surface-registry'
 import type { WorkspaceSurfaceId } from '../workbench'
+import { surfaceIcon } from './surface-icons'
 
 export interface WorkspaceSurfaceProps {
   readonly surfaceId: WorkspaceSurfaceId
@@ -15,11 +17,55 @@ export interface WorkspaceSurfaceProps {
 /**
  * 表面渲染的唯一出口。
  *
- * 没有兜底分支。renderers 是全域 Record（见 ../surface.ts），注册表里的每一个
- * 表面都必然有渲染器，「查不到」在类型上不成立。此前这里有一段图标 + 标题 +
- * 点阵背景的空态，它唯一的用途是替四个没人实现的表面遮丑 —— 遮丑的代价是
- * 用户点进去看到一张什么也做不了的图。
+ * 两条分支，都是有意的：
+ *
+ *   - ready 的表面必然有渲染器（renderers 是以 ReadyWorkspaceSurfaceId 为键的
+ *     全域 Record），「查不到」在类型上不成立，因此没有 ?? 兜底；
+ *   - planned 的表面走下面那张明说「还没实现」的页面。
+ *
+ * 此前这里是 if (render) —— 同一个分支同时承担着「还没做」和「写漏了」，
+ * 而后者本该是编译错误。
  */
 export function WorkspaceSurface({ surfaceId, renderers }: WorkspaceSurfaceProps) {
-  return <>{renderers[surfaceId]()}</>
+  if (isReadyWorkspaceSurfaceId(surfaceId)) {
+    return <>{renderers[surfaceId]()}</>
+  }
+
+  return <PlannedSurface surfaceId={surfaceId} />
+}
+
+/**
+ * 还没实现的表面。
+ *
+ * 关键是那句「这个表面还没有实现」：一张只有图标和标题的空页面，人读到的是
+ * 「坏了」；写明了，人读到的才是「排在后面」。文案与图标都取自注册表，这一层
+ * 一个字面量都不新造。
+ */
+function PlannedSurface({ surfaceId }: { readonly surfaceId: WorkspaceSurfaceId }) {
+  const descriptor = describeWorkspaceSurface(surfaceId)
+  const Icon = surfaceIcon(surfaceId)
+  const titleId = `workspace-surface-title-${surfaceId}`
+
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="grid h-full place-items-center bg-ground px-8 text-center"
+    >
+      <div>
+        <div className="mx-auto grid size-12 place-items-center rounded-xl border border-divider bg-background shadow-sm">
+          <Icon aria-hidden="true" className="size-5 text-muted-foreground" />
+        </div>
+
+        <h1 className="mt-4 text-base font-semibold tracking-tight" id={titleId}>
+          {descriptor.title}
+        </h1>
+
+        <p className="mt-2 max-w-sm text-xs leading-5 text-muted-foreground">
+          {descriptor.description}
+        </p>
+
+        <p className="mt-3 text-xs text-muted-foreground">这个表面还没有实现。</p>
+      </div>
+    </section>
+  )
 }

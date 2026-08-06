@@ -1,18 +1,21 @@
 import type { ReactNode } from 'react'
 
-import type { WorkspaceSurfaceId } from './workbench'
+import type { ReadyWorkspaceSurfaceId } from './surface-registry'
 
 /**
  * 表面渲染扩展点。
  *
- * 全域 Record，不是 Partial：注册表登记一条表面，组合根就必须交出一条渲染器，
- * 漏一条是编译错误。此前这里是 Partial，于是 search / tools / hooks / automations
- * 四条登记在册却无人实现，点进去看到的是 WorkspaceSurface 的兜底空态 —— 那段
- * 兜底的存在本身就是这个 Partial 的产物。
+ * 键是 ReadyWorkspaceSurfaceId，不是 WorkspaceSurfaceId，也不是 Partial：
  *
- * 同一条规则在 shell/surface-icons.ts 上已经写过一遍（「映射是全域的，漏一个
- * 图标是编译错误」）。两处现在真的是同一条了。
+ *   - 注册表里 status: 'ready' 的每一条，组合根都必须交出渲染器，漏一条是
+ *     编译错误；
+ *   - status: 'planned' 的那几条不在这个 Record 里，所以「还没做」不需要
+ *     一个假渲染器来顶着。
+ *
+ * 此前这里是 Partial<Record<...>>，两种情况都塌进同一个空位里，于是
+ * WorkspaceSurface 只能靠运行时 if (render) 兜底 —— 一个编译期能证明的事实
+ * 被降级成了运行期分支。
  *
  * 所有权：apps 组合根。workspace 只消费，不实现具体业务表面。
  */
-export type WorkspaceSurfaceRenderers = Record<WorkspaceSurfaceId, () => ReactNode>
+export type WorkspaceSurfaceRenderers = Record<ReadyWorkspaceSurfaceId, () => ReactNode>

@@ -1,5 +1,5 @@
-import { Message } from '@mynaui/icons-react'
-import { ClockTenIcon } from '@poietica/ui'
+import { Box, Message, Search } from '@mynaui/icons-react'
+import { ClockTenIcon, WebhookIcon } from '@poietica/ui'
 import type { ComponentType } from 'react'
 
 import {
@@ -25,8 +25,11 @@ export type SurfaceIcon = ComponentType<{
 }>
 
 const SURFACE_ICONS: Record<WorkspaceSurfaceIconId, SurfaceIcon> = {
+  box: Box,
   clock: ClockTenIcon,
   message: Message,
+  search: Search,
+  webhook: WebhookIcon,
 }
 
 export function surfaceIcon(id: WorkspaceSurfaceId): SurfaceIcon {

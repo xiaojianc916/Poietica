@@ -80,14 +80,14 @@ export function describeTrigger(trigger: AutomationTrigger): string {
 
     case 'interval':
       return trigger.everyMinutes % 60 === 0
-        ? `每 \${trigger.everyMinutes / 60} 小时`
-        : `每 \${trigger.everyMinutes} 分钟`
+        ? `每 ${trigger.everyMinutes / 60} 小时`
+        : `每 ${trigger.everyMinutes} 分钟`
 
     case 'daily': {
       const hours = Math.floor(trigger.atMinuteOfDay / 60)
       const minutes = trigger.atMinuteOfDay % 60
 
-      return `每天 \${pad(hours)}:\${pad(minutes)}`
+      return `每天 ${pad(hours)}:${pad(minutes)}`
     }
   }
 }

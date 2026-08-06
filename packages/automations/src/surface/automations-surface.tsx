@@ -1,5 +1,6 @@
 import type { Automation, AutomationTrigger } from '@poietica/ipc'
 import { cn } from '@poietica/ui'
+import type { ReactNode } from 'react'
 import { useMemo, useState, useSyncExternalStore } from 'react'
 
 import { describeMoment, describeTrigger, latestRun, summarize } from '../automation'
@@ -45,8 +46,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
         <h1 className="text-lg font-semibold tracking-tight">自动化</h1>
 
         <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-          让重复的活儿按计划自己跑。每一次运行都会开出一条对话，做了什么、说了什么，
-          都留在那条对话里。
+          依托全天候在线的代理，响应环境触发事件，自动执行重复性工作
         </p>
 
         <dl className="mt-6 grid grid-cols-3 gap-3">
@@ -82,7 +82,7 @@ export function AutomationsSurface({ store }: AutomationsSurfaceProps) {
 
         {loaded && automations.length === 0 ? (
           <p className="py-10 text-center text-xs text-muted-foreground">
-            还没有自动化。从下面的模板开始，或者新建一个。
+            还没有自动化。从下面的模板开始，或者新建一个
           </p>
         ) : (
           <table className="w-full table-fixed border-collapse text-left text-xs">
@@ -196,7 +196,7 @@ function Row({
       <td className="py-2.5 text-muted-foreground">
         {run === null
           ? '未运行'
-          : `\${run.outcome === 'succeeded' ? '成功' : '失败'} · \${describeMoment(run.startedAt)}`}
+          : `${run.outcome === 'succeeded' ? '成功' : '失败'} · ${describeMoment(run.startedAt)}`}
       </td>
 
       <td className="py-2.5 text-right">
@@ -258,6 +258,27 @@ function Composer({ onSubmit }: ComposerProps) {
 
   const ready = title.trim().length > 0 && prompt.trim().length > 0
 
+  /*
+   * 表单三个字段收束成一个触发条件。
+   *
+   * time 控件给出的是 "HH:mm"，落进领域时立刻变成「一天里的第几分钟」这个
+   * 单一数字 —— 字符串留到领域里，此后每一处比较都得先解析一次，而每一次
+   * 解析都是一个可能失败的地方。
+   */
+  function buildTrigger(): AutomationTrigger {
+    if (kind === 'manual') {
+      return { kind: 'manual' }
+    }
+
+    if (kind === 'interval') {
+      return { kind: 'interval', everyMinutes }
+    }
+
+    const [hours = '0', minutes = '0'] = atTime.split(':')
+
+    return { kind: 'daily', atMinuteOfDay: Number(hours) * 60 + Number(minutes) }
+  }
+
   return (
     <form
       className="mt-4 space-y-3 rounded-lg border border-divider bg-background p-4"
@@ -271,9 +292,10 @@ function Composer({ onSubmit }: ComposerProps) {
         onSubmit({ title: title.trim(), prompt: prompt.trim(), trigger: buildTrigger() })
       }}
     >
-      <Field label="名称">
+      <Field htmlFor="automation-title" label="名称">
         <input
           className="w-full rounded-md border border-divider bg-ground px-2.5 py-1.5 text-xs outline-none focus:border-foreground/30"
+          id="automation-title"
           onChange={(event) => {
             setTitle(event.target.value)
           }}
@@ -282,9 +304,10 @@ function Composer({ onSubmit }: ComposerProps) {
         />
       </Field>
 
-      <Field label="要做什么">
+      <Field htmlFor="automation-prompt" label="要做什么">
         <textarea
           className="h-20 w-full resize-none rounded-md border border-divider bg-ground px-2.5 py-1.5 text-xs outline-none focus:border-foreground/30"
+          id="automation-prompt"
           onChange={(event) => {
             setPrompt(event.target.value)
           }}
@@ -293,10 +316,11 @@ function Composer({ onSubmit }: ComposerProps) {
         />
       </Field>
 
-      <Field label="什么时候跑">
+      <Field htmlFor="automation-trigger" label="什么时候跑">
         <div className="flex items-center gap-2">
           <select
             className="rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
+            id="automation-trigger"
             onChange={(event) => {
               setKind(event.target.value as AutomationTrigger['kind'])
             }}
@@ -309,6 +333,7 @@ function Composer({ onSubmit }: ComposerProps) {
 
           {kind === 'daily' ? (
             <input
+              aria-label="每天几点跑"
               className="rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
               onChange={(event) => {
                 setAtTime(event.target.value)
@@ -319,8 +344,9 @@ function Composer({ onSubmit }: ComposerProps) {
           ) : null}
 
           {kind === 'interval' ? (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <>
               <input
+                aria-label="每隔多少分钟跑一次"
                 className="w-16 rounded-md border border-divider bg-ground px-2 py-1.5 text-xs outline-none"
                 min={5}
                 onChange={(event) => {
@@ -330,8 +356,9 @@ function Composer({ onSubmit }: ComposerProps) {
                 type="number"
                 value={everyMinutes}
               />
-              分钟
-            </label>
+
+              <span className="text-xs text-muted-foreground">分钟</span>
+            </>
           ) : null}
         </div>
       </Field>
@@ -347,40 +374,31 @@ function Composer({ onSubmit }: ComposerProps) {
       </div>
     </form>
   )
-
-  /*
-   * 表单三个字段收束成一个触发条件。
-   *
-   * time 控件给出的是 "HH:mm"，落进领域时立刻变成「一天里的第几分钟」这个
-   * 单一数字 —— 字符串留到领域里，此后每一处比较都得先解析一次，而每一次
-   * 解析都是一次可能失败的地方。
-   */
-  function buildTrigger(): AutomationTrigger {
-    if (kind === 'manual') {
-      return { kind: 'manual' }
-    }
-
-    if (kind === 'interval') {
-      return { kind: 'interval', everyMinutes }
-    }
-
-    const [hours = '0', minutes = '0'] = atTime.split(':')
-
-    return { kind: 'daily', atMinuteOfDay: Number(hours) * 60 + Number(minutes) }
-  }
 }
 
+/*
+ * label 必须真的指向一个控件。
+ *
+ * 此前它包着 {children}：屏幕阅读器和 biome 都看不出里面有没有输入框 ——
+ * 这不是误报，点标题不聚焦、朗读时读不出字段名，都是真的。htmlFor 把这层
+ * 关系写明，控件那边给出同名 id。
+ */
 function Field({
   children,
+  htmlFor,
   label,
 }: {
-  readonly children: React.ReactNode
+  readonly children: ReactNode
+  readonly htmlFor: string
   readonly label: string
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
+    <div className="space-y-1">
+      <label className="block text-xs text-muted-foreground" htmlFor={htmlFor}>
+        {label}
+      </label>
+
       {children}
-    </label>
+    </div>
   )
 }

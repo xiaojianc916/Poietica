@@ -1,20 +1,22 @@
 /**
  * 工作区表面的唯一注册处。
  *
- * 表面集合、标题、描述、图标标识、导航次序只在此处声明一次；
+ * 表面集合、标题、描述、图标标识、导航次序、实现状态只在此处声明一次；
  * WorkspaceSurfaceId 由本表的键派生，不再另立字面量联合。
  *
- * 这张表只登记真的画得出来的表面。此前它还登记了 search / tools / hooks
- * 三条，三条都没有渲染器 —— 一个点了只出现一张空态图的导航项不是「以后要做
- * 的功能」，它是一次对用户的失信。渲染器现在是全域 Record（见 surface.ts），
- * 登记一条就必须交出一条，这张表因此也不可能再长出装饰品。
+ * status 是这张表最关键的一列。此前「还没做」不是被写下来的事实，而是
+ * WorkspaceSurfaceRenderers 上的一个空位 —— 空位表达不了意图：它跟「写漏了」
+ * 长得一模一样，编译器分不出来，读代码的人也分不出来。现在它是一个值：
  *
- * iconId 是字面量联合而非 string：presentation 侧的图标表因此可以是
- * 全域映射，不需要运行时兜底分支。领域层不认识 React，descriptor 里不会
- * 出现组件引用。
+ *   ready   —— 渲染器是强制的，漏一条是编译错误（见 surface.ts）。
+ *   planned —— 导航里画得出来，点进去是一张写明「还没实现」的页面。
+ *
+ * 于是路线图留在界面上，而类型系统照样看住「说做了的必须真做了」。
  */
 
-export type WorkspaceSurfaceIconId = 'clock' | 'message'
+export type WorkspaceSurfaceIconId = 'box' | 'clock' | 'message' | 'search' | 'webhook'
+
+export type WorkspaceSurfaceStatus = 'ready' | 'planned'
 
 export interface WorkspaceSurfaceDescriptor {
   readonly title: string
@@ -28,6 +30,7 @@ export interface WorkspaceSurfaceDescriptor {
    * 读取时会直接编译失败。
    */
   readonly navigationOrder: number | null
+  readonly status: WorkspaceSurfaceStatus
 }
 
 export const WORKSPACE_SURFACE_REGISTRY = {
@@ -36,16 +39,51 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     description: '与 AI 协作，驱动工具完成任务。',
     iconId: 'message',
     navigationOrder: null,
+    status: 'ready',
+  },
+  search: {
+    title: '搜索',
+    description: '跨仓库检索文件与会话。',
+    iconId: 'search',
+    navigationOrder: 0,
+    status: 'planned',
+  },
+  tools: {
+    title: 'Tool',
+    description: '查看与管理可调用工具。',
+    iconId: 'box',
+    navigationOrder: 1,
+    status: 'planned',
   },
   automations: {
     title: '自动化',
     description: '按计划反复执行的任务。每次运行都是一条对话。',
     iconId: 'clock',
-    navigationOrder: 0,
+    navigationOrder: 2,
+    status: 'ready',
+  },
+  hooks: {
+    title: 'Hook',
+    description: '在生命周期节点注入自定义行为。',
+    iconId: 'webhook',
+    navigationOrder: 3,
+    status: 'planned',
   },
 } as const satisfies Record<string, WorkspaceSurfaceDescriptor>
 
 export type WorkspaceSurfaceId = keyof typeof WORKSPACE_SURFACE_REGISTRY
+
+/**
+ * 真的画得出来的那些表面。
+ *
+ * 从 status 的字面量推出来，不是手写的第二份名单：注册表改一个字，这个联合
+ * 跟着变，组合根少交一条渲染器立刻编译失败。
+ */
+export type ReadyWorkspaceSurfaceId = {
+  [Id in WorkspaceSurfaceId]: (typeof WORKSPACE_SURFACE_REGISTRY)[Id]['status'] extends 'ready'
+    ? Id
+    : never
+}[WorkspaceSurfaceId]
 
 /*
  * as const 之后每条记录都是字面量类型，直接索引取不到接口上的属性。
@@ -67,13 +105,23 @@ export function isWorkspaceSurfaceId(value: string): value is WorkspaceSurfaceId
   return Object.hasOwn(WORKSPACE_SURFACE_REGISTRY, value)
 }
 
+/* 运行时这一份也从同一张表派生，不存在会跟类型分叉的第二份名单。 */
+const READY_SURFACE_IDS: ReadonlySet<string> = new Set(
+  Object.entries(DESCRIPTORS)
+    .filter(([, descriptor]) => descriptor.status === 'ready')
+    .map(([id]) => id),
+)
+
+export function isReadyWorkspaceSurfaceId(id: WorkspaceSurfaceId): id is ReadyWorkspaceSurfaceId {
+  return READY_SURFACE_IDS.has(id)
+}
+
 /*
  * 导航次序由 navigationOrder 派生，不手工维护第二份数组。
  *
  * flatMap 而不是 filter + sort：filter 之后 TypeScript 并不知道 null 已经没了，
- * 于是上一版的比较器里挂着一个 `?? 0` —— 那是一段永远不会执行的兜底，也是
- * 「编译期能证明的事实被降级成运行期分支」的又一处。flatMap 就地收窄类型，
- * 兜底随之消失。
+ * 于是上一版的比较器里挂着一个 ?? 0 —— 那是一段永远不会执行的兜底。
+ * flatMap 就地收窄类型，兜底随之消失。
  */
 export const WORKSPACE_NAVIGATION_ORDER: readonly WorkspaceSurfaceId[] = (
   Object.keys(WORKSPACE_SURFACE_REGISTRY) as WorkspaceSurfaceId[]
