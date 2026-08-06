@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
-    "@poietica/agents": "workspace:*",
     "@poietica/agent-timeline": "workspace:*",
+    "@poietica/agents": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",
@@ -22,8 +22,8 @@
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

@@ -36,20 +36,21 @@
   --cp-rail-len: 9px;
   --cp-rail-gain: 25px;
   /*
-   * 厚度是常量，不是通道。
+   * 厚度是常量，而且用设备像素定义：3 × dpx，永久是屏幕上的 3px。
    *
-   * 此前它是 3px + weight × 1px。本文件开头为步距立的那条规矩 —— 端点必须
-   * 落在设备像素整数上 —— 只被拿去检查了拉满那一端（4 × k/4 是整数），静息
-   * 那一端没人查：3 × 1.25 = 3.75，3 × 1.5 = 4.5。而一根杠绝大多数时间待在
-   * 静息端，被拉起来的每帧至多七八根。规矩用反了地方。
+   * 不能用 CSS px 写死。Windows 的显示缩放是 25% 的整数倍，1 CSS px = k/4
+   * 个设备像素，3 CSS px 在 125% 下是 3.75、150% 下是 4.5、175% 下是 5.25 ——
+   * 栅格化摊成 4 到 5 行，首尾各带一条抗锯齿灰边，量出来就是「5px」。
+   * 3 × k/4 只在 k 为 4 的倍数（100%、200%）时是整数 —— 本文件为步距立的
+   * 那条规矩（见 --cp-rail-hit），厚度这最后一环自己也得遵守。dpx 按档位
+   * 在文件底部的媒体查询里改写；整数缩放下 3 CSS px 本就是整数个设备像素，
+   * 基态即真值，不用媒体查询。
    *
-   * 恒定值在同一相位上对每根杠栅格化出同一个结果，这才是开头那句「未必都
-   * 锐利，但一定都一样」；厚度此前是它唯一的反例。
-   *
-   * 信息一点没丢：指针离得多近由长度说，手底下是哪一根由 data-aimed 的墨色
-   * 说。一个通道说一件事，厚度本来就在重复别人已经说完的话。
+   * 厚度仍然不是通道：指针的远近由长度说，手底下是哪一根由 data-aimed 的
+   * 墨色说。一个通道说一件事。
    */
-  --cp-rail-weight-line: 3px;
+  --cp-rail-dpx: 1px;
+  --cp-rail-weight-line: calc(var(--cp-rail-dpx) * 3);
   --cp-rail-ink-rest: #d2d3d3;
   --cp-rail-ink-active: #767779;
   --cp-rail-ink-aimed: #1a1c1f;
@@ -90,25 +91,22 @@
 }
 
 /*
- * 整条轨道站在整数像素上。
+ * 整条轨道站在设备像素的整数上。
  *
- * inset-block-start: 50% 是相对父容器高度算的,父容器高度是奇数时它就落在半个
- * 像素上,整条列跟着糊一点。向下取整,轨道比完美居中高半个 CSS 像素 —— 那个
- * 看不见,糊边看得见。
+ * inset-block-start: 50% 是相对父容器高度算的，父容器高度是奇数时它就落在
+ * 半个像素上。这里必须对齐设备像素网格而不是 CSS 像素网格：杠的厚度恰是
+ * 3 个设备像素，轨道顶边若落在半格上，整列杠的相位整体偏半格，每根杠的
+ * 首尾两行都只被覆盖一半。取整的步长因此是 dpx；轨道比完美居中至多高出
+ * 一个设备像素 —— 那个看不见，糊边看得见。
  *
- * 但要说清楚它治不了什么:这里对齐的是 CSS 像素网格。逐根横条粗细不一的根因
- * 在设备像素网格上 —— 显示缩放不是 100% 时两者不重合,再整齐的 CSS 整数乘上
- * 1.25 照样是小数。那个问题由步距解决(见 --cp-rail-hit),不由这里。这一段
- * 曾经声称自己修的就是那个,是错的。
- *
- * @supports 是护栏而不是客套:round() 里放百分比需要较新的引擎,而这里是
- * 定位属性 —— 声明一旦无效被丢掉,inset-block-start 会退回 auto,轨道直接甩
- * 到容器顶上。包起来就只是不生效,退回现在的行为。
+ * @supports 是护栏而不是客套：round() 里放百分比需要较新的引擎，而这里是
+ * 定位属性 —— 声明一旦无效被丢掉，inset-block-start 会退回 auto，轨道直接甩
+ * 到容器顶上。包起来就只是不生效，退回现在的行为。
  */
 @supports (inset-block-start: round(down, 50%, 1px)) {
   .conversation-minimap {
-    inset-block-start: round(down, 50%, 1px);
-    translate: 0 calc(-1 * round(down, 50%, 1px));
+    inset-block-start: round(down, 50%, var(--cp-rail-dpx));
+    translate: 0 calc(-1 * round(down, 50%, var(--cp-rail-dpx)));
   }
 }
 
@@ -175,21 +173,16 @@
  */
 .conversation-minimap__bar {
   /*
-   * 杠在格子里的落点,必须是整数。
+   * 杠在格子里的落点，必须落在设备像素的整数上。
    *
-   * 这里原本靠父级的 align-items: center。格子高 12、杠厚 3,居中的偏移是
-   * (12 - 3) / 2 = 4.5px —— 偶数的格子里居中一根奇数厚的杠,偏移永远是半个
-   * 像素,这在算术上无解,不是调哪个数能躲开的。
+   * 这里原本靠父级的 align-items: center —— 偶数高的格子里居中一根奇数厚的
+   * 杠，偏移永远是半个像素，算术上无解；后来钉死在 4px，治的是 100% 下的
+   * CSS 像素网格。厚度改用设备像素定义之后，这条偏移也得落在同一个网格上：
+   * 厚度恰是 3 个设备像素，顶边再偏出半格，三行里仍有两行只被覆盖一半，
+   * 「5px」照样回来。
    *
-   * 后果:上边缘从 4.5 画到 7.5,首尾两行各被覆盖一半,画成两条半透明的灰边,
-   * 中间才是三行实心 —— 一根 3px 的杠在屏幕上摊成 4 到 5 行,读作"不够瘦"。
-   * 而本文件开头为步距写的那段注释早就把这件事说清楚了("在相位 .0 上摊成 4
-   * 行、在 .5 上摊成 5 行"),只是那条规矩只被用在了步距上:轨道顶边取了整、
-   * 步距取了 12 的倍数,链条一路都是整数,最后一环没人查。
-   *
-   * 不居中,钉死在 4px。杠占格子的第 4–7 行,比正中高半个 CSS 像素 —— 那半个
-   * 看不见,糊边看得见,这句话这份文件已经为整条轨道说过一次(见 @supports
-   * round 那段),这里只是把同一条判断用到最后一环。
+   * 字面量 4px 是地板：4 × k/4 = k，它在任何缩放下都是整数个设备像素，
+   * 退路上也不糊。真值由下面的 round() 算 —— 取整的步长是 dpx，不是 1px。
    */
   align-self: flex-start;
   margin-block-start: 4px;
@@ -213,19 +206,16 @@
 }
 
 /*
- * 上面那个 4px 是 floor((12 - 3) / 2) 的手算结果:两个 token 哪天改了,它不会
- * 自己跟上。round() 能算,但它是较新的能力,而这是一条必须存在的偏移 —— 声明
- * 一旦无效被丢掉,杠会贴到格子顶上,那是看得见的回归。
- *
- * 所以字面量当地板,round() 当真值:算得动的引擎用算出来的数,算不动的退回 4px。
- * 这与文件里 inset-block-start 那处 @supports 是同一套做法,不是第二套。
+ * 字面量 4px 是地板，round() 是真值，与 inset-block-start 那处 @supports 是
+ * 同一套做法。步长用 dpx：向下取整取到设备像素网格上，于是顶边压着设备
+ * 像素的边界，三行设备像素行行走满，没有半透明的边。
  */
 @supports (margin-block-start: round(down, 1px, 1px)) {
   .conversation-minimap__bar {
     margin-block-start: round(
       down,
       calc((var(--cp-rail-hit) - var(--cp-rail-weight-line)) / 2),
-      1px
+      var(--cp-rail-dpx)
     );
   }
 }
@@ -343,5 +333,50 @@
   .conversation-minimap__card,
   .conversation-minimap__card[data-shown] {
     transition: none;
+  }
+}
+
+/*
+ * dpx 的档位：一个设备像素折合多少 CSS px。
+ *
+ * 只有小数缩放需要改写 —— 整数缩放下 3 CSS px 本就是整数个设备像素，基态的
+ * 1px 即真值。Windows 的预设里会让 3 CSS px 摊出小数的是这几档：125%、150%、
+ * 175%、225%、250%、350%。没列到的自定义缩放退回基态，行为与改动前一致，
+ * 不回归；格子高 12px 在所有 25% 档位上都是整数个设备像素（12 × k/4 = 3k），
+ * 相位链条不受影响。
+ */
+@media (resolution: 1.25dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.8px;
+  }
+}
+
+@media (resolution: 1.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.66666667px;
+  }
+}
+
+@media (resolution: 1.75dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.57142857px;
+  }
+}
+
+@media (resolution: 2.25dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.44444444px;
+  }
+}
+
+@media (resolution: 2.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.4px;
+  }
+}
+
+@media (resolution: 3.5dppx) {
+  .conversation-minimap {
+    --cp-rail-dpx: 0.28571429px;
   }
 }

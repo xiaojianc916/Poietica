@@ -12,14 +12,14 @@
   },
   "dependencies": {
     "@poietica/acp": "workspace:*",
-    "@poietica/agents": "workspace:*",
     "@poietica/agent-timeline": "workspace:*",
+    "@poietica/agents": "workspace:*",
     "@poietica/core": "workspace:*",
     "valibot": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",
-    "react": "catalog:",
+    "react": "^19.2.8",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
