@@ -1,7 +1,7 @@
 import type { SessionConfigControl } from '@poietica/acp'
 import { useAgentControls } from '@poietica/agent-session'
 import type { Automation, AutomationTrigger } from '@poietica/ipc'
-import { ArrowLeftIcon, cn, PlayIcon } from '@poietica/ui'
+import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'
 import { type ReactNode, useMemo, useState } from 'react'
 
 import { type AutomationDraft, sameSessionConfig, sameTrigger } from '../automation'
@@ -73,6 +73,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
   const controls = useAgentControls()
 
   const [tab, setTab] = useState<EditorTab>('settings')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [title, setTitle] = useState(draft.title)
   const [prompt, setPrompt] = useState(draft.prompt)
   const [trigger, setTrigger] = useState<AutomationTrigger>(draft.trigger)
@@ -140,8 +141,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
             <button
               className="rounded-md px-2.5 py-1.5 text-xs text-destructive transition-colors hover:bg-sidebar-accent"
               onClick={() => {
-                store.remove(automation.id)
-                onBack()
+                setConfirmingDelete(true)
               }}
               type="button"
             >
@@ -226,6 +226,26 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
           </div>
         )}
       </div>
+
+      {/* 删除不可撤销（定义与运行记录一起没），最后一步经确认，不直接落锤。 */}
+      <ConfirmationDialog
+        confirmLabel="删除"
+        description={`「${automation?.title ?? ''}」与它的运行记录将一并删除，不可恢复。`}
+        destructive
+        onCancel={() => {
+          setConfirmingDelete(false)
+        }}
+        onConfirm={() => {
+          if (automation !== null) {
+            store.remove(automation.id)
+          }
+
+          setConfirmingDelete(false)
+          onBack()
+        }}
+        open={confirmingDelete}
+        title="删除这条自动化？"
+      />
     </div>
   )
 }

@@ -100,19 +100,37 @@ impl Default for AutomationCatalog {
 ///
 /// # Errors
 ///
-/// Returns an error when the store cannot be opened. A store that opens but
-/// holds a value of an older shape is not an error: it falls back to an empty
-/// catalog so the surface stays usable. 与 settings_get 同一条判断。
+/// Returns an error when the store cannot be opened, or when the stored
+/// catalog cannot be parsed. In that case the unreadable original is first
+/// moved to the automations.corrupt backup key: falling back to an empty
+/// catalog without keeping the original would let the next save overwrite
+/// the only copy of the user's automations.
 #[command]
 #[specta::specta]
 pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<AutomationCatalog> {
     (|| -> Result<AutomationCatalog> {
         let store = app.store(AUTOMATIONS_STORE)?;
 
-        Ok(store
-            .get("automations")
-            .and_then(|value| serde_json::from_value(value).ok())
-            .unwrap_or_default())
+        let Some(value) = store.get("automations") else {
+            return Ok(AutomationCatalog::default());
+        };
+
+        match serde_json::from_value::<AutomationCatalog>(value.clone()) {
+            Ok(catalog) => Ok(catalog),
+            Err(cause) => {
+                /*
+                 * 读不懂的目录不丢：原件挪到备份键、主键删除，然后如实报错。
+                 * 下一次启动读到的是「没有」，而不是又一次解析失败；原件留底，
+                 * 不会被下一次保存盖掉。VS Code 的 state 备份与 Chrome 的
+                 * Preferences.bad 是同一个做法。
+                 */
+                store.set("automations.corrupt", value);
+                store.delete("automations");
+                store.save()?;
+
+                Err(cause.into())
+            }
+        }
     })()
     .map_err(IpcError::from)
 }

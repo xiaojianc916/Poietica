@@ -257,7 +257,7 @@ export function AppShell({ runtime }: AppShellProps) {
          * 无渲染产出，只是让自动化的心跳与应用同寿。放在 ThreadsProvider 之内是
          * 硬要求：一次运行要开出一条对话，而开对话的动作出自这个 provider。
          */}
-        <AutomationScheduler workspace={runtime.workspace} />
+        <AutomationScheduler session={runtime.agentSession} />
 
         {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是

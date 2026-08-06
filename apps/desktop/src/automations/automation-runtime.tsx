@@ -1,6 +1,7 @@
+import type { AgentSessionPort } from '@poietica/acp'
+import { useTranscripts } from '@poietica/agent-session'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
-import type { WorkbenchSessionStore } from '@poietica/workspace'
 import { useEffect } from 'react'
 
 import { useThreadsActions } from '../assistant/threads-context'
@@ -13,7 +14,7 @@ import { useThreadsActions } from '../assistant/threads-context'
 export const automationStore = createAutomationStore()
 
 export interface AutomationSchedulerProps {
-  readonly workspace: WorkbenchSessionStore
+  readonly session: AgentSessionPort
 }
 
 /**
@@ -24,11 +25,13 @@ export interface AutomationSchedulerProps {
  * 自动化唯一的意义所在。
  *
  * 「到期时做什么」在这里注入，不在 @poietica/automations 里：那一层不认识
- * agent，也不认识工作台。一次运行就是开出一条普通对话 —— 会话是唯一中心，
- * 自动化不另立一套执行器，也不另存一份运行日志。
+ * agent，也不认识工作台。一次运行就是开出一条普通对话、把指令说进去 —— 说话
+ * 与人按下发送键走的是同一条管线（TranscriptStore.send），自动化不另立一套
+ * 执行器，也不另存一份运行日志。
  */
-export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
+export function AutomationScheduler({ session }: AutomationSchedulerProps) {
   const threads = useThreadsActions()
+  const transcripts = useTranscripts()
 
   useEffect(() => {
     const dispatch = async (automation: Automation): Promise<string | null> => {
@@ -37,6 +40,16 @@ export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
       if (threadId === null) {
         return null
       }
+
+      /*
+       * 先起名，再开口，顺序不能反。
+       *
+       * 名字走 ThreadsStore.rename —— 界面上「重命名」那条唯一的写路径，落库
+       * 时是 manual；而 record_prompt 只在标题还是 fallback 时才从第一句话里
+       * 取名（crates/persistence 的 threads.rs）：先到一步的 manual，从此任何
+       * 派生名都顶不掉。先开口，这条对话就叫那句话了。
+       */
+      await threads.rename(threadId, automation.title)
 
       /*
        * 这条自动化要的会话设置，只下发到它自己开出来的这条对话。
@@ -55,20 +68,33 @@ export function AutomationScheduler({ workspace }: AutomationSchedulerProps) {
       }
 
       /*
-       * 让这条对话叫自动化的名字。
+       * 指令从唯一的发送管线进去（TranscriptStore.send → AgentSessionPort.prompt），
+       * 与人打字发送同一条路：先上屏、再接帧流、再发出去。
        *
-       * 走的是官方标题到达时的同一条路（WorkbenchSessionCommands.setConversationTitle），
-       * 没有为自动化另开一条命名通道。这里不 openConversation：一次后台到期不该
-       * 抢走人正在看的那一格 —— 跑完之后从「最近运行」那一列点进去，才是人自己
-       * 决定要看它。
+       * 上一版开完对话就结束了 —— prompt 从头到尾没有送达，每次「成功」的运行
+       * 留下的都是一条一句话也没说的空对话。
+       *
+       * onUserMessage 报自动化的名字而不是指令原文：侧栏的乐观标题与库里的
+       * manual 名是同一个词，下一次整表读取不会把名字换掉。不 openConversation：
+       * 一次后台到期不该抢走人正在看的那一格 —— 跑完之后从「最近运行」那一列
+       * 点进去，才是人自己决定要看它。
        */
-      workspace.setConversationTitle(threadId, automation.title)
+      transcripts.send({
+        assets: [],
+        endpoint: threadId,
+        key: threadId,
+        onUserMessage: (said) => {
+          threads.noteUserMessage(said, automation.title)
+        },
+        port: session,
+        text: automation.prompt,
+      })
 
       return threadId
     }
 
     return automationStore.start(dispatch)
-  }, [threads, workspace])
+  }, [session, threads, transcripts])
 
   return null
 }

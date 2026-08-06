@@ -49,6 +49,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
       <div className="mt-3 flex gap-1">
         {[ALL_CATEGORIES, ...AUTOMATION_CATEGORIES].map((tab) => (
           <button
+            aria-pressed={tab === category}
             className={cn(
               'rounded-md px-2.5 py-1 text-xs transition-colors hover:bg-sidebar-accent',
               tab === category ? 'bg-sidebar-accent text-foreground' : 'text-muted-foreground',

@@ -30,14 +30,67 @@ export function nextRunAfter(trigger: AutomationTrigger, from: number): string |
     case 'interval':
       return new Date(from + trigger.everyMinutes * MINUTE).toISOString()
 
-    case 'daily': {
+    case 'daily':
       /* 本地时间：人说「每天九点」说的是自己表上的九点。 */
-      const midnight = new Date(from)
-      midnight.setHours(0, 0, 0, 0)
+      return wallClockAfter(trigger.atMinuteOfDay, from).toISOString()
+  }
+}
 
-      const today = midnight.getTime() + trigger.atMinuteOfDay * MINUTE
+/**
+ * 本地墙钟上，from 之后第一个 atMinuteOfDay 时刻。
+ *
+ * 日历运算，不是绝对时间加法：setHours 与 setDate 按本地日历走，夏令时切换
+ * 那一天（23 或 25 小时）落点仍然是表上那个时刻 —— cron 与 Temporal 的日程
+ * 都以墙钟为准，「每天 9 点」在切换日也是 9 点。此前是
+ * midnight.getTime() + atMinuteOfDay * MINUTE：往一个绝对时刻上加九个小时，
+ * 切换日落到的就是 8 点或 10 点，与那段注释自己的承诺正好相反。
+ */
+function wallClockAfter(atMinuteOfDay: number, from: number): Date {
+  const at = new Date(from)
 
-      return new Date(today > from ? today : today + DAY).toISOString()
+  at.setHours(Math.floor(atMinuteOfDay / 60), atMinuteOfDay % 60, 0, 0)
+
+  if (at.getTime() <= from) {
+    at.setDate(at.getDate() + 1)
+  }
+
+  return at
+}
+
+/**
+ * 锚定计划序列里，now 之后的第一次。
+ *
+ * 锚点是上一次排定的时刻，不是上一次跑完的时刻 —— 固定速率，不是固定延迟：
+ * 「每小时」的一次跑了五分钟，下一次仍在原计划的点上；锚定完成时刻是
+ * scheduleWithFixedDelay 的语义，日程随每次执行越推越歪。cron、Temporal 与
+ * Kubernetes CronJob 用的都是锚定序列。关机错过的次数不逐次补：序列直接跨到
+ * now 之后的第一个，到期的那一次由 check() 点火一次，更早的不补 —— 与
+ * CronJob 的 misfire 处理同法。
+ */
+export function nextOccurrence(
+  trigger: AutomationTrigger,
+  anchor: number,
+  now: number,
+): string | null {
+  switch (trigger.kind) {
+    case 'manual':
+      return null
+
+    case 'interval': {
+      const span = trigger.everyMinutes * MINUTE
+      const steps = Math.max(0, Math.floor((now - anchor) / span) + 1)
+
+      return new Date(anchor + steps * span).toISOString()
+    }
+
+    case 'daily': {
+      let next = wallClockAfter(trigger.atMinuteOfDay, anchor).getTime()
+
+      while (next <= now) {
+        next = wallClockAfter(trigger.atMinuteOfDay, next).getTime()
+      }
+
+      return new Date(next).toISOString()
     }
   }
 }

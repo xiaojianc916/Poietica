@@ -3,7 +3,13 @@ import type { Automation, AutomationCatalog, AutomationRun } from '@poietica/ipc
 import { loadAutomations, saveAutomations } from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
-import { type AutomationDraft, nextRunAfter, RUN_HISTORY_LIMIT, sameTrigger } from './automation'
+import {
+  type AutomationDraft,
+  nextOccurrence,
+  nextRunAfter,
+  RUN_HISTORY_LIMIT,
+  sameTrigger,
+} from './automation'
 
 /**
  * 自动化的状态与调度。
@@ -52,6 +58,15 @@ export function createAutomationStore(): AutomationStore {
   const inFlight = new Set<string>()
   let dispatch: AutomationDispatch | null = null
 
+  /*
+   * 首次加载在飞期间，人有没有动过这份列表。
+   *
+   * 动过，内存里这份就比盘上读回来的那份新（改动在 commit 里已经 persist
+   * 落盘）。加载完成时拿旧的盖新的，屏幕上刚建的那条当场消失，而盘上还
+   * 在 —— 屏幕与盘就此分叉，直到下一次启动才愈合。
+   */
+  let touchedDuringLoad = false
+
   function publish(next: AutomationsViewModel): void {
     snapshot = next
 
@@ -76,6 +91,7 @@ export function createAutomationStore(): AutomationStore {
   }
 
   function commit(automations: readonly Automation[]): void {
+    touchedDuringLoad = true
     publish({ automations, loaded: true })
     persist(automations)
   }
@@ -88,7 +104,12 @@ export function createAutomationStore(): AutomationStore {
     )
   }
 
-  async function fire(automation: Automation): Promise<void> {
+  /**
+   * 点一次火。origin 分清是谁点的：日程到点（'schedule'），还是人按了试运行
+   * （'manual'）。手动运行不碰日程 —— cron、Temporal 与 Kubernetes 的手动
+   * 触发都不改写周期计划，这里同一条规矩。
+   */
+  async function fire(automation: Automation, origin: 'schedule' | 'manual'): Promise<void> {
     /*
      * 先快照，再用。两个理由，缺一个都会出事：
      *
@@ -128,6 +149,10 @@ export function createAutomationStore(): AutomationStore {
      * 拿去跟 AutomationRun[] 比 —— tsc 报错指在 runs: 上而不是 outcome: 上，
      * 说的正是这件事。标注恢复了 contextual typing，字面量收得住；而且这条
      * 记录本来就该有个名字。
+     *
+     * 结局记的是「这次运行有没有开起来」：对话开出来、指令经唯一的发送管线
+     * 提交，就是 succeeded。指令那一轮本身的成败由那条对话自己回答 —— 运行
+     * 就是一条对话，账本不存第二份运行状态。
      */
     const run: AutomationRun = {
       threadId,
@@ -135,11 +160,30 @@ export function createAutomationStore(): AutomationStore {
       outcome: threadId === null ? 'failed' : 'succeeded',
     }
 
-    replace(automation.id, (current) => ({
-      ...current,
-      nextRunAt: nextRunAfter(current.trigger, Date.now()),
-      runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT),
-    }))
+    replace(automation.id, (current) => {
+      const anchor = current.nextRunAt
+
+      /*
+       * 重排只有在这里才成立：日程点的火、这条仍然启用、且运行期间日程没被
+       * 人动过（改过触发条件或重新启用过的人，nextRunAt 已经是新的答案）。
+       * 锚点是刚刚到期的那个时刻，不是跑完的这一刻 —— 固定速率，相位不随
+       * 执行时长漂移。手动试运行落在另一支：日程原样留着。
+       */
+      if (
+        origin === 'schedule' &&
+        current.enabled &&
+        anchor !== null &&
+        anchor === automation.nextRunAt
+      ) {
+        return {
+          ...current,
+          nextRunAt: nextOccurrence(current.trigger, Date.parse(anchor), Date.now()),
+          runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT),
+        }
+      }
+
+      return { ...current, runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT) }
+    })
   }
 
   /** 到期判定。启动时也走这一段，于是关机期间错过的那次就是「已经到期」。 */
@@ -152,7 +196,7 @@ export function createAutomationStore(): AutomationStore {
       }
 
       if (Date.parse(automation.nextRunAt) <= now) {
-        void fire(automation)
+        void fire(automation, 'schedule')
       }
     }
   }
@@ -227,16 +271,21 @@ export function createAutomationStore(): AutomationStore {
       const automation = snapshot.automations.find((candidate) => candidate.id === id)
 
       if (automation !== undefined) {
-        void fire(automation)
+        void fire(automation, 'manual')
       }
     },
 
     start(next) {
       dispatch = next
+      touchedDuringLoad = false
 
       void loadAutomations()
         .then((catalog) => {
-          publish({ automations: catalog.automations, loaded: true })
+          /* 加载在飞期间人动过列表：内存这份更新，旧的那份不能盖上来。 */
+          if (!touchedDuringLoad) {
+            publish({ automations: catalog.automations, loaded: true })
+          }
+
           check()
         })
         .catch((cause: unknown) => {
