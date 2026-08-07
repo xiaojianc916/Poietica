@@ -9,33 +9,24 @@
 //! 各自解析，谁也不知道另外两处在哪 —— 这个模块的存在意义正是回答「卸载时该清
 //! 哪些目录」，而它当时答不上来。
 //!
-//! 根在哪由两件事决定，顺序固定：
+//! 安装版的根就是可执行文件所在的那个目录。用户在安装器的目录页只做一次选择，
+//! 那一次选择同时回答「程序装到哪」和「数据存到哪」，不需要第二个页面、第二个
+//! 开关，也不需要记住第二条路径。
 //!
-//! 1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
-//! 2. 没有这个文件时，`app_local_data_dir()`。
+//! 这里不去读安装器写的声明文件。Tauri 打的是 Unicode NSIS 安装器，它的
+//! FileWrite 输出 UTF-16LE，而这边按 UTF-8 读 —— 一个需要跨语言约定编码的机制，
+//! 换成「exe 在哪，数据就在哪」之后没有可错的地方。
 //!
-//! 目录名不在这个模块里重复一遍。`app_local_data_dir()` 返回的就是本地数据目录
-//! 拼上 identifier，而 identifier 归配置管：开发运行时 `scripts/tauri.mjs` 会给
-//! dev 子命令补上 `tauri.dev.conf.json`，那份配置把 identifier 覆盖成带 .dev 后缀
-//! 的形式，于是开发与安装版天然落在两个目录里，不会共用一个 WAL 库、不会互相覆盖
-//! 各自的 settings.json 与 agent 凭据。在这里再写一份常量，等于同一件事有两个真相，
-//! 改一处另一处不会跟着变。
+//! 卸载不会带走数据：卸载器逐个 Delete 它自己装进去的文件，最后那句
+//! RMDir 不带 /r，数据文件还在时它删不掉那个目录。要清干净得由用户在卸载器上
+//! 勾「删除应用数据」，那一条在 installer-hooks.nsh 里处置。
 //!
-//! 别把根挪成按 productName 命名的目录。Tauri 的 NSIS 模板在 currentUser 模式下
-//! 把安装目录默认成本地数据目录下以 productName 命名的那个文件夹，两者同名就是把
-//! 用户数据摊进安装目录，交给升级与卸载流程去动。而卸载器上「删除应用数据」那个
-//! 复选框，删的正是以 identifier 命名的目录 —— 跟着 identifier 走，这两件事自动
-//! 对齐，不需要任何人记住。
-//!
-//! 声明文件放在 exe 旁边而不是某个平台目录里，是因为「可移动的位置」总得有一个
-//! 不可移动的地方来记。JetBrains 的 idea.properties 与 VS Code 的 portable data
-//! 目录用的是同一个位置。
-//!
-//! 为什么是本地数据目录而不是漫游目录：Windows 的漫游配置文件在登录与注销时整份
-//! 同步 %APPDATA%，而线程索引开在 WAL 模式下，附件可以是几十 MB。把它们放进会被
-//! 同步的目录，代价是登录变慢加上库损坏（SQLite 明确不支持 WAL 走网络文件系统）。
-//! settings.json 本可以漫游，但把它单独留在另一个根，等于为了一个 2 KB 的文件把
-//! 「一个位置」这件事作废。
+//! 开发构建不适用上面这条：exe 在 target/debug 下，那不是任何人的数据目录。
+//! 开发落点固定在平台目录，而 identifier 由 tauri.dev.conf.json 覆盖成带 .dev
+//! 后缀的形式 —— 开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自
+//! 的 settings.json 与 agent 凭据。目录名不在这个模块里重复一遍：
+//! `app_local_data_dir()` 返回的就是本地数据目录拼上 identifier，identifier 归
+//! 配置管，在这里再写一份常量等于同一件事有两个真相。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,9 +35,6 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::Result;
-
-/// 安装器写在可执行文件旁边的落点声明。内容是一行绝对路径。
-const LOCATION_FILE: &str = "data-directory";
 
 const SETTINGS_FILE: &str = "settings.json";
 const AGENTS_FILE: &str = "agents.json";
@@ -69,26 +57,17 @@ const AGENT_HOME_DIRECTORY: &str = "home";
 /// 根解析一次就固定。它在进程存续期间不会变，而每条命令都要问它。
 static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
-/// 安装期选定的根，如果安装器声明过的话。
+/// 安装时选定的根，也就是可执行文件旁边。
 ///
-/// 读不到、是空行、或者不是绝对路径，都当作没有声明：一个相对路径会相对于进程
-/// 的工作目录展开，而那是调用方决定的，不是用户决定的。
-///
-/// 开发构建同样问这个文件，不开特例。开发时 exe 在 target/debug 下，安装器从没
-/// 在那里写过东西，正常情况下读不到；真有人把声明文件放了过去，那就是明确要求
-/// 换个落点，照办即可 —— 开发与安装版之间的隔离由 identifier 保证，不靠这里。
-fn configured_root() -> Option<PathBuf> {
-    let beside = std::env::current_exe().ok()?.parent()?.join(LOCATION_FILE);
-    let declared = fs::read_to_string(beside).ok()?;
-    let trimmed = declared.trim();
-
-    if trimmed.is_empty() {
+/// 开发构建返回 None：那时 exe 在 target/debug 下，往那里写用户数据既会被
+/// cargo clean 抹掉，也会跟着构建产物进版本库。用 cfg! 而不是两份 #[cfg] 函数
+/// 体，是为了让两条分支都参与编译，不会有一侧变成没人发现的死代码。
+fn installed_root() -> Option<PathBuf> {
+    if cfg!(debug_assertions) {
         return None;
     }
 
-    let path = PathBuf::from(trimmed);
-
-    path.is_absolute().then_some(path)
+    Some(std::env::current_exe().ok()?.parent()?.to_path_buf())
 }
 
 /// 这个应用的数据根，创建后返回。
@@ -101,8 +80,8 @@ fn root<R: Runtime>(app: &AppHandle<R>) -> Result<&'static Path> {
         return Ok(known.as_path());
     }
 
-    let resolved = match configured_root() {
-        Some(declared) => declared,
+    let resolved = match installed_root() {
+        Some(chosen) => chosen,
         None => app.path().app_local_data_dir()?,
     };
 

@@ -1,35 +1,26 @@
 # 磁盘布局
 
-这个应用在用户机器上占的位置只有一个根。它在哪，由两件事决定，顺序固定：
+这个应用在用户机器上占的位置只有一个根。
 
-1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
-2. 没有这个文件时，`app_local_data_dir()`。
+## 根在哪
+
+| 怎么跑起来 | 数据根 | 谁决定的 |
+| --- | --- | --- |
+| 安装版 | 安装时在目录页选定的那个目录，程序本体也在里面 | 用户 |
+| `pnpm tauri dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` | `tauri.dev.conf.json` 里的 identifier |
 
 唯一的声明处是 `apps/desktop/src-tauri/src/paths.rs`。没有第二个地方算路径，
 渲染层也不算 —— 关于页面显示的那一行来自 `storage_data_directory`。
 
-## 目录名归 identifier 管，只有一处声明
+安装版把数据放在程序旁边，是因为用户在安装器上只做一次选择，那一次选择就该同时
+回答「程序装到哪」和「数据存到哪」。应用侧的判据是可执行文件在哪，所以安装期不
+需要写下任何声明 —— 用户把整个目录搬到别的盘，数据跟着一起走。
 
-`paths.rs` 不写死目录名。它问 Tauri 要 `app_local_data_dir()`，这个 API 返回的
-就是本地数据目录拼上 identifier，而 identifier 归配置管：
-
-| 怎么跑起来 | 生效的配置 | identifier | Windows 上的数据根 |
-| --- | --- | --- | --- |
-| `pnpm tauri dev` | `tauri.conf.json` 叠加 `tauri.dev.conf.json` | `com.poietica.Poietica.dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` |
-| 安装版 | `tauri.conf.json` | `com.poietica.Poietica` | `%LOCALAPPDATA%\\com.poietica.Poietica` |
-
-叠加那份开发配置的是 `scripts/tauri.mjs`：只有 dev 子命令自动补上
-`--config src-tauri/tauri.dev.conf.json`，别的子命令一个字不动。开发与安装版
-因此不会同时打开同一个 WAL 库，也不会互相覆盖 settings.json 与 agent 凭据。
-
-数据根不能叫 `Poietica`：Tauri 的 NSIS 模板在 currentUser 模式下把安装目录默认
-成本地数据目录下以 productName 命名的那个文件夹，两者同名会让用户数据摊进安装
-目录。数据根也不应该另起一个新名字：卸载器上「删除应用数据」那个复选框删的正是
-以 identifier 命名的目录，改名等于让那个复选框不做事。跟着 identifier 走，这两
-件事自动对齐。
-
-程序本体装在 `%LOCALAPPDATA%\\Poietica`，那是安装目录，跟数据根是两个不同的
-目录，不要弄混。
+开发构建不适用这条：exe 在 `target/debug` 下，往那里写用户数据会被 cargo clean
+抹掉。开发落点固定在平台目录，identifier 由 `tauri.dev.conf.json` 覆盖成带
+`.dev` 后缀的形式，叠加那份配置的是 `scripts/tauri.mjs`，只对 dev 子命令生效。
+开发与安装版因此不会同时打开同一个 WAL 库，也不会互相覆盖各自的 settings.json
+与 agent 凭据。
 
 ## 根下面有什么
 
@@ -43,22 +34,21 @@
 | `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
 | `logs/` | 运行日志与上一次原生崩溃报告 | 无影响 |
 
-`threads.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的
-`-wal` 与 `-shm`。备份要带上 `-wal`，只拷主文件会丢掉最近一段还没并回去的
-写入；`-shm` 不必带，无连接时可安全删除并会被重建。
+安装版的目录里还有程序本体（`Poietica.exe`、`uninstall.exe`、资源），名字与上面
+这些都不冲突。升级只覆写程序文件，不碰数据。
 
-## 安装期指定位置
+`threads.sqlite3` 开在 WAL 模式下，磁盘上实际是三个文件：它，加上同名的 `-wal`
+与 `-shm`。备份要带上 `-wal`，只拷主文件会丢掉最近一段还没并回去的写入；
+`-shm` 不必带，无连接时可安全删除并会被重建。
 
-```
-Poietica_0.1.5_x64-setup.exe /DATA=D:\\Poietica
-```
+## 卸载
 
-不传就是默认位置。实现见 `apps/desktop/src-tauri/installer-hooks.nsh`。
+卸载器逐个 `Delete` 它自己装进去的文件，最后那句 `RMDir` 不带 `/r` —— 数据
+文件还在时它删不掉那个目录，所以普通卸载不会带走数据。
 
-已知缺口：卸载器的「删除应用数据」只清以 identifier 命名的那两个目录，装到自定义
-位置的数据它清不掉。需要在 `NSIS_HOOK_PREUNINSTALL` 里把 `data-directory` 读进
-变量，在 `NSIS_HOOK_POSTUNINSTALL` 里按 `$DeleteAppDataCheckboxState` 处置。
-尚未实现。
+勾了「删除应用数据」才会清干净：`NSIS_HOOK_POSTUNINSTALL` 把整个安装目录递归
+删掉。模板自带的那一段清的是平台默认目录，对装到自定义位置的安装没有作用，钩子
+补上的正是这一块。升级走的也是卸载流程，`$UpdateMode` 为 1 时一个字节都不动。
 
 ## 不在这个根里的东西
 
@@ -66,5 +56,5 @@ Poietica_0.1.5_x64-setup.exe /DATA=D:\\Poietica
 
 - **窗口位置与尺寸**。`tauri-plugin-window-state` 的落点写死在
   `${dataDir}/${bundleIdentifier}/`，插件没有开放这个参数。
-- **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程
-  的用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。
+- **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程的
+  用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。
