@@ -14,77 +14,39 @@
 //! 断言只看帧。recorder 不写任何存储 —— 一段对话的持有者是 agent，历史由
 //! session/load 交回来，所以这里没有第二份东西可以对。
 
-use std::sync::{Arc, Mutex};
+mod frame_sink;
 
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, SessionNotification,
     SessionUpdate, ToolCall, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
-use poietica_agent_runtime_native::{Decision, RecordedEvent, Recorder, SeqLine};
+use poietica_agent_runtime_native::{Decision, Recorder};
 use serde_json::Value;
 
-struct Fixture {
-    recorder: Recorder,
-    observed: Arc<Mutex<Vec<RecordedEvent>>>,
-}
+use frame_sink::{SESSION, recording, text_of};
 
-fn fixture() -> Fixture {
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&observed);
-
-    Fixture {
-        recorder: Recorder::new(
-            "sess_alpha".to_owned(),
-            SeqLine::new(),
-            Box::new(move |event: RecordedEvent| {
-                if let Ok(mut seen) = sink.lock() {
-                    seen.push(event);
-                }
-            }),
-        ),
-        observed,
-    }
-}
-
-impl Fixture {
-    fn frames(&self) -> Vec<Value> {
-        self.observed
-            .lock()
-            .expect("the sink")
-            .iter()
-            .map(|event| serde_json::to_value(event).expect("the frame serialises"))
-            .collect()
-    }
-
-    fn notify(&mut self, update: SessionUpdate) {
-        self.recorder
-            .record_session_update(&SessionNotification::new("sess_alpha", update));
-    }
-}
-
-fn text_of(frame: &Value, field: &str) -> String {
-    frame
-        .get(field)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
+fn notify(recorder: &mut Recorder, update: SessionUpdate) {
+    recorder.record_session_update(&SessionNotification::new(SESSION, update));
 }
 
 #[test]
 fn every_frame_carries_the_fields_the_interface_validates() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
-    fixture.recorder.record_run_started("read config.toml");
-    fixture.notify(SessionUpdate::ToolCall(
-        ToolCall::new("call_001", "Read config.toml")
-            .kind(ToolKind::Read)
-            .status(ToolCallStatus::Pending),
-    ));
-    fixture.recorder.record_run_finished("end_turn");
+    recorder.record_run_started("read config.toml");
+    notify(
+        &mut recorder,
+        SessionUpdate::ToolCall(
+            ToolCall::new("call_001", "Read config.toml")
+                .kind(ToolKind::Read)
+                .status(ToolCallStatus::Pending),
+        ),
+    );
+    recorder.record_run_finished("end_turn");
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
 
     assert_eq!(frames.len(), 3);
 
@@ -92,7 +54,7 @@ fn every_frame_carries_the_fields_the_interface_validates() {
         assert!(frame.get("kind").is_some_and(Value::is_string), "kind");
         assert_eq!(
             text_of(frame, "sessionId"),
-            "sess_alpha",
+            SESSION,
             "每一帧都带会话号，六种无一例外"
         );
         assert!(frame.get("seq").is_some_and(Value::is_number), "seq");
@@ -106,7 +68,6 @@ fn every_frame_carries_the_fields_the_interface_validates() {
 
     let started = frames.first().expect("the first frame");
     assert_eq!(text_of(started, "kind"), "run_started");
-    assert_eq!(text_of(started, "sessionId"), "sess_alpha");
     assert_eq!(
         text_of(started, "prompt"),
         "read config.toml",
@@ -116,7 +77,7 @@ fn every_frame_carries_the_fields_the_interface_validates() {
     let update = frames.get(1).expect("the update frame");
     assert_eq!(text_of(update, "kind"), "acp_update");
     let notification = update.get("notification").expect("a notification");
-    assert_eq!(text_of(notification, "sessionId"), "sess_alpha");
+    assert_eq!(text_of(notification, "sessionId"), SESSION);
     let inner = notification.get("update").expect("an update");
     assert_eq!(text_of(inner, "sessionUpdate"), "tool_call");
     assert_eq!(text_of(inner, "toolCallId"), "call_001");
@@ -134,19 +95,25 @@ fn every_frame_carries_the_fields_the_interface_validates() {
 
 #[test]
 fn an_optional_protocol_field_is_absent_rather_than_null() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
-    fixture.notify(SessionUpdate::ToolCall(
-        ToolCall::new("call_002", "Editing").status(ToolCallStatus::InProgress),
-    ));
-    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-        "call_002",
-        ToolCallUpdateFields::new().title("Editing main.rs"),
-    )));
+    notify(
+        &mut recorder,
+        SessionUpdate::ToolCall(
+            ToolCall::new("call_002", "Editing").status(ToolCallStatus::InProgress),
+        ),
+    );
+    notify(
+        &mut recorder,
+        SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+            "call_002",
+            ToolCallUpdateFields::new().title("Editing main.rs"),
+        )),
+    );
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
     let inner = frames
         .get(1)
         .and_then(|frame| frame.get("notification"))
@@ -162,22 +129,24 @@ fn an_optional_protocol_field_is_absent_rather_than_null() {
 
 #[test]
 fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
-    fixture.notify(SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-        "call_404",
-        ToolCallUpdateFields::new()
-            .title("Reading main.rs")
-            .status(ToolCallStatus::Completed),
-    )));
+    notify(
+        &mut recorder,
+        SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+            "call_404",
+            ToolCallUpdateFields::new()
+                .title("Reading main.rs")
+                .status(ToolCallStatus::Completed),
+        )),
+    );
 
     /* 更新先于宣告到达是协议允许的：子代理在自己的会话号下发起的调用、
     session/load 重播回来的历史、以及 agent 把首帧合并进更新，都会这样。
-    界面侧 upsertToolCall 对未知 id 建占位卡，原生侧必须是同一种语义 ——
-    此前这里把它判成整轮失败，同一个协议事实在两条管线上有两种结局。 */
-    assert!(fixture.recorder.take_failure().is_none());
+    界面侧 upsertToolCall 对未知 id 建占位卡，原生侧必须是同一种语义。 */
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
 
     assert_eq!(frames.len(), 1, "更新照常成帧交出去，不是被吞掉");
 
@@ -195,7 +164,7 @@ fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
     // 来了，要由一个不带标题的权限请求来证明：界面要求有标题，而这个标题
     // 只能来自那次未宣告的更新。
     let request = RequestPermissionRequest::new(
-        "sess_alpha",
+        SESSION,
         ToolCallUpdate::new("call_404", ToolCallUpdateFields::new()),
         vec![PermissionOption::new(
             "reject",
@@ -204,11 +173,11 @@ fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
         )],
     );
 
-    let request_id = fixture.recorder.record_permission_requested(&request);
+    let request_id = recorder.record_permission_requested(&request);
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
     let requested = frames.get(1).expect("the request frame");
 
     assert_eq!(text_of(requested, "kind"), "permission_requested");
@@ -222,10 +191,10 @@ fn an_update_for_an_unannounced_call_is_projected_as_an_upsert() {
 
 #[test]
 fn a_permission_request_is_refused_and_recorded() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
     let request = RequestPermissionRequest::new(
-        "sess_alpha",
+        SESSION,
         ToolCallUpdate::new(
             "call_005",
             ToolCallUpdateFields::new().title("Run cargo test"),
@@ -245,14 +214,12 @@ fn a_permission_request_is_refused_and_recorded() {
 
     /* 按生产路径的顺序来：driver.rs 先记下问题，再记下答复，中间隔着一次
     等待。把两步并成一步的便利方法证明不了生产行为。 */
-    let request_id = fixture.recorder.record_permission_requested(&request);
-    fixture
-        .recorder
-        .record_permission_resolved(&request_id, &decision);
+    let request_id = recorder.record_permission_requested(&request);
+    recorder.record_permission_resolved(&request_id, &decision);
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
     let requested = frames.first().expect("the request frame");
 
     assert_eq!(text_of(requested, "kind"), "permission_requested");
@@ -285,27 +252,27 @@ fn a_permission_request_is_refused_and_recorded() {
     );
 
     assert!(
-        fixture.recorder.outstanding_permissions().is_empty(),
+        recorder.outstanding_permissions().is_empty(),
         "the request was answered as it was recorded"
     );
 }
 
 #[test]
 fn an_announcement_carries_every_field_the_boundary_requires() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
     // Both defaults at once: pending is the default status, and this call is
     // announced without a kind. Serialisation omits them, and the interface
     // draws a card with no title and no icon if they stay omitted, so the
     // recorder puts them back from the SDK's own values.
-    fixture.notify(SessionUpdate::ToolCall(ToolCall::new(
-        "call_006",
-        "Read config.toml",
-    )));
+    notify(
+        &mut recorder,
+        SessionUpdate::ToolCall(ToolCall::new("call_006", "Read config.toml")),
+    );
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
     let inner = frames
         .first()
         .and_then(|frame| frame.get("notification"))

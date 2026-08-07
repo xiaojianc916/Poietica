@@ -31,10 +31,6 @@
 //! `AgentClient::prompt` 的地方 —— 改那个签名就必须改到这里，改漏了在提交前
 //! 就会被拦住。
 //!
-//! 这一段此前是散落在函数体里的两句注释，各自解释自己那一行曾经怎样漏改过。
-//! 它们记的是流程，不是代码：读代码的人从中得不到任何关于代码的东西，而下一
-//! 次漏改照样发生 —— 因为拦住它的从来不是一句注释，是提交前跑一次 `pnpm check`。
-//!
 //! It is configured by the environment rather than by anything committed here,
 //! so no machine's paths end up in the repository:
 //!
@@ -54,10 +50,11 @@
 //! about why, so each wait that comes back empty asks the driver thread for the
 //! actual failure before reporting anything.
 
+mod frame_sink;
+
 use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
-use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -68,6 +65,8 @@ use poietica_agent_runtime_native::{
     RecordedEvent, RunFrame, RunSlot, connect,
 };
 use tempfile::TempDir;
+
+use frame_sink::Delivered;
 
 const DEFAULT_PROGRAM: &str = "kimi";
 const DEFAULT_ARGS: &str = "acp";
@@ -215,10 +214,8 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
         let _ignored = watchdog.cancel(watched);
     });
 
-    let (sent, observed) = mpsc::channel::<RecordedEvent>();
-    let frames = Box::new(move |event: &RecordedEvent| {
-        let _ignored = sent.send(event.clone());
-    });
+    let delivered = Delivered::default();
+    let frames = delivered.sink();
 
     let started = Instant::now();
 
@@ -243,7 +240,7 @@ fn a_real_turn_is_recorded_exactly_as_it_is_broadcast() {
 
     driver.finish();
 
-    let broadcast: Vec<RecordedEvent> = observed.try_iter().collect();
+    let broadcast = delivered.frames();
 
     for event in &broadcast {
         println!(

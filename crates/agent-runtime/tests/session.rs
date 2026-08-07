@@ -9,40 +9,18 @@
 //! part that decides which run an update belongs to. Getting that wrong would
 //! attribute frames to the previous turn, which no compiler would catch.
 
-use std::sync::{Arc, Mutex};
+mod frame_sink;
 
 use agent_client_protocol::schema::v1::{SessionNotification, SessionUpdate, ToolCall};
 use poietica_agent_runtime_native::{
-    ACP_UPDATE, AcpError, Frames, Listening, RUN_STARTED, RecordedEvent, Recorder, Refusal,
-    RunFrame, RunSlot, SeqLine,
+    ACP_UPDATE, AcpError, Frames, Listening, RUN_STARTED, Recorder, Refusal, RunFrame, RunSlot,
 };
 
-struct Fixture {
-    recorder: Recorder,
-    observed: Arc<Mutex<Vec<RecordedEvent>>>,
-}
-
-fn fixture() -> Fixture {
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&observed);
-
-    Fixture {
-        recorder: Recorder::new(
-            "sess_alpha".to_owned(),
-            SeqLine::new(),
-            Box::new(move |event: &RecordedEvent| {
-                if let Ok(mut seen) = sink.lock() {
-                    seen.push(event.clone());
-                }
-            }),
-        ),
-        observed,
-    }
-}
+use frame_sink::{Delivered, SESSION, recording};
 
 fn announcement() -> SessionNotification {
     SessionNotification::new(
-        "sess_alpha",
+        SESSION,
         SessionUpdate::ToolCall(ToolCall::new("call_001", "Read config.toml")),
     )
 }
@@ -60,11 +38,10 @@ fn an_update_outside_a_turn_is_dropped() {
 
 #[test]
 fn updates_reach_the_installed_run() {
-    let fixture = fixture();
-    let observed = Arc::clone(&fixture.observed);
+    let (recorder, delivered) = recording();
     let slot = RunSlot::new();
 
-    slot.install(Listening::Turn(fixture.recorder))
+    slot.install(Listening::Turn(recorder))
         .expect("an empty slot");
 
     assert!(slot.is_listening());
@@ -75,7 +52,7 @@ fn updates_reach_the_installed_run() {
     }));
     assert!(slot.record(|listening| listening.session_update(&announcement())));
 
-    let seen = observed.lock().expect("the sink");
+    let seen = delivered.frames();
 
     assert_eq!(seen.len(), 2);
     assert_eq!(
@@ -91,21 +68,18 @@ fn updates_reach_the_installed_run() {
 
 #[test]
 fn a_second_run_cannot_displace_the_first() {
-    let first = fixture();
-    let second = fixture();
+    let (first, _first_frames) = recording();
+    let (second, _second_frames) = recording();
     let slot = RunSlot::new();
 
-    slot.install(Listening::Turn(first.recorder))
-        .expect("an empty slot");
+    slot.install(Listening::Turn(first)).expect("an empty slot");
 
     let error = slot
-        .install(Listening::Turn(second.recorder))
+        .install(Listening::Turn(second))
         .expect_err("an occupied slot refuses a second run");
 
     /* 拒绝一次并发的轮次是这台机器自己的规矩，不是 agent 那侧出的事，所以
-    它是 Refused 而不是 Protocol。此前这里断言的是后者 —— 一条从 Refusal 这个
-    变体被引进来那天起就不成立的断言，直到 live_turn.rs 编译得过、这一整个测试
-    目标终于跑起来，才叫出声。 */
+    它是 Refused 而不是 Protocol。 */
     assert!(
         matches!(error, AcpError::Refused(Refusal::Busy)),
         "a concurrent turn is refused, not silently interleaved"
@@ -119,18 +93,13 @@ fn a_second_run_cannot_displace_the_first() {
 /// 是同一个 `acp_update` 做出来的同一种帧。
 #[test]
 fn a_loading_session_forwards_its_replay_without_a_log() {
-    let seen: Arc<Mutex<Vec<RecordedEvent>>> = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&seen);
+    let delivered = Delivered::default();
     let slot = RunSlot::new();
 
     slot.install(Listening::Replay(Frames::new(
-        "sess_alpha".to_owned(),
+        SESSION.to_owned(),
         slot.seq(),
-        Box::new(move |event: &RecordedEvent| {
-            if let Ok(mut held) = sink.lock() {
-                held.push(event.clone());
-            }
-        }),
+        delivered.sink(),
     )))
     .expect("an empty slot");
 
@@ -139,7 +108,7 @@ fn a_loading_session_forwards_its_replay_without_a_log() {
         "装载期间这条会话上有人在听"
     );
 
-    let held = seen.lock().expect("the sink");
+    let held = delivered.frames();
 
     assert_eq!(held.len(), 1);
     assert_eq!(
@@ -155,10 +124,10 @@ fn a_loading_session_forwards_its_replay_without_a_log() {
 
 #[test]
 fn taking_the_run_ends_the_routing() {
-    let fixture = fixture();
+    let (recorder, _frames) = recording();
     let slot = RunSlot::new();
 
-    slot.install(Listening::Turn(fixture.recorder))
+    slot.install(Listening::Turn(recorder))
         .expect("an empty slot");
 
     let taken = slot.take().expect("the slot").expect("a run to close out");
@@ -178,20 +147,11 @@ fn taking_the_run_ends_the_routing() {
 /// 会被当成重复的丢掉 —— 这是把计数从轮次搬到会话时唯一会掉进去的坑。
 #[test]
 fn a_second_turn_continues_the_sequence_of_the_first() {
-    let seen: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(Vec::new()));
+    let delivered = Delivered::default();
     let slot = RunSlot::new();
 
     for _turn in 0..2 {
-        let sink = Arc::clone(&seen);
-        let recorder = Recorder::new(
-            "sess_alpha".to_owned(),
-            slot.seq(),
-            Box::new(move |event: &RecordedEvent| {
-                if let Ok(mut held) = sink.lock() {
-                    held.push(event.seq);
-                }
-            }),
-        );
+        let recorder = Recorder::new(SESSION.to_owned(), slot.seq(), delivered.sink());
 
         slot.install(Listening::Turn(recorder))
             .expect("an empty slot");
@@ -205,7 +165,7 @@ fn a_second_turn_continues_the_sequence_of_the_first() {
     }
 
     assert_eq!(
-        *seen.lock().expect("the sink"),
+        delivered.positions(),
         vec![1, 2],
         "同一条会话上的两轮共用一条序号线"
     );

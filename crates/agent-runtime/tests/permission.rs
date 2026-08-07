@@ -13,58 +13,20 @@
 //! 一次许可请求有没有被 settle，问的是 recorder 自己那份待答清单：请求号由它
 //! 铸造，答复也从它手上过，所以这件事本来就只有它知道。
 
-use std::sync::{Arc, Mutex};
+mod frame_sink;
 
 use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionRequest, ToolCallUpdate,
     ToolCallUpdateFields,
 };
 use futures::executor::block_on;
-use poietica_agent_runtime_native::{Decision, PermissionDesk, RecordedEvent, Recorder, SeqLine};
-use serde_json::Value;
+use poietica_agent_runtime_native::{Decision, PermissionDesk};
 
-struct Fixture {
-    recorder: Recorder,
-    observed: Arc<Mutex<Vec<RecordedEvent>>>,
-}
-
-fn fixture() -> Fixture {
-    let observed = Arc::new(Mutex::new(Vec::new()));
-    let sink = Arc::clone(&observed);
-
-    Fixture {
-        recorder: Recorder::new(
-            "sess_alpha".to_owned(),
-            SeqLine::new(),
-            Box::new(move |event: &RecordedEvent| {
-                if let Ok(mut seen) = sink.lock() {
-                    seen.push(event.clone());
-                }
-            }),
-        ),
-        observed,
-    }
-}
-
-impl Fixture {
-    /// 帧按 wire 形态读回来。
-    ///
-    /// 下面几个断言查的是 `kind`、`title`、`requestId` 这些界面读的字段名，
-    /// 那是 serde 派生出来的形状，不是 Rust 的字段名，所以这里序列化一次，
-    /// 让断言看到的和界面看到的是同一份 JSON。
-    fn frames(&self) -> Vec<Value> {
-        self.observed
-            .lock()
-            .expect("the sink")
-            .iter()
-            .map(|event| serde_json::to_value(&event.frame).expect("the frame serialises"))
-            .collect()
-    }
-}
+use frame_sink::{SESSION, recording, text_of};
 
 fn request() -> RequestPermissionRequest {
     RequestPermissionRequest::new(
-        "sess_alpha",
+        SESSION,
         ToolCallUpdate::new(
             "call_100",
             ToolCallUpdateFields::new().title("Write src/main.rs"),
@@ -75,14 +37,6 @@ fn request() -> RequestPermissionRequest {
             PermissionOption::new("reject", "Reject", PermissionOptionKind::RejectOnce),
         ],
     )
-}
-
-fn text_of(frame: &Value, field: &str) -> String {
-    frame
-        .get(field)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
 }
 
 #[test]
@@ -146,23 +100,21 @@ fn a_turn_that_ends_first_cancels_the_wait() {
 
 #[test]
 fn a_request_and_its_answer_are_two_frames() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
-    let request_id = fixture.recorder.record_permission_requested(&request());
+    let request_id = recorder.record_permission_requested(&request());
 
     assert_eq!(
-        fixture.recorder.outstanding_permissions().len(),
+        recorder.outstanding_permissions().len(),
         1,
         "the request is outstanding for as long as the agent is blocked on it"
     );
 
-    fixture
-        .recorder
-        .record_permission_resolved(&request_id, &Decision::Allow("allow".into()));
+    recorder.record_permission_resolved(&request_id, &Decision::Allow("allow".into()));
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
 
-    let frames = fixture.frames();
+    let frames = delivered.wire();
 
     assert_eq!(frames.len(), 2);
 
@@ -177,26 +129,26 @@ fn a_request_and_its_answer_are_two_frames() {
     assert_eq!(text_of(resolved, "outcome"), "selected");
 
     assert!(
-        fixture.recorder.outstanding_permissions().is_empty(),
+        recorder.outstanding_permissions().is_empty(),
         "an answered request is no longer outstanding"
     );
 }
 
 #[test]
 fn a_request_left_open_at_the_end_of_a_turn_is_settled() {
-    let mut fixture = fixture();
+    let (mut recorder, delivered) = recording();
 
-    let _request_id = fixture.recorder.record_permission_requested(&request());
+    let _request_id = recorder.record_permission_requested(&request());
 
-    fixture.recorder.record_pending_cancelled();
+    recorder.record_pending_cancelled();
 
-    assert!(fixture.recorder.take_failure().is_none());
+    assert!(recorder.take_failure().is_none());
     assert!(
-        fixture.recorder.outstanding_permissions().is_empty(),
+        recorder.outstanding_permissions().is_empty(),
         "a request nobody can ever answer must not stay outstanding"
     );
 
-    let resolved = fixture.frames();
+    let resolved = delivered.wire();
     let last = resolved.last().expect("the answer frame");
 
     assert_eq!(text_of(last, "outcome"), "cancelled");
