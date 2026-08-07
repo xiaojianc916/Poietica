@@ -8,21 +8,15 @@ import { useSyncExternalStore } from 'react'
 /*
  * 这个 agent 提供哪些可调项，以及每一项此刻选中什么。
  *
- * 三件生命周期不同的事，分三处：
+ * 形状上只有一个自由变量：模型。其余每一项都是它的派生态。
  *
- *   · 提供哪些：属于 agent 的配置与握手。问一次，全进程共用（产地见组合根的
- *     desktopAgentCapabilities）。
- *   · 选中哪个：属于人，不属于任何一条会话 —— 入口那一格没有会话，照样要选得动。
- *   · 某条会话此刻真在用哪个：属于那条会话，由 ThreadsStore 按 threadId 保管，并
- *     由它把会话对齐到这里选中的值。
+ * 这不是风格选择，是协议说的：ACP 的 session/new 与 set_config 都回整张表，
+ * 理由逐字是 changing one may add or remove another —— 集合本身由模型决定。
+ * 把档位与模型摆成同级的两个标量，就是把一个派生量当成了独立事实，于是
+ * 「屏幕上写着 Max，会话里报的是 on/off」这类分歧没有任何一处能被发现。
  *
- * 模型不特殊，只多一件事：它有家，就是 agent 配置里的顶层 default_model。其余的
- * 没有落盘的地方，也就不落 —— 落了就是第二个家。
- *
- * 形制与 ThreadsStore 一致：状态收在一个实例里，改动经由 #publish 落定。此前它摊
- * 在模块作用域的十个可变量上，谁都能改、谁都不拥有，测试也拿不到干净实例 —— 而同
- * 一个目录下的 transcript-store 开篇就在论证模块级可变状态不可取。一个包不该有两
- * 套关于「状态放哪」的答案。
+ * 所以 #chosen 分两层：模型一格，其余按模型归档。换模型时旧档位不被删除，
+ * 只是不再可见 —— 换回去它还在，而这是「删掉其余选中值」那种写法给不出的。
  */
 
 const NO_CONTROLS: readonly SessionConfigControl[] = []
@@ -41,9 +35,7 @@ interface DefaultModelSource {
  * 人此刻选中了哪些值，以及它什么时候变。
  *
  * 会话那一侧（SessionControlsStore）要的只有这两件事。写成一份显式契约，是为了让
- * 它被交进去而不是被 import 进去：那台对齐引擎的另外四个依赖本来就是构造时交进来
- * 的，唯独这一条伸手拿进程单例 —— 于是它没法在没有这个单例的情况下被构造，而这个
- * 目录下最大的两个 store 一行测试都没有，同目录的 transcript-store 有。
+ * 它被交进去而不是被 import 进去。
  */
 export interface AgentChoices {
   /** 这一项此刻选中的是哪个值。 */
@@ -56,49 +48,47 @@ class AgentCapabilityStore implements AgentChoices {
   /* 这个 agent 提供的整张表。只在内存里：权威是它自己的配置。 */
   #offered: readonly SessionConfigControl[] = NO_CONTROLS
 
-  /* 每一项选中什么，按 controlId 记。 */
-  #chosen = new Map<string, string>()
+  /* 此刻在位的模型。唯一的自由变量。 */
+  #model: string | undefined
+
+  /* 派生项按模型归档：modelId -> (controlId -> value)。 */
+  #perModel = new Map<string, Map<string, string>>()
 
   /*
-   * 画出去的那张表是投影：清单来自 #offered，选中值来自 #chosen。
-   *
-   * 只在 #publish 时算一次，不在每次读取时算 —— useSyncExternalStore 要求快照引用
-   * 稳定，每次现算会让它认定"状态一直在变"而无限重渲染。
+   * 画出去的那张表是投影。只在 #publish 时算一次 —— useSyncExternalStore 要求
+   * 快照引用稳定，每次现算会让它认定状态一直在变而无限重渲染。
    */
   #snapshot: readonly SessionConfigControl[] = NO_CONTROLS
 
   #listeners = new Set<() => void>()
 
-  /*
-   * 清单从哪里来，以及什么时候去问。
-   *
-   * 端口在接线时装上，装上本身不问：真正那次读取要等第一个订阅者出现 —— 也就是屏幕
-   * 上真的有一个选择器要画的时候。一个从没打开过助手的启动不为此付钱。
-   */
   #source: AgentCapabilityPort | undefined
 
   #asked = false
+
+  /*
+   * 第几次读取。
+   *
+   * 此前唯一的守卫是 this.#source !== port，它比的是端口身份而不是请求代次：
+   * 同一个端口上并发的两次 read() 都能通过，各自都执行 this.#offered = table，
+   * 谁后回来谁赢。那就是「重启一次档位列表就换一套」的机制层原因。
+   */
+  #generation = 0
 
   #report: ((cause: unknown) => void) | undefined
 
   #defaultSource: DefaultModelSource | undefined
 
-  /*
-   * 已经问过的那一份来源。
-   *
-   * 记的不是「问过没有」，是「问的是哪一份」：来源按 agent 接进来，换一家会重新
-   * install，一个布尔会把新那家永远挡在门外。
-   */
   #askedFor: DefaultModelSource | undefined
 
   /*
-   * 那一次读取回来过没有。
+   * 配置文件里声明的默认模型。undefined 表示还没问到，null 表示问到了但没有。
    *
-   * 不能拿"没有选中值"当这个问题的答案：还没问到的时候也是没有，而自动补齐正是靠
-   * 这个判断决定要不要写入 —— 分不清「确实没有」与「还不知道」，就会拿第一个候选盖
-   * 掉人原本配好的那个。只在读取成功时置位。
+   * 它不再当场经由 choose 落定。落定要用 agent 报的真 id，而那个 id 在表到达
+   * 之前不存在 —— 此前那条路回落到字面量常量，于是启动瞬间就可能把选择写进一个
+   * 谁也不读的键，并顺手把飞行中的读取放回 #asked = false 再发一次。
    */
-  #defaultKnown = false
+  #declared: string | null | undefined
 
   /** 屏幕上那张表。引用只在真的变了时才更换。 */
   snapshot = (): readonly SessionConfigControl[] => this.#snapshot
@@ -106,17 +96,24 @@ class AgentCapabilityStore implements AgentChoices {
   /**
    * 这一项此刻选中的是哪个值。
    *
-   * 会话那一侧要拿它把自己对齐过来：一条旧对话记着别的值是它自己的历史，不是
-   * "现在选中什么"的答案。这个函数就是那个答案唯一的产地。
+   * 派生项要先有模型才答得出来。这不是防御性判空，是绑定本身：没有模型在位时，
+   * 「档位选了什么」这个问题没有答案，而不是答一个上一个模型的旧值。
    */
-  chosenOf = (controlId: string): string | undefined => this.#chosen.get(controlId)
+  chosenOf = (controlId: string): string | undefined => {
+    if (controlId === this.#modelId()) {
+      return this.#model
+    }
+
+    const model = this.#model
+
+    return model === undefined ? undefined : this.#perModel.get(model)?.get(controlId)
+  }
 
   /**
    * 只听，不问。
    *
-   * 与 subscribe 的区别只有一处，但那一处要紧：这个不调 #loadOnce。挂一个监听器不该
-   * 把 agent 叫起来 —— 会话那一侧在应用启动时就要听着选中值的变化，而那时屏幕上可能
-   * 一个选择器都还没有。
+   * 与 subscribe 的区别只有一处，但那一处要紧：这个不触发读取 —— 会话那一侧在
+   * 应用启动时就要听着选中值的变化，而那时屏幕上可能一个选择器都还没有。
    */
   observe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener)
@@ -128,8 +125,8 @@ class AgentCapabilityStore implements AgentChoices {
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener)
-    this.#loadOnce()
-    this.#loadDefaultOnce()
+    this.#load()
+    this.#loadDeclared()
 
     return () => {
       this.#listeners.delete(listener)
@@ -137,46 +134,67 @@ class AgentCapabilityStore implements AgentChoices {
   }
 
   /**
-   * 人拨动了一个选择器，或者刚从配置里读到 default_model。
+   * 人拨动了一个选择器。
    *
    * 这是一次乐观更新，不是一份偏好：真正的下发由 SessionControlsStore 对每条会话
-   * 统一去做（observe → #realign → #align）。这里只回答"现在要的是哪个"。
+   * 统一去做（observe -> realign）。这里只回答现在要的是哪个。
    *
    * 传 null 就是撤回这一项的选择。
    */
   choose = (controlId: string, value: string | null): void => {
-    if ((this.#chosen.get(controlId) ?? null) === value) {
+    if (controlId === this.#modelId()) {
+      this.#chooseModel(value)
+
       return
     }
 
-    if (value === null) {
-      this.#chosen.delete(controlId)
-    } else {
-      this.#chosen.set(controlId, value)
+    const model = this.#model
+
+    /*
+     * 没有模型在位时不接受派生项的选择。收下它就得先给它找个地方放，而唯一
+     * 合法的地方是某个模型底下 —— 放进一个「无主」的格子，就是把刚拆掉的那份
+     * 平铺状态又建了一次。
+     */
+    if (model === undefined) {
+      return
     }
 
-    if (controlId === this.#modelId()) {
-      /*
-       * 这张表的身份是 (agent, model)，不是 (agent)。
-       *
-       * 模式与推理档位的候选由模型决定 —— ACP 的 session/new 连同 models 一起报出它
-       * 们，set_model 之后报的是新的一份。此前这里只换了模型，表却留着上一个模型报
-       * 的候选：入口画着 Off/High/Max，会话那一侧的真会话报的是 on/off。
-       *
-       * 旧值一并撤回。它属于上一个模型的取值空间，对齐时被 choices 校验静默丢弃，而
-       * 屏幕上仍写着它 —— 人以为开了 Max，其实一次都没生效过。
-       */
-      for (const id of [...this.#chosen.keys()]) {
-        if (id !== controlId) {
-          this.#chosen.delete(id)
-        }
-      }
+    const filed = this.#perModel.get(model)
 
-      /* 撤回不带来新模型，也就没有新的一张表可问。 */
-      if (value !== null) {
-        this.#asked = false
-        this.#loadOnce()
-      }
+    if ((filed?.get(controlId) ?? null) === value) {
+      return
+    }
+
+    const next = new Map(filed)
+
+    if (value === null) {
+      next.delete(controlId)
+    } else {
+      next.set(controlId, value)
+    }
+
+    this.#perModel.set(model, next)
+    this.#publish()
+  }
+
+  /*
+   * 换模型。
+   *
+   * 不清理任何派生项：它们归档在各自的模型底下，换模型之后自动不可见。清理是
+   * 上一版的做法，代价是换回原来那个模型时档位也丢了 —— 而人并没有撤回过它。
+   *
+   * 表要重问：候选由模型决定。代次守卫保证飞行中的旧读取不会覆盖这一次。
+   */
+  #chooseModel(value: string | null): void {
+    if ((this.#model ?? null) === value) {
+      return
+    }
+
+    this.#model = value ?? undefined
+
+    if (value !== null) {
+      this.#asked = false
+      this.#load()
     }
 
     this.#publish()
@@ -202,7 +220,7 @@ class AgentCapabilityStore implements AgentChoices {
 
     /* 已经有人在看选择器了才立刻问；没有就仍旧等第一个订阅者。 */
     if (this.#listeners.size > 0) {
-      this.#loadOnce()
+      this.#load()
     }
   }
 
@@ -213,54 +231,44 @@ class AgentCapabilityStore implements AgentChoices {
     }
 
     /*
-     * 换了一家 agent。上一家的选中值和「已经问到了」两件事都不再成立 —— 留着它们，屏
-     * 幕会用上一家的别名冒充这一家的选中项，而自动补齐会以为无事可做。
+     * 换了一家 agent。上一家的选中值与归档全都不再成立 —— 留着它们，屏幕会用上
+     * 一家的别名冒充这一家的选中项，而自动补齐会以为无事可做。
      */
     this.#defaultSource = source
-    this.#defaultKnown = false
-    this.choose(this.#modelId(), null)
-    this.#loadDefaultOnce()
+    this.#declared = undefined
+    this.#model = undefined
+    this.#perModel = new Map()
+    this.#publish()
+    this.#loadDeclared()
   }
 
   /**
    * agent 自己的配置被改过了：这张表不再作数，重问。
    *
-   * 为什么需要一个显式入口：#asked 只在「换了一家 agent」「自动补默认模型写盘成功」
-   * 「这一次读取失败」三种情形下放回 false。首次启动一个 provider 都没配时，read 得
-   * 到空表，#ensureDefaultModel 因为表里根本没有模型那一格而提前 return —— 三条路一
-   * 条都没走到，#asked 就此永远为真。人在设置页把 provider 导进去之后，进程里没有任
-   * 何东西能让它再问一次。
+   * 首次启动一个 provider 都没配时，read 得到空表，落定那一步因为表里根本没有
+   * 模型那一格而提前返回 —— 没有这个显式入口，人在设置页把 provider 导进去之后，
+   * 进程里没有任何东西能让它再问一次。
    *
-   * 不清空 #offered：重问期间旧表继续画。它仍是 agent 片刻前的真实配置，把工具条先
-   * 闪成空的换不到任何正确性（stale-while-revalidate，与设置页那份同一套做法）。
-   *
-   * default_model 一起重读，这一条不能省。刚才那次导入很可能已经把它写进配置了。若
-   * 只放回 #asked，能力表回来时 #chosen 里还没有模型，#ensureDefaultModel 就会拿
-   * choices[0] 写盘 —— 把人刚导进去的那个默认模型盖掉。
+   * 不清空 #offered：重问期间旧表继续画。它仍是 agent 片刻前的真实配置，把工具条
+   * 先闪成空的换不到任何正确性。
    */
   refresh = (): void => {
     this.#asked = false
     this.#askedFor = undefined
-    this.#defaultKnown = false
+    this.#declared = undefined
 
     /* 没人在看就不问：下一个订阅者出现时 subscribe 自会补上。 */
     if (this.#listeners.size > 0) {
-      this.#loadOnce()
-      this.#loadDefaultOnce()
+      this.#load()
+      this.#loadDeclared()
     }
   }
 
   /*
    * 哪一格是模型，只有这一处说了算。
    *
-   * 协议里 purpose 与 id 是两件事（SessionConfigPurpose 与 MODEL_CONTROL_ID），此前
-   * 这个文件把后者同时当成两者用：写 #chosen 时当 id，find 时拿去比 purpose ——
-   * 两个字面量恰好都是 "model" 才编译得过。agent 报的 id 一旦不叫 model，配置里的
-   * default_model 就写进了一个谁也不读的键，而对齐按 control.id 查，于是"设置里选了
-   * 默认模型，会话里没生效"。
-   *
-   * 有表时按 purpose 反查真 id；还没有表时回落到协议常量 —— 那正是启动后第一次读取
-   * 之前的那一小段。
+   * 协议里 purpose 与 id 是两件事。有表时按 purpose 反查真 id；还没有表时回落到
+   * 协议常量 —— 那只用于比较，不再用于写入：写入一律等表到达之后由 #settle 落定。
    */
   #modelId(): string {
     return this.#modelControl()?.id ?? MODEL_CONTROL_ID
@@ -270,15 +278,26 @@ class AgentCapabilityStore implements AgentChoices {
     return this.#offered.find((control) => control.purpose === 'model')
   }
 
+  /*
+   * 投影：清单来自 #offered，选中值来自这一层。
+   *
+   * 选中值必须在候选里才画得出来。此前只比 wanted !== current 就替换，于是屏幕能
+   * 显示一个 agent 从未接受过的值 —— 人以为开了 Max，其实一次都没生效过。取值空间
+   * 由模型决定，所以这道校验不是防御，是这张表的定义。
+   */
   #project(): readonly SessionConfigControl[] {
     if (this.#offered.length === 0) {
       return NO_CONTROLS
     }
 
     return this.#offered.map((control) => {
-      const wanted = this.#chosen.get(control.id)
+      const wanted = this.chosenOf(control.id)
 
       if (wanted === undefined || wanted === control.current) {
+        return control
+      }
+
+      if (!control.choices.some((choice) => choice.value === wanted)) {
         return control
       }
 
@@ -295,52 +314,66 @@ class AgentCapabilityStore implements AgentChoices {
   }
 
   /*
-   * 一个模型都没选中时，替他挑一个。
+   * 「现在在位的是哪个模型」唯一的落定处。
    *
-   * 这是「配好了密钥、模型也列出来了，一发消息却说 Authentication required」的根治：
-   * 上游 hasUsableConfiguredDefaultModel 第一行就是 defaultModel 缺席时 return false，
-   * 于是配置文件里的 api_key 整条不算数。
+   * 两个输入各自异步到达：表（read）与配置里声明的那个别名（load）。此前它们各自
+   * 直接写状态，于是先后顺序决定结果，而两者都能触发对方再跑一次。收敛点只留一个
+   * 之后，顺序不再有意义：谁后到，就由谁调这个函数。
    *
-   * 挑第一个是稳定的：快照在 provider-state 里按 provider id 排过序。挑出来的只是个
-   * 起点，不是偏好 —— 人拨一下它就变了。
+   * 已经有模型在位时什么都不做 —— 人的选择胜过配置文件里的声明。
    */
-  #ensureDefaultModel(): void {
-    const save = this.#defaultSource?.save
+  #settle(): void {
     const model = this.#modelControl()
 
-    if (!this.#defaultKnown || save === undefined || model === undefined) {
+    if (model === undefined || this.#declared === undefined || this.#model !== undefined) {
       return
     }
 
-    if (this.#chosen.get(model.id) !== undefined) {
+    const offers = (alias: string) => model.choices.some((choice) => choice.value === alias)
+
+    /*
+     * 配置里声明的那个仍在候选里：直接采用，不写盘 —— 它本来就在文件里。
+     */
+    if (this.#declared !== null && offers(this.#declared)) {
+      this.#chooseModel(this.#declared)
+
       return
     }
 
+    /*
+     * 一个都没选中时替他挑一个，并写进配置。
+     *
+     * 这是「配好了密钥、模型也列出来了，一发消息却说 Authentication required」的
+     * 根治：上游 hasUsableConfiguredDefaultModel 第一行就是 defaultModel 缺席时
+     * return false，于是配置文件里的 api_key 整条不算数。挑第一个是稳定的，快照
+     * 在 provider-state 里按 provider id 排过序；它只是个起点，不是偏好。
+     */
+    const save = this.#defaultSource?.save
     const first = model.choices[0]?.value
 
-    if (first === undefined) {
+    if (save === undefined || first === undefined) {
       return
     }
 
-    this.choose(model.id, first)
+    this.#chooseModel(first)
 
     void save(first).then(
       () => {
         /*
-         * 配置里第一次有了可用的 default_model：锚会话到这一刻才开得起来，而模式与推
-         * 理档位正是从那里来的。重问一次，不要让它们等到下次启动。
+         * 配置里第一次有了可用的 default_model：锚会话到这一刻才开得起来，而模式
+         * 与推理档位正是从那里来的。重问一次，不要让它们等到下次启动。
          */
         this.#asked = false
-        this.#loadOnce()
+        this.#load()
       },
       () => {
         /* 没写进去就当没挑过，而不是让屏幕显示一个文件里没有的值。 */
-        this.choose(model.id, null)
+        this.#chooseModel(null)
       },
     )
   }
 
-  #loadOnce(): void {
+  #load(): void {
     const port = this.#source
 
     if (this.#asked || port === undefined) {
@@ -348,22 +381,23 @@ class AgentCapabilityStore implements AgentChoices {
     }
 
     this.#asked = true
+
+    const generation = ++this.#generation
+
     port
       .read()
       .then((table) => {
-        /* 问的时候还是这一家，答回来已经换了人。 */
-        if (this.#source !== port) {
+        /* 问的时候还是这一家、还是这一次；答回来已经不是了就丢掉。 */
+        if (this.#source !== port || generation !== this.#generation) {
           return
         }
 
         this.#offered = table
         this.#publish()
-
-        /* 候选可能是这一刻才第一次到达的：那正是"该不该替他挑一个"重新有答案的时刻。 */
-        this.#ensureDefaultModel()
+        this.#settle()
       })
       .catch((cause: unknown) => {
-        if (this.#source !== port) {
+        if (this.#source !== port || generation !== this.#generation) {
           return
         }
 
@@ -373,7 +407,7 @@ class AgentCapabilityStore implements AgentChoices {
       })
   }
 
-  #loadDefaultOnce(): void {
+  #loadDeclared(): void {
     const asking = this.#defaultSource
 
     if (asking === undefined || this.#askedFor === asking) {
@@ -389,9 +423,8 @@ class AgentCapabilityStore implements AgentChoices {
           return
         }
 
-        this.#defaultKnown = true
-        this.choose(this.#modelId(), alias)
-        this.#ensureDefaultModel()
+        this.#declared = alias
+        this.#settle()
       })
       .catch(() => {
         if (this.#askedFor === asking) {
@@ -413,7 +446,7 @@ const store = new AgentCapabilityStore()
  * 进程里那一份选择，交给需要它的人。
  *
  * 露出去的是一个对象，不是两个自由函数：接收方因此可以在构造时收下它，测试也可以
- * 收下别的一份 —— 两个 import 进去的函数做不到这件事。
+ * 收下别的一份。
  */
 export const agentChoices: AgentChoices = store
 

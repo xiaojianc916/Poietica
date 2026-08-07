@@ -158,13 +158,28 @@ export function desktopAgentCapabilities(
       })
 
       /* 模型那一项在这里成形：清单归 CLI，其余归 agent，两边不重叠。 */
+      const declared = offered.find((control) => control.purpose === 'model')
       const rest = offered.filter((control) => control.purpose !== 'model')
 
       if (choices.length === 0) {
         return rest
       }
 
-      return [{ ...MODEL_CONTROL, current: choices[0]?.value ?? '', choices }, ...rest]
+      /*
+       * current 归锚会话，不归清单。
+       *
+       * 这两半描述的是两件事：清单是 config.toml 里配了哪些模型（CLI 读的），
+       * 而 rest 里的模式与推理档位是锚会话按 default_model 报的。此前这里写死
+       * choices[0]，于是同一个数组里「当前模型」与「可选档位」属于两个不同的
+       * 模型，而屏幕上看不出任何异样。
+       *
+       * 锚报的那个别名不在清单里时留空：那是「这个模型已经不在配置里了」，
+       * 由 capability store 的落定那一步去挑一个，不在这里冒充。
+       */
+      const current = declared?.current ?? ''
+      const listed = choices.some((choice) => choice.value === current)
+
+      return [{ ...MODEL_CONTROL, current: listed ? current : '', choices }, ...rest]
     },
   }
 
