@@ -1,7 +1,5 @@
 import { type RefObject, useCallback, useRef, useState } from 'react'
 
-/* poietica:conversation-minimap-audit@v15 */
-
 /**
  * 抽屉那条过渡改的是哪个属性。
  *
@@ -61,13 +59,26 @@ export function useDrawerMotion(transcript: RefObject<HTMLElement | null>): Draw
 
   const watch = useCallback(
     (viewport: HTMLElement) => {
+      /*
+       * 循环只在停下来的那一帧写一次状态。
+       *
+       * 起循环的那一句已经把 moving 置真，所以循环运行期间它必然是真 —— 每帧再
+       * 写一遍同一个值，写的是同一个答案。相同的值只保证跳过子树，不保证跳过这个
+       * 组件自身（useState 文档原话：React may still need to render that specific
+       * component again before bailing out），而它重渲一次就是整屏行的一次协调。
+       * 一次展开约十来帧，于是十来次。
+       */
       const readDrawers = () => {
         const node = transcript.current
-        const still = node !== null && drawersAreMoving(node)
 
-        setMoving(still)
+        if (node !== null && drawersAreMoving(node)) {
+          frame.current = requestAnimationFrame(readDrawers)
 
-        frame.current = still ? requestAnimationFrame(readDrawers) : null
+          return
+        }
+
+        frame.current = null
+        setMoving(false)
       }
 
       const onDrawerRun = (event: TransitionEvent) => {
@@ -75,9 +86,9 @@ export function useDrawerMotion(transcript: RefObject<HTMLElement | null>): Draw
           return
         }
 
-        setMoving(true)
-
+        /* 循环在跑就说明已经是真的了，所以置真与起循环是同一件事。 */
         if (frame.current === null) {
+          setMoving(true)
           frame.current = requestAnimationFrame(readDrawers)
         }
       }

@@ -8,8 +8,6 @@ import { type RowSpan, rowAtAnchor } from './reading-position'
 import { useDrawerMotion } from './use-drawer-motion'
 import { useRevealIntent } from './use-reveal-intent'
 
-/* poietica:conversation-minimap-audit@v15 */
-
 /**
  * 各类条目的首屏估高。
  *
