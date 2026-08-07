@@ -10,7 +10,7 @@
     "packages/agent-session/src/agent-capability-store.ts": 408,
     "packages/agent-session/src/session-controls-store.ts": 479,
     "packages/agent-session/src/threads-store.ts": 478,
-    "packages/agent-session/src/transcript-store.ts": 822,
+    "packages/agent-session/src/transcript-store.ts": 807,
     "packages/agent-timeline/src/acp-projection.ts": 658,
     "packages/agent-ui/src/composer/prompt-input.tsx": 574,
     "packages/agent-ui/src/feed/agent-activity-feed.tsx": 707,

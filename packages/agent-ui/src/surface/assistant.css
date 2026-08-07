@@ -58,6 +58,14 @@
 }
 
 [data-slot="prompt-input"] {
+  /*
+   * 定位，只为绘制顺序，一个像素都不改。
+   *
+   * 审批带咬在它上沿，重叠的那一段必须由这张卡盖住。两者同为定位元素时树序说话，
+   * 而卡排在后面（见 assistant-composer）。不用 z-index：这里没有第二层要压，而
+   * 负值会穿过不构成层叠上下文的 .assistant-surface 一路沉到转录底下。
+   */
+  position: relative;
   display: flex;
   inline-size: 100%;
   min-inline-size: 0;

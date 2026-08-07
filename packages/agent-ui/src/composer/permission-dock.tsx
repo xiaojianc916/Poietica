@@ -11,12 +11,13 @@ import { readToolIntent } from '../semantics/tool-intent'
  *
  * 它不是转录的一行：一次审批是拦在「继续」前面的一道闸，闸属于操作区，放进流里
  * 它会跟着滚动条走开，人得先找回它才能放行。它也不是浮在输入框上的第二块东西 ——
- * 操作区在这个界面上是一张卡（assistant.css 的 [data-slot="prompt-input"]），
- * 所以这条带子是那张卡顶上的一格，是它的第一个孩子。
+ * 它咬在那张卡（assistant.css 的 [data-slot="prompt-input"]）的上沿：自己画上半
+ * 张脸，下沿多出一个圆角的量、被卡整个盖住。
  *
- * 兄弟那一版靠三处约定假装贴着：自己画左右上三条边、把下边置零、把上圆角抄成和
- * 卡一样 —— 而卡片自己的上边框照画不误，于是接缝处始终是两个盒子摞着，不是一个
- * 盒子分了两格。同一个坑仓里记过两次（--am-shadow 的双重边、输入框底边的加粗）。
+ * 接缝因此不存在，而不是被对齐：重叠的那一段盖多盖少都不露缝，所以两边没有任何
+ * 一个数需要同步。此前两版各自失败在这一点上 —— 兄弟版靠三处约定假装贴着（自己
+ * 画三条边、把下边置零、把上圆角抄一遍），孩子版把卡顶的圆角一起接管了，输入框
+ * 那张卡就此不再完整。
  *
  * 同一条结论也已经写过一次：题组来的时候输入框自己长成面板（见 assistant-composer
  * 那段「后者会在滚动、聚焦和 Esc 上处处露馅」），而不是浮一个面板上去。审批与提问
@@ -51,6 +52,30 @@ function labelFor(option: AcpPermissionOption, labels: Readonly<Record<string, s
  */
 function leadOf(options: readonly AcpPermissionOption[]): string | undefined {
   return options.find((option) => option.kind.startsWith('allow'))?.optionId
+}
+
+/**
+ * 说不出意图时，把入参原样端上来。
+ *
+ * tool-intent 那一层的取舍是「宁可少说一句，不肯说错一句」，那对一张事后翻看的卡片
+ * 是对的。这里相反：人正要为这一次调用签字，而一个只写着工具名的问题不能被回答。
+ * 原文不是猜测 —— 它就是要被批准的那份入参。
+ *
+ * 它住在带子里而不是 tool-intent 里，正因为这条取舍只属于审批这一个场景。
+ */
+function rawArgs(rawInput: unknown): string | null {
+  if (rawInput === undefined || rawInput === null) {
+    return null
+  }
+
+  try {
+    const text = typeof rawInput === 'string' ? rawInput : JSON.stringify(rawInput)
+
+    return text === undefined || text.trim() === '' ? null : text
+  } catch {
+    /* 认不出就不认，宁可只剩一个工具名，也不能印一句我们编的话。 */
+    return null
+  }
 }
 
 export interface PermissionDockProps {
@@ -118,6 +143,9 @@ export const PermissionDock = memo(function PermissionDock({
           rawInput: call.rawInput,
         })
 
+  /* 意图说不出来时退到入参原文。两档都空，才只剩一个工具名。 */
+  const said = intent?.full ?? rawArgs(call?.rawInput)
+
   const lead = leadOf(item.options)
 
   const isSubmitting = submitted !== undefined
@@ -137,10 +165,17 @@ export const PermissionDock = memo(function PermissionDock({
           {item.title}
         </span>
 
-        {/* 工具名让位，意图占主位：一屏的 Bash、Read、Glob 之间没有区别。 */}
-        {intent === null ? null : (
-          <span className="assistant-approval__intent" title={intent.full}>
-            {intent.text}
+        {/*
+          要签字的那份原文占主位：一屏的 Bash、Read、Glob 之间没有区别，把这一次和
+          那一次分开的是它要做什么。
+
+          印的是 full 而不是 text：text 是给卡片那一行准备的 160 字截断，而人正照着
+          这里决定放不放行 —— 看不全就批，等于没批。多长由 CSS 收（三行），不在这里
+          切字符：切掉的那一段没有人能再要回来。
+        */}
+        {said === null ? null : (
+          <span className="assistant-approval__intent" title={said}>
+            {said}
           </span>
         )}
 

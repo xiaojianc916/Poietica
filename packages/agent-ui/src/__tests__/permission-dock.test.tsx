@@ -121,4 +121,20 @@ describe('审批带', () => {
 
     expect(markup).toContain('pnpm check')
   })
+
+  it('认不出的入参形状，也要把原文端上来', () => {
+    /*
+     * tool-intent 认的那几个键是某一家 agent 的入参约定（见那个文件的头注释）。换
+     * 一家、或者同一家换一个工具，键名就不在表里 —— 那时候仍然不能只给一个工具名
+     * 让人签字。
+     */
+    const markup = render(
+      permission({
+        title: 'Bash',
+        toolCall: { toolCallId: 'call-2', rawInput: { shell: 'ls ~/.kimi/skills/ 2>&1' } },
+      }),
+    )
+
+    expect(markup).toContain('ls ~/.kimi/skills/')
+  })
 })

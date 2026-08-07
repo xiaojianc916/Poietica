@@ -20,28 +20,20 @@ import { describeFailure } from './describe-failure'
 /*
  * 转录归这里，不归组件。
  *
- * 转录是后端状态：它来自一份本地加密日志，加上一条实时帧流。它此前活在
- * useAssistantSession 的 useState 里，于是每个挂载着的界面各持一份副本，各自
- * 订阅一次全量帧流，各自手搓一套缓存、游标、竞态守卫和乐观 id 对账 —— 那是在
- * 组件里重写了一个数据层。
+ * 转录是后端状态：它来自一份本地加密日志，加上一条实时帧流。这里是 React 官方
+ * 为这件事给出的形状（useSyncExternalStore 的对侧）：一份按对话规范化的状态、
+ * 一个订阅入口、以及唯一的写入方。
  *
- * 这里是 React 官方为这件事给出的形状（useSyncExternalStore 的对侧）：一份
- * 按对话规范化的状态、一个订阅入口、以及唯一的写入方。
+ * 它是一个对象，形制与同一层的 ThreadsStore 一致。实例由组合根造出来、经 Context
+ * 交下去（见 transcripts-context），所以「一个 store 订着一条线路」那道守卫是实例
+ * 级而不是进程级的，测试也拿得到干净实例。held / alias / aliased / routes 本来就
+ * 互相耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
  *
- * 它是一个对象，形制与同一层的 ThreadsStore 一致。此前这些字段是十二个模块级
- * 可变量：那样写没法在测试里拿到干净实例（模块随 import 求值一次，用例之间互相
- * 留痕，这也是 packages/agent-session 至今零测试的结构性原因），而 attach 的那道
- * attachedTo === port 守卫会是进程级的 —— 它把"一个 store 订着一条线路"写成了
- * "一个进程订着一条线路"。held / alias / aliased / routes / orphans 本来就互相
- * 耦合（rename 同时写三张，forget 同时删三张），它们是一个对象的内部字段。
- *
- * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的 RecordedEvent，
- * 六种帧无一例外），而"这条会话属于哪条对话"在打开这条对话时就登记好了（见
- * route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻交过来）。
- *
- * 地址因此先于帧存在，"无主的帧"不再是一种正常状态：此前键是轮次号，它由
- * prompt 的答复带回来而原生广播先到，于是这里养着一整套排队、补投、计数与
- * 上限，只为等一个本来就已经在手里的东西。
+ * 路由是一次查表，键是会话号：线路上每一帧都带着它（见 recorder.rs 的
+ * RecordedEvent，六种帧无一例外），而「这条会话属于哪条对话」在打开这条对话时
+ * 就登记好了（见 route，由 ThreadsStore 在拿到 ThreadRecord.sessionId 的那一刻
+ * 交过来）。地址因此先于帧存在，「无主的帧」不是一种正常状态 —— 这一层没有排队、
+ * 没有补投、也没有上限。
  */
 
 /** 入口那一格的键前缀。它还不是一条对话，所以也没有什么可停的。 */
@@ -117,9 +109,9 @@ function running(status: TimelineState['status']): boolean {
  * 本地的事故记在本地。
  *
  * 起不来的 agent、送不出去的权限答复、读不回来的历史，都发生在任何持久化之前
- * 或之外，日志里没有对应的帧。此前这里伪造一帧 run_failed 交给 applyRunEvent，
- * 序号取 lastSeq 加一 —— 那个号是原生那侧发的，真的那一帧带着同一个号到达时会
- * 被去重判成重复而永久丢掉，而丢掉的可能正是 run_finished。
+ * 或之外，日志里没有对应的帧。所以它们不伪造成帧：序号由原生那侧单调发放，本地
+ * 借一个号出来，真的那一帧带着同一个号到达时就会被去重判成重复而永久丢掉 ——
+ * 丢掉的可能正是 run_finished。
  */
 function noteOn(timeline: TimelineState, cause: unknown, endsTurn: boolean): TimelineState {
   return appendLocalError(timeline, {
@@ -279,13 +271,11 @@ export class TranscriptStore {
   /**
    * 这一格现在是什么样子。一次查表，什么都不改。
    *
-   * 这就是 useSyncExternalStore 的 getSnapshot，而 React 在渲染期调用它 ——
-   * 契约要求它是纯读取。此前它走 #settle：折叠会删 #pending、写 #held，还会
-   * 同步广播 #idle（ThreadsStore 就挂在那上面）。也就是说一次渲染会变更两个
-   * store。那一刀此前只写在 #write 的注释里，代码没跟上。
+   * 这就是 useSyncExternalStore 的 getSnapshot，React 在渲染期调用它，契约要求
+   * 它是纯读取。折叠因此只剩两个位置，都在读之外：#flush（叫醒订阅者之前折完）
+   * 与 #now（写路径要的是最新那一份，而写路径本来就在改状态）。
    *
-   * 折叠因此只剩两个位置，都在读之外：#flush（叫醒订阅者之前折完）与 #now
-   * （内部写路径要的是最新那一份）。帧进 → 折叠 → 通知 → 读，单向，不回头。
+   * 帧进 → 折叠 → 通知 → 读，单向，不回头。
    */
   read = (key: string): Transcript => this.#held.get(this.#resolveKey(key)) ?? EMPTY
 
@@ -352,8 +342,23 @@ export class TranscriptStore {
     }
   }
 
-  /** 这条对话此刻有没有一轮在飞。 */
-  busy = (key: string): boolean => running(this.#now(key).timeline.status)
+  /**
+   * 这条对话此刻有没有一轮在飞。
+   *
+   * 读已提交的那一份，与 read 同源：输入框写着「正在回答」而这里答「空着」，
+   * 就是同一个事实两处各答一次。攒着还没折的帧一律算忙 —— 没人看过它们说了
+   * 什么，答「闲」会把一次模型切换发进一轮刚开始的对话，答「忙」只是晚一拍
+   * 再问（onIdle 会补）。
+   *
+   * 它不折帧：折叠要写 #held 并同步广播 #idle，而 #idle 上挂着的正是问这句话
+   * 的人（session-controls-store 的 #align），于是一个返回 boolean 的问句会在
+   * 答话之前先把提问者重新叫起来一遍。问句不改状态。
+   */
+  busy = (key: string): boolean => {
+    const real = this.#resolveKey(key)
+
+    return this.#pending.has(real) || running(this.#held.get(real)?.timeline.status ?? 'idle')
+  }
 
   /** 某条对话从忙变闲的那一刻；交回取消订阅的办法。 */
   onIdle = (listener: (threadId: string) => void): (() => void) => {
@@ -446,11 +451,8 @@ export class TranscriptStore {
     const current = this.#now(key)
 
     /* 人说的那句话先上屏，再去问 agent。失败的一轮丢掉的是答案，不是问题。
-       字节不在这一层变成能画的东西。此前这里拼一条 data: URL：一张十六兆的图
-       会在 JS 堆上留下一份二十一兆的字符串，活到这条对话被关掉（#held 没有
-       上限，也不该有）；更要紧的是它与重启之后那张图指的不是同一种地址 ——
-       同一张图两种写法，于是走协议的那条路坏了很久都没人发现。地址只有一种，
-       由持有字节的那一侧发（见 agent_prompt 的答复）。 */
+       字节不在这一层变成能画的东西：地址只有一种，由持有字节的那一侧发（见
+       agent_prompt 的答复），实时那条路与重开对话那条路指的因此是同一样东西。 */
     const opened = appendUserMessage(current.timeline, text, at, [], assets.length)
     /* 这一句在转录里的身份。地址还在路上，到了以后按它挂回去 —— 期间这条
        对话又追加了多少帧都不影响。 */
@@ -642,8 +644,7 @@ export class TranscriptStore {
   /*
    * 这一拍攒下的变化，一次交出去。
    *
-   * 通知走反向索引：此前是 for (const [from, to] of alias) 找 to === key ——
-   * 把正向表当反向表用，于是流式输出的每一帧都线性扫一遍。
+   * 通知走反向索引（#aliased）：按草稿键找真 id 是一次查表，不是一次线性扫描。
    */
   #flush = (): void => {
     this.#waiting = false
@@ -665,13 +666,7 @@ export class TranscriptStore {
   }
 
   #put(key: string, next: Transcript): void {
-    /*
-     * 一次解析，一次叫醒。
-     *
-     * 此前两行各解析一次同一个键，答案必然相同；而 #write 自己末尾还站着
-     * 一行 #notify，所以一次外部写入实际叫醒两遍。那一行已经删掉（见下方
-     * #write），叫醒因此从冗余变成必要 —— 这里是它的两个入口之一。
-     */
+    /* 一次解析，一次叫醒：这里是叫醒的两个入口之一，另一个是 #queue。 */
     const real = this.#resolveKey(key)
 
     this.#write(real, next)
@@ -681,19 +676,9 @@ export class TranscriptStore {
   /*
    * 写下来，不惊动任何人。
    *
-   * 「写」与「叫醒」此前是同一件事，于是「把攒下的帧折进去」这个动作本身也会
-   * 再约一拍，而那一拍没有任何新东西可看。分开之后，叫醒由两个入口负责 ——
-   * 收到帧的那一刻（#queue）与外部写入的那一刻（#put）—— 折叠只管把状态改对。
-   *
-   * 这一刀曾经只落在注释里：函数体末尾一直站着一行 #notify(real)。接回调用链
-   * 就是一条闭合回路 —— #flush 第一行把 #waiting 放回 false，随后 #settle 折叠
-   * 一次就 #write 一次、#notify 一次，于是必然再排得出一帧 rAF；那一帧里没有任何
-   * 待折的帧，#fire 却照样把所有监听器叫一遍。流式期间它与帧率同频空转，一轮结束
-   * 还要多跑一拍才静默。现在它真的只写。
-   *
-   * 更要紧的是 read() 就是 useAssistantSession 交给 useSyncExternalStore 的
-   * getSnapshot。快照读取会走到这里，于是它会从 React 渲染期排出调度工作 ——
-   * 而那个契约要求 getSnapshot 是纯读取。这不是快不快的问题。
+   * 「写」与「叫醒」是两件事：叫醒由两个入口负责 —— 收到帧的那一刻（#queue）与
+   * 外部写入的那一刻（#put）—— 折叠只管把状态改对。焊在一起的话，「把攒下的帧
+   * 折进去」这个动作本身也会再约一拍，而那一拍没有任何新东西可看。
    */
   #write(real: string, next: Transcript): void {
     const was = running(this.#held.get(real)?.timeline.status ?? 'idle')

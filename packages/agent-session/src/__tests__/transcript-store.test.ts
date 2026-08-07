@@ -5,9 +5,9 @@ import { TranscriptStore } from '../transcript-store'
 /* 一条假线路：帧从哪来不重要，重要的是它带着哪条会话号。 */
 function fakePort(): {
   readonly port: AgentSessionPort
-  readonly emit: (event: RunEvent, sessionId: string) => void
+  readonly emit: (events: readonly RunEvent[], sessionId: string) => void
 } {
-  const listeners = new Set<(event: RunEvent, sessionId: string) => void>()
+  const listeners = new Set<(events: readonly RunEvent[], sessionId: string) => void>()
 
   return {
     port: {
@@ -22,9 +22,9 @@ function fakePort(): {
       cancel: () => Promise.resolve(),
       resolvePermission: () => Promise.resolve(),
     },
-    emit: (event, sessionId) => {
+    emit: (events, sessionId) => {
       for (const listener of listeners) {
-        listener(event, sessionId)
+        listener(events, sessionId)
       }
     },
   }
@@ -105,7 +105,7 @@ describe('transcript store', () => {
 
     const untouched = store.read('thread_a')
 
-    emit(started(1, 'sess_b'), 'sess_b')
+    emit([started(1, 'sess_b')], 'sess_b')
     paint()
 
     expect(store.read('thread_a')).toBe(untouched)
@@ -121,7 +121,7 @@ describe('transcript store', () => {
 
     const untouched = store.read('thread_a')
 
-    emit(started(1, 'sess_x'), 'sess_x')
+    emit([started(1, 'sess_x')], 'sess_x')
     paint()
 
     /* 不排队、不补投、不占内存：地址先于帧到达，等待没有意义。 */
@@ -135,14 +135,14 @@ describe('transcript store', () => {
     store.ensure(port)
     store.route('sess_a', 'thread_a')
 
-    emit(started(1, 'sess_a'), 'sess_a')
-    emit({ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }, 'sess_a')
+    emit([started(1, 'sess_a')], 'sess_a')
+    emit([{ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }], 'sess_a')
     paint()
 
     const ended = store.read('thread_a')
 
     /* 会话跨轮存活。此前这里是按轮次记的，第二轮的帧会变成无主的。 */
-    emit(started(3, 'sess_a'), 'sess_a')
+    emit([started(3, 'sess_a')], 'sess_a')
     paint()
 
     expect(store.read('thread_a')).not.toBe(ended)
@@ -161,11 +161,16 @@ describe('transcript store', () => {
 
     const before = store.read('thread_a')
 
-    emit(started(1, 'sess_a'), 'sess_a')
+    emit([started(1, 'sess_a')], 'sess_a')
+
+    const flurry: RunEvent[] = []
 
     for (let seq = 2; seq <= 201; seq += 1) {
-      emit(chunk(seq, '字'), 'sess_a')
+      flurry.push(chunk(seq, '字'))
     }
+
+    /* 两百段文字是一批送到的，与原生侧一拍攒下的那一批同形。 */
+    emit(flurry, 'sess_a')
 
     /* 读是纯的：这一拍还没到，快照就一动不动，界面也还没被叫醒。 */
     expect(store.read('thread_a')).toBe(before)
@@ -176,5 +181,36 @@ describe('transcript store', () => {
     /* 一帧都没丢：两百零一帧一趟折完，而屏幕只被要求画一次。 */
     expect(store.read('thread_a').timeline.lastSeq).toBe(201)
     expect(told).toBe(1)
+  })
+
+  it('问一句「忙不忙」不折帧，也不惊动等它空下来的人', () => {
+    const { store, paint } = painted()
+    const { port, emit } = fakePort()
+    let woken = 0
+
+    store.ensure(port)
+    store.route('sess_a', 'thread_a')
+    store.onIdle(() => {
+      woken += 1
+    })
+
+    emit([started(1, 'sess_a')], 'sess_a')
+    paint()
+
+    /* 结束那一帧已经到了，但还没到下一拍：没有人看过它。 */
+    emit([{ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }], 'sess_a')
+
+    const unread = store.read('thread_a')
+
+    /* 问一句不等于看一眼：攒着的帧还没折，所以答案保守地停在「还忙着」。 */
+    expect(store.busy('thread_a')).toBe(true)
+    expect(store.read('thread_a')).toBe(unread)
+    expect(woken).toBe(0)
+
+    /* 空下来由那一拍宣布，而且只宣布一次。 */
+    paint()
+
+    expect(store.busy('thread_a')).toBe(false)
+    expect(woken).toBe(1)
   })
 })

@@ -182,37 +182,45 @@ export const AssistantComposer = memo(function AssistantComposer({
   const asking = questionDeck != null && questionDeck.cards.length > 0
 
   return (
-    <PromptInput
-      className={asking ? 'assistant-prompt-input--question' : undefined}
-      multiple
-      onSubmit={onSubmit}
-      ref={ref}
-    >
+    <>
       {/*
-        审批那一格，在卡顶。它与题面板互斥 —— 两者同源于唯一那个待答请求（见
-        AssistantSurface 的 blocked），所以这里不需要再判一次谁压过谁。
+        审批那一格咬在卡的上沿，不在卡里。
+
+        它自己画上半张脸，下沿多出一个圆角的量、被卡整个盖住（见
+        permission-dock.css）。输入框那张卡因此一个像素都不改：仍然是它自己那四
+        个圆角、自己那圈边、自己那层投影。
+
+        它与题面板互斥 —— 两者同源于唯一那个待答请求（见 AssistantSurface 的
+        blocked），所以这里不需要再判一次谁压过谁。
       */}
       {approval == null ? null : <PermissionDock {...approval} />}
 
-      {asking ? (
-        /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这正
-           是 key 的用处，不是再加一个 effect 去复位三个 state。 */
-        <QuestionPanel
-          deck={questionDeck}
-          key={questionDeck.toolCallId}
-          onAnswer={onAnswerQuestions}
-        />
-      ) : (
-        <>
-          <PromptInputBody>
-            <PromptInputAttachments />
+      <PromptInput
+        className={asking ? 'assistant-prompt-input--question' : undefined}
+        multiple
+        onSubmit={onSubmit}
+        ref={ref}
+      >
+        {asking ? (
+          /* 一副题组一个面板：换了题组就该从第一题、空答案、未交出重新开始，而这
+             正是 key 的用处，不是再加一个 effect 去复位三个 state。 */
+          <QuestionPanel
+            deck={questionDeck}
+            key={questionDeck.toolCallId}
+            onAnswer={onAnswerQuestions}
+          />
+        ) : (
+          <>
+            <PromptInputBody>
+              <PromptInputAttachments />
 
-            <PromptInputTextarea placeholder={placeholder} />
-          </PromptInputBody>
+              <PromptInputTextarea placeholder={placeholder} />
+            </PromptInputBody>
 
-          <ComposerToolbar status={status} {...toolbar} />
-        </>
-      )}
-    </PromptInput>
+            <ComposerToolbar status={status} {...toolbar} />
+          </>
+        )}
+      </PromptInput>
+    </>
   )
 })

@@ -1,11 +1,11 @@
 import type { ThreadAttachment, ThreadHistory } from '@poietica/acp'
 
 /**
- * 转录那一侧，只要这四句话。
+ * 转录那一侧，会话这一侧要用到的全部。
  *
- * 打开一条对话现在会把它的经过一起带回来，而经过归转录 store 管。注入而不是
- * import 那个单例：这个文件自己在下面说过，模块级可变量让测试拿不到干净实例。
- * 声明成一个只有三个方法的接口，是为了让测试能塞一个假的进来。
+ * 注入而不是 import 一个单例：实例由组合根造出来，测试因此塞得进一个假的，而
+ * 「一个 store 订着一条线路」那道守卫也才是实例级而不是进程级的。窄到只剩这
+ * 几句，是为了让那个假的写得出来。
  */
 export interface TranscriptSink {
   readonly opening: (threadId: string) => void
@@ -25,8 +25,10 @@ export interface TranscriptSink {
    * 这条对话此刻有没有一轮在飞。
    *
    * 权威是转录自己的 status（RunStatus 的 running / awaiting_permission），不另记
-   * 一张在飞表：同一个事实两处维护，迟早各说各的。转录已经逐帧维护着它，输入框
-   * 那一侧读的也是同一格（useAssistantSession 的 toChatStatus）。
+   * 一张在飞表：同一个事实两处维护，迟早各说各的。输入框那一侧读的是同一格
+   * （useAssistantSession 的 toChatStatus），所以这里读的也是已提交的那一份。
+   *
+   * 这是一个问句：它不折帧、不改状态，也不叫醒任何人。
    */
   readonly busy: (threadId: string) => boolean
   /** 某条对话从忙变闲的那一刻。参数是那条对话。 */
