@@ -45,12 +45,18 @@ const valueOf = (table: readonly SessionConfigControl[], id: string): string | u
   table.find((offered) => offered.id === id)?.current
 
 describe('锚会话的那张表', () => {
-  it('换模型时档位随同一次答复一起换掉', async () => {
+  it('换模型时下发的是整个控件，档位随同一次答复一起换掉', async () => {
     const store = new AgentCapabilityStore()
+
+    let asked: SessionConfigControl | undefined
 
     store.installPort({
       read: () => Promise.resolve(ON_OFF),
-      select: () => Promise.resolve(THREE_TIER),
+      select: (control) => {
+        asked = control
+
+        return Promise.resolve(THREE_TIER)
+      },
     })
 
     const stop = store.subscribe(() => undefined)
@@ -65,6 +71,12 @@ describe('锚会话的那张表', () => {
     /* 一次答复整张换掉：不存在"新模型 + 旧档位"这种中间形态。 */
     expect(valueOf(store.snapshot(), 'model')).toBe('kimi-k3')
     expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+
+    /* 端口收的是控件，不是它的 id。桌面那一侧靠 purpose 认出「模型那一格」才会
+    去写 default_model，而线上那一格填的是 control.id —— 传字符串过去，两处一起
+    读出 undefined，命令在原生侧连反序列化都过不了。 */
+    expect(asked?.id).toBe('model')
+    expect(asked?.purpose).toBe('model')
 
     stop()
   })

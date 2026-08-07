@@ -20,6 +20,20 @@ import { useSyncExternalStore } from 'react'
 
 const NO_CONTROLS: readonly SessionConfigControl[] = []
 
+/*
+ * 读不到，和改不动，是两件事。
+ *
+ * 此前它们共用一个回调，于是组合根只能报同一个码、同一句话：一次改动被 agent
+ * 拒了，屏幕上写的却是「没能读到可用的模型，去看看密钥填了没有」—— 把人支去检查
+ * 一把本来就是对的钥匙。让人去修没坏的东西，是错误模型能犯的最贵的一种错。
+ */
+export interface CapabilityFailureReport {
+  /** 读整张表没成。屏幕上一个选项都没有。 */
+  readonly readFailed: (cause: unknown) => void
+  /** 改一项没成。表还在，只是这一次没生效。 */
+  readonly changeFailed: (cause: unknown) => void
+}
+
 /**
  * 一家 agent 的锚会话表。
  *
@@ -46,7 +60,7 @@ export class AgentCapabilityStore {
    */
   #generation = 0
 
-  #report: ((cause: unknown) => void) | undefined
+  #report: CapabilityFailureReport | undefined
 
   /** 屏幕上那张表。 */
   snapshot = (): readonly SessionConfigControl[] => this.#offered
@@ -88,24 +102,38 @@ export class AgentCapabilityStore {
 
     const generation = this.#generation
 
-    void port.select(controlId, value).then(
+    /*
+     * 交出去的是整个控件。
+     *
+     * 端口的签名就是这么定的，理由也写在那里（@poietica/acp 的 capability.ts）：
+     * 桌面那一侧要靠 purpose 认出「模型那一格」才会去写 config.toml 的
+     * default_model，而 id 是 agent 自己起的名字，协议没规定过。传一个字符串过去，
+     * purpose 读出 undefined、configId 读出 undefined —— 前者让换模型不再落盘，
+     * 后者让命令在原生侧连反序列化都过不了。
+     */
+    void port.select(control, value).then(
       (table) => {
         this.#adopt(port, generation, table)
       },
       (cause: unknown) => {
-        this.#report?.(cause)
+        this.#report?.changeFailed(cause)
+
+        /* 改不动就把权威重新问一遍：屏幕必须等于 agent 真在用的东西。这一趟不
+        惊动 agent —— 驱动器拿它手上那张表就地作答（driver.rs 的
+        Command::Selectors），代价只是一次进程内往返。 */
+        this.refresh()
       },
     )
   }
 
   /** 换一个端口（换 agent、或者重连）：旧表当场作废，不留给下一家看。 */
-  installPort = (port: AgentCapabilityPort, onFailure?: (cause: unknown) => void): void => {
+  installPort = (port: AgentCapabilityPort, report?: CapabilityFailureReport): void => {
     if (this.#source === port) {
       return
     }
 
     this.#source = port
-    this.#report = onFailure
+    this.#report = report
     this.#asked = false
     this.#offered = NO_CONTROLS
     this.#publish()
@@ -162,7 +190,7 @@ export class AgentCapabilityStore {
       (cause: unknown) => {
         /* 失败不算问过：下一个看的人还能再试一次。 */
         this.#asked = false
-        this.#report?.(cause)
+        this.#report?.readFailed(cause)
       },
     )
   }

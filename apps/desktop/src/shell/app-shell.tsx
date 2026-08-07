@@ -248,12 +248,28 @@ export function AppShell({ runtime }: AppShellProps) {
   useEffect(() => {
     const port = desktopAgentCapabilities(runtime.agentConfig, agentId)
 
-    installAgentCapabilityPort(port, (cause) => {
-      reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
-        scope: 'app-shell',
-        operation: 'read-capabilities',
-        cause,
-      })
+    /*
+     * 读不到和改不动分开报。
+     *
+     * 共用一个回调的那段时间里，一次被拒的改动会顶着「没能读到可用的模型，去看看
+     * 密钥填了没有」上屏 —— 而密钥好好的，那句话唯一的效果是让人去检查没坏的东西。
+     */
+    installAgentCapabilityPort(port, {
+      readFailed: (cause) => {
+        reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
+          scope: 'app-shell',
+          operation: 'read-capabilities',
+          cause,
+        })
+      },
+
+      changeFailed: (cause) => {
+        reportFailure('AGENT_CONFIG_CHANGE_REJECTED', {
+          scope: 'app-shell',
+          operation: 'change-capability',
+          cause,
+        })
+      },
     })
 
     return runtime.agentConfig.subscribeConfigChanged(refreshAgentCapabilities)

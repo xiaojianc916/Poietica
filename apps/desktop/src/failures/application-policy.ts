@@ -12,6 +12,7 @@ export const APPLICATION_FAILURE_CODES = [
   'WINDOW_RESIZE_SYNC_UNAVAILABLE',
   'WINDOW_CLOSE_LISTENER_UNAVAILABLE',
   'AGENT_CAPABILITIES_UNREADABLE',
+  'AGENT_CONFIG_CHANGE_REJECTED',
   'UPDATE_DOWNLOAD_FAILED',
 ] as const
 
@@ -148,6 +149,26 @@ export const APPLICATION_FAILURE_POLICIES = {
     recovery: 'retry',
 
     scope: operationScope('read-capabilities'),
+  },
+  /*
+   * 这一次改动 agent 没接受。
+   *
+   * 与上面那条分开，因为它们要人做的事不一样：读不到多半是还没装好、密钥没填，
+   * 该去设置页；改不动说明表读得到、只是这一次没生效，去设置页什么也解决不了。
+   * 共用一句话的那段时间里，每一次改动失败都在说「密钥可能没填」，而密钥是好的。
+   *
+   * 不列原因：agent 拒绝的措辞是它自己的，脱敏之后剩不下能对人说的东西 —— 与
+   * 下面那条同一条规矩。屏幕已经退回它真在用的值，所以这句话只需要说清「没换成」。
+   *
+   * 作用域是一次操作而不是一个功能：选择器照常能用，没有任何控件需要变灰。
+   */
+  AGENT_CONFIG_CHANGE_REJECTED: {
+    impact: 'recoverable',
+    userMessage: '这次改动没有生效，选择器已经退回 agent 正在用的值。可以再试一次。',
+
+    recovery: 'retry',
+
+    scope: operationScope('change-capability'),
   },
   /*
    * 更新没能下下来。
