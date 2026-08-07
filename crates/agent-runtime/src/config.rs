@@ -46,9 +46,9 @@ pub struct ConfigControl {
     pub detail: Option<String>,
     /// Where this selector belongs on screen.
     pub purpose: ConfigPurpose,
-    /// The value in force right now.
+    /// The value in force right now. Always one of the offered choices.
     pub current: String,
-    /// Every value on offer, groups flattened into one run.
+    /// Every value on offer, groups flattened into one run. Never empty.
     pub choices: Vec<ConfigChoice>,
 }
 
@@ -87,26 +87,80 @@ fn to_choices(offers: &SessionConfigSelectOptions) -> Vec<ConfigChoice> {
     Vec::new()
 }
 
+/// Which of the offered values is in force.
+///
+/// The agent carries one thought level for the whole session and reports
+/// it again after the model changes, so the value it names can be a level
+/// the new model never offered. A value nobody offers cannot be picked, so
+/// it cannot be shown as picked either: the first offered value stands in,
+/// the same reset a select performs when its value matches no option.
+///
+/// None means the selector offers nothing at all, and a selector with
+/// nothing to offer is not one a user can operate.
+fn in_force(choices: &[ConfigChoice], reported: &str) -> Option<String> {
+    choices
+        .iter()
+        .find(|choice| choice.value == reported)
+        .or_else(|| choices.first())
+        .map(|choice| choice.value.clone())
+}
+
 fn to_control(offered: &SessionConfigOption) -> Option<ConfigControl> {
     let SessionConfigKind::Select(select) = &offered.kind else {
         return None;
     };
+
+    let choices = to_choices(&select.options);
+    let reported = select.current_value.to_string();
+    let current = in_force(&choices, &reported)?;
 
     Some(ConfigControl {
         id: offered.id.to_string(),
         label: offered.name.clone(),
         detail: offered.description.clone(),
         purpose: to_purpose(offered.category.as_ref()),
-        current: select.current_value.to_string(),
-        choices: to_choices(&select.options),
+        current,
+        choices,
     })
 }
 
 /// Carries across every selector we know how to render.
 ///
-/// A selector of a shape we do not recognise is left out rather than
-/// guessed at, which is what the protocol asks a client to do.
+/// A selector of a shape we do not recognise, and a selector with nothing
+/// to offer, are both left out rather than guessed at.
 #[must_use]
 pub fn controls(offered: &[SessionConfigOption]) -> Vec<ConfigControl> {
     offered.iter().filter_map(to_control).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ConfigChoice, in_force};
+
+    fn choice(value: &str) -> ConfigChoice {
+        ConfigChoice {
+            value: value.to_owned(),
+            label: value.to_owned(),
+            detail: None,
+        }
+    }
+
+    #[test]
+    fn keeps_the_value_the_agent_offers() {
+        let choices = [choice("low"), choice("high")];
+
+        assert_eq!(in_force(&choices, "high"), Some("high".to_owned()));
+    }
+
+    #[test]
+    fn drops_a_level_the_new_model_never_offered() {
+        let choices = [choice("medium"), choice("high")];
+
+        assert_eq!(in_force(&choices, "low"), Some("medium".to_owned()));
+    }
+
+    #[test]
+    fn a_selector_with_nothing_to_offer_has_no_value() {
+        assert_eq!(in_force(&[], "low"), None);
+    }
 }

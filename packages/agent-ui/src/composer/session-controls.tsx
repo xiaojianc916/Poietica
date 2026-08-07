@@ -67,11 +67,17 @@ function labelOf(
   return stripped.length > 0 ? stripped : choice.label
 }
 
-/** The name the agent gave the value in force, falling back to the value. */
-function chosen(control: SessionConfigControl): string {
-  const found = control.choices.find((choice) => choice.value === control.current)
+/*
+ * 生效值的名字。
+ *
+ * current 一定在 choices 里：控件在原生侧成形时就收敛过（agent-runtime 的
+ * config.rs，in_force）。TypeScript 证不出这条不变量，所以这里仍要查一次 ——
+ * 查不到时这一格不写字，而不是把一个 agent 给不出的值画成已选中。
+ */
+function chosen(control: SessionConfigControl): string | undefined {
+  const inForce = control.choices.find((choice) => choice.value === control.current)
 
-  return found === undefined ? control.current : labelOf(control, found)
+  return inForce === undefined ? undefined : labelOf(control, inForce)
 }
 
 /*
@@ -94,14 +100,7 @@ export interface SessionControlsProps {
   readonly onRetry?: (() => void) | undefined
 }
 
-/*
- * 记住不重建。
- *
- * 同层的 AssistantSurface、AssistantComposer、ThreadRow 都有这道边界，这一格
- * 此前没有 —— 管线不统一。它的入参只有 controls 会变，而 controls 只在换模型
- * 时才换引用；它下面是一个菜单根加 N 个子菜单根，白重建一次的代价远不止下面
- * 那几次数组分配。
- */
+/** 入参只有 controls 会变，而这下面是一个菜单根加 N 个子菜单根。 */
 export const SessionControls = memo(function SessionControls({
   controls,
   failure,
@@ -115,13 +114,6 @@ export const SessionControls = memo(function SessionControls({
    * 两处各画一次当前值,改一处另一处不跟,而且用户会以为那是两个东西。
    *
    * Sorting is stable, so the agent order survives inside each purpose.
-   */
-  /*
-   * 排序是投影，不是渲染。
-   *
-   * 一次复制、一次过滤、一次排序、一次查找，此前每次渲染都做一遍。
-   * prompt-input.tsx 顶上那段注释已经点过它的名，但那次只收窄了触发次数，
-   * 没有把它挪出渲染路径 —— 它依赖的只有 controls。
    */
   const rows = useMemo(
     () =>

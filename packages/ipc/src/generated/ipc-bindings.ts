@@ -66,7 +66,11 @@ async agentShutdown() : Promise<null> {
     return await TAURI_INVOKE("agent_shutdown");
 },
 /**
- * Changes one selector on the running session.
+ * Changes one selector, on one session.
+ * 
+ * 点名一条对话就发往它握着的那个会话；不点名就发往连接自带的锚会话 —— 入口那一格
+ * 没有对话可以点名，而它画着的正是锚会话报的那张表。两个地址一个命令：拆成两条
+ * 命令就等于让同一件事有两条代码路径，而其中一条迟早会长出自己的行为。
  * 
  * The change applies to the session in flight, so nothing is restarted
  * and nothing is written to the agent configuration file. The answer is
