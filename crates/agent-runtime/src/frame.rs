@@ -120,10 +120,15 @@ impl RunFrame {
 pub(crate) fn prune(value: &mut Value) {
     match value {
         Value::Object(fields) => {
-            fields.retain(|_name, member| !member.is_null());
-            for member in fields.values_mut() {
+            fields.retain(|_name, member| {
+                if member.is_null() {
+                    return false;
+                }
+
                 prune(member);
-            }
+
+                true
+            });
         }
         Value::Array(members) => {
             for member in members.iter_mut() {
@@ -177,17 +182,28 @@ pub(crate) fn acp_update(notification: &SessionNotification) -> serde_json::Resu
 }
 
 fn restore_tool_call(value: &mut Value, call: &ToolCall) -> serde_json::Result<()> {
-    restore(value, "title", Value::String(call.title.clone()));
-    restore(value, "kind", serde_json::to_value(call.kind)?);
-    restore(value, "status", serde_json::to_value(call.status)?);
+    restore(value, "title", || Ok(Value::String(call.title.clone())))?;
+    restore(value, "kind", || serde_json::to_value(call.kind))?;
+    restore(value, "status", || serde_json::to_value(call.status))?;
 
     Ok(())
 }
 
-fn restore(update: &mut Value, field: &str, value: Value) {
+/// 补一个字段，值到用时才做。
+///
+/// 三个默认值通常一个都不缺，而 `title` 要克隆一次字符串、另外两个各要走一趟
+/// 序列化。先做出来再判断要不要，就是三份白扔的分配 —— 与 `unwrap_or_else`
+/// 相对于 `unwrap_or` 是同一件事。
+fn restore(
+    update: &mut Value,
+    field: &str,
+    value: impl FnOnce() -> serde_json::Result<Value>,
+) -> serde_json::Result<()> {
     if let Value::Object(fields) = update
         && !fields.contains_key(field)
     {
-        let _absent = fields.insert(field.to_owned(), value);
+        let _absent = fields.insert(field.to_owned(), value()?);
     }
+
+    Ok(())
 }
