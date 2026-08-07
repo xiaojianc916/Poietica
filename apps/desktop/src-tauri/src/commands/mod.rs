@@ -1,13 +1,10 @@
 pub mod agent;
-pub mod agent_cli;
-pub mod agent_config;
-pub mod agent_install;
+pub mod agent_setup;
 pub mod asset;
 pub mod automations;
 pub mod catalog_server;
 pub mod diagnostics;
 pub mod process;
-pub mod provider_probe;
 pub mod settings;
 pub mod updates;
 pub mod window;

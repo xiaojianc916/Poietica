@@ -1,9 +1,7 @@
 //! 这个应用在磁盘上占了哪些位置 —— 唯一的声明处。
 //!
-//! 此前每个落盘点各写一份字面量：settings.json 在 bootstrap/app.rs 与
-//! commands/settings.rs 共四处，agents.json 在 app.rs 与 `commands/agent_config.rs`
-//! 共三处，受控 home 的 "agents"/"home" 只活在 `controlled_home` 一个私有函数里。
-//! 于是没有任何一个地方能回答"卸载时该清哪些目录""备份该带走什么"。
+//! 每个落盘点的名字都在这里声明，不在各自的使用点上 —— 只有这样才存在一个
+//! 地方，能回答"卸载时该清哪些目录""备份该带走什么"。
 //!
 //! 布局是产品决策，属于应用组合层，不属于某一条命令 —— 专业桌面软件都有这么
 //! 一个模块（VS Code 的 `IEnvironmentService`、Zed 的 paths.rs）。
@@ -110,10 +108,7 @@ fn data_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(directory)
 }
 
-/// 加密对话库的位置。
-///
-/// 此前这个名字与它的目录创建都写在 commands/agent.rs 里，也就是说这个应用
-/// 最重要的一个文件，是唯一一个不在布局声明中的落点。
+/// 对话索引库的位置。它不加密，也不存对话内容 —— 判据见 `AGENT_DATABASE`。
 ///
 /// # Errors
 ///

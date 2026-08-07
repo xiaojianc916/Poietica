@@ -87,12 +87,6 @@ export interface AgentConfigSnapshot {
   readonly issues: readonly string[]
 }
 
-/*
- * AgentImportOutcome 曾在这里。它描述的是「整份复制 config.toml 并备份」的结果，
- * 而原生侧那条命令已经删了（agent_config.rs 里留着它的墓碑）—— 导入现在按 provider
- * 走官方的 catalog add，结果就是每一次 execCli 自己的退出码，没有第二种形状。
- */
-
 /**
  * ACP agent 接入配置的持久化端口。
  *

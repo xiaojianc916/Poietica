@@ -38,10 +38,11 @@ use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
 use tauri_plugin_store::StoreExt;
 
-use crate::commands::agent_config::{agent_install_spec, agent_program};
 use crate::commands::process::hide_console;
 use crate::error::{Error, IpcError, Result};
 use crate::paths::AGENTS_STORE;
+
+use super::profile::{agent_install_spec, agent_program};
 
 const CHECK_KEY: &str = "installChecks";
 const CHECK_TTL_MS: i64 = 24 * 60 * 60 * 1000;

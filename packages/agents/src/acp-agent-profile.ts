@@ -44,12 +44,11 @@ export interface AcpAgentProfile {
    * 以下四格不属于用户，用户也填不出来 —— 它们是 AcpAgentDescriptor 往磁盘上的
    * 一次单向投影，reconcileAcpAgentProfiles 每次无条件覆盖。
    *
-   * 为什么必须落盘：原生侧那五个读取点（commands/agent_config.rs 的
+   * 为什么必须落盘：原生侧那五个读取点（commands/agent_setup/profile.rs 的
    * agent_program、home_var_of、own_home_of、agent_install_spec、
    * declared_env_of）读的就是磁盘上这条档案。名单在 TypeScript 里，那个进程读
-   * 不到它，agents.json 是两侧唯一的接触面。上一版把这几格删掉时只改了这一侧,
-   * 于是四个读取点结构上永远取不到东西 —— 其中 home_var_of 恒为 None 意味着受控
-   * home 那个变量从来没被设过,agent 一直在读用户全局的配置。
+   * 不到它，agents.json 是两侧唯一的接触面 —— 这几格一旦缺席，home_var_of 恒为
+   * None，受控 home 那个变量就不会被设上，agent 会去读用户全局的配置。
    *
    * 为什么这不是把「任意命令执行」放回来：值只有一个产地。磁盘上写着什么都不
    * 作数，下一次启动就被描述符里的值盖掉;原生侧的 validate_program 仍然独立

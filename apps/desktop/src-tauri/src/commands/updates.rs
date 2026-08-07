@@ -17,7 +17,7 @@ use crate::error::{Error, IpcError};
 
 /// 命令面上的错误是 `IpcError`，不是 `crate::error::Error`。后者没有、也不该有
 /// `specta::Type`：它的变体里带着路径与系统错误串，那些东西经 `error.rs` 的
-/// `public_message` 表脱敏之后才是契约。范式同 `commands/provider_probe.rs`。
+/// `public_message` 表脱敏之后才是契约。范式同 `commands/agent_setup/probe.rs`。
 type UpdateCommandResult<T> = Result<T, IpcError>;
 
 /// 只罩住检查请求。

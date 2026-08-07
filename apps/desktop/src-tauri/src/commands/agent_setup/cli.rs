@@ -16,14 +16,13 @@
 //! 的 api.json 绑在一次性 loopback 服务上，经官方 --url 喂给它。地址从绑定结果
 //! 现算，不是用户输入；文档里没有密钥。
 
-use crate::commands::agent_config::{
-    agent_program, global_launch_env, global_provider_secret, launch_env,
-};
 use crate::commands::catalog_server::CatalogServer;
 use crate::error::{Error, IpcError, Result};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, async_runtime, command};
+
+use super::profile::{agent_program, global_launch_env, global_provider_secret, launch_env};
 
 type AgentCliCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -77,12 +76,9 @@ pub struct AgentCliRequest {
     /// 与 `secret_value` 互斥（validate 会拒掉同带）。
     #[serde(default)]
     pub secret_from_global_provider: Option<String>,
-    // secret_from_agent_provider 曾在这里，为重放 catalog add 服务。default_model
-    // 现在原地改（agent_config::agent_set_default_model），没有重放要喂。
-    //
-    // 这里本该有 home_var 与 home_dir。它们被删掉了：受控 home 由原生侧的
-    // launch_env 用 paths::agent_home 现算，与 ACP 会话同源。让渲染层报一个
-    // 路径过来，就等于给了两条管线各算出不同目录的自由。
+    // 受控 home 不在这里，也不该在：它由原生侧的 launch_env 用 paths::agent_home
+    // 现算，与 ACP 会话同源。让渲染层报一个路径过来，等于给了两条管线各算出不同
+    // 目录的自由。
 }
 
 #[derive(Debug, Deserialize, Serialize, Type, Clone)]

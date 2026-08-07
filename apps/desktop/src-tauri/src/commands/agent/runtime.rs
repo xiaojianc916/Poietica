@@ -3,7 +3,7 @@
 //! 进程活多久 AgentRuntime 就活多久；连接比它短，换 agent 时整条换掉。会话册子
 //! 由驱动器交出来，路由帧和这里寻址读的是同一本。
 
-use crate::commands::agent_config::launch_env;
+use crate::commands::agent_setup::profile::launch_env;
 use crate::error::{Error, Result};
 use crate::paths::{agent_database, attachments_root};
 use poietica_agent_persistence_native::AgentStore;

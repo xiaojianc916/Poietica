@@ -33,8 +33,8 @@
 
 ## 已知偏差
 
-`src-tauri/src/commands/` 下的 `agent.rs`、`agent_config.rs`、
-`agent_install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
+`src-tauri/src/commands/` 下的 `agent/`、`agent_setup/profile.rs`、
+`agent_setup/install.rs` 远超"薄封装"的规模，业务分支尚未下沉到 native crate。
 这些偏差没有机器执行的闸门，只靠评审。
 
 上面「规则」一节的四条，目前有三条由 `pnpm test:architecture` 的

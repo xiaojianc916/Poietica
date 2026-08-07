@@ -98,8 +98,8 @@ export interface AcpAgentDescriptor {
    * homeDir ?? process.env['KIMI_CODE_HOME'] ?? join(homedir(), '.kimi-code')。
    *
    * 用途是回答「用户自己在命令行上配出来的那份配置在哪」——一次性导入要去那里取
-   * 密钥。此前这个名字写死在原生侧（agent_config.rs 两处 .kimi-code），也就是说
-   * 通用层认准了一家的目录名，接第二家时它会拿着 kimi 的目录去问别人的密钥。
+   * 密钥。它由这张表说而不是由原生侧写死：写死等于让通用层认准一家的目录名，接
+   * 第二家时会拿着 kimi 的目录去问别人的密钥。
    *
    * 只记名字，不记路径：用户 home 由原生侧现算。缺席表示我们说不出这一家把配置
    * 放在哪，那就不猜。
