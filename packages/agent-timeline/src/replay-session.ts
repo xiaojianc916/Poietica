@@ -37,7 +37,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
   const stepMs = options.stepMs ?? 40
   const scheduler = options.scheduler ?? defaultScheduler
 
-  const listeners = new Set<(event: RunEvent, sessionId: AcpSessionId) => void>()
+  const listeners = new Set<(events: readonly RunEvent[], sessionId: AcpSessionId) => void>()
   let pending: Array<() => void> = []
 
   const clearPending = () => {
@@ -47,9 +47,10 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
     pending = []
   }
 
-  const emit = (event: RunEvent) => {
+  /* 契约上交的是一批：录像一拍一帧，所以每批一帧 —— 真实端口攒到一帧时同形。 */
+  const emit = (batch: readonly RunEvent[]) => {
     for (const listener of listeners) {
-      listener(event, SESSION)
+      listener(batch, SESSION)
     }
   }
 
@@ -65,7 +66,7 @@ export function createReplaySession(options: ReplaySessionOptions = {}): AgentSe
       clearPending()
 
       events.forEach((event, index) => {
-        pending.push(scheduler(() => emit(event), stepMs * index))
+        pending.push(scheduler(() => emit([event]), stepMs * index))
       })
 
       return Promise.resolve({ sessionId: SESSION, images: [] })

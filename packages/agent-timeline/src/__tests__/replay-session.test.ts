@@ -14,15 +14,25 @@ describe('replay session', () => {
       },
     })
 
-    const received: RunEvent[] = []
-    session.subscribe((event) => received.push(event))
+    const batches: Array<readonly RunEvent[]> = []
+    const addressed = new Set<string>()
+
+    session.subscribe((events, sessionId) => {
+      batches.push(events)
+      addressed.add(sessionId)
+    })
+
     await session.prompt({ threadId: 't', text: 'hi', assets: [] })
 
     for (const step of queue) {
       step()
     }
 
+    const received = batches.flat()
+
     expect(received).toEqual(SAMPLE_RUN_EVENTS)
+    expect(batches).toHaveLength(SAMPLE_RUN_EVENTS.length)
+    expect([...addressed]).toEqual(['sess_replay'])
     expect(replayRunEvents(received).status).toBe('completed')
   })
 })
