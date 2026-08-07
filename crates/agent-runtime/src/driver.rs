@@ -176,24 +176,22 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                 async move |notification: SessionNotification, _cx| {
                     let named = notification.session_id.to_string();
 
-                    /* 选择器变更是一条通知，不是一次答复。它到达的时刻多半没有
-                    一轮在飞（改配置、终端 CLI、热重载），帧那一格照样录得到就
-                    录；而选择器表本身走主循环 —— 它是那张表唯一的持有者，别的
-                    地方更新它就是第二个事实来源。载荷恒为整表，重报无害。 */
-                    if let SessionUpdate::ConfigOptionUpdate(update) = &notification.update
-                        && let Ok(Some(_slot)) = updates.slot(&named)
-                    {
-                        let offered = controls(&update.config_options);
-                        let _sent = reported.unbounded_send(Command::Reported {
-                            session_id: named.clone(),
-                            offered,
-                        });
-                    }
-
                     // A frame naming a session this client never opened is
                     // not ours to record, so it is dropped here rather than
                     // written against whichever session happens to be open.
+                    // 下面两件事共同的前提就是这一句，所以册子只问一次。
                     if let Ok(Some(slot)) = updates.slot(&named) {
+                        /* 选择器变更是一条通知，不是一次答复。它到达的时刻多半没有
+                        一轮在飞（改配置、终端 CLI、热重载），帧那一格照样录得到就
+                        录；而选择器表本身走主循环 —— 它是那张表唯一的持有者，别的
+                        地方更新它就是第二个事实来源。载荷恒为整表，重报无害。 */
+                        if let SessionUpdate::ConfigOptionUpdate(update) = &notification.update {
+                            let _sent = reported.unbounded_send(Command::Reported {
+                                session_id: named.clone(),
+                                offered: controls(&update.config_options),
+                            });
+                        }
+
                         let _routed = slot.record(|listening| {
                             listening.session_update(&notification);
                         });

@@ -487,10 +487,8 @@ impl AssetProtocolRegistry {
             })
             .collect::<Vec<_>>();
 
-        /*
-         * Hash ordering makes the handoff deterministic for the v2 ZIP writer
-         * regardless of HashMap iteration order.
-         */
+        /* HashMap 的迭代顺序每次都不同，而写出去的容器要逐字节可复现。排序放在
+        这里，因为这是交接的唯一出口。 */
         snapshot.sort_unstable_by(|left, right| left.content_hash.cmp(&right.content_hash));
 
         Ok(snapshot)
@@ -932,10 +930,12 @@ fn asset_response(
     };
 
     /*
-     * 这里是唯一一次拷贝，而且只拷对方要的那一段。此前出口处是
-     * `asset.bytes.as_ref().clone()`：一次完整的 memcpy，上限 MAX_ASSET_BYTES
-     * （32 MB），每个请求一次。
-     */
+     * 区间请求只拷对方要的那一段。整份交付那一支拷的是全部，而那一次拷贝去不掉：
+     * Tauri 用 Into<Cow<'static, [u8]>> 框住响应体，注册表持有的字节不是 'static，
+     * 只能以 Cow::Owned 交出去。
+     *
+     * 能选的只有由谁来付。bootstrap/app.rs 用异步协议把整个处理器搬进
+     * spawn_blocking，所以付这笔账的不是画窗口的那条线程。
     let slice = asset
         .bytes
         .get(usize::try_from(start).unwrap_or(usize::MAX)..=usize::try_from(end).unwrap_or(0))
