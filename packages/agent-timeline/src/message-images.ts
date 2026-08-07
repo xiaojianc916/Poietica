@@ -57,8 +57,8 @@ export function attachImages(
 
   const said: number[] = []
 
-  for (const [position, item] of state.items.entries()) {
-    if (item.type === 'user_message') {
+  for (let position = 0; position < state.items.length; position += 1) {
+    if (state.items[position]?.type === 'user_message') {
       said.push(position)
     }
   }
@@ -96,8 +96,10 @@ export function attachImages(
   for (const [position, images] of carried) {
     const item = items[position]
 
+    /* 走不到：position 只来自 said，而 said 只收 user_message。真走到了，说明
+     * 上面那趟收集与这一趟写入对不上 —— 那属于「不作声才是问题」的那一类。 */
     if (item?.type !== 'user_message') {
-      return state
+      return unclaimed(state, attachments, prompts, said.length)
     }
 
     const grown: UserMessageItem = { ...item, images }
@@ -128,7 +130,7 @@ export function attachImagesTo(
     return state
   }
 
-  const position = state.items.findIndex((item) => item.id === id)
+  const position = lastSaidAt(state, id)
   const item = state.items[position]
 
   if (item?.type !== 'user_message') {
@@ -140,6 +142,24 @@ export function attachImagesTo(
   items[position] = { ...item, images }
 
   return { ...state, items }
+}
+
+/*
+ * 那句话在哪。
+ *
+ * 倒着找：它是这个进程刚刚追加的，就在末尾附近。正着找要走过整条对话，对话越长
+ * 走得越远 —— 而要找的始终是最后那一条。
+ *
+ * 找不到交出 -1，读它得到 undefined，与调用点原有的判空接上。
+ */
+function lastSaidAt(state: TimelineState, id: string): number {
+  for (let position = state.items.length - 1; position >= 0; position -= 1) {
+    if (state.items[position]?.id === id) {
+      return position
+    }
+  }
+
+  return -1
 }
 
 /**

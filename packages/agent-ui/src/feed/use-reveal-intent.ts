@@ -1,7 +1,5 @@
 import { useCallback, useState } from 'react'
 
-/* poietica:conversation-minimap-audit@v15 */
-
 /**
  * 什么算"人自己动了手"。
  *
