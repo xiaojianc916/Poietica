@@ -37,7 +37,22 @@ interface DefaultModelSource {
   readonly save: (alias: string) => Promise<unknown>
 }
 
-class AgentCapabilityStore {
+/**
+ * 人此刻选中了哪些值，以及它什么时候变。
+ *
+ * 会话那一侧（SessionControlsStore）要的只有这两件事。写成一份显式契约，是为了让
+ * 它被交进去而不是被 import 进去：那台对齐引擎的另外四个依赖本来就是构造时交进来
+ * 的，唯独这一条伸手拿进程单例 —— 于是它没法在没有这个单例的情况下被构造，而这个
+ * 目录下最大的两个 store 一行测试都没有，同目录的 transcript-store 有。
+ */
+export interface AgentChoices {
+  /** 这一项此刻选中的是哪个值。 */
+  readonly chosenOf: (controlId: string) => string | undefined
+  /** 只听，不问；返回退订。 */
+  readonly observe: (listener: () => void) => () => void
+}
+
+class AgentCapabilityStore implements AgentChoices {
   /* 这个 agent 提供的整张表。只在内存里：权威是它自己的配置。 */
   #offered: readonly SessionConfigControl[] = NO_CONTROLS
 
@@ -124,8 +139,8 @@ class AgentCapabilityStore {
   /**
    * 人拨动了一个选择器，或者刚从配置里读到 default_model。
    *
-   * 这是一次乐观更新，不是一份偏好：真正的下发由 ThreadsStore 对每条会话统一去做
-   * （observeAgentControls → #realign → #align）。这里只回答"现在要的是哪个"。
+   * 这是一次乐观更新，不是一份偏好：真正的下发由 SessionControlsStore 对每条会话
+   * 统一去做（observe → #realign → #align）。这里只回答"现在要的是哪个"。
    *
    * 传 null 就是撤回这一项的选择。
    */
@@ -390,15 +405,21 @@ class AgentCapabilityStore {
  * 全进程一份。
  *
  * 「这个 agent 提供哪些、人此刻选中哪个」本身就是全进程唯一的事实，所以这里是一个
- * 实例而不是十个自由变量：状态有了主人，测试也能 new 一个干净的出来。
+ * 实例而不是十个自由变量：状态有了主人。
  */
 const store = new AgentCapabilityStore()
 
-export const agentChosen = store.chosenOf
+/**
+ * 进程里那一份选择，交给需要它的人。
+ *
+ * 露出去的是一个对象，不是两个自由函数：接收方因此可以在构造时收下它，测试也可以
+ * 收下别的一份 —— 两个 import 进去的函数做不到这件事。
+ */
+export const agentChoices: AgentChoices = store
+
 export const chooseAgentControl = store.choose
 export const installAgentCapabilityPort = store.installPort
 export const installAgentDefaultModelSource = store.installDefaultModelSource
-export const observeAgentControls = store.observe
 export const refreshAgentCapabilities = store.refresh
 
 /** 入口那一格（以及任何还没拿到会话表的那一格）要画的选择器。 */

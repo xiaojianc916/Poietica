@@ -1,4 +1,9 @@
-import { ThreadsStore, TranscriptStore, TranscriptsContext } from '@poietica/agent-session'
+import {
+  agentChoices,
+  ThreadsStore,
+  TranscriptStore,
+  TranscriptsContext,
+} from '@poietica/agent-session'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 
@@ -32,12 +37,13 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
     const transcriptStore = new TranscriptStore()
 
     return {
-      store: new ThreadsStore(
-        desktopThreads(),
-        desktopSessionConfig(),
-        transcriptStore,
+      store: new ThreadsStore({
+        choices: agentChoices,
+        config: desktopSessionConfig(),
         defaultWorkspaceId,
-      ),
+        port: desktopThreads(),
+        transcripts: transcriptStore,
+      }),
       transcripts: transcriptStore,
     }
   })

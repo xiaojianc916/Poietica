@@ -159,9 +159,8 @@ export function ConversationSurface({
       /*
        * 一条下发路径。
        *
-       * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由 ThreadsStore 的
-       * 投影与对齐统一决定（observeAgentControls → #realign → #align），忙的那条
-       * 空下来由 onIdle 补发。
+       * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由会话那一侧的对齐
+       * 引擎统一决定，忙的那条空下来由 onIdle 补发。
        */
       chooseAgentControl(controlId, value)
 

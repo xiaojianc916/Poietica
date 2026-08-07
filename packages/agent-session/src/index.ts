@@ -1,5 +1,6 @@
+export type { AgentChoices } from './agent-capability-store'
 export {
-  agentChosen,
+  agentChoices,
   chooseAgentControl,
   installAgentCapabilityPort,
   installAgentDefaultModelSource,
@@ -19,6 +20,7 @@ export {
   workspaceNameOf,
 } from './thread-order'
 export { shorten } from './thread-title'
+export type { ThreadsStoreOptions } from './threads-store'
 export { ThreadsStore } from './threads-store'
 export type { TranscriptSink } from './transcript-sink'
 export { TranscriptStore } from './transcript-store'

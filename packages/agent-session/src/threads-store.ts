@@ -4,6 +4,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/acp'
+import type { AgentChoices } from './agent-capability-store'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { SessionControlsStore } from './session-controls-store'
@@ -26,6 +27,16 @@ const EMPTY: Held = {
   provisional: new Map(),
   isLoading: true,
   failure: null,
+}
+
+export interface ThreadsStoreOptions {
+  /** 全局选中了哪些值；会话那一侧要拿它把自己对齐过来。 */
+  readonly choices?: AgentChoices | undefined
+  readonly config?: SessionConfigPort | undefined
+  /** 没有记下目录的对话落在哪个工作区。答案属于宿主，这一层不猜。 */
+  readonly defaultWorkspaceId?: (() => string | null) | undefined
+  readonly port?: ThreadPort | undefined
+  readonly transcripts?: TranscriptSink | undefined
 }
 
 /**
@@ -90,24 +101,23 @@ export class ThreadsStore {
    */
   readonly #defaultWorkspaceId: (() => string | null) | undefined
 
-  constructor(
-    port?: ThreadPort,
-    config?: SessionConfigPort,
-    transcripts?: TranscriptSink,
-    defaultWorkspaceId?: () => string | null,
-  ) {
+  constructor({ choices, config, defaultWorkspaceId, port, transcripts }: ThreadsStoreOptions) {
     this.#port = port
     this.#transcripts = transcripts
     this.#defaultWorkspaceId = defaultWorkspaceId
 
     /*
-     * 会话那一侧自己记状态，但通知汇到这一条订阅上。
-     *
-     * 保留这处接缝是有意的：读的人读谁的状态，与他怎么被叫醒，是两件事。这一刀只动
-     * 前者，所以对外行为逐字不变，没有一个消费者需要改。分片订阅是下一刀。
+     * 会话那一侧自己记状态，但通知汇到这一条订阅上：读谁的状态，与他怎么被叫醒，
+     * 是两件事。分片订阅是下一刀。
      */
-    this.#controls = new SessionControlsStore(port, config, transcripts, () => {
-      this.#announce()
+    this.#controls = new SessionControlsStore({
+      announce: () => {
+        this.#announce()
+      },
+      choices,
+      config,
+      port,
+      transcripts,
     })
   }
 

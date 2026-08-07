@@ -5,7 +5,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/acp'
-import { agentChosen, observeAgentControls } from './agent-capability-store'
+import type { AgentChoices } from './agent-capability-store'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { TranscriptSink } from './transcript-sink'
@@ -20,20 +20,31 @@ interface Held {
 
 const EMPTY: Held = { selectors: new Map(), selectorFailure: new Map() }
 
+export interface SessionControlsOptions {
+  /** 状态变了叫一声。 */
+  readonly announce: () => void
+  /** 全局选中了哪些值。缺席时这台引擎什么都不对齐。 */
+  readonly choices?: AgentChoices | undefined
+  readonly config?: SessionConfigPort | undefined
+  readonly port?: ThreadPort | undefined
+  readonly transcripts?: TranscriptSink | undefined
+}
+
 /**
  * 一条对话背后那个会话：它握着哪些值，还能选什么，以及把它掰到全局选中值上。
  *
  * 与对话列表分开，是因为它们本来就是两样东西。列表是一批记录（名字、活动时间、
- * 置顶），来自一次整表读取；这里是一台持续运行的对齐引擎 —— observeAgentControls
- * 推一下，#realign 扫一遍，#align 逐条比对 #actual 与全局值，切换的答复回到
- * #remember，再触发一次 #align。它自己会转，而列表不会。
+ * 置顶），来自一次整表读取；这里是一台持续运行的对齐引擎 —— 全局选中值推一下，
+ * #realign 扫一遍，#align 逐条比对 #actual 与全局值，切换的答复回到 #remember，
+ * 再触发一次 #align。它自己会转，而列表不会。
  *
  * 两者此前同住一个快照，代价写在 ThreadsStore 的 #commit 里：那里按字段分流，
  * 只有 threads / pending / provisional 变了才重算列表。一个 store 需要这种分流，
  * 就说明它装着两份状态。
  *
- * 通知仍然汇回 ThreadsStore 那一条订阅（构造时交进来的 announce）。读谁的状态，
- * 和怎么被叫醒，是可以分两步走的两件事；这一刀只动前者，界面行为逐字不变。
+ * 依赖全部构造时交进来：端口、配置、转录、那份全局选中值，以及通知 —— announce
+ * 汇回 ThreadsStore 那一条订阅，读谁的状态与怎么被叫醒是两件事。这台引擎因此可以
+ * 在没有任何进程单例的情况下被单独构造。
  */
 export class SessionControlsStore {
   readonly #port: ThreadPort | undefined
@@ -43,6 +54,8 @@ export class SessionControlsStore {
   readonly #transcripts: TranscriptSink | undefined
 
   readonly #announce: () => void
+
+  readonly #choices: AgentChoices | undefined
 
   #held: Held = EMPTY
 
@@ -68,16 +81,12 @@ export class SessionControlsStore {
    */
   #tried = new Map<string, ReadonlyMap<string, string>>()
 
-  constructor(
-    port: ThreadPort | undefined,
-    config: SessionConfigPort | undefined,
-    transcripts: TranscriptSink | undefined,
-    announce: () => void,
-  ) {
-    this.#port = port
-    this.#config = config
-    this.#transcripts = transcripts
+  constructor({ announce, choices, config, port, transcripts }: SessionControlsOptions) {
     this.#announce = announce
+    this.#choices = choices
+    this.#config = config
+    this.#port = port
+    this.#transcripts = transcripts
   }
 
   snapshot = (): Held => this.#held
@@ -109,7 +118,7 @@ export class SessionControlsStore {
      *
      * 投影必须是持续成立的，不能是到达时对齐一次。
      */
-    const release = observeAgentControls(() => {
+    const release = this.#choices?.observe(() => {
       this.#realign()
     })
 
@@ -125,7 +134,7 @@ export class SessionControlsStore {
 
     return () => {
       stop?.()
-      release()
+      release?.()
       settled?.()
     }
   }
@@ -388,7 +397,7 @@ export class SessionControlsStore {
     let changed = false
 
     const next = table.map((control) => {
-      const wanted = agentChosen(control.id)
+      const wanted = this.#choices?.chosenOf(control.id)
 
       if (wanted === undefined || control.current === wanted) {
         return control
@@ -433,7 +442,7 @@ export class SessionControlsStore {
     }
 
     for (const control of table) {
-      const wanted = agentChosen(control.id)
+      const wanted = this.#choices?.chosenOf(control.id)
 
       if (wanted === undefined || wanted === actual.get(control.id)) {
         continue

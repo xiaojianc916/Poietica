@@ -634,6 +634,10 @@ const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
 const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
 const AGENT_IDENTITY_SUBSCRIBER = 'apps/desktop/src/shell/app-shell.tsx'
 
+/* 进程里那一份 agent 选择的产地，和这个包的出口。 */
+const AGENT_CHOICES = 'packages/agent-session/src/agent-capability-store.ts'
+const AGENT_SESSION_ENTRY = 'packages/agent-session/src/index.ts'
+
 export const rules = [
   {
     id: 'public-package-exports',
@@ -683,6 +687,27 @@ export const rules = [
       isProductionSource(file) && file !== AGENT_IDENTITY && file !== AGENT_IDENTITY_SUBSCRIBER,
     pattern: /\bcurrentAgentId\b/g,
     message: 'agent 身份只在组合根订阅一次，其余顺 props 接下去',
+  },
+  /*
+   * 领域层不许伸手去拿那份进程单例。
+   *
+   * SessionControlsStore 的另外四个依赖（端口、配置、转录、通知）本来就是构造时
+   * 交进来的，唯独「人选中了哪个模型」曾是 import 进来的两个自由函数。同一个类里
+   * 两套依赖获取方式，后一套让它没法脱离进程单例被构造 —— 这个包最大的两个 store
+   * 因此一行测试都没有，而同目录的 transcript-store 有。
+   *
+   * 规则守的是方向：产地可以造它，包的出口可以转手，中间的领域代码只能收下别人
+   * 交进来的那一份。
+   */
+  {
+    id: 'agent-choices-are-injected',
+    appliesTo: (file) =>
+      isProductionSource(file) &&
+      file.startsWith('packages/agent-session/src/') &&
+      file !== AGENT_CHOICES &&
+      file !== AGENT_SESSION_ENTRY,
+    pattern: /\bagentChoices\b/g,
+    message: 'agent 选择要构造时交进来，不要 import 进来',
   },
   ...tierRules,
   {
