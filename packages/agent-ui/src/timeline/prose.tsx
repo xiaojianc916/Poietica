@@ -13,7 +13,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
-import { CheckIcon, CloseIcon, CopyIcon, MaximizeIcon } from '../primitives/icons'
+import { asIcon, CheckIcon, CloseIcon, CopyIcon, MaximizeIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
 import { createBlockScanner, type StreamBlock } from './split-stream'
 
@@ -114,12 +114,15 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
  *
  * 只映真的会渲染的四个：下载与外链弹窗都关着，缩放三件由图面板自己画。映一个永远不出现的
  * 键，和译一句永远不出现的文案是同一件事。
+ *
+ * 每一枚都过一道 asIcon：图标槽收的是组件本身，而图标库的 props 类型不肯收 undefined
+ * （见 primitives/icons.ts）。只写在 JSX 里的时候看不出来，当成值交出去的那一刻才现形。
  */
 const ICONS: Partial<IconMap> = {
-  CheckIcon,
-  CopyIcon,
-  Maximize2Icon: MaximizeIcon,
-  XIcon: CloseIcon,
+  CheckIcon: asIcon(CheckIcon),
+  CopyIcon: asIcon(CopyIcon),
+  Maximize2Icon: asIcon(MaximizeIcon),
+  XIcon: asIcon(CloseIcon),
 }
 
 /*
