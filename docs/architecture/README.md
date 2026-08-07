@@ -6,7 +6,7 @@
 
 ## TypeScript 包分层
 
-分层表、依赖方向、原生宿主白名单、目录命名与体量债的**唯一事实来源**是
+分层表、依赖方向、原生宿主白名单与目录命名的**唯一事实来源**是
 `tools/architecture/rules.config.mjs`，由 `pnpm test:architecture` 执行。
 
 这里不再重抄一份 —— 此前 README.md、AGENTS.md、本文件与

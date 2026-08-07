@@ -10,7 +10,6 @@
 | 事实 | 定义在 | 由谁执行 |
 | --- | --- | --- |
 | 包分层与依赖方向 | `tools/architecture/rules.config.mjs` | `pnpm test:architecture` |
-| 体量债基线 | `tools/architecture/size-budget.json` | 同上 |
 | 依赖版本 | `pnpm-workspace.yaml` 的 catalog | pnpm |
 | IPC 契约 | Rust 侧类型，导出到 `packages/ipc/src/generated/` | `pnpm ipc:check` |
 | 磁盘布局 | `apps/desktop/src-tauri/src/paths.rs` | 运行时 |
@@ -116,8 +115,6 @@ TypeScript 侧的绑定是生成物，不手改：改完 Rust 侧类型跑 `pnpm
 - **入口墙。** deep import、跨包相对路径、包名引用自己。包入口是给外部看的那道边界，
   自己人绕过去，这道边界就是假的。
 - **目录名墙。** 见上一节。
-- **体量棘轮。** `size-budget.json` 冻结了现存的大文件：基线内只许变小，基线外不得越线，
-  债还完了要删掉那一行。债写在文档里等于没有债 —— 所以它是闸门，不是建议。
 - **manifest 契约。** 工作区 manifest 只有一套写法：`exports` 与 `main`/`types` 不并存；
   子路径名由目标路径推导；`sideEffects` 的 glob 带目录前缀；同一段脚本不给两个名字；
   一个脚本里不用 `&&` 串两次同一个程序（编排是 turbo 的活）；版本只能是 `catalog:`

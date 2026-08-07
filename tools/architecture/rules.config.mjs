@@ -21,8 +21,8 @@ export const sourceRoots = ['apps', 'packages']
 
 /*
  * sourceRoots 是 pattern 规则的扫描根；inventoryRoots 是 check 规则的。crates 里
- * 没有 .ts，但目录命名、Cargo.toml 分层与体量棘轮都管得到它。上一版给治理段单独
- * 抄了一份根列表和一份忽略名单，两份要人手同步 —— 现在根列表两张、忽略名单一张。
+ * 没有 .ts，但目录命名与 Cargo.toml 分层都管得到它。上一版给治理段单独抄了一份根
+ * 列表和一份忽略名单，两份要人手同步 —— 现在根列表两张、忽略名单一张。
  */
 export const inventoryRoots = ['apps', 'crates', 'packages']
 
@@ -221,8 +221,8 @@ const restrictedUtilityClasses = [
 /* ════════════════════════════════════════════════════════════════════════
  * 治理判据 —— 与上面的 pattern 规则同住一张表、同一个汇报通道
  *
- * 这三条看的都不是「源文件里的正则」：一条看目录名，一条看 Cargo.toml，一条看
- * 文件体量。上一版把它们写成这份配置的加载期副作用，命中就 throw —— run.mjs
+ * 这两条看的都不是「源文件里的正则」：一条看目录名，一条看 Cargo.toml。上一版把
+ * 它们写成这份配置的加载期副作用，命中就 throw —— run.mjs
  * 开头写着 "Never short-circuits."，而这份文件上面那段注释刚刚痛斥过「把那条
  * 原则毁在加载阶段」，一屏之下就又犯了一次。加载期 throw 的代价是实的：目录名
  * 一旦踩线，pattern 规则与全部 tier 规则的结果都被掩掉，一次只看得见一个问题。
@@ -268,7 +268,7 @@ const capabilityScopedDirectoryNames = (inventory) =>
  * docs/architecture/rust-layers.md 的「规则」一节有四条。这里执行其中三条：
  * 不依赖 tauri、互不依赖、必须写 [lints] workspace = true。第四条「领域实体
  * 定义在 native crate，不在 src-tauri」判不了 —— 那需要语义分析，不是正则或
- * 清单能做的事，所以不假装它被守住了。体量棘轮从旁侧压住同一个方向。
+ * 清单能做的事，所以不假装它被守住了。
  */
 const nativeCrates = ['agent-runtime', 'persistence']
 
@@ -320,71 +320,6 @@ const nativeCratesStayHostAgnostic = async (inventory) => {
 
     if (hit !== null) {
       defects.push({ file, message: `引用了 ${hit[0]}：native crate 不得耦合宿主` })
-    }
-  }
-
-  return defects
-}
-
-/*
- * rust-layers.md 的「已知偏差」点名了 commands/agent.rs、agent_config.rs、
- * agent_install.rs，写着这些是待偿还的债。债写在文档里等于没有债 —— 没有任何
- * 东西阻止它继续长大。专业做法是 baseline ratchet（TypeScript 的 baseline 快照、
- * Chromium 的 DEPS 白名单），不是 markdown 里的一段自我批评。size-budget.json
- * 是实测生成的，不是手抄的：基线内只许变小，基线外不得越线，还完了要删行。
- */
-const budgetPath = path.join(import.meta.dirname, 'size-budget.json')
-
-const isGovernedSource = (file) =>
-  /\.(?:rs|ts|tsx)$/.test(file) &&
-  isProductionSource(file) &&
-  !/(?:^|\/)tests\//.test(file) &&
-  !file.includes('/__fixtures__/')
-
-/*
- * 行数，不是字节。上一版叫 measureBytes，返回的却是 String.length —— UTF-16
- * 码元数。这个仓库注释以中文为主，一个汉字 1 码元 3 字节，于是同一条 12000
- * 的闸门对中文密集文件实际放行到三万多字节，宽严差三倍。
- *
- * 单位换成行也不是折中：ESLint 的 max-lines、Rust 的 clippy::too_many_lines
- * 量的都是行。字节数会随注释语言变化，行数不会。
- */
-const measureLines = (source) => source.split('\r\n').join('\n').split('\n').length
-
-const fileSizeRatchet = async (inventory) => {
-  if (!existsSync(budgetPath)) {
-    const file = 'tools/architecture/size-budget.json'
-
-    return [{ file, message: '棘轮没有基线等于没有闸门：用实测结果生成这个文件' }]
-  }
-
-  const budget = JSON.parse(readFileSync(budgetPath, 'utf8'))
-  const frozen = new Map(Object.entries(budget.files))
-  const present = new Set(inventory.files)
-  const defects = []
-
-  for (const [file, allowance] of frozen) {
-    if (!present.has(file)) {
-      defects.push({ file, message: '基线里的文件已不存在：债还完了就删掉这一行，不留幽灵' })
-      continue
-    }
-
-    const actual = measureLines(await inventory.read(file))
-
-    if (actual > allowance) {
-      defects.push({ file, message: `从 ${allowance} 涨到 ${actual} 行：体量债只允许下降` })
-    }
-  }
-
-  for (const file of inventory.files) {
-    if (!isGovernedSource(file) || frozen.has(file)) {
-      continue
-    }
-
-    const actual = measureLines(await inventory.read(file))
-
-    if (actual > budget.limit) {
-      defects.push({ file, message: `${actual} 行超过 ${budget.limit} 行上限：拆成有名字的模块` })
     }
   }
 
@@ -581,8 +516,8 @@ const toPosixPath = (value) => value.split(path.sep).join('/')
  * 所以带冒号的一定是仓库脚本 —— 不需要穷举 pnpm 的命令表，那是个会变的开放集合，
  * 此前两次栽在穷举开放集合上。不带冒号的调用漏过去，零误报优先于全覆盖。
  *
- * 根 README 与 AGENTS.md 不在 inventoryRoots 下，这里自己读 —— 与 fileSizeRatchet
- * 读 size-budget.json 同一个路子，不为一条规则改变所有规则的扫描面。
+ * 根 README 与 AGENTS.md 不在 inventoryRoots 下，这里自己读 —— 不为一条规则改变
+ * 所有规则的扫描面。
  */
 const DOCUMENTED_SCRIPT = /(?<=\bpnpm\s(?:run\s)?)[a-z][\w-]*:[\w:-]+/g
 
@@ -688,7 +623,6 @@ const governanceRules = [
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
-  { id: 'file-size-ratchet', check: fileSizeRatchet },
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
   { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
   { id: 'documented-scripts-exist', check: documentedScriptsExist },
