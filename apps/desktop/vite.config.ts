@@ -42,6 +42,15 @@ export default defineConfig({
      * 语义来源就有了两个。降级仍由下面的 target 决定，oxc 照它工作。
      */
     minify: TAURI_ENV_DEBUG ? false : 'oxc',
+    /*
+     * 不为终端里那一列数字再压一遍产物。
+     *
+     * 官方对这一项的说明逐字：「Compressing large output files can be slow, so
+     * disabling this may increase build performance for large projects.」它的全部
+     * 产出就是那一列 gzip 数字，产物本身一个字节都不因它改变；而这个应用的资源从
+     * 本地磁盘加载，那一列数字连参考意义都没有。
+     */
+    reportCompressedSize: false,
     sourcemap: Boolean(TAURI_ENV_DEBUG),
   },
 })

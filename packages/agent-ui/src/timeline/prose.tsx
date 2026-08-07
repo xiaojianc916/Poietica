@@ -1,9 +1,9 @@
+import { createExternalStore } from '@poietica/core'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
-import { mermaid } from '@streamdown/mermaid'
 import 'katex/dist/katex.min.css'
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -15,13 +15,6 @@ import {
 import { cx } from '../primitives/class-names'
 import { createBlockScanner, type StreamBlock } from './split-stream'
 
-/*
- * 四个官方插件，一条管线。
- *
- * math 与 mermaid 的版本早已钉在 catalog 里，却从未被任何 package 引用：公式
- * 因此以原始字符出现，```mermaid 被 code 插件当作未知语言退化为纯文本。缺的
- * 不是能力，是这一行。
- */
 /*
  * 行内公式用一个美元号，因为模型就是这么写的。
  *
@@ -37,20 +30,72 @@ import { createBlockScanner, type StreamBlock } from './split-stream'
  */
 const MATH = createMathPlugin({ singleDollarTextMath: true })
 
-const PLUGINS = { cjk, code, math: MATH, mermaid }
+/* 每一段文本都要走的三个。图表不在其中：它只在真的出现一段闭合围栏时才有事做。 */
+const PROSE_PLUGINS = { cjk, code, math: MATH }
 
 /*
- * 还在写的那一段少一个插件。
+ * 图表引擎在第一段图出现时才载入。
  *
- * mermaid 的 render 是一次同步的图布局（dagre），单次以十毫秒计。一个还没闭合的
- * ```mermaid 围栏落在在写段里，就是每一帧都拿一份不完整的源码去跑一次图布局 ——
- * 而这一帧的产物必然在下一帧作废。围栏闭合、这一块被封口之后，它才第一次真正需要
- * 被画出来，那时它走的是 PLUGINS。
+ * 它的 render 是一次同步的图布局（dagre），单次以十毫秒计 —— 一个还没闭合的围栏落在
+ * 在写段里，就是每一帧拿一份不完整的源码跑一次布局，而这一帧的产物必然在下一帧作废。
+ * 所以在写的那一段本来就不带它。
  *
- * 这不是把能力关掉，是把它挪到唯一有意义的那一刻。code 与 math 留着：前者对未闭合
- * 围栏只是着色，后者对未配对的 $ 只是不认，两者都不做布局。
+ * 同一笔账在时间轴上还有更靠前的一段：静态 import 把整个布局引擎放进首屏那个 chunk，
+ * 于是一条一张图都没有的会话，也要在窗口呈现之前解析完它。动态 import 是 ESM 与打包器
+ * 官方的代码分割形态 —— 引擎单独成块，用得上才取。
+ *
+ * 取回来之前那一段照常渲染：围栏由 code 插件着色，与它在流式期间的样子逐字相同。
+ * 那是这个产品已经在显示的中间态，不是一个新的空白态。
  */
-const LIVE_PLUGINS = { cjk, code, math: MATH }
+type DiagramPlugins = typeof PROSE_PLUGINS & {
+  readonly mermaid: typeof import('@streamdown/mermaid')['mermaid']
+}
+
+/* 载没载入是进程级的唯一事实，所以只有一份，也只有一个通知点。 */
+let diagrams: DiagramPlugins | undefined
+
+const diagramStore = createExternalStore<DiagramPlugins | undefined>({ read: () => diagrams })
+
+let requesting = false
+
+function requestDiagrams(): void {
+  if (requesting || diagrams !== undefined) {
+    return
+  }
+
+  requesting = true
+
+  void import('@streamdown/mermaid')
+    .then((module) => {
+      diagrams = { ...PROSE_PLUGINS, mermaid: module.mermaid }
+
+      diagramStore.notify()
+    })
+    .catch((cause: unknown) => {
+      /* 取不回来不是这个进程此后的定局：重新武装，下一段图再试一次。期间围栏仍然是
+         一个可读的着色代码块，内容一个字都没少。 */
+      requesting = false
+
+      console.error('[Poietica] Failed to load the diagram renderer', cause)
+    })
+}
+
+/** 一段封口文本里有没有图表围栏。在写的那一段不问：它还会变。 */
+const DIAGRAM_FENCE = /^ {0,3}(?:```|~~~)[ \t]*mermaid\b/m
+
+function useProsePlugins(text: string, isStreaming: boolean): typeof PROSE_PLUGINS {
+  const wanted = !isStreaming && DIAGRAM_FENCE.test(text)
+  const read = diagramStore.read
+  const loaded = useSyncExternalStore(diagramStore.subscribe, read, read)
+
+  useEffect(() => {
+    if (wanted) {
+      requestDiagrams()
+    }
+  }, [wanted])
+
+  return wanted && loaded !== undefined ? loaded : PROSE_PLUGINS
+}
 
 /*
  * How arriving text is revealed.
@@ -212,6 +257,8 @@ export const ProseSegment = memo(function ProseSegment({
   readonly isStreaming: boolean
   readonly text: string
 }) {
+  const plugins = useProsePlugins(text, isStreaming)
+
   return (
     <Streamdown
       {...(isStreaming ? { animated: ANIMATION } : {})}
@@ -221,7 +268,7 @@ export const ProseSegment = memo(function ProseSegment({
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
       mode={isStreaming ? 'streaming' : 'static'}
-      plugins={isStreaming ? LIVE_PLUGINS : PLUGINS}
+      plugins={plugins}
       translations={TRANSLATIONS}
     >
       {text}

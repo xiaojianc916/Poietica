@@ -8,8 +8,6 @@ import { useFisheye } from './use-fisheye'
 import { useFoldFlip } from './use-fold-flip'
 import { useRailCard } from './use-rail-card'
 
-/* poietica:conversation-minimap-card@v25 */
-
 /**
  * The turn rail: the table of contents of the conversation, on the edge.
  *

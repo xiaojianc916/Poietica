@@ -1,8 +1,6 @@
 import { useCallback } from 'react'
 import { RAIL_PITCH_PX, railCentre } from './rail-groups'
 
-/* poietica:conversation-minimap-perf@v17 */
-
 /**
  * 高斯半宽：两个步距。三个半宽之外与静止无异，所以波峰实际覆盖上下各两三根。
  *
