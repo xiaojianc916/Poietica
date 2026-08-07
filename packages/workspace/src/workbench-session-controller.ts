@@ -7,7 +7,6 @@ import {
   type WorkspaceSurfaceId,
 } from './surface-registry'
 import type {
-  ActiveConversationViewModel,
   ConversationId,
   OpenConversationRequest,
   OpenWorkspaceSurfaceRequest,
@@ -16,7 +15,6 @@ import type {
   WorkbenchTabId,
   WorkbenchTabViewModel,
   WorkbenchViewModel,
-  WorkspaceSurfaceViewModel,
 } from './workbench'
 
 type Entry = ConversationEntry | WorkspaceEntry
@@ -48,6 +46,14 @@ const DEFAULT_ENTRY: WorkspaceEntry = { kind: 'workspace', surfaceId: DEFAULT_SU
 
 const INITIAL_STATE: WorkbenchState = { entries: [DEFAULT_ENTRY], activeIndex: 0 }
 
+type Projection = {
+  readonly inactiveTab: WorkbenchTabViewModel
+  readonly activeTab: WorkbenchTabViewModel
+  readonly surface: WorkbenchSurfaceViewModel
+}
+
+const projectionCache = new WeakMap<Entry, Projection>()
+
 function entryId(entry: Entry): WorkbenchTabId {
   return entry.kind === 'conversation'
     ? `conversation:${entry.threadId}`
@@ -60,13 +66,82 @@ function entryTitle(entry: Entry): string {
     : describeWorkspaceSurface(entry.surfaceId).title
 }
 
+function buildProjection(entry: Entry): Projection {
+  const tabId = entryId(entry)
+  const title = entryTitle(entry)
+
+  const inactiveTab: WorkbenchTabViewModel =
+    entry.kind === 'conversation'
+      ? {
+          id: tabId,
+          kind: 'conversation',
+          threadId: entry.threadId,
+          title,
+          isActive: false,
+          canClose: true,
+        }
+      : {
+          id: tabId,
+          kind: 'workspace',
+          surfaceId: entry.surfaceId,
+          title,
+          isActive: false,
+          canClose: true,
+        }
+
+  const activeTab: WorkbenchTabViewModel = { ...inactiveTab, isActive: true }
+
+  const surface: WorkbenchSurfaceViewModel =
+    entry.kind === 'conversation'
+      ? {
+          kind: 'conversation',
+          tabId,
+          threadId: entry.threadId,
+          title,
+        }
+      : {
+          kind: 'workspace',
+          tabId,
+          surfaceId: entry.surfaceId,
+          title,
+        }
+
+  return { inactiveTab, activeTab, surface }
+}
+
+function projectionOf(entry: Entry): Projection {
+  const cached = projectionCache.get(entry)
+
+  if (cached) {
+    return cached
+  }
+
+  const projection = buildProjection(entry)
+  projectionCache.set(entry, projection)
+
+  return projection
+}
+
+function normalizeActiveIndex(activeIndex: number): number {
+  if (!Number.isFinite(activeIndex)) {
+    return 0
+  }
+
+  return Math.trunc(activeIndex)
+}
+
 /** 界内夹紧。所有 reducer 出口都过它一次，activeIndex 因此永不越界。 */
 function settle(entries: readonly Entry[], activeIndex: number): WorkbenchState {
   if (entries.length === 0) {
     return INITIAL_STATE
   }
 
-  return { entries, activeIndex: Math.min(Math.max(activeIndex, 0), entries.length - 1) }
+  const normalizedActiveIndex = normalizeActiveIndex(activeIndex)
+
+  return {
+    entries,
+    activeIndex: Math.min(Math.max(normalizedActiveIndex, 0), entries.length - 1),
+  }
 }
 
 function indexOfId(state: WorkbenchState, tabId: WorkbenchTabId): number {
@@ -218,52 +293,15 @@ function moveTab(
 
 /* ── 投影 ─────────────────────────────────────────────────────────── */
 
-function projectTab(entry: Entry, isActive: boolean): WorkbenchTabViewModel {
-  const common = { id: entryId(entry), title: entryTitle(entry), canClose: true, isActive }
-
-  return entry.kind === 'conversation'
-    ? { ...common, kind: 'conversation', threadId: entry.threadId }
-    : { ...common, kind: 'workspace', surfaceId: entry.surfaceId }
-}
-
-function projectSurface(entry: Entry): WorkbenchSurfaceViewModel {
-  const tabId = entryId(entry)
-
-  if (entry.kind === 'conversation') {
-    const surface: ActiveConversationViewModel = {
-      kind: 'conversation',
-      tabId,
-      threadId: entry.threadId,
-      title: entry.title,
-    }
-
-    return surface
-  }
-
-  const surface: WorkspaceSurfaceViewModel = {
-    kind: 'workspace',
-    tabId,
-    surfaceId: entry.surfaceId,
-    title: describeWorkspaceSurface(entry.surfaceId).title,
-  }
-
-  return surface
-}
-
-/**
- * 投影。
- *
- * activeEntry 一定存在：settle 保证 entries 非空且 activeIndex 界内。
- * 因此这里没有 WORKBENCH_ACTIVE_ENTRY_NOT_FOUND 那种运行时抛错 ——
- * 那个 throw 的存在本身就是「activeTabId 与 entries 是两份真相」的证据。
- */
 function project(state: WorkbenchState): WorkbenchViewModel {
   const activeEntry = state.entries[state.activeIndex] ?? DEFAULT_ENTRY
 
   return {
     activeTabId: entryId(activeEntry),
-    tabs: state.entries.map((entry, index) => projectTab(entry, index === state.activeIndex)),
-    activeSurface: projectSurface(activeEntry),
+    tabs: state.entries.map((entry, index) =>
+      index === state.activeIndex ? projectionOf(entry).activeTab : projectionOf(entry).inactiveTab,
+    ),
+    activeSurface: projectionOf(activeEntry).surface,
   }
 }
 
