@@ -60,6 +60,47 @@ const CAP = 64 * 1024
 /** 缩进两格 —— JSON.stringify 的 space 参数，也是这个格式的通行排版。 */
 const INDENT = 2
 
+/*
+ * 路径印成正斜杠。
+ *
+ * JSON 的字符串里反斜杠必须成对（RFC 8259 §7），所以一条 Windows 路径落进这一格天然是
+ * C:\\Users\\…：屏幕上那对反斜杠是转义留下的，不是路径本身。Win32 的文件 API 与 Node
+ * 的 path 都把正斜杠当合法分隔符，所以换成 / 之后这条路径复制出去照样能用。
+ *
+ * 只认盘符开头的绝对路径与 UNC 前缀。别的字符串一律不动 —— 正则、代码正文、转义序列里
+ * 的反斜杠都带语义，替换它们是在改数据，不是改排版。
+ */
+const WINDOWS_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\/])/
+
+function toDisplayPath(text: string): string {
+  return WINDOWS_PATH.test(text) ? text.replaceAll('\\', '/') : text
+}
+
+/**
+ * 一个字符串在屏幕上印成什么。
+ *
+ * 装着一份 JSON 文档的字符串就摊开成那份文档。它在协议里确实是字符串，但在人眼里是一份
+ * 文档：包在外层 JSON 里再序列化一次，每一个引号都要转义，整份内容被压成一行 —— 屏幕上
+ * 那一串反斜杠是转义留下的，不是内容本身。抽屉里的围栏是给人看的（外壳与复制按钮由
+ * timeline.css 在这个作用域里摘掉），所以这一面选可读，不选可再解析。
+ *
+ * 摊开这一步不必递归：stringify 会继续遍历 replacer 交回的值，嵌套几层就走几层。
+ *
+ * 不是文档才问它是不是路径。两条判据的顺序不能反 —— 一份 JSON 文档里的反斜杠归它自己。
+ */
+function display(raw: unknown): unknown {
+  if (typeof raw !== 'string') {
+    return raw
+  }
+
+  return readJsonDocument(raw) ?? toDisplayPath(raw)
+}
+
+/** 这个文件里唯一一处把值印成 JSON 源码的地方；两个面共用同一套显示判据。 */
+function displayJson(value: unknown): string | undefined {
+  return JSON.stringify(value, (_key: string, raw: unknown) => display(raw), INDENT)
+}
+
 function clamp(text: string): string {
   if (text.length <= CAP) {
     return text
@@ -180,13 +221,14 @@ function langOf(locations: ToolCallFacetSource['locations']): string {
 }
 
 /**
- * 一段字节是不是一份 JSON 文档；是就按两格重排。
+ * 一段字节是不是一份 JSON 文档。全文件唯一的一处判据 —— 最外层那一整串产出问的是它，
+ * 嵌在字段里的那一份问的也是它，所以同一份字节不会因为藏得深就换一种画法。
  *
  * 判据与 DevTools 在没有 content-type 时用的一样：形状对得上，而且真的解析得动 ——
  * 只看 JSON.parse 会把一行 123 的日志也认成 JSON。只认对象与数组：一个裸标量重排前后
  * 一模一样，白跑一趟。
  */
-function prettyJson(text: string): string | null {
+function readJsonDocument(text: string): object | null {
   const head = text.trim()
 
   if (!head.startsWith('{') && !head.startsWith('[')) {
@@ -196,19 +238,24 @@ function prettyJson(text: string): string | null {
   try {
     const parsed: unknown = JSON.parse(head)
 
-    return typeof parsed === 'object' && parsed !== null
-      ? JSON.stringify(parsed, null, INDENT)
-      : null
+    return typeof parsed === 'object' && parsed !== null ? parsed : null
   } catch {
     return null
   }
 }
 
-/** 一份值印成 JSON 文档。这是这个文件里唯一一处产出 JSON 源码的地方。 */
+/** 一份 JSON 文档按两格重排；不是文档就交回 null，由调用方决定按什么上色。 */
+function prettyJson(text: string): string | null {
+  const parsed = readJsonDocument(text)
+
+  return parsed === null ? null : (displayJson(parsed) ?? null)
+}
+
+/** 一份值印成一块 JSON 围栏。 */
 function jsonBlock(value: unknown): string | null {
   try {
     /* stringify 对 undefined / 函数 / symbol 交回 undefined，声明里没写这一半。 */
-    const text: string | undefined = JSON.stringify(value, null, INDENT)
+    const text: string | undefined = displayJson(value)
 
     return text === undefined ? null : block('json', text)
   } catch {
@@ -278,7 +325,9 @@ function partMarkdown(part: ToolContentPart): string {
   }
 
   if (part.type === 'diff') {
-    return `${inlineCode(part.path)}\n\n${block('diff', diffBody(part.oldText, part.newText))}`
+    const body = block('diff', diffBody(part.oldText, part.newText))
+
+    return `${inlineCode(toDisplayPath(part.path))}\n\n${body}`
   }
 
   if (part.type === 'terminal') {

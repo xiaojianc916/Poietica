@@ -26,8 +26,10 @@ import type {
  */
 
 export interface AgentEventSource {
-  /** Hands out the frame and the session it belongs to, as the envelope says. */
-  readonly listen: (handler: (payload: unknown, sessionId: AcpSessionId) => void) => () => void
+  /** Hands out one batch of frames and the session they all belong to. */
+  readonly listen: (
+    handler: (payload: readonly unknown[], sessionId: AcpSessionId) => void,
+  ) => () => void
 }
 
 export interface AgentCommandBridge {
@@ -48,7 +50,7 @@ export function createIpcSession({ bridge, source }: IpcSessionOptions): AgentSe
   return {
     subscribe: (listener) =>
       source.listen((payload, sessionId) => {
-        listener(payload as RunEvent, sessionId)
+        listener(payload as readonly RunEvent[], sessionId)
       }),
 
     prompt: async (request): Promise<AgentPromptHandle> => {

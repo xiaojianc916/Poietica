@@ -47,10 +47,7 @@ export interface AgentPromptRequest {
 /**
  * 这一轮发到了哪条会话，以及这一句里的图片在哪。
  *
- * 两格，都是原生侧才说得出的事实。此前它还带着一个轮次号和一个取消闭包 ——
- * 号是本仓库自己发明的地址，闭包则让「停止」变成一件要先存住、过一会儿再找
- * 回来的东西：上层为此维护了一张对话 → 闭包的表。取消本来只需要点名一条对话，
- * 见下面的 cancel。
+ * 两格，都是原生侧才说得出的事实。取消只需要点名一条对话，见下面的 cancel。
  */
 export interface AgentPromptHandle {
   readonly sessionId: AcpSessionId
@@ -66,19 +63,24 @@ export interface AgentPromptHandle {
 
 export interface AgentSessionPort {
   /**
-   * Emits run events with the session they belong to; returns an unsubscribe
-   * function.
+   * Emits one batch of run events with the session they all belong to; returns
+   * an unsubscribe function.
+   *
+   * 一批就是原生侧一拍里攒下的帧（见 commands/agent/turn.rs 的 batched）。一批
+   * 只属于一条会话：批随每一轮 prompt 新造，Frames::new 在造它的那一刻就把会话
+   * 号钉死了。所以地址对整批说一次就够，不必逐帧再说一遍。
    *
    * 地址是会话号，和 ACP 的 session/update 同一个主语。它由原生侧写在信封上
    * （frame.rs 的 Envelope.session_id），六种帧无一例外，所以订阅者不必猜。
    *
    * 它先于帧存在：一条对话在打开的那一刻就握住了会话号（ThreadRecord.sessionId），
-   * 而帧是此后才发生的事。此前这里是轮次号，它由 prompt 的答复带回来，比原生
-   * 广播晚到 —— 上层那一整套排队、补投、计数与上限，就是为了等它才长出来的。
+   * 而帧是此后才发生的事。
    *
-   * seq 也随之改为按会话单调，所以按 seq 去重在两轮之间仍然成立。
+   * seq 按会话单调，所以按 seq 去重在两轮之间仍然成立。
    */
-  readonly subscribe: (listener: (event: RunEvent, sessionId: AcpSessionId) => void) => () => void
+  readonly subscribe: (
+    listener: (events: readonly RunEvent[], sessionId: AcpSessionId) => void,
+  ) => () => void
   readonly prompt: (request: AgentPromptRequest) => Promise<AgentPromptHandle>
   /**
    * 停掉这条对话上正在跑的那一轮。

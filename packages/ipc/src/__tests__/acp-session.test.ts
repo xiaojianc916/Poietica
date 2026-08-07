@@ -14,8 +14,8 @@ const DELIVERED = 'poietica-asset://asset/t/0000'
  * 不需要它的包挂上一条依赖。
  */
 describe('ipc session', () => {
-  it('原样转发帧与它的地址，不在客户端重新描述协议', () => {
-    let emit: (payload: unknown, sessionId: string) => void = () => {}
+  it('原样转发一批帧与它们的地址，不在客户端重新描述协议', () => {
+    let emit: (payload: readonly unknown[], sessionId: string) => void = () => {}
     const frame = { kind: 'sentinel' } as unknown as RunEvent
 
     const session = createIpcSession({
@@ -32,13 +32,13 @@ describe('ipc session', () => {
       },
     })
 
-    const received: Array<[RunEvent, string]> = []
-    session.subscribe((event, sessionId) => received.push([event, sessionId]))
+    const received: Array<[readonly RunEvent[], string]> = []
+    session.subscribe((events, sessionId) => received.push([events, sessionId]))
 
-    emit(frame, 'sess_1')
+    emit([frame], 'sess_1')
 
     expect(received).toHaveLength(1)
-    expect(received.at(0)?.[0]).toBe(frame)
+    expect(received.at(0)?.[0].at(0)).toBe(frame)
     expect(received.at(0)?.[1]).toBe('sess_1')
   })
 

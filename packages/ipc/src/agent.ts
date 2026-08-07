@@ -43,13 +43,9 @@ export const AGENT_SELECTOR_EVENT = 'ai-selector-report'
  * 信封就是帧：判别式、位置、时刻与载荷平铺在同一层，会话号也在这一层 ——
  * 六种帧无一例外都自报它（见原生侧 recorder.rs 的 RecordedEvent）。
  *
- * 帧此前被套在一个 frame 字段里，而外面那层另抄了一份 seq 与 kind。两份都
- * 没有任何人读过：下面这个 listen 只取 frame 与 sessionId，而 RunEvent
- * 压根没有 sessionId 这一格。它们只是每一帧都要在线上多走一趟。
- *
- * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent.rs
- * 的 batched），所以跨进程往返的次数不再随 agent 说得多快而涨。信封本身的形状
- * 没有变，端口交出去的仍然是一帧一次。
+ * 线上一次带的是一批，不是一个。原生侧按屏幕的节拍攒帧（见 commands/agent/turn.rs
+ * 的 batched），所以跨进程往返的次数不再随 agent 说得多快而涨。一批只属于一条
+ * 会话，端口因此原样把整批交出去。
  */
 interface AgentEventEnvelope {
   readonly sessionId: string
@@ -144,11 +140,15 @@ export function createAgentEventSource({
       subscribeToEvent<readonly AgentEventEnvelope[]>(
         AGENT_EVENT,
         (payload) => {
-          /* 一拍的帧一起到。攒批发生在原生侧，端口这一层仍然一帧一次。 */
-          for (const frame of payload) {
-            // 帧就是信封；会话号是它自报的地址。
-            handler(frame, frame.sessionId)
+          /* 一拍的帧一起到，也一起交出去：一批只属于一条会话（见 recorder.rs
+          的 Frames::new），所以地址从头一帧上取一次就对整批成立。 */
+          const first = payload.at(0)
+
+          if (first === undefined) {
+            return
           }
+
+          handler(payload, first.sessionId)
         },
         onListenFailure,
       ),

@@ -223,13 +223,6 @@ export class TranscriptStore {
   /**
    * 对话 → 它的转录。这张表没有上限，也不需要有。
    *
-   * 它此前带着一个 8 条的 LRU。那道上限封不住内存 —— 同一个进程里按对话记的
-   * 表另有四张（#alias / #aliased / #routes / #pending），加上 ThreadsStore 的
-   * 四张（#asked / #sessions / #actual / #tried），全部只随删除而缩。它唯一确
-   * 实做到的事是制造一条丢内容的路径：一条界面已经关掉的对话被淘汰之后，
-   * ThreadsStore.adopt 见 #asked 里有它就直接返回、永不重取，于是切回去是一片
-   * 空白，而 restoring 与 loaded 都是 false，连「正在取」都不显示。
-   *
    * 转录的生命周期就是对话的生命周期。回收因此只有一个出口：forget，由
    * ThreadsStore.remove 在这条对话真的不存在时调用。
    */
@@ -547,9 +540,7 @@ export class TranscriptStore {
   /**
    * 停掉这条对话上正在跑的那一轮。
    *
-   * 点名一条对话就够了，地址在端口那一侧。此前这里存着上一次 prompt 交回来的
-   * 取消闭包：一张只增不减的表，一轮跑完之后闭包还留着，停止键按在一条早已
-   * 结束的对话上仍然会照着它发一次取消 —— 指向一个已经翻篇的轮次。
+   * 点名一条对话就够了，地址在端口那一侧：这一层不留任何会过期的取消凭据。
    *
    * 入口那一格在开口之前还不是任何一条对话。它没有轮次在飞，也没有会话可发。
    */
@@ -726,9 +717,8 @@ export class TranscriptStore {
   /*
    * 草稿成为一条真对话：同一份转录，换一个名字。
    *
-   * 此前这几行长在 send 里，直接 held.delete + held.set —— 全文件唯一绕过 put 的
-   * 写入，于是 LRU 顺序、evict 和 notify 全部跳过了。快照换了身份而订阅者不知道，
-   * 这违反 useSyncExternalStore 的契约；它此前只是被下游那次 put 盖住了。
+   * 走 #put，不直接写 #held：换身份也是一次写入，订阅者必须被叫醒 ——
+   * useSyncExternalStore 的契约要的就是这个。
    */
   #rename(from: string, to: string): void {
     this.#alias.set(from, to)
@@ -752,18 +742,22 @@ export class TranscriptStore {
   }
 
   /*
-   * 攒一帧，并说一声「这条对话变了」。
+   * 攒下这一批，并说一声「这条对话变了」。
    *
-   * 说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻才折出来。
+   * 一批只属于一条会话，所以解析键、查队列、记脏对整批各做一次就够，而不是
+   * 随帧数重复。说的是「变了」，不是「现在长这样」：状态要到有人看的那一刻
+   * 才折出来。
    */
-  #queue(owner: string, event: RunEvent): void {
+  #queue(owner: string, events: readonly RunEvent[]): void {
     const real = this.#resolveKey(owner)
     const waiting = this.#pending.get(real)
 
     if (waiting === undefined) {
-      this.#pending.set(real, [event])
+      this.#pending.set(real, [...events])
     } else {
-      waiting.push(event)
+      for (const event of events) {
+        waiting.push(event)
+      }
     }
 
     this.#notify(real)
@@ -797,20 +791,19 @@ export class TranscriptStore {
   }
 
   /*
-   * 一帧到了，交给它的主人。
+   * 一批帧到了，交给它们的主人。
    *
-   * 查不到主人只有一种由来：这条会话不是这一侧登记过的。那就该丢掉。此前这里
-   * 会把它攒起来等一个后发的地址 —— 地址现在先于帧到达，那段等待连同它的队列、
-   * 计数与上限一起没有了。
+   * 整批共一个地址（见端口的 subscribe），所以这里查一次表就够。查不到主人只有
+   * 一种由来：这条会话不是这一侧登记过的。那就该整批丢掉。
    */
-  #route(event: RunEvent, sessionId: string): void {
+  #route(events: readonly RunEvent[], sessionId: string): void {
     const owner = this.#routes.get(sessionId)
 
     if (owner === undefined) {
       return
     }
 
-    this.#queue(owner, event)
+    this.#queue(owner, events)
   }
 
   /* 一个 store 订着一条线路。此前这道守卫是进程级的。 */
@@ -821,8 +814,8 @@ export class TranscriptStore {
 
     this.#detach?.()
     this.#attachedTo = port
-    this.#detach = port.subscribe((event, sessionId) => {
-      this.#route(event, sessionId)
+    this.#detach = port.subscribe((events, sessionId) => {
+      this.#route(events, sessionId)
     })
   }
 }
