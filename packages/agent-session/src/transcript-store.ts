@@ -96,16 +96,6 @@ const EMPTY: Transcript = {
 }
 
 /*
- * 「还没轮到下一句」的全部两种形态。
- *
- * 判据是 RunStatus 本身（run.ts 的六档），不是另立一个布尔或另记一张表：
- * 转录已经逐帧维护着这一格，useAssistantSession 的 toChatStatus 读的也是它。
- */
-function running(status: TimelineState['status']): boolean {
-  return status === 'running' || status === 'awaiting_permission'
-}
-
-/*
  * 本地的事故记在本地。
  *
  * 起不来的 agent、送不出去的权限答复、读不回来的历史，都发生在任何持久化之前
@@ -254,9 +244,6 @@ export class TranscriptStore {
    */
   #pending = new Map<string, RunEvent[]>()
 
-  /** 想知道「某条对话空下来了」的人。 */
-  #idle = new Set<(threadId: string) => void>()
-
   #attachedTo: AgentSessionPort | null = null
 
   #detach: (() => void) | null = null
@@ -339,33 +326,6 @@ export class TranscriptStore {
 
     if (draft !== undefined) {
       this.#fire(draft)
-    }
-  }
-
-  /**
-   * 这条对话此刻有没有一轮在飞。
-   *
-   * 读已提交的那一份，与 read 同源：输入框写着「正在回答」而这里答「空着」，
-   * 就是同一个事实两处各答一次。攒着还没折的帧一律算忙 —— 没人看过它们说了
-   * 什么，答「闲」会把一次模型切换发进一轮刚开始的对话，答「忙」只是晚一拍
-   * 再问（onIdle 会补）。
-   *
-   * 它不折帧：折叠要写 #held 并同步广播 #idle，而 #idle 上挂着的正是问这句话
-   * 的人（session-controls-store 的 #align），于是一个返回 boolean 的问句会在
-   * 答话之前先把提问者重新叫起来一遍。问句不改状态。
-   */
-  busy = (key: string): boolean => {
-    const real = this.#resolveKey(key)
-
-    return this.#pending.has(real) || running(this.#held.get(real)?.timeline.status ?? 'idle')
-  }
-
-  /** 某条对话从忙变闲的那一刻；交回取消订阅的办法。 */
-  onIdle = (listener: (threadId: string) => void): (() => void) => {
-    this.#idle.add(listener)
-
-    return () => {
-      this.#idle.delete(listener)
     }
   }
 
@@ -681,22 +641,7 @@ export class TranscriptStore {
    * 折进去」这个动作本身也会再约一拍，而那一拍没有任何新东西可看。
    */
   #write(real: string, next: Transcript): void {
-    const was = running(this.#held.get(real)?.timeline.status ?? 'idle')
-
     this.#held.set(real, next)
-
-    /*
-     * 从忙变闲只有这一刻。
-     *
-     * 挂在这里而不是挂在某一种帧上：run_finished、run_failed、取消、以及本地事故
-     * （noteOn 的 endsTurn）走的是四条不同的路，但它们改的都是同一格 status，而
-     * #put 是这个文件唯一的写入口。四条路一个汇合点，不需要状态机。
-     */
-    if (was && !running(next.timeline.status)) {
-      for (const listener of this.#idle) {
-        listener(real)
-      }
-    }
   }
 
   /*

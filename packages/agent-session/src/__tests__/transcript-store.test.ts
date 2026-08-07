@@ -182,35 +182,4 @@ describe('transcript store', () => {
     expect(store.read('thread_a').timeline.lastSeq).toBe(201)
     expect(told).toBe(1)
   })
-
-  it('问一句「忙不忙」不折帧，也不惊动等它空下来的人', () => {
-    const { store, paint } = painted()
-    const { port, emit } = fakePort()
-    let woken = 0
-
-    store.ensure(port)
-    store.route('sess_a', 'thread_a')
-    store.onIdle(() => {
-      woken += 1
-    })
-
-    emit([started(1, 'sess_a')], 'sess_a')
-    paint()
-
-    /* 结束那一帧已经到了，但还没到下一拍：没有人看过它。 */
-    emit([{ kind: 'run_finished', seq: 2, at: 2, stopReason: 'end_turn' }], 'sess_a')
-
-    const unread = store.read('thread_a')
-
-    /* 问一句不等于看一眼：攒着的帧还没折，所以答案保守地停在「还忙着」。 */
-    expect(store.busy('thread_a')).toBe(true)
-    expect(store.read('thread_a')).toBe(unread)
-    expect(woken).toBe(0)
-
-    /* 空下来由那一拍宣布，而且只宣布一次。 */
-    paint()
-
-    expect(store.busy('thread_a')).toBe(false)
-    expect(woken).toBe(1)
-  })
 })

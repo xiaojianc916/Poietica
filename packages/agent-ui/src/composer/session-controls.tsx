@@ -84,12 +84,12 @@ function chosen(control: SessionConfigControl): string | undefined {
  * 正在回答时，模型选择器不禁用。
  *
  * 上游 kimi-code 的 performModelSwitch 第一行判 streamingPhase，那是终端程序的前提：
- * 一个进程只有一条会话，「正在流式」与「这一条正在流式」是同一件事。我们能同时开
- * 多条，而选中的模型是全局那一份（config.toml 的 default_model）—— 拿某一格的忙碌
- * 去灰掉一个全局设置，既拦不住在别的对话里改，又会在正跑的这一格误伤。主语就不对。
+ * 一个进程只有一条会话，「正在流式」与「这一条正在流式」是同一件事。
  *
- * 该推迟的不是人的动作，是下发：正在跑的那条会话空下来之后由 ThreadsStore 补发
- * （threads-store 的 #align 与 TranscriptSink.onIdle）。界面因此一格都不灰。
+ * 这里的每一项都属于这条会话自己（ACP 的 config 按 sessionId 寻址），改动直接发给
+ * 它，答复回来就是新的整张表。改不成 —— 比如 agent 在一轮回答中间拒绝 —— 由权威
+ * 那一侧纠正：会话重新报一次它真在用的东西，屏幕跟着回去。所以不需要一颗灰按钮
+ * 替 agent 提前拒绝用户。
  */
 
 export interface SessionControlsProps {

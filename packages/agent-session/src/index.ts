@@ -1,6 +1,4 @@
-export type { AgentChoices } from './agent-capability-store'
 export {
-  agentChoices,
   chooseAgentControl,
   installAgentCapabilityPort,
   refreshAgentCapabilities,

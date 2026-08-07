@@ -21,16 +21,4 @@ export interface TranscriptSink {
   readonly route: (sessionId: string, threadId: string) => void
   /** 这条对话不存在了：转录连同指向它的路由一起作废。 */
   readonly forget: (threadId: string) => void
-  /**
-   * 这条对话此刻有没有一轮在飞。
-   *
-   * 权威是转录自己的 status（RunStatus 的 running / awaiting_permission），不另记
-   * 一张在飞表：同一个事实两处维护，迟早各说各的。输入框那一侧读的是同一格
-   * （useAssistantSession 的 toChatStatus），所以这里读的也是已提交的那一份。
-   *
-   * 这是一个问句：它不折帧、不改状态，也不叫醒任何人。
-   */
-  readonly busy: (threadId: string) => boolean
-  /** 某条对话从忙变闲的那一刻。参数是那条对话。 */
-  readonly onIdle: (listener: (threadId: string) => void) => () => void
 }

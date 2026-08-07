@@ -4,7 +4,6 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/acp'
-import type { AgentChoices } from './agent-capability-store'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { SessionControlsStore } from './session-controls-store'
@@ -30,8 +29,6 @@ const EMPTY: Held = {
 }
 
 export interface ThreadsStoreOptions {
-  /** 全局选中了哪些值；会话那一侧要拿它把自己对齐过来。 */
-  readonly choices?: AgentChoices | undefined
   readonly config?: SessionConfigPort | undefined
   /** 没有记下目录的对话落在哪个工作区。答案属于宿主，这一层不猜。 */
   readonly defaultWorkspaceId?: (() => string | null) | undefined
@@ -101,7 +98,7 @@ export class ThreadsStore {
    */
   readonly #defaultWorkspaceId: (() => string | null) | undefined
 
-  constructor({ choices, config, defaultWorkspaceId, port, transcripts }: ThreadsStoreOptions) {
+  constructor({ config, defaultWorkspaceId, port, transcripts }: ThreadsStoreOptions) {
     this.#port = port
     this.#transcripts = transcripts
     this.#defaultWorkspaceId = defaultWorkspaceId
@@ -114,7 +111,6 @@ export class ThreadsStore {
       announce: () => {
         this.#announce()
       },
-      choices,
       config,
       port,
       transcripts,
