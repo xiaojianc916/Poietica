@@ -57,12 +57,6 @@ export function ThreadsProvider({ children }: ThreadsProviderProps) {
     void defaultWorkspaceReady().then(() => store.refresh())
 
     /*
-     * 模型清单曾在这里装上，用的是 defaultAcpAgent() —— 一个写死的 agent。它按
-     * agent 分家，所以它的装载点是知道 agentId 的那一处（ConversationSurface），
-     * 与 default_model 同一个 effect。
-     */
-
-    /*
      * 听 agent 自己报选择器。订阅与退订在同一个 effect 里成对出现，所以这
      * 个 Provider 装载几次就配平几次。
      */

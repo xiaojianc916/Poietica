@@ -1,5 +1,4 @@
 import type { AgentSessionPort } from '@poietica/acp'
-import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useRef, useState } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 import { ConversationSurface } from './conversation-surface'
@@ -25,18 +24,11 @@ import { ConversationSurface } from './conversation-surface'
  */
 
 export interface AssistantPaneProps {
-  readonly agentConfig: AgentConfigStore
-  readonly agentId: string
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
 }
 
-export function AssistantPane({
-  agentConfig,
-  agentId,
-  onConversationStarted,
-  session,
-}: AssistantPaneProps) {
+export function AssistantPane({ onConversationStarted, session }: AssistantPaneProps) {
   /* 只要动作。这一格一个字的会话状态都不读，此前却订着整份快照。 */
   const open = useThreadsActions().create
   const [threadId, setThreadId] = useState<string | null>(null)
@@ -62,8 +54,6 @@ export function AssistantPane({
 
   return (
     <ConversationSurface
-      agentConfig={agentConfig}
-      agentId={agentId}
       onIdentify={identify}
       onStarted={onConversationStarted}
       session={session}

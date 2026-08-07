@@ -119,15 +119,24 @@ export function desktopSessionConfig(): SessionConfigPort {
  * 空的 —— 于是先按目录挑一个写进配置，再问锚会话。这不是第二条读取路径：它一个
  * 进程里最多发生一次，也不产出任何画在屏幕上的东西。
  *
- * 按 agentId 记住那个对象，因为端口的身份就是 store 判断"换没换一家"的依据。
+ * 按 store 与 agentId 一起记住那个对象。端口的身份就是能力表判断"换没换一家"的
+ * 依据，而这个对象把 store 封进了闭包 —— 键少一个输入，换一份配置就会拿回上一份
+ * 的端口，而它写的还是上一份配置。
  */
-const capabilities = new Map<string, AgentCapabilityPort>()
+const capabilities = new WeakMap<AgentConfigStore, Map<string, AgentCapabilityPort>>()
 
 export function desktopAgentCapabilities(
   store: AgentConfigStore,
   agentId: string,
 ): AgentCapabilityPort {
-  const held = capabilities.get(agentId)
+  let byAgent = capabilities.get(store)
+
+  if (byAgent === undefined) {
+    byAgent = new Map()
+    capabilities.set(store, byAgent)
+  }
+
+  const held = byAgent.get(agentId)
 
   if (held !== undefined) {
     return held
@@ -161,7 +170,7 @@ export function desktopAgentCapabilities(
     },
   }
 
-  capabilities.set(agentId, source)
+  byAgent.set(agentId, source)
 
   return source
 }

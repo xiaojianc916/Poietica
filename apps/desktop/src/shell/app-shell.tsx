@@ -1,5 +1,5 @@
 import type { AgentSessionPort } from '@poietica/acp'
-import { refreshAgentCapabilities } from '@poietica/agent-session'
+import { installAgentCapabilityPort, refreshAgentCapabilities } from '@poietica/agent-session'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectContext } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'
@@ -10,7 +10,12 @@ import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace
 import { CommandPalette, useCommandKeybindings, workspaceLayoutStore } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
-import { agentFor, currentAgentId, subscribeAgent } from '../assistant/agent-session'
+import {
+  agentFor,
+  currentAgentId,
+  desktopAgentCapabilities,
+  subscribeAgent,
+} from '../assistant/agent-session'
 import { ThreadsProvider } from '../assistant/threads-provider'
 import { AutomationScheduler } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
@@ -229,18 +234,30 @@ export function AppShell({ runtime }: AppShellProps) {
   }, [runtime.settings])
 
   /*
-   * 设置页动过 agent 的配置，工具条上那张能力表就不再作数。
+   * 这一家 agent 提供哪些可调项：从哪里问、什么时候重问，都在这里接一次。
    *
-   * 订阅落在这里而不是 ConversationSurface：设置页展开时那一格可能已经卸载，
-   * 通知会落空；而它重新挂载时 installAgentCapabilityPort 又会在 source === port
-   * 上提前返回 —— 等于什么都没发生，人只好去重启。
+   * 两件事同源同寿 —— 端口按「用哪一家」建，而设置页动过它的配置之后那张表就不
+   * 再作数。此前接线在那一格的 effect 里、重问在这里：它卸载时通知落空，重新挂载
+   * 时装载又在 source === port 上提前返回，等于什么都没发生，人只好去重启。
+   *
+   * 而且那一格每开一个标签就有一个实例，各自装各自的。它能对，靠的是端口按 agent
+   * 记过一次、能力表又按端口身份判过一次 —— 两层记忆化叠出来的巧合。
    *
    * 这一层与方言、会话列表同级，都是「一个进程一份、活到进程结束」的事实。
    */
-  useEffect(
-    () => runtime.agentConfig.subscribeConfigChanged(refreshAgentCapabilities),
-    [runtime.agentConfig],
-  )
+  useEffect(() => {
+    const port = desktopAgentCapabilities(runtime.agentConfig, agentId)
+
+    installAgentCapabilityPort(port, (cause) => {
+      reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
+        scope: 'app-shell',
+        operation: 'read-capabilities',
+        cause,
+      })
+    })
+
+    return runtime.agentConfig.subscribeConfigChanged(refreshAgentCapabilities)
+  }, [agentId, runtime.agentConfig])
 
   useCommandKeybindings(runtime.commands)
 
@@ -269,7 +286,6 @@ export function AppShell({ runtime }: AppShellProps) {
 
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
-          agentId={agentId}
           agentSession={runtime.agentSession}
           appVersion={runtime.appVersion}
           capabilities={capabilities}

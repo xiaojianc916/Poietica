@@ -40,8 +40,6 @@ export interface AppCapabilities {
 }
 
 export interface WorkspaceContainerProps {
-  /** 现在用哪一家 agent。订阅在 AppShell，这里只是接住它。 */
-  readonly agentId: string
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
   /** 数据目录。与版本号同源同层：关于页面上的两个事实出自同一条链。 */
@@ -71,7 +69,6 @@ export interface WorkspaceContainerProps {
  * 那是把布局职责和接线职责搅在一起。
  */
 export function WorkspaceContainer({
-  agentId,
   agentSession,
   appVersion,
   dataDirectory,
@@ -190,16 +187,13 @@ export function WorkspaceContainer({
     [workspace],
   )
 
-  /* agentId 进依赖：换一家 agent，这张渲染器表就该重建，而不是等谁恰好重画。 */
   const assistant = useMemo(
     () =>
       createAssistantWiring({
-        agentConfig: agentConfigStore,
-        agentId,
         onConversationStarted: startConversation,
         session: agentSession,
       }),
-    [agentConfigStore, agentId, agentSession, startConversation],
+    [agentSession, startConversation],
   )
 
   /* 两种表面形态，穷尽，没有兜底分支：一条对话，或者一个工作区表面。 */

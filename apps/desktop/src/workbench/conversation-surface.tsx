@@ -1,20 +1,13 @@
 import type { AgentSessionPort } from '@poietica/acp'
-import {
-  chooseAgentControl,
-  installAgentCapabilityPort,
-  useAgentControls,
-} from '@poietica/agent-session'
+import { chooseAgentControl, useAgentControls } from '@poietica/agent-session'
 import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'
-import type { AgentConfigStore } from '@poietica/settings'
 import { useCallback, useEffect } from 'react'
-import { desktopAgentCapabilities } from '../assistant/agent-session'
 import {
   useThreadSelectorFailure,
   useThreadSelectors,
   useThreadsActions,
 } from '../assistant/threads-context'
-import { reportFailure } from '../failures/application-policy'
 
 /*
  * 一格只画一条对话。
@@ -30,10 +23,6 @@ import { reportFailure } from '../failures/application-policy'
  */
 
 export interface ConversationSurfaceProps {
-  /** 问这一家 agent 提供什么、改它、以及记住模型的那一路。 */
-  readonly agentConfig: AgentConfigStore
-  /** 写给哪一家 agent。与会话 spawn 的那一家同一个产地。 */
-  readonly agentId: string
   /** 取得这一格即将成为的那条对话。只有入口那一格需要它。 */
   readonly onIdentify?: (() => Promise<string | null>) | undefined
   /** 这条对话说出第一句话时，带上它当时的名字。 */
@@ -45,15 +34,12 @@ export interface ConversationSurfaceProps {
 /*
  * 输入框的收件口，一个进程一份。
  *
- * 装在模块求值时，不装在 effect 里：它不随任何一条对话变化，而且拖放监听要
- * 在第一次渲染之前就位 —— 与 installAgentCapabilityPort 不同，那一个的内容
- * 随 agentId 变，这一个不变。会话本身仍然是懒开的（见 createAttachmentIntake）。
+ * 装在模块求值时，不装在 effect 里：它不随任何一条对话变化，而且拖放监听要在
+ * 第一次渲染之前就位。会话本身仍然是懒开的（见 createAttachmentIntake）。
  */
 installAttachmentIntake(createAttachmentIntake())
 
 export function ConversationSurface({
-  agentConfig,
-  agentId,
   onIdentify,
   onStarted,
   session,
@@ -70,25 +56,6 @@ export function ConversationSurface({
   const offered = useThreadSelectors(threadId)
 
   const failure = useThreadSelectorFailure(threadId)
-
-  /*
-   * 告诉能力表这一家 agent 从哪里问。
-   *
-   * 一个产地一个端口：读整张表、改其中一项都走它，落盘 default_model 也在它里面
-   * （见 desktopAgentCapabilities）。渲染层因此不认识 default_model 这个概念，也
-   * 不再有第二条写它的路。
-   *
-   * 装上是幂等的 —— 端口按 agentId 记着，store 用端口身份判断换没换一家。
-   */
-  useEffect(() => {
-    installAgentCapabilityPort(desktopAgentCapabilities(agentConfig, agentId), (cause) => {
-      reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
-        scope: 'conversation-surface',
-        operation: 'read-capabilities',
-        cause,
-      })
-    })
-  }, [agentConfig, agentId])
 
   /*
    * 打开一条已有的对话，就为它开一个 ACP 会话。

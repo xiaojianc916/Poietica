@@ -630,9 +630,14 @@ const governanceRules = [
 /* 唯一允许触碰 Web Storage 的文件。规则与实现必须指着同一条路径。 */
 const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
 
-/* agent 身份的产地，和唯一那个订阅它的地方。 */
+/*
+ * 一个进程一份的那些事实，都在组合根接一次线。
+ *
+ * 「现在用哪一家 agent」与「这一家提供哪些可调项」出自同一个文件，也在同一处接
+ * 上，所以这里是一对常量而不是两对：下面两条规则守的是同一条纪律。
+ */
 const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
-const AGENT_IDENTITY_SUBSCRIBER = 'apps/desktop/src/shell/app-shell.tsx'
+const COMPOSITION_ROOT = 'apps/desktop/src/shell/app-shell.tsx'
 
 /* 进程里那一份 agent 选择的产地，和这个包的出口。 */
 const AGENT_CHOICES = 'packages/agent-session/src/agent-capability-store.ts'
@@ -684,7 +689,7 @@ export const rules = [
   {
     id: 'agent-identity-single-subscription',
     appliesTo: (file) =>
-      isProductionSource(file) && file !== AGENT_IDENTITY && file !== AGENT_IDENTITY_SUBSCRIBER,
+      isProductionSource(file) && file !== AGENT_IDENTITY && file !== COMPOSITION_ROOT,
     pattern: /\bcurrentAgentId\b/g,
     message: 'agent 身份只在组合根订阅一次，其余顺 props 接下去',
   },
@@ -708,6 +713,27 @@ export const rules = [
       file !== AGENT_SESSION_ENTRY,
     pattern: /\bagentChoices\b/g,
     message: 'agent 选择要构造时交进来，不要 import 进来',
+  },
+  /*
+   * 能力表只接一次线，在组合根。
+   *
+   * 端口按「用哪一家 agent」建，重问的通知也按同一家来，两件事同源同寿。此前接线
+   * 在标签那一格的 effect 里、重问在组合根：那一格每开一个标签就有一个实例，各自
+   * 装各自的；它卸载时通知落空，重挂时又在 source === port 上提前返回。它能对，
+   * 靠的是端口按 agent 记过一次、能力表又按端口身份判过一次 —— 两层记忆化叠出来
+   * 的巧合，其中任何一层松一下都是「设置里改完，工具条不动」。
+   *
+   * 判据落在原始文本上，注释也算：一条教人在别处再装一次的注释，与真装一次等价。
+   */
+  {
+    id: 'agent-capabilities-wired-at-the-root',
+    appliesTo: (file) =>
+      isProductionSource(file) &&
+      file !== AGENT_CHOICES &&
+      file !== AGENT_SESSION_ENTRY &&
+      file !== COMPOSITION_ROOT,
+    pattern: /\binstallAgentCapabilityPort\b/g,
+    message: 'agent 能力表只在组合根接一次线，不要在渲染层装',
   },
   ...tierRules,
   {

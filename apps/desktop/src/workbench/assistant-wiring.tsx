@@ -1,6 +1,5 @@
 import type { AgentSessionPort } from '@poietica/acp'
 import { AutomationsSurface } from '@poietica/automations'
-import type { AgentConfigStore } from '@poietica/settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { automationStore } from '../automations/automation-runtime'
@@ -15,9 +14,8 @@ import { ConversationSurface } from './conversation-surface'
  *
  * 为什么是「全部」而不只是表面插槽:助手界面有两个入口 —— AI 那一格
  * (AssistantPane),以及一条对话被提升成标签页之后的 ConversationSurface。
- * 两者要的是同一对依赖。此前后者就地写在 WorkspaceContainer 里,于是给助手
- * 树补 provider 时只补到了前者,应用在发出第一条消息时崩掉。依赖只从一个
- * 口子出去,再多一个入口也必须落在这个文件,漏不掉。
+ * 两者要的是同一对依赖,所以依赖只从这一个口子出去:再多一个入口也必须落在这个
+ * 文件,漏不掉。
  *
  * 「这一格变成了一条对话」是两边的交界事实,所以也从这里传进去。
  *
@@ -32,36 +30,24 @@ export interface AssistantWiring {
 }
 
 /*
- * 用哪一家 agent 是入参，不是这里去问的。
+ * 用哪一家 agent 不从这里过。
  *
- * 订阅那份「现在用哪一家」的只有 AppShell 一处，答案顺 props 流到这里，于是
- * 选择器要写的 default_model 与会话 spawn 的那一家出自同一个值。换一家之后
- * 这些渲染器要不要重建，由调用处 useMemo 的依赖显式说了算 —— 此前它靠的是
- * 上游某个组件恰好会重画，而那个前提没有任何东西在守。
+ * 能力表的接线落在组合根（见 shell/app-shell.tsx），于是这条链上没有一个渲染器
+ * 需要认识 agentId 或那份配置。此前它们一路当 prop 往下递，四层里有三层只是原样
+ * 转手，终点那一格拿去在 effect 里接一次线 —— 而那根线本来就不该从渲染树上走。
  */
 export interface AssistantWiringOptions {
-  readonly agentConfig: AgentConfigStore
-  readonly agentId: string
   readonly onConversationStarted: (threadId: string, title: string) => void
   readonly session: AgentSessionPort
 }
 
 export function createAssistantWiring({
-  agentConfig,
-  agentId,
   onConversationStarted,
   session,
 }: AssistantWiringOptions): AssistantWiring {
   return {
     surfaces: {
-      ai: () => (
-        <AssistantPane
-          agentConfig={agentConfig}
-          agentId={agentId}
-          onConversationStarted={onConversationStarted}
-          session={session}
-        />
-      ),
+      ai: () => <AssistantPane onConversationStarted={onConversationStarted} session={session} />,
 
       /*
        * 自动化那一格。渲染器现在是全域 Record（见 @poietica/workspace 的
@@ -73,8 +59,6 @@ export function createAssistantWiring({
 
     renderConversation: (threadId) => (
       <ConversationSurface
-        agentConfig={agentConfig}
-        agentId={agentId}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}

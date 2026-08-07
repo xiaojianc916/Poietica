@@ -9,9 +9,8 @@ import { describeMoment } from '../automation'
  * 账本只留最近 RUN_HISTORY_LIMIT 条，再往前的正文仍在各自那条对话里 —— 这一层
  * 不复述运行内容，会话才是唯一中心。
  *
- * 还不能点进那次对话：openConversation 在工作台的命令面上，而 createAssistantWiring
- * 今天只拿到 session / agentConfig / onConversationStarted 三样。为了一块界面去
- * 拓宽组合根的签名，顺序是反的 —— 那一步单独做。
+ * 还不能点进那次对话：openConversation 在工作台的命令面上，这一层够不着。为了一
+ * 块界面去拓宽组合根的签名，顺序是反的 —— 那一步单独做。
  */
 
 export interface AutomationRunHistoryProps {

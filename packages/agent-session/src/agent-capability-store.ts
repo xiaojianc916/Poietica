@@ -121,8 +121,8 @@ class AgentCapabilityStore implements AgentChoices {
   /**
    * 接线时装上这一家 agent 的那个端口。
    *
-   * 端口的身份就是"换没换一家"的判据，所以组合根按 agentId 记住那个对象；同一家
-   * 反复装上是幂等的，换一家则连表一起归零。
+   * 端口的身份就是"换没换一家"的判据：同一家反复装上是幂等的，换一家则连表一起
+   * 归零。谁来记住那个对象是接线那一侧的事，这一层不规定。
    */
   installPort = (port: AgentCapabilityPort, onFailure?: (cause: unknown) => void): void => {
     this.#report = onFailure
