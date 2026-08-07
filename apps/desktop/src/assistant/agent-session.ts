@@ -87,6 +87,20 @@ export function adoptAgent(agentId: string): void {
 export const subscribeAgent = agent.subscribe
 
 /*
+ * 订阅装不上是同一类事故：帧流、会话设置、锚会话表三条通道共用一种报法。
+ *
+ * 听不见不是致命错 —— 下一次显式读取仍然拿得到权威答案 —— 但它必须留下痕迹，
+ * 否则一张永远不刷新的表在日志里没有任何解释。
+ */
+function noteListenFailure(cause: unknown): void {
+  reportError('agent event subscription failed', {
+    scope: 'agent-session',
+    operation: 'listen',
+    cause,
+  })
+}
+
+/*
  * 改会话设置的那一路，整个进程一份。
  *
  * 它是无状态的：一次改动就是一次往返，agent 把改完的整张表报回来。没有读，所以
@@ -96,7 +110,7 @@ export const subscribeAgent = agent.subscribe
 let sessionConfig: SessionConfigPort | undefined
 
 export function desktopSessionConfig(): SessionConfigPort {
-  sessionConfig ??= createAgentSessionConfigBridge()
+  sessionConfig ??= createAgentSessionConfigBridge({ onListenFailure: noteListenFailure })
 
   return sessionConfig
 }
@@ -144,6 +158,7 @@ export function desktopAgentCapabilities(
 
   const anchor = createAgentCapabilityBridge({
     launch: () => acpAgentLaunch(agentFor(agentId)),
+    onListenFailure: noteListenFailure,
   })
 
   const source: AgentCapabilityPort = {
@@ -169,18 +184,8 @@ export function desktopAgentCapabilities(
       return anchor.select(control, value)
     },
 
-    /*
-     * agent 说话的那一路，与对话那一侧是同一条。
-     *
-     * 不新开订阅：原生侧一条 AGENT_SELECTOR_EVENT 供全部会话共用，会话桥已经
-     * 在听了。这里借的是同一座桥，所以不存在第二条到达路径，也不存在两边各收
-     * 一半的可能。
-     *
-     * 报文里那条会话是谁不重要 —— 这一声只用来触发"再问一次锚会话"，而问的
-     * 结果才是权威。为别条会话多问一次的代价是一次进程内往返（驱动器拿手上
-     * 那张表就地作答，不惊动 agent）。
-     */
-    subscribe: (handler) => desktopSessionConfig().subscribe?.(handler) ?? (() => undefined),
+    /* 这一层只在 read 与 select 前后落盘 default_model，听不改，原样转发。 */
+    subscribe: anchor.subscribe,
   }
 
   byAgent.set(agentId, source)
@@ -254,15 +259,7 @@ export function createDesktopAgentSession(): DesktopAgentSession {
       launch: () => acpAgentLaunch(currentAgent()),
     }),
 
-    source: createAgentEventSource({
-      onListenFailure: (cause) => {
-        reportError('agent event subscription failed', {
-          scope: 'agent-session',
-          operation: 'listen',
-          cause,
-        })
-      },
-    }),
+    source: createAgentEventSource({ onListenFailure: noteListenFailure }),
   })
 
   return {

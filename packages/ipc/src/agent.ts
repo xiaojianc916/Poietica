@@ -300,7 +300,7 @@ export function createAgentSessionConfigBridge({
 }
 
 /*
- * 问这个 agent 提供什么、以及改其中一项，都不点名任何一条对话。
+ * 问这个 agent 提供什么、改其中一项、听它自己改主意，都不点名任何一条对话。
  *
  * 两个动作走同一条会话：连接自带的锚会话。不新开会话、不写库、不碰任何 thread。
  * 模型、模式、推理档位同表来同表走 —— ACP 的 session/new 与 set_config 都回整张
@@ -315,7 +315,8 @@ export function createAgentSessionConfigBridge({
 export function createAgentCapabilityBridge({
   cwd,
   launch,
-}: AgentBridgeOptions): AgentCapabilityPort {
+  onListenFailure,
+}: AgentBridgeOptions & AgentEventSourceOptions): AgentCapabilityPort {
   return {
     read: async () => {
       const offered = await throughIpc(() =>
@@ -332,6 +333,16 @@ export function createAgentCapabilityBridge({
 
       return offered.map(controlOf)
     },
+
+    /* 报文里那条会话是谁，锚会话这一侧回答不了，所以只把「变了」交出去。 */
+    subscribe: (handler) =>
+      subscribeToEvent<AgentSelectorEnvelope>(
+        AGENT_SELECTOR_EVENT,
+        () => {
+          handler()
+        },
+        onListenFailure,
+      ),
   }
 }
 

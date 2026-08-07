@@ -57,6 +57,7 @@ describe('锚会话的那张表', () => {
 
         return Promise.resolve(THREE_TIER)
       },
+      subscribe: () => () => undefined,
     })
 
     const stop = store.subscribe(() => undefined)
@@ -136,6 +137,7 @@ describe('锚会话的那张表', () => {
         })
       },
       select: () => Promise.resolve(THREE_TIER),
+      subscribe: () => () => undefined,
     })
 
     const stop = store.subscribe(() => undefined)
@@ -170,6 +172,7 @@ describe('锚会话的那张表', () => {
 
         return Promise.resolve(THREE_TIER)
       },
+      subscribe: () => () => undefined,
     })
 
     const stop = store.subscribe(() => undefined)

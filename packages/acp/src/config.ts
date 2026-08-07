@@ -71,8 +71,9 @@ export interface SessionConfigPort {
    * 上面那句「这里没有读」仍然成立：这不是一次取数，是 agent 主动说话。到达口
    * 与 open / select 是同一个，所以它不是第三条路径，只是第三个说话的人。
    *
-   * 可选，与 ThreadPort 的几个动作同例：一个不打算听推送的实现（测试里的桩、
-   * 或者别的宿主）不该被迫写一个假的订阅。
+   * 必填。换模型那一次，agent 先答复一张还没收敛的表、再补推一张收敛过的：听不见
+   * 后者，屏幕上的档位就停在上一个模型的候选集上。一个「缺了就画错」的能力不该长成
+   * 可选的 —— 可选加上调用点的 ?. ，等于让漏实现在编译期合法、在运行期沉默。
    */
-  readonly subscribe?: (handler: (report: SessionConfigReport) => void) => () => void
+  readonly subscribe: (handler: (report: SessionConfigReport) => void) => () => void
 }

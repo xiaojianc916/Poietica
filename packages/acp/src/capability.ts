@@ -30,15 +30,12 @@ export interface AgentCapabilityPort {
   /**
    * agent 自己改了主意时说的那一声。
    *
-   * 与 SessionConfigPort.subscribe 同一件事、同一条流。此前只有会话那一侧有它,
-   * 于是入口这张表是全 app 唯一只能问、不能听的一张 —— 而 agent 换完模型之后
-   * 恰恰是先答复、再补推一张收敛过的表。补推没人接，thought 那一行就连同它的
-   * choices 停在上一个模型上，直到下一次有人再问。
+   * 与 SessionConfigPort.subscribe 同一件事、同一条流。
    *
    * 只报「变了」，不带表：这一声没有可判定的归属（它可能说的是别条会话），
    * 而锚会话此刻是什么，问一次就有权威答案。多问一次无害，漏听一次才有害。
    *
-   * 可选，与 SessionConfigPort 同例：不打算听推送的实现不该被迫写一个假订阅。
+   * 必填，与 SessionConfigPort 同例：漏实现的代价是这张表永远听不见 agent。
    */
-  readonly subscribe?: (handler: () => void) => () => void
+  readonly subscribe: (handler: () => void) => () => void
 }

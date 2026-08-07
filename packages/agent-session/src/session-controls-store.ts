@@ -5,6 +5,7 @@ import type {
   ThreadPort,
   ThreadRecord,
 } from '@poietica/acp'
+import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import type { TranscriptSink } from './transcript-sink'
@@ -44,7 +45,11 @@ export interface SessionControlsOptions {
  *
  * 下发按对话串行。ACP 规定改一项可能增删另一项（见 @poietica/acp 的 config.ts，
  * 以及原生侧 commands.rs 的 select 文档），所以同一条会话上的两次改动必须分先后：
- * 后一次要用前一次的答复当判据，而两条答复各带一整张表，并发时谁后回来谁覆盖。
+ * 后一次要用前一次的答复当判据。
+ *
+ * 串行管不到 agent 自己说话那一条。答复与推送是两条并发的到达，先后因此由
+ * ArrivalOrder 定，而不由落地顺序定 —— 否则换模型那一次，agent 先答复的那张没
+ * 收敛的表会盖掉它随后补推的收敛过的表。
  *
  * 依赖全部构造时交进来：端口、配置、转录，以及通知 —— announce 汇回 ThreadsStore
  * 那一条订阅，读谁的状态与怎么被叫醒是两件事。这台 store 因此可以在没有任何进程
@@ -75,6 +80,9 @@ export class SessionControlsStore {
    */
   #inflight = new Map<string, Promise<void>>()
 
+  /* 这条对话的表按什么先后写入。作废在 forget。 */
+  #order = new Map<string, ArrivalOrder>()
+
   constructor({ announce, config, port, transcripts }: SessionControlsOptions) {
     this.#announce = announce
     this.#config = config
@@ -92,7 +100,7 @@ export class SessionControlsStore {
    * 模式下的装载/卸载/再装载会把订阅退掉，而构造函数不会跑第二遍。
    */
   start = (): (() => void) => {
-    const stop = this.#config?.subscribe?.((report) => {
+    const stop = this.#config?.subscribe((report) => {
       this.#reported(report)
     })
 
@@ -128,6 +136,9 @@ export class SessionControlsStore {
       answer.attachments,
       answer.prompts,
     )
+
+    /* 一整份权威答复：此前发出去的那些下发，答案都已经过期。 */
+    this.#orderOf(threadId).arrive()
     this.#remember(threadId, answer.selectors)
   }
 
@@ -141,6 +152,7 @@ export class SessionControlsStore {
 
     /* 在飞的那一次不取消 —— 它已经发出去了，收不回来；只是不再由它排队。 */
     this.#inflight.delete(threadId)
+    this.#order.delete(threadId)
 
     /* 会话号那张反查表同样按对话记。#hold 只写不删，这里是它唯一的出口。 */
     for (const [sessionId, owner] of this.#sessions) {
@@ -205,8 +217,16 @@ export class SessionControlsStore {
     const queued = this.#inflight.get(threadId) ?? Promise.resolve()
 
     const run = queued.then(async () => {
+      const order = this.#orderOf(threadId)
+      const ticket = order.issue()
+
       try {
-        this.#remember(threadId, await config.select(threadId, controlId, value))
+        const offered = await config.select(threadId, controlId, value)
+
+        /* 号过期了，说明这一趟在飞的时候 agent 已经自己说过话，那张表更新。 */
+        if (order.isLatest(ticket)) {
+          this.#remember(threadId, offered)
+        }
       } catch {
         await this.#reopen(threadId)
       }
@@ -285,7 +305,23 @@ export class SessionControlsStore {
       return
     }
 
+    this.#orderOf(threadId).arrive()
     this.#remember(threadId, report.controls)
+  }
+
+  /* 这条对话的先后。没有就现在开一份。 */
+  #orderOf(threadId: string): ArrivalOrder {
+    const held = this.#order.get(threadId)
+
+    if (held !== undefined) {
+      return held
+    }
+
+    const fresh = new ArrivalOrder()
+
+    this.#order.set(threadId, fresh)
+
+    return fresh
   }
 
   /*

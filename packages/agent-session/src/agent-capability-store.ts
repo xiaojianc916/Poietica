@@ -1,5 +1,6 @@
 import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/acp'
 import { useSyncExternalStore } from 'react'
+import { ArrivalOrder } from './arrival-order'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -52,13 +53,8 @@ export class AgentCapabilityStore {
   /* 问过就不再问第二遍：重读是显式动作（refresh），不是渲染的副作用。 */
   #asked = false
 
-  /*
-   * 第几次往返。
-   *
-   * read 与 select 都在飞的时候，谁后回来谁赢是错的 —— 该赢的是谁问得晚。代次
-   * 对不上的答复直接丢掉，这就是"重启一次档位列表就换一套"这类事故的机制层根因。
-   */
-  #generation = 0
+  /* read 与 select 都在飞时，该赢的是问得晚的那一个。规则与对话那一侧同一条。 */
+  #order = new ArrivalOrder()
 
   #report: CapabilityFailureReport | undefined
 
@@ -101,9 +97,7 @@ export class AgentCapabilityStore {
       return
     }
 
-    this.#generation += 1
-
-    const generation = this.#generation
+    const ticket = this.#order.issue()
 
     /*
      * 交出去的是整个控件。
@@ -116,7 +110,7 @@ export class AgentCapabilityStore {
      */
     void port.select(control, value).then(
       (table) => {
-        this.#adopt(port, generation, table)
+        this.#adopt(port, ticket, table)
       },
       (cause: unknown) => {
         this.#report?.changeFailed(cause)
@@ -143,16 +137,13 @@ export class AgentCapabilityStore {
     this.#offered = NO_CONTROLS
 
     /*
-     * agent 一改主意就重读。
-     *
-     * 这张表此前只有一条到达路径：我们问，它答。而 agent 纠正自己用的是另一条 ——
-     * 换完模型它会补推一张收敛过的表（thought 的候选集属于模型，换了模型就得换）。
-     * 没有这根线的时候，屏幕上留着的是上一个模型的档位列表，直到下一次有人再问。
+     * agent 一改主意就重读：换完模型它会补推一张收敛过的表，而 thought 的候选集
+     * 属于模型，换了模型就得跟着换。
      *
      * 收到就重读，而不是把推来的表直接吃下：那一声没带可判定的归属，而锚会话此刻
      * 是什么，问一次就有权威答案 —— 那一趟由驱动器就地作答，不惊动 agent。
      */
-    this.#unsubscribe = port.subscribe?.(() => {
+    this.#unsubscribe = port.subscribe(() => {
       this.refresh()
     })
 
@@ -167,14 +158,10 @@ export class AgentCapabilityStore {
   }
 
   /*
-   * 一张表到了。端口和代次都得对得上，否则它属于一个已经过去的问题。
+   * 一张表到了。端口和号都得对得上，否则它属于一个已经过去的问题。
    */
-  #adopt(
-    port: AgentCapabilityPort,
-    generation: number,
-    table: readonly SessionConfigControl[],
-  ): void {
-    if (this.#source !== port || generation !== this.#generation) {
+  #adopt(port: AgentCapabilityPort, ticket: number, table: readonly SessionConfigControl[]): void {
+    if (this.#source !== port || !this.#order.isLatest(ticket)) {
       return
     }
 
@@ -199,13 +186,12 @@ export class AgentCapabilityStore {
     }
 
     this.#asked = true
-    this.#generation += 1
 
-    const generation = this.#generation
+    const ticket = this.#order.issue()
 
     void port.read().then(
       (table) => {
-        this.#adopt(port, generation, table)
+        this.#adopt(port, ticket, table)
       },
       (cause: unknown) => {
         /* 失败不算问过：下一个看的人还能再试一次。 */
