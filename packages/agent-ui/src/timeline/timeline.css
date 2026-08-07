@@ -1384,16 +1384,16 @@
 /*
  * 图面板。
  *
- * 一块单色底、一片定高的舞台、右上角一枚浮层，就三样东西。卡片套卡片那一版上一批已经
- * 没了，这里不许再长回来。
+ * 一块单色底，一片画布，右上角一枚浮层。看图和看源码共用这一块底 —— 官方代码块自带的
+ * 外框、圆角、底色和顶上那行语言标签在这里全部按下去，只留它的高亮。块里再套一个块是
+ * 这块面板从一开始就要消灭的东西，源码视图也不例外。
  *
- * 高度写死：一张图有多高由图的内容决定，让面板跟着它长，短的时候塌成一条缝、长的时候把
- * 整段回答顶出屏幕 —— 转录区是一条流，流里每一块都得能被一眼扫过。定高之后装不下的部分
- * 交给舞台自己滚，鼠标可以按住拖。
+ * 高度写死并且给足：这是一张画布，能一眼看全整张图、还能拖得动，才叫看得见。
  */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
   --cp-diagram-height: 26rem;
+  --cp-diagram-tools: calc(var(--ui-control-height-sm) + 0.5rem);
 
   position: relative;
   margin-block: var(--cp-prose-flow);
@@ -1402,32 +1402,21 @@
   overflow: clip;
 }
 
-/* 看源码时这块底让位给官方代码块自己的底，面板只剩「浮层挂在哪」这一个作用。 */
-.timeline-prose__diagram[data-view="code"] {
-  background: none;
-}
-
-.timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
-  display: none;
-}
-
-/* 外层已经排过一次间距，代码块自带的上下外边距在这里是第二份。 */
-.timeline-prose__diagram [data-streamdown="code-block"] {
-  margin-block: 0;
-}
-
 /*
- * 舞台是一个滚动容器。图比它大就滚，比它小就居中；safe 保证小图居中、大图从左上角开始，
- * 而不是把左上角推到滚动区外面去。
+ * 舞台负责裁剪，不负责滚动。
+ *
+ * 滚动条只能沿两条轴走、拖到头就停、还在图上压出两根灰杠。这里要的是一张摊开的画布：
+ * 按住往哪都能拖，图比框大也不必先去找滚动条。Figma、draw.io、Excalidraw 一律是这个
+ * 模型，上游那个 pan-zoom 组件用的也是 transform 而不是滚动。
+ *
+ * 整块都能抓，不是只有线条上能抓：能拖的面积就是这一整块 26rem。
  */
 .timeline-prose__diagram-stage {
-  display: grid;
-  place-content: safe center;
+  position: relative;
   block-size: var(--cp-diagram-height);
-  padding: var(--cp-diagram-pad);
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   cursor: grab;
+  touch-action: none;
   user-select: none;
 }
 
@@ -1436,11 +1425,53 @@
 }
 
 /*
+ * 内容层铺满舞台并居中，位移与缩放写在它的 transform 上。原点在中心，于是按钮缩放围绕
+ * 视野中心、Ctrl 滚轮缩放围绕指针，图不会一放大就往左上角跑。
+ */
+.timeline-prose__diagram-canvas {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
+  display: none;
+}
+
+/*
+ * 源码视图：要官方代码块的高亮，不要它的壳。
+ *
+ * 外框、圆角、自己的底色会在这块底上再叠一层卡片；顶上那行语言标签也是多余的 —— 这块
+ * 面板只可能出现一种语言。留白顶上多让出一枚浮层的高度，免得工具条压住第一行代码。
+ */
+.timeline-prose__diagram [data-streamdown="code-block"] {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.timeline-prose__diagram [data-streamdown="code-block-header"] {
+  display: none;
+}
+
+.timeline-prose__diagram [data-streamdown="code-block-body"] {
+  max-block-size: var(--cp-diagram-height);
+  padding: var(--cp-diagram-pad);
+  padding-block-start: calc(var(--cp-diagram-pad) + var(--cp-diagram-tools));
+  overflow: auto;
+}
+
+/*
  * 控件浮在图上，鼠标进来才出现。
  *
  * 常驻会一直压着右上角那块内容。这是一个 Windows 桌面应用，指针一定在，hover 就是它该有
- * 的触发条件，不需要为触摸再补一套。键盘走 focus-within：Tab 进来它同样出现，否则那几个
- * 按钮就是焦点顺序里几个看不见的落点。
+ * 的触发条件。键盘走 focus-within：Tab 进来它同样出现，否则那几个按钮就是焦点顺序里几个
+ * 看不见的落点。
  */
 .timeline-prose__diagram-tools {
   position: absolute;

@@ -4,11 +4,11 @@ import { CodeBlock, CodeBlockCopyButton } from 'streamdown'
 import { CodeIcon, PreviewIcon, ResetIcon, ZoomInIcon, ZoomOutIcon } from '../primitives/icons'
 
 /*
- * 一张图，一块面板。
+ * 一张图，一块画布。
  *
  * mermaid 围栏由这里接管：上游的自定义渲染器分支排在它自带的 mermaid 分支之前，注册了这
- * 一条之后，那套「外层卡片 + 一行语言标签 + 悬在渲染区上方的按钮 + 内层卡片」不再有机会
- * 出现。面板长什么样归 timeline.css，与代码块、表格同一处。
+ * 一条之后，那套「外层卡片 + 语言标签 + 悬在渲染区上方的按钮 + 内层卡片」不再有机会出现。
+ * 面板长什么样归 timeline.css，与代码块、表格同一处。
  *
  * isIncomplete 由上游给：流式进行中、且这是最后一块、且围栏尚未闭合。「写完了没有」因此
  * 按围栏计，不按整条消息计 —— 官方 Streaming Considerations 一节给的正是这条路径。围栏
@@ -16,6 +16,11 @@ import { CodeIcon, PreviewIcon, ResetIcon, ZoomInIcon, ZoomOutIcon } from '../pr
  */
 
 type Engine = ReturnType<typeof import('@streamdown/mermaid')['mermaid']['getMermaid']>
+
+type Size = { readonly height: number; readonly width: number }
+
+/* 视口：图在画布上的位移与倍率。这三个数是「现在看到的是哪一块」的唯一真相。 */
+type View = { readonly x: number; readonly y: number; readonly zoom: number }
 
 /*
  * 引擎的配置只说一次：getMermaid 初始化的是模块级单例，两份配置轮流生效意味着同一段源码
@@ -35,12 +40,19 @@ const CONFIG = {
 } as const
 
 /*
- * 缩放的上下限与上游取齐（它那个 pan-zoom 组件是 minZoom 0.5 / maxZoom 3）。步长不同：
- * 那边是滚轮连续缩放所以取 0.1，这里一次点击走一档，0.25 才看得出变化。
+ * 倍率按等比走，不按等差。
+ *
+ * 加法步长在两头的手感是两回事：0.3 倍时 +0.25 是放大 83%，3 倍时同样的 +0.25 只有 8%。
+ * 等比每一档都是 25%，从头到尾一个手感 —— 所有以缩放为主的工具都用等比。
+ *
+ * 下限压到 0.1：适配一张巨图算出来的倍率可能远小于 0.5，下限卡在半倍等于让「看全」失效。
  */
-const ZOOM_MIN = 0.5
-const ZOOM_MAX = 3
-const ZOOM_STEP = 0.25
+const ZOOM_MIN = 0.1
+const ZOOM_MAX = 4
+const ZOOM_RATE = 1.25
+
+/* 适配后四周留出来的空气，让图不贴着框边。 */
+const INSET = 24
 
 /*
  * 布局引擎按需取，取回来的整个进程共用一台：它在首屏那个 chunk 里是纯负担，一条一张图都
@@ -61,28 +73,46 @@ function diagramEngine(): Promise<Engine> {
   return engine
 }
 
+function clampZoom(zoom: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
+}
+
 /*
- * 图该有多大，由 viewBox 说了算。
+ * 打开时该有的倍率：整张图刚好露出来。
  *
- * 引擎交出来的 svg 自带 width="100%" 和一条 max-width 内联样式，于是它永远缩到正文栏宽 ——
- * 一张十来个参与者的时序图落进 700px，字就只剩几个像素高。viewBox 是这张图自己的坐标尺寸，
- * viewBox.baseVal 是 SVG DOM 的官方读法，拿它按倍数写死像素宽高，图就按自己的尺寸出现，
- * 装不下的部分交给舞台去滚。max-width 必须一并解除，否则放大到超过它之后再也大不上去。
- *
- * 没有 viewBox 的图（baseVal 全零）保持引擎自己的尺寸，不去猜。
+ * 宽高两个方向各算一次，取小的那个，再封顶在 1 —— 小图不必被吹大。量不出来（框还没有
+ * 尺寸、图没有 viewBox）就交回 undefined，由调用方保持原样，别拿一个 0 把图缩没。
  */
-function fit(node: SVGSVGElement, zoom: number): void {
+function fitZoom(host: HTMLElement, of: Size): number | undefined {
+  const across = (host.clientWidth - INSET * 2) / of.width
+  const down = (host.clientHeight - INSET * 2) / of.height
+
+  if (!Number.isFinite(across) || !Number.isFinite(down) || across <= 0 || down <= 0) {
+    return undefined
+  }
+
+  return clampZoom(Math.min(1, across, down))
+}
+
+/*
+ * 引擎交出来的 svg 自带 width="100%" 与一条 max-width：那是给「跟着栏宽走」用的，在画布上
+ * 它意味着图永远只有一栏宽。viewBox 是这张图自己的坐标尺寸（viewBox.baseVal 是 SVG DOM
+ * 的官方读法），按它写死像素，图才有真实大小；缩放是外面那层 transform 的事，与它无关。
+ */
+function ground(node: SVGSVGElement): Size {
   const box = node.viewBox.baseVal
 
   if (box.width === 0 || box.height === 0) {
-    return
+    return { height: 0, width: 0 }
   }
 
   node.removeAttribute('width')
   node.removeAttribute('height')
   node.style.maxWidth = 'none'
-  node.style.width = `${Math.round(box.width * zoom)}px`
-  node.style.height = `${Math.round(box.height * zoom)}px`
+  node.style.width = `${box.width}px`
+  node.style.height = `${box.height}px`
+
+  return { height: box.height, width: box.width }
 }
 
 /* 画图这件事本身：一段源码进去，一个 svg 元素或者一句失败原因出来。 */
@@ -142,46 +172,188 @@ function useDiagramSvg(code: string, isIncomplete: boolean) {
 }
 
 /*
- * 按住左键拖动 = 滚动这个容器。
+ * Ctrl / ⌘ + 滚轮缩放。
  *
- * 舞台本身是 overflow: auto，触控板、触摸屏、滚轮因此天生就能推动它。上游那套是给内容加
- * transform: translate()，内容被挪出容器之后滚动条与内容对不上，还得在 wheel 里
- * preventDefault 把滚轮据为己有 —— 页面从此在图上滚不动。这里只补鼠标按住拖这一件事：
- * 指针事件 + setPointerCapture 是平台官方做法，指针滑出元素也不会丢。
+ * 只能自己挂监听：React 把 wheel、touchstart、touchmove 一律注册成被动监听器
+ * （react-dom 的事件系统对这三个事件写死 passive: true），被动监听里 preventDefault 无效，
+ * 浏览器会照样去缩放整个页面。
+ *
+ * 不带修饰键的滚轮一概不接 —— 这块面板长在一条会话流里，把滚轮据为己有等于让读者在图上
+ * 划不动页面。上游那个 pan-zoom 组件就是这么做的，这一条不抄。
  */
-function useDragScroll() {
-  const from = useRef<{ x: number; y: number } | null>(null)
+function useWheelZoom(
+  stage: React.RefObject<HTMLDivElement | null>,
+  zoomAt: (rate: number, at: { x: number; y: number }) => void,
+) {
+  useEffect(() => {
+    const host = stage.current
 
+    if (host === null) {
+      return
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return
+      }
+
+      event.preventDefault()
+
+      const box = host.getBoundingClientRect()
+
+      zoomAt(event.deltaY < 0 ? ZOOM_RATE : 1 / ZOOM_RATE, {
+        x: event.clientX - box.left - box.width / 2,
+        y: event.clientY - box.top - box.height / 2,
+      })
+    }
+
+    host.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => {
+      host.removeEventListener('wheel', onWheel)
+    }
+  }, [stage, zoomAt])
+}
+
+/*
+ * 画布的视口。
+ *
+ * 不用滚动容器：滚动只能沿两条轴走、拖到头就停、还要在图上压两根灰杠。这里是一张摊开的
+ * 画布 —— 按住往哪都能拖，位移与倍率合起来是一条 transform。专业绘图工具一律是这个模型。
+ */
+function useCanvas(graphic: SVGSVGElement | undefined) {
+  const stage = useRef<HTMLDivElement | null>(null)
+  const natural = useRef<Size>({ height: 0, width: 0 })
+  const grip = useRef<{ x: number; y: number } | null>(null)
+  /* 用户还没动过手 —— 只有这种时候，框的尺寸一变才允许替他重新适配。 */
+  const untouched = useRef(true)
+  const [view, setView] = useState<View>({ x: 0, y: 0, zoom: 1 })
+
+  const home = useCallback(() => {
+    const host = stage.current
+
+    if (host === null) {
+      return
+    }
+
+    const zoom = fitZoom(host, natural.current)
+
+    if (zoom === undefined) {
+      return
+    }
+
+    untouched.current = true
+    setView({ x: 0, y: 0, zoom })
+  }, [])
+
+  /*
+   * at 是指针相对框中心的位置。缩放前后让它底下那个点原地不动，图就是「以指针为锚」在
+   * 放大；不给 at 就围绕视野中心 —— 按钮走的是这一条。
+   */
+  const zoomAt = useCallback((rate: number, at?: { x: number; y: number }) => {
+    untouched.current = false
+    setView((last) => {
+      const zoom = clampZoom(last.zoom * rate)
+
+      if (at === undefined) {
+        return { ...last, zoom }
+      }
+
+      const ratio = zoom / last.zoom
+
+      return { x: at.x - (at.x - last.x) * ratio, y: at.y - (at.y - last.y) * ratio, zoom }
+    })
+  }, [])
+
+  /*
+   * 上屏走 ref 回调，不走 effect：effect 只在依赖变化时跑，而节点是否已经挂上去与依赖无
+   * 关，节点晚一步出现就再没有人重试。ref 回调由 React 在挂载那一刻调用，数据先到还是
+   * 节点先到都成立。这一片 DOM 归这个回调独有，所以它下面不放任何 React 子节点。
+   */
+  const mount = useCallback(
+    (host: HTMLDivElement | null) => {
+      if (host === null || graphic === undefined) {
+        return
+      }
+
+      const node = host.ownerDocument.importNode(graphic, true)
+
+      natural.current = ground(node)
+      host.replaceChildren(node)
+    },
+    [graphic],
+  )
+
+  /* 换了一张图就重新适配：ref 回调在 effect 之前跑完，尺寸这时已经是新的。 */
+  useEffect(() => {
+    home()
+  }, [graphic, home])
+
+  /*
+   * 框的尺寸不是一开始就知道的：窗口会缩放，面板在源码视图下是 display: none（量出来是
+   * 零），切回来才有真实尺寸。ResizeObserver 是平台官方的答案，它在开始观察时先报一次
+   * 当前尺寸，首屏那次适配也一并由它兜住。
+   */
+  useEffect(() => {
+    const host = stage.current
+
+    if (host === null) {
+      return
+    }
+
+    const watch = new ResizeObserver(() => {
+      if (untouched.current) {
+        home()
+      }
+    })
+
+    watch.observe(host)
+
+    return () => {
+      watch.disconnect()
+    }
+  }, [home])
+
+  useWheelZoom(stage, zoomAt)
+
+  /*
+   * 按住拖。setPointerCapture 之后指针滑出面板、滑出窗口都还算数，松手才结束 —— 这是
+   * 指针事件规范给的能力，自己在 window 上补 mousemove / mouseup 是同一件事的手写版。
+   */
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== 'mouse' || event.button !== 0) {
+    if (event.button !== 0) {
       return
     }
 
     event.currentTarget.setPointerCapture(event.pointerId)
-    from.current = { x: event.clientX, y: event.clientY }
+    grip.current = { x: event.clientX, y: event.clientY }
   }
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const last = from.current
+    const last = grip.current
 
     if (last === null) {
       return
     }
 
-    event.currentTarget.scrollBy(last.x - event.clientX, last.y - event.clientY)
-    from.current = { x: event.clientX, y: event.clientY }
+    const dx = event.clientX - last.x
+    const dy = event.clientY - last.y
+
+    grip.current = { x: event.clientX, y: event.clientY }
+    untouched.current = false
+    setView((now) => ({ ...now, x: now.x + dx, y: now.y + dy }))
   }
 
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    if (from.current === null) {
+    if (grip.current === null) {
       return
     }
 
     event.currentTarget.releasePointerCapture(event.pointerId)
-    from.current = null
+    grip.current = null
   }
 
-  return { onPointerDown, onPointerMove, onPointerUp }
+  return { home, mount, onPointerDown, onPointerMove, onPointerUp, stage, view, zoomAt }
 }
 
 export interface DiagramProps {
@@ -191,47 +363,12 @@ export interface DiagramProps {
 
 export function Diagram({ code, isIncomplete }: DiagramProps) {
   const { failure, graphic } = useDiagramSvg(code, isIncomplete)
-  const drag = useDragScroll()
-  const shown = useRef<SVGSVGElement | null>(null)
+  const canvas = useCanvas(graphic)
   const [asCode, setAsCode] = useState(false)
-  const [zoom, setZoom] = useState(1)
-
-  /*
-   * 上屏走 ref 回调，不走 effect。
-   *
-   * effect 只在依赖变化时跑，而画布是否已经挂上去与依赖无关：上一版把画布放在一个条件
-   * 分支里，节点晚一步出现，那一次 effect 拿到的就是 null，此后再没有人重试 —— 屏幕上那块
-   * 什么都没有的面板就是这么来的。ref 回调由 React 在节点挂载的那一刻调用，数据先到还是
-   * 节点先到都成立。这一片 DOM 归这个回调独有，所以它下面不放任何 React 子节点。
-   */
-  const mount = useCallback(
-    (host: HTMLDivElement | null) => {
-      if (host === null || graphic === undefined) {
-        shown.current = null
-
-        return
-      }
-
-      const node = host.ownerDocument.importNode(graphic, true)
-
-      shown.current = node
-      host.replaceChildren(node)
-    },
-    [graphic],
-  )
-
-  /* ref 先挂、effect 后跑，所以这里一定拿得到刚贴上去的那个节点。 */
-  useEffect(() => {
-    const node = shown.current
-
-    if (node !== null) {
-      fit(node, zoom)
-    }
-  }, [graphic, zoom])
-
   const showCode = asCode || graphic === undefined
   const Toggle = showCode ? PreviewIcon : CodeIcon
   const toggle = showCode ? '看图' : '看源码'
+  const { x, y, zoom } = canvas.view
 
   return (
     <div className="timeline-prose__diagram" data-view={showCode ? 'code' : 'diagram'}>
@@ -257,7 +394,7 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               className="timeline-prose__diagram-tool"
               disabled={zoom <= ZOOM_MIN}
               onClick={() => {
-                setZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))
+                canvas.zoomAt(1 / ZOOM_RATE)
               }}
               title="缩小"
               type="button"
@@ -269,7 +406,7 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               className="timeline-prose__diagram-tool"
               disabled={zoom >= ZOOM_MAX}
               onClick={() => {
-                setZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))
+                canvas.zoomAt(ZOOM_RATE)
               }}
               title="放大"
               type="button"
@@ -277,13 +414,10 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
               <ZoomInIcon aria-hidden="true" />
             </button>
             <button
-              aria-label="还原比例"
+              aria-label="看全整张图"
               className="timeline-prose__diagram-tool"
-              disabled={zoom === 1}
-              onClick={() => {
-                setZoom(1)
-              }}
-              title="还原比例"
+              onClick={canvas.home}
+              title="看全整张图"
               type="button"
             >
               <ResetIcon aria-hidden="true" />
@@ -296,12 +430,18 @@ export function Diagram({ code, isIncomplete }: DiagramProps) {
       )}
       <div
         className="timeline-prose__diagram-stage"
-        onPointerCancel={drag.onPointerUp}
-        onPointerDown={drag.onPointerDown}
-        onPointerMove={drag.onPointerMove}
-        onPointerUp={drag.onPointerUp}
-        ref={mount}
-      />
+        onPointerCancel={canvas.onPointerUp}
+        onPointerDown={canvas.onPointerDown}
+        onPointerMove={canvas.onPointerMove}
+        onPointerUp={canvas.onPointerUp}
+        ref={canvas.stage}
+      >
+        <div
+          className="timeline-prose__diagram-canvas"
+          ref={canvas.mount}
+          style={{ transform: `translate(${x}px, ${y}px) scale(${zoom})` }}
+        />
+      </div>
       {showCode && (
         <CodeBlock code={code} isIncomplete={isIncomplete} language="mermaid" lineNumbers={false} />
       )}
