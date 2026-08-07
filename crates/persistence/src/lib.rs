@@ -10,11 +10,6 @@
 //!
 //! 也正因为如此，这里没有秘密可保：七列元数据的那份副本，挡不住任何一个能
 //! 读到 agent 那份明文全文的人。
-//!
-//! workspace_state 不在这四个问题之内，也不走这张库：工作台的标签布局按仓库
-//! 分域、每次整份覆盖、崩溃时只需要「要么旧的要么新的」，同目录 rename 就给得
-//! 出这份原子性，不需要事务、索引或迁移。它此刻寄居在本 crate 里，这件事本身
-//! 仍待重新安置 —— 它记的不是 agent 的状态。
 
 mod attachments;
 mod connection;
@@ -22,7 +17,6 @@ mod error;
 mod migrations;
 mod store;
 mod threads;
-pub mod workspace_state;
 
 pub use attachments::ThreadAttachment;
 pub use connection::DEFAULT_BUSY_TIMEOUT;

@@ -6,10 +6,8 @@ import { useSyncExternalStore } from 'react'
  *
  * 住在应用层，不住在 agent-ui 里。它是一份用户偏好：有存储键、有跨窗口语义、
  * 一个进程里只该有一份 —— 这三件事都是宿主的事实，而 agent-ui 是一包展示组件。
- * 此前它在 packages/agent-ui/src/threads/workspace-collapse.ts，被
- * AssistantThreadList 直接 import：一个展示组件由此绑死一份模块级可变状态，
- * 同一份列表在同一个进程里画两次就会互相打断，也没法在没有 localStorage 的
- * 环境里渲染（列表的折叠因此一条测试都没有）。现在列表只收一个集合和一个动作。
+ * 列表只收一个集合和一个动作：展示组件不绑死模块级可变状态，因此同一份列表在
+ * 一个进程里画两次不会互相打断，也能在没有 localStorage 的环境里渲染。
  *
  * 落盘用 localStorage，不走 @poietica/settings：那条管线是异步的（AppShell 在
  * effect 里 await runtime.settings.load()），第一帧读不到值，于是每次开窗所有

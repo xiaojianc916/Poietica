@@ -129,34 +129,4 @@ describe('workbench session controller', () => {
       activeSurface: { kind: 'workspace', surfaceId: 'ai' },
     })
   })
-
-  it('clamps invalid persisted active indexes back into range', async () => {
-    const store = createWorkbenchSessionController({
-      persistence: {
-        async read() {
-          return {
-            version: 1,
-            activeIndex: Number.NaN,
-            tabs: [
-              { kind: 'workspace', surfaceId: 'ai' },
-              { kind: 'workspace', surfaceId: 'tools' },
-            ],
-          }
-        },
-        async write() {
-          return undefined
-        },
-      },
-      workspaceKey: 'workbench-test',
-    })
-
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(store.getSnapshot().activeTabId).toBe('workspace:ai')
-    expect(store.getSnapshot().tabs.map((tab) => tab.id)).toEqual([
-      'workspace:ai',
-      'workspace:tools',
-    ])
-  })
 })

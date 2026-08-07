@@ -1,5 +1,3 @@
-import { warn } from '@poietica/observability'
-import type { PersistedWorkbenchState, WorkbenchStatePort } from './persistence'
 import {
   CONVERSATION_ENTRY_TITLE,
   DEFAULT_SURFACE_ID,
@@ -34,8 +32,7 @@ interface WorkspaceEntry {
  * 工作台状态。
  *
  * 活动标签由索引持有，不是第二个 id 字段：只要 tabs 非空、activeIndex 落在
- * 界内，「恰好一个 active」就是结构性的真，不可能不成立。此前 activeTabId 与
- * entries 是两个独立可变量，四条运行时不变量就是为了看住它们对不上的那一刻。
+ * 界内，「恰好一个 active」就是结构性的真，不可能不成立。
  */
 interface WorkbenchState {
   readonly entries: readonly Entry[]
@@ -305,41 +302,7 @@ function project(state: WorkbenchState): WorkbenchViewModel {
   }
 }
 
-/* ── 持久化编解码 ─────────────────────────────────────────────────── */
-
-function encode(state: WorkbenchState): PersistedWorkbenchState {
-  return {
-    version: 1,
-    activeIndex: state.activeIndex,
-    tabs: state.entries.map((entry) =>
-      entry.kind === 'conversation'
-        ? { kind: 'conversation', threadId: entry.threadId, title: entry.title }
-        : { kind: 'workspace', surfaceId: entry.surfaceId },
-    ),
-  }
-}
-
-function decode(persisted: PersistedWorkbenchState): WorkbenchState {
-  const entries = persisted.tabs.map<Entry>((tab) =>
-    tab.kind === 'conversation'
-      ? { kind: 'conversation', threadId: tab.threadId, title: tab.title }
-      : { kind: 'workspace', surfaceId: tab.surfaceId },
-  )
-
-  return settle(entries, persisted.activeIndex)
-}
-
-export interface WorkbenchSessionControllerOptions {
-  /** 工作台状态按工作区分域，键见 WorkbenchStatePort。缺省则不落盘。 */
-  readonly workspaceKey?: string | undefined
-  readonly persistence?: WorkbenchStatePort | undefined
-}
-
-export function createWorkbenchSessionController(
-  options: WorkbenchSessionControllerOptions = {},
-): WorkbenchSessionStore {
-  const { workspaceKey, persistence } = options
-
+export function createWorkbenchSessionController(): WorkbenchSessionStore {
   let state = INITIAL_STATE
   let snapshot = project(state)
   const listeners = new Set<() => void>()
@@ -356,28 +319,6 @@ export function createWorkbenchSessionController(
     for (const listener of listeners) {
       listener()
     }
-
-    if (workspaceKey !== undefined && persistence !== undefined) {
-      /*
-       * 写盘失败只影响下次启动的还原，不该把用户这次的操作打断，
-       * 所以在这里终结而不是往上抛；但不吞掉——交给宿主的错误通道。
-       */
-      void persistence.write(workspaceKey, encode(state)).catch((cause: unknown) => {
-        reportPersistFailure(cause)
-      })
-    }
-  }
-
-  /* 启动还原：这个工作区自己的工作台状态，重启后原样回来。 */
-  if (workspaceKey !== undefined && persistence !== undefined) {
-    void persistence
-      .read(workspaceKey)
-      .then((persisted) => {
-        if (persisted !== null) {
-          commit(decode(persisted))
-        }
-      })
-      .catch(reportPersistFailure)
   }
 
   return {
@@ -417,10 +358,6 @@ export function createWorkbenchSessionController(
       commit(moveTab(state, tabId, targetIndex))
     },
   }
-}
-
-function reportPersistFailure(cause: unknown): void {
-  warn('工作台状态持久化失败，下次启动将回到默认布局', { scope: 'workbench', cause })
 }
 
 export { CONVERSATION_ENTRY_TITLE }

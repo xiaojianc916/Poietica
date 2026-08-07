@@ -8,9 +8,7 @@ import { WORKSPACE_LAYOUT } from './workspace-layout'
  * 工作区布局状态的唯一所有者。
  *
  * 可见性与宽度是跨会话保留的产品状态，isResizing 是单次拖拽内的瞬时状态。
- * 两者都在这里：拖拽态曾经同时存在于 useSidebarResize 与 WorkspaceShell 的
- * 两个 useState 里，靠 onResizeStart / onResizeEnd 两个 prop 手工对齐，
- * 那是两份真相而不是一份加一个通道。
+ * 两者都在这里：拖拽态一旦散进组件本地态就成了两份真相，而不是一份加一个通道。
  */
 export interface WorkspaceLayoutState {
   readonly sidebarOpen: boolean
@@ -33,10 +31,7 @@ function clampSidebarWidth(width: number): number {
   )
 }
 
-/*
- * 持久化形状由 schema 声明，逐字段兜底交给 valibot。
- * 此前是三个手写的 typeof 三元，每加一个字段就多一段同构的校验代码。
- */
+/* 持久化形状由 schema 声明，逐字段兜底交给 valibot，不手写 typeof 校验。 */
 const PersistedLayoutSchema = v.object({
   sidebarOpen: v.fallback(v.boolean(), DEFAULT_STATE.sidebarOpen),
   sidebarWidth: v.fallback(
@@ -113,8 +108,7 @@ class WorkspaceLayoutStore {
     /*
      * 只在离散的用户意图落定时写盘。拖拽期间每一帧都会提交宽度，但松手那一次
      * 提交本身就把 isResizing 置回 false，最终宽度随之落盘——因此不需要
-     * requestAnimationFrame 合并、不需要定时器、也不需要"无 rAF 环境"分支。
-     * 那个分支此前会让持久化在该环境下永久静默失效。
+     * requestAnimationFrame 合并，也不需要定时器。
      */
     if (!next.isResizing) {
       this.#persist()

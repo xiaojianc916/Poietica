@@ -10,9 +10,8 @@ import { createContext, useCallback, useContext, useMemo, useSyncExternalStore }
  * same state: two copies would let the list highlight one conversation
  * while the tabs believe another is open.
  *
- * Context 里放的是 store 本身，引用终生不变。此前放的是一个每次渲染都新建
- * 的选择对象，于是任何一处状态变动都会让每一个消费者连同它下面整棵树重画
- * ——包括正在流式输出的那条对话。谁重画由订阅决定，不由 Provider 决定。
+ * Context 里放的是 store 本身，引用终生不变：谁重画由订阅决定，不由 Provider
+ * 决定。放一个每次渲染新建的对象会让每个消费者连同整棵子树一起重画。
  *
  * 这个模块不导出组件，Provider 在 ThreadsProvider.tsx。那不是分层洁癖：
  * createContext() 在模块顶层执行，context 的身份就是这一次执行的产物，而
@@ -64,15 +63,11 @@ export function useThreadsList(): ThreadWorkspaceList {
 /*
  * 一格只订自己要的那一片。
  *
- * 这里此前是 useSharedThreads：它订阅整份 Held 快照，却把 useSyncExternalStore
- * 的返回值原地丢掉 —— 订了一切，一样都没读。而 #commit 每次提交都换一个 Held
- * 对象（{ ...this.#held, ...patch }，十一个调用点，其中 #remember 是 agent 主动
- * 上报的落点），于是「另一条对话认领到了选择器」这种与本格无关的事实，会让
- * ConversationSurface 连同它下面整棵助手树 —— 转录、虚拟列表、输入框 —— 重画。
+ * #commit 每次提交都换一个 Held 对象，订阅整份快照就等于让「另一条对话认领到了
+ * 选择器」这种与本格无关的事实重画整棵助手树 —— 转录、虚拟列表、输入框。
  *
  * 切片天然是引用稳定的：selectors 那张表由 #with 维护，值没变就原样交回同一个
- * Map，useSyncExternalStore 自己就会跳过。与转录那一侧的 useSlice 同一个形状，
- * 不是第二套办法。
+ * Map，useSyncExternalStore 自己就会跳过。与转录那一侧的 useSlice 同一个形状。
  */
 
 /** 这条对话的选择器；还没拿到过是 undefined。 */

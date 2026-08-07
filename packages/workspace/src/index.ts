@@ -1,8 +1,4 @@
-/*
- * 包的公开面。显式罗列而不是 export *：
- * 此前靠 biome-ignore-all 压掉 noReExportAll，被压掉的规则说的正是
- * 「谁在用什么」从此看不见——那不是误报。
- */
+/* 包的公开面。显式罗列而不是 export *：谁在用什么必须一眼可见。 */
 export type {
   RegisteredCommand,
   UICommand,
@@ -24,11 +20,6 @@ export type {
   WorkspacePartId,
   WorkspaceParts,
 } from './parts'
-export {
-  type PersistedWorkbenchState,
-  PersistedWorkbenchStateSchema,
-  type WorkbenchStatePort,
-} from './persistence'
 export {
   SidebarFooter,
   type SidebarFooterProps,
