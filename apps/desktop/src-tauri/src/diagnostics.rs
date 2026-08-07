@@ -1,9 +1,4 @@
-use std::{
-    backtrace::Backtrace,
-    fs,
-    panic::PanicHookInfo,
-    path::Path,
-};
+use std::{backtrace::Backtrace, fs, panic::PanicHookInfo, path::Path};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
