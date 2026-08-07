@@ -936,6 +936,7 @@ fn asset_response(
      *
      * 能选的只有由谁来付。bootstrap/app.rs 用异步协议把整个处理器搬进
      * spawn_blocking，所以付这笔账的不是画窗口的那条线程。
+     */
     let slice = asset
         .bytes
         .get(usize::try_from(start).unwrap_or(usize::MAX)..=usize::try_from(end).unwrap_or(0))

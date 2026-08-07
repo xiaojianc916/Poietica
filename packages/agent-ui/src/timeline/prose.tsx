@@ -1,9 +1,8 @@
-import { createExternalStore } from '@poietica/core'
 import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import 'katex/dist/katex.min.css'
-import { memo, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { memo, useMemo, useState } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
@@ -13,6 +12,7 @@ import {
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
+import { DIAGRAM_RENDERER } from './diagram'
 import { createBlockScanner, type StreamBlock } from './split-stream'
 
 /*
@@ -30,71 +30,12 @@ import { createBlockScanner, type StreamBlock } from './split-stream'
  */
 const MATH = createMathPlugin({ singleDollarTextMath: true })
 
-/* 每一段文本都要走的三个。图表不在其中：它只在真的出现一段闭合围栏时才有事做。 */
-const PROSE_PLUGINS = { cjk, code, math: MATH }
-
-/*
- * 图表引擎在第一段图出现时才载入。
- *
- * 它的 render 是一次同步的图布局（dagre），单次以十毫秒计 —— 一个还没闭合的围栏落在
- * 在写段里，就是每一帧拿一份不完整的源码跑一次布局，而这一帧的产物必然在下一帧作废。
- * 所以在写的那一段本来就不带它。
- *
- * 同一笔账在时间轴上还有更靠前的一段：静态 import 把整个布局引擎放进首屏那个 chunk，
- * 于是一条一张图都没有的会话，也要在窗口呈现之前解析完它。动态 import 是 ESM 与打包器
- * 官方的代码分割形态 —— 引擎单独成块，用得上才取。
- *
- * 取回来之前那一段照常渲染：围栏由 code 插件着色，与它在流式期间的样子逐字相同。
- * 那是这个产品已经在显示的中间态，不是一个新的空白态。
- */
-type DiagramPlugins = typeof PROSE_PLUGINS & {
-  readonly mermaid: typeof import('@streamdown/mermaid')['mermaid']
-}
-
-/* 载没载入是进程级的唯一事实，所以只有一份，也只有一个通知点。 */
-let diagrams: DiagramPlugins | undefined
-
-const diagramStore = createExternalStore<DiagramPlugins | undefined>({ read: () => diagrams })
-
-let requesting = false
-
-function requestDiagrams(): void {
-  if (requesting || diagrams !== undefined) {
-    return
-  }
-
-  requesting = true
-
-  void import('@streamdown/mermaid')
-    .then((module) => {
-      diagrams = { ...PROSE_PLUGINS, mermaid: module.mermaid }
-
-      diagramStore.notify()
-    })
-    .catch((cause: unknown) => {
-      /* 取不回来不是这个进程此后的定局：重新武装，下一段图再试一次。期间围栏仍然是
-         一个可读的着色代码块，内容一个字都没少。 */
-      requesting = false
-
-      console.error('[Poietica] Failed to load the diagram renderer', cause)
-    })
-}
-
-/** 一段封口文本里有没有图表围栏。在写的那一段不问：它还会变。 */
-const DIAGRAM_FENCE = /^ {0,3}(?:```|~~~)[ \t]*mermaid\b/m
-
-function useProsePlugins(text: string, isStreaming: boolean): typeof PROSE_PLUGINS {
-  const wanted = !isStreaming && DIAGRAM_FENCE.test(text)
-  const read = diagramStore.read
-  const loaded = useSyncExternalStore(diagramStore.subscribe, read, read)
-
-  useEffect(() => {
-    if (wanted) {
-      requestDiagrams()
-    }
-  }, [wanted])
-
-  return wanted && loaded !== undefined ? loaded : PROSE_PLUGINS
+/* 每一段文本都要走的四个。图那一条不带引擎：引擎在真的出现一张图时才取，取在 diagram.tsx。 */
+const PROSE_PLUGINS = {
+  cjk,
+  code,
+  math: MATH,
+  renderers: [DIAGRAM_RENDERER],
 }
 
 /*
@@ -137,9 +78,6 @@ const ANIMATION: AnimateOptions = {
  */
 const CONTROLS: ControlsConfig = {
   code: { copy: true, download: false },
-  // controls 的默认值是 true，未具名的组按全开处理 —— mermaid 此前白得一个
-  // 与 code/table 口径相反的下载按钮，同时漏掉了本该要的 panZoom。
-  mermaid: { copy: true, download: false, fullscreen: true, panZoom: true },
   table: { copy: true, download: false, fullscreen: true },
 }
 
@@ -170,7 +108,7 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
  *
  * linkSafety 默认 { enabled: true }（官方 Configuration 逐字），于是点任何链接都
  * 先弹一个确认框。可这个应用早已在 document 的 capture 阶段接管了全部外链
- * （apps/desktop 的 presentation/chrome/external-links.ts），链接从来不会在 webview
+ * （apps/desktop 的 src/chrome/external-links.ts），链接从来不会在 webview
  * 里导航 —— 弹窗因此不保护任何东西，它只是在系统浏览器已经被唤起之后，多留一个
  * 要人再点一次的框。
  *
@@ -257,8 +195,6 @@ export const ProseSegment = memo(function ProseSegment({
   readonly isStreaming: boolean
   readonly text: string
 }) {
-  const plugins = useProsePlugins(text, isStreaming)
-
   return (
     <Streamdown
       {...(isStreaming ? { animated: ANIMATION } : {})}
@@ -268,7 +204,7 @@ export const ProseSegment = memo(function ProseSegment({
       lineNumbers={false}
       linkSafety={LINK_SAFETY}
       mode={isStreaming ? 'streaming' : 'static'}
-      plugins={plugins}
+      plugins={PROSE_PLUGINS}
       translations={TRANSLATIONS}
     >
       {text}
