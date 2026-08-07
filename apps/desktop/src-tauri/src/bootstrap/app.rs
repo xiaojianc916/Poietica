@@ -5,7 +5,7 @@ use tauri_plugin_window_state::{StateFlags, WindowExt};
 use super::{logging, tray};
 use crate::asset_protocol::{ASSET_PROTOCOL_SCHEME, AssetProtocolRegistry};
 use crate::commands;
-use crate::paths::{AGENTS_STORE, AUTOMATIONS_STORE, SETTINGS_STORE};
+use crate::paths;
 
 /// Label of the only window this application declares. Matches tauri.conf.json.
 pub const MAIN_WINDOW: &str = "main";
@@ -75,7 +75,6 @@ pub fn build() -> tauri::Builder<Wry> {
                 });
             },
         )
-        .plugin(logging::plugin().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         /*
          * 初始几何恢复由下面的 setup 显式驱动，插件不做。
@@ -103,11 +102,19 @@ pub fn build() -> tauri::Builder<Wry> {
              * 生成的事件面必须在这里挂一次，否则 collect_events! 产出的类型化
              * 通道在运行期不存在。命令面走上面的 invoke_handler，两者同源。
              */
+            /*
+             * 日志比其余一切都早，因为出事时它是唯一的目击者。它没能更早
+             * 的原因只有一个：落点要先算出来。
+             */
+            let handle = app.handle();
+
+            handle.plugin(logging::plugin(paths::log_directory(handle)?).build())?;
+
             ipc.mount_events(app);
 
-            app.store(SETTINGS_STORE)?;
-            app.store(AGENTS_STORE)?;
-            app.store(AUTOMATIONS_STORE)?;
+            app.store(paths::settings_store(handle)?)?;
+            app.store(paths::agents_store(handle)?)?;
+            app.store(paths::automations_store(handle)?)?;
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

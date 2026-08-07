@@ -51,6 +51,7 @@ export interface AppShellRuntime {
   readonly agentConfig: AgentConfigStore
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
+  readonly dataDirectory: () => Promise<string>
 }
 
 export interface AppShellProps {
@@ -273,6 +274,7 @@ export function AppShell({ runtime }: AppShellProps) {
           appVersion={runtime.appVersion}
           capabilities={capabilities}
           commands={runtime.commands}
+          dataDirectory={runtime.dataDirectory}
           isSettingsOpen={isSettingsOpen && capabilities.settings}
           isWindowMaximized={isWindowMaximized}
           onDeveloperToolsOpen={openDeveloperTools}

@@ -57,6 +57,7 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.digicert.com",
       "nsis": {
+        "installerHooks": "installer-hooks.nsh",
         "installMode": "currentUser",
         "languages": ["English", "SimpChinese"],
         "displayLanguageSelector": true,

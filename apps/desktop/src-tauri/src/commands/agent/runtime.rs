@@ -5,7 +5,7 @@
 
 use crate::commands::agent_setup::profile::launch_env;
 use crate::error::{Error, Result};
-use crate::paths::{agent_database, attachments_root};
+use crate::paths::{attachments_root, thread_database};
 use poietica_agent_persistence_native::AgentStore;
 use poietica_agent_runtime_native::{
     AgentClient, AgentConnection, AgentSpawn, PermissionDesk, RunSlot, SessionBook, connect,
@@ -122,7 +122,7 @@ impl AgentRuntime {
         let root = handle.path().home_dir()?;
 
         Ok(Self {
-            database: agent_database(handle)?,
+            database: thread_database(handle)?,
             attachments: attachments_root(handle)?,
             root,
             connection: Mutex::new(None),

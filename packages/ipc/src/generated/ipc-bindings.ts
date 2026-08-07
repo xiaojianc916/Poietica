@@ -620,6 +620,16 @@ async updateRelaunch() : Promise<null> {
     return await TAURI_INVOKE("update_relaunch");
 },
 /**
+ * 这台机器上，这个应用的数据根。
+ * 
+ * # Errors
+ * 
+ * 根目录无法解析或创建时返回错误。
+ */
+async storageDataDirectory() : Promise<string> {
+    return await TAURI_INVOKE("storage_data_directory");
+},
+/**
  * 请系统的文件夹选择器给出一个工作目录。人按了取消就是 None。
  * 
  * 为什么是一条自己的命令，而不是让渲染层直接调 dialog 插件 —— 这与 opener 的

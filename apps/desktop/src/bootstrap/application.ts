@@ -8,6 +8,7 @@ import {
   createMainWindowController,
   type MainWindowController,
   readAppVersion,
+  readDataDirectory,
   type SettingsStore,
 } from '@poietica/desktop-adapters'
 import type { WorkbenchSessionStore } from '@poietica/workspace'
@@ -28,6 +29,8 @@ export interface ApplicationRuntime {
   readonly agentSession: AgentSessionPort
   /** 这个可执行文件自己的版本号。关于页面此前写死了它。 */
   readonly appVersion: () => Promise<string>
+  /** 这台机器上，这个应用的数据落在哪。关于页面要如实说出它。 */
+  readonly dataDirectory: () => Promise<string>
   readonly dispose: () => Promise<void>
 }
 
@@ -80,6 +83,7 @@ export function createApplicationRuntime(): ApplicationRuntime {
     agentConfig,
     agentSession: agent.port,
     appVersion: readAppVersion,
+    dataDirectory: readDataDirectory,
 
     async dispose() {
       releaseAgentChoice()

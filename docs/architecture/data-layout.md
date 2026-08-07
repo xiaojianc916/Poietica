@@ -1,55 +1,48 @@
 # 磁盘布局
 
-这个应用在用户机器上占了哪些位置。声明处是 `apps/desktop/src-tauri/src/paths.rs`，
-本文是它的人类可读版本，用来回答两个问题：卸载该清什么，备份该带走什么。
+这个应用在用户机器上占的位置只有一个根。它在哪，由两件事决定，顺序固定：
 
-目录名来自 `tauri.conf.json` 的 `identifier`（`com.poietica.Poietica`）。reverse-DNS
-是必须的：它同时是 macOS 的 bundle identifier。第三段是产品名，不是 `app`。
+1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
+2. 没有这个文件时，平台的本地数据目录下的 `Poietica`（Windows 上是
+   `%LOCALAPPDATA%\Poietica`）。
 
-## 两类落点
+唯一的声明处是 `apps/desktop/src-tauri/src/paths.rs`。没有第二个地方算路径，
+渲染层也不算 —— 关于页面显示的那一行来自 `storage_data_directory`，不是前端拼的。
 
-| 类别 | 判据 | 内容 |
+## 根下面有什么
+
+| 位置 | 是什么 | 删掉会怎样 |
 | --- | --- | --- |
-| 可漫游 `app_config_dir` | 小、跟人走 | 设置、agent 档案、窗口几何 |
-| 机器本地 `app_local_data_dir` | 大、与这台机器绑定 | 对话库、受控 home、日志、WebView2 缓存 |
+| `settings.json` | 主题、语言、快捷键、隐私开关 | 回到默认设置 |
+| `agents.json` | agent 接入档案与安装状态缓存 | 内置档案下次启动重新落盘 |
+| `automations.json` | 自动化定义 | 自动化全部消失 |
+| `threads.sqlite3` | 对话索引 | 对话列表清空 |
+| `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
+| `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
+| `logs/` | 运行日志与上一次原生崩溃报告 | 无影响 |
 
-对话库必须在本地一侧：Windows 的漫游配置文件会整份同步 `%APPDATA%`，而库开在
-WAL 模式下，被同步意味着登录变慢加上损坏风险。
+`threads.sqlite3` 开在 WAL 模式下，所以磁盘上实际是三个文件：它，加上同名的
+`-wal` 与 `-shm`。备份必须三个一起，只拷主文件会丢掉最近一段还没并回去的写入。
 
-## Windows
+## 安装期指定位置
 
-| 位置 | 内容 |
-| --- | --- |
-| `%APPDATA%\com.poietica.Poietica\settings.json` | 用户设置 |
-| `%APPDATA%\com.poietica.Poietica\agents.json` | Agent 接入档案与模型目录缓存（不含密钥） |
-| `%APPDATA%\com.poietica.Poietica\.window-state.json` | 窗口几何。文件名与位置由 tauri-plugin-window-state 拥有，不是本仓的命名 |
-| `%LOCALAPPDATA%\com.poietica.Poietica\agent.sqlite3`（含 `-wal`、`-shm`） | 全部对话，SQLCipher 加密 |
-| `%LOCALAPPDATA%\com.poietica.Poietica\agents\<agentId>\home\` | 每个 agent 的受控 HOME，由 agent 自己写 |
-| `%LOCALAPPDATA%\com.poietica.Poietica\logs\poietica.log` | 运行日志 |
-| `%LOCALAPPDATA%\com.poietica.Poietica\logs\last-native-crash.json` | 上一次原生崩溃 |
-| `%LOCALAPPDATA%\com.poietica.Poietica\EBWebView\` | WebView2 用户数据（localStorage、IndexedDB、缓存） |
-| Windows 凭据管理器 | `poietica / agent-store`（库主密钥）、`poietica / agent:<id>:<var>`（各 provider 凭据） |
+```
+Poietica_0.1.5_x64-setup.exe /DATA=D:\Poietica
+```
 
-用户主目录下没有任何东西。点目录（`~/.poietica` 之类）是 Unix 命令行工具的约定，
-Windows 不按点号隐藏文件，而主目录是用户文档的空间。
+不传就是默认位置，与此前的安装完全一致。实现见
+`apps/desktop/src-tauri/installer-hooks.nsh`，它由 `tauri.conf.json` 的
+`bundle.windows.nsis.installerHooks` 挂进官方安装器模板。
 
-## macOS
+## 不在这个根里的东西
 
-`~/Library/Application Support/com.poietica.Poietica/` 承载配置与数据两侧（这个平台上
-它们本就是同一个目录），日志在 `~/Library/Logs/com.poietica.Poietica/`，凭据在登录钥匙串。
+两处，都是平台或插件的硬约束，不是选择：
 
-## Linux
+- **窗口位置与尺寸**。`tauri-plugin-window-state` 的落点写死在
+  `${dataDir}/${bundleIdentifier}/`，插件没有开放这个参数。它是几十字节的窗口
+  几何，丢了只是窗口回到默认大小。
+- **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程的
+  用户数据目录决定。这不是我们的数据，是浏览器内核的缓存，Codex 的目录里也没有
+  对应物 —— 它清空只会让下一次启动稍慢。
 
-配置在 `~/.config/com.poietica.Poietica/`，数据与日志在
-`~/.local/share/com.poietica.Poietica/`，凭据在 Secret Service。这是 XDG 的语义，
-不是分裂。
-
-## 用户文档
-
-`.draw` 文件保存在用户自己选择的位置，应用不为它们维护任何库或索引：文档归用户，
-不归应用目录。
-
-## 备份
-
-对话库必须与它的 `-wal`、`-shm` 一起拷走，且密钥不在其中 —— 换机器后必须重新
-授予凭据，否则库无法解密。这是加密的代价，不是缺陷。
+把这两样硬搬进来，代价是接管两个我们不拥有的生命周期，换回来的只有目录树好看。

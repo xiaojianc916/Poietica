@@ -40,7 +40,7 @@ use tauri_plugin_store::StoreExt;
 
 use crate::commands::process::hide_console;
 use crate::error::{Error, IpcError, Result};
-use crate::paths::AGENTS_STORE;
+use crate::paths::agents_store;
 
 use super::profile::{agent_install_spec, agent_program};
 
@@ -265,7 +265,7 @@ fn latest_version(manager: PackageManager, package: &str) -> Result<String> {
 }
 
 fn cached_latest(app: &AppHandle, agent_id: &str) -> Option<(String, i64)> {
-    let store = app.store(AGENTS_STORE).ok()?;
+    let store = app.store(agents_store(app).ok()?).ok()?;
     let table = store.get(CHECK_KEY)?;
     let record = table.get(agent_id)?;
 
@@ -276,7 +276,11 @@ fn cached_latest(app: &AppHandle, agent_id: &str) -> Option<(String, i64)> {
 }
 
 fn remember_latest(app: &AppHandle, agent_id: &str, version: &str, checked_at: i64) {
-    let Ok(store) = app.store(AGENTS_STORE) else {
+    let Ok(path) = agents_store(app) else {
+        return;
+    };
+
+    let Ok(store) = app.store(path) else {
         return;
     };
 

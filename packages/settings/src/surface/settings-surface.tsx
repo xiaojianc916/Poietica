@@ -91,6 +91,7 @@ interface SettingsSurfaceContextValue {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
   readonly appVersion: () => Promise<string>
+  readonly dataDirectory: () => Promise<string>
   readonly section: SettingsSection
   readonly onSelect: (section: SettingsSection) => void
   readonly onBack: () => void
@@ -112,6 +113,13 @@ export interface SettingsProviderProps {
   readonly store: SettingsStore
   readonly agentConfigStore: AgentConfigStore
   /**
+   * 这台机器上，这个应用的数据落在哪，由组合根注入。
+   *
+   * 与 appVersion 同一条理由：这个包不认识桌面传输层，它的依赖里没有
+   * @tauri-apps/api，也不该有。
+   */
+  readonly dataDirectory: () => Promise<string>
+  /**
    * 这个可执行文件自己的版本号，由组合根注入。
    *
    * 不在这里直接问 Tauri：功能层认识桌面传输层，就是 ports/settings-store.ts
@@ -127,6 +135,7 @@ export function SettingsProvider({
   store,
   agentConfigStore,
   appVersion,
+  dataDirectory,
   onDismiss,
   children,
 }: SettingsProviderProps) {
@@ -153,11 +162,12 @@ export function SettingsProvider({
       controller,
       agentConfigStore,
       appVersion,
+      dataDirectory,
       section,
       onSelect: setSection,
       onBack: controller.requestClose,
     }),
-    [agentConfigStore, appVersion, controller, section],
+    [agentConfigStore, appVersion, controller, dataDirectory, section],
   )
 
   return <SettingsSurfaceContext value={value}>{children}</SettingsSurfaceContext>
@@ -182,7 +192,7 @@ export function SettingsNavigationRegion({ footer }: SettingsNavigationRegionPro
 }
 
 export function SettingsContentRegion() {
-  const { controller, agentConfigStore, appVersion, section } = useSettingsSurface()
+  const { controller, agentConfigStore, appVersion, dataDirectory, section } = useSettingsSurface()
 
   return (
     <div aria-live="polite" className="settings-content">
@@ -215,6 +225,7 @@ export function SettingsContentRegion() {
               agentConfigStore={agentConfigStore}
               appVersion={appVersion}
               controller={controller}
+              dataDirectory={dataDirectory}
               section={section}
               settings={controller.settings}
             />
@@ -296,6 +307,7 @@ interface SettingsSectionContentProps {
   readonly controller: SettingsController
   readonly agentConfigStore: AgentConfigStore
   readonly appVersion: () => Promise<string>
+  readonly dataDirectory: () => Promise<string>
 }
 
 function SettingsSectionContent({
@@ -304,6 +316,7 @@ function SettingsSectionContent({
   controller,
   agentConfigStore,
   appVersion,
+  dataDirectory,
 }: SettingsSectionContentProps) {
   switch (section) {
     case 'general':
@@ -330,7 +343,7 @@ function SettingsSectionContent({
       return <PrivacySettings controller={controller} settings={settings} />
 
     case 'about':
-      return <AboutSettings readVersion={appVersion} />
+      return <AboutSettings readDataDirectory={dataDirectory} readVersion={appVersion} />
   }
 }
 
@@ -418,11 +431,16 @@ const PrivacySettings = memo(function PrivacySettings({
 })
 
 interface AboutSettingsProps {
+  readonly readDataDirectory: () => Promise<string>
   readonly readVersion: () => Promise<string>
 }
 
-const AboutSettings = memo(function AboutSettings({ readVersion }: AboutSettingsProps) {
+const AboutSettings = memo(function AboutSettings({
+  readDataDirectory,
+  readVersion,
+}: AboutSettingsProps) {
   const [version, setVersion] = useState<string>()
+  const [directory, setDirectory] = useState<string>()
 
   /*
    * 版本号问的是这个可执行文件自己。
@@ -452,6 +470,30 @@ const AboutSettings = memo(function AboutSettings({ readVersion }: AboutSettings
       active = false
     }
   }, [readVersion])
+
+  /*
+   * 路径问的是原生侧，与版本号同一条纪律。
+   *
+   * 渲染层没有第二种算法：安装期可以把数据目录指到任何地方，「%LOCALAPPDATA%
+   * 加产品名」这个假设在那一刻就不成立了。读不出来就不写出一条路径 —— 一条
+   * 说错了的路径会把用户的备份引到一个空目录。
+   */
+  useEffect(() => {
+    let active = true
+
+    void readDataDirectory().then(
+      (value) => {
+        if (active) {
+          setDirectory(value)
+        }
+      },
+      () => undefined,
+    )
+
+    return () => {
+      active = false
+    }
+  }, [readDataDirectory])
 
   return (
     <SettingsPage>
@@ -494,6 +536,11 @@ const AboutSettings = memo(function AboutSettings({ readVersion }: AboutSettings
         <div>
           <dt>设置存储</dt>
           <dd>Tauri Store</dd>
+        </div>
+
+        <div>
+          <dt>软件目录</dt>
+          <dd className="settings-about-path">{directory ?? '…'}</dd>
         </div>
       </dl>
     </SettingsPage>

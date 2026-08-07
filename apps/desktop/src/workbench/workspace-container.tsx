@@ -44,6 +44,8 @@ export interface WorkspaceContainerProps {
   readonly agentId: string
   readonly agentSession: AgentSessionPort
   readonly appVersion: () => Promise<string>
+  /** 数据目录。与版本号同源同层：关于页面上的两个事实出自同一条链。 */
+  readonly dataDirectory: () => Promise<string>
   readonly workspace: WorkbenchSessionStore
   readonly commands: CommandRegistry
   readonly capabilities: AppCapabilities
@@ -72,6 +74,7 @@ export function WorkspaceContainer({
   agentId,
   agentSession,
   appVersion,
+  dataDirectory,
   workspace,
   commands,
   capabilities,
@@ -291,6 +294,7 @@ export function WorkspaceContainer({
     <SettingsProvider
       agentConfigStore={agentConfigStore}
       appVersion={appVersion}
+      dataDirectory={dataDirectory}
       onDismiss={onSettingsClose}
       store={settingsStore}
     >

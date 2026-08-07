@@ -19,7 +19,7 @@
 //! 我们。旧的 provider 列表仍原样保留在 `legacy_providers` 里交给界面处置。
 
 use crate::error::{Error, IpcError, Result};
-use crate::paths::{AGENTS_STORE, agent_home};
+use crate::paths::{agent_home, agents_store};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -371,7 +371,7 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
  */
 
 fn read_config(app: &AppHandle) -> Result<(PersistedAgentConfig, Vec<String>)> {
-    let store = app.store(AGENTS_STORE)?;
+    let store = app.store(agents_store(app)?)?;
     let mut issues = Vec::new();
 
     let config = match store.get(STORE_KEY) {
@@ -398,7 +398,7 @@ fn to_snapshot(config: PersistedAgentConfig, issues: Vec<String>) -> AgentConfig
 }
 
 fn save_config(app: &AppHandle, config: &PersistedAgentConfig) -> Result<()> {
-    let store = app.store(AGENTS_STORE)?;
+    let store = app.store(agents_store(app)?)?;
     store.set(STORE_KEY, serde_json::to_value(config)?);
     store.save()?;
     Ok(())

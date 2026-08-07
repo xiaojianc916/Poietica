@@ -1,5 +1,5 @@
 use crate::error::{IpcError, Result};
-use crate::paths::AUTOMATIONS_STORE;
+use crate::paths::automations_store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
@@ -109,7 +109,7 @@ impl Default for AutomationCatalog {
 #[specta::specta]
 pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<AutomationCatalog> {
     (|| -> Result<AutomationCatalog> {
-        let store = app.store(AUTOMATIONS_STORE)?;
+        let store = app.store(automations_store(&app)?)?;
 
         let Some(value) = store.get("automations") else {
             return Ok(AutomationCatalog::default());
@@ -148,7 +148,7 @@ pub async fn automations_save(
     catalog: AutomationCatalog,
 ) -> AutomationsCommandResult<()> {
     (|| -> Result<()> {
-        let store = app.store(AUTOMATIONS_STORE)?;
+        let store = app.store(automations_store(&app)?)?;
         store.set("automations", serde_json::to_value(&catalog)?);
         store.save()?;
         Ok(())

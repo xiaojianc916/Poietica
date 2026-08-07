@@ -2,7 +2,7 @@ use std::{
     backtrace::Backtrace,
     fs,
     panic::PanicHookInfo,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::Result;
-use crate::paths::CRASH_REPORT_FILE_NAME;
+use crate::paths::crash_report;
 
 const MAX_MESSAGE_LENGTH: usize = 8_192;
 const MAX_BACKTRACE_LENGTH: usize = 64_000;
@@ -43,8 +43,7 @@ pub struct NativeCrashReport {
     reason = "the panic hook must still reach stderr when the logger is already down"
 )]
 pub fn install(app: &AppHandle) -> Result<()> {
-    let report_directory = app.path().app_log_dir()?;
-    fs::create_dir_all(&report_directory)?;
+    let report_path = crash_report(app)?;
 
     let app_version = app.package_info().version.to_string();
     let previous_hook = std::panic::take_hook();
@@ -52,7 +51,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
     std::panic::set_hook(Box::new(move |panic_info| {
         let report = create_report(panic_info, &app_version);
 
-        if let Err(error) = write_report(&report_directory, &report) {
+        if let Err(error) = write_report(&report_path, &report) {
             eprintln!("[Poietica] failed to persist native crash report: {error}");
         }
 
@@ -67,7 +66,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
 /// Reports are removed after a successful read so reloading the renderer does
 /// not display the same historical crash indefinitely.
 pub fn take_previous_crash_report(app: &AppHandle) -> Result<Option<NativeCrashReport>> {
-    let report_path = crash_report_path(app)?;
+    let report_path = crash_report(app)?;
 
     if !report_path.exists() {
         return Ok(None);
@@ -149,14 +148,10 @@ fn panic_payload_message(panic_info: &PanicHookInfo<'_>) -> String {
 ///
 /// 旧文档保存所依赖的原子写实现已随旧产品形态一并移除。崩溃报告是尽力而为的
 /// 诊断产物，写失败只损失一份报告，不为它保留文档编解码器的写路径。
-fn write_report(directory: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
+fn write_report(path: &Path, report: &NativeCrashReport) -> std::io::Result<()> {
     let serialized = serde_json::to_vec_pretty(report).map_err(std::io::Error::other)?;
 
-    fs::write(directory.join(CRASH_REPORT_FILE_NAME), &serialized)
-}
-
-fn crash_report_path(app: &AppHandle) -> Result<PathBuf> {
-    Ok(app.path().app_log_dir()?.join(CRASH_REPORT_FILE_NAME))
+    fs::write(path, &serialized)
 }
 
 fn current_timestamp() -> String {

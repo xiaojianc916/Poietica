@@ -9,6 +9,7 @@ export {
 } from './app-update'
 export { type AppUpdateState, AppUpdateStore } from './app-update-store'
 export { createAttachmentIntake } from './attachments'
+export { readDataDirectory } from './data-directory'
 export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,

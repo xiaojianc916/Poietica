@@ -412,3 +412,12 @@
     max-inline-size: none;
   }
 }
+
+/*
+ * 一条绝对路径比这一栏里其余的值长一个数量级，而它必须完整可读：这一行的
+ * 用途就是让人照着它去备份。所以是换行，不是省略号。
+ */
+.settings-about-path {
+  word-break: break-all;
+  text-align: right;
+}
