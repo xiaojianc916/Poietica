@@ -25,8 +25,6 @@ async agentPrompt(request: AgentPromptRequest) : Promise<AgentPromptResult> {
  * 
  * 取消点名一条对话。ACP 的取消是发给一条会话的，而一条对话持有一条会话 ——
  * 这条对应关系在打开这条对话时就写进了库（`attach_session`），提问走的也是它。
- * 此前这里点名的是一个轮次号，为它在内存里另养了一张 runId → sessionId 的表，
- * 一轮开始时写、结束时删：那张表回答的问题，库里本来就有答案。
  * 
  * 只读寻址，不惊动 agent。查不到就是没有什么可停的 —— 走 `session_for` 会为一条
  * 还没开过口的对话新开一个会话，那是纯副作用。
