@@ -12,13 +12,11 @@
 //! 根在哪由两件事决定，顺序固定：
 //!
 //! 1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
-//! 2. 没有这个文件时，`%LOCALAPPDATA%/Poietica`（macOS 与 Linux 上是各自平台的
-//!    本地数据目录）。
+//! 2. 没有这个文件时，本地数据目录下的 `APPLICATION_DIRECTORY`。
 //!
 //! 声明文件放在 exe 旁边而不是某个平台目录里，是因为「可移动的位置」总得有一个
 //! 不可移动的地方来记。JetBrains 的 idea.properties 与 VS Code 的 portable data
-//! 目录用的是同一个位置。开发运行时 exe 在 target/debug 下，没有这个文件，于是
-//! 自动落到默认根 —— 开发机不需要、也不应该读到安装期的选择。
+//! 目录用的是同一个位置。
 //!
 //! 为什么是本地数据目录而不是漫游目录：Windows 的漫游配置文件在登录与注销时整
 //! 份同步 %APPDATA%，而线程索引开在 WAL 模式下，附件可以是几十 MB。把它们放进
@@ -34,8 +32,34 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::Result;
 
-/// 数据根的目录名。它同时是这个产品在磁盘上的名字。
-const APPLICATION_DIRECTORY: &str = "Poietica";
+/// 安装版的数据根目录名，与 tauri.conf.json 的 identifier 逐字相同。
+///
+/// 两条平台事实各自钉死了这个名字，方向一致：
+///
+/// 一、它不能是 productName。Tauri 的 NSIS 模板在 currentUser 模式下把
+/// `$INSTDIR` 默认成 `$LOCALAPPDATA\\${PRODUCTNAME}`，用 productName 当数据根
+/// 就是把用户数据摊进安装目录，让升级与卸载去动它。模板的 `.onInit` 里没有
+/// hook 点，安装目录这一侧改不了，能让开的只有数据这一侧。
+///
+/// 二、它应该是 identifier。同一份模板的卸载段里，「删除应用数据」复选框执行的是
+/// `RmDir /r "$LOCALAPPDATA\\${BUNDLEID}"`。换成任何别的名字，那个复选框就勾了
+/// 也不删东西 —— 一个不做事的确认框比没有这个框更坏。
+#[cfg(not(debug_assertions))]
+const APPLICATION_DIRECTORY: &str = "com.poietica.Poietica";
+
+/// 开发构建的数据根目录名。
+///
+/// 与安装版分开不是洁癖。identifier 与 productName 在 dev 与 release 之间完全
+/// 相同，而 Tauri 的平台目录解析只认这两个，所以不显式分开就是同一个目录：一边
+/// `cargo tauri dev` 一边开着装好的应用，两个进程会同时打开同一个 WAL 库，并且
+/// 互相覆盖对方的 settings.json 与 agent 凭据。
+///
+/// 用构建剖面而不是环境变量来分，是因为这个区别属于「这个二进制是什么」，不属于
+/// 「这次怎么启动」—— 能被环境变量掰过去的隔离等于没有隔离。VS Code 的
+/// `Code` 与 `Code - Insiders`、Chrome 的 `User Data` 与 `User Data SxS` 都是
+/// 在产物层面分的目录。
+#[cfg(debug_assertions)]
+const APPLICATION_DIRECTORY: &str = "com.poietica.Poietica.dev";
 
 /// 安装器写在可执行文件旁边的落点声明。内容是一行绝对路径。
 const LOCATION_FILE: &str = "data-directory";
@@ -65,6 +89,16 @@ static ROOT: OnceLock<PathBuf> = OnceLock::new();
 ///
 /// 读不到、是空行、或者不是绝对路径，都当作没有声明：一个相对路径会相对于进程
 /// 的工作目录展开，而那是调用方决定的，不是用户决定的。
+///
+/// 开发构建不问这个文件：开发时 exe 在 target/debug 下，安装器从没在那里写过
+/// 东西，而万一有人把安装版的声明文件拷了过来，读到它就等于把开发进程接回安装
+/// 版的数据 —— 上面那条隔离要在这里也成立才算数。
+#[cfg(debug_assertions)]
+fn configured_root() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(not(debug_assertions))]
 fn configured_root() -> Option<PathBuf> {
     let beside = std::env::current_exe().ok()?.parent()?.join(LOCATION_FILE);
     let declared = fs::read_to_string(beside).ok()?;
