@@ -2,7 +2,7 @@ use std::{backtrace::Backtrace, fs, panic::PanicHookInfo, path::Path};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 

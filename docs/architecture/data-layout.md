@@ -3,26 +3,33 @@
 这个应用在用户机器上占的位置只有一个根。它在哪，由两件事决定，顺序固定：
 
 1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
-2. 没有这个文件时，本地数据目录下的产品目录。
+2. 没有这个文件时，`app_local_data_dir()`。
 
 唯一的声明处是 `apps/desktop/src-tauri/src/paths.rs`。没有第二个地方算路径，
 渲染层也不算 —— 关于页面显示的那一行来自 `storage_data_directory`。
 
-## Windows 上的三个目录，不要弄混
+## 目录名归 identifier 管，只有一处声明
 
-| 是什么 | 路径 | 谁决定的 |
-| --- | --- | --- |
-| 程序本体 | `%LOCALAPPDATA%\Poietica` | Tauri NSIS 模板：currentUser 模式下 `$INSTDIR` 默认为 `$LOCALAPPDATA\${PRODUCTNAME}` |
-| 安装版数据 | `%LOCALAPPDATA%\com.poietica.Poietica` | 与卸载器的 `RmDir /r "$LOCALAPPDATA\${BUNDLEID}"` 对齐 |
-| 开发数据 | `%LOCALAPPDATA%\com.poietica.Poietica.dev` | `cfg(debug_assertions)` |
+`paths.rs` 不写死目录名。它问 Tauri 要 `app_local_data_dir()`，这个 API 返回的
+就是本地数据目录拼上 identifier，而 identifier 归配置管：
 
-数据根不能叫 `Poietica`：那是安装目录的名字，两者同名会让用户数据摊进安装
-目录，由升级与卸载流程去动它。数据根也不应该另起一个新名字：卸载器的「删除
-应用数据」复选框只认 `${BUNDLEID}`，改名等于让那个复选框不做事。
+| 怎么跑起来 | 生效的配置 | identifier | Windows 上的数据根 |
+| --- | --- | --- | --- |
+| `pnpm tauri dev` | `tauri.conf.json` 叠加 `tauri.dev.conf.json` | `com.poietica.Poietica.dev` | `%LOCALAPPDATA%\\com.poietica.Poietica.dev` |
+| 安装版 | `tauri.conf.json` | `com.poietica.Poietica` | `%LOCALAPPDATA%\\com.poietica.Poietica` |
 
-开发与安装版必须分开：identifier 与 productName 在两种构建之间完全相同，
-Tauri 的平台目录解析只认这两个，不显式分开就是同一个目录 —— 同时跑起来会有
-两个进程打开同一个 WAL 库。
+叠加那份开发配置的是 `scripts/tauri.mjs`：只有 dev 子命令自动补上
+`--config src-tauri/tauri.dev.conf.json`，别的子命令一个字不动。开发与安装版
+因此不会同时打开同一个 WAL 库，也不会互相覆盖 settings.json 与 agent 凭据。
+
+数据根不能叫 `Poietica`：Tauri 的 NSIS 模板在 currentUser 模式下把安装目录默认
+成本地数据目录下以 productName 命名的那个文件夹，两者同名会让用户数据摊进安装
+目录。数据根也不应该另起一个新名字：卸载器上「删除应用数据」那个复选框删的正是
+以 identifier 命名的目录，改名等于让那个复选框不做事。跟着 identifier 走，这两
+件事自动对齐。
+
+程序本体装在 `%LOCALAPPDATA%\\Poietica`，那是安装目录，跟数据根是两个不同的
+目录，不要弄混。
 
 ## 根下面有什么
 
@@ -43,15 +50,15 @@ Tauri 的平台目录解析只认这两个，不显式分开就是同一个目�
 ## 安装期指定位置
 
 ```
-Poietica_0.1.5_x64-setup.exe /DATA=D:\Poietica
+Poietica_0.1.5_x64-setup.exe /DATA=D:\\Poietica
 ```
 
 不传就是默认位置。实现见 `apps/desktop/src-tauri/installer-hooks.nsh`。
 
-已知缺口：卸载器的「删除应用数据」只清 `${BUNDLEID}` 那两个目录，装到自定义
-位置的数据它清不掉。需要在 `NSIS_HOOK_PREUNINSTALL` 里把 `data-directory`
-读进变量，在 `NSIS_HOOK_POSTUNINSTALL` 里按 `$DeleteAppDataCheckboxState`
-处置。尚未实现。
+已知缺口：卸载器的「删除应用数据」只清以 identifier 命名的那两个目录，装到自定义
+位置的数据它清不掉。需要在 `NSIS_HOOK_PREUNINSTALL` 里把 `data-directory` 读进
+变量，在 `NSIS_HOOK_POSTUNINSTALL` 里按 `$DeleteAppDataCheckboxState` 处置。
+尚未实现。
 
 ## 不在这个根里的东西
 
@@ -61,4 +68,3 @@ Poietica_0.1.5_x64-setup.exe /DATA=D:\Poietica
   `${dataDir}/${bundleIdentifier}/`，插件没有开放这个参数。
 - **WebView2 的缓存**（`EBWebView`）。它归 WebView2 运行时管，位置由宿主进程
   的用户数据目录决定。这不是我们的数据，是浏览器内核的缓存。
-

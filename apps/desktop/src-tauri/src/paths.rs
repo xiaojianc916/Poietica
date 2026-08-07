@@ -12,17 +12,30 @@
 //! 根在哪由两件事决定，顺序固定：
 //!
 //! 1. 可执行文件旁边的 `data-directory`。安装器按用户在安装期选的位置写下它。
-//! 2. 没有这个文件时，本地数据目录下的 `APPLICATION_DIRECTORY`。
+//! 2. 没有这个文件时，`app_local_data_dir()`。
+//!
+//! 目录名不在这个模块里重复一遍。`app_local_data_dir()` 返回的就是本地数据目录
+//! 拼上 identifier，而 identifier 归配置管：开发运行时 `scripts/tauri.mjs` 会给
+//! dev 子命令补上 `tauri.dev.conf.json`，那份配置把 identifier 覆盖成带 .dev 后缀
+//! 的形式，于是开发与安装版天然落在两个目录里，不会共用一个 WAL 库、不会互相覆盖
+//! 各自的 settings.json 与 agent 凭据。在这里再写一份常量，等于同一件事有两个真相，
+//! 改一处另一处不会跟着变。
+//!
+//! 别把根挪成按 productName 命名的目录。Tauri 的 NSIS 模板在 currentUser 模式下
+//! 把安装目录默认成本地数据目录下以 productName 命名的那个文件夹，两者同名就是把
+//! 用户数据摊进安装目录，交给升级与卸载流程去动。而卸载器上「删除应用数据」那个
+//! 复选框，删的正是以 identifier 命名的目录 —— 跟着 identifier 走，这两件事自动
+//! 对齐，不需要任何人记住。
 //!
 //! 声明文件放在 exe 旁边而不是某个平台目录里，是因为「可移动的位置」总得有一个
 //! 不可移动的地方来记。JetBrains 的 idea.properties 与 VS Code 的 portable data
 //! 目录用的是同一个位置。
 //!
-//! 为什么是本地数据目录而不是漫游目录：Windows 的漫游配置文件在登录与注销时整
-//! 份同步 %APPDATA%，而线程索引开在 WAL 模式下，附件可以是几十 MB。把它们放进
-//! 会被同步的目录，代价是登录变慢加上库损坏（SQLite 明确不支持 WAL 走网络文件
-//! 系统）。settings.json 本可以漫游，但把它单独留在另一个根，等于为了一个 2 KB
-//! 的文件把「一个位置」这件事作废。
+//! 为什么是本地数据目录而不是漫游目录：Windows 的漫游配置文件在登录与注销时整份
+//! 同步 %APPDATA%，而线程索引开在 WAL 模式下，附件可以是几十 MB。把它们放进会被
+//! 同步的目录，代价是登录变慢加上库损坏（SQLite 明确不支持 WAL 走网络文件系统）。
+//! settings.json 本可以漫游，但把它单独留在另一个根，等于为了一个 2 KB 的文件把
+//! 「一个位置」这件事作废。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,35 +44,6 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::Result;
-
-/// 安装版的数据根目录名，与 tauri.conf.json 的 identifier 逐字相同。
-///
-/// 两条平台事实各自钉死了这个名字，方向一致：
-///
-/// 一、它不能是 productName。Tauri 的 NSIS 模板在 currentUser 模式下把
-/// `$INSTDIR` 默认成 `$LOCALAPPDATA\\${PRODUCTNAME}`，用 productName 当数据根
-/// 就是把用户数据摊进安装目录，让升级与卸载去动它。模板的 `.onInit` 里没有
-/// hook 点，安装目录这一侧改不了，能让开的只有数据这一侧。
-///
-/// 二、它应该是 identifier。同一份模板的卸载段里，「删除应用数据」复选框执行的是
-/// `RmDir /r "$LOCALAPPDATA\\${BUNDLEID}"`。换成任何别的名字，那个复选框就勾了
-/// 也不删东西 —— 一个不做事的确认框比没有这个框更坏。
-#[cfg(not(debug_assertions))]
-const APPLICATION_DIRECTORY: &str = "com.poietica.Poietica";
-
-/// 开发构建的数据根目录名。
-///
-/// 与安装版分开不是洁癖。identifier 与 productName 在 dev 与 release 之间完全
-/// 相同，而 Tauri 的平台目录解析只认这两个，所以不显式分开就是同一个目录：一边
-/// `cargo tauri dev` 一边开着装好的应用，两个进程会同时打开同一个 WAL 库，并且
-/// 互相覆盖对方的 settings.json 与 agent 凭据。
-///
-/// 用构建剖面而不是环境变量来分，是因为这个区别属于「这个二进制是什么」，不属于
-/// 「这次怎么启动」—— 能被环境变量掰过去的隔离等于没有隔离。VS Code 的
-/// `Code` 与 `Code - Insiders`、Chrome 的 `User Data` 与 `User Data SxS` 都是
-/// 在产物层面分的目录。
-#[cfg(debug_assertions)]
-const APPLICATION_DIRECTORY: &str = "com.poietica.Poietica.dev";
 
 /// 安装器写在可执行文件旁边的落点声明。内容是一行绝对路径。
 const LOCATION_FILE: &str = "data-directory";
@@ -90,15 +74,9 @@ static ROOT: OnceLock<PathBuf> = OnceLock::new();
 /// 读不到、是空行、或者不是绝对路径，都当作没有声明：一个相对路径会相对于进程
 /// 的工作目录展开，而那是调用方决定的，不是用户决定的。
 ///
-/// 开发构建不问这个文件：开发时 exe 在 target/debug 下，安装器从没在那里写过
-/// 东西，而万一有人把安装版的声明文件拷了过来，读到它就等于把开发进程接回安装
-/// 版的数据 —— 上面那条隔离要在这里也成立才算数。
-#[cfg(debug_assertions)]
-fn configured_root() -> Option<PathBuf> {
-    None
-}
-
-#[cfg(not(debug_assertions))]
+/// 开发构建同样问这个文件，不开特例。开发时 exe 在 target/debug 下，安装器从没
+/// 在那里写过东西，正常情况下读不到；真有人把声明文件放了过去，那就是明确要求
+/// 换个落点，照办即可 —— 开发与安装版之间的隔离由 identifier 保证，不靠这里。
 fn configured_root() -> Option<PathBuf> {
     let beside = std::env::current_exe().ok()?.parent()?.join(LOCATION_FILE);
     let declared = fs::read_to_string(beside).ok()?;
@@ -125,7 +103,7 @@ fn root<R: Runtime>(app: &AppHandle<R>) -> Result<&'static Path> {
 
     let resolved = match configured_root() {
         Some(declared) => declared,
-        None => app.path().local_data_dir()?.join(APPLICATION_DIRECTORY),
+        None => app.path().app_local_data_dir()?,
     };
 
     fs::create_dir_all(&resolved)?;
