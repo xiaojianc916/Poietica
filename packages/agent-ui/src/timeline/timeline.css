@@ -1380,20 +1380,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 /*
  * 图面板。
  *
- * 一块单色底，一片画布，右上角一枚浮层。看图和看源码共用这一块底 —— 官方代码块自带的
- * 外框、圆角、底色和顶上那行语言标签在这里全部按下去，只留它的高亮。块里再套一个块是
- * 这块面板从一开始就要消灭的东西，源码视图也不例外。
- *
- * 高度写死并且给足：这是一张画布，能一眼看全整张图、还能拖得动，才叫看得见。
+ * 一块单色底，一片画布，右上角一枚浮层。看图和看源码共用这一块底、共用同一个高度：一条流里
+ * 两个视图来回切时，它下面的内容不该跟着跳。
  */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
   --cp-diagram-height: 26rem;
-  --cp-diagram-tools: calc(var(--ui-control-height-sm) + 0.5rem);
+  --cp-diagram-icon: 1rem;
+  --cp-diagram-hit: 1.75rem;
 
   position: relative;
   margin-block: var(--cp-prose-flow);
@@ -1405,11 +1402,8 @@
 /*
  * 舞台负责裁剪，不负责滚动。
  *
- * 滚动条只能沿两条轴走、拖到头就停、还在图上压出两根灰杠。这里要的是一张摊开的画布：
- * 按住往哪都能拖，图比框大也不必先去找滚动条。Figma、draw.io、Excalidraw 一律是这个
- * 模型，上游那个 pan-zoom 组件用的也是 transform 而不是滚动。
- *
- * 整块都能抓，不是只有线条上能抓：能拖的面积就是这一整块 26rem。
+ * 滚动条只能沿两条轴走、拖到头就停、还在图上压出两根灰杠。这里要的是一张摊开的画布：按住往
+ * 哪都能拖。Figma、draw.io、Excalidraw 一律是这个模型。整块 26rem 都能抓。
  */
 .timeline-prose__diagram-stage {
   position: relative;
@@ -1425,16 +1419,27 @@
 }
 
 /*
- * 内容层铺满舞台并居中，位移与缩放写在它的 transform 上。原点在中心，于是按钮缩放围绕
- * 视野中心、Ctrl 滚轮缩放围绕指针，图不会一放大就往左上角跑。
+ * 画布裹住图本身，钉在舞台正中。
+ *
+ * 三段 transform 从左到右：先把自己的中心挪到舞台中心（百分比按自身边框盒解析，与倍率无
+ * 关），再按拖拽位移平移，最后绕自身中心缩放 —— 绕中心缩放，中心因此不动。位移为零时，任何
+ * 倍率下图都正正落在舞台中央，「适应页面」算出来的那一档于是刚好铺满、四周一圈等宽的空气。
+ *
+ * 尺寸交给内容，不铺满舞台：一个被拉满的格子会把超出的项按起点对齐（居中在溢出方向上不成
+ * 立），那正是图偏向右下、左上空出一片的来处。
  */
 .timeline-prose__diagram-canvas {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  transform-origin: center;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: max-content;
+  transform-origin: center center;
   will-change: transform;
+}
+
+/* 行内元素的基线间隙会在图下方垫出几个像素，居中就差这几个像素。 */
+.timeline-prose__diagram-canvas svg {
+  display: block;
 }
 
 .timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
@@ -1442,36 +1447,41 @@
 }
 
 /*
- * 源码视图：要官方代码块的高亮，不要它的壳。
+ * 源码视图与画布同高，长了在自己身上滚。
  *
- * 外框、圆角、自己的底色会在这块底上再叠一层卡片；顶上那行语言标签也是多余的 —— 这块
- * 面板只可能出现一种语言。留白顶上多让出一枚浮层的高度，免得工具条压住第一行代码。
+ * 高度是 block-size 不是 max-block-size：上限只管封顶，内容短的时候这一面会塌下去，两个视图
+ * 就不是一块底了。顶上也不为浮层预留高度 —— 浮层鼠标不进来根本不在屏幕上，预留出来的那条空
+ * 白却是常驻的。
  */
-.timeline-prose__diagram [data-streamdown="code-block"] {
+.timeline-prose__diagram-source {
   margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
-}
-
-.timeline-prose__diagram [data-streamdown="code-block-header"] {
-  display: none;
-}
-
-.timeline-prose__diagram [data-streamdown="code-block-body"] {
-  max-block-size: var(--cp-diagram-height);
+  block-size: var(--cp-diagram-height);
   padding: var(--cp-diagram-pad);
-  padding-block-start: calc(var(--cp-diagram-pad) + var(--cp-diagram-tools));
   overflow: auto;
+  font-family: var(--cp-font-mono);
+  font-size: var(--ui-prose-size-aux);
+  line-height: var(--ui-line-height-normal);
+  tab-size: 2;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cp-timeline-drawer-thumb) transparent;
 }
 
 /*
- * 控件浮在图上，鼠标进来才出现。
+ * token 的颜色在这里花掉：Shiki 交回的是两套主题各一个色值，light-dark() 跟着文档的
+ * color-scheme 选一套，不必猜主题类名，也不必再写一条媒体查询。回落到 inherit —— 分词还没
+ * 到的那几帧是当前墨色的纯文本，不是一片透明。
+ */
+.timeline-prose__diagram-ink {
+  color: light-dark(var(--cp-tok, inherit), var(--cp-tok-dark, var(--cp-tok, inherit)));
+}
+
+/*
+ * 控件浮在内容上，鼠标进来才出现。键盘走 focus-within，否则那几个按钮就是焦点顺序里几个看不
+ * 见的落点。
  *
- * 常驻会一直压着右上角那块内容。这是一个 Windows 桌面应用，指针一定在，hover 就是它该有
- * 的触发条件。键盘走 focus-within：Tab 进来它同样出现，否则那几个按钮就是焦点顺序里几个
- * 看不见的落点。
+ * 底色取抽屉那张纸，兑一点透明并在背后做一次模糊：它压着的是图或代码，实色会把下面那一块彻
+ * 底盖掉，纯透明又会让图里的线条穿过图标。不画边框 —— 一条 1px 的浅色描边贴在灰底上就是一道
+ * 白框；浮层与底之间的分界交给阴影，那是这套设计系统里既有的那一档。
  */
 .timeline-prose__diagram-tools {
   position: absolute;
@@ -1481,12 +1491,18 @@
   display: flex;
   align-items: center;
   gap: 0.125rem;
-  padding: 0.1875rem;
-  border: 1px solid var(--cp-hairline);
+  padding: 0.25rem;
   border-radius: var(--ui-radius-md);
-  background: var(--cp-timeline-drawer-surface);
+  background: color-mix(in oklab, var(--cp-timeline-drawer-surface) 78%, transparent);
+  box-shadow: var(--ui-shadow-sm);
   opacity: 0;
   transition: opacity 120ms var(--cp-motion-ease);
+}
+
+@supports (backdrop-filter: blur(10px)) {
+  .timeline-prose__diagram-tools {
+    backdrop-filter: blur(10px) saturate(1.4);
+  }
 }
 
 .timeline-prose__diagram:hover .timeline-prose__diagram-tools,
@@ -1495,15 +1511,14 @@
 }
 
 /*
- * 复制那一枚是上游的组件，它自带一串工具类（p-1、text-muted-foreground …）。同一枚浮层里
- * 两套配色说不通，所以这里用两级选择器盖过去：工具类是单类选择器，两级一定赢，与样式表的
- * 先后顺序无关。
+ * 复制那一枚是上游的组件，它自带一串工具类。同一枚浮层里两套配色说不通，所以这里用两级选择
+ * 器盖过去：工具类是单类选择器，两级一定赢，与样式表的先后顺序无关。
  */
 .timeline-prose__diagram-tools .timeline-prose__diagram-tool {
   display: grid;
   place-items: center;
-  inline-size: var(--ui-control-height-sm);
-  block-size: var(--ui-control-height-sm);
+  inline-size: var(--cp-diagram-hit);
+  block-size: var(--cp-diagram-hit);
   padding: 0;
   border: 0;
   border-radius: var(--ui-radius-sm);
@@ -1523,17 +1538,21 @@
   cursor: default;
 }
 
+/*
+ * 16px 对上字形库 24 的 viewBox 正好是 2/3，1.5 的描边因此落成一个整像素 —— 图标发虚是描边压
+ * 在半个像素上，不是分辨率不够。上游那枚复制按钮把 14 写在 svg 的属性上，这一条盖掉它。
+ */
 .timeline-prose__diagram-tool svg {
   display: block;
-  inline-size: 0.875rem;
-  block-size: 0.875rem;
+  inline-size: var(--cp-diagram-icon);
+  block-size: var(--cp-diagram-icon);
 }
 
 .timeline-prose__diagram-split {
   inline-size: 1px;
-  block-size: 0.875rem;
+  block-size: 1rem;
   margin-inline: 0.125rem;
-  background: var(--cp-hairline);
+  background: color-mix(in oklab, var(--cp-ink) 14%, transparent);
 }
 
 .timeline-prose__diagram-alert {
