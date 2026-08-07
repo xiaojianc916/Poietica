@@ -1,6 +1,6 @@
 import { optionalProperty } from '@poietica/core'
-import type { TerminalFailureIncident } from '../failures/failure-coordinator'
-import { formatFailureDiagnostic } from '../failures/failure-diagnostic'
+import type { TerminalFailureIncident } from './coordinator'
+import { formatFailureDiagnostic } from './diagnostic'
 
 export interface TerminalFailurePrimaryAction {
   readonly kind: 'reload'

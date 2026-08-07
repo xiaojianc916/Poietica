@@ -1,7 +1,7 @@
 import type { Root } from 'react-dom/client'
 import { createRoot } from 'react-dom/client'
-import { FatalErrorHost } from '../fatal/fatal-error-host'
-import { markReactFatalHostMounted, reportFatalIncident } from '../fatal/fatal-runtime'
+import { FatalErrorHost } from '../failures/host'
+import { markReactFatalHostMounted, reportFatalIncident } from '../failures/terminal-policy'
 import { AppShell } from '../shell/app-shell'
 import { createApplicationRuntime } from './application'
 
@@ -69,7 +69,7 @@ export function mountReactApplication(container: HTMLElement): MountedReactAppli
     /*
      * React 自己恢复了的那种：绝不能升级成终止事件。
      *
-     * 默认动作是 reportError()，它派发 window 的 error 事件，而 fatal-collectors
+     * 默认动作是 reportError()，它派发 window 的 error 事件，而 browser-collectors
      * 把任何一次 window error 都记成 impact: 'application-fatal' + recovery:
      * 'reload'，FatalErrorHost 于是立刻用整屏致命页盖掉一个已经自愈的界面。
      * 严重级别在传递途中被翻了一档，接住它就是把这一档要回来。

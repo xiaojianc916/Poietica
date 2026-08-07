@@ -1,7 +1,7 @@
 import { type ReactNode, useSyncExternalStore } from 'react'
-import { failureCoordinator } from '../failures/failure-coordinator'
-import { FatalErrorBoundary } from './fatal-error-boundary'
-import { FatalErrorScreen } from './fatal-error-screen'
+import { failureCoordinator } from './coordinator'
+import { FatalErrorBoundary } from './error-boundary'
+import { FatalErrorScreen } from './terminal-screen'
 
 export interface FatalErrorHostProps {
   readonly children: ReactNode

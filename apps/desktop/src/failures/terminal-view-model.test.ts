@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FailureCoordinator, type TerminalFailureIncident } from '../failures/failure-coordinator'
-import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+import { FailureCoordinator, type TerminalFailureIncident } from './coordinator'
+import { createTerminalFailureViewModel } from './terminal-view-model'
 
 describe('createTerminalFailureViewModel', () => {
   it('projects application fatal state', () => {

@@ -15,7 +15,7 @@ import {
   useThreadSelectors,
   useThreadsActions,
 } from '../assistant/threads-context'
-import { reportFailure } from '../failures/application-failures'
+import { reportFailure } from '../failures/application-policy'
 
 /*
  * 一格只画一条对话。

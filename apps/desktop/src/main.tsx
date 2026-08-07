@@ -9,7 +9,7 @@ import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
-import { reportFatalIncident } from './fatal/fatal-runtime'
+import { reportFatalIncident } from './failures/terminal-policy'
 
 void bootstrapApplication()
 

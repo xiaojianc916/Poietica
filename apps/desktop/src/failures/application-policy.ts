@@ -1,6 +1,6 @@
 import type { FailureImpact, FailureRecovery, FailureScope } from '@poietica/core'
 import { optionalProperty } from '@poietica/core'
-import { type FailureIncident, type FailureSignal, failureCoordinator } from './failure-coordinator'
+import { type FailureIncident, type FailureSignal, failureCoordinator } from './coordinator'
 
 export const APPLICATION_FAILURE_CODES = [
   'WINDOW_MINIMIZE_UNAVAILABLE',

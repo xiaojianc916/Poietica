@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FailureCoordinator } from './failure-coordinator'
+import { FailureCoordinator } from './coordinator'
 
 describe('FailureCoordinator', () => {
   it('owns recoverable failures', () => {

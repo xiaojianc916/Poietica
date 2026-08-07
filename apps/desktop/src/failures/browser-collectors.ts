@@ -1,7 +1,7 @@
 import { optionalProperty } from '@poietica/core'
-import type { FailurePhase, TerminalFailureInput } from './fatal-runtime'
-import { isReactFatalHostMounted, reportFatalIncident } from './fatal-runtime'
-import { isBenignWindowError } from './window-error-policy'
+import { isBenignWindowError } from './benign-window-errors'
+import type { FailurePhase, TerminalFailureInput } from './terminal-policy'
+import { isReactFatalHostMounted, reportFatalIncident } from './terminal-policy'
 
 interface ViteHotContext {
   readonly on: (event: string, listener: (payload: unknown) => void) => void

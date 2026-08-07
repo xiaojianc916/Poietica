@@ -1,10 +1,10 @@
-import { failureCoordinator } from '../failures/failure-coordinator'
-import { installFatalCollectors } from './fatal-collectors'
-import { isReactFatalHostMounted } from './fatal-runtime'
-import type { TerminalFailureViewModel } from './terminal-failure-view-model'
-import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+import { installFatalCollectors } from './failures/browser-collectors'
+import { failureCoordinator } from './failures/coordinator'
+import { isReactFatalHostMounted } from './failures/terminal-policy'
+import type { TerminalFailureViewModel } from './failures/terminal-view-model'
+import { createTerminalFailureViewModel } from './failures/terminal-view-model'
 
-const errorRobotIllustrationUrl = new URL('./assets/error-robot.svg', import.meta.url).href
+const errorRobotIllustrationUrl = new URL('./failures/assets/error-robot.svg', import.meta.url).href
 
 installFatalCollectors()
 

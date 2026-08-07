@@ -3,9 +3,9 @@ import { createMainWindowController } from '@poietica/desktop-adapters'
 import { useEffect, useMemo, useState } from 'react'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { WindowControls } from '../chrome/window-controls'
-import type { TerminalFailureIncident } from '../failures/failure-coordinator'
 import errorRobotIllustration from './assets/error-robot.svg'
-import { createTerminalFailureViewModel } from './terminal-failure-view-model'
+import type { TerminalFailureIncident } from './coordinator'
+import { createTerminalFailureViewModel } from './terminal-view-model'
 
 export interface FatalErrorScreenProps {
   readonly incident: TerminalFailureIncident

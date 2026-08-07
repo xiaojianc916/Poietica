@@ -5,7 +5,7 @@ import {
   failureCoordinator,
   type NonTerminalFailureIncident,
   type PresentedFailure,
-} from '../failures/failure-coordinator'
+} from '../failures/coordinator'
 
 /* 同时可见的通知上限：超出时保留最新几条，与主流桌面应用的通知栈一致。 */
 const MAX_VISIBLE_NOTICES = 3

@@ -1,6 +1,6 @@
 import type { FailureRecovery, TerminalFailureImpact } from '@poietica/core'
 import { optionalProperty } from '@poietica/core'
-import { type FailureIncident, failureCoordinator } from '../failures/failure-coordinator'
+import { type FailureIncident, failureCoordinator } from './coordinator'
 
 export type FailureKind =
   | 'bootstrap'

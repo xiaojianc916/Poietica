@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBenignWindowError } from './window-error-policy'
+import { isBenignWindowError } from './benign-window-errors'
 
 describe('window error policy', () => {
   it.each([
