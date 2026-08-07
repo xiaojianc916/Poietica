@@ -1,5 +1,5 @@
+import { createExternalStore } from '@poietica/core'
 import { useEffect, useId, useSyncExternalStore } from 'react'
-import { createExternalStore } from '../primitives/external-store'
 
 /*
  * 会话时间的唯一管线：一口时钟、一套文案、一套分段。
@@ -15,12 +15,13 @@ import { createExternalStore } from '../primitives/external-store'
  * <relative-time>、Apple 的 Text(style: .relative)、Android 的 TextClock
  * 都是这么做的，没有一个是定周期轮询。
  *
- * 订阅那圈样板不在这个文件里：它与 threads/workspace-collapse 是同一件事，
- * 住在 primitives/external-store。这个文件只负责「现在几点」和「下次几点」。
+ * 订阅那圈样板不在这个文件里：它是每个 React 外部数据源都要写一遍的东西，
+ * 住在 @poietica/core 的 external-store。这个文件只负责「现在几点」和「下次
+ * 几点」。
  *
- * now 只在 fire() 里换一次。此前 subscribe() 里也写它 —— 那是 React 的
- * effect 阶段，等于让这一帧用旧值渲染完之后再把快照换掉，靠「反正马上会
- * 重渲」兜住。getSnapshot 是纯读，这是 useSyncExternalStore 的前提。
+ * now 只在 fire() 里换一次。getSnapshot 必须是纯读，这是 useSyncExternalStore
+ * 的前提 —— 在 subscribe() 里写它就是 React 的 effect 阶段，等于让这一帧用旧值
+ * 渲染完之后再把快照换掉。
  */
 
 /** 期限已经过去或算错时的兜底间隔：宁可晚一点，也不要退化成忙等。 */

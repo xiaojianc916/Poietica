@@ -14,6 +14,11 @@ export {
   ValidationError,
 } from './errors'
 export {
+  createExternalStore,
+  type ExternalStore,
+  type ExternalStoreSource,
+} from './external-store'
+export {
   type ClassifiedFailure,
   type ClassifiedFailureInput,
   createClassifiedFailure,
@@ -57,6 +62,12 @@ export {
   type WindowId,
 } from './id'
 export { optionalProperty } from './object'
+export {
+  createPreference,
+  type Preference,
+  type PreferenceFailure,
+  type PreferenceSource,
+} from './preference'
 export {
   normalizeWorkspaceRoot,
   workspaceRootName,

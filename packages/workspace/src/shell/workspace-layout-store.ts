@@ -1,3 +1,4 @@
+import { createExternalStore, createPreference } from '@poietica/core'
 import { warn } from '@poietica/observability'
 import { useSyncExternalStore } from 'react'
 import * as v from 'valibot'
@@ -16,12 +17,15 @@ export interface WorkspaceLayoutState {
   readonly isResizing: boolean
 }
 
-const STORAGE_KEY = 'poietica.workspace.layout.v1'
+/** 落盘的只有意图，不含瞬时的拖拽态。 */
+interface LayoutIntent {
+  readonly sidebarOpen: boolean
+  readonly sidebarWidth: number
+}
 
-const DEFAULT_STATE: WorkspaceLayoutState = {
+const DEFAULT_INTENT: LayoutIntent = {
   sidebarOpen: true,
   sidebarWidth: WORKSPACE_LAYOUT.sidebar.defaultWidth,
-  isResizing: false,
 }
 
 function clampSidebarWidth(width: number): number {
@@ -33,110 +37,107 @@ function clampSidebarWidth(width: number): number {
 
 /* 持久化形状由 schema 声明，逐字段兜底交给 valibot，不手写 typeof 校验。 */
 const PersistedLayoutSchema = v.object({
-  sidebarOpen: v.fallback(v.boolean(), DEFAULT_STATE.sidebarOpen),
+  sidebarOpen: v.fallback(v.boolean(), DEFAULT_INTENT.sidebarOpen),
   sidebarWidth: v.fallback(
     v.pipe(v.number(), v.finite(), v.transform(clampSidebarWidth)),
-    DEFAULT_STATE.sidebarWidth,
+    DEFAULT_INTENT.sidebarWidth,
   ),
 })
 
-function readPersistedState(): WorkspaceLayoutState {
-  const raw = globalThis.localStorage?.getItem(STORAGE_KEY)
-
-  if (!raw) {
-    return DEFAULT_STATE
-  }
-
-  try {
-    return { ...v.parse(PersistedLayoutSchema, JSON.parse(raw)), isResizing: false }
-  } catch (cause) {
-    // 存储内容不可信时回退到产品默认布局，而不是让整个外壳启动失败。
-    warn('忽略无法解析的持久化布局', { scope: 'workspace-layout', cause })
-
-    return DEFAULT_STATE
-  }
+const FAILURE = {
+  read: '读不出布局偏好，回到默认布局',
+  write: '写不进布局偏好，下次启动回到默认布局',
 }
 
-class WorkspaceLayoutStore {
-  #state: WorkspaceLayoutState = readPersistedState()
-
-  #listeners = new Set<() => void>()
-
-  subscribe = (listener: () => void): (() => void) => {
-    this.#listeners.add(listener)
-
-    return () => {
-      this.#listeners.delete(listener)
-    }
-  }
-
-  getSnapshot = (): WorkspaceLayoutState => this.#state
-
-  setSidebarOpen = (open: boolean): void => {
-    this.#commit({ sidebarOpen: open })
-  }
-
-  toggleSidebar = (): void => {
-    this.#commit({ sidebarOpen: !this.#state.sidebarOpen })
-  }
-
-  setSidebarWidth = (width: number): void => {
-    this.#commit({ sidebarWidth: clampSidebarWidth(width) })
-  }
-
-  setResizing = (resizing: boolean): void => {
-    this.#commit({ isResizing: resizing })
-  }
-
-  #commit(patch: Partial<WorkspaceLayoutState>): void {
-    const next: WorkspaceLayoutState = { ...this.#state, ...patch }
-
-    if (
-      next.sidebarOpen === this.#state.sidebarOpen &&
-      next.sidebarWidth === this.#state.sidebarWidth &&
-      next.isResizing === this.#state.isResizing
-    ) {
-      return
-    }
-
-    this.#state = next
-
-    for (const listener of this.#listeners) {
-      listener()
-    }
-
-    /*
-     * 只在离散的用户意图落定时写盘。拖拽期间每一帧都会提交宽度，但松手那一次
-     * 提交本身就把 isResizing 置回 false，最终宽度随之落盘——因此不需要
-     * requestAnimationFrame 合并，也不需要定时器。
-     */
-    if (!next.isResizing) {
-      this.#persist()
-    }
-  }
-
-  #persist(): void {
-    const { isResizing: _isResizing, ...persisted } = this.#state
-
-    try {
-      globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify(persisted))
-    } catch (cause) {
-      // 存储不可用（配额或隐私模式）只影响下次启动的还原，不影响本次会话。
-      warn('无法持久化布局', { scope: 'workspace-layout', cause })
-    }
-  }
-}
+const persisted = createPreference<LayoutIntent>({
+  key: 'poietica.workspace.layout.v1',
+  fallback: DEFAULT_INTENT,
+  decode: (raw) => v.parse(PersistedLayoutSchema, JSON.parse(raw)),
+  encode: (value) => JSON.stringify(value),
+  onFailure: ({ stage, cause }) => {
+    warn(FAILURE[stage], { scope: 'workspace-layout', cause })
+  },
+})
 
 /*
  * 本模块只拥有用户意图，不拥有视口：窄视口改用抽屉属于呈现降级，由渲染层
  * 从布局模式派生。意图一旦被环境覆盖就再也还原不回来。
  */
-export const workspaceLayoutStore = new WorkspaceLayoutStore()
+let intent = persisted.read()
+let resizing = false
+let snapshot: WorkspaceLayoutState = { ...intent, isResizing: false }
+
+function publish(): void {
+  const next: WorkspaceLayoutState = { ...intent, isResizing: resizing }
+
+  if (
+    next.sidebarOpen === snapshot.sidebarOpen &&
+    next.sidebarWidth === snapshot.sidebarWidth &&
+    next.isResizing === snapshot.isResizing
+  ) {
+    return
+  }
+
+  snapshot = next
+  store.notify()
+}
+
+/* 另一个窗口改了同一份布局：意图以那一侧为准，本侧的拖拽态不受影响。 */
+function adopt(): void {
+  intent = persisted.read()
+  publish()
+}
+
+const store = createExternalStore<WorkspaceLayoutState>({
+  read: () => snapshot,
+  activate: () => persisted.subscribe(adopt),
+})
+
+/*
+ * 只在离散的用户意图落定时写盘。拖拽期间每一帧都会提交宽度，但松手那一次由
+ * setResizing 收尾，最终宽度随之落盘 —— 因此不需要 requestAnimationFrame
+ * 合并，也不需要定时器。
+ */
+function settle(next: LayoutIntent): void {
+  if (next.sidebarOpen === intent.sidebarOpen && next.sidebarWidth === intent.sidebarWidth) {
+    return
+  }
+
+  intent = next
+  publish()
+
+  if (!resizing) {
+    persisted.write(next)
+  }
+}
+
+export const workspaceLayoutStore = {
+  subscribe: store.subscribe,
+  getSnapshot: (): WorkspaceLayoutState => snapshot,
+  setSidebarOpen: (open: boolean): void => {
+    settle({ ...intent, sidebarOpen: open })
+  },
+  toggleSidebar: (): void => {
+    settle({ ...intent, sidebarOpen: !intent.sidebarOpen })
+  },
+  setSidebarWidth: (width: number): void => {
+    settle({ ...intent, sidebarWidth: clampSidebarWidth(width) })
+  },
+  setResizing: (value: boolean): void => {
+    if (value === resizing) {
+      return
+    }
+
+    resizing = value
+    publish()
+
+    /* 松手那一刻，把拖拽期间累积的宽度一次落盘。 */
+    if (!value) {
+      persisted.write(intent)
+    }
+  },
+}
 
 export function useWorkspaceLayoutState(): WorkspaceLayoutState {
-  return useSyncExternalStore(
-    workspaceLayoutStore.subscribe,
-    workspaceLayoutStore.getSnapshot,
-    workspaceLayoutStore.getSnapshot,
-  )
+  return useSyncExternalStore(store.subscribe, store.read, store.read)
 }

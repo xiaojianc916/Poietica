@@ -1,5 +1,5 @@
+import { createExternalStore } from '@poietica/core'
 import { useCallback, useSyncExternalStore } from 'react'
-import { createExternalStore } from './external-store'
 
 /**
  * 把一个 CSS 像素长度对齐到设备像素网格。
@@ -20,12 +20,11 @@ import { createExternalStore } from './external-store'
  * 的接口只有 useSyncExternalStore。用 useState 存一份副本,并发渲染下这一帧读到的与
  * 提交时刻的真实值可以不是同一个(tearing),而 useEffect 里的首次同步永远晚一帧。
  *
- * 而这条管线本包里已经有了:external-store 开篇那句「React 之外的数据源,接线只有
- * 这一种形状」说的就是这件事,threads/clock 用的正是它。此前这个文件另立一套,于是
- * 同一个包对同一类事实有两种接法 —— 那是杂糅的起点,不是灵活。
+ * 而这条管线已经有了:@poietica/core 的 external-store 开篇那句「React 之外的
+ * 数据源,接线只有这一种形状」说的就是这件事,threads/clock 用的正是它。
  *
- * 顺带一并收掉的是重复:dpr 是进程级的唯一事实,而此前每个使用点各持一份 state 与
- * 一个 matchMedia 监听者 —— 一屏十几个思考盒就是十几份。现在是一份。
+ * dpr 是进程级的唯一事实,所以监听者也只有一个:每个使用点各持一份 state 与一个
+ * matchMedia 监听者的话,一屏十几个思考盒就是十几份。
  */
 
 let ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio

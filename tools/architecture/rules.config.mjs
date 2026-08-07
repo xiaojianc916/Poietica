@@ -627,6 +627,9 @@ const governanceRules = [
   { id: 'documented-scripts-exist', check: documentedScriptsExist },
 ]
 
+/* 唯一允许触碰 Web Storage 的文件。规则与实现必须指着同一条路径。 */
+const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
+
 export const rules = [
   {
     id: 'public-package-exports',
@@ -639,6 +642,24 @@ export const rules = [
     appliesTo: isProductionSource,
     pattern: /from\s+['"](?:\.\.\/){2,}(?:apps|packages)\//g,
     message: 'relative imports must not cross top-level package boundaries',
+  },
+  /*
+   * 客户端偏好只有一条管线。
+   *
+   * 这条规则存在的理由是它曾经不存在：侧栏布局、工作区折叠、当前工作目录三处
+   * 各写一份「读键、编解码、try/catch、storage 事件重读、写盘容错」，三种错误
+   * 策略（两处静默吞掉、一处 warn）、两种跨窗口语义（布局那份根本不听 storage
+   * 事件，于是另一个窗口改了宽度这边永远不知道）。样板抄第三遍时抄错一个分支，
+   * 没有任何工具会说话。
+   *
+   * 判据落在原始文本上，注释也算：一条指着 Web Storage 的注释要么是在教人再抄
+   * 一遍，要么已经腐烂 —— 两种都不该留在生产源码里。
+   */
+  {
+    id: 'client-preferences-single-pipeline',
+    appliesTo: (file) => isProductionSource(file) && file !== PREFERENCE_PIPELINE,
+    pattern: /\blocalStorage\b/g,
+    message: '客户端偏好只有一条管线：用 @poietica/core 的 createPreference',
   },
   ...tierRules,
   {

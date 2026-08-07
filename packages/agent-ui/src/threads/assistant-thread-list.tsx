@@ -34,10 +34,9 @@ import { datedGroupsOf, instantsOf, nextChangeIn, paintedGroupsOf } from './rela
  * 与库那条 ORDER BY 同源；这一层只把分好的组画出来。
  *
  * 收起了哪些工作区也不由这一层持有：那是一份跨窗口、跨重启存活的宿主偏好，
- * 从 props 进来（collapsedWorkspaces / onToggleWorkspace）。此前这个文件直接
- * import 了一个写 localStorage 的模块单例 —— 一个展示组件由此绑死一份全局可变
- * 状态和一个存储键：同一份界面在一个进程里画两次会互相打断，没有 localStorage
- * 的环境里根本渲染不了。这一层自己只留一件视图状态：每组已经展开到第几条。
+ * 从 props 进来（collapsedWorkspaces / onToggleWorkspace）。展示组件绑死一份
+ * 模块级可变状态的话，同一份界面在一个进程里画两次会互相打断，也没法在没有
+ * Web Storage 的环境里渲染。这一层自己只留一件视图状态：每组已经展开到第几条。
  *
  * 一行是一个组件。此前整行——重命名表单、时间格、固定按钮、四项菜单——都摊在
  * 父组件 map 的匿名回调里，于是列表没有可比较的边界：时钟每跳一次、草稿每多

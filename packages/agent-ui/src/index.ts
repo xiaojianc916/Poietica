@@ -11,7 +11,6 @@ export type {
   PreviewableImage,
 } from './media/image-lightbox'
 export { ImageLightbox, ImageThumbnailGrid } from './media/image-lightbox'
-export { createExternalStore } from './primitives/external-store'
 export type { AgentDialect } from './semantics/agent-dialect'
 export { AgentDialectContext } from './semantics/agent-dialect'
 export type { AssistantSurfaceProps } from './surface/assistant-surface'

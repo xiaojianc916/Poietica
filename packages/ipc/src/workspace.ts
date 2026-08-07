@@ -8,9 +8,9 @@ import { commands } from './generated/ipc-bindings'
  * 目录选择器是系统的，开它要 dialog 插件，而插件的 IPC 面不交给 webview：
  * 这一层调的是我们自己那条 workspace_pick_root，理由写在 commands/workspace.rs。
  *
- * 选完之后往哪儿放不是这一层的事。它不碰 localStorage，也不认识
- * activeWorkspaceRoot —— 那份状态住在桌面应用里（state/workspace-root.ts），
- * 这一层只把系统的回答运过来。
+ * 选完之后往哪儿放不是这一层的事。它不碰持久化，也不认识 activeWorkspaceRoot ——
+ * 那份状态住在桌面应用里（apps/desktop/src/workspace-root.ts），这一层只把系统
+ * 的回答运过来。
  */
 
 /** 开系统的文件夹选择器。人按了取消就是 null。 */
