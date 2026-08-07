@@ -62,6 +62,9 @@ export class AgentCapabilityStore {
 
   #report: CapabilityFailureReport | undefined
 
+  /* 听 agent 说话的那根线。换端口时先断，否则上一家还在替这一家发号施令。 */
+  #unsubscribe: (() => void) | undefined
+
   /** 屏幕上那张表。 */
   snapshot = (): readonly SessionConfigControl[] => this.#offered
 
@@ -132,10 +135,27 @@ export class AgentCapabilityStore {
       return
     }
 
+    this.#unsubscribe?.()
+
     this.#source = port
     this.#report = report
     this.#asked = false
     this.#offered = NO_CONTROLS
+
+    /*
+     * agent 一改主意就重读。
+     *
+     * 这张表此前只有一条到达路径：我们问，它答。而 agent 纠正自己用的是另一条 ——
+     * 换完模型它会补推一张收敛过的表（thought 的候选集属于模型，换了模型就得换）。
+     * 没有这根线的时候，屏幕上留着的是上一个模型的档位列表，直到下一次有人再问。
+     *
+     * 收到就重读，而不是把推来的表直接吃下：那一声没带可判定的归属，而锚会话此刻
+     * 是什么，问一次就有权威答案 —— 那一趟由驱动器就地作答，不惊动 agent。
+     */
+    this.#unsubscribe = port.subscribe?.(() => {
+      this.refresh()
+    })
+
     this.#publish()
     this.#load()
   }

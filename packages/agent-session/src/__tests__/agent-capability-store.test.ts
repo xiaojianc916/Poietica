@@ -81,6 +81,42 @@ describe('锚会话的那张表', () => {
     stop()
   })
 
+  it('agent 换完模型自己收敛一次，入口那张表跟着换掉', async () => {
+    const store = new AgentCapabilityStore()
+
+    /* agent 先给的是 k3 那张表（有 low），收敛之后给的是新模型那张（没有）。 */
+    let table: readonly SessionConfigControl[] = ON_OFF
+    let announce: (() => void) | undefined
+
+    store.installPort({
+      read: () => Promise.resolve(table),
+      select: () => Promise.resolve(table),
+      subscribe: (handler) => {
+        announce = handler
+
+        return () => {
+          announce = undefined
+        }
+      },
+    })
+
+    const stop = store.subscribe(() => undefined)
+
+    await settled()
+
+    expect(valueOf(store.snapshot(), 'thought')).toBe('on')
+
+    /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表，而不是等下一次有人再问。 */
+    table = THREE_TIER
+    announce?.()
+
+    await settled()
+
+    expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+
+    stop()
+  })
+
   it('飞在半路的旧读取不覆盖新答复', async () => {
     const store = new AgentCapabilityStore()
 

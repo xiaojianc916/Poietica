@@ -168,6 +168,19 @@ export function desktopAgentCapabilities(
 
       return anchor.select(control, value)
     },
+
+    /*
+     * agent 说话的那一路，与对话那一侧是同一条。
+     *
+     * 不新开订阅：原生侧一条 AGENT_SELECTOR_EVENT 供全部会话共用，会话桥已经
+     * 在听了。这里借的是同一座桥，所以不存在第二条到达路径，也不存在两边各收
+     * 一半的可能。
+     *
+     * 报文里那条会话是谁不重要 —— 这一声只用来触发"再问一次锚会话"，而问的
+     * 结果才是权威。为别条会话多问一次的代价是一次进程内往返（驱动器拿手上
+     * 那张表就地作答，不惊动 agent）。
+     */
+    subscribe: (handler) => desktopSessionConfig().subscribe?.(handler) ?? (() => undefined),
   }
 
   byAgent.set(agentId, source)
