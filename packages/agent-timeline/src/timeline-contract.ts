@@ -55,9 +55,10 @@ interface TimelineEntry {
    *
    * 回放出来的段号是零或负数（最后一轮为 r0），实时开出来的为正。
    *
-   * 一句话先于 run_started 到达，所以它记的是上一段的号。这不是错位：提问是
-   * 两段之间的边界，不是它开启的那一段的产出，而读这一格的三处判据要的恰好
-   * 都是「本段的产出从哪里开始」。
+   * 人先说话时它与自己的答复同号：段在那一句话落账之前就开了（timeline-reducer
+   * 的 appendUserMessage 先 openSegment 再 push）。只有一种情形它记的是上一段的
+   * 号 —— 上一轮还在跑时插进来的那一句：那时不换段，因为换段会连 seq 窗口带 id
+   * 前缀一起换掉，在飞的工具调用会认不回自己那张卡。
    */
   readonly turn: number
   readonly at: number

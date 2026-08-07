@@ -478,26 +478,51 @@ export function withoutArgumentEcho(
 }
 
 /**
- * Reconciles the recorded prompt with the one already on screen.
+ * 这一问已经在转录里了吗。
  *
- * A live surface shows the question the instant it is asked; a replayed run has
- * only the recorded frame to show it with. Both are the same question, so they
- * converge on one entry instead of each adding their own.
+ * 一句话有三条到达路径：人按下发送（timeline-reducer 的 appendUserMessage）、
+ * run_started 把录下来的 prompt 报回来、agent 把它回声成 user_message_chunk。
+ * 三条说的是同一件事，判据因此只能有一条 —— 这一条。
+ *
+ * 判据是「转录里最后那一问」，与它和末尾之间隔了什么无关。比「末尾那一条」会
+ * 落空：人在上一轮还没答完时插一句，随后那一轮的收尾输出就把它挤离末尾。比 id
+ * 前缀也会落空：铸得出的前缀有三种（local-said-、said-、user-），任何一份手抄
+ * 的名单都会漏一种。
+ *
+ * 漏掉的代价不止是多一个气泡：附件按「第几条用户消息」挂回原处（message-images
+ * 的 attachImages），缩略导航按「人问过几次」数格子（conversation-turns 的
+ * stageTurns），多出来的那一条会让两处一起错。
+ */
+function askedIn(draft: Draft): UserMessageItem | undefined {
+  for (let index = draft.items.length - 1; index >= 0; index -= 1) {
+    const item = draft.items[index]
+
+    if (item?.type === 'user_message') {
+      return item
+    }
+  }
+
+  return undefined
+}
+
+/**
+ * 录下来的那一问，与屏幕上已经有的那一问，收敛成一条。
+ *
+ * 剥旁白走的是 appendSaid 那同一个 saidByUser：两侧不同归一，比的就永远是两句
+ * 不同的话 —— 而 agent 注入的那段旁白恰恰只出现在录下来的这一份里。
  */
 function withPrompt(
   draft: Draft,
   event: { readonly seq: number; readonly at: number; readonly prompt?: string | undefined },
 ): void {
   /* 缺席与空串在这里是同一件事：都表示这一帧没有带来一句要显示的话。 */
-  const prompt = event.prompt ?? ''
+  const prompt = saidByUser(event.prompt ?? '')
 
   if (prompt.length === 0) {
     return
   }
 
-  const tail = draft.items.at(-1)
-
-  if (tail && tail.type === 'user_message' && tail.text === prompt) {
+  if (askedIn(draft)?.text === prompt) {
     return
   }
 
@@ -567,24 +592,13 @@ function appendChunk(
 /**
  * 用户说的那一句，由若干块拼成。
  *
- * 协议发的是 chunk：一句话里的每一个 content block 各来一帧 —— 文字一帧，
- * 每张图各一帧。此前这里每收到一帧就推一条 user_message，于是「文字加一张图」
- * 在屏幕上是两条消息，其中一条永远是空的（textOf 对 image block 交回空串）。
+ * 协议发的是 chunk：一句话里的每一个 content block 各来一帧 —— 文字一帧，每张
+ * 图各一帧。连着来的并成一条，与 agent 那半边（appendChunk）同一条规矩：中间
+ * 插进任何别的条目，相邻就断了，那就是下一句话。
  *
- * 更要紧的是它让「屏幕上有几条用户消息」与「这条对话问过几句话」成了两个数。
- * 附件的位置正是照着后者记的（见 attachImages 与迁移 0011），两个数一旦不等，
- * 整批图对不上位，一张都挂不上去 —— 那正是重启之后图片消失的原因。
- *
- * 所以连着来的 chunk 并成一条，与 agent 那半边（appendChunk）同一条规矩：
- * 中间插进任何别的条目，相邻就断了，那就是下一句话。
- *
- * 只并这条路径自己产的那些（id 前缀 user-）。发送时本地先上屏的那一条前缀是
- * local-said-，agent 若把它原样回声一遍，那是两个来源说同一件事，不是一句话的
- * 两半：并进去会把文字接成两遍，各推一条则会在屏幕上显示两遍。所以下面认出它
- * 就什么都不做。
- *
- * withPrompt 对 run_started 带回来的 prompt 早就做了同一次对账，这条路径此前没
- * 做 —— 同一件事的两半，只有一半认得出对方。
+ * 这条路径只铸 user- 这一种身份，所以它只并自己铸的那一条。别的路径已经放进
+ * 转录的那一问交给 askedIn 认，这里不另立一份前缀名单 —— 名单会漏，而漏掉的
+ * 后果是同一句话在转录里出现两遍。
  */
 function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk: string): void {
   const tail = draft.items.at(-1)
@@ -597,19 +611,18 @@ function appendSaid(draft: Draft, scope: string, seq: number, at: number, chunk:
     return
   }
 
-  /*
-   * 本地先上屏的那一条与这些 chunk 说的是同一句话。
-   *
-   * 以本地那条为准，不是随手挑一边：它是人真正敲下的字节，而协议这一条还夹着
-   * agent 注入的旁白（saidByUser 正在剥的那段）。
-   *
-   * 认出来就什么都不推 —— tail 因此仍然是它，这一轮后续的每一段 chunk 都会落回
-   * 这同一个判断上，不需要记「已经对过账了」。
-   *
-   * 这条判断能成立的前提是那句话与这一轮同段：在人说话不开段的那个版本里，本地
-   * 那条落在上一段，scope 对不上，这里认不出它。
-   */
-  if (tail?.type === 'user_message' && tail.id.startsWith(`${scope}local-said-`)) {
+  const asked = askedIn(draft)
+
+  /* 同一句话已经落过账。以先到的那一条为准：它是人真正敲下的字节，而协议这一条
+     还夹着 agent 注入的旁白（saidByUser 正在剥的那段）。 */
+  if (chunk.length > 0 && asked?.text === chunk) {
+    return
+  }
+
+  /* 一句「文字加一张图」的图那一帧交回空串（textOf 对 image block 如此），它是
+     这一问的一部分，不是另一问。判据用条目自己的段号：上一轮那一问不在本段，所以
+     一句纯图片的话仍然开得出自己的那一条，不会被这里吞掉。 */
+  if (chunk.length === 0 && asked?.turn === draft.runIndex) {
     return
   }
 
