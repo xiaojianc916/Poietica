@@ -7,7 +7,7 @@ import { AppUpdateStore } from '@poietica/desktop-adapters'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
 import { applyThemePreference } from '@poietica/ui'
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
-import { CommandPalette, useCommandKeybindings } from '@poietica/workspace'
+import { CommandPalette, useCommandKeybindings, workspaceLayoutStore } from '@poietica/workspace'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { type ApplicationCommandContext, registerApplicationCommands } from '../app-commands'
 import { agentFor, currentAgentId, subscribeAgent } from '../assistant/agent-session'
@@ -187,6 +187,7 @@ export function AppShell({ runtime }: AppShellProps) {
       toggleCommandPalette,
       openAssistantSurface,
       openSettings,
+      toggleSidebar: workspaceLayoutStore.toggleSidebar,
     }),
     [openAssistantSurface, openSettings, runtime.workspace, toggleCommandPalette],
   )
@@ -267,6 +268,7 @@ export function AppShell({ runtime }: AppShellProps) {
 
         <WorkspaceContainer
           agentConfigStore={runtime.agentConfig}
+          agentId={agentId}
           agentSession={runtime.agentSession}
           appVersion={runtime.appVersion}
           capabilities={capabilities}

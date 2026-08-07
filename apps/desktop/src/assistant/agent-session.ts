@@ -13,6 +13,7 @@ import {
   acpAgents,
   parseAgentProviderListOutput,
 } from '@poietica/agents'
+import { createExternalStore } from '@poietica/core'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,
@@ -54,7 +55,12 @@ import { activeWorkspaceRoot } from '../workspace-root'
  */
 let chosenAgentId: string | undefined
 
-const agentListeners = new Set<() => void>()
+/*
+ * 订阅那圈样板出自 @poietica/core：一个 listener 集合、一次遍历通知、一对
+ * add/delete。留在这里的只有「值是什么、什么时候换」—— 那部分本来就归本模块,
+ * 也是 createExternalStore 刻意不接管的部分。
+ */
+const agent = createExternalStore<string | undefined>({ read: () => chosenAgentId })
 
 /** 名单里的那一家；查不到说明配置指向了一份不存在的档案。 */
 export function agentFor(agentId: string | undefined): AcpAgentDescriptor {
@@ -62,11 +68,11 @@ export function agentFor(agentId: string | undefined): AcpAgentDescriptor {
 }
 
 export function currentAgent(): AcpAgentDescriptor {
-  return agentFor(chosenAgentId)
+  return agentFor(agent.read())
 }
 
 export function currentAgentId(): string {
-  return agentFor(chosenAgentId).id
+  return agentFor(agent.read()).id
 }
 
 /** 组合根说了算：落盘的配置读回来是什么，就是什么。 */
@@ -76,20 +82,11 @@ export function adoptAgent(agentId: string): void {
   }
 
   chosenAgentId = agentId
-
-  for (const listener of agentListeners) {
-    listener()
-  }
+  agent.notify()
 }
 
 /** 听「换了一家」。返回退订。 */
-export function subscribeAgent(listener: () => void): () => void {
-  agentListeners.add(listener)
-
-  return () => {
-    agentListeners.delete(listener)
-  }
-}
+export const subscribeAgent = agent.subscribe
 
 /*
  * 改会话设置的那一路，整个进程一份。

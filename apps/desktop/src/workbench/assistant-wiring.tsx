@@ -3,7 +3,6 @@ import { AutomationsSurface } from '@poietica/automations'
 import type { AgentConfigStore } from '@poietica/settings'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
-import { currentAgentId } from '../assistant/agent-session'
 import { automationStore } from '../automations/automation-runtime'
 import { AssistantPane } from './assistant-pane'
 import { ConversationSurface } from './conversation-surface'
@@ -23,7 +22,7 @@ import { ConversationSurface } from './conversation-surface'
  * 「这一格变成了一条对话」是两边的交界事实,所以也从这里传进去。
  *
  * 对面那家 agent 的方言不在这里:它是一个进程一份的事实,和会话列表同级,
- * 落在 presentation/AppShell.tsx。
+ * 落在 apps/desktop/src/shell/app-shell.tsx。
  */
 export interface AssistantWiring {
   /** 工作区表面插槽:AI 那一格。 */
@@ -33,27 +32,32 @@ export interface AssistantWiring {
 }
 
 /*
- * 写给哪一家 agent，和起哪一家 agent，现在真的是同一个答案。
+ * 用哪一家 agent 是入参，不是这里去问的。
  *
- * 两边都读 currentAgentId()（application/ai/agent-session.ts），所以选择器要写的
- * default_model 与会话 spawn 的那一家不可能对不上。此前这里是一个模块常量，取的
- * 是注册表第一行，而用户选的那一家写在 agents.json 里 —— 名单长到两家的那天，
- * "改完了但会话没变"就会成真。
- *
- * 每次渲染现取。常量换来的是引用稳定，而换 agent 时那恰好是错的。
+ * 订阅那份「现在用哪一家」的只有 AppShell 一处，答案顺 props 流到这里，于是
+ * 选择器要写的 default_model 与会话 spawn 的那一家出自同一个值。换一家之后
+ * 这些渲染器要不要重建，由调用处 useMemo 的依赖显式说了算 —— 此前它靠的是
+ * 上游某个组件恰好会重画，而那个前提没有任何东西在守。
  */
+export interface AssistantWiringOptions {
+  readonly agentConfig: AgentConfigStore
+  readonly agentId: string
+  readonly onConversationStarted: (threadId: string, title: string) => void
+  readonly session: AgentSessionPort
+}
 
-export function createAssistantWiring(
-  session: AgentSessionPort,
-  agentConfig: AgentConfigStore,
-  onConversationStarted: (threadId: string, title: string) => void,
-): AssistantWiring {
+export function createAssistantWiring({
+  agentConfig,
+  agentId,
+  onConversationStarted,
+  session,
+}: AssistantWiringOptions): AssistantWiring {
   return {
     surfaces: {
       ai: () => (
         <AssistantPane
           agentConfig={agentConfig}
-          agentId={currentAgentId()}
+          agentId={agentId}
           onConversationStarted={onConversationStarted}
           session={session}
         />
@@ -70,7 +74,7 @@ export function createAssistantWiring(
     renderConversation: (threadId) => (
       <ConversationSurface
         agentConfig={agentConfig}
-        agentId={currentAgentId()}
+        agentId={agentId}
         onStarted={onConversationStarted}
         session={session}
         threadId={threadId}

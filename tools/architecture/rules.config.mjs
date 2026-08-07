@@ -630,6 +630,10 @@ const governanceRules = [
 /* 唯一允许触碰 Web Storage 的文件。规则与实现必须指着同一条路径。 */
 const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
 
+/* agent 身份的产地，和唯一那个订阅它的地方。 */
+const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
+const AGENT_IDENTITY_SUBSCRIBER = 'apps/desktop/src/shell/app-shell.tsx'
+
 export const rules = [
   {
     id: 'public-package-exports',
@@ -660,6 +664,25 @@ export const rules = [
     appliesTo: (file) => isProductionSource(file) && file !== PREFERENCE_PIPELINE,
     pattern: /\blocalStorage\b/g,
     message: '客户端偏好只有一条管线：用 @poietica/core 的 createPreference',
+  },
+  /*
+   * 「现在用哪一家 agent」只订阅一次。
+   *
+   * 这个答案住在 agents.json 的 defaultAgentId 上，组合根启动时认一次、设置页
+   * 改完再认一次。此前接线层在渲染器闭包里直接调 currentAgentId()，于是那张表
+   * 什么时候该重建没有任何东西负责 —— 它能对，靠的是订阅它的组件恰好在上游、
+   * 而中间那一层恰好没有被 memo 住。给中间那层加一次记忆化就会静默失效，而
+   * 失效的表现是「设置里换了 agent，会话还是上一家」，不报错。
+   *
+   * 判据落在原始文本上，注释也算：一条教人再去问一次的注释，与真去问一次同样
+   * 会让下一个人照做。
+   */
+  {
+    id: 'agent-identity-single-subscription',
+    appliesTo: (file) =>
+      isProductionSource(file) && file !== AGENT_IDENTITY && file !== AGENT_IDENTITY_SUBSCRIBER,
+    pattern: /\bcurrentAgentId\b/g,
+    message: 'agent 身份只在组合根订阅一次，其余顺 props 接下去',
   },
   ...tierRules,
   {

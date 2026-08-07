@@ -1,5 +1,4 @@
 import type { CommandRegistry, WorkbenchSessionStore } from '@poietica/workspace'
-import { workspaceLayoutStore } from '@poietica/workspace'
 
 /**
  * 应用命令的唯一声明表。
@@ -17,6 +16,7 @@ export interface ApplicationCommandContext {
   readonly toggleCommandPalette: () => void
   readonly openAssistantSurface: () => void
   readonly openSettings: () => void
+  readonly toggleSidebar: () => void
 }
 
 type ApplicationCommand = Omit<CommandRegistration, 'execute'> & {
@@ -79,8 +79,8 @@ const APPLICATION_COMMANDS: readonly ApplicationCommand[] = [
     label: '切换侧边栏',
     category: '面板',
     shortcut: 'Mod+B',
-    execute: () => {
-      workspaceLayoutStore.toggleSidebar()
+    execute: (context) => {
+      context.toggleSidebar()
     },
   },
   {
