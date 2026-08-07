@@ -40,6 +40,7 @@ export const ignoredDirectories = new Set([
   '.refactor-backup',
   '.turbo',
   'build',
+  'coverage',
   'dist',
   'generated',
   'node_modules',
@@ -329,9 +330,7 @@ const nativeCratesStayHostAgnostic = async (inventory) => {
 /*
  * 工作区 manifest 的公共契约面。
  *
- * 判据版本：v7（重复脚本 + shell 编排 + 通配符声明 + 文档命令）
- *
- * 十四份 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
+ * 工作区 manifest 此前四套写法并存：main/types 与 exports 并存（Bundler 解析下
  * 前两者永远读不到 —— workspace 与 ui 两个包根本没声明，照样跑得通，这是同一个
  * 仓库里的对照实验）；同一个 .ts 目标一半写裸串一半写条件对象；子路径名一半照
  * src 下的路径、一半照框架名。Biome 的 useSortedKeys 是 off，turbo 不看 manifest

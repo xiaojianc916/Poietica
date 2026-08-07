@@ -1,20 +1,20 @@
 export type { AgentConfigStore, SettingsStore } from '@poietica/settings'
-export { createDesktopAgentConfigStore } from './adapters/agent/agent-config-store'
-export { readAppVersion } from './adapters/app-release'
+export { createDesktopAgentConfigStore } from './agent-config-store'
+export { readAppVersion } from './app-release'
 export {
   type AppUpdateController,
   createAppUpdateController,
   type UpdateProgress,
   type UpdateRelease,
-} from './adapters/app-update'
-export { type AppUpdateState, AppUpdateStore } from './adapters/app-update-store'
-export { createAttachmentIntake } from './adapters/attachments'
+} from './app-update'
+export { type AppUpdateState, AppUpdateStore } from './app-update-store'
+export { createAttachmentIntake } from './attachments'
 export {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
-} from './adapters/native-crash-report'
+} from './native-crash-report'
 export {
   createMainWindowController,
   type MainWindowController,
-} from './adapters/native-window'
-export { createDesktopSettingsStore } from './adapters/settings/settings-store'
+} from './native-window'
+export { createDesktopSettingsStore } from './settings-store'

@@ -16,6 +16,7 @@ disk at load time; this file does not restate it.
 - `no-cross-boundary-relative-imports` — relative imports do not cross package boundaries;
 - `design-system-token-authority` — design-system components consume `--ui-*` tokens, not raw utility classes;
 - `no-task-scoped-guards` — no `check-*.mjs` file may exist in this directory;
+- `manifest-scripts-resolve` — a `node <file>.mjs` entry point named in a manifest exists on disk.
 - `capability-scoped-directory-names` — no directory is named after a DDD layer or a catch-all bucket;
 - `native-crates-stay-host-agnostic` — native crates depend on neither Tauri nor each other, and declare `[lints] workspace = true`;
 - `workspace-manifest-conventions` — workspace manifests share one shape: exports, subpath names, side-effect globs, script names, orchestration, and version ranges.

@@ -42,6 +42,5 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 | [`agent-persistence.md`](./agent-persistence.md) | AI persistence |
 | [`data-layout.md`](./data-layout.md) | 磁盘布局 |
 | [`rust-layers.md`](./rust-layers.md) | Rust Crate 分层 |
-| [`scaffold-policy.md`](./scaffold-policy.md) | 架构脚手架策略 |
 | [`ui-authority-boundaries.md`](./ui-authority-boundaries.md) | UI authority boundaries |
 | [`window-lifecycle.md`](./window-lifecycle.md) | Window Lifecycle |
