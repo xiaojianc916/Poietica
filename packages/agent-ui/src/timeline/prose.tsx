@@ -6,12 +6,14 @@ import { memo, useMemo, useState } from 'react'
 import {
   type AnimateOptions,
   type ControlsConfig,
+  type IconMap,
   type LinkSafetyConfig,
   Streamdown,
   type StreamdownTranslations,
 } from 'streamdown'
 
 import { cx } from '../primitives/class-names'
+import { CheckIcon, CloseIcon, CopyIcon, MaximizeIcon } from '../primitives/icons'
 import { DIAGRAM_RENDERER } from './diagram'
 import { createBlockScanner, type StreamBlock } from './split-stream'
 
@@ -101,6 +103,23 @@ const TRANSLATIONS: Partial<StreamdownTranslations> = {
   exitFullscreen: '退出全屏',
   imageNotAvailable: '图片无法显示',
   viewFullscreen: '全屏查看',
+}
+
+/*
+ * 控件里的图标也归这个应用。
+ *
+ * 上游自带一套，代码块与表格的控件默认渲染的就是它们；而这个界面其余每一个图标都来自
+ * @mynaui/icons-react —— 两种笔画（2px 与 1.5px）此前并排出现在同一块面板上。icons 收
+ * Partial<IconMap>，是官方给的覆盖点，一处声明覆盖全部控件。
+ *
+ * 只映真的会渲染的四个：下载与外链弹窗都关着，缩放三件由图面板自己画。映一个永远不出现的
+ * 键，和译一句永远不出现的文案是同一件事。
+ */
+const ICONS: Partial<IconMap> = {
+  CheckIcon,
+  CopyIcon,
+  Maximize2Icon: MaximizeIcon,
+  XIcon: CloseIcon,
 }
 
 /*
@@ -200,6 +219,7 @@ export const ProseSegment = memo(function ProseSegment({
       {...(isStreaming ? { animated: ANIMATION } : {})}
       className="timeline-prose__segment"
       controls={CONTROLS}
+      icons={ICONS}
       isAnimating={isStreaming}
       lineNumbers={false}
       linkSafety={LINK_SAFETY}

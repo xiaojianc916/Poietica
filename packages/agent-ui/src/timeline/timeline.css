@@ -1382,91 +1382,132 @@
 }
 
 /*
- * 图。
+ * 图面板。
  *
- * 一块面板，工具在它自己的右上角里面。上游给的是外层一张卡、里层再一张卡，中间夹一行
- * 只写着 "mermaid" 的标签，按钮悬在渲染区上方 —— 代码块与表格在上面两节里已经因为同一个
- * 理由被压平过一次。标记现在由 timeline/diagram.tsx 出，所以这里写的就是全部，不存在
- * 第二个样式来源。
+ * 一块单色底、一片定高的舞台、右上角一枚浮层，就三样东西。卡片套卡片那一版上一批已经
+ * 没了，这里不许再长回来。
  *
- * 面板不滚，滚的是里面那层：图比栏宽的时候交出的是滚动权，而不是把它缩到看不清。要看
- * 细节按全屏 —— 那是 Fullscreen API 的事，不必在正文里再造一套 pan/zoom。
+ * 高度写死：一张图有多高由图的内容决定，让面板跟着它长，短的时候塌成一条缝、长的时候把
+ * 整段回答顶出屏幕 —— 转录区是一条流，流里每一块都得能被一眼扫过。定高之后装不下的部分
+ * 交给舞台自己滚，鼠标可以按住拖。
  */
 .timeline-prose__diagram {
   --cp-diagram-pad: 0.75rem;
-  --cp-diagram-tool: var(--ui-control-height-sm);
+  --cp-diagram-height: 26rem;
 
   position: relative;
   margin-block: var(--cp-prose-flow);
-  padding: var(--cp-diagram-pad);
-  padding-block-start: calc(var(--cp-diagram-pad) * 2 + var(--cp-diagram-tool));
   border-radius: var(--ui-radius-xl);
   background: var(--cp-timeline-output-surface);
+  overflow: clip;
 }
 
+/* 看源码时这块底让位给官方代码块自己的底，面板只剩「浮层挂在哪」这一个作用。 */
+.timeline-prose__diagram[data-view="code"] {
+  background: none;
+}
+
+.timeline-prose__diagram[data-view="code"] .timeline-prose__diagram-stage {
+  display: none;
+}
+
+/* 外层已经排过一次间距，代码块自带的上下外边距在这里是第二份。 */
+.timeline-prose__diagram [data-streamdown="code-block"] {
+  margin-block: 0;
+}
+
+/*
+ * 舞台是一个滚动容器。图比它大就滚，比它小就居中；safe 保证小图居中、大图从左上角开始，
+ * 而不是把左上角推到滚动区外面去。
+ */
+.timeline-prose__diagram-stage {
+  display: grid;
+  place-content: safe center;
+  block-size: var(--cp-diagram-height);
+  padding: var(--cp-diagram-pad);
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  user-select: none;
+}
+
+.timeline-prose__diagram-stage:active {
+  cursor: grabbing;
+}
+
+/*
+ * 控件浮在图上，鼠标进来才出现。
+ *
+ * 常驻会一直压着右上角那块内容。这是一个 Windows 桌面应用，指针一定在，hover 就是它该有
+ * 的触发条件，不需要为触摸再补一套。键盘走 focus-within：Tab 进来它同样出现，否则那几个
+ * 按钮就是焦点顺序里几个看不见的落点。
+ */
 .timeline-prose__diagram-tools {
   position: absolute;
   z-index: 1;
   inset-block-start: var(--cp-diagram-pad);
   inset-inline-end: var(--cp-diagram-pad);
   display: flex;
-}
-
-.timeline-prose__diagram-tool {
-  display: inline-flex;
   align-items: center;
-  block-size: var(--cp-diagram-tool);
-  padding-inline: var(--cp-diagram-pad);
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--cp-hairline);
   border-radius: var(--ui-radius-md);
-  color: var(--cp-timeline-quiet-text);
-  font-size: var(--ui-prose-size-meta);
-  white-space: nowrap;
+  background: var(--cp-timeline-drawer-surface);
+  opacity: 0;
+  transition: opacity 120ms var(--cp-motion-ease);
 }
 
-.timeline-prose__diagram-tool:hover {
+.timeline-prose__diagram:hover .timeline-prose__diagram-tools,
+.timeline-prose__diagram:focus-within .timeline-prose__diagram-tools {
+  opacity: 1;
+}
+
+/*
+ * 复制那一枚是上游的组件，它自带一串工具类（p-1、text-muted-foreground …）。同一枚浮层里
+ * 两套配色说不通，所以这里用两级选择器盖过去：工具类是单类选择器，两级一定赢，与样式表的
+ * 先后顺序无关。
+ */
+.timeline-prose__diagram-tools .timeline-prose__diagram-tool {
+  display: grid;
+  place-items: center;
+  inline-size: var(--ui-control-height-sm);
+  block-size: var(--ui-control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: none;
+  color: var(--cp-ink-muted);
+  cursor: pointer;
+}
+
+.timeline-prose__diagram-tools .timeline-prose__diagram-tool:hover:not(:disabled) {
   background: var(--cp-hover);
   color: var(--cp-ink);
 }
 
-/* 还没画出来的时候「预览」无处可去：藏起来，位置留着，右侧两个按钮因此不跳。 */
-.timeline-prose__diagram-tool:disabled {
-  visibility: hidden;
+/* 按不动的按钮要留在焦点顺序里，所以是变淡，不是消失。 */
+.timeline-prose__diagram-tools .timeline-prose__diagram-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
-.timeline-prose__diagram-view {
-  display: flex;
-  justify-content: center;
-  overflow: auto;
+.timeline-prose__diagram-tool svg {
+  display: block;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.timeline-prose__diagram-split {
+  inline-size: 1px;
+  block-size: 0.875rem;
+  margin-inline: 0.125rem;
+  background: var(--cp-hairline);
 }
 
 .timeline-prose__diagram-alert {
   margin: 0;
-  padding-block-end: var(--cp-diagram-pad);
-  color: var(--cp-ink-muted);
-  font-size: var(--ui-prose-size-quiet);
-}
-
-.timeline-prose__diagram-code {
-  margin: 0;
-  overflow: auto;
-  color: var(--cp-ink-muted);
-  font-family: var(--cp-font-mono);
-  font-size: var(--ui-prose-size-aux);
-  line-height: var(--ui-prose-line-height);
-}
-
-/* 全屏时它就是整块屏幕：面板铺满，图在中间。 */
-.timeline-prose__diagram:fullscreen {
-  display: flex;
-  flex-direction: column;
-  border-radius: 0;
-}
-
-.timeline-prose__diagram:fullscreen .timeline-prose__diagram-view {
-  flex: 1;
-  align-items: center;
-}
-
-.timeline-prose__diagram:fullscreen .timeline-prose__diagram-code {
-  flex: 1;
+  padding: var(--cp-diagram-pad) var(--cp-diagram-pad) 0;
+  font-size: var(--ui-prose-size-meta);
+  color: var(--cp-timeline-quiet-text);
 }
