@@ -1,8 +1,6 @@
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
-  SessionConfigChoice,
-  SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/acp'
@@ -57,7 +55,7 @@ let chosenAgentId: string | undefined
 
 /*
  * 订阅那圈样板出自 @poietica/core：一个 listener 集合、一次遍历通知、一对
- * add/delete。留在这里的只有「值是什么、什么时候换」—— 那部分本来就归本模块,
+ * add/delete。留在这里的只有"值是什么、什么时候换" —— 那部分本来就归本模块,
  * 也是 createExternalStore 刻意不接管的部分。
  */
 const agent = createExternalStore<string | undefined>({ read: () => chosenAgentId })
@@ -85,7 +83,7 @@ export function adoptAgent(agentId: string): void {
   agent.notify()
 }
 
-/** 听「换了一家」。返回退订。 */
+/** 听"换了一家"。返回退订。 */
 export const subscribeAgent = agent.subscribe
 
 /*
@@ -104,30 +102,26 @@ export function desktopSessionConfig(): SessionConfigPort {
 }
 
 /*
- * 「这一家 agent 提供哪些可调项」，一个 agent 一份。
+ * "这一家 agent 提供哪些可调项、每一项此刻生效什么"，一个 agent 一份。
  *
- * 两个产地一张表，因为两件事的前提不同：
+ * 一张表一个产地：锚会话。模型、模式、推理档位都在它报的那张表里，而这三件事本来
+ * 就互相决定 —— ACP 的 session/new 与 set_config 一律回整张表，理由逐字是 changing
+ * one may add or remove another（见 @poietica/acp 的 config.ts）。
  *
- *   · 模型清单：agent 自己的 CLI（provider list --json）。一次子进程调用，读的就是
- *     它那份 config.toml，不需要会话 —— 这正是 0cbf5bc 修掉的那个死锁（上游在开会话
- *     之前先查 default_model 可不可用，于是"看清单"曾被架在"已经选好一个"之上）。
- *   · 模式与推理档位：只有 agent 说得出来。ACP 的 session/new 是唯一权威，原生侧
- *     agent_capabilities 问的是连接自带的锚会话，不新开会话、不写库、不碰 thread。
+ * 此前这里把两个产地缝成一张表：模型清单来自 agent 的 CLI（provider list --json,
+ * 读 config.toml 的静态目录），模式与推理档位来自锚会话。锚会话是按 default_model
+ * 开的，所以那两项描述的是 default_model 那个模型，而同一个数组里的"当前模型"取自
+ * 目录 —— 两个值只是碰巧可能相等。换模型时档位不跟着换、重启后档位取决于上次退出
+ * 前写下的 default_model，都是那一行的直接后果。
  *
- * 锚会话要有一个可用的 default_model 才开得起来，所以它排在清单之后，而且失败不
- * 连坐：清单还在，少两项选择器好过一项都没有 —— 但要说出来，不是默不作声。配置里
- * 第一次被补上 default_model 时，capability store 会把这一路重问一次。
+ * CLI 只剩一件事：播种。锚会话要有一个可用的 default_model 才开得起来（上游
+ * hasUsableConfiguredDefaultModel 第一行就是缺席即 false），而全新安装时那一格是
+ * 空的 —— 于是先按目录挑一个写进配置，再问锚会话。这不是第二条读取路径：它一个
+ * 进程里最多发生一次，也不产出任何画在屏幕上的东西。
  *
  * 按 agentId 记住那个对象，因为端口的身份就是 store 判断"换没换一家"的依据。
  */
 const capabilities = new Map<string, AgentCapabilityPort>()
-
-/* 模型那一格由这里合成：id 与 purpose 都是协议里那个字面量。 */
-const MODEL_CONTROL: Pick<SessionConfigControl, 'id' | 'label' | 'purpose'> = {
-  id: 'model',
-  label: '模型',
-  purpose: 'model',
-}
 
 export function desktopAgentCapabilities(
   store: AgentConfigStore,
@@ -145,41 +139,25 @@ export function desktopAgentCapabilities(
 
   const source: AgentCapabilityPort = {
     read: async () => {
-      const choices = await readModels(store, agentId)
+      await seedDefaultModel(store, agentId)
 
-      const offered = await anchor.read().catch((cause: unknown) => {
-        reportError('the agent did not report its selectors', {
-          scope: 'agent-session',
-          operation: 'read-capabilities',
-          cause,
-        })
+      return anchor.read()
+    },
 
-        return []
-      })
-
-      /* 模型那一项在这里成形：清单归 CLI，其余归 agent，两边不重叠。 */
-      const declared = offered.find((control) => control.purpose === 'model')
-      const rest = offered.filter((control) => control.purpose !== 'model')
-
-      if (choices.length === 0) {
-        return rest
+    /*
+     * 换模型要落盘，而落盘在切换之前。
+     *
+     * default_model 是这件事唯一的家，写它的那条原生命令本身就是校验：别名必须在
+     * 配置里、对应 provider 必须有可用的凭据。先写、写成了再切，失手时锚会话与屏幕
+     * 都还停在原处；反过来的顺序会让屏幕换到一个下次启动就消失的模型，而人以为自己
+     * 改的是一个偏好。
+     */
+    select: async (control, value) => {
+      if (control.purpose === 'model') {
+        await store.saveDefaultModel(agentId, value)
       }
 
-      /*
-       * current 归锚会话，不归清单。
-       *
-       * 这两半描述的是两件事：清单是 config.toml 里配了哪些模型（CLI 读的），
-       * 而 rest 里的模式与推理档位是锚会话按 default_model 报的。此前这里写死
-       * choices[0]，于是同一个数组里「当前模型」与「可选档位」属于两个不同的
-       * 模型，而屏幕上看不出任何异样。
-       *
-       * 锚报的那个别名不在清单里时留空：那是「这个模型已经不在配置里了」，
-       * 由 capability store 的落定那一步去挑一个，不在这里冒充。
-       */
-      const current = declared?.current ?? ''
-      const listed = choices.some((choice) => choice.value === current)
-
-      return [{ ...MODEL_CONTROL, current: listed ? current : '', choices }, ...rest]
+      return anchor.select(control, value)
     },
   }
 
@@ -188,11 +166,32 @@ export function desktopAgentCapabilities(
   return source
 }
 
+/*
+ * 配置里还没有 default_model 时，按 agent 自己的目录挑一个写进去。
+ *
+ * 挑第一个是稳定的：快照在 provider-state 里按 provider id 排过序。它只是个起点，
+ * 不是偏好 —— 也是"密钥配好了、模型也列出来了，一发消息却说 Authentication
+ * required"的根治：缺 default_model 会让配置文件里的 api_key 整条不算数。
+ */
+async function seedDefaultModel(store: AgentConfigStore, agentId: string): Promise<void> {
+  if ((await store.loadDefaultModel(agentId)) !== null) {
+    return
+  }
+
+  const first = (await readModelAliases(store, agentId))[0]
+
+  if (first === undefined) {
+    return
+  }
+
+  await store.saveDefaultModel(agentId, first)
+}
+
 /** 这一家配了哪些模型。没配凭据的那一家不列 —— 挑一个必定失败的没有意义。 */
-async function readModels(
+async function readModelAliases(
   store: AgentConfigStore,
   agentId: string,
-): Promise<readonly SessionConfigChoice[]> {
+): Promise<readonly string[]> {
   /* 问什么、哪个 id 是环境变量合成的保留条目，都写在 agent 的档案里。 */
   const descriptor = acpAgentById(agentId)
   const listArgs = descriptor?.providerListArgs
@@ -201,10 +200,7 @@ async function readModels(
     throw new Error(`${agentId} 没有声明查询模型清单的子命令。`)
   }
 
-  const outcome = await store.execCli({
-    agentId,
-    args: [...listArgs],
-  })
+  const outcome = await store.execCli({ agentId, args: [...listArgs] })
 
   /*
    * 非零退出时把 agent 自己的 stderr 原样上屏。config.toml 坏了的时候它说得比我们
@@ -220,9 +216,7 @@ async function readModels(
 
   return snapshot.providers
     .filter((provider) => provider.configured)
-    .flatMap((provider) =>
-      provider.models.map((model) => ({ value: model.alias, label: model.displayName })),
-    )
+    .flatMap((provider) => provider.models.map((model) => model.alias))
 }
 
 export interface DesktopAgentSession {

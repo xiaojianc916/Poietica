@@ -11,9 +11,13 @@ use super::dto::{
 };
 use super::failure::translate;
 use super::runtime::{AgentRuntime, borrow, ensure_session};
-use super::{AgentCommandResult, NO_ANSWER, NO_CONVERSATION, NO_SESSION};
+use super::{AgentCommandResult, NO_ANSWER, NO_SESSION};
 
-/// Changes one selector on the running session.
+/// Changes one selector, on one session.
+///
+/// 点名一条对话就发往它握着的那个会话；不点名就发往连接自带的锚会话 —— 入口那一格
+/// 没有对话可以点名，而它画着的正是锚会话报的那张表。两个地址一个命令：拆成两条
+/// 命令就等于让同一件事有两条代码路径，而其中一条迟早会长出自己的行为。
 ///
 /// The change applies to the session in flight, so nothing is restarted
 /// and nothing is written to the agent configuration file. The answer is
@@ -33,18 +37,20 @@ pub async fn agent_set_config_option(
     let live = borrow(&state)?.ok_or_else(|| Error::NotFound(NO_SESSION.to_owned()))?;
 
     /*
-     * 改一项设置，发往这条对话所持有的会话。
+     * 发往谁：点名的那条对话，或者连接自带的锚会话。
      *
-     * 与提问走同一条 session_for：它认不得的会话号（上一次运行留下的）会在
-     * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。
+     * 点名时与提问走同一条 session_for：它认不得的会话号（上一次运行留下的）会在
+     * 这里被换成一个新开的，而不是把一个 agent 不认识的名字发出去。锚会话不需要
+     * 这一步 —— 它是 connect() 当场交回的那个号，本进程一直握着。
      */
-    let named = request
-        .thread_id
-        .as_deref()
-        .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
+    let addressed = match request.thread_id.as_deref() {
+        Some(named) => {
+            let held = session_for(&state, &live, named, Wanted::Address).await?;
 
-    let held = session_for(&state, &live, named, Wanted::Address).await?;
-    let addressed = held.session_id;
+            held.session_id
+        }
+        None => live.anchor.clone(),
+    };
 
     let answer = live
         .client

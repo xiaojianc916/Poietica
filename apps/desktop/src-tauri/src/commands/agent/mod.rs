@@ -65,11 +65,14 @@ const NO_SESSION_ID: &str = "the agent closed the connection before creating a s
 const NO_ANSWER: &str = "the agent session ended before answering";
 const NO_READ: &str = "the database read did not finish";
 
-/// 提问和改设置都必须点名一条对话。
+/// 提问必须点名一条对话。
 ///
-/// 绑定里这个字段是可选的，语义上不是：不点名以前会落到「连接自带的那条对话」
-/// 上，于是这一轮被记进了一条屏幕上不存在的对话。在唯一能验证它的地方拒绝它，
-/// 与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
+/// 绑定里这个字段是可选的，语义上不是：一轮问答会被记进账本，不点名就会记进
+/// 「连接自带的那条对话」—— 一条屏幕上不存在的对话。在唯一能验证它的地方拒绝
+/// 它，与下面 `conversation()` 拒绝一个非 UUID 的名字是同一件事。
+///
+/// 改设置不受这条约束：那件事不写账本，而入口那一格没有对话可以点名（见
+/// `config::agent_set_config_option`）。
 const NO_CONVERSATION: &str = "no conversation was named";
 
 /// 一张图大到账本里那一格装不下。

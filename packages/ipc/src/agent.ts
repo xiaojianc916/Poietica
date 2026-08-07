@@ -300,12 +300,14 @@ export function createAgentSessionConfigBridge({
 }
 
 /*
- * 问这个 agent 提供什么，不点名任何一条对话。
+ * 问这个 agent 提供什么、以及改其中一项，都不点名任何一条对话。
  *
- * 它问的是连接自带的锚会话：不新开会话、不写库、不碰任何 thread。模型清单不走
- * 这里（那条路要先有一个可用的 default_model，见 app 层的 desktopAgentCapabilities），
- * 这一路要的是模式与推理档位 —— 那两项只有 agent 说得出来，ACP 的 session/new
- * 是它们唯一的权威。
+ * 两个动作走同一条会话：连接自带的锚会话。不新开会话、不写库、不碰任何 thread。
+ * 模型、模式、推理档位同表来同表走 —— ACP 的 session/new 与 set_config 都回整张
+ * 表，因为改一项可能增删另一项，所以这一层不拆表也不合表。
+ *
+ * select 传 threadId: null，原生侧据此发往锚会话；带对话名的那条路是
+ * SessionConfigPort。两者是同一个命令的两个地址，不是两套实现。
  *
  * 形状不在这里重新定义：请求体来自生成绑定，答复复用 controlOf，返回的就是
  * 组合层要的那个端口。
@@ -318,6 +320,14 @@ export function createAgentCapabilityBridge({
     read: async () => {
       const offered = await throughIpc(() =>
         commands.agentCapabilities({ launch: nativeLaunch(launch()), cwd: cwd?.() ?? null }),
+      )
+
+      return offered.map(controlOf)
+    },
+
+    select: async (control, value) => {
+      const offered = await throughIpc(() =>
+        commands.agentSetConfigOption({ threadId: null, configId: control.id, value }),
       )
 
       return offered.map(controlOf)

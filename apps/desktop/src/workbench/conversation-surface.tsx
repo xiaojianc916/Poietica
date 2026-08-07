@@ -1,8 +1,7 @@
-import { type AgentSessionPort, MODEL_CONTROL_ID } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/acp'
 import {
   chooseAgentControl,
   installAgentCapabilityPort,
-  installAgentDefaultModelSource,
   useAgentControls,
 } from '@poietica/agent-session'
 import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
@@ -31,7 +30,7 @@ import { reportFailure } from '../failures/application-policy'
  */
 
 export interface ConversationSurfaceProps {
-  /** 改 default_model 的那一路。选择器选中什么，那里就写什么。 */
+  /** 问这一家 agent 提供什么、改它、以及记住模型的那一路。 */
   readonly agentConfig: AgentConfigStore
   /** 写给哪一家 agent。与会话 spawn 的那一家同一个产地。 */
   readonly agentId: string
@@ -73,26 +72,21 @@ export function ConversationSurface({
   const failure = useThreadSelectorFailure(threadId)
 
   /*
-   * 告诉能力表：这一家 agent 有哪些模型，以及怎么读写它的 default_model。
+   * 告诉能力表这一家 agent 从哪里问。
    *
-   * 两件事同一个产地（agent 自己那份 config.toml），也同一个时机（换一家就都得
-   * 重来），所以它们在同一个 effect 里，依赖同一对 agentConfig / agentId。
+   * 一个产地一个端口：读整张表、改其中一项都走它，落盘 default_model 也在它里面
+   * （见 desktopAgentCapabilities）。渲染层因此不认识 default_model 这个概念，也
+   * 不再有第二条写它的路。
    *
-   * 交的是函数而不是值：那两次读取该在有人真要看选择器时才发生，而这里是渲染层，
-   * 不该替它决定时机。装上是幂等的 —— 端口按 agentId 记着，同一家只问一次。
+   * 装上是幂等的 —— 端口按 agentId 记着，store 用端口身份判断换没换一家。
    */
   useEffect(() => {
     installAgentCapabilityPort(desktopAgentCapabilities(agentConfig, agentId), (cause) => {
       reportFailure('AGENT_CAPABILITIES_UNREADABLE', {
         scope: 'conversation-surface',
-        operation: 'read-models',
+        operation: 'read-capabilities',
         cause,
       })
-    })
-
-    installAgentDefaultModelSource({
-      load: () => agentConfig.loadDefaultModel(agentId),
-      save: (alias) => agentConfig.saveDefaultModel(agentId, alias),
     })
   }, [agentConfig, agentId])
 
@@ -154,43 +148,6 @@ export function ConversationSurface({
     }
   }, [threadId, threads])
 
-  const selectControl = useCallback(
-    (controlId: string, value: string) => {
-      /*
-       * 一条下发路径。
-       *
-       * 选中什么是全局那一份；哪条会话该被切过去、什么时候切，由会话那一侧的对齐
-       * 引擎统一决定，忙的那条空下来由 onIdle 补发。
-       */
-      chooseAgentControl(controlId, value)
-
-      /*
-       * 模型多一件事：它有家，就是 agent 配置里的顶层 default_model。换模型就是换
-       * 默认模型，没有第二个概念，上游的 /model 也是这么做的（persist 恒为 true）。
-       *
-       * 落盘不等结果就上屏：agent watch 着那个文件，但 watcher 有延迟，回读只会读
-       * 到旧值。写失败会自己说出来，而不是让人以为换过了。
-       */
-      if (controlId !== MODEL_CONTROL_ID) {
-        return
-      }
-
-      void agentConfig.saveDefaultModel(agentId, value).catch((cause: unknown) => {
-        reportFailure('AGENT_DEFAULT_MODEL_SAVE_FAILED', {
-          scope: 'conversation-surface',
-          operation: 'save-default-model',
-          alias: value,
-          cause,
-        })
-      })
-    },
-    /*
-     * 不再依赖 controls：模型那一格的 id 是协议常量，不需要去表里反查。
-     * 带着它，这个回调每次表变化都换引用，AssistantSurface 的 memo 一次也命中不了。
-     */
-    [agentConfig, agentId],
-  )
-
   const userMessage = useCallback(
     (conversation: string, text: string) => {
       threads.noteUserMessage(conversation, text)
@@ -206,7 +163,7 @@ export function ConversationSurface({
       endpoint={threadId}
       identify={onIdentify}
       onRetryControls={retryControls}
-      onSelectControl={selectControl}
+      onSelectControl={chooseAgentControl}
       onUserMessage={userMessage}
       session={session}
     />

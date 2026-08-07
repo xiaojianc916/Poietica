@@ -3,7 +3,6 @@ export {
   agentChoices,
   chooseAgentControl,
   installAgentCapabilityPort,
-  installAgentDefaultModelSource,
   refreshAgentCapabilities,
   useAgentControls,
 } from './agent-capability-store'

@@ -8,13 +8,12 @@
 
 export type { ThreadId } from './address'
 export type { AgentCapabilityPort } from './capability'
-export {
-  MODEL_CONTROL_ID,
-  type SessionConfigChoice,
-  type SessionConfigControl,
-  type SessionConfigPort,
-  type SessionConfigPurpose,
-  type SessionConfigReport,
+export type {
+  SessionConfigChoice,
+  SessionConfigControl,
+  SessionConfigPort,
+  SessionConfigPurpose,
+  SessionConfigReport,
 } from './config'
 export type {
   AcpAvailableCommand,
