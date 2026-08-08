@@ -1,5 +1,6 @@
 import { type InstalledPlugin, resolutionOrder } from './installation'
 import { type PluginDiagnostic, SESSION_PROMPT_BUDGET_BYTES, utf8ByteLength } from './manifest'
+import { type McpServerWire, mcpServerWireOf } from './mcp-server'
 
 /*
  * 一次遍历，两个读者。
@@ -7,7 +8,8 @@ import { type PluginDiagnostic, SESSION_PROMPT_BUDGET_BYTES, utf8ByteLength } fr
  * 管理界面要看见全部：关掉的插件、关掉的服务器都得留在列表里，否则拨到关就再也
  * 开不回来 —— 上一版就是这样，关掉一台 MCP 服务器，它从 MCP 那一格消失，开关无处
  * 可寻。会话要的是「真的会生效的那些」。所以这里一次产出全部，每一条带上自己的
- * 启用位，会话读 active 那一档。不是两条管线，是一份结果加一个显式过滤。
+ * 启用位，会话读 active 那一档（apps/desktop 的 plugins/plugin-runtime 里那个
+ * activeMcpServers 就是那一档的唯一读者）。不是两条管线，是一份结果加一个显式过滤。
  *
  * 技能、代理、命令三类在清单里都只是一条 ./ 路径，真正的实体是路径下那些文件。
  * 扫盘还没有实现，所以这里如实交出路径，不凭空造出名字来撑版面。
@@ -23,7 +25,14 @@ export interface ResolvedRoot {
 export interface ResolvedMcpServer {
   readonly pluginId: string
   readonly name: string
-  readonly config: Readonly<Record<string, unknown>>
+  /*
+   * 协议认得的那个对象。清单里那一格的写法归 MCP 规范所有，解码在这一层做完，
+   * 下游拿到的就是能直接上线的形状 —— 此前这里是 Record<string, unknown>，等于
+   * 把「还没解析」当成解析结果往下发。
+   *
+   * undefined 表示这台的传输本程序认不出。它照样留在列表里，因为开关要有落脚点。
+   */
+  readonly wire: McpServerWire | undefined
   /** 这一台自己的开关。界面上那个 Switch 显示的就是它。 */
   readonly enabled: boolean
   /** 会话里真的会启动：插件开着，并且这一台开着。 */
@@ -69,7 +78,7 @@ export function resolveContributions(input: ContributionInput): ResolvedContribu
     collectRoots(pluginId, plugin.manifest.skillRoots, plugin.enabled, skillRoots)
     collectRoots(pluginId, plugin.manifest.agentRoots, plugin.enabled, agentRoots)
     collectRoots(pluginId, plugin.manifest.commandRoots, plugin.enabled, commandRoots)
-    collectMcpServers(plugin, mcpServers)
+    collectMcpServers(plugin, mcpServers, diagnostics)
 
     promptBytes = collectPrompt(plugin, promptBytes, prompts, diagnostics)
   }
@@ -89,17 +98,31 @@ function collectRoots(
 }
 
 /* 关掉的那几台照样列出来，只是 active 是假 —— 不然开关就没有落脚点。 */
-function collectMcpServers(plugin: InstalledPlugin, into: ResolvedMcpServer[]): void {
+function collectMcpServers(
+  plugin: InstalledPlugin,
+  into: ResolvedMcpServer[],
+  diagnostics: PluginDiagnostic[],
+): void {
   const pluginId = plugin.manifest.name
   const disabled = new Set(plugin.disabledMcpServers)
 
   for (const server of plugin.manifest.mcpServers) {
     const enabled = !disabled.has(server.name)
+    const wire = mcpServerWireOf(server.name, server.config)
+
+    /* 认不出就说出来。与 hooks 那条同一个理由：声明了却不生效，静默等于骗人。 */
+    if (wire === undefined) {
+      diagnostics.push({
+        code: 'mcp-transport-unrecognised',
+        pluginId,
+        detail: '"' + server.name + '" 的传输方式无法识别，本次会话没有装载它',
+      })
+    }
 
     into.push({
       pluginId,
       name: server.name,
-      config: server.config,
+      wire,
       enabled,
       active: plugin.enabled && enabled,
     })

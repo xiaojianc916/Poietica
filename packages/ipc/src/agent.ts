@@ -90,6 +90,17 @@ export interface AgentBridgeOptions {
    * 进程 —— 此前这一格是个值，而组合层连那个值都没有传。
    */
   readonly cwd?: () => string | null
+  /**
+   * 这一次开会话时要挂哪几台 MCP 服务器。
+   *
+   * 载荷是 ACP 自己的线上形状，这一层一格都不认识 —— 它只负责把它送过去。协议
+   * 的三个结构体在 Rust 那侧全是 #[non_exhaustive]，构造不出来，只能反序列化，
+   * 所以线上形状就是契约（原生侧 driver.rs 为图片块立的是同一条规矩）。
+   *
+   * 与 launch 和 cwd 同一条规矩：交的是一次求值，不是一个值。插件随时会被装上
+   * 或拨掉，而桥在启动时就建好了。
+   */
+  readonly mcpServers?: () => readonly unknown[]
 }
 
 /**
@@ -180,7 +191,11 @@ function nativeLaunch(launch: AgentLaunchDescription): {
  * Answering a permission request is checked natively: an answer naming an
  * option the agent never offered is refused rather than acted on.
  */
-export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): AgentCommandBridge {
+export function createAgentCommandBridge({
+  launch,
+  cwd,
+  mcpServers,
+}: AgentBridgeOptions): AgentCommandBridge {
   return {
     prompt: async (request) => {
       const result = await throughIpc(() =>
@@ -195,6 +210,7 @@ export function createAgentCommandBridge({ launch, cwd }: AgentBridgeOptions): A
           })),
           launch: nativeLaunch(launch()),
           cwd: cwd?.() ?? null,
+          mcpServers: [...(mcpServers?.() ?? [])],
         }),
       )
 
@@ -357,7 +373,11 @@ export function createAgentCapabilityBridge({
  * （ThreadRecord 与 ThreadHistory）。生成绑定的 AgentThread 与 AgentHistory
  * 逐格与它们相同，所以这里原样交出去，不复制、不改名、也不再抄一份说明。
  */
-export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): ThreadPort {
+export function createAgentThreadBridge({
+  launch,
+  cwd,
+  mcpServers,
+}: AgentBridgeOptions): ThreadPort {
   return {
     list: () => throughIpc(() => commands.agentThreads()),
 
@@ -367,6 +387,7 @@ export function createAgentThreadBridge({ launch, cwd }: AgentBridgeOptions): Th
           threadId: threadId ?? null,
           launch: nativeLaunch(launch()),
           cwd: cwd?.() ?? null,
+          mcpServers: [...(mcpServers?.() ?? [])],
         }),
       )
 

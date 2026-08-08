@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     CancelNotification, ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest,
-    LoadSessionRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
+    LoadSessionRequest, McpServer, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
     SessionConfigOption, SessionId, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, TextContent,
@@ -304,6 +304,10 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                     .delete
                     .is_some();
 
+                /* 锚会话不挂 MCP。它存在的理由只有一个：读回这个 agent 的选择器
+                表（见桌面 seam 的 agent_capabilities）。为它把一批 MCP 服务器拉
+                起来，是为一次只读的问答付出一堆进程和握手 —— 而它们的工具这条
+                会话一次都不会调。人真正说话的那些会话在 open_session 里开。 */
                 let session = match connection
                     .send_request(NewSessionRequest::new(cwd))
                     .block_task()
@@ -412,11 +416,16 @@ pub fn connect(spawn: AgentSpawn, slot: RunSlot, desk: PermissionDesk) -> Result
                                     .send_notification(CancelNotification::new(named.clone()));
                             }
                         }
-                        Step::Asked(Some(Command::NewSession { cwd, reply })) => {
+                        Step::Asked(Some(Command::NewSession {
+                            cwd,
+                            mcp_servers,
+                            reply,
+                        })) => {
                             jobs.push(Box::pin(open_session(
                                 &connection,
                                 ledger.clone(),
                                 cwd,
+                                mcp_servers,
                                 reply,
                             )));
                         }
@@ -679,10 +688,13 @@ async fn open_session(
     connection: &ConnectionTo<Agent>,
     ledger: SessionBook,
     cwd: PathBuf,
+    declared: Vec<Value>,
     reply: oneshot::Sender<Result<OpenedSession>>,
 ) -> Settled {
+    let mcp_servers = mcp_servers_of(declared);
+
     let started = connection
-        .send_request(NewSessionRequest::new(cwd))
+        .send_request(NewSessionRequest::new(cwd).mcp_servers(mcp_servers))
         .block_task()
         .await;
 
@@ -709,6 +721,28 @@ async fn open_session(
     };
 
     Settled::Opened { opened, reply }
+}
+
+/// 线上形状变成协议的类型。
+///
+/// 反序列化，不是构造：McpServer 与它那三个变体在 schema crate 里全标了
+/// #[non_exhaustive]，外部 crate 用结构体字面量根本编译不过。官方只留了这一条
+/// 路，而这个 crate 早就在图片块与停止原因那两处立过同一条规矩 —— 线上形状才
+/// 是契约。判别式由协议自己钉死：http 与 sse 带 type，stdio 那一支是 untagged。
+///
+/// 读不成的那一台跳过并留一行日志。整批作废是更坏的选择：一台写错的服务器不该
+/// 让这条会话连开都开不起来，而静默丢弃会让它变成一个查不出原因的问题。
+fn mcp_servers_of(declared: Vec<Value>) -> Vec<McpServer> {
+    let mut servers = Vec::with_capacity(declared.len());
+
+    for value in declared {
+        match serde_json::from_value::<McpServer>(value) {
+            Ok(server) => servers.push(server),
+            Err(error) => log::warn!("could not read a declared MCP server: {error}"),
+        }
+    }
+
+    servers
 }
 
 /// 让 agent 把一条它以前开过的会话重新装载起来。

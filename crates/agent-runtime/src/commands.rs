@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 
 use futures::channel::{mpsc, oneshot};
+use serde_json::Value;
 
 use crate::config::ConfigControl;
 use crate::error::{AcpError, Refusal, Result};
@@ -46,6 +47,11 @@ pub(crate) enum Command {
     /// Open one more session on the connection that is already running.
     NewSession {
         cwd: PathBuf,
+        /// 这一条会话要挂的 MCP 服务器，ACP 的线上形状。
+        ///
+        /// 命令这一层不认识它。协议那三个结构体都是 #[non_exhaustive]，构造
+        /// 不出来，所以物化推迟到驱动器里那一次反序列化 —— 与图片块同一条路。
+        mcp_servers: Vec<Value>,
         reply: oneshot::Sender<Result<OpenedSession>>,
     },
     /// 让 agent 重新装载一条它以前开过的会话。
@@ -147,10 +153,18 @@ impl AgentClient {
     ///
     /// Fails when the connection is gone, when the agent refuses to open a
     /// session, or when the book cannot record the one it opened.
-    pub async fn new_session(&self, cwd: PathBuf) -> Result<OpenedSession> {
+    pub async fn new_session(
+        &self,
+        cwd: PathBuf,
+        mcp_servers: Vec<Value>,
+    ) -> Result<OpenedSession> {
         let (reply, answer) = oneshot::channel();
 
-        self.send(Command::NewSession { cwd, reply })?;
+        self.send(Command::NewSession {
+            cwd,
+            mcp_servers,
+            reply,
+        })?;
 
         answer
             .await

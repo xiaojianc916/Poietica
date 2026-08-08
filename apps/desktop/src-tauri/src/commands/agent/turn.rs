@@ -42,6 +42,7 @@ pub async fn agent_prompt(
 ) -> AgentCommandResult<AgentPromptResult> {
     let text = request.text.trim().to_owned();
     let attached = request.assets;
+    let mcp = request.mcp_servers;
 
     /* 空的是这一句话，不是这一格。只挑了图、没打字，仍然是一句完整的话。 */
     if text.is_empty() && attached.is_empty() {
@@ -65,7 +66,7 @@ pub async fn agent_prompt(
         .ok_or_else(|| Error::Validation(NO_CONVERSATION.to_owned()))?;
 
     /* 提问不需要历史：屏幕上正看着的就是这条对话。 */
-    let held = session_for(&state, &session, named, Wanted::Address).await?;
+    let held = session_for(&state, &session, named, Wanted::Address, mcp).await?;
     let thread_id = held.thread_id;
     let addressed = held.session_id;
 

@@ -76,11 +76,14 @@ pub(super) struct Held {
 /// 空的才回落到平台给的那个 home —— 那是迁移之前写下的行，那时候只有一个工作
 /// 目录，所以回落是一条事实，不是兜底。取进程的当前目录回答的是另一个问题：
 /// 开发运行时它是 Rust 的构建目录。
+/* 名册按值收下：只有走到最下面新开一条会话那一路才用得到它。装载回来的那条
+会话不该重挂 —— session/load 恢复的是它原来那一条，连同它原来那几台。 */
 pub(super) async fn session_for(
     state: &State<'_, AgentRuntime>,
     live: &Handle,
     named: &str,
     wanted: Wanted,
+    mcp: Vec<Value>,
 ) -> Result<Held> {
     let thread_id = conversation(named)?;
 
@@ -219,7 +222,7 @@ pub(super) async fn session_for(
 
     let opened = live
         .client
-        .new_session(workspace)
+        .new_session(workspace, mcp)
         .await
         .map_err(translate)?;
 

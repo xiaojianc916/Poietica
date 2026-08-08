@@ -61,6 +61,11 @@ pub struct AgentPromptRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
+    /// 这条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
+    ///
+    /// 已经有会话就用不上：MCP 名册是 session/new 的参数，一条已经开着的会话
+    /// 不会因为这一格而改变。
+    pub mcp_servers: Vec<Value>,
 }
 
 /// What the interface needs to follow the turn it just started.
@@ -261,6 +266,13 @@ pub struct AgentOpenThreadRequest {
     pub launch: AgentLaunch,
     /// The working directory the session is created against.
     pub cwd: Option<String>,
+    /// 这一次开会话要挂哪几台 MCP 服务器，ACP 的线上形状原样带过来。
+    ///
+    /// 这一层不认识它的字段。协议那三个结构体（McpServer / McpServerHttp /
+    /// McpServerStdio）全标了 #[non_exhaustive]，这个 crate 构造不出来，只能
+    /// 反序列化 —— 所以线上形状就是契约，与 events 那一格同一个理由。翻译在
+    /// 驱动器里做，那里才是协议的家。
+    pub mcp_servers: Vec<Value>,
 }
 
 /// A conversation that was just opened, and what its session offers.

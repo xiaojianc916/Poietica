@@ -23,6 +23,7 @@ import {
 } from '@poietica/ipc'
 import type { AgentConfigStore } from '@poietica/settings'
 
+import { activeMcpServers } from '../plugins/plugin-runtime'
 import { activeWorkspaceRoot } from '../workspace-root'
 
 /*
@@ -256,6 +257,7 @@ export function createDesktopAgentSession(): DesktopAgentSession {
     bridge: createAgentCommandBridge({
       cwd: activeWorkspaceRoot,
       launch: () => acpAgentLaunch(currentAgent()),
+      mcpServers: activeMcpServers,
     }),
 
     source: createAgentEventSource({ onListenFailure: noteListenFailure }),
@@ -299,6 +301,7 @@ function buildThreadPort(): ThreadPort {
   const bridge = createAgentThreadBridge({
     cwd: activeWorkspaceRoot,
     launch: () => acpAgentLaunch(currentAgent()),
+    mcpServers: activeMcpServers,
   })
 
   /*

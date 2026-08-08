@@ -73,6 +73,7 @@ pub async fn agent_open_thread(
     request: AgentOpenThreadRequest,
 ) -> AgentCommandResult<AgentOpenedThread> {
     let asked = request.cwd.clone();
+    let mcp = request.mcp_servers;
     let live = ensure_session(&app, &state, request.launch, request.cwd).await?;
 
     let named = if let Some(given) = request.thread_id {
@@ -95,7 +96,7 @@ pub async fn agent_open_thread(
         offered,
         events,
         history,
-    } = session_for(&state, &live, &named, Wanted::History).await?;
+    } = session_for(&state, &live, &named, Wanted::History, mcp).await?;
 
     let offered = if let Some(offered) = offered {
         offered

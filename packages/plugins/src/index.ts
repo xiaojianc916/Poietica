@@ -60,6 +60,14 @@ export {
   type MarketplaceState,
 } from './marketplace'
 export {
+  type McpServerHttpWire,
+  type McpServerStdioWire,
+  type McpServerWire,
+  type McpTransports,
+  mcpServerWireOf,
+  transportIsOffered,
+} from './mcp-server'
+export {
   createPluginStore,
   type IdleInstall,
   INSTALL_IDLE,

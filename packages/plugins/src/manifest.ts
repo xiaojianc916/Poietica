@@ -38,6 +38,7 @@ export type PluginDiagnosticCode =
   | 'frontmatter-invalid'
   | 'hooks-not-executed'
   | 'manifest-invalid'
+  | 'mcp-transport-unrecognised'
   | 'name-invalid'
   | 'name-taken'
   | 'path-escapes-root'
