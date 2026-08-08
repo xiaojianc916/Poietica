@@ -9,9 +9,20 @@ import * as v from 'valibot'
  * #[non_exhaustive]，原生侧因此只能反序列化、不能构造，这也正是这里要产出
  * 线上形状而不是产出一个自造 DTO 的原因。
  *
- * 插件清单里那一格的写法归 MCP 规范所有（Kimi 官方文档：plugin 的 mcpServers
- * 复用 MCP 的 schema），判别字段是 transport。认不出的传输不猜，交回 undefined，
- * 由调用方记一条诊断 —— 静默丢弃会把「装上了却没反应」变成查不出原因的问题。
+ * 输入那一侧的判别式不是 transport，是字段本身。Kimi 官方 MCP 文档原句：
+ * "Entries with a `command` field are stdio servers; entries with a `url`
+ * field and no `transport` are HTTP servers. For legacy SSE servers, set
+ * `transport` to \"sse\" explicitly."
+ *
+ * 这一条不是措辞问题。官方插件 kimi-datasource 的清单里那台服务器写的是
+ * { "command": "node", "args": [...], "cwd": "./" }，一个 transport 字段都没有；
+ * 把 transport 当必填判别式，它就会被判成「传输方式无法识别」而整台不装载 ——
+ * 照文档默认写法写的插件全中，写了 transport 的（vercel-plugin）反而没事。
+ *
+ * 插件清单与 mcp.json 用的是同一套写法（文档：plugin 的 mcpServers 复用 MCP 的
+ * schema），所以这里是唯一一处解码，两边共用，不会有第二份跟着漂。
+ * 认不出的形状不猜，交回 undefined，由调用方记一条诊断 —— 静默丢弃会把「装上了
+ * 却没反应」变成查不出原因的问题。
  */
 
 /*
@@ -50,37 +61,31 @@ export interface McpTransports {
   readonly sse: boolean
 }
 
+/* url 那一支：没写 transport 就是 http，写了 sse 才是那条老通道。 */
 const HttpConfig = v.looseObject({
-  transport: v.picklist(['http', 'sse']),
+  transport: v.optional(v.picklist(['http', 'sse'])),
   url: v.string(),
   headers: v.optional(v.record(v.string(), v.string())),
 })
 
+/* command 那一支：stdio 的 transport 字段可写可不写，写了也只能是 stdio。 */
 const StdioConfig = v.looseObject({
-  transport: v.literal('stdio'),
+  transport: v.optional(v.literal('stdio')),
   command: v.string(),
   args: v.optional(v.array(v.string())),
   env: v.optional(v.record(v.string(), v.string())),
 })
 
-/** 一台声明出来的服务器，变成协议认得的那个对象。认不出就是 undefined。 */
+/**
+ * 一台声明出来的服务器，变成协议认得的那个对象。认不出就是 undefined。
+ *
+ * command 先看：文档把它排在前面，而且两者同时出现时子进程那一支才是能真的起来的
+ * 那一支 —— url 没有命令可跑。
+ */
 export function mcpServerWireOf(
   name: string,
   config: Readonly<Record<string, unknown>>,
 ): McpServerWire | undefined {
-  const http = v.safeParse(HttpConfig, config)
-
-  if (http.success) {
-    const headers = http.output.headers
-
-    return {
-      type: http.output.transport,
-      name,
-      url: http.output.url,
-      ...(headers === undefined ? {} : { headers }),
-    }
-  }
-
   const stdio = v.safeParse(StdioConfig, config)
 
   if (stdio.success) {
@@ -92,6 +97,19 @@ export function mcpServerWireOf(
         name: key,
         value,
       })),
+    }
+  }
+
+  const http = v.safeParse(HttpConfig, config)
+
+  if (http.success) {
+    const headers = http.output.headers
+
+    return {
+      type: http.output.transport ?? 'http',
+      name,
+      url: http.output.url,
+      ...(headers === undefined ? {} : { headers }),
     }
   }
 
