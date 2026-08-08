@@ -73,6 +73,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_remove,
             crate::commands::automations::automations_record_run,
             crate::commands::automations::automations_sweep,
+            crate::mcp::mcp_endpoint,
             crate::commands::plugins::plugins_catalog_read,
             crate::commands::plugins::plugins_catalog_refresh,
             crate::commands::plugins::plugins_commit,
@@ -131,6 +132,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationCatalog>()
         .typ::<AutomationReschedule>()
         .typ::<AutomationRunRecord>()
+        .typ::<crate::mcp::McpEndpoint>()
         .typ::<PluginFetch>()
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()

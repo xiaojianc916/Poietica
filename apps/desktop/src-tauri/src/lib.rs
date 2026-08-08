@@ -20,6 +20,7 @@ pub mod commands;
 pub mod diagnostics;
 pub mod error;
 pub mod ipc;
+pub mod mcp;
 pub mod paths;
 
 pub use bootstrap::app;

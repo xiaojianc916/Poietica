@@ -121,6 +121,7 @@ pub fn build() -> tauri::Builder<Wry> {
              * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
              */
             commands::automations::watch(handle);
+            crate::mcp::serve(handle)?;
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

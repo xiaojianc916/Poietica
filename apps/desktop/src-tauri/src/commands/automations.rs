@@ -144,12 +144,12 @@ pub struct AutomationRunRecord {
     pub reschedule: AutomationReschedule,
 }
 
-fn open(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
+pub(crate) fn open(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
     Ok(app.store(automations_store(app)?)?)
 }
 
 /// 读出目录。读不懂的原件先挪走，再如实报错。
-fn read_catalog(store: &Store<Wry>) -> Result<AutomationCatalog> {
+pub(crate) fn read_catalog(store: &Store<Wry>) -> Result<AutomationCatalog> {
     let Some(value) = store.get("automations") else {
         return Ok(AutomationCatalog::default());
     };
@@ -175,7 +175,10 @@ fn read_catalog(store: &Store<Wry>) -> Result<AutomationCatalog> {
 /// 读—改—写，全程持锁，回给写完之后的整本目录。
 ///
 /// 每一条写命令都长这个样子，于是「怎么写盘」在这个模块里只有一份实现。
-fn mutate(app: &AppHandle, edit: impl FnOnce(&mut Vec<Automation>)) -> Result<AutomationCatalog> {
+pub(crate) fn mutate(
+    app: &AppHandle,
+    edit: impl FnOnce(&mut Vec<Automation>),
+) -> Result<AutomationCatalog> {
     let _guard = LEDGER.lock().unwrap_or_else(PoisonError::into_inner);
 
     let store = open(app)?;

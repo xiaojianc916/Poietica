@@ -19,6 +19,9 @@ repository = "https://github.com/xiaojianc916/poietica"
 publish = false
 
 [workspace.dependencies]
+schemars = "1.2.2"
+axum = "0.8.9"
+rmcp = { version = "3.1.2", features = ["server", "macros", "schemars", "transport-streamable-http-server"] }
 # Error handling
 anyhow = "1.0.98"
 log = "0.4.27"
