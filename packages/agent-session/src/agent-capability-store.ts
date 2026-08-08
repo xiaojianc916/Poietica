@@ -1,6 +1,7 @@
 import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/acp'
 import { useSyncExternalStore } from 'react'
 import { ArrivalOrder } from './arrival-order'
+import { settledChange } from './settled-change'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -108,16 +109,16 @@ export class AgentCapabilityStore {
      * purpose 读出 undefined、configId 读出 undefined —— 前者让换模型不再落盘，
      * 后者让命令在原生侧连反序列化都过不了。
      */
-    void port.select(control, value).then(
+    void settledChange(control.purpose, () => port.select(control, value)).then(
       (table) => {
         this.#adopt(port, ticket, table)
       },
       (cause: unknown) => {
         this.#report?.changeFailed(cause)
 
-        /* 改不动就把权威重新问一遍：屏幕必须等于 agent 真在用的东西。这一趟不
-        惊动 agent —— 驱动器拿它手上那张表就地作答（driver.rs 的
-        Command::Selectors），代价只是一次进程内往返。 */
+        /* 改不动就退回驱动器手上那张表：它是这条连接最近一次记下的原话（driver.rs
+        的 Command::Selectors 就地作答，不惊动 agent），所以它纠正得了一次失败的下发，
+        纠正不了 agent 自己给出的陈旧表 —— 后者由 settledChange 在下发那一侧收敛。 */
         this.refresh()
       },
     )
@@ -137,11 +138,13 @@ export class AgentCapabilityStore {
     this.#offered = NO_CONTROLS
 
     /*
-     * agent 一改主意就重读：换完模型它会补推一张收敛过的表，而 thought 的候选集
-     * 属于模型，换了模型就得跟着换。
+     * agent 一改主意就重读。
      *
-     * 收到就重读，而不是把推来的表直接吃下：那一声没带可判定的归属，而锚会话此刻
-     * 是什么，问一次就有权威答案 —— 那一趟由驱动器就地作答，不惊动 agent。
+     * 重读，而不是把推来的表直接吃下：那一声没带可判定的归属，而锚会话此刻握着什么，
+     * 驱动器手上那张就是它最近一次的原话（driver.rs 的 Command::Selectors）。
+     *
+     * 这一条不负责换模型时的收敛。它读的是缓存，缓存里那张与答复是同一张；档位跟着
+     * 模型换，靠的是下发那一侧的 settledChange。
      */
     this.#unsubscribe = port.subscribe(() => {
       this.refresh()

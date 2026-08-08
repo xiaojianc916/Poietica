@@ -8,6 +8,7 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
+import { settledChange } from './settled-change'
 import type { TranscriptSink } from './transcript-sink'
 
 /** 打开一条对话拿回来的那一整份答复。形状由端口说了算，不另抄一遍。 */
@@ -220,8 +221,16 @@ export class SessionControlsStore {
       const order = this.#orderOf(threadId)
       const ticket = order.issue()
 
+      /* 换模型要多问一趟才收敛，规则在 settledChange，两台 store 共用同一份。
+      这一侧只有 controlId，档位从手上那张表里查出来。 */
+      const purpose = this.#held.selectors
+        .get(threadId)
+        ?.find((control) => control.id === controlId)?.purpose
+
       try {
-        const offered = await config.select(threadId, controlId, value)
+        const offered = await settledChange(purpose, () =>
+          config.select(threadId, controlId, value),
+        )
 
         /* 号过期了，说明这一趟在飞的时候 agent 已经自己说过话，那张表更新。 */
         if (order.isLatest(ticket)) {
