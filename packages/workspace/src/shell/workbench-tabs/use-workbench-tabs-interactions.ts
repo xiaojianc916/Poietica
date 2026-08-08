@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import {
+  resolveWorkbenchTabAutoScrollVelocity,
   resolveWorkbenchTabCloseTarget,
   resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
@@ -41,8 +42,19 @@ const DRAG_THRESHOLD = 4
  */
 const TAB_SHIFT_PROPERTY = '--chrome-tab-shift'
 
-/** 激活标签的位移。基线缺口画在标签条根节点上，必须跟着激活标签一起走。 */
-const ACTIVE_SHIFT_PROPERTY = '--chrome-active-tab-shift'
+/*
+ * 边缘自动滚动的两个参数。
+ *
+ * 触发区取最小标签宽 88 的一半：再窄要求指针精确贴边，再宽会在标签条两端的正常落位动作里
+ * 误触发。上限 720px/s 约等于一个首选宽度 168px 每 233ms，是"我要去另一头"这个意图该有的
+ * 速度，再快会冲过头。
+ *
+ * 不写成 CSS 自定义属性：它们是交互模型的参数，不是可换肤的视觉量，读令牌只会多一次
+ * getComputedStyle 而没有第二个消费者。
+ */
+const AUTO_SCROLL_ZONE = 44
+
+const AUTO_SCROLL_MAX_SPEED = 720
 
 interface PendingCloseFocus {
   readonly closingTabId: WorkbenchTabId
@@ -59,17 +71,22 @@ interface ReorderSession {
 
   readonly originX: number
 
+  /* 与 originX 成对：位移必须同时算进指针走过的距离和内容滚过的距离。 */
+  readonly originScrollLeft: number
+
   readonly element: HTMLElement
 
   active: boolean
+
+  pointerX: number
 
   slots: readonly WorkbenchTabSlot[]
 
   elements: readonly HTMLElement[]
 
-  activeIndex: number
-
   layout: WorkbenchTabDragLayout | null
+
+  frame: number | null
 }
 
 export interface WorkbenchTabReorderBindings {
@@ -105,7 +122,7 @@ interface UseWorkbenchTabsInteractionsOptions {
 
   readonly getTabElement: (tabId: WorkbenchTabId) => HTMLButtonElement | undefined
 
-  readonly stripRef: RefObject<HTMLDivElement | null>
+  readonly scrollerRef: RefObject<HTMLDivElement | null>
 
   readonly focusNewTab: () => void
 }
@@ -116,14 +133,23 @@ export function useWorkbenchTabsInteractions({
   onClose,
   onMove,
   getTabElement,
-  stripRef,
+  scrollerRef,
   focusNewTab,
 }: UseWorkbenchTabsInteractionsOptions) {
   const sessionRef = useRef<ReorderSession | null>(null)
 
   const pendingCloseFocusRef = useRef<PendingCloseFocus | null>(null)
 
+  const settleRef = useRef<Animation | null>(null)
+
   const [draggingTabId, setDraggingTabId] = useState<WorkbenchTabId | null>(null)
+
+  /*
+   * 与 draggingTabId 不是同一件事，所以是两个状态。draggingTabId 驱动 data-dragging，必须在
+   * 松手那一刻和位移变量在同一次样式计算里一起消失，否则让位的标签会带着过渡滑回原处。
+   * isReordering 表达的是"还有东西在动"，要一直持续到落位动画结束，基线缺口靠它决定投不投。
+   */
+  const [isReordering, setIsReordering] = useState(false)
 
   const requestClose = useCallback(
     (tabId: WorkbenchTabId) => {
@@ -217,6 +243,10 @@ export function useWorkbenchTabsInteractions({
       return
     }
 
+    if (session.frame !== null) {
+      cancelAnimationFrame(session.frame)
+    }
+
     if (session.element.hasPointerCapture(session.pointerId)) {
       session.element.releasePointerCapture(session.pointerId)
     }
@@ -225,12 +255,84 @@ export function useWorkbenchTabsInteractions({
       element.style.removeProperty(TAB_SHIFT_PROPERTY)
     }
 
-    stripRef.current?.style.removeProperty(ACTIVE_SHIFT_PROPERTY)
-
     sessionRef.current = null
 
     setDraggingTabId(null)
-  }, [stripRef])
+  }, [])
+
+  /* 会话持有一个 rAF 循环和一次指针捕获，组件卸载不会替它们收场。 */
+  useEffect(() => {
+    return () => {
+      endSession()
+    }
+  }, [endSession])
+
+  /*
+   * 会话每一帧的唯一出口。指针移动与自动滚动都只改会话里的输入（pointerX / scrollLeft），
+   * 重算与落笔都在这里做一次。两条触发源各算一遍位移，就是"同一段位移算两遍"那类错误。
+   *
+   * 位移同时含指针走过的距离和内容滚过的距离：槽位快照在内容坐标系里，指针在视口坐标系里，
+   * 自动滚动会让两者之间的偏移在会话中途改变。
+   */
+  const applyLayout = useCallback((session: ReorderSession, scroller: HTMLDivElement) => {
+    const layout = resolveWorkbenchTabDragLayout(
+      session.slots,
+      session.fromIndex,
+      session.pointerX - session.originX + (scroller.scrollLeft - session.originScrollLeft),
+    )
+
+    if (!layout) {
+      return
+    }
+
+    session.layout = layout
+
+    for (const [index, offset] of layout.offsets.entries()) {
+      session.elements[index]?.style.setProperty(TAB_SHIFT_PROPERTY, `${String(offset)}px`)
+    }
+  }, [])
+
+  /*
+   * 溢出时的边缘自动滚动。速度曲线是纯函数，这里只负责按真实帧间隔把它积分成位移——乘
+   * deltaTime 而不是每帧固定像素，否则 144Hz 上会比 60Hz 快 2.4 倍。
+   *
+   * 不自己夹取边界：scrollLeft 的赋值由平台夹进可滚动范围，再夹一遍就是第二份真相。
+   *
+   * 滚完立刻重算布局：指针没动，但内容坐标系动了，被拖的那一格必须跟着内容走，否则它会被
+   * 滚动条从指针底下抽走。
+   */
+  const startAutoScroll = useCallback(
+    (session: ReorderSession, scroller: HTMLDivElement) => {
+      let lastTime: number | null = null
+
+      const tick = (time: number) => {
+        const elapsed = lastTime === null ? 0 : (time - lastTime) / 1000
+
+        lastTime = time
+
+        const rect = scroller.getBoundingClientRect()
+
+        const velocity = resolveWorkbenchTabAutoScrollVelocity(
+          rect.left,
+          rect.right,
+          session.pointerX,
+          AUTO_SCROLL_ZONE,
+          AUTO_SCROLL_MAX_SPEED,
+        )
+
+        if (velocity !== 0 && elapsed > 0) {
+          scroller.scrollLeft += velocity * elapsed
+
+          applyLayout(session, scroller)
+        }
+
+        session.frame = requestAnimationFrame(tick)
+      }
+
+      session.frame = requestAnimationFrame(tick)
+    },
+    [applyLayout],
+  )
 
   /*
    * 收尾只有一条路径：松手、Escape、pointercancel、丢失捕获全走这里，区别只在要不要提交
@@ -250,6 +352,8 @@ export function useWorkbenchTabsInteractions({
       if (!session.active || !layout || !element.isConnected) {
         endSession()
 
+        setIsReordering(false)
+
         return
       }
 
@@ -264,11 +368,30 @@ export function useWorkbenchTabsInteractions({
       requestAnimationFrame(() => {
         const settled = getTabElement(tabId)?.closest<HTMLElement>('.chrome-workbench-tab')
 
-        if (!settled) {
+        const animation = settled
+          ? settleIntoPlace(settled, releasedLeft - settled.getBoundingClientRect().left)
+          : null
+
+        settleRef.current = animation
+
+        if (!animation) {
+          setIsReordering(false)
+
           return
         }
 
-        settleIntoPlace(settled, releasedLeft - settled.getBoundingClientRect().left)
+        /*
+         * finish 与 cancel 是互斥的终态，用事件而不是 finished：后者在取消时 reject，还得
+         * 再接一个 catch 才不会变成未处理的拒绝。新会话已经开始时不要把它的循环关掉。
+         */
+        const stop = () => {
+          if (!sessionRef.current) {
+            setIsReordering(false)
+          }
+        }
+
+        animation.addEventListener('finish', stop, { once: true })
+        animation.addEventListener('cancel', stop, { once: true })
       })
     },
     [endSession, getTabElement, onMove],
@@ -276,7 +399,9 @@ export function useWorkbenchTabsInteractions({
 
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLElement>, tab: WorkbenchTabViewModel, index: number) => {
-      if (event.button !== 0 || !tab.canClose || sessionRef.current) {
+      const scroller = scrollerRef.current
+
+      if (event.button !== 0 || !tab.canClose || !scroller || sessionRef.current) {
         return
       }
 
@@ -285,24 +410,30 @@ export function useWorkbenchTabsInteractions({
         tabId: tab.id,
         fromIndex: index,
         originX: event.clientX,
+        originScrollLeft: scroller.scrollLeft,
         element: event.currentTarget,
         active: false,
+        pointerX: event.clientX,
         slots: [],
         elements: [],
-        activeIndex: -1,
         layout: null,
+        frame: null,
       }
     },
-    [],
+    [scrollerRef],
   )
 
   const onPointerMove = useCallback(
     (event: PointerEvent<HTMLElement>) => {
       const session = sessionRef.current
 
-      if (!session || session.pointerId !== event.pointerId) {
+      const scroller = scrollerRef.current
+
+      if (!session || !scroller || session.pointerId !== event.pointerId) {
         return
       }
+
+      session.pointerX = event.clientX
 
       /*
        * 阈值以下不进入拖拽，普通点击仍然只是点击。越过阈值时把几何快照一次：一次拖拽内
@@ -313,7 +444,7 @@ export function useWorkbenchTabsInteractions({
           return
         }
 
-        const measured = measureStrip(tabs, getTabElement)
+        const measured = measureStrip(tabs, getTabElement, scroller)
 
         if (!measured) {
           endSession()
@@ -321,39 +452,27 @@ export function useWorkbenchTabsInteractions({
           return
         }
 
+        /* WAAPI 动画压过内联样式，上一段落位不掐掉会和这次拖拽抢同一个属性。 */
+        settleRef.current?.cancel()
+
+        settleRef.current = null
+
         session.active = true
         session.slots = measured.slots
         session.elements = measured.elements
-        session.activeIndex = tabs.findIndex((tab) => tab.isActive)
 
         session.element.setPointerCapture(session.pointerId)
 
         setDraggingTabId(session.tabId)
+
+        setIsReordering(true)
+
+        startAutoScroll(session, scroller)
       }
 
-      const layout = resolveWorkbenchTabDragLayout(
-        session.slots,
-        session.fromIndex,
-        event.clientX - session.originX,
-      )
-
-      if (!layout) {
-        return
-      }
-
-      session.layout = layout
-
-      for (const [index, offset] of layout.offsets.entries()) {
-        session.elements[index]?.style.setProperty(TAB_SHIFT_PROPERTY, `${String(offset)}px`)
-      }
-
-      const activeOffset = layout.offsets[session.activeIndex]
-
-      if (activeOffset !== undefined) {
-        stripRef.current?.style.setProperty(ACTIVE_SHIFT_PROPERTY, `${String(activeOffset)}px`)
-      }
+      applyLayout(session, scroller)
     },
-    [endSession, getTabElement, stripRef, tabs],
+    [applyLayout, endSession, getTabElement, scrollerRef, startAutoScroll, tabs],
   )
 
   const onPointerUp = useCallback(
@@ -420,20 +539,28 @@ export function useWorkbenchTabsInteractions({
     onKeyDown,
     reorder,
     draggingTabId,
+    isReordering,
   }
 }
 
 /*
- * 槽位与元素一次测齐。任一标签取不到元素就整体作废：索引必须与 tabs 一一对应，缺一个就会
- * 把位移写到别的标签上。宁可这次按压不进入拖拽，也不要错位。
+ * 槽位与元素一次测齐，坐标落在滚动容器的内容坐标系里，不是视口坐标系：自动滚动会在会话中途
+ * 改变两者之间的偏移，用视口坐标快照的槽位一滚就整体错位，夹取范围也会缩到"当前可见的那几个
+ * 标签"，被拖的标签因此到不了真正的首尾。
+ *
+ * 任一标签取不到元素就整体作废：索引必须与 tabs 一一对应，缺一个就会把位移写到别的标签上。
+ * 宁可这次按压不进入拖拽，也不要错位。
  */
 function measureStrip(
   tabs: readonly WorkbenchTabViewModel[],
   getTabElement: (tabId: WorkbenchTabId) => HTMLButtonElement | undefined,
+  scroller: HTMLDivElement,
 ): { slots: readonly WorkbenchTabSlot[]; elements: readonly HTMLElement[] } | null {
   const slots: WorkbenchTabSlot[] = []
 
   const elements: HTMLElement[] = []
+
+  const origin = scroller.getBoundingClientRect().left - scroller.scrollLeft
 
   for (const tab of tabs) {
     const element = getTabElement(tab.id)?.closest<HTMLElement>('.chrome-workbench-tab')
@@ -444,7 +571,7 @@ function measureStrip(
 
     const rect = element.getBoundingClientRect()
 
-    slots.push({ id: tab.id, start: rect.left, end: rect.right })
+    slots.push({ id: tab.id, start: rect.left - origin, end: rect.right - origin })
 
     elements.push(element)
   }
@@ -460,10 +587,12 @@ function measureStrip(
  * 用 Web Animations API 而不是再造一个 class 开关加 transitionend：一次性动画的起止与中断
  * 清理由平台负责。时长与曲线读设计令牌，和相邻标签的 CSS 过渡是同一组数；令牌读不到就不放
  * 动画，不在这里另写一个字面量当第二份真相。
+ *
+ * 返回动画句柄：基线缺口要靠它知道"还有东西在动"，新会话要靠它掐掉上一段。
  */
-function settleIntoPlace(element: HTMLElement, delta: number): void {
+function settleIntoPlace(element: HTMLElement, delta: number): Animation | null {
   if (delta === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    return
+    return null
   }
 
   const styles = getComputedStyle(element)
@@ -473,10 +602,10 @@ function settleIntoPlace(element: HTMLElement, delta: number): void {
   const easing = styles.getPropertyValue('--ui-ease-standard').trim()
 
   if (!Number.isFinite(duration) || easing === '') {
-    return
+    return null
   }
 
-  element.animate(
+  return element.animate(
     [{ transform: `translateX(${String(delta)}px)` }, { transform: 'translateX(0)' }],
     { duration, easing },
   )

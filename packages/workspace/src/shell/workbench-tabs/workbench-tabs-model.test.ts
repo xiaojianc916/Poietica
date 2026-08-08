@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { WorkbenchTabId } from '../../workbench'
 import {
   encodeWorkbenchTabDomId,
+  resolveWorkbenchTabAutoScrollVelocity,
   resolveWorkbenchTabCloseTarget,
   resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
@@ -105,6 +106,24 @@ describe('Workbench Tabs model', () => {
 
   it('rejects an empty strip layout', () => {
     expect(resolveWorkbenchTabDragLayout([], 0, 0)).toBeNull()
+  })
+
+  it('holds still while the pointer stays away from both edges', () => {
+    expect(resolveWorkbenchTabAutoScrollVelocity(0, 300, 150, 48, 720)).toBe(0)
+  })
+
+  it('accelerates as the pointer digs into an edge zone', () => {
+    expect(resolveWorkbenchTabAutoScrollVelocity(0, 300, 24, 48, 720)).toBe(-360)
+  })
+
+  it('caps the speed once the pointer passes the strip edge', () => {
+    expect(resolveWorkbenchTabAutoScrollVelocity(0, 300, -100, 48, 720)).toBe(-720)
+
+    expect(resolveWorkbenchTabAutoScrollVelocity(0, 300, 400, 48, 720)).toBe(720)
+  })
+
+  it('shrinks the edge zone so a narrow strip rests at its midpoint', () => {
+    expect(resolveWorkbenchTabAutoScrollVelocity(0, 60, 30, 48, 720)).toBe(0)
   })
 
   it('encodes stable DOM identifiers', () => {

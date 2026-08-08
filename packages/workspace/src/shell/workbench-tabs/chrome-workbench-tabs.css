@@ -498,9 +498,10 @@
   inline-size: calc(var(--chrome-active-tab-right) - var(--chrome-active-tab-left));
   inset-block-end: -1px;
   /*
-   * 位置 = 布局测量 + 会话位移。两个变量各有一个写入方（视口 hook 负责布局位置，
-   * 拖拽会话负责位移），缺口因此跟着激活标签一起滑走，而不是停在它原来的位置。
+   * 位置只有一项：激活标签此刻渲染在哪。getBoundingClientRect 按 CSSOM View 的定义返回
+   * 变换之后的边框盒，拖拽位移已经含在那次测量里；再加一个位移变量就是把同一段位移算两
+   * 遍——缺口错半格、邻座少一截，都是那次重复计算。
    */
-  inset-inline-start: calc(var(--chrome-active-tab-left) + var(--chrome-active-tab-shift, 0px));
+  inset-inline-start: var(--chrome-active-tab-left);
   pointer-events: none;
 }
