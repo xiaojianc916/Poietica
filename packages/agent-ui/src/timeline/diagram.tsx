@@ -212,10 +212,14 @@ function darkInk(style: unknown): string | undefined {
  * 退化成一个默认前景色的 token —— 「高亮引擎在跑、屏幕上却一片单色」的成因就在这里，与用不
  * 用官方代码块组件无关。
  *
- * 所以按它写明的入口条件喂：前后各补一行围栏，拿回 token 再把这两行摘掉。补的是这份语法
- * 要求的上下文，不是自己写一个分词器。
+ * 入口写死在它的 begin 里：(?i)\s*:::\s*mermaid\s*$，闭合是 \s*:::\s*。是 Markdown 容器
+ * 指令的三个冒号，不是三个反引号 —— 规则名里的 code-block 说的是容器块。喂反引号顶层一条
+ * 也匹配不上，于是整段退化成默认前景色的 token，屏幕上就是一片单色。
+ *
+ * 所以前后各补一行 :::，拿回 token 再把这两行摘掉。补的是这份语法写明要求的上下文，不是
+ * 自己写一个分词器。
  */
-const FENCE = '```'
+const FENCE = ':::'
 
 function fence(source: string): string {
   return `${FENCE}mermaid\n${source}\n${FENCE}`
