@@ -30,8 +30,10 @@ pub struct RecordedEvent {
     pub at: i64,
     /// 这一帧本身：判别式与载荷平铺在同一层。
     ///
-    /// 装的是帧，不是一棵序列化好的 `Value`：序列化只发生在它真正离开进程
-    /// 的那一刻，由 Tauri 做，一次。
+    /// 六种里有五种装的是帧本身，序列化留到它离开进程那一刻由 Tauri 做一次。
+    /// `AcpUpdate` 不是：它那一格 `FrameNotification::update` 已经是一棵
+    /// `Value`，在 SDK 的通知处理器里就做好了（见 `frame::acp_update`）。流式
+    /// 期间几乎每一帧都是这一种。
     #[serde(flatten)]
     pub frame: RunFrame,
 }
@@ -219,7 +221,7 @@ impl Recorder {
 
     /// Records a session notification and projects it.
     pub fn record_session_update(&mut self, notification: &SessionNotification) {
-        let outcome = self.persist_update(notification);
+        let outcome = self.note_update(notification);
         self.remember(outcome);
     }
 
@@ -227,7 +229,7 @@ impl Recorder {
     pub fn record_permission_requested(&mut self, request: &RequestPermissionRequest) -> String {
         let request_id = Uuid::now_v7().to_string();
         let tool_call_id = request.tool_call.tool_call_id.to_string();
-        let outcome = self.persist_request(&request_id, &tool_call_id, request);
+        let outcome = self.note_request(&request_id, &tool_call_id, request);
 
         self.remember(outcome);
 
@@ -236,7 +238,7 @@ impl Recorder {
 
     /// Records the answer a permission request was settled with.
     pub fn record_permission_resolved(&mut self, request_id: &str, decision: &Decision) {
-        self.persist_resolution(request_id, decision);
+        self.note_resolution(request_id, decision);
     }
 
     /// The requests this run is still waiting on.
@@ -272,7 +274,7 @@ impl Recorder {
         });
     }
 
-    fn persist_update(&mut self, notification: &SessionNotification) -> Result<()> {
+    fn note_update(&mut self, notification: &SessionNotification) -> Result<()> {
         self.updates = self.updates.saturating_add(1);
 
         self.append(acp_update(notification)?);
@@ -303,7 +305,7 @@ impl Recorder {
         }
     }
 
-    fn persist_request(
+    fn note_request(
         &mut self,
         request_id: &str,
         tool_call_id: &str,
@@ -330,7 +332,7 @@ impl Recorder {
         Ok(())
     }
 
-    fn persist_resolution(&mut self, request_id: &str, decision: &Decision) {
+    fn note_resolution(&mut self, request_id: &str, decision: &Decision) {
         // Refusing by choosing the agent's own refusal option is still a
         // selection as far as the protocol is concerned. Only an unanswered
         // request is cancelled.
