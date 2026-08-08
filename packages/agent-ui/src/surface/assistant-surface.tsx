@@ -1,13 +1,13 @@
 import './assistant.css'
 
-import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
-import type { AssistantSubmission } from '@poietica/agent-session'
 import {
+  type AssistantSubmission,
+  type FeedRow,
   useAssistantPending,
   useAssistantPendingCount,
   useAssistantSession,
-} from '@poietica/agent-session'
-import type { FeedRow } from '@poietica/agent-timeline'
+} from '@poietica/agent'
+import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { AssistantComposer } from '../composer/assistant-composer'
 import { AssistantQuickActions } from '../composer/assistant-quick-actions'

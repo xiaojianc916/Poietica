@@ -1,5 +1,5 @@
 {
-  "name": "@poietica/agent-timeline",
+  "name": "@poietica/agent-catalog",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,10 +8,11 @@
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@poietica/agent-contract": "workspace:*"
+    "@poietica/agent-contract": "workspace:*",
+    "valibot": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

@@ -1,4 +1,4 @@
-import type { ConversationTurn } from '@poietica/agent-timeline'
+import type { ConversationTurn } from '@poietica/agent'
 import { describe, expect, it } from 'vitest'
 import { groupTurns, railCentre, railSlots } from '../minimap/rail-groups'
 import { turnIndexAtRow } from '../threads/ordered-lookup'

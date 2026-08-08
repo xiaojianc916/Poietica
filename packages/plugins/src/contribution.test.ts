@@ -15,6 +15,7 @@ interface PluginParts {
 
 function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
   return {
+    pluginId: name,
     manifest: {
       name,
       displayName: name,

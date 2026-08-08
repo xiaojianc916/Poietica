@@ -1,6 +1,6 @@
 import './agent-activity-feed.css'
 
-import type { FeedRow } from '@poietica/agent-timeline'
+import type { FeedRow } from '@poietica/agent'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDevicePixels } from '../primitives/use-device-pixels'

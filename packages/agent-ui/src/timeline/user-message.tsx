@@ -1,4 +1,4 @@
-import type { MessageImage } from '@poietica/agent-timeline'
+import type { MessageImage } from '@poietica/agent'
 import { useState } from 'react'
 import { MessageAttachments } from './message-attachments'
 

@@ -1,5 +1,5 @@
+import { installAgentCapabilityPort, refreshAgentCapabilities } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { installAgentCapabilityPort, refreshAgentCapabilities } from '@poietica/agent-session'
 import type { AgentDialect } from '@poietica/agent-ui'
 import { AgentDialectContext } from '@poietica/agent-ui'
 import type { AppUpdateController, MainWindowController } from '@poietica/desktop-adapters'

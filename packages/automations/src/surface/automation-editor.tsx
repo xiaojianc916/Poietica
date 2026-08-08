@@ -1,5 +1,5 @@
+import { useAgentControls } from '@poietica/agent'
 import type { SessionConfigControl } from '@poietica/agent-contract'
-import { useAgentControls } from '@poietica/agent-session'
 import type { Automation } from '@poietica/ipc'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'
 import { type ReactNode, useMemo, useState } from 'react'

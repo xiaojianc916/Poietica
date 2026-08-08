@@ -1,6 +1,6 @@
 import './timeline.css'
 
-import type { FeedRow } from '@poietica/agent-timeline'
+import type { FeedRow } from '@poietica/agent'
 import { memo } from 'react'
 import { ErrorNotice } from './error-notice'
 import { PermissionRecord } from './permission-record'

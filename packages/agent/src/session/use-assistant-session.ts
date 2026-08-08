@@ -1,7 +1,7 @@
 import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/agent-contract'
-import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
-import { pendingPermission, pendingPermissionCount } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import type { PermissionItem, TimelineState } from '../timeline'
+import { pendingPermission, pendingPermissionCount } from '../timeline'
 import type { Transcript } from './transcript-store'
 import { useTranscripts } from './transcripts-context'
 

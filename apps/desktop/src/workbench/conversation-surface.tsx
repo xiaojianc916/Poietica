@@ -1,5 +1,5 @@
+import { chooseAgentControl, useAgentControls } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { chooseAgentControl, useAgentControls } from '@poietica/agent-session'
 import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'
 import { useCallback, useEffect } from 'react'

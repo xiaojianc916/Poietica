@@ -1,4 +1,4 @@
-import { ThreadsStore, TranscriptStore, TranscriptsContext } from '@poietica/agent-session'
+import { ThreadsStore, TranscriptStore, TranscriptsContext } from '@poietica/agent'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 

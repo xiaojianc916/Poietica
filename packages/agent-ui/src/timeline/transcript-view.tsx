@@ -1,11 +1,12 @@
-import { useAssistantTimeline } from '@poietica/agent-session'
-import type { FeedRow, PermissionItem } from '@poietica/agent-timeline'
 import {
+  type FeedRow,
+  type PermissionItem,
   selectFeedRows,
   selectIsBusy,
   selectIsWaiting,
   selectTurns,
-} from '@poietica/agent-timeline'
+  useAssistantTimeline,
+} from '@poietica/agent'
 import { type ReactNode, useCallback, useMemo } from 'react'
 import { AgentActivityFeed, type FeedPort } from '../feed/agent-activity-feed'
 import { ConversationMinimap } from '../minimap/conversation-minimap'

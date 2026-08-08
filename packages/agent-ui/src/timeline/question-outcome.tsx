@@ -1,4 +1,4 @@
-import type { PermissionItem } from '@poietica/agent-timeline'
+import type { PermissionItem } from '@poietica/agent'
 import { memo } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import { parseQuestionOptionId, readQuestionPrompt } from '../semantics/ask-user-question'

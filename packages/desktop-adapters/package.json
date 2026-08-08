@@ -11,7 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@poietica/agents": "workspace:*",
+    "@poietica/agent-catalog": "workspace:*",
     "@poietica/agent-ui": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/settings": "workspace:*",

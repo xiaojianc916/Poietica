@@ -1,4 +1,4 @@
-import type { PermissionItem } from '@poietica/agent-timeline'
+import type { PermissionItem } from '@poietica/agent'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PermissionDock } from '../composer/permission-dock'

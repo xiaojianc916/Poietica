@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
  * pnpm puts every package in the workspace into one shared store, so an
  * undeclared import resolves for as long as some other manifest happens to
  * ask for the same package. Nothing in the build enforces the difference,
- * which is why apps/desktop imported @poietica/agent-session for as long as
+ * which is why apps/desktop imported @poietica/agent for as long as
  * it did without ever asking for it: the graph was wrong and the resolution
  * was accidentally right. Renaming the packages ended the accident and the
  * application stopped starting.

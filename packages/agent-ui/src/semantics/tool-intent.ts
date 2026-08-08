@@ -1,4 +1,4 @@
-import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
+import type { ToolCallTimelineItem } from '@poietica/agent'
 
 /**
  * 这次调用在做什么，一句话，画在卡片没有展开的那一行上。

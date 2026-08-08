@@ -228,7 +228,7 @@ type ThreadHistoryLoss = 'otherAgent' | 'notSupported' | 'forgotten'
 | 一条连接同时持有多条会话 | 已具备 | crates/agent-runtime/src/[sessions.rs](http://sessions.rs) 的 SessionBook（HashMap<sessionId, RunSlot>） | 无 |
 | sessionId → thread 的多对一路由 | 已具备 | packages/agent-session/src/transcript-store.ts 的 #routes | 无 |
 | append-only 事件日志，其余皆投影 | 已具备 | crates/persistence 的 run_events，UNIQUE(run_id, seq) | 无 |
-| 重放帧与实时帧走同一条 reducer | 已具备 | @poietica/agent-timeline 的 replayThreadEvents / applyRunEvents | 无 |
+| 重放帧与实时帧走同一条 reducer | 已具备 | @poietica/agent 的 replayThreadEvents / applyRunEvents | 无 |
 | 多 agent 注册表与逐家适配 | 已具备 | packages/agents：acp-agents.ts 名单 + acp-agent-contract.ts 形状 + kimi/ | 无 |
 | 一条对话同时记住多个 agent 的会话 | 缺失 | threads.session_id / agent_id 是单列，attach_session 直接 UPDATE 覆盖 | 中 |
 | 多个 agent 进程同时活着 | 缺失 | commands/agent/[runtime.rs](http://runtime.rs) 的 ensure_session / borrow 只返回一个 Handle | 中 |

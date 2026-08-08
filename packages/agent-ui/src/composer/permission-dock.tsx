@@ -1,7 +1,7 @@
 import './permission-dock.css'
 
+import type { PermissionItem } from '@poietica/agent'
 import type { AcpPermissionOption } from '@poietica/agent-contract'
-import type { PermissionItem } from '@poietica/agent-timeline'
 import { memo, useState } from 'react'
 import { useAgentDialect } from '../semantics/agent-dialect'
 import { readToolIntent } from '../semantics/tool-intent'

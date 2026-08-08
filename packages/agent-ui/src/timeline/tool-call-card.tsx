@@ -1,4 +1,4 @@
-import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
+import type { ToolCallTimelineItem } from '@poietica/agent'
 import { DisclosureBody, useDisclosure } from '../primitives/disclosure'
 import {
   ChevronDownIcon,

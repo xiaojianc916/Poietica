@@ -1,4 +1,4 @@
-import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agents'
+import { type AcpAgentProfile, acpAgentById, acpAgents } from '@poietica/agent-catalog'
 import { Select, type SelectOption } from '@poietica/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigSnapshot, AgentConfigStore } from '../agent-config-store'

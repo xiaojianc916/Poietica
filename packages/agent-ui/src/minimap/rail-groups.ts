@@ -1,4 +1,4 @@
-import type { ConversationTurn } from '@poietica/agent-timeline'
+import type { ConversationTurn } from '@poietica/agent'
 
 /*
  * 轨道的度量模型：一格多高、一格在哪、总共几格、一格装几轮。四个问题一处回答，

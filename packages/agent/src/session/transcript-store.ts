@@ -5,7 +5,7 @@ import type {
   ThreadAttachment,
   ThreadHistory,
 } from '@poietica/agent-contract'
-import type { TimelineState } from '@poietica/agent-timeline'
+import type { TimelineState } from '../timeline'
 import {
   appendLocalError,
   appendUserMessage,
@@ -14,7 +14,7 @@ import {
   attachImagesTo,
   createTimelineState,
   replayThreadEvents,
-} from '@poietica/agent-timeline'
+} from '../timeline'
 import { describeFailure } from './describe-failure'
 
 /*

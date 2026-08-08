@@ -1,6 +1,5 @@
+import { replayRunEvents, type ToolCallTimelineItem } from '@poietica/agent'
 import { asRunEvents, toolTurn } from '@poietica/agent-contract/recordings'
-import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
-import { replayRunEvents } from '@poietica/agent-timeline'
 import { describe, expect, it } from 'vitest'
 import { toToolContentParts } from '../semantics/tool-call-content'
 

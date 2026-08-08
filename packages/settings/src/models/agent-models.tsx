@@ -7,7 +7,7 @@ import {
   agentModelDisplayName,
   builtinAgentProviders,
   parseAgentProviderListOutput,
-} from '@poietica/agents'
+} from '@poietica/agent-catalog'
 import { Button, InlineSpinner } from '@poietica/ui'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'

@@ -1,6 +1,6 @@
 import './conversation-minimap.css'
 
-import type { ConversationTurn } from '@poietica/agent-timeline'
+import type { ConversationTurn } from '@poietica/agent'
 import { memo, useCallback } from 'react'
 import { turnIndexAtRow } from '../threads/ordered-lookup'
 import { groupTurns, railSlots } from './rail-groups'

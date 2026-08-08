@@ -15,9 +15,8 @@
   },
   "dependencies": {
     "@mynaui/icons-react": "catalog:",
+    "@poietica/agent": "workspace:*",
     "@poietica/agent-contract": "workspace:*",
-    "@poietica/agent-session": "workspace:*",
-    "@poietica/agent-timeline": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ui": "workspace:*",
     "@streamdown/cjk": "catalog:",

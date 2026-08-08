@@ -2,7 +2,7 @@ import {
   type AgentProviderSnapshot,
   acpAgentById,
   parseAgentProviderListOutput,
-} from '@poietica/agents'
+} from '@poietica/agent-catalog'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentConfigStore } from '../agent-config-store'
 import { describeAgentCliFailure, describeAgentCliOutcome } from '../agent-install/agent-cli-text'

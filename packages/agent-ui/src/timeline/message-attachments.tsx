@@ -1,6 +1,6 @@
 import './message-attachments.css'
 
-import type { MessageImage } from '@poietica/agent-timeline'
+import type { MessageImage } from '@poietica/agent'
 import { useMemo, useState } from 'react'
 import { ImageLightbox } from '../media/image-lightbox'
 

@@ -1,5 +1,5 @@
+import { useTranscripts } from '@poietica/agent'
 import type { AgentSessionPort } from '@poietica/agent-contract'
-import { useTranscripts } from '@poietica/agent-session'
 import { createAutomationStore, sessionConfigOf } from '@poietica/automations'
 import type { Automation } from '@poietica/ipc'
 import { useEffect } from 'react'

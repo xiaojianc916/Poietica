@@ -1,4 +1,4 @@
-import type { PlanItem } from '@poietica/agent-timeline'
+import type { PlanItem } from '@poietica/agent'
 
 const ENTRY_LABELS: Record<string, string> = {
   completed: '已完成',

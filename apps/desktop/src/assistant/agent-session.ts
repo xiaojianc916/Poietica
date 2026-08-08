@@ -1,16 +1,16 @@
+import type { AcpAgentDescriptor } from '@poietica/agent-catalog'
+import {
+  acpAgentById,
+  acpAgentLaunch,
+  acpAgents,
+  parseAgentProviderListOutput,
+} from '@poietica/agent-catalog'
 import type {
   AgentCapabilityPort,
   AgentSessionPort,
   SessionConfigPort,
   ThreadPort,
 } from '@poietica/agent-contract'
-import type { AcpAgentDescriptor } from '@poietica/agents'
-import {
-  acpAgentById,
-  acpAgentLaunch,
-  acpAgents,
-  parseAgentProviderListOutput,
-} from '@poietica/agents'
 import { createExternalStore, error as reportError } from '@poietica/core'
 import {
   createAgentCapabilityBridge,
