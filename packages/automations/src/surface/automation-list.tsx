@@ -2,7 +2,7 @@ import type { Automation } from '@poietica/ipc'
 import { ConfirmationDialog } from '@poietica/ui'
 import { useState } from 'react'
 
-import { describeMoment, describeTrigger, latestRun } from '../automation'
+import { describeMoment, describeSchedule, latestRun } from '../automation'
 import type { AutomationStore } from '../automation-store'
 
 /**
@@ -47,7 +47,7 @@ export function AutomationList({ automations, loaded, onOpen, store }: Automatio
           <tr className="border-b border-divider">
             <th className="w-[38%] py-2 font-medium">自动化</th>
             <th className="w-[14%] py-2 font-medium">状态</th>
-            <th className="w-[16%] py-2 font-medium">触发</th>
+            <th className="w-[16%] py-2 font-medium">日程</th>
             <th className="w-[16%] py-2 font-medium">最近运行</th>
             <th className="w-[16%] py-2 text-right font-medium">操作</th>
           </tr>
@@ -124,7 +124,10 @@ function Row({
 
       <td className="py-2.5 text-muted-foreground">{automation.enabled ? '启用' : '停用'}</td>
 
-      <td className="py-2.5 text-muted-foreground">{describeTrigger(automation.trigger)}</td>
+      {/* 表达式原文，等宽：这一列是给人核对配置的，不是一句措辞。 */}
+      <td className="py-2.5 font-mono text-muted-foreground">
+        {describeSchedule(automation.schedule)}
+      </td>
 
       <td className="py-2.5 text-muted-foreground">
         {run === null

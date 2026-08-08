@@ -6,10 +6,14 @@
 export {
   type AutomationDraft,
   type AutomationSummary,
+  DEFAULT_SCHEDULE,
   describeMoment,
-  describeTrigger,
+  describeSchedule,
   latestRun,
   nextRunAfter,
+  SCHEDULE_PRESETS,
+  type ScheduleProblem,
+  scheduleProblem,
   sessionConfigOf,
   summarize,
 } from './automation'

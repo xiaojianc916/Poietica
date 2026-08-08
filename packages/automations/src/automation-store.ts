@@ -13,7 +13,7 @@ import {
   watchAutomations,
 } from '@poietica/ipc'
 
-import { type AutomationDraft, nextOccurrence, nextRunAfter, sameTrigger } from './automation'
+import { type AutomationDraft, nextRunAfter } from './automation'
 
 /**
  * 自动化的状态与调度。
@@ -176,8 +176,8 @@ export function createAutomationStore(): AutomationStore {
     }
 
     /*
-     * 锚点是刚刚到期的那个时刻，不是跑完的这一刻 —— 固定速率，相位不随执行时长
-     * 漂移。
+     * from 只用来比对，不参与算下一次：cron 表达式自己就是相位，下一次落在哪里
+     * 与这一次跑了多久无关。
      *
      * 「运行期间日程有没有被人动过」这一问不在这里回答：这里手上只有一份可能已经
      * 过时的副本，拿副本比副本等于没比。from 送过去，由持有真相的那一侧比对。
@@ -188,7 +188,7 @@ export function createAutomationStore(): AutomationStore {
         ? {
             kind: 'advance',
             from: anchor,
-            to: nextOccurrence(automation.trigger, Date.parse(anchor), Date.now()),
+            to: nextRunAfter(automation.schedule, Date.now()),
           }
         : { kind: 'keep' }
 
@@ -214,11 +214,11 @@ export function createAutomationStore(): AutomationStore {
           id: createAutomationId(),
           title: draft.title,
           prompt: draft.prompt,
-          trigger: draft.trigger,
+          schedule: draft.schedule,
           sessionConfig: { ...draft.sessionConfig },
-          enabled: draft.trigger.kind !== 'manual',
+          enabled: draft.schedule !== null,
           createdAt: new Date(now).toISOString(),
-          nextRunAt: nextRunAfter(draft.trigger, now),
+          nextRunAt: nextRunAfter(draft.schedule, now),
           runs: [],
         }),
       )
@@ -236,18 +236,18 @@ export function createAutomationStore(): AutomationStore {
           ...current,
           title: draft.title,
           prompt: draft.prompt,
-          trigger: draft.trigger,
+          schedule: draft.schedule,
           sessionConfig: { ...draft.sessionConfig },
 
           /*
-           * 只有触发条件真的变了才重排。否则改一个错别字，interval 那条的下一次
-           * 运行就被推后一整个周期 —— 人动的是提示词，不是日程。
+           * 只有日程真的变了才重排。否则改一个错别字，下一次运行就被推走 ——
+           * 人动的是提示词，不是日程。表达式是一段文字，比一次相等就够了。
            *
            * 停用状态下 nextRunAt 本来就是 null（见 setEnabled），照原样留着即可。
            */
           nextRunAt:
-            current.enabled && !sameTrigger(current.trigger, draft.trigger)
-              ? nextRunAfter(draft.trigger, Date.now())
+            current.enabled && current.schedule !== draft.schedule
+              ? nextRunAfter(draft.schedule, Date.now())
               : current.nextRunAt,
         }),
       )
@@ -272,7 +272,7 @@ export function createAutomationStore(): AutomationStore {
         upsertAutomation({
           ...current,
           enabled,
-          nextRunAt: enabled ? nextRunAfter(current.trigger, Date.now()) : null,
+          nextRunAt: enabled ? nextRunAfter(current.schedule, Date.now()) : null,
         }),
       )
     },

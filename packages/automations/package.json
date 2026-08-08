@@ -15,7 +15,8 @@
     "@poietica/agent-session": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
-    "@poietica/ui": "workspace:*"
+    "@poietica/ui": "workspace:*",
+    "croner": "^9.0.0"
   },
   "devDependencies": {
     "@types/react": "catalog:",

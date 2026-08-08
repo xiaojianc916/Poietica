@@ -38,28 +38,6 @@ const TICK: Duration = Duration::from_secs(30);
  */
 static LEDGER: Mutex<()> = Mutex::new(());
 
-/// 触发条件。
-///
-/// 判别联合，不是一段 cron 字符串。本地桌面只需要「每 N 分钟」与「每天几点」
-/// 两种，而一个 cron 解析器是这两件事之外多出来的一整门语言，还带来一整类
-/// 非法输入。GitHub Actions 用 cron 是因为它要表达跨时区任意周期；这里不需要。
-///
-/// 写成 Rust 枚举，生成的 TypeScript 就是一个判别联合，界面不必在每个分支上
-/// 各自断言一次。
-#[derive(Debug, Deserialize, Serialize, Type, Clone)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum AutomationTrigger {
-    Manual,
-    #[serde(rename_all = "camelCase")]
-    Interval {
-        every_minutes: u32,
-    },
-    #[serde(rename_all = "camelCase")]
-    Daily {
-        at_minute_of_day: u32,
-    },
-}
-
 #[derive(Debug, Deserialize, Serialize, Type, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AutomationRunOutcome {
@@ -88,7 +66,19 @@ pub struct Automation {
     pub title: String,
     /// 到期时发给 agent 的那句话。自动化的全部行为都由它决定。
     pub prompt: String,
-    pub trigger: AutomationTrigger,
+    /// 什么时候跑。crontab 表达式；None 就是「只在人按下运行时跑一次」。
+    ///
+    /// 这一侧不解析它。这一侧只有一个职责：把 next_run_at 和墙钟比大小
+    /// （见 due_at）。日历是领域的事，归 packages/automations，那里用 croner
+    /// 求值。
+    ///
+    /// 时区不在这里，也不在任何一个字段里：求值那一刻的系统时区就是答案。
+    /// 存一份下来，总有一天会和人所在的地方对不上，而「每天九点」说的永远
+    /// 是此刻这台机器上的九点。
+    ///
+    /// Option 而不是一个带 Manual 分支的判别联合：Manual 不携带任何数据，
+    /// 那个 tag 只是 None 的另一种拼法，两份表示就是两份能互相矛盾的真相。
+    pub schedule: Option<String>,
     pub enabled: bool,
     pub created_at: String,
     /// 下一次到期的时刻，RFC 3339；manual 为 None。

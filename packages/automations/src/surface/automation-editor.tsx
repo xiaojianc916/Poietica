@@ -1,14 +1,14 @@
 import type { SessionConfigControl } from '@poietica/acp'
 import { useAgentControls } from '@poietica/agent-session'
-import type { Automation, AutomationTrigger } from '@poietica/ipc'
+import type { Automation } from '@poietica/ipc'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'
 import { type ReactNode, useMemo, useState } from 'react'
 
-import { type AutomationDraft, sameSessionConfig, sameTrigger } from '../automation'
+import { type AutomationDraft, sameSessionConfig } from '../automation'
 import type { AutomationStore } from '../automation-store'
 import { AutomationRunHistory } from './automation-run-history'
+import { AutomationScheduleField } from './automation-schedule-field'
 import { AutomationSessionConfig } from './automation-session-config'
-import { AutomationTriggerField } from './automation-trigger-field'
 
 /*
  * 一条自动化的整页编辑器。
@@ -76,7 +76,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [title, setTitle] = useState(draft.title)
   const [prompt, setPrompt] = useState(draft.prompt)
-  const [trigger, setTrigger] = useState<AutomationTrigger>(draft.trigger)
+  const [schedule, setSchedule] = useState<string | null>(draft.schedule)
   const [picked, setPicked] = useState<Record<string, string>>(() => ({ ...draft.sessionConfig }))
 
   const sessionConfig = useMemo(() => resolve(picked, controls), [controls, picked])
@@ -94,7 +94,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
     automation === null ||
     title !== draft.title ||
     prompt !== draft.prompt ||
-    !sameTrigger(draft.trigger, trigger) ||
+    draft.schedule !== schedule ||
     !sameSessionConfig(draft.sessionConfig, sessionConfig)
 
   function choose(controlId: string, value: string): void {
@@ -102,7 +102,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
   }
 
   function save(): void {
-    const next = { prompt: prompt.trim(), sessionConfig, title: title.trim(), trigger }
+    const next = { prompt: prompt.trim(), schedule, sessionConfig, title: title.trim() }
 
     if (automation === null) {
       store.create(next)
@@ -204,7 +204,7 @@ export function AutomationEditor({ automation, draft, onBack, store }: Automatio
           <div className="mt-5 flex flex-col gap-3">
             <Card hint="决定它什么时候自己跑起来" title="触发">
               <div className="px-4 py-4">
-                <AutomationTriggerField onChange={setTrigger} trigger={trigger} />
+                <AutomationScheduleField onChange={setSchedule} schedule={schedule} />
               </div>
             </Card>
 

@@ -1,11 +1,16 @@
-import type { Automation, AutomationTrigger } from '@poietica/ipc'
+import type { Automation } from '@poietica/ipc'
+import { Cron } from 'croner'
 
 /**
  * 自动化的纯函数层。
  *
  * 没有 React、没有 IPC、没有状态：这一层只回答「下一次什么时候到期」「这堆
- * 记录合起来是什么样子」「这条触发条件念出来是什么」。形状本身不在这里声明 ——
+ * 记录合起来是什么样子」「这条日程念出来是什么」。形状本身不在这里声明 ——
  * 它的权威是 Rust 侧的 commands/automations.rs，经由生成绑定过来。
+ *
+ * 日历归 croner。cron 语法、闰年、月末、夏令时切换那一天到底有几个小时 ——
+ * 这些是已经被解决透了的问题，手写一遍必然漏边界。它也是这一层唯一的运行时
+ * 依赖：领域的其余部分（状态、管线、不变量）仍然自己掌控。
  */
 
 const MINUTE = 60_000
@@ -14,82 +19,41 @@ const DAY = 24 * HOUR
 const SUMMARY_WINDOW = 7 * DAY
 
 /**
- * 从 from 起，这条自动化下一次该在什么时候跑。
+ * 只用来算日期的 Cron。
  *
- * manual 返回 null，而不是一个「永远不到的极大值」—— 那种写法会在此后每一处
- * 比较里活下来，并且总有一天会被某个减法算成一个荒谬的间隔。
+ * 不传回调，所以它不会自己起表 —— croner 把「找下一个匹配的日期」当作一等
+ * 用法，这里要的正是那个。也不传 timezone：不传就按求值那一刻的系统时区算，
+ * 而「每天九点」说的就是此刻这台机器上的九点。
+ *
+ * 读不懂就是 null。构造函数会为非法表达式抛错，这里收住 —— 界面在保存前就
+ * 把它挡掉了（scheduleProblem），能走到这里的只有被外部改坏的目录文件。
  */
-export function nextRunAfter(trigger: AutomationTrigger, from: number): string | null {
-  switch (trigger.kind) {
-    case 'manual':
-      return null
+function jobOf(schedule: string | null): Cron | null {
+  if (schedule === null) {
+    return null
+  }
 
-    case 'interval':
-      return new Date(from + trigger.everyMinutes * MINUTE).toISOString()
-
-    case 'daily':
-      /* 本地时间：人说「每天九点」说的是自己表上的九点。 */
-      return wallClockAfter(trigger.atMinuteOfDay, from).toISOString()
+  try {
+    return new Cron(schedule)
+  } catch {
+    return null
   }
 }
 
 /**
- * 本地墙钟上，from 之后第一个 atMinuteOfDay 时刻。
+ * 从 from 起，这条日程下一次该在什么时候跑。
  *
- * 日历运算，不是绝对时间加法：setHours 与 setDate 按本地日历走，夏令时切换
- * 那一天（23 或 25 小时）落点仍然是表上那个时刻 —— cron 与 Temporal 的日程
- * 都以墙钟为准，「每天 9 点」在切换日也是 9 点。此前是
- * midnight.getTime() + atMinuteOfDay * MINUTE：往一个绝对时刻上加九个小时，
- * 切换日落到的就是 8 点或 10 点，与那段注释自己的承诺正好相反。
- */
-function wallClockAfter(atMinuteOfDay: number, from: number): Date {
-  const at = new Date(from)
-
-  at.setHours(Math.floor(atMinuteOfDay / 60), atMinuteOfDay % 60, 0, 0)
-
-  if (at.getTime() <= from) {
-    at.setDate(at.getDate() + 1)
-  }
-
-  return at
-}
-
-/**
- * 锚定计划序列里，now 之后的第一次。
+ * 手动（null）返回 null，而不是一个「永远不到的极大值」—— 那种写法会在此后
+ * 每一处比较里活下来，并且总有一天会被某个减法算成一个荒谬的间隔。
  *
- * 锚点是上一次排定的时刻，不是上一次跑完的时刻 —— 固定速率，不是固定延迟：
- * 「每小时」的一次跑了五分钟，下一次仍在原计划的点上；锚定完成时刻是
- * scheduleWithFixedDelay 的语义，日程随每次执行越推越歪。cron、Temporal 与
- * Kubernetes CronJob 用的都是锚定序列。关机错过的次数不逐次补：序列直接跨到
- * now 之后的第一个，到期的那一次由 check() 点火一次，更早的不补 —— 与
- * CronJob 的 misfire 处理同法。
+ * 没有「锚点」参数，也不需要第二个函数。cron 表达式本身就是相位：错过几次都
+ * 不改变下一次落在哪里，所以「从上一次排定的时刻起算」和「从现在起算」是同一
+ * 个答案。此前这里是 nextRunAfter 与 nextOccurrence 两条路，那是固定间隔留下
+ * 的债 —— 间隔没有相位，得靠一个存下来的锚点顶着。关机错过的次数照旧不逐次
+ * 补，直接跨到之后的第一个，与 Kubernetes CronJob 的 misfire 处理同法。
  */
-export function nextOccurrence(
-  trigger: AutomationTrigger,
-  anchor: number,
-  now: number,
-): string | null {
-  switch (trigger.kind) {
-    case 'manual':
-      return null
-
-    case 'interval': {
-      const span = trigger.everyMinutes * MINUTE
-      const steps = Math.max(0, Math.floor((now - anchor) / span) + 1)
-
-      return new Date(anchor + steps * span).toISOString()
-    }
-
-    case 'daily': {
-      let next = wallClockAfter(trigger.atMinuteOfDay, anchor).getTime()
-
-      while (next <= now) {
-        next = wallClockAfter(trigger.atMinuteOfDay, next).getTime()
-      }
-
-      return new Date(next).toISOString()
-    }
-  }
+export function nextRunAfter(schedule: string | null, from: number): string | null {
+  return jobOf(schedule)?.nextRun(new Date(from))?.toISOString() ?? null
 }
 
 export interface AutomationSummary {
@@ -123,127 +87,76 @@ export function summarize(
   return { total: automations.length, succeeded, failed }
 }
 
-/*
- * 间隔的单位。
+/** 心跳是 30 秒（commands/automations.rs 的 TICK），所以承诺的最小粒度是分钟。 */
+const MIN_SPAN = MINUTE
+
+export type ScheduleProblem = 'unreadable' | 'neverRuns' | 'tooFrequent'
+
+/**
+ * 这段表达式能不能用。能用返回 null。
  *
- * 线上只有 everyMinutes 一个数（权威是 commands/automations.rs 的
- * AutomationTrigger）。单位是界面上的事，不进存储：存成「数量 + 单位」两个
- * 字段，就等于允许这两个字段各自被改成互相矛盾的样子，而「90 分钟」和
- * 「1.5 小时」本来就是同一张时刻表。
+ * 三种不能用，各自说清是哪一种：读不懂、永远不会到、比调度的心跳还密。最后
+ * 那一条是真的会骗人 —— 心跳 30 秒一跳，写「每秒」不会更快，只会让人以为自己
+ * 配的东西没生效，那是承诺一个兑现不了的精度。
  *
- * 分钟落点 —— 写上「每 10 秒」就是承诺一个这套调度兑现不了的精度。界面只
- * 摆能兑现的那几档。
+ * 用 croner 自己算出的前两次相隔多久来判，不去数它有几段：段数、别名与扩展
+ * 语法归 croner 所有，这一层不把那门语言重新定义一遍。
  */
-const UNIT_MINUTES = { minute: 1, hour: 60, day: 24 * 60 } as const
+export function scheduleProblem(schedule: string | null): ScheduleProblem | null {
+  if (schedule === null) {
+    return null
+  }
 
-export type IntervalUnit = keyof typeof UNIT_MINUTES
+  const job = jobOf(schedule)
 
-const UNIT_LABELS: Record<IntervalUnit, string> = {
-  minute: '分钟',
-  hour: '小时',
-  day: '天',
+  if (job === null) {
+    return 'unreadable'
+  }
+
+  const [first, second] = job.nextRuns(2)
+
+  if (first === undefined) {
+    return 'neverRuns'
+  }
+
+  if (second !== undefined && second.getTime() - first.getTime() < MIN_SPAN) {
+    return 'tooFrequent'
+  }
+
+  return null
 }
 
-/** 下拉里的那几行，从小到大 —— 人读时间的顺序。 */
-export const INTERVAL_UNITS: readonly { readonly value: IntervalUnit; readonly label: string }[] = [
-  { value: 'minute', label: UNIT_LABELS.minute },
-  { value: 'hour', label: UNIT_LABELS.hour },
-  { value: 'day', label: UNIT_LABELS.day },
+/** 新建时输入框里的那一段。「默认是每天九点」只写一处。 */
+export const DEFAULT_SCHEDULE = '0 9 * * *'
+
+/**
+ * 界面上那几颗预设。
+ *
+ * 只是往输入框里填一段文字，不是第二份状态：表达式始终是唯一真相。它们存在
+ * 的理由是 cron 原文对人不友好，而「每天九点」这种最常见的意图不该逼人先学
+ * 一门语法 —— GitHub Actions 与 Vercel 的界面上摆的也是这个组合。
+ */
+export const SCHEDULE_PRESETS: readonly {
+  readonly expression: string
+  readonly label: string
+}[] = [
+  { expression: '0 * * * *', label: '每小时' },
+  { expression: '0 9 * * *', label: '每天 09:00' },
+  { expression: '0 9 * * 1', label: '每周一 09:00' },
+  { expression: '0 9 1 * *', label: '每月 1 号 09:00' },
 ]
 
-/** 调度能兑现的最小间隔。下限在这里收口，输入框因此不必自己防守。 */
-export const MIN_INTERVAL_MINUTES = 1
-
-/** 新建时的默认触发条件。BLANK_DRAFT 从这里取，「默认是每天九点」只写一处。 */
-export const DEFAULT_TRIGGER: AutomationTrigger = { kind: 'daily', atMinuteOfDay: 9 * 60 }
-
 /**
- * 把分钟数还原成人当初写它时用的那个单位。
+ * 这条日程念出来是什么。
  *
- * 从大往小取第一个整除的：120 是「2 小时」，90 只能是「90 分钟」。存进去
- * 什么样，再打开还是什么样 —— 少了这一步，每打开一次编辑器，界面就把用户
- * 说过的话重新措辞一遍。
+ * 定时那一档念出来就是表达式原文。croner 的 JS 版没有 describe()，而自己写一个
+ * cron 到人话的翻译器，等于把一整门语言的语义在这一层再实现一遍，还得跟着它的
+ * 扩展语法一起腐烂。GitHub Actions、Vercel 与 Kubernetes 的界面上摆的也都是原文，
+ * 旁边配一句「下一次是什么时候」—— 那一句由 describeMoment 负责，它比任何措辞
+ * 都准，因为它算的是真的那个时刻。
  */
-export function splitInterval(everyMinutes: number): {
-  readonly size: number
-  readonly unit: IntervalUnit
-} {
-  const descending: readonly IntervalUnit[] = ['day', 'hour', 'minute']
-
-  for (const unit of descending) {
-    const span = UNIT_MINUTES[unit]
-
-    if (everyMinutes >= span && everyMinutes % span === 0) {
-      return { size: everyMinutes / span, unit }
-    }
-  }
-
-  return { size: Math.max(MIN_INTERVAL_MINUTES, everyMinutes), unit: 'minute' }
-}
-
-/**
- * 反过来。
- *
- * size 来自 <input type="number">，清空时是空串，Number('') 是 0，而
- * Math.max(1, NaN) 是 NaN —— 非有限值在这里挡住，不让它流进 nextRunAfter
- * 变成一个永远算不出来的下次运行。
- */
-export function joinInterval(size: number, unit: IntervalUnit): number {
-  const whole = Number.isFinite(size) ? Math.trunc(size) : MIN_INTERVAL_MINUTES
-
-  return Math.max(MIN_INTERVAL_MINUTES, whole * UNIT_MINUTES[unit])
-}
-
-/** 一天里的第几分钟 → HH:MM。<input type="time"> 收发的就是这个格式。 */
-export function toClock(atMinuteOfDay: number): string {
-  const pad = (value: number) => value.toString().padStart(2, '0')
-
-  return `${pad(Math.floor(atMinuteOfDay / 60))}:${pad(atMinuteOfDay % 60)}`
-}
-
-/** HH:MM → 一天里的第几分钟。空串归零。 */
-export function toMinuteOfDay(clock: string): number {
-  const [hours = '0', minutes = '0'] = clock.split(':')
-
-  return Number(hours) * 60 + Number(minutes)
-}
-
-export function describeTrigger(trigger: AutomationTrigger): string {
-  switch (trigger.kind) {
-    case 'manual':
-      return '手动'
-
-    case 'interval': {
-      const { size, unit } = splitInterval(trigger.everyMinutes)
-
-      return `每 ${size} ${UNIT_LABELS[unit]}`
-    }
-
-    case 'daily':
-      return `每天 ${toClock(trigger.atMinuteOfDay)}`
-  }
-}
-
-/**
- * 两个触发条件是不是同一个。
- *
- * 存在的理由只有一个：编辑一条已有的自动化时，只有触发条件真的变了才该重排
- * 下一次运行。无脑重算的话，改一个错别字就会把 interval 那条的下一次推后
- * 一整个周期 —— 人只动了提示词，日程却被挪走了。
- *
- * 穷尽 switch，没有 default：将来多一种触发条件，编译器会在这里拦住。
- */
-export function sameTrigger(left: AutomationTrigger, right: AutomationTrigger): boolean {
-  switch (left.kind) {
-    case 'manual':
-      return right.kind === 'manual'
-
-    case 'interval':
-      return right.kind === 'interval' && left.everyMinutes === right.everyMinutes
-
-    case 'daily':
-      return right.kind === 'daily' && left.atMinuteOfDay === right.atMinuteOfDay
-  }
+export function describeSchedule(schedule: string | null): string {
+  return schedule ?? '手动'
 }
 
 /**
@@ -279,7 +192,8 @@ export function sameSessionConfig(
 export interface AutomationDraft {
   readonly title: string
   readonly prompt: string
-  readonly trigger: AutomationTrigger
+  /** crontab 表达式；null 就是手动，只在人按下运行时跑一次。 */
+  readonly schedule: string | null
   /**
    * 这条自动化要给自己那次运行改掉的会话设置。
    *
@@ -298,7 +212,7 @@ export interface AutomationDraft {
 export const BLANK_DRAFT: AutomationDraft = {
   title: '',
   prompt: '',
-  trigger: DEFAULT_TRIGGER,
+  schedule: DEFAULT_SCHEDULE,
   sessionConfig: {},
 }
 
@@ -330,7 +244,7 @@ export function draftOf(automation: Automation): AutomationDraft {
   return {
     title: automation.title,
     prompt: automation.prompt,
-    trigger: automation.trigger,
+    schedule: automation.schedule,
     sessionConfig: sessionConfigOf(automation),
   }
 }
