@@ -3,8 +3,8 @@
 //! 为什么在进程内、而不是另起一个 stdio 子进程：账本是 tauri-plugin-store 的一个
 //! Store，带进程内缓存，只能经 AppHandle 拿到（见 commands::automations::open）。
 //! 子进程要读它就得再写一份存储格式的实现，并且和本进程的缓存赛跑 —— 那是第二份
-//! 真相。而 Kimi 报出的 mcpCapabilities 是 { http: true, sse: true }，没有 stdio，
-//! 于是只剩下本机回环上的 Streamable HTTP 这一个形状。
+//! 真相。而 Kimi 报出的 mcpCapabilities 是 http 与 sse，没有 stdio，于是只剩下本机
+//! 回环上的 Streamable HTTP 这一个形状。
 //!
 //! 端口取 0 由内核分配：Figma 的桌面 MCP 服务器把地址钉死在 127.0.0.1:3845，端口
 //! 被别的进程占住时那个开关就整个失效。绑定之后把真实地址交给渲染层，任何一方都不
@@ -50,7 +50,7 @@ struct ListInput {}
 /// 递给模型的那一行。
 ///
 /// 不直接把 Automation 递出去：runs 是几十条运行账目，对「有哪些自动化」这个问题
-/// 是纯噪音，而工具结果要进模型的上下文窗口。
+/// 是纯噪音，而工具结果要占模型的上下文窗口。
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 struct AutomationView {
@@ -80,8 +80,8 @@ impl From<Automation> for AutomationView {
  * 失败写在结果里，不抛协议错误。
  *
  * MCP 规定工具执行失败属于结果的一部分，模型要能看见并据此改变下一步动作；协议层
- * 错误是「这次调用根本没成立」，两者不是一回事。读不出账本时把原因如实递给模型，
- * 比让它收到一个空列表当成「你没有自动化」要诚实。
+ * 错误说的是「这次调用根本没成立」，两者不是一回事。读不出账本时把原因如实递给模
+ * 型，比让它收到一个空列表当成「你没有自动化」要诚实。
  */
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -207,12 +207,15 @@ pub fn serve(app: &AppHandle) -> io::Result<()> {
 
 async fn listen(app: AppHandle, socket: StdTcpListener) -> io::Result<()> {
     let ledger = Ledger { app };
+    /*
+     * 配置走 Default 而不是结构体表达式：这个类型标了 non_exhaustive，定义 crate 之
+     * 外用结构体表达式构造是 E0639，带函数式更新语法也一样不行。要改字段时用它自己
+     * 的 with_* builder。默认值本来就只接受回环 Host。
+     */
     let service = StreamableHttpService::new(
         move || Ok(ledger.clone()),
         Arc::new(LocalSessionManager::default()),
-        StreamableHttpServerConfig {
-            ..Default::default()
-        },
+        StreamableHttpServerConfig::default(),
     );
     let listener = TcpListener::from_std(socket)?;
 
