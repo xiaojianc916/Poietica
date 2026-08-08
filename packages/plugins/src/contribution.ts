@@ -78,63 +78,116 @@ export function resolveContributions(input: ContributionInput): ResolvedContribu
       skills.push({ pluginId, path: skillPath })
     }
 
-    for (const agent of plugin.manifest.agents) {
-      if (input.reservedAgentNames.has(agent.name) && !agent.override) {
-        diagnostics.push({
-          code: 'agent-needs-override',
-          pluginId,
-          detail: `${agent.name} 与内置 agent 同名，声明 override: true 之后才会生效`,
-        })
-        continue
-      }
+    /*
+     * 仍然是同一次遍历：四段判据各自成函数，顺序、诊断、丢弃的理由一个都没改。
+     * 搬出去只为让这个函数的认知复杂度回到阈值以内（biome 的
+     * noExcessiveCognitiveComplexity），不是开第二条管线。
+     */
+    collectAgents(plugin, input.reservedAgentNames, agents, diagnostics)
+    collectCommands(plugin, commandIds, commands, diagnostics)
+    collectMcpServers(plugin, mcpServers)
 
-      agents.push({ pluginId, name: agent.name })
-    }
+    promptBytes = collectPrompt(plugin, promptBytes, prompts, diagnostics)
+  }
 
-    for (const command of plugin.manifest.commands) {
-      const id = `${pluginId}:${command.name}`
+  return { agents, commands, diagnostics, mcpServers, promptBytes, prompts, skills }
+}
 
-      if (commandIds.has(id)) {
-        diagnostics.push({
-          code: 'command-name-taken',
-          pluginId,
-          detail: `${id} 在同一份清单里出现了两次，只保留第一条`,
-        })
-        continue
-      }
+/* 与内置 agent 同名的必须显式 override；被拦下的一律留一条诊断。 */
+function collectAgents(
+  plugin: InstalledPlugin,
+  reserved: ReadonlySet<string>,
+  into: ResolvedAgent[],
+  diagnostics: PluginDiagnostic[],
+): void {
+  const pluginId = plugin.manifest.name
 
-      commandIds.add(id)
-      commands.push({ pluginId, id, description: command.description, body: command.body })
-    }
-
-    for (const server of plugin.manifest.mcpServers) {
-      if (plugin.disabledMcpServers.includes(server.name)) {
-        continue
-      }
-
-      mcpServers.push({ pluginId, name: server.name, config: server.config })
-    }
-
-    const text = plugin.systemPromptText
-
-    if (text === undefined) {
-      continue
-    }
-
-    const bytes = utf8ByteLength(text)
-
-    if (promptBytes + bytes > SESSION_PROMPT_BUDGET_BYTES) {
+  for (const agent of plugin.manifest.agents) {
+    if (reserved.has(agent.name) && !agent.override) {
       diagnostics.push({
-        code: 'prompt-budget-exhausted',
+        code: 'agent-needs-override',
         pluginId,
-        detail: `会话提示词预算 ${SESSION_PROMPT_BUDGET_BYTES} 字节已用尽，这一段没有注入`,
+        detail: `${agent.name} 与内置 agent 同名，声明 override: true 之后才会生效`,
       })
       continue
     }
 
-    promptBytes += bytes
-    prompts.push({ pluginId, text, bytes })
+    into.push({ pluginId, name: agent.name })
+  }
+}
+
+/* 对外的名字带插件命名空间；同名重复只保留第一条，其余留诊断。 */
+function collectCommands(
+  plugin: InstalledPlugin,
+  taken: Set<string>,
+  into: ResolvedCommand[],
+  diagnostics: PluginDiagnostic[],
+): void {
+  const pluginId = plugin.manifest.name
+
+  for (const command of plugin.manifest.commands) {
+    const id = `${pluginId}:${command.name}`
+
+    if (taken.has(id)) {
+      diagnostics.push({
+        code: 'command-name-taken',
+        pluginId,
+        detail: `${id} 在同一份清单里出现了两次，只保留第一条`,
+      })
+      continue
+    }
+
+    taken.add(id)
+    into.push({ pluginId, id, description: command.description, body: command.body })
+  }
+}
+
+/* 被单独关掉的那几台不进会话。关掉不是错，所以这里不留诊断。 */
+function collectMcpServers(plugin: InstalledPlugin, into: ResolvedMcpServer[]): void {
+  const pluginId = plugin.manifest.name
+
+  for (const server of plugin.manifest.mcpServers) {
+    if (plugin.disabledMcpServers.includes(server.name)) {
+      continue
+    }
+
+    into.push({ pluginId, name: server.name, config: server.config })
+  }
+}
+
+/**
+ * 这一份提示词进不进会话，以及进了之后预算还剩多少。
+ *
+ * 交回的是新的已用字节数：预算是一次遍历里累起来的一个数，谁改它就由谁说出来，
+ * 不塞进一个可变对象里让调用方去猜。超预算的那一段不注入，但留一条诊断 —— 界面上
+ * 那句「为什么没生效」出自这里。
+ */
+function collectPrompt(
+  plugin: InstalledPlugin,
+  used: number,
+  into: ResolvedPrompt[],
+  diagnostics: PluginDiagnostic[],
+): number {
+  const pluginId = plugin.manifest.name
+  const text = plugin.systemPromptText
+
+  if (text === undefined) {
+    return used
   }
 
-  return { agents, commands, diagnostics, mcpServers, promptBytes, prompts, skills }
+  const bytes = utf8ByteLength(text)
+
+  if (used + bytes > SESSION_PROMPT_BUDGET_BYTES) {
+    diagnostics.push({
+      code: 'prompt-budget-exhausted',
+      pluginId,
+      detail: `会话提示词预算 ${SESSION_PROMPT_BUDGET_BYTES} 字节已用尽，这一段没有注入`,
+    })
+
+    return used
+  }
+
+  into.push({ pluginId, text, bytes })
+
+  return used + bytes
 }

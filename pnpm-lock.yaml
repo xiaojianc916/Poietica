@@ -159,6 +159,9 @@ importers:
       '@poietica/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@poietica/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
       '@poietica/settings':
         specifier: workspace:*
         version: link:../../packages/settings

@@ -434,14 +434,22 @@ function useCanvas(graphic: SVGSVGElement | undefined) {
 
       natural.current = ground(node)
       host.replaceChildren(node)
-    },
-    [graphic],
-  )
 
-  /* 换了一张图就重新适配：ref 回调在 effect 之前跑完，尺寸这时已经是新的。 */
-  useEffect(() => {
-    home()
-  }, [graphic, home])
+      /*
+       * 换了一张图就在这里重新适配。
+       *
+       * 此前它是一个 useEffect，依赖写着 graphic —— 而 graphic 是这个 hook 的入参，
+       * 不是 hook 自己声明的值：拿它当依赖，规则判它是外层作用域的变量（biome 的
+       * useExhaustiveDependencies）。按建议把它从依赖里删掉则更糟：换图之后再没有
+       * 任何东西触发适配。
+       *
+       * 尺寸就是上一行 ground() 刚量出来的，所以适配的正确位置本来就是这里：节点
+       * 上屏与按新尺寸铺满是同一件事，不必再绕一趟 effect。
+       */
+      home()
+    },
+    [graphic, home],
+  )
 
   /*
    * 框的尺寸不是一开始就知道的：窗口会缩放，面板在源码视图下是 display: none（量出来是零），

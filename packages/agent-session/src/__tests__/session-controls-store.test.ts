@@ -67,7 +67,7 @@ async function settled(): Promise<void> {
   }
 }
 
-const valueOf = (store: SessionControlsStore, id: string): string | undefined =>
+const currentOf = (store: SessionControlsStore, id: string): string | undefined =>
   store.selectorsOf(THREAD)?.find((offered) => offered.id === id)?.current
 
 describe('一条对话的那张表', () => {
@@ -94,7 +94,7 @@ describe('一条对话的那张表', () => {
 
     store.opened(opened(WITH_LOW))
 
-    expect(valueOf(store, 'thought')).toBe('low')
+    expect(currentOf(store, 'thought')).toBe('low')
 
     store.selectControl(THREAD, 'model', 'deepseek-v4')
     await settled()
@@ -106,8 +106,8 @@ describe('一条对话的那张表', () => {
     release?.(UNCONVERGED)
     await settled()
 
-    expect(valueOf(store, 'model')).toBe('deepseek-v4')
-    expect(valueOf(store, 'thought')).toBe('medium')
+    expect(currentOf(store, 'model')).toBe('deepseek-v4')
+    expect(currentOf(store, 'thought')).toBe('medium')
 
     stop()
   })
@@ -125,7 +125,7 @@ describe('一条对话的那张表', () => {
     store.selectControl(THREAD, 'thought', 'medium')
     await settled()
 
-    expect(valueOf(store, 'thought')).toBe('medium')
+    expect(currentOf(store, 'thought')).toBe('medium')
 
     stop()
   })

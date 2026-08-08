@@ -150,10 +150,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return resolveContributions({ plugins, reservedAgentNames: options.reservedAgentNames })
   }
 
-  async function promptTextOf(
+  /*
+   * 不是 async：三条分支里只有 file 那一条真的要等 IPC，另外两条当场就有答案。
+   * 挂一个 async 只是让每次装载都多排一轮微任务，而它一个 await 都没有（biome 的
+   * useAwait 说的就是这件事）。返回类型把「当场」和「要等」都写出来，调用方照旧
+   * await —— await 一个非 Promise 是合法的，也是原样交回。
+   */
+  function promptTextOf(
     pluginId: string,
     manifest: PluginManifest,
-  ): Promise<string | undefined> {
+  ): Promise<string | undefined> | string | undefined {
     const prompt = manifest.systemPrompt
 
     switch (prompt.kind) {

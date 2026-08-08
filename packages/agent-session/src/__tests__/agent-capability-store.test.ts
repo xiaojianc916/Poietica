@@ -41,7 +41,7 @@ async function settled(): Promise<void> {
   }
 }
 
-const valueOf = (table: readonly SessionConfigControl[], id: string): string | undefined =>
+const currentOf = (table: readonly SessionConfigControl[], id: string): string | undefined =>
   table.find((offered) => offered.id === id)?.current
 
 describe('锚会话的那张表', () => {
@@ -64,14 +64,14 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    expect(valueOf(store.snapshot(), 'thought')).toBe('off')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
 
     store.choose('model', 'kimi-k3')
     await settled()
 
     /* 一次答复整张换掉：不存在"新模型 + 旧档位"这种中间形态。 */
-    expect(valueOf(store.snapshot(), 'model')).toBe('kimi-k3')
-    expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot(), 'model')).toBe('kimi-k3')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
 
     /* 端口收的是控件，不是它的 id。桌面那一侧靠 purpose 认出「模型那一格」才会
     去写 default_model，而线上那一格填的是 control.id —— 传字符串过去，两处一起
@@ -105,7 +105,7 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    expect(valueOf(store.snapshot(), 'thought')).toBe('on')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('on')
 
     /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表，而不是等下一次有人再问。 */
     table = THREE_TIER
@@ -113,7 +113,7 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
 
     stop()
   })
@@ -149,13 +149,13 @@ describe('锚会话的那张表', () => {
     store.choose('model', 'kimi-k3')
     await settled()
 
-    expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
 
     release?.(ON_OFF)
     await settled()
 
     /* 该赢的是问得晚的那一个，不是回来得晚的那一个。 */
-    expect(valueOf(store.snapshot(), 'thought')).toBe('high')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('high')
 
     stop()
   })
@@ -184,7 +184,7 @@ describe('锚会话的那张表', () => {
     await settled()
 
     expect(asked).toBe(0)
-    expect(valueOf(store.snapshot(), 'thought')).toBe('off')
+    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
 
     stop()
   })

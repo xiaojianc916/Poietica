@@ -294,7 +294,7 @@ export function AppShell({ runtime }: AppShellProps) {
          * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
          * 自这个 provider。
          */}
-        <AutomationScheduler session={runtime.agentSession} />
+        <AutomationDispatcher session={runtime.agentSession} />
 
         {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
         <PluginLoader />

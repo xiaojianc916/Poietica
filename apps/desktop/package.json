@@ -23,6 +23,7 @@
     "@poietica/desktop-adapters": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/observability": "workspace:*",
+    "@poietica/plugins": "workspace:*",
     "@poietica/settings": "workspace:*",
     "@poietica/ui": "workspace:*",
     "@poietica/workspace": "workspace:*",

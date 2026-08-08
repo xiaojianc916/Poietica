@@ -259,17 +259,9 @@ function upsertToolCall(
   const found = position < 0 ? undefined : draft.items[position]
   const held = found?.type === 'tool_call' ? found : undefined
 
-  const status = update.status ?? held?.status ?? 'pending'
-  /* running 的调用没有结束时间，这与「有一个 undefined 的结束时间」不是一回事；
-     结束一旦记下就不再移动。 */
-  const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
-  const rawInput = 'rawInput' in update ? update.rawInput : held?.rawInput
-  const rawOutput = 'rawOutput' in update ? update.rawOutput : held?.rawOutput
-  /* 协议里 null 是「清空」、undefined 是「这一帧没提」。这里保持本文件原有的读法
-     （两者都退回已有内容），这次改动不顺手改它的语义。 */
-  const said = update.content ?? undefined
-  const content =
-    said === undefined ? (held?.content ?? []) : withoutArgumentEcho(said, rawInput, status)
+  /* 合并规则整段搬进 mergedFacts：仍然只有那一处，只是不再算进这个函数的认知
+     复杂度（biome 的 noExcessiveCognitiveComplexity）。下面每一格照旧读它。 */
+  const { content, endedAt, rawInput, rawOutput, status } = mergedFacts(held, update, at)
 
   const next: ToolCallTimelineItem = {
     type: 'tool_call',
@@ -297,6 +289,41 @@ function upsertToolCall(
 
   /* 宣告晚于请求时，把入参补回那条还在等的请求。 */
   relink(draft, next)
+}
+
+/**
+ * 一次调用里会变的那几格：这一帧真的带了就听它的，没带就沿用手上那一份。
+ *
+ * 单独成函数不是为了复用 —— 调用方只有 upsertToolCall 一个。判据一个字没改：
+ * status 三级回退、终态才记 endedAt 且记下不再移动、rawInput/rawOutput 用 in 判
+ * 「这一帧提没提」、content 整体替换而不是拼接。
+ */
+type ToolCallFacts = {
+  readonly content: readonly AcpToolCallContent[]
+  readonly endedAt: number | undefined
+  readonly rawInput: unknown
+  readonly rawOutput: unknown
+  readonly status: ToolCallTimelineItem['status']
+}
+
+function mergedFacts(
+  held: ToolCallTimelineItem | undefined,
+  update: AcpUpdateOf<'tool_call'> | AcpUpdateOf<'tool_call_update'>,
+  at: number,
+): ToolCallFacts {
+  const status = update.status ?? held?.status ?? 'pending'
+  /* running 的调用没有结束时间，这与「有一个 undefined 的结束时间」不是一回事；
+     结束一旦记下就不再移动。 */
+  const endedAt = isTerminal(status) ? (held?.endedAt ?? at) : held?.endedAt
+  const rawInput = 'rawInput' in update ? update.rawInput : held?.rawInput
+  const rawOutput = 'rawOutput' in update ? update.rawOutput : held?.rawOutput
+  /* 协议里 null 是「清空」、undefined 是「这一帧没提」。这里保持本文件原有的读法
+     （两者都退回已有内容），这次改动不顺手改它的语义。 */
+  const said = update.content ?? undefined
+  const content =
+    said === undefined ? (held?.content ?? []) : withoutArgumentEcho(said, rawInput, status)
+
+  return { content, endedAt, rawInput, rawOutput, status }
 }
 
 /**
