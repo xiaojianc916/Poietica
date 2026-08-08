@@ -1,9 +1,9 @@
-import { optionalProperty } from '@poietica/core'
 import {
   type DiagnosticLogEntry,
   formatDiagnosticLogs,
   getRecentLogEntries,
-} from '@poietica/observability'
+  optionalProperty,
+} from '@poietica/core'
 
 export interface FailureDiagnosticHint {
   readonly componentStack?: string | null

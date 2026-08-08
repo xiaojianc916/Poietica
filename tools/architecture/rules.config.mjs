@@ -62,20 +62,21 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
 /*
  * 依赖方向。
  *
- * 层次不是从目录名或包名前缀推断的 —— 上一版正是这么做的，命名法一改
- * 规则就整体失效，而且失效时不报错。这里是一张显式的表，加载时逐条断言。
+ * 边不在这里声明。各包 package.json 的 dependencies 已经声明过一遍，而 pnpm 的
+ * 隔离式 node_modules 又决定了没写进去的包在源码里根本解析不到 —— 工作区 manifest
+ * 就是这个仓库唯一真实存在的依赖图，turbo 的 ^task 读的也是它。在这里再抄一份
+ * 「谁可以依赖谁」，抄出来的是第二个真相。
  *
- * 分层依据是工作区 manifest 里真实存在的那些边，不是设想中的目标态。
- * 每一条现存的边都指向同层或更低层，所以这套规则开启时零违规。
+ * 上一版抄了：按包名拼出十五条正则去扫源文件的 import 说明符，允许集是
+ * tiers.slice(0, index + 1) —— 含自己那一层。于是 domain 层三个包、features 层
+ * 五个包，同层互指一律零约束；而七层里另外四层各只有一个包，层内无从互指。
+ * 这张表覆盖的，正是它管不着的地方。
  *
- * transport 与 composition 分成两层，而不是合成一个 "platform"：
- * ipc 只依赖 acp，被 settings / desktop-adapters / desktop 依赖，位置在 features
- * 之下；desktop-adapters 依赖 agents + ipc + settings，且只被应用入口
- * 依赖，位置在 features 之上。上一版把两者塞进同一层，于是不得不写一段注释
- * 解释为什么 platform 可以反向依赖 features。分开之后，那个破例不存在了。
+ * 现在它只回答正则回答不了的那个问题：方向。判据落在 manifest 的边上，违规位置
+ * 是 package.json 的那一行，不是散在几十个源文件里的 import。
  */
-const tiers = [
-  { name: 'foundations', packages: ['core', 'observability', 'serialization', 'ui'] },
+const layers = [
+  { name: 'foundations', packages: ['core', 'ui'] },
   { name: 'protocol', packages: ['acp'] },
   { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
   { name: 'transport', packages: ['ipc'] },
@@ -87,7 +88,21 @@ const tiers = [
   { name: 'application', packages: ['desktop'] },
 ]
 
-/* 只有这三个包可以直连原生宿主。其余任何一个碰 @tauri-apps 都是越界。 */
+/*
+ * 同层依赖默认禁止。同层的包彼此平级，一旦互指，「层」就退化成一个标签 —— 层内
+ * 的方向再没有任何东西约束。仅有的两条列在这里并各自附理由；对应的 manifest 边
+ * 一旦消失，这里的条目就成了过期豁免，规则会反过来把它报出来。
+ */
+const sameLayerDependencies = [
+  {
+    from: 'agent-session',
+    to: 'agent-timeline',
+    reason: '会话状态与 ACP 事件投影是同一条管线的两段，同层同域',
+  },
+  { from: 'agent-session', to: 'agents', reason: '线程按 agentId 定址，名单与线程状态同层同域' },
+]
+
+/* 只有这三个包可以直连原生宿主。判据落在 manifest：没声明的包在 pnpm 下解析不到。 */
 const nativeAllowed = new Set(['desktop', 'desktop-adapters', 'ipc'])
 
 /*
@@ -120,8 +135,8 @@ for (const root of sourceRoots) {
 const placed = new Map()
 const mismatches = []
 
-for (const [index, tier] of tiers.entries()) {
-  for (const pkg of tier.packages) {
+for (const [index, layer] of layers.entries()) {
+  for (const pkg of layer.packages) {
     if (placed.has(pkg)) {
       mismatches.push(`"${pkg}" 被放进了不止一层`)
       continue
@@ -174,39 +189,24 @@ if (mismatches.length > 0) {
  */
 const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
 
-const tierRules = [...placed].flatMap(([pkg, index]) => {
-  const allowed = tiers.slice(0, index + 1).flatMap((tier) => tier.packages)
-  const forbidden = [`${SPECIFIER}@poietica/(?!(?:${alternation(allowed)})['"/])[\\w-]+`]
-
-  if (!nativeAllowed.has(pkg)) {
-    forbidden.push(`${SPECIFIER}@tauri-apps/[\\w-]+`)
-  }
-
-  return [
-    {
-      id: `${pkg}-depends-downward`,
-      appliesTo: inDirectory(workspacePackages.get(pkg)),
-      pattern: new RegExp(forbidden.join('|'), 'g'),
-      message: `${pkg}（${tiers[index].name}）只能依赖 ${allowed.join(', ')}`,
-    },
-    /*
-     * 包名指回自己，上面那条抓不到 —— allowed 是「自己这一层及以下」，自然
-     * 含自己，负向断言当场落空。另外两条也各差一格：public-package-exports
-     * 管的是 src/ 深路径，no-cross-boundary-relative-imports 管的是相对路径
-     * 跨包。三条围了一圈，恰好漏掉这一个方向 —— 于是 agent-timeline 里
-     * index → timeline-reducer → index 成了一个模块环，只因为全是 import
-     * type 才没在运行时炸，而检查器一路报着 Architecture rules passed.
-     *
-     * 包入口是给别人看的那道边界。自己人绕它一圈，这道边界就是假的。
-     */
-    {
-      id: `${pkg}-owns-its-entry`,
-      appliesTo: inDirectory(workspacePackages.get(pkg)),
-      pattern: new RegExp(`${SPECIFIER}@poietica/${escapeForRegExp(pkg)}(?=['"/])`, 'g'),
-      message: `${pkg} 不能用包名引用自己：包内走相对路径，否则包入口与模块互指成环`,
-    },
-  ]
-})
+/*
+ * 包名指回自己。
+ *
+ * 方向判据抓不到它（自己永远在自己的允许集里），public-package-exports 管的是
+ * src/ 深路径，no-cross-boundary-relative-imports 管的是相对路径跨包 —— 三条围了
+ * 一圈，恰好漏掉这一个方向。于是 agent-timeline 里 index → timeline-reducer →
+ * index 成了模块环，只因为全是 import type 才没在运行时炸，而检查器一路报着
+ * Architecture rules passed.
+ *
+ * 包入口是给别人看的那道边界。自己人绕它一圈，这道边界就是假的。这条只能落在源
+ * 文件上：manifest 看不见一个包怎么引用它自己。
+ */
+const entryOwnershipRules = [...placed.keys()].map((pkg) => ({
+  id: `${pkg}-owns-its-entry`,
+  appliesTo: inDirectory(workspacePackages.get(pkg)),
+  pattern: new RegExp(`${SPECIFIER}@poietica/${escapeForRegExp(pkg)}(?=['"/])`, 'g'),
+  message: `${pkg} 不能用包名引用自己：包内走相对路径，否则包入口与模块互指成环`,
+}))
 
 /*
  * Design-system control geometry, motion, elevation and stacking are owned by
@@ -621,9 +621,203 @@ const manifestScriptsResolve = async (inventory) => {
   return defects
 }
 
+/*
+ * 工作区依赖图。
+ *
+ * dependencies 与 devDependencies 都算 —— pnpm 与 turbo 都把两者当工作区边，
+ * 一条 devDependency 造出来的环同样会卡死 turbo 的 task 图。
+ */
+const DEPENDENCY_BLOCKS = ['dependencies', 'devDependencies', 'peerDependencies']
+
+const LOCAL_PACKAGE = /^@poietica\/([\w-]+)$/
+
+const workspaceDependencyGraph = async (inventory) => {
+  const graph = new Map()
+
+  for (const [pkg, directory] of workspacePackages) {
+    const manifest = JSON.parse(await inventory.read(`${directory}/package.json`))
+    const edges = new Map()
+
+    for (const block of DEPENDENCY_BLOCKS) {
+      for (const name of Object.keys(manifest[block] ?? {})) {
+        const local = LOCAL_PACKAGE.exec(name)
+
+        if (local !== null && workspacePackages.has(local[1])) {
+          edges.set(local[1], `${block}.${name}`)
+        }
+      }
+    }
+
+    graph.set(pkg, edges)
+  }
+
+  return graph
+}
+
+const layeredWorkspaceDependencies = async (inventory) => {
+  const graph = await workspaceDependencyGraph(inventory)
+  const defects = []
+  const honoured = new Set()
+
+  for (const [pkg, edges] of graph) {
+    const from = placed.get(pkg)
+    const file = `${workspacePackages.get(pkg)}/package.json`
+
+    for (const [dependency, origin] of edges) {
+      const to = placed.get(dependency)
+
+      if (to < from) {
+        continue
+      }
+
+      if (to > from) {
+        defects.push({
+          file,
+          message: `${origin} 指向更高层：${layers[from].name} 不能依赖 ${layers[to].name}`,
+        })
+        continue
+      }
+
+      const exemption = sameLayerDependencies.find(
+        (candidate) => candidate.from === pkg && candidate.to === dependency,
+      )
+
+      if (exemption === undefined) {
+        defects.push({
+          file,
+          message: `${origin} 是同层依赖：${layers[from].name} 层内互指要写进 sameLayerDependencies 并给出理由`,
+        })
+        continue
+      }
+
+      honoured.add(exemption)
+    }
+  }
+
+  for (const exemption of sameLayerDependencies) {
+    if (!honoured.has(exemption)) {
+      defects.push({
+        file: 'tools/architecture/rules.config.mjs',
+        message: `同层豁免 ${exemption.from} → ${exemption.to} 已经没有对应的 manifest 边：过期豁免必须删掉`,
+      })
+    }
+  }
+
+  return defects
+}
+
+/*
+ * 环。turbo 的 ^task 图撞上环会失败，但那要等到有人跑 turbo，而且它报的是任务名。
+ * 这里在同一次架构检查里就报出来，报的是哪几个包咬在一起。Kahn 拓扑排序，消不掉
+ * 的就是环。
+ */
+const workspaceGraphIsAcyclic = async (inventory) => {
+  const graph = await workspaceDependencyGraph(inventory)
+  const pending = new Map([...graph].map(([pkg, edges]) => [pkg, new Set(edges.keys())]))
+
+  let settled = true
+
+  while (settled) {
+    settled = false
+
+    for (const [pkg, edges] of [...pending]) {
+      if (edges.size > 0) {
+        continue
+      }
+
+      pending.delete(pkg)
+
+      for (const rest of pending.values()) {
+        rest.delete(pkg)
+      }
+
+      settled = true
+    }
+  }
+
+  return [...pending]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([pkg, edges]) => ({
+      file: `${workspacePackages.get(pkg)}/package.json`,
+      message: `依赖成环：${pkg} 仍指向 ${[...edges].sort().join('、')}，工作区依赖图必须是 DAG`,
+    }))
+}
+
+/*
+ * 死包。
+ *
+ * 没有任何应用能到达的包是工作区里的死重量：它进不了任何产物，却照样参与
+ * typecheck、test 与每一次 install，还会让人以为它是活的。这个仓库真出过一个。
+ */
+const everyPackageIsReachable = async (inventory) => {
+  const graph = await workspaceDependencyGraph(inventory)
+  const reachable = new Set()
+  const queue = []
+
+  for (const [pkg, directory] of workspacePackages) {
+    if (directory.startsWith('apps/')) {
+      reachable.add(pkg)
+      queue.push(pkg)
+    }
+  }
+
+  while (queue.length > 0) {
+    for (const dependency of graph.get(queue.pop()).keys()) {
+      if (!reachable.has(dependency)) {
+        reachable.add(dependency)
+        queue.push(dependency)
+      }
+    }
+  }
+
+  const defects = []
+
+  for (const [pkg, directory] of workspacePackages) {
+    if (!reachable.has(pkg)) {
+      defects.push({
+        file: `${directory}/package.json`,
+        message: '没有任何应用能到达这个包：工作区里的死包当场删掉，不留着等以后',
+      })
+    }
+  }
+
+  return defects
+}
+
+/*
+ * 原生宿主访问。判据落在 manifest 上：pnpm 的隔离式 node_modules 决定了没声明的
+ * 包 import 不到，「声明了」与「碰得到」在这个仓库里是同一件事。
+ */
+const nativeHostAccessIsDeclared = async (inventory) => {
+  const defects = []
+
+  for (const [pkg, directory] of workspacePackages) {
+    if (nativeAllowed.has(pkg)) {
+      continue
+    }
+
+    const manifest = JSON.parse(await inventory.read(`${directory}/package.json`))
+
+    for (const name of Object.keys(manifest.dependencies ?? {})) {
+      if (name.startsWith('@tauri-apps/')) {
+        defects.push({
+          file: `${directory}/package.json`,
+          message: `dependencies.${name}：只有 ${[...nativeAllowed].sort().join('、')} 可以直连原生宿主`,
+        })
+      }
+    }
+  }
+
+  return defects
+}
+
 const governanceRules = [
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
+  { id: 'layered-workspace-dependencies', check: layeredWorkspaceDependencies },
+  { id: 'workspace-graph-is-acyclic', check: workspaceGraphIsAcyclic },
+  { id: 'every-package-is-reachable', check: everyPackageIsReachable },
+  { id: 'native-host-access-is-declared', check: nativeHostAccessIsDeclared },
   { id: 'native-crates-stay-host-agnostic', check: nativeCratesStayHostAgnostic },
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
   { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
@@ -738,7 +932,7 @@ export const rules = [
     pattern: /\binstallAgentCapabilityPort\b/g,
     message: 'agent 能力表只在组合根接一次线，不要在渲染层装',
   },
-  ...tierRules,
+  ...entryOwnershipRules,
   {
     id: 'design-system-token-authority',
     appliesTo: inDirectory('packages/ui/src'),

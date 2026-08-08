@@ -14,9 +14,9 @@ import {
   isTerminalFailureImpact,
   type NonTerminalFailureImpact,
   optionalProperty,
+  error as reportDiagnosticError,
   type TerminalFailureImpact,
 } from '@poietica/core'
-import { error as reportDiagnosticError } from '@poietica/observability'
 import {
   createFailureDiagnostic,
   type FailureDiagnostic,

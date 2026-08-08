@@ -14,7 +14,7 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 不存在的 `test-kit` 列进 foundations，又漏掉一个真实存在的包），而唯一被
 执行的是那份配置。手抄表只会制造第二个真相。
 
-依赖只能指向同层或更低层。允许直连 `@tauri-apps/*` 的只有 `ipc`、
+依赖只能指向更低层，同层互指必须在配置里逐条豁免。允许直连 `@tauri-apps/*` 的只有 `ipc`、
 `desktop-adapters` 与 `apps/desktop`。
 
 ## 包边界的由来

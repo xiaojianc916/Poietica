@@ -1,4 +1,4 @@
-import { createAutomationId } from '@poietica/core'
+import { createAutomationId, warn } from '@poietica/core'
 import type {
   Automation,
   AutomationCatalog,
@@ -12,7 +12,6 @@ import {
   upsertAutomation,
   watchAutomations,
 } from '@poietica/ipc'
-import { warn } from '@poietica/observability'
 
 import { type AutomationDraft, nextOccurrence, nextRunAfter, sameTrigger } from './automation'
 

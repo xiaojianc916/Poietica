@@ -1,5 +1,4 @@
-import { createExternalStore, createPreference } from '@poietica/core'
-import { warn } from '@poietica/observability'
+import { createExternalStore, createPreference, warn } from '@poietica/core'
 import { useSyncExternalStore } from 'react'
 import * as v from 'valibot'
 

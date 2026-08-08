@@ -15,7 +15,6 @@
     "@poietica/agent-session": "workspace:*",
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
-    "@poietica/observability": "workspace:*",
     "@poietica/ui": "workspace:*"
   },
   "devDependencies": {

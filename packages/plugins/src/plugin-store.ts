@@ -1,4 +1,4 @@
-import { assertUnreachable } from '@poietica/core'
+import { assertUnreachable, warn } from '@poietica/core'
 import {
   commitPlugin,
   discardStagedPlugin,
@@ -11,7 +11,6 @@ import {
   stagePlugin,
   writePluginState,
 } from '@poietica/ipc'
-import { warn } from '@poietica/observability'
 
 import { type ResolvedContributions, resolveContributions } from './contribution'
 import { planFetch } from './fetch-plan'

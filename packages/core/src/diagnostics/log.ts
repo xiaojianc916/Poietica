@@ -1,6 +1,4 @@
-import { recordDiagnosticLog } from './diagnostic-buffer'
-import type { MetricRecorder } from './metric'
-import { getMetricsRecorder, setMetricsRecorder } from './metric'
+import { recordDiagnosticLog } from './buffer'
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error'
 
@@ -92,23 +90,16 @@ export function error(message: string, context?: LogContext): void {
   log('error', message, context)
 }
 
-export function initObservability(options?: {
+export function initDiagnostics(options?: {
   readonly appName?: string
   readonly sink?: LogSink
-  readonly metrics?: MetricRecorder
 }): void {
   if (options?.sink) {
     setLogSink(options.sink)
   }
 
-  if (options?.metrics) {
-    setMetricsRecorder(options.metrics)
-  } else {
-    getMetricsRecorder()
-  }
-
-  info('observability initialized', {
-    scope: 'observability',
+  info('diagnostics initialized', {
+    scope: 'diagnostics',
     appName: options?.appName ?? 'poietica',
   })
 }

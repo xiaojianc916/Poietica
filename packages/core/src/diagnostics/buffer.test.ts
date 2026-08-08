@@ -5,7 +5,7 @@ import {
   formatDiagnosticLogs,
   getRecentLogEntries,
   recordDiagnosticLog,
-} from './diagnostic-buffer'
+} from './buffer'
 
 describe('diagnostic buffer', () => {
   beforeEach(() => {

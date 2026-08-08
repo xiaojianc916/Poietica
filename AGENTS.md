@@ -57,7 +57,9 @@ tools/architecture/      机器执行的那部分架构
 
 层名与包名在配置里，这里只写三条不变量：
 
-- **依赖只能指向同层或更低层。** 没有例外，也没有「临时反向依赖」。
+- **依赖只能指向更低层。** 同层互指默认禁止，仅有的例外逐条写在配置的
+  `sameLayerDependencies` 里并附理由；对应的 manifest 边消失了，豁免就得删。
+  判据落在各包 `package.json` 的依赖块上，不落在源文件的 import 上。
 - **只有 transport、composition 与 application 三层可以直连 `@tauri-apps/*`。**
   平台能力一旦渗进领域包或基础包，那个包就再也无法在非 Tauri 环境里测试或复用。
 - **跨包只走公开 exports。** 不 deep import 到别人的 `src/`，不用相对路径跨包，也不用

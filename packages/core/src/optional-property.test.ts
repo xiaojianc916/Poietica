@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { optionalProperty } from './object'
+import { optionalProperty } from './optional-property'
 
 describe('optionalProperty', () => {
   it('omits the key when the value is absent', () => {

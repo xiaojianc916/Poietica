@@ -6,6 +6,24 @@ export {
   isCancellationError,
   withCancellation,
 } from './cancellation'
+export type { DiagnosticLogEntry } from './diagnostics/buffer'
+export {
+  clearDiagnosticLogs,
+  configureDiagnosticBuffer,
+  formatDiagnosticLogs,
+  getRecentLogEntries,
+} from './diagnostics/buffer'
+export type { LogContext, LogLevel, LogSink } from './diagnostics/log'
+export {
+  debug,
+  error,
+  info,
+  initDiagnostics,
+  log,
+  setLogSink,
+  trace,
+  warn,
+} from './diagnostics/log'
 export {
   assertInvariant,
   assertUnreachable,
@@ -61,7 +79,7 @@ export {
   type TransactionId,
   type WindowId,
 } from './id'
-export { optionalProperty } from './object'
+export { optionalProperty } from './optional-property'
 export {
   createPreference,
   type Preference,

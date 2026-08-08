@@ -11,7 +11,7 @@ import {
   acpAgents,
   parseAgentProviderListOutput,
 } from '@poietica/agents'
-import { createExternalStore } from '@poietica/core'
+import { createExternalStore, error as reportError } from '@poietica/core'
 import {
   createAgentCapabilityBridge,
   createAgentCommandBridge,
@@ -21,7 +21,6 @@ import {
   createIpcSession,
   shutdownAgent,
 } from '@poietica/ipc'
-import { error as reportError } from '@poietica/observability'
 import type { AgentConfigStore } from '@poietica/settings'
 
 import { activeWorkspaceRoot } from '../workspace-root'

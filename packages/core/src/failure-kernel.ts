@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid'
 import { assertInvariant } from './errors'
-import { optionalProperty } from './object'
+import { optionalProperty } from './optional-property'
 
 export const FAILURE_IMPACTS = [
   'recoverable',

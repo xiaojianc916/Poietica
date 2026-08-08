@@ -1,5 +1,4 @@
-import { createPreference, normalizeWorkspaceRoot } from '@poietica/core'
-import { warn } from '@poietica/observability'
+import { createPreference, normalizeWorkspaceRoot, warn } from '@poietica/core'
 import { useSyncExternalStore } from 'react'
 
 /*

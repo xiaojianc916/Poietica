@@ -13,7 +13,6 @@
   "dependencies": {
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
-    "@poietica/observability": "workspace:*",
     "@poietica/ui": "workspace:*",
     "valibot": "catalog:"
   },

@@ -18,7 +18,6 @@
     "@poietica/acp": "workspace:*",
     "@poietica/agent-session": "workspace:*",
     "@poietica/core": "workspace:*",
-    "@poietica/observability": "workspace:*",
     "@poietica/ui": "workspace:*",
     "motion": "catalog:",
     "valibot": "catalog:"
