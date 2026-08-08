@@ -23,9 +23,11 @@ export const SESSION_PROMPT_BUDGET_BYTES = 64 * 1024
  */
 export const UNSUPPORTED_MANIFEST_FIELDS = ['apps', 'configFile', 'inject', 'tools'] as const
 
-export const COMMAND_DESCRIPTION_LIMIT = 240
+/* 省略 skills 时，插件根自己就是一个技能根：根目录下那份 SKILL.md。 */
+export const DEFAULT_SKILL_ROOT = './'
 
-export const MISSING_COMMAND_DESCRIPTION = 'No description provided.'
+/* 省略 agents 时自动拾取的位置。它在不在磁盘上，由扫描那一步说了算。 */
+export const DEFAULT_AGENT_ROOT = './agents'
 
 /* 插件名同时是命令命名空间与磁盘目录名，所以约束由上游定死。 */
 const PLUGIN_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/
@@ -33,11 +35,10 @@ const PLUGIN_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/
 const encoder = new TextEncoder()
 
 export type PluginDiagnosticCode =
-  | 'agent-needs-override'
-  | 'command-name-taken'
+  | 'hooks-not-executed'
   | 'manifest-invalid'
   | 'name-invalid'
-  | 'prompt-ambiguous'
+  | 'path-escapes-root'
   | 'prompt-budget-exhausted'
   | 'prompt-too-large'
   | 'unsupported-field'
@@ -49,38 +50,23 @@ export interface PluginDiagnostic {
 }
 
 /*
- * 提示词是一条判别联合，不是两个可选字段。
+ * 提示词是一串有序的来源，不是二选一。
  *
- * 上游清单里 systemPrompt 与 systemPromptPath 是两个键，描述的却是同一段东西：
- * 两个键就是两个来源，「两个都写了听谁的」这种不变量要靠人记住。这里让它连写
- * 都写不出来，两个都给就是一条诊断。
+ * 上一版把 systemPrompt 与 systemPromptPath 当成互斥的两个键，两个都写就判成
+ * prompt-ambiguous —— 那条规则是我们自己想出来的。官方字段表写的是「两个都在时，
+ * systemPromptPath 接在 systemPrompt 之后」，所以它本来就是一个可以有两段的序列。
  */
-export interface AbsentPrompt {
-  readonly kind: 'absent'
-}
-
-export interface InlinePrompt {
+export interface InlinePromptSource {
   readonly kind: 'inline'
   readonly text: string
 }
 
-export interface FilePrompt {
+export interface FilePromptSource {
   readonly kind: 'file'
   readonly path: string
 }
 
-export type PluginSystemPrompt = AbsentPrompt | FilePrompt | InlinePrompt
-
-export interface PluginAgentDeclaration {
-  readonly name: string
-  readonly override: boolean
-}
-
-export interface PluginCommandDeclaration {
-  readonly name: string
-  readonly description: string
-  readonly body: string
-}
+export type PluginPromptSource = FilePromptSource | InlinePromptSource
 
 export interface PluginMcpServerDeclaration {
   readonly name: string
@@ -91,8 +77,11 @@ export interface PluginMcpServerDeclaration {
 /*
  * 归一之后的清单：没有可选属性。
  *
- * 「写没写」在解析期就判完了 —— 数组是空数组，提示词是 absent，可缺的字符串
- * 显式是 undefined。下游因此不需要在每个读取点再判一次。
+ * 技能、代理、命令三个字段在清单里都是「一条或多条 ./ 路径」，不是名字、更不是
+ * 内联定义 —— 真正的技能是路径下那些 SKILL.md，真正的命令是路径下那些 .md。
+ * 上一版把 commands 建模成 { name, description, body }，那个形状在上游不存在：
+ * vercel-plugin 的清单写的是 "commands": ["./commands"]，按上一版会解出一条名字
+ * 叫 "./commands" 的命令。
  */
 export interface PluginManifest {
   readonly name: string
@@ -101,11 +90,16 @@ export interface PluginManifest {
   readonly version: string | undefined
   readonly developerName: string | undefined
   readonly homepage: string | undefined
-  readonly skills: readonly string[]
-  readonly agents: readonly PluginAgentDeclaration[]
-  readonly commands: readonly PluginCommandDeclaration[]
+  /* interface.capabilities，插件自报的能力面，例如 Interactive / Read / Write。 */
+  readonly capabilities: readonly string[]
+  readonly skillRoots: readonly string[]
+  readonly agentRoots: readonly string[]
+  readonly commandRoots: readonly string[]
   readonly mcpServers: readonly PluginMcpServerDeclaration[]
-  readonly systemPrompt: PluginSystemPrompt
+  /* 新会话开始时自动装载的那个技能的名字。 */
+  readonly sessionStartSkill: string | undefined
+  readonly skillInstructions: string | undefined
+  readonly promptSources: readonly PluginPromptSource[]
 }
 
 export interface AcceptedManifest {
@@ -120,37 +114,21 @@ export interface RejectedManifest {
 }
 
 /*
- * 解析失败是预期结果，不是异常：磁盘上放着一份写坏的清单是日常，界面要把它
- * 显示成一行「这个插件为什么没生效」。所以失败是返回值，不是 throw。
+ * 解析失败是预期结果，不是异常：磁盘上放着一份写坏的清单是日常，界面要把它显示
+ * 成一行「这个插件为什么没生效」。所以失败是返回值，不是 throw。
  */
 export type ManifestDecoding = AcceptedManifest | RejectedManifest
 
 const InterfaceBlock = v.looseObject({
   displayName: v.optional(v.string()),
+  shortDescription: v.optional(v.string()),
   developerName: v.optional(v.string()),
   websiteURL: v.optional(v.string()),
+  capabilities: v.optional(v.array(v.string())),
 })
 
-/*
- * skills 可以是一条目录路径，也可以是一串路径。
- *
- * 证据是上游官方插件本身：kimi-webbridge 的 kimi.plugin.json 写的是
- * "skills": "./skills/"。只认数组会让这份真清单整份被判无效 —— 表现成「装得下来、
- * 却说清单不合法」，而错的是我们收窄过头，不是它写错了。
- */
-const SkillsEntry = v.union([v.string(), v.array(v.string())])
-
-/* 宽进严出：进来的形状由上游决定，出去的形状由我们决定。 */
-const AgentEntry = v.union([
-  v.string(),
-  v.looseObject({ name: v.string(), override: v.optional(v.boolean()) }),
-])
-
-const CommandEntry = v.looseObject({
-  name: v.string(),
-  description: v.optional(v.string()),
-  body: v.optional(v.string()),
-})
+/* 一条路径与一串路径在下游没有区别，差异在解码期就抹掉。 */
+const PathList = v.union([v.string(), v.array(v.string())])
 
 const RawManifest = v.looseObject({
   name: v.string(),
@@ -158,92 +136,106 @@ const RawManifest = v.looseObject({
   description: v.optional(v.string()),
   homepage: v.optional(v.string()),
   interface: v.optional(InterfaceBlock),
-  skills: v.optional(SkillsEntry),
-  agents: v.optional(v.array(AgentEntry)),
-  commands: v.optional(v.array(CommandEntry)),
+  skills: v.optional(PathList),
+  agents: v.optional(PathList),
+  commands: v.optional(PathList),
   mcpServers: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
+  sessionStart: v.optional(v.looseObject({ skill: v.optional(v.string()) })),
+  skillInstructions: v.optional(v.string()),
   systemPrompt: v.optional(v.string()),
   systemPromptPath: v.optional(v.string()),
+  hooks: v.optional(v.array(v.unknown())),
 })
 
 export function utf8ByteLength(value: string): number {
   return encoder.encode(value).length
 }
 
-/*
- * 命令说明的回落顺序取自上游：声明的 description、正文第一条非空行（截到 240
- * 字）、再没有就是那句固定文案。
- */
-export function commandDescription(declared: string | undefined, body: string): string {
-  if (declared !== undefined && declared.trim() !== '') {
-    return declared.trim()
+/* 落在插件根之内：以 ./ 开头（或就是 .），且没有任何一段是 ..。 */
+function insideRoot(candidate: string): boolean {
+  if (candidate !== '.' && !candidate.startsWith('./')) {
+    return false
   }
 
-  const firstLine = body.split('\n').find((line) => line.trim() !== '')
-
-  if (firstLine === undefined) {
-    return MISSING_COMMAND_DESCRIPTION
-  }
-
-  return firstLine.trim().slice(0, COMMAND_DESCRIPTION_LIMIT)
+  return !candidate.split('/').includes('..')
 }
 
-/* 一条路径与一串路径在下游没有区别，差异在解码期就抹掉。 */
-function normalizeSkills(declared: string | string[] | undefined): readonly string[] {
+function normalizeRoots(
+  name: string,
+  field: string,
+  declared: string | string[] | undefined,
+  fallback: readonly string[],
+  diagnostics: PluginDiagnostic[],
+): readonly string[] {
   if (declared === undefined) {
-    return []
+    return fallback
   }
 
-  return typeof declared === 'string' ? [declared] : declared
+  const paths = typeof declared === 'string' ? [declared] : declared
+
+  for (const candidate of paths) {
+    if (!insideRoot(candidate)) {
+      diagnostics.push({
+        code: 'path-escapes-root',
+        pluginId: name,
+        detail: `${field} 里的 "${candidate}" 不在插件根之内，本次加载忽略了它`,
+      })
+    }
+  }
+
+  return paths.filter((candidate) => insideRoot(candidate))
 }
 
-interface PromptResolution {
-  readonly prompt: PluginSystemPrompt
+/* 顺序就是官方字段表里的顺序：systemPrompt 在前，systemPromptPath 接在它后面。 */
+function promptSourcesOf(
+  inline: string | undefined,
+  file: string | undefined,
+): readonly PluginPromptSource[] {
+  const sources: PluginPromptSource[] = []
+
+  if (inline !== undefined && inline.trim() !== '') {
+    sources.push({ kind: 'inline', text: inline })
+  }
+
+  if (file !== undefined && file.trim() !== '') {
+    sources.push({ kind: 'file', path: file })
+  }
+
+  return sources
+}
+
+export interface PromptClamp {
+  readonly text: string | undefined
   readonly diagnostics: readonly PluginDiagnostic[]
 }
 
-function resolvePrompt(
-  name: string,
-  inline: string | undefined,
-  file: string | undefined,
-): PromptResolution {
-  if (inline !== undefined && file !== undefined) {
+/**
+ * 物化之后的提示词进不进会话。
+ *
+ * 预算按 UTF-8 字节算，而这一段可能是内联与磁盘文件拼起来的 —— 只有读完文件才
+ * 知道它有多大，所以这条判据不在解码期。规则仍然只有这一处。
+ */
+export function clampPluginPrompt(pluginId: string, text: string): PromptClamp {
+  if (text.trim() === '') {
+    return { text: undefined, diagnostics: [] }
+  }
+
+  const bytes = utf8ByteLength(text)
+
+  if (bytes > PLUGIN_PROMPT_BUDGET_BYTES) {
     return {
-      prompt: { kind: 'absent' },
+      text: undefined,
       diagnostics: [
         {
-          code: 'prompt-ambiguous',
-          pluginId: name,
-          detail: 'systemPrompt 与 systemPromptPath 同时存在，同一段提示词不能有两个来源',
+          code: 'prompt-too-large',
+          pluginId,
+          detail: `${bytes} 字节，超过单个插件 ${PLUGIN_PROMPT_BUDGET_BYTES} 字节的上限`,
         },
       ],
     }
   }
 
-  if (inline !== undefined) {
-    const bytes = utf8ByteLength(inline)
-
-    if (bytes > PLUGIN_PROMPT_BUDGET_BYTES) {
-      return {
-        prompt: { kind: 'absent' },
-        diagnostics: [
-          {
-            code: 'prompt-too-large',
-            pluginId: name,
-            detail: `${bytes} 字节，超过单个插件 ${PLUGIN_PROMPT_BUDGET_BYTES} 字节的上限`,
-          },
-        ],
-      }
-    }
-
-    return { prompt: { kind: 'inline', text: inline }, diagnostics: [] }
-  }
-
-  if (file !== undefined) {
-    return { prompt: { kind: 'file', path: file }, diagnostics: [] }
-  }
-
-  return { prompt: { kind: 'absent' }, diagnostics: [] }
+  return { text, diagnostics: [] }
 }
 
 function unsupportedFieldDiagnostics(name: string, input: unknown): readonly PluginDiagnostic[] {
@@ -258,6 +250,24 @@ function unsupportedFieldDiagnostics(name: string, input: unknown): readonly Plu
       detail: `${field} 已不被运行时支持，本次加载忽略了它`,
     }),
   )
+}
+
+/* 上游会执行 hooks，这个应用还不会。声明了却不跑必须说出来，静默忽略等于骗人。 */
+function hookDiagnostics(
+  name: string,
+  hooks: readonly unknown[] | undefined,
+): readonly PluginDiagnostic[] {
+  if (hooks === undefined || hooks.length === 0) {
+    return []
+  }
+
+  return [
+    {
+      code: 'hooks-not-executed',
+      pluginId: name,
+      detail: `声明了 ${hooks.length} 条 hook，这个应用还不会执行它们`,
+    },
+  ]
 }
 
 export function decodePluginManifest(input: unknown): ManifestDecoding {
@@ -291,32 +301,34 @@ export function decodePluginManifest(input: unknown): ManifestDecoding {
     }
   }
 
-  const prompt = resolvePrompt(raw.name, raw.systemPrompt, raw.systemPromptPath)
-  const declaredServers: Readonly<Record<string, Record<string, unknown>>> = raw.mcpServers ?? {}
+  const diagnostics: PluginDiagnostic[] = [
+    ...unsupportedFieldDiagnostics(raw.name, input),
+    ...hookDiagnostics(raw.name, raw.hooks),
+  ]
+
+  const skills = normalizeRoots(raw.name, 'skills', raw.skills, [DEFAULT_SKILL_ROOT], diagnostics)
+  const agents = normalizeRoots(raw.name, 'agents', raw.agents, [DEFAULT_AGENT_ROOT], diagnostics)
+  const commands = normalizeRoots(raw.name, 'commands', raw.commands, [], diagnostics)
+  const servers: Readonly<Record<string, Record<string, unknown>>> = raw.mcpServers ?? {}
 
   return {
     kind: 'accepted',
-    diagnostics: [...unsupportedFieldDiagnostics(raw.name, input), ...prompt.diagnostics],
+    diagnostics,
     manifest: {
       name: raw.name,
       displayName: raw.interface?.displayName ?? raw.name,
-      description: raw.description,
+      description: raw.interface?.shortDescription ?? raw.description,
       version: raw.version,
       developerName: raw.interface?.developerName,
-      homepage: raw.homepage,
-      skills: normalizeSkills(raw.skills),
-      agents: (raw.agents ?? []).map((entry) =>
-        typeof entry === 'string'
-          ? { name: entry, override: false }
-          : { name: entry.name, override: entry.override ?? false },
-      ),
-      commands: (raw.commands ?? []).map((entry) => ({
-        name: entry.name,
-        description: commandDescription(entry.description, entry.body ?? ''),
-        body: entry.body ?? '',
-      })),
-      mcpServers: Object.entries(declaredServers).map(([name, config]) => ({ name, config })),
-      systemPrompt: prompt.prompt,
+      homepage: raw.interface?.websiteURL ?? raw.homepage,
+      capabilities: raw.interface?.capabilities ?? [],
+      skillRoots: skills,
+      agentRoots: agents,
+      commandRoots: commands,
+      mcpServers: Object.entries(servers).map(([name, config]) => ({ name, config })),
+      sessionStartSkill: raw.sessionStart?.skill,
+      skillInstructions: raw.skillInstructions,
+      promptSources: promptSourcesOf(raw.systemPrompt, raw.systemPromptPath),
     },
   }
 }

@@ -2,41 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { decodePluginManifest } from './manifest'
 
 /*
- * 用上游真实的官方清单当夹具。
+ * 上游真清单当夹具。
  *
- * 单元测试验的是「我以为的格式」，这一组验的是「实际发出来的格式」—— 两者分开，
- * 因为出错的一直是后者：把 skills 收窄成数组、把目录版本号写成 "2"，都是拿想象
- * 中的形状去卡真实数据。这两份 JSON 逐字取自
- * MoonshotAI/kimi-code 的 plugins/official/，上游改形状时这里先红。
+ * 这份文件存在的唯一理由：这个解码器已经被我们自己想象出来的形状坑过三次 ——
+ * 目录版本号写成 "2"（真值是 "1"）、skills 只认数组（kimi-webbridge 写的是一条
+ * 字符串）、commands 建模成内联对象（vercel-plugin 写的是 ["./commands"]）。
+ * 结构字段逐字取自上游仓库，长文案略去（它不参与解码）。
  */
-
-const KIMI_WEBBRIDGE = {
-  $schema: 'https://kimi.com/schemas/kimi.plugin.schema.json',
-  name: 'kimi-webbridge',
-  version: '1.11.3',
-  description:
-    'Control your real browser (with your login sessions) from Kimi Code via the local Kimi WebBridge daemon — navigate, click, type, read pages, and screenshot any website.',
-  keywords: ['browser', 'webbridge', 'cdp', 'automation', 'web', 'scraping'],
-  author: 'Moonshot AI',
-  license: 'Proprietary',
-  skills: './skills/',
-  interface: {
-    displayName: 'Kimi WebBridge',
-    shortDescription:
-      'Control your real browser from Kimi Code — navigate, click, type, and screenshot',
-    developerName: 'Moonshot AI',
-    websiteURL: 'https://www.kimi.com/features/webbridge',
-  },
-}
 
 const KIMI_DATASOURCE = {
   name: 'kimi-datasource',
   version: '3.3.0',
   description: 'Finance, macro, enterprise, academic, and legal data tools for Kimi Code.',
   keywords: ['finance', 'data-source', 'mcp', 'legal'],
-  mcpServers: {
-    data: { command: 'node', args: ['./bin/kimi-datasource.mjs'], cwd: './' },
-  },
+  mcpServers: { data: { command: 'node', args: ['./bin/kimi-datasource.mjs'], cwd: './' } },
   interface: {
     displayName: 'Kimi Datasource',
     shortDescription: 'Finance, macro, enterprise, academic, and legal data tools',
@@ -44,46 +23,103 @@ const KIMI_DATASOURCE = {
   },
 }
 
-function accept(raw: unknown) {
+const KIMI_WEBBRIDGE = {
+  $schema: 'https://kimi.com/schemas/kimi.plugin.schema.json',
+  name: 'kimi-webbridge',
+  version: '1.11.3',
+  description: 'Control your real browser from Kimi Code via the local Kimi WebBridge daemon.',
+  keywords: ['browser', 'webbridge', 'cdp', 'automation', 'web', 'scraping'],
+  author: 'Moonshot AI',
+  license: 'Proprietary',
+  skills: './skills/',
+  interface: {
+    displayName: 'Kimi WebBridge',
+    shortDescription: 'Control your real browser from Kimi Code',
+    longDescription: 'Kimi WebBridge lets AI control the user real browser.',
+    developerName: 'Moonshot AI',
+    websiteURL: 'https://www.kimi.com/features/webbridge',
+  },
+}
+
+const SUPERPOWERS = {
+  name: 'superpowers',
+  version: '6.2.0',
+  description: 'An agentic skills framework and software development methodology.',
+  author: { name: 'Jesse Vincent', email: 'jesse@fsck.com' },
+  homepage: 'https://github.com/obra/superpowers',
+  license: 'MIT',
+  keywords: ['brainstorming', 'skills', 'planning', 'tdd'],
+  skills: './skills/',
+  sessionStart: { skill: 'using-superpowers' },
+  skillInstructions: 'Kimi Code tool mapping for Superpowers skills.',
+  interface: {
+    displayName: 'Superpowers',
+    shortDescription: 'Planning, TDD, debugging, and delivery workflows for coding agents',
+    developerName: 'Jesse Vincent',
+    capabilities: ['Interactive', 'Read', 'Write'],
+    websiteURL: 'https://github.com/obra/superpowers',
+  },
+}
+
+const VERCEL_PLUGIN = {
+  name: 'vercel-plugin',
+  version: '0.47.0',
+  description: 'Comprehensive Vercel ecosystem plugin.',
+  keywords: ['vercel', 'nextjs', 'ai-sdk'],
+  homepage: 'https://github.com/vercel/vercel-plugin',
+  license: 'Apache-2.0',
+  author: { name: 'Vercel', url: 'https://github.com/vercel' },
+  skills: ['./skills'],
+  commands: ['./commands'],
+  mcpServers: { vercel: { transport: 'http', url: 'https://mcp.vercel.com' } },
+  interface: {
+    displayName: 'Vercel',
+    shortDescription: 'Vercel ecosystem expert.',
+    developerName: 'Vercel',
+    websiteURL: 'https://vercel.com',
+  },
+}
+
+function manifestOf(raw: Record<string, unknown>) {
   const decoded = decodePluginManifest(raw)
 
   if (decoded.kind !== 'accepted') {
-    throw new Error(`这份清单应当被接受：${decoded.diagnostics.map((d) => d.detail).join('; ')}`)
+    throw new Error(decoded.diagnostics.map((entry) => entry.detail).join('; '))
   }
 
-  return decoded
+  return decoded.manifest
 }
 
-describe('上游官方清单', () => {
-  it('kimi-webbridge 的 skills 是一条目录路径，不是数组', () => {
-    expect(accept(KIMI_WEBBRIDGE).manifest.skills).toEqual(['./skills/'])
+describe('上游真清单', () => {
+  it('四份全部收下，一份都不判无效', () => {
+    for (const raw of [KIMI_DATASOURCE, KIMI_WEBBRIDGE, SUPERPOWERS, VERCEL_PLUGIN]) {
+      expect(decodePluginManifest(raw).kind).toBe('accepted')
+    }
   })
 
-  it('kimi-webbridge 读得出显示名与开发者', () => {
-    const { manifest } = accept(KIMI_WEBBRIDGE)
+  it('kimi-datasource 只带一台 MCP 服务器', () => {
+    const manifest = manifestOf(KIMI_DATASOURCE)
 
-    expect(manifest.displayName).toBe('Kimi WebBridge')
-    expect(manifest.developerName).toBe('Moonshot AI')
+    expect(manifest.mcpServers.map((server) => server.name)).toEqual(['data'])
+    expect(manifest.commandRoots).toEqual([])
   })
 
-  it('$schema、author、license 这些我们不认的键不影响接受', () => {
-    expect(accept(KIMI_WEBBRIDGE).diagnostics).toEqual([])
+  it('kimi-webbridge 的 skills 是一条字符串', () => {
+    expect(manifestOf(KIMI_WEBBRIDGE).skillRoots).toEqual(['./skills/'])
   })
 
-  it('kimi-datasource 的 mcpServers 展开成有名字的一条', () => {
-    expect(accept(KIMI_DATASOURCE).manifest.mcpServers).toEqual([
-      { name: 'data', config: { command: 'node', args: ['./bin/kimi-datasource.mjs'], cwd: './' } },
-    ])
+  it('superpowers 声明了会话开始技能与自报能力', () => {
+    const manifest = manifestOf(SUPERPOWERS)
+
+    expect(manifest.sessionStartSkill).toBe('using-superpowers')
+    expect(manifest.capabilities).toEqual(['Interactive', 'Read', 'Write'])
   })
 
-  it('没写 skills 就是空的，不是缺省的 undefined', () => {
-    expect(accept(KIMI_DATASOURCE).manifest.skills).toEqual([])
-  })
+  it('vercel-plugin 的 commands 是目录路径，不是命令名', () => {
+    const manifest = manifestOf(VERCEL_PLUGIN)
 
-  it('skills 写成数组同样成立', () => {
-    expect(accept({ name: 'x', skills: ['a.md', 'b.md'] }).manifest.skills).toEqual([
-      'a.md',
-      'b.md',
-    ])
+    expect(manifest.commandRoots).toEqual(['./commands'])
+    expect(manifest.skillRoots).toEqual(['./skills'])
+    expect(manifest.mcpServers.map((server) => server.name)).toEqual(['vercel'])
   })
 })

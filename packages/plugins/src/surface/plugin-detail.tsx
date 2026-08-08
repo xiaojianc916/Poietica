@@ -1,28 +1,20 @@
 import { Button, Switch } from '@poietica/ui'
 
-import { describeInstallSource, type PluginInstallSource } from '../install-source'
+import { describeInstallSource } from '../install-source'
 import type { InstalledPlugin } from '../installation'
 import type { MarketplaceEntry } from '../marketplace'
 import type { PluginStore } from '../plugin-store'
 import { PluginGlyph, pluginHue } from './plugin-glyph'
 import { TrustBadge } from './trust-badge'
 
-/**
- * 一个插件的详情。
+/*
+ * 详情页。
  *
- * 装了的读清单，没装的读目录 —— 同一页两种数据密度，因为事实就是两种：清单在
- * 插件包里，包没下载就没有清单。这里不为了让版面整齐而造一个「技能 0」出来，
- * 没有的就明说下载后才知道。
+ * 「装上之后会发生什么」这一段只说清单真的声明了的事：会话开始装载哪个技能、命令
+ * 从哪个目录来、以什么前缀调用。上一版在这里列了三条形如 /plugin:command 的示例，
+ * 那些名字是从一个不存在的清单字段里读的 —— commands 在上游是路径不是命令名，
+ * 真正的命令要扫盘才知道。宁可少说一行，不能编一行。
  */
-
-function ownerOf(source: PluginInstallSource | undefined): string | undefined {
-  return source?.kind === 'github' ? source.owner : undefined
-}
-
-interface InfoRow {
-  readonly label: string
-  readonly value: string
-}
 
 export interface PluginDetailProps {
   readonly entry: MarketplaceEntry | undefined
@@ -31,161 +23,136 @@ export interface PluginDetailProps {
   readonly onBack: () => void
 }
 
-export function PluginDetail({ entry, plugin, store, onBack }: PluginDetailProps) {
-  const manifest = plugin?.manifest
-  const id = manifest?.name ?? entry?.id ?? ''
-  const displayName = manifest?.displayName ?? entry?.displayName ?? id
-  const source = plugin?.source ?? entry?.source
-  const trust = plugin?.trust ?? entry?.trust
-
-  const rows: readonly InfoRow[] = [
-    { label: '开发者', value: manifest?.developerName ?? ownerOf(source) ?? '未署名' },
-    { label: '版本', value: manifest?.version ?? entry?.version ?? '未声明' },
-    { label: '分类', value: entry?.keywords.join('、') ?? '未分类' },
-    { label: '主页', value: manifest?.homepage ?? entry?.homepage ?? '未提供' },
-    { label: '来源', value: source === undefined ? '未知' : describeInstallSource(source) },
-  ]
+export function PluginDetail({ entry, onBack, plugin, store }: PluginDetailProps) {
+  const id = plugin?.manifest.name ?? entry?.id ?? ''
+  const displayName = plugin?.manifest.displayName ?? entry?.displayName ?? id
+  const description = plugin?.manifest.description ?? entry?.description
+  const trust = plugin?.trust ?? entry?.trust ?? 'third-party'
+  const hue = pluginHue(id)
 
   return (
-    <div className="space-y-8">
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <button
-          className="rounded px-1 py-0.5 transition-colors hover:text-foreground"
-          onClick={onBack}
-          type="button"
-        >
-          插件
-        </button>
-
-        <span aria-hidden="true">/</span>
-
-        <span className="text-foreground">{displayName}</span>
-      </nav>
-
-      <header className="flex items-start gap-4">
+    <div className="pb-20">
+      <button
+        className="pt-6 text-xs text-muted-foreground hover:text-foreground"
+        onClick={onBack}
+        type="button"
+      >
+        ← 插件
+      </button>
+      <header className="flex items-start gap-4 pt-4">
         <PluginGlyph displayName={displayName} id={id} size="lg" />
-
-        <div className="min-w-0 flex-1 pt-1">
-          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <span className="truncate">{displayName}</span>
-
-            {trust === undefined ? null : <TrustBadge trust={trust} />}
-          </h2>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            {manifest?.description ?? entry?.description ?? '这个插件没有写说明。'}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{displayName}</h1>
+            <TrustBadge trust={trust} />
+          </div>
+          <p className="pt-1 text-sm text-muted-foreground">
+            {description ?? '这个插件没有写说明。'}
           </p>
         </div>
-
         {plugin === undefined ? (
           <Button
-            disabled={entry === undefined}
             onClick={() => {
               if (entry !== undefined) {
                 store.beginInstall(entry.source)
               }
             }}
             size="sm"
-            type="button"
           >
             + 安装插件
           </Button>
         ) : (
-          <div className="flex shrink-0 items-center gap-2 pt-1">
-            <Switch
-              aria-label={`启用 ${displayName}`}
-              checked={plugin.enabled}
-              onCheckedChange={(checked) => {
-                store.setEnabled(plugin.manifest.name, checked)
-              }}
-              size="sm"
-            />
-
-            <Button
-              onClick={() => {
-                store.remove(plugin.manifest.name)
-              }}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              移除
-            </Button>
-          </div>
+          <Button onClick={() => store.remove(id)} size="sm" variant="secondary">
+            卸载
+          </Button>
         )}
       </header>
-
-      {plugin === undefined ? null : <Usage id={id} plugin={plugin} />}
-
-      {plugin === undefined ? (
-        <p className="rounded-xl border border-divider bg-background px-4 py-3 text-xs leading-5 text-muted-foreground">
-          这个插件带来哪些技能、命令与服务器，要下载之后读它自己的清单才知道 ——
-          清单在插件包里。装上之后这里会列出全部内容。
-        </p>
-      ) : (
-        <Capabilities plugin={plugin} store={store} />
-      )}
-
-      <section>
-        <h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      {plugin === undefined ? null : <Behaviour plugin={plugin} />}
+      {plugin === undefined ? null : <Capabilities plugin={plugin} store={store} />}
+      <section className="pt-8">
+        <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           信息
-        </h3>
-
-        <dl className="divide-y divide-divider overflow-hidden rounded-xl border border-divider">
-          {rows.map((row) => (
-            <div className="flex gap-6 px-4 py-2.5 text-sm" key={row.label}>
-              <dt className="w-16 shrink-0 text-muted-foreground">{row.label}</dt>
-
-              <dd className="min-w-0 flex-1 break-all">{row.value}</dd>
-            </div>
-          ))}
+        </h2>
+        <dl className="divide-y divide-divider border-y border-divider">
+          <InfoRow label="功能" value={joinOrDash(plugin?.manifest.capabilities ?? [])} />
+          <InfoRow label="开发者" value={plugin?.manifest.developerName ?? '未署名'} />
+          <InfoRow label="版本" value={plugin?.manifest.version ?? entry?.version ?? '未标注'} />
+          <InfoRow label="主页" value={plugin?.manifest.homepage ?? entry?.homepage ?? '没有'} />
+          <InfoRow
+            label="来源"
+            value={
+              plugin?.source === undefined
+                ? entry === undefined
+                  ? '手动放进插件目录'
+                  : describeInstallSource(entry.source)
+                : describeInstallSource(plugin.source)
+            }
+          />
         </dl>
       </section>
+      {plugin === undefined || plugin.diagnostics.length === 0 ? null : (
+        <section className="pt-8">
+          <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            诊断
+          </h2>
+          <ul className="divide-y divide-divider border-y border-divider">
+            {plugin.diagnostics.map((diagnostic) => (
+              <li className="py-3 text-xs leading-5 text-muted-foreground" key={diagnostic.detail}>
+                <span className="pr-2 font-medium text-foreground">{diagnostic.code}</span>
+                {diagnostic.detail}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <div
+        aria-hidden="true"
+        className="mt-10 h-px w-full"
+        style={{ backgroundImage: `linear-gradient(90deg, oklch(0.9 0.06 ${hue}), transparent)` }}
+      />
     </div>
   )
 }
 
-/*
- * 装上之后怎么用。
- *
- * 列的是真实存在的斜杠命令，不是示例文案 —— 命令名与说明都从清单里来（说明的
- * 回落顺序由 commandDescription 决定）。一个插件带来的命令按 <插件名>:<命令名>
- * 命名空间化，人不看清单不会知道这件事，所以它必须写在这里。
- */
-function Usage({ id, plugin }: { readonly id: string; readonly plugin: InstalledPlugin }) {
-  const commands = plugin.manifest.commands.slice(0, 3)
+function joinOrDash(values: readonly string[]): string {
+  return values.length === 0 ? '未声明' : values.join('、')
+}
 
-  if (commands.length === 0) {
+interface BehaviourProps {
+  readonly plugin: InstalledPlugin
+}
+
+function Behaviour({ plugin }: BehaviourProps) {
+  const { commandRoots, name, sessionStartSkill, skillRoots } = plugin.manifest
+  const hue = pluginHue(name)
+
+  const lines = [
+    sessionStartSkill === undefined ? undefined : `新会话开始时自动装载技能 ${sessionStartSkill}`,
+    skillRoots.length === 0 ? undefined : `技能来自 ${skillRoots.join('、')}，模型按需取用`,
+    commandRoots.length === 0
+      ? undefined
+      : `命令来自 ${commandRoots.join('、')}，在对话里以 /${name}: 前缀调用`,
+    plugin.systemPromptText === undefined ? undefined : '每次会话都会注入一段系统提示词',
+  ].filter((line) => line !== undefined)
+
+  if (lines.length === 0) {
     return null
   }
-
-  const hue = pluginHue(id)
 
   return (
     <section
-      className="rounded-xl border border-divider p-4"
+      className="mt-8 rounded-xl border border-divider p-5"
       style={{
-        backgroundImage: `linear-gradient(135deg, oklch(0.97 0.03 ${hue}), oklch(0.99 0.008 ${
-          (hue + 40) % 360
-        }))`,
+        backgroundImage: `linear-gradient(135deg, oklch(0.97 0.03 ${hue}), transparent 70%)`,
       }}
     >
-      <h3 className="text-xs font-medium text-muted-foreground">在对话里这样用</h3>
-
-      <ul className="mt-3 space-y-2">
-        {commands.map((command) => (
-          <li className="flex items-center gap-3 text-sm" key={command.name}>
-            <code className="rounded bg-background/70 px-1.5 py-0.5 text-xs">
-              /{plugin.manifest.name}:{command.name}
-            </code>
-
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {command.description}
-            </span>
-
+      <ul className="space-y-2">
+        {lines.map((line) => (
+          <li className="flex gap-2 text-sm leading-6" key={line}>
             <span aria-hidden="true" className="text-muted-foreground">
               →
             </span>
+            <span>{line}</span>
           </li>
         ))}
       </ul>
@@ -193,84 +160,81 @@ function Usage({ id, plugin }: { readonly id: string; readonly plugin: Installed
   )
 }
 
-function Capabilities({
-  plugin,
-  store,
-}: {
+interface CapabilitiesProps {
   readonly plugin: InstalledPlugin
   readonly store: PluginStore
-}) {
-  const { manifest } = plugin
+}
+
+function Capabilities({ plugin, store }: CapabilitiesProps) {
   const disabled = new Set(plugin.disabledMcpServers)
 
   return (
-    <div className="space-y-6">
-      <CapabilitySection items={manifest.skills} title="技能">
-        {(skill) => <span className="text-sm">{skill}</span>}
-      </CapabilitySection>
-
-      <CapabilitySection items={manifest.commands.map((command) => command.name)} title="命令">
-        {(name) => (
-          <code className="text-xs">
-            /{manifest.name}:{name}
-          </code>
-        )}
-      </CapabilitySection>
-
-      <CapabilitySection items={manifest.agents.map((agent) => agent.name)} title="代理">
-        {(name) => <span className="text-sm">{name}</span>}
-      </CapabilitySection>
-
-      <CapabilitySection
-        items={manifest.mcpServers.map((server) => server.name)}
-        title="MCP 服务器"
-      >
-        {(name) => (
-          <span className="flex flex-1 items-center justify-between gap-4">
-            <span className="text-sm">{name}</span>
-
-            <Switch
-              aria-label={`启用 ${name}`}
-              checked={!disabled.has(name)}
-              onCheckedChange={(checked) => {
-                store.setMcpServerEnabled(manifest.name, name, checked)
-              }}
-              size="sm"
-            />
-          </span>
-        )}
-      </CapabilitySection>
-    </div>
+    <>
+      <PathSection paths={plugin.manifest.skillRoots} title="技能" />
+      <PathSection paths={plugin.manifest.commandRoots} title="命令" />
+      <PathSection paths={plugin.manifest.agentRoots} title="代理" />
+      {plugin.manifest.mcpServers.length === 0 ? null : (
+        <section className="pt-8">
+          <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            MCP 服务器
+          </h2>
+          <ul className="divide-y divide-divider border-y border-divider">
+            {plugin.manifest.mcpServers.map((server) => (
+              <li className="flex items-center gap-4 py-3" key={server.name}>
+                <span className="flex-1 text-sm">{server.name}</span>
+                <Switch
+                  aria-label={`启用 ${server.name}`}
+                  checked={!disabled.has(server.name)}
+                  onCheckedChange={(next) =>
+                    store.setMcpServerEnabled(plugin.manifest.name, server.name, next)
+                  }
+                  size="sm"
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   )
 }
 
-/* 空的分区整段不画：一排「0」只是在告诉人这里什么都没有，占着版面却不带信息。 */
-function CapabilitySection({
-  title,
-  items,
-  children,
-}: {
+interface PathSectionProps {
+  readonly paths: readonly string[]
   readonly title: string
-  readonly items: readonly string[]
-  readonly children: (item: string) => React.ReactNode
-}) {
-  if (items.length === 0) {
+}
+
+function PathSection({ paths, title }: PathSectionProps) {
+  if (paths.length === 0) {
     return null
   }
 
   return (
-    <section>
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title} <span className="tabular-nums opacity-60">{items.length}</span>
-      </h3>
-
-      <ul className="divide-y divide-divider overflow-hidden rounded-xl border border-divider">
-        {items.map((item) => (
-          <li className="flex items-center px-4 py-2.5" key={item}>
-            {children(item)}
+    <section className="pt-8">
+      <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h2>
+      <ul className="divide-y divide-divider border-y border-divider">
+        {paths.map((path) => (
+          <li className="py-3 font-mono text-xs text-muted-foreground" key={path}>
+            {path}
           </li>
         ))}
       </ul>
     </section>
+  )
+}
+
+interface InfoRowProps {
+  readonly label: string
+  readonly value: string
+}
+
+function InfoRow({ label, value }: InfoRowProps) {
+  return (
+    <div className="flex gap-4 py-3">
+      <dt className="w-24 shrink-0 text-xs text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 flex-1 truncate text-xs">{value}</dd>
+    </div>
   )
 }

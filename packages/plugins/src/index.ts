@@ -1,27 +1,18 @@
 /*
  * 包的公开面。逐个具名导出，不用 export *：对外承诺了什么，读这一份文件就够。
+ *
+ * fetch-plan 与 marketplace 的内部结构不在这里露头 —— 取用计划怎么拼、目录怎么解，
+ * 是这个包自己的事，外面只需要「装了什么、市场上有什么、界面长什么样」。
  */
 
 export {
   type ContributionInput,
-  type ResolvedAgent,
-  type ResolvedCommand,
   type ResolvedContributions,
   type ResolvedMcpServer,
   type ResolvedPrompt,
-  type ResolvedSkill,
+  type ResolvedRoot,
   resolveContributions,
 } from './contribution'
-export {
-  type ArchiveFetch,
-  DEFAULT_BRANCH_UNPLANNABLE,
-  type DirectoryFetch,
-  type FetchPlanning,
-  type PlannedFetch,
-  type PluginFetchPlan,
-  planFetch,
-  type UnplannableFetch,
-} from './fetch-plan'
 export {
   type ArchiveSource,
   type CommitRef,
@@ -41,50 +32,32 @@ export {
 } from './install-source'
 export { type InstalledPlugin, resolutionOrder } from './installation'
 export {
-  type AbsentPrompt,
   type AcceptedManifest,
-  COMMAND_DESCRIPTION_LIMIT,
-  commandDescription,
+  clampPluginPrompt,
+  DEFAULT_AGENT_ROOT,
+  DEFAULT_SKILL_ROOT,
   decodePluginManifest,
-  type FilePrompt,
-  type InlinePrompt,
+  type FilePromptSource,
+  type InlinePromptSource,
   type ManifestDecoding,
-  MISSING_COMMAND_DESCRIPTION,
   PLUGIN_MANIFEST_FILENAMES,
   PLUGIN_PROMPT_BUDGET_BYTES,
-  type PluginAgentDeclaration,
-  type PluginCommandDeclaration,
   type PluginDiagnostic,
   type PluginDiagnosticCode,
   type PluginManifest,
   type PluginMcpServerDeclaration,
-  type PluginSystemPrompt,
+  type PluginPromptSource,
+  type PromptClamp,
   type RejectedManifest,
   SESSION_PROMPT_BUDGET_BYTES,
   UNSUPPORTED_MANIFEST_FIELDS,
   utf8ByteLength,
 } from './manifest'
 export {
-  type AbsentCatalog,
-  beginFetch,
-  type CatalogDecoding,
-  completeFetch,
-  type DecodedCatalog,
-  decodeMarketplaceCatalog,
-  type FailedCatalog,
-  type FetchingCatalog,
-  failFetch,
-  latestCatalog,
-  MARKETPLACE_ABSENT,
   MARKETPLACE_CATALOG_VERSION,
   type MarketplaceCatalog,
   type MarketplaceEntry,
-  type MarketplaceOrigin,
   type MarketplaceState,
-  parseMarketplaceOrigin,
-  type ReadyCatalog,
-  shouldFetchOnOpen,
-  type UndecodableCatalog,
 } from './marketplace'
 export {
   createPluginStore,
@@ -99,12 +72,11 @@ export {
   type StagingInstall,
 } from './plugin-store'
 export {
-  type DecodedLedger,
-  decodePluginLedger,
-  encodePluginLedger,
-  type LedgerDecoding,
-  PLUGIN_LEDGER_VERSION,
-  type PluginRecord,
-  type UndecodableLedger,
-} from './record'
+  DEFAULT_PREFERENCE,
+  decodePluginPreferences,
+  encodePluginPreferences,
+  PLUGIN_PREFERENCES_VERSION,
+  type PluginPreference,
+  type PluginPreferences,
+} from './preferences'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

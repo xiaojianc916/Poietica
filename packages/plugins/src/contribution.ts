@@ -1,28 +1,33 @@
 import { type InstalledPlugin, resolutionOrder } from './installation'
 import { type PluginDiagnostic, SESSION_PROMPT_BUDGET_BYTES, utf8ByteLength } from './manifest'
 
-export interface ResolvedSkill {
+/*
+ * 一次遍历，两个读者。
+ *
+ * 管理界面要看见全部：关掉的插件、关掉的服务器都得留在列表里，否则拨到关就再也
+ * 开不回来 —— 上一版就是这样，关掉一台 MCP 服务器，它从 MCP 那一格消失，开关无处
+ * 可寻。会话要的是「真的会生效的那些」。所以这里一次产出全部，每一条带上自己的
+ * 启用位，会话读 active 那一档。不是两条管线，是一份结果加一个显式过滤。
+ *
+ * 技能、代理、命令三类在清单里都只是一条 ./ 路径，真正的实体是路径下那些文件。
+ * 扫盘还没有实现，所以这里如实交出路径，不凭空造出名字来撑版面。
+ */
+
+export interface ResolvedRoot {
   readonly pluginId: string
+  /* 清单里声明的 ./ 路径。 */
   readonly path: string
-}
-
-export interface ResolvedAgent {
-  readonly pluginId: string
-  readonly name: string
-}
-
-export interface ResolvedCommand {
-  readonly pluginId: string
-  /* 对外的名字带插件命名空间：两个插件都叫 review 时不会互相顶掉。 */
-  readonly id: string
-  readonly description: string
-  readonly body: string
+  readonly enabled: boolean
 }
 
 export interface ResolvedMcpServer {
   readonly pluginId: string
   readonly name: string
   readonly config: Readonly<Record<string, unknown>>
+  /** 这一台自己的开关。界面上那个 Switch 显示的就是它。 */
+  readonly enabled: boolean
+  /** 会话里真的会启动：插件开着，并且这一台开着。 */
+  readonly active: boolean
 }
 
 export interface ResolvedPrompt {
@@ -32,10 +37,11 @@ export interface ResolvedPrompt {
 }
 
 export interface ResolvedContributions {
-  readonly skills: readonly ResolvedSkill[]
-  readonly agents: readonly ResolvedAgent[]
-  readonly commands: readonly ResolvedCommand[]
+  readonly skillRoots: readonly ResolvedRoot[]
+  readonly agentRoots: readonly ResolvedRoot[]
+  readonly commandRoots: readonly ResolvedRoot[]
   readonly mcpServers: readonly ResolvedMcpServer[]
+  /* 提示词没有管理界面，它是会话的载荷而不是一个可列举的实体，所以只收启用的。 */
   readonly prompts: readonly ResolvedPrompt[]
   readonly promptBytes: number
   readonly diagnostics: readonly PluginDiagnostic[]
@@ -43,115 +49,60 @@ export interface ResolvedContributions {
 
 export interface ContributionInput {
   readonly plugins: readonly InstalledPlugin[]
-  /* 内置 agent 的名字。插件想顶掉同名的内置项，必须显式声明 override。 */
-  readonly reservedAgentNames: ReadonlySet<string>
 }
 
-/*
- * 唯一一条把「装了哪些插件」变成「会话看得见什么」的管线。
- *
- * 五类贡献同一次遍历产出：再开第二条路径就意味着有一天两边说的不是同一件事。
- * 被丢掉的东西一律留下一条诊断 —— 界面上那句「为什么没生效」出自这里，而不是
- * 让用户自己猜。
- */
 export function resolveContributions(input: ContributionInput): ResolvedContributions {
-  const skills: ResolvedSkill[] = []
-  const agents: ResolvedAgent[] = []
-  const commands: ResolvedCommand[] = []
+  const skillRoots: ResolvedRoot[] = []
+  const agentRoots: ResolvedRoot[] = []
+  const commandRoots: ResolvedRoot[] = []
   const mcpServers: ResolvedMcpServer[] = []
   const prompts: ResolvedPrompt[] = []
   const diagnostics: PluginDiagnostic[] = []
-  const commandIds = new Set<string>()
 
   let promptBytes = 0
 
   for (const plugin of resolutionOrder(input.plugins)) {
-    if (!plugin.enabled) {
-      continue
-    }
-
     const pluginId = plugin.manifest.name
 
     diagnostics.push(...plugin.diagnostics)
 
-    for (const skillPath of plugin.manifest.skills) {
-      skills.push({ pluginId, path: skillPath })
-    }
-
-    /*
-     * 仍然是同一次遍历：四段判据各自成函数，顺序、诊断、丢弃的理由一个都没改。
-     * 搬出去只为让这个函数的认知复杂度回到阈值以内（biome 的
-     * noExcessiveCognitiveComplexity），不是开第二条管线。
-     */
-    collectAgents(plugin, input.reservedAgentNames, agents, diagnostics)
-    collectCommands(plugin, commandIds, commands, diagnostics)
+    collectRoots(pluginId, plugin.manifest.skillRoots, plugin.enabled, skillRoots)
+    collectRoots(pluginId, plugin.manifest.agentRoots, plugin.enabled, agentRoots)
+    collectRoots(pluginId, plugin.manifest.commandRoots, plugin.enabled, commandRoots)
     collectMcpServers(plugin, mcpServers)
 
     promptBytes = collectPrompt(plugin, promptBytes, prompts, diagnostics)
   }
 
-  return { agents, commands, diagnostics, mcpServers, promptBytes, prompts, skills }
+  return { agentRoots, commandRoots, diagnostics, mcpServers, promptBytes, prompts, skillRoots }
 }
 
-/* 与内置 agent 同名的必须显式 override；被拦下的一律留一条诊断。 */
-function collectAgents(
-  plugin: InstalledPlugin,
-  reserved: ReadonlySet<string>,
-  into: ResolvedAgent[],
-  diagnostics: PluginDiagnostic[],
+function collectRoots(
+  pluginId: string,
+  paths: readonly string[],
+  enabled: boolean,
+  into: ResolvedRoot[],
 ): void {
-  const pluginId = plugin.manifest.name
-
-  for (const agent of plugin.manifest.agents) {
-    if (reserved.has(agent.name) && !agent.override) {
-      diagnostics.push({
-        code: 'agent-needs-override',
-        pluginId,
-        detail: `${agent.name} 与内置 agent 同名，声明 override: true 之后才会生效`,
-      })
-      continue
-    }
-
-    into.push({ pluginId, name: agent.name })
+  for (const declared of paths) {
+    into.push({ pluginId, path: declared, enabled })
   }
 }
 
-/* 对外的名字带插件命名空间；同名重复只保留第一条，其余留诊断。 */
-function collectCommands(
-  plugin: InstalledPlugin,
-  taken: Set<string>,
-  into: ResolvedCommand[],
-  diagnostics: PluginDiagnostic[],
-): void {
-  const pluginId = plugin.manifest.name
-
-  for (const command of plugin.manifest.commands) {
-    const id = `${pluginId}:${command.name}`
-
-    if (taken.has(id)) {
-      diagnostics.push({
-        code: 'command-name-taken',
-        pluginId,
-        detail: `${id} 在同一份清单里出现了两次，只保留第一条`,
-      })
-      continue
-    }
-
-    taken.add(id)
-    into.push({ pluginId, id, description: command.description, body: command.body })
-  }
-}
-
-/* 被单独关掉的那几台不进会话。关掉不是错，所以这里不留诊断。 */
+/* 关掉的那几台照样列出来，只是 active 是假 —— 不然开关就没有落脚点。 */
 function collectMcpServers(plugin: InstalledPlugin, into: ResolvedMcpServer[]): void {
   const pluginId = plugin.manifest.name
+  const disabled = new Set(plugin.disabledMcpServers)
 
   for (const server of plugin.manifest.mcpServers) {
-    if (plugin.disabledMcpServers.includes(server.name)) {
-      continue
-    }
+    const enabled = !disabled.has(server.name)
 
-    into.push({ pluginId, name: server.name, config: server.config })
+    into.push({
+      pluginId,
+      name: server.name,
+      config: server.config,
+      enabled,
+      active: plugin.enabled && enabled,
+    })
   }
 }
 
@@ -159,8 +110,7 @@ function collectMcpServers(plugin: InstalledPlugin, into: ResolvedMcpServer[]): 
  * 这一份提示词进不进会话，以及进了之后预算还剩多少。
  *
  * 交回的是新的已用字节数：预算是一次遍历里累起来的一个数，谁改它就由谁说出来，
- * 不塞进一个可变对象里让调用方去猜。超预算的那一段不注入，但留一条诊断 —— 界面上
- * 那句「为什么没生效」出自这里。
+ * 不塞进一个可变对象里让调用方去猜。超预算的那一段不注入，但留一条诊断。
  */
 function collectPrompt(
   plugin: InstalledPlugin,
@@ -168,13 +118,13 @@ function collectPrompt(
   into: ResolvedPrompt[],
   diagnostics: PluginDiagnostic[],
 ): number {
-  const pluginId = plugin.manifest.name
   const text = plugin.systemPromptText
 
-  if (text === undefined) {
+  if (!plugin.enabled || text === undefined) {
     return used
   }
 
+  const pluginId = plugin.manifest.name
   const bytes = utf8ByteLength(text)
 
   if (used + bytes > SESSION_PROMPT_BUDGET_BYTES) {

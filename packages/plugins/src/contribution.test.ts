@@ -1,18 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { resolveContributions } from './contribution'
 import type { InstalledPlugin } from './installation'
-import type {
-  PluginAgentDeclaration,
-  PluginCommandDeclaration,
-  PluginMcpServerDeclaration,
-} from './manifest'
+import type { PluginMcpServerDeclaration } from './manifest'
 
 interface PluginParts {
   readonly enabled?: boolean
   readonly installedAt?: string
-  readonly skills?: readonly string[]
-  readonly agents?: readonly PluginAgentDeclaration[]
-  readonly commands?: readonly PluginCommandDeclaration[]
+  readonly skillRoots?: readonly string[]
+  readonly commandRoots?: readonly string[]
   readonly mcpServers?: readonly PluginMcpServerDeclaration[]
   readonly disabledMcpServers?: readonly string[]
   readonly systemPromptText?: string
@@ -27,11 +22,14 @@ function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
       version: undefined,
       developerName: undefined,
       homepage: undefined,
-      skills: parts.skills ?? [],
-      agents: parts.agents ?? [],
-      commands: parts.commands ?? [],
+      capabilities: [],
+      skillRoots: parts.skillRoots ?? [],
+      agentRoots: [],
+      commandRoots: parts.commandRoots ?? [],
       mcpServers: parts.mcpServers ?? [],
-      systemPrompt: { kind: 'absent' },
+      sessionStartSkill: undefined,
+      skillInstructions: undefined,
+      promptSources: [],
     },
     source: { kind: 'directory', path: `/tmp/${name}` },
     trust: 'third-party',
@@ -43,53 +41,19 @@ function plugin(name: string, parts: PluginParts = {}): InstalledPlugin {
   }
 }
 
-const reservedAgentNames = new Set(['planner'])
-
 describe('resolveContributions', () => {
-  it('关掉的插件什么都不贡献', () => {
+  it('关掉的插件仍然列出来，只是不生效', () => {
     const resolved = resolveContributions({
-      plugins: [plugin('demo', { enabled: false, skills: ['./s.md'] })],
-      reservedAgentNames,
+      plugins: [plugin('demo', { enabled: false, skillRoots: ['./skills'] })],
     })
 
-    expect(resolved.skills).toEqual([])
+    expect(resolved.skillRoots).toEqual([{ pluginId: 'demo', path: './skills', enabled: false }])
   })
 
-  it('命令带插件命名空间，同名不互相顶掉', () => {
-    const resolved = resolveContributions({
-      plugins: [
-        plugin('alpha', { commands: [{ name: 'review', description: 'a', body: '' }] }),
-        plugin('beta', { commands: [{ name: 'review', description: 'b', body: '' }] }),
-      ],
-      reservedAgentNames,
-    })
-
-    expect(resolved.commands.map((command) => command.id)).toEqual(['alpha:review', 'beta:review'])
-  })
-
-  it('同一份清单里重复的命令名只保留第一条', () => {
+  it('单独关掉的服务器留在列表里，开关因此有落脚点', () => {
     const resolved = resolveContributions({
       plugins: [
         plugin('demo', {
-          commands: [
-            { name: 'review', description: 'first', body: '' },
-            { name: 'review', description: 'second', body: '' },
-          ],
-        }),
-      ],
-      reservedAgentNames,
-    })
-
-    expect(resolved.commands).toHaveLength(1)
-    expect(resolved.commands[0]?.description).toBe('first')
-    expect(resolved.diagnostics[0]?.code).toBe('command-name-taken')
-  })
-
-  it('单独关掉的 MCP 服务器不进结果，插件其余部分照常生效', () => {
-    const resolved = resolveContributions({
-      plugins: [
-        plugin('demo', {
-          skills: ['./s.md'],
           mcpServers: [
             { name: 'on', config: {} },
             { name: 'off', config: {} },
@@ -97,30 +61,28 @@ describe('resolveContributions', () => {
           disabledMcpServers: ['off'],
         }),
       ],
-      reservedAgentNames,
     })
 
-    expect(resolved.mcpServers.map((server) => server.name)).toEqual(['on'])
-    expect(resolved.skills).toHaveLength(1)
+    expect(resolved.mcpServers.map((server) => server.name)).toEqual(['on', 'off'])
+    expect(resolved.mcpServers.map((server) => server.enabled)).toEqual([true, false])
+    expect(resolved.mcpServers.map((server) => server.active)).toEqual([true, false])
   })
 
-  it('与内置 agent 同名且没声明 override 的不生效', () => {
+  it('插件关掉时服务器自己的开关不变，只是不启动', () => {
     const resolved = resolveContributions({
-      plugins: [plugin('demo', { agents: [{ name: 'planner', override: false }] })],
-      reservedAgentNames,
+      plugins: [plugin('demo', { enabled: false, mcpServers: [{ name: 'one', config: {} }] })],
     })
 
-    expect(resolved.agents).toEqual([])
-    expect(resolved.diagnostics[0]?.code).toBe('agent-needs-override')
+    expect(resolved.mcpServers[0]?.enabled).toBe(true)
+    expect(resolved.mcpServers[0]?.active).toBe(false)
   })
 
-  it('声明了 override 就能顶掉同名内置项', () => {
+  it('命令目录原样交出，不被当成命令名', () => {
     const resolved = resolveContributions({
-      plugins: [plugin('demo', { agents: [{ name: 'planner', override: true }] })],
-      reservedAgentNames,
+      plugins: [plugin('vercel-plugin', { commandRoots: ['./commands'] })],
     })
 
-    expect(resolved.agents).toEqual([{ pluginId: 'demo', name: 'planner' }])
+    expect(resolved.commandRoots.map((root) => root.path)).toEqual(['./commands'])
   })
 
   it('会话提示词预算耗尽时丢的是后来者，且与输入顺序无关', () => {
@@ -131,7 +93,6 @@ describe('resolveContributions', () => {
         plugin('a', { installedAt: '2026-01-01T00:00:00.000Z', systemPromptText: filler }),
         plugin('b', { installedAt: '2026-01-02T00:00:00.000Z', systemPromptText: filler }),
       ],
-      reservedAgentNames,
     })
 
     expect(resolved.prompts.map((prompt) => prompt.pluginId)).toEqual(['a', 'b'])

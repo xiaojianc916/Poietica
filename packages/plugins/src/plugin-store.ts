@@ -22,7 +22,13 @@ import {
   UNLISTED_TRUST,
 } from './install-source'
 import type { InstalledPlugin } from './installation'
-import { decodePluginManifest, type PluginDiagnostic, type PluginManifest } from './manifest'
+import {
+  clampPluginPrompt,
+  decodePluginManifest,
+  type PluginDiagnostic,
+  type PluginManifest,
+  type PluginPromptSource,
+} from './manifest'
 import {
   beginFetch,
   completeFetch,
@@ -33,23 +39,27 @@ import {
   parseMarketplaceOrigin,
   shouldFetchOnOpen,
 } from './marketplace'
-import { decodePluginLedger, encodePluginLedger, type PluginRecord } from './record'
+import {
+  DEFAULT_PREFERENCE,
+  decodePluginPreferences,
+  encodePluginPreferences,
+  type PluginPreference,
+} from './preferences'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
  *
- * 屏幕上这份是盘上那份的投影。每一次改动都先把新账本写进磁盘，写成了才发布快照 ——
- * 因此不存在「界面已经变了、盘上还没变」的窗口，写失败时人看到的就是这次没改成。
- * 自动化那边是「发命令、拿原生回的整本目录当新快照」；这里 plugins_state_write 回的
- * 是 ()，所以由这一层持有账本、写成之后自己发布。两条都满足同一条不变量。
+ * 装了什么由磁盘说了算：plugins/ 下每一个带清单的目录就是一个装着的插件。偏好
+ * 文件只往上叠开关与出身，叠不上就走默认档 —— 因此偏好读不出来最坏是「开关回到
+ * 默认」，绝不会变成「一个都没装」。
  *
- * 清单不进账本：它的真相是插件目录里那份文件，每次装载重读。所以这里没有任何一处
- * 需要「同步」两份清单。
+ * 屏幕上这份是盘上那份的投影：每一次改动都先落盘，写成了才发布快照，所以不存在
+ * 「界面已经变了、盘上还没变」的窗口。
  */
 
 export interface PluginsViewModel {
   readonly plugins: readonly InstalledPlugin[]
-  /** 五类贡献同一次遍历产出，界面上五个 tab 读的就是它，不另算一遍。 */
+  /* 各类贡献同一次遍历产出，界面上几个 tab 读的就是它，不另算一遍。 */
   readonly contributions: ResolvedContributions
   readonly marketplace: MarketplaceState
   readonly install: InstallFlow
@@ -69,9 +79,8 @@ export interface StagingInstall {
 /*
  * 已经解到暂存区、等人点头的那一份。
  *
- * 确认这一步拿到的是解码之后的清单，所以人看见的是「要装的到底是什么」，
- * 而不是一句「确定要安装吗」。上游的默认落在取消上，这里的默认是不动 ——
- * 不点就一直停在这一格，什么也没进 plugins/。
+ * 确认这一步拿到的是解码之后的清单，所以人看见的是「要装的到底是什么」，而不是
+ * 一句「确定要安装吗」。不点就一直停在这一格，什么也没进 plugins/。
  */
 export interface StagedInstall {
   readonly kind: 'staged'
@@ -96,7 +105,7 @@ export const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
 export interface PluginStore {
   readonly getSnapshot: () => PluginsViewModel
   readonly subscribe: (listener: () => void) => () => void
-  /** 装载账本与清单，并在从未取过目录时拉一次。返回停表函数。 */
+  /** 扫盘、叠偏好，并在从未取过目录时拉一次。返回停表函数。 */
   readonly start: () => () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   readonly setMcpServerEnabled: (pluginId: string, server: string, enabled: boolean) => void
@@ -114,13 +123,6 @@ export interface PluginStore {
 }
 
 export interface PluginStoreOptions {
-  /**
-   * 内置 agent 的名字。插件想顶掉同名的必须显式 override。
-   *
-   * 这个应用里它是空集，而且这是一条事实不是占位：内置 sub-agent 住在对面那个 CLI
-   * 进程里，ACP 上没有任何一条消息报得出它们的名字。等哪天报得出，从这里交进来。
-   */
-  readonly reservedAgentNames: ReadonlySet<string>
   readonly marketplaceUrl: string
   /** 领域层不摸时钟，时钟从这里交进去。测试因此不需要冻结全局时间。 */
   readonly now: () => string
@@ -135,10 +137,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   const origin = parseMarketplaceOrigin(options.marketplaceUrl)
 
-  let records: readonly PluginRecord[] = []
+  let preferences = new Map<string, PluginPreference>()
   let snapshot: PluginsViewModel = {
     plugins: [],
-    contributions: resolveContributions({ plugins: [], reservedAgentNames: new Set() }),
+    contributions: resolveContributions({ plugins: [] }),
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     loaded: false,
@@ -147,8 +149,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   /*
    * 写盘串行。
    *
-   * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的账本，第一个
-   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才算新账本。
+   * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的偏好，第一个
+   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才算新偏好。
    */
   let queue: Promise<void> = Promise.resolve()
 
@@ -160,120 +162,100 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
   }
 
-  function contributionsOf(plugins: readonly InstalledPlugin[]): ResolvedContributions {
-    return resolveContributions({ plugins, reservedAgentNames: options.reservedAgentNames })
+  function republish(plugins: readonly InstalledPlugin[], loaded: boolean): void {
+    publish({ plugins, contributions: resolveContributions({ plugins }), loaded })
   }
 
   /*
-   * 不是 async：三条分支里只有 file 那一条真的要等 IPC，另外两条当场就有答案。
-   * 挂一个 async 只是让每次装载都多排一轮微任务，而它一个 await 都没有（biome 的
-   * useAwait 说的就是这件事）。返回类型把「当场」和「要等」都写出来，调用方照旧
-   * await —— await 一个非 Promise 是合法的，也是原样交回。
+   * 把清单声明的几段提示词读成一段。
+   *
+   * 顺序就是清单里的顺序（内联在前，文件在后），预算在拼完之后才算 —— 32 KiB 说的
+   * 是这个插件最终注入多少字节，而那要读完文件才知道。
    */
-  function promptTextOf(
+  async function promptTextOf(
     pluginId: string,
-    manifest: PluginManifest,
-  ): Promise<string | undefined> | string | undefined {
-    const prompt = manifest.systemPrompt
+    sources: readonly PluginPromptSource[],
+    diagnostics: PluginDiagnostic[],
+  ): Promise<string | undefined> {
+    const parts: string[] = []
 
-    switch (prompt.kind) {
-      case 'absent':
-        return undefined
-      case 'inline':
-        return prompt.text
-      case 'file':
-        return readPluginText({ pluginId, relativePath: prompt.path })
-      default:
-        return assertUnreachable(prompt)
+    for (const source of sources) {
+      switch (source.kind) {
+        case 'inline':
+          parts.push(source.text)
+          break
+        case 'file':
+          try {
+            parts.push(await readPluginText({ pluginId, relativePath: source.path }))
+          } catch (cause: unknown) {
+            warn('插件提示词读不出来', { scope: 'plugins', pluginId, cause })
+          }
+          break
+        default:
+          return assertUnreachable(source)
+      }
+    }
+
+    const clamped = clampPluginPrompt(pluginId, parts.join('\n\n'))
+
+    diagnostics.push(...clamped.diagnostics)
+
+    return clamped.text
+  }
+
+  async function materialize(pluginId: string, manifestJson: string): Promise<InstalledPlugin> {
+    const preference = preferences.get(pluginId) ?? DEFAULT_PREFERENCE
+    const decoded = decodeManifestJson(pluginId, manifestJson)
+
+    if (decoded.kind === 'rejected') {
+      return {
+        manifest: unreadableManifest(pluginId),
+        source: preference.source,
+        trust: preference.trust,
+        enabled: false,
+        installedAt: preference.installedAt,
+        systemPromptText: undefined,
+        disabledMcpServers: preference.disabledMcpServers,
+        diagnostics: decoded.diagnostics,
+      }
+    }
+
+    const diagnostics = [...decoded.diagnostics]
+
+    return {
+      manifest: decoded.manifest,
+      source: preference.source,
+      trust: preference.trust,
+      enabled: preference.enabled,
+      installedAt: preference.installedAt,
+      systemPromptText: await promptTextOf(pluginId, decoded.manifest.promptSources, diagnostics),
+      disabledMcpServers: preference.disabledMcpServers,
+      diagnostics,
     }
   }
 
   /*
-   * 账本说装了什么，磁盘说有什么，两边对不上时以账本为准。
+   * 装了什么，磁盘说了算。
    *
-   * 磁盘上有、账本里没有，那是卸载留下的托管副本 —— 它不算装着。反过来账本里有、
-   * 磁盘上没了，那是人手动删了目录：记一条诊断显示出来，而不是让这一行凭空消失。
+   * 偏好里有、磁盘上没有的那些不是「丢失的插件」，是卸载之后留下的旧记录，忽略即可。
+   * 反过来才要紧：磁盘上有、偏好里没有的必须显示成装着的 —— 否则人会在目录里看到
+   * 一个「安装」按钮，而那个插件明明已经在盘上了。
    */
   async function loadInstalled(): Promise<readonly InstalledPlugin[]> {
     const [contents, payloads] = await Promise.all([readPluginState(), listPlugins()])
-    const decoding = decodePluginLedger(contents)
 
-    if (decoding.kind === 'undecodable') {
-      warn('插件账本读不懂，这次不动它', { scope: 'plugins', reason: decoding.reason })
+    preferences = new Map(decodePluginPreferences(contents))
 
-      return []
-    }
-
-    records = decoding.records
-
-    const onDisk = new Map(payloads.map((payload) => [payload.pluginId, payload.manifestJson]))
-    const installed: InstalledPlugin[] = []
-
-    for (const record of records) {
-      const manifestJson = onDisk.get(record.id)
-      const { source } = record
-
-      if (manifestJson === undefined) {
-        installed.push({
-          manifest: missingManifest(record.id),
-          source,
-          trust: record.trust,
-          enabled: false,
-          installedAt: record.installedAt,
-          systemPromptText: undefined,
-          disabledMcpServers: record.disabledMcpServers,
-          diagnostics: [
-            {
-              code: 'manifest-invalid',
-              pluginId: record.id,
-              detail: '账本里记着它，但 plugins/ 下已经没有这个目录了',
-            },
-          ],
-        })
-        continue
-      }
-
-      const decoded = decodeManifestJson(record.id, manifestJson)
-
-      if (decoded.kind === 'rejected') {
-        installed.push({
-          manifest: missingManifest(record.id),
-          source,
-          trust: record.trust,
-          enabled: false,
-          installedAt: record.installedAt,
-          systemPromptText: undefined,
-          disabledMcpServers: record.disabledMcpServers,
-          diagnostics: decoded.diagnostics,
-        })
-        continue
-      }
-
-      installed.push({
-        manifest: decoded.manifest,
-        source,
-        trust: record.trust,
-        enabled: record.enabled,
-        installedAt: record.installedAt,
-        systemPromptText: await promptTextOf(record.id, decoded.manifest),
-        disabledMcpServers: record.disabledMcpServers,
-        diagnostics: decoded.diagnostics,
-      })
-    }
-
-    return installed
-  }
-
-  function republish(plugins: readonly InstalledPlugin[], loaded: boolean): void {
-    publish({ plugins, contributions: contributionsOf(plugins), loaded })
+    return Promise.all(
+      payloads.map((payload) => materialize(payload.pluginId, payload.manifestJson)),
+    )
   }
 
   /** 写盘成了才发布。失败不动屏幕：人看到的仍然是盘上那一份。 */
-  function commitRecords(next: readonly PluginRecord[], what: string): void {
+  function commitPreferences(next: Map<string, PluginPreference>, what: string): void {
     queue = queue.then(async () => {
       try {
-        await writePluginState(encodePluginLedger(next))
-        records = next
+        await writePluginState(encodePluginPreferences(next))
         republish(await loadInstalled(), true)
       } catch (cause: unknown) {
         warn(what, { scope: 'plugins', cause })
@@ -281,17 +263,15 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     })
   }
 
-  function patchRecord(pluginId: string, patch: (record: PluginRecord) => PluginRecord): void {
-    const current = records.find((record) => record.id === pluginId)
+  function patchPreference(
+    pluginId: string,
+    patch: (preference: PluginPreference) => PluginPreference,
+  ): void {
+    const next = new Map(preferences)
 
-    if (current === undefined) {
-      return
-    }
+    next.set(pluginId, patch(next.get(pluginId) ?? DEFAULT_PREFERENCE))
 
-    commitRecords(
-      records.map((record) => (record.id === pluginId ? patch(record) : record)),
-      '插件账本没能写入磁盘，屏幕上仍是磁盘里那一份',
-    )
+    commitPreferences(next, '插件偏好没能写入磁盘，屏幕上仍是磁盘里那一份')
   }
 
   function loadCatalog(): void {
@@ -377,36 +357,43 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     setEnabled(pluginId, enabled) {
-      patchRecord(pluginId, (record) => ({ ...record, enabled }))
+      patchPreference(pluginId, (preference) => ({ ...preference, enabled }))
     },
 
     setMcpServerEnabled(pluginId, server, enabled) {
-      patchRecord(pluginId, (record) => ({
-        ...record,
+      patchPreference(pluginId, (preference) => ({
+        ...preference,
         disabledMcpServers: enabled
-          ? record.disabledMcpServers.filter((name) => name !== server)
-          : [...record.disabledMcpServers, server],
+          ? preference.disabledMcpServers.filter((name) => name !== server)
+          : [...preference.disabledMcpServers, server],
       }))
     },
 
     /*
-     * 删记录，然后让磁盘跟着账目走。
+     * 卸载 = 目录不在了。
      *
-     * 上游卸载只删记录、留着托管副本，于是 plugins/ 只增不减 —— 那是一堆没人再看
-     * 一眼的目录。plugins_prune 收的是「还算装着的那些」，删的是其余全部，一次调用
-     * 就把两边对齐，不需要按 id 逐个删的第二条路径。
+     * 上游卸载只删记录、留着托管副本；而在这一版里「装着」的定义就是目录在，所以
+     * 只删记录等于什么都没删。先让磁盘对齐，再抹掉偏好里那一条 —— 顺序不能反：先
+     * 删偏好再删目录，中间崩一次，这个插件会以默认开着的状态重新出现。
      */
     remove(pluginId) {
-      const next = records.filter((record) => record.id !== pluginId)
-
-      commitRecords(next, '插件没能从账本里删掉，屏幕上仍是磁盘里那一份')
-
       queue = queue.then(async () => {
+        const keep = snapshot.plugins
+          .map((plugin) => plugin.manifest.name)
+          .filter((name) => name !== pluginId)
+
         try {
-          await prunePlugins(next.map((record) => record.id))
+          await prunePlugins(keep)
         } catch (cause: unknown) {
-          warn('托管副本没能清理，账本已经删掉了这一条', { scope: 'plugins', cause })
+          warn('插件目录没能删掉，界面因此不动', { scope: 'plugins', cause })
+
+          return
         }
+
+        const next = new Map(preferences)
+
+        next.delete(pluginId)
+        commitPreferences(next, '插件已经删掉了，偏好里那一条没抹干净')
       })
     },
 
@@ -498,7 +485,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         try {
           await discardStagedPlugin(install.stagingId)
         } catch (cause: unknown) {
-          warn('暂存目录没能丢掉', { scope: 'plugins', cause })
+          warn('暂存目录没能清掉', { scope: 'plugins', cause })
         }
       })
     },
@@ -506,7 +493,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     refreshMarketplace: fetchCatalog,
   }
 
-  /** 认领：暂存区那一份挪进 plugins/<name>/，然后记账。 */
+  /*
+   * 认领：把暂存目录搬进 plugins/<id>/，然后才记偏好。
+   *
+   * 顺序不能反。目录在了但偏好没写成，最坏是这个插件按默认档显示（开着、来历不明）；
+   * 反过来先写偏好再搬目录，中间失败就会留下一条指向空气的记录 —— 而在这一版里
+   * 「装着」的定义是目录在，那条记录连让人看见都做不到。
+   */
   function adopt(
     stagingId: string,
     pluginId: string,
@@ -529,46 +522,48 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
 
       publish({ install: INSTALL_IDLE })
-      commitRecords(
-        [
-          ...records.filter((record) => record.id !== pluginId),
-          {
-            id: pluginId,
-            source,
-            trust,
-            enabled: true,
-            installedAt: options.now(),
-            disabledMcpServers: [],
-          },
-        ],
-        '插件装好了但账本没写进去',
-      )
+
+      const next = new Map(preferences)
+
+      next.set(pluginId, {
+        enabled: true,
+        disabledMcpServers: [],
+        source,
+        trust,
+        installedAt: options.now(),
+      })
+
+      commitPreferences(next, '插件装好了，偏好没写进去，下次打开会按默认档显示')
     })
   }
 
   /*
-   * 目录里那条记录说这个来源是什么信任级别，说不上来就是第三方。
+   * 背书来自目录，不来自安装动作本身。
    *
-   * 不从 URL 猜 —— 猜出来的信任是最坏的一种信任，install-source 那句注释说的就是
-   * 这件事。这里只是把目录已经声明过的事实查回来。
+   * 比的是描述串不是对象引用：目录条目里的来源和这次安装用的来源是两个结构相同、
+   * 引用不同的对象，用 === 比永远不等，所有安装都会掉进 third-party。
    */
   function trustOf(source: PluginInstallSource): PluginTrustTier {
     const catalog = latestCatalog(snapshot.marketplace)
-    const wanted = describeInstallSource(source)
 
-    /*
-     * 按渲染出来的那一行字比，不按对象比。上一版写的是 entry.source === parse(...)，
-     * 两个新造出来的对象做引用比较永远为 false —— 于是目录里明明标着官方的条目也
-     * 一路落到第三方，信任级别从来没生效过。
-     */
-    const listed = catalog?.entries.find((entry) => describeInstallSource(entry.source) === wanted)
+    if (catalog === undefined) {
+      return UNLISTED_TRUST
+    }
 
-    return listed?.trust ?? UNLISTED_TRUST
+    const described = describeInstallSource(source)
+
+    return (
+      catalog.entries.find((entry) => describeInstallSource(entry.source) === described)?.trust ??
+      UNLISTED_TRUST
+    )
   }
 }
 
-/* 清单读不出来时的替身：界面要显示这一行「它为什么没生效」，而不是让它凭空消失。 */
-function missingManifest(name: string): PluginManifest {
+/*
+ * 清单读不出来的目录仍然是一个装着的插件：它得在界面上占一行，好让人看见原因。
+ * 把它从列表里抹掉，人只会看到「我明明装了它却不见了」。
+ */
+function unreadableManifest(name: string): PluginManifest {
   return {
     name,
     displayName: name,
@@ -576,11 +571,14 @@ function missingManifest(name: string): PluginManifest {
     version: undefined,
     developerName: undefined,
     homepage: undefined,
-    skills: [],
-    agents: [],
-    commands: [],
+    capabilities: [],
+    skillRoots: [],
+    agentRoots: [],
+    commandRoots: [],
     mcpServers: [],
-    systemPrompt: { kind: 'absent' },
+    sessionStartSkill: undefined,
+    skillInstructions: undefined,
+    promptSources: [],
   }
 }
 
@@ -588,15 +586,14 @@ function decodeManifestJson(pluginId: string, contents: string) {
   try {
     return decodePluginManifest(JSON.parse(contents))
   } catch (cause: unknown) {
-    return {
-      kind: 'rejected' as const,
-      diagnostics: [
-        {
-          code: 'manifest-invalid' as const,
-          pluginId,
-          detail: cause instanceof Error ? cause.message : String(cause),
-        },
-      ],
-    }
+    const diagnostics: PluginDiagnostic[] = [
+      {
+        code: 'manifest-invalid',
+        pluginId,
+        detail: cause instanceof Error ? cause.message : String(cause),
+      },
+    ]
+
+    return { kind: 'rejected' as const, diagnostics }
   }
 }
