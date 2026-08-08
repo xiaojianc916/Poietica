@@ -35,7 +35,12 @@ pub enum PluginFetch {
     #[serde(rename_all = "camelCase")]
     Directory { path: String },
     #[serde(rename_all = "camelCase")]
-    Archive { url: String },
+    Archive {
+        url: String,
+        /// 归档解开之后，插件根在里面的哪一层。目录型市场一个仓库装着多个插件，
+        /// 不指名就只能猜。
+        subdirectory: Option<String>,
+    },
 }
 
 /// 已经解到暂存区、还没被认领的一份插件。
@@ -53,6 +58,8 @@ pub struct PluginCommitRequest {
     pub staging_id: String,
     /// 渲染层解码清单之后判定的标识符。这里只验它能不能当目录名。
     pub plugin_id: String,
+    /// 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
+    pub subdirectory: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -107,10 +114,10 @@ async fn download(url: &str) -> Result<Vec<u8>> {
 ///
 /// 读不出来就当场丢掉暂存：留着一个永远不会被认领的目录，下次列举时它就是垃圾。
 /// 丢弃本身再失败也不能盖掉真正的原因，所以那一步只进日志。
-fn finish_staging(staging: host::Staging) -> Result<PluginStaged> {
+fn finish_staging(staging: host::Staging, subdirectory: Option<&str>) -> Result<PluginStaged> {
     let staging_id = staging.identifier().to_owned();
 
-    let read = host::locate_root(staging.path())
+    let read = host::locate_root(staging.path(), subdirectory)
         .and_then(|root| host::manifest_in(&root).ok_or(host::HostError::ManifestMissing))
         .map_err(plugin_failure)
         .and_then(|manifest| fs::read_to_string(manifest).map_err(Error::from));
@@ -190,10 +197,15 @@ pub async fn plugins_stage(
     fetch: PluginFetch,
 ) -> PluginsCommandResult<PluginStaged> {
     let bytes = match &fetch {
-        PluginFetch::Archive { url } => match download(url).await {
+        PluginFetch::Archive { url, .. } => match download(url).await {
             Ok(payload) => Some(payload),
             Err(cause) => return Err(cause.into()),
         },
+        PluginFetch::Directory { .. } => None,
+    };
+
+    let subdirectory = match &fetch {
+        PluginFetch::Archive { subdirectory, .. } => subdirectory.as_deref(),
         PluginFetch::Directory { .. } => None,
     };
 
@@ -208,7 +220,7 @@ pub async fn plugins_stage(
             (PluginFetch::Archive { .. }, Some(payload)) => {
                 host::extract_zip(payload, staging.path())
             }
-            (PluginFetch::Archive { url }, None) => {
+            (PluginFetch::Archive { url, .. }, None) => {
                 return Err(plugin_failure(format!("no bytes for {url}")));
             }
         };
@@ -221,7 +233,7 @@ pub async fn plugins_stage(
             return Err(plugin_failure(cause));
         }
 
-        finish_staging(staging)
+        finish_staging(staging, subdirectory)
     })()
     .map_err(IpcError::from)
 }
@@ -237,7 +249,8 @@ pub async fn plugins_commit(
             .map_err(plugin_failure)?;
 
         // 解出来的东西可能套在 <repo>-<ref>/ 一层里，认领的是清单所在的那一层。
-        let root = host::locate_root(staging.path()).map_err(plugin_failure)?;
+        let root = host::locate_root(staging.path(), request.subdirectory.as_deref())
+            .map_err(plugin_failure)?;
         let destination = plugin_directory(&app, &request.plugin_id)?;
 
         staging.promote(&root, &destination).map_err(plugin_failure)

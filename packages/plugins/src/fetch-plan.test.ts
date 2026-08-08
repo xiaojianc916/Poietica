@@ -46,6 +46,25 @@ describe('planFetch', () => {
     })
   })
 
+  it('子目录跟着计划一起交给原生侧', () => {
+    expect(
+      planFetch({
+        kind: 'github',
+        owner: 'MoonshotAI',
+        repo: 'kimi-code',
+        ref: { kind: 'tree', ref: 'main' },
+        subdirectory: 'plugins/official/kimi-datasource',
+      }),
+    ).toEqual({
+      kind: 'planned',
+      plan: {
+        kind: 'archive',
+        url: 'https://github.com/MoonshotAI/kimi-code/archive/refs/heads/main.zip',
+        subdirectory: 'plugins/official/kimi-datasource',
+      },
+    })
+  })
+
   it('只给仓库地址时说不出该拉哪个 ref', () => {
     expect(planOf('https://github.com/MoonshotAI/kimi-code')).toEqual({
       kind: 'unplannable',

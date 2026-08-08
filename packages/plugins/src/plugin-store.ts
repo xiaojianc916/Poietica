@@ -15,8 +15,9 @@ import {
 import { type ResolvedContributions, resolveContributions } from './contribution'
 import { planFetch } from './fetch-plan'
 import {
+  describeInstallSource,
+  type PluginInstallSource,
   type PluginTrustTier,
-  parseInstallSource,
   requiresInstallConfirmation,
   UNLISTED_TRUST,
 } from './install-source'
@@ -29,6 +30,7 @@ import {
   latestCatalog,
   MARKETPLACE_ABSENT,
   type MarketplaceState,
+  parseMarketplaceOrigin,
   shouldFetchOnOpen,
 } from './marketplace'
 import { decodePluginLedger, encodePluginLedger, type PluginRecord } from './record'
@@ -61,7 +63,7 @@ export interface IdleInstall {
 
 export interface StagingInstall {
   readonly kind: 'staging'
-  readonly specifier: string
+  readonly source: PluginInstallSource
 }
 
 /*
@@ -74,7 +76,9 @@ export interface StagingInstall {
 export interface StagedInstall {
   readonly kind: 'staged'
   readonly stagingId: string
-  readonly specifier: string
+  readonly source: PluginInstallSource
+  /* 取用时用的那一段子目录。认领的是同一层，所以它要跟着走到 commit。 */
+  readonly subdirectory: string | null
   readonly manifest: PluginManifest
   readonly diagnostics: readonly PluginDiagnostic[]
   readonly trust: PluginTrustTier
@@ -97,8 +101,13 @@ export interface PluginStore {
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   readonly setMcpServerEnabled: (pluginId: string, server: string, enabled: boolean) => void
   readonly remove: (pluginId: string) => void
-  /** 开始一次安装：解析来源、下载、解压到暂存区。 */
-  readonly beginInstall: (specifier: string) => void
+  /**
+   * 开始一次安装：下载、解压到暂存区。
+   *
+   * 收的是解好的结构不是字符串 —— 目录卡片手里已经有结构了，渲染成字符串再解析
+   * 回来会丢掉子目录（网页地址里没有无歧义的写法）。输入框那条路自己先解析。
+   */
+  readonly beginInstall: (source: PluginInstallSource) => void
   readonly confirmInstall: () => void
   readonly cancelInstall: () => void
   readonly refreshMarketplace: () => void
@@ -119,6 +128,12 @@ export interface PluginStoreOptions {
 
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
+
+  /*
+   * 目录里的官方条目写的是相对路径，相对的是目录文件自己所在的目录。这个上下文
+   * 从目录地址一处推出来，不另外配一遍 —— 配两遍就会有一天对不上。
+   */
+  const origin = parseMarketplaceOrigin(options.marketplaceUrl)
 
   let records: readonly PluginRecord[] = []
   let snapshot: PluginsViewModel = {
@@ -196,7 +211,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     for (const record of records) {
       const manifestJson = onDisk.get(record.id)
-      const source = parseInstallSource(record.specifier)
+      const { source } = record
 
       if (manifestJson === undefined) {
         installed.push({
@@ -288,7 +303,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           return
         }
 
-        publish({ marketplace: completeFetch(MARKETPLACE_ABSENT, JSON.parse(contents), '') })
+        publish({
+          marketplace: completeFetch(MARKETPLACE_ABSENT, JSON.parse(contents), '', origin),
+        })
       } catch (cause: unknown) {
         warn('本地市场目录读不出来', { scope: 'plugins', cause })
       }
@@ -303,7 +320,12 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         const contents = await refreshPluginCatalog(options.marketplaceUrl)
 
         publish({
-          marketplace: completeFetch(snapshot.marketplace, JSON.parse(contents), options.now()),
+          marketplace: completeFetch(
+            snapshot.marketplace,
+            JSON.parse(contents),
+            options.now(),
+            origin,
+          ),
         })
       } catch (cause: unknown) {
         publish({
@@ -388,8 +410,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       })
     },
 
-    beginInstall(specifier) {
-      const source = parseInstallSource(specifier)
+    beginInstall(source) {
       const planning = planFetch(source)
 
       if (planning.kind === 'unplannable') {
@@ -398,7 +419,9 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
-      publish({ install: { kind: 'staging', specifier } })
+      publish({ install: { kind: 'staging', source } })
+
+      const subdirectory = planning.plan.kind === 'archive' ? planning.plan.subdirectory : null
 
       queue = queue.then(async () => {
         try {
@@ -417,13 +440,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
             return
           }
 
-          const trust = trustOf(specifier)
+          const trust = trustOf(source)
 
           publish({
             install: {
               kind: 'staged',
               stagingId: staged.stagingId,
-              specifier,
+              source,
+              subdirectory,
               manifest: decoded.manifest,
               diagnostics: decoded.diagnostics,
               trust,
@@ -432,7 +456,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
           /* 官方来源不拦；其余一律等人点头，这条判据只有 install-source 说了算。 */
           if (!requiresInstallConfirmation(trust)) {
-            adopt(staged.stagingId, decoded.manifest.name, specifier, trust)
+            adopt(staged.stagingId, decoded.manifest.name, source, subdirectory, trust)
           }
         } catch (cause: unknown) {
           publish({
@@ -452,7 +476,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
-      adopt(install.stagingId, install.manifest.name, install.specifier, install.trust)
+      adopt(
+        install.stagingId,
+        install.manifest.name,
+        install.source,
+        install.subdirectory,
+        install.trust,
+      )
     },
 
     cancelInstall() {
@@ -480,12 +510,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   function adopt(
     stagingId: string,
     pluginId: string,
-    specifier: string,
+    source: PluginInstallSource,
+    subdirectory: string | null,
     trust: PluginTrustTier,
   ): void {
     queue = queue.then(async () => {
       try {
-        await commitPlugin({ stagingId, pluginId })
+        await commitPlugin({ stagingId, pluginId, subdirectory })
       } catch (cause: unknown) {
         publish({
           install: {
@@ -503,7 +534,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           ...records.filter((record) => record.id !== pluginId),
           {
             id: pluginId,
-            specifier,
+            source,
             trust,
             enabled: true,
             installedAt: options.now(),
@@ -521,9 +552,16 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    * 不从 URL 猜 —— 猜出来的信任是最坏的一种信任，install-source 那句注释说的就是
    * 这件事。这里只是把目录已经声明过的事实查回来。
    */
-  function trustOf(specifier: string): PluginTrustTier {
+  function trustOf(source: PluginInstallSource): PluginTrustTier {
     const catalog = latestCatalog(snapshot.marketplace)
-    const listed = catalog?.entries.find((entry) => entry.source === parseInstallSource(specifier))
+    const wanted = describeInstallSource(source)
+
+    /*
+     * 按渲染出来的那一行字比，不按对象比。上一版写的是 entry.source === parse(...)，
+     * 两个新造出来的对象做引用比较永远为 false —— 于是目录里明明标着官方的条目也
+     * 一路落到第三方，信任级别从来没生效过。
+     */
+    const listed = catalog?.entries.find((entry) => describeInstallSource(entry.source) === wanted)
 
     return listed?.trust ?? UNLISTED_TRUST
   }

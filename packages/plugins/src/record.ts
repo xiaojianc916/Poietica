@@ -1,6 +1,11 @@
 import * as v from 'valibot'
 
-import { PLUGIN_TRUST_TIERS, type PluginTrustTier, UNLISTED_TRUST } from './install-source'
+import {
+  PLUGIN_TRUST_TIERS,
+  type PluginInstallSource,
+  type PluginTrustTier,
+  UNLISTED_TRUST,
+} from './install-source'
 
 /*
  * 账本：installed.json 里到底记着什么。
@@ -9,16 +14,17 @@ import { PLUGIN_TRUST_TIERS, type PluginTrustTier, UNLISTED_TRUST } from './inst
  * 磁盘分叉 —— 改了插件目录里的 kimi.plugin.json，账本却还说着上一版。这里只记
  * 推导不出来的那几件事。
  *
- * specifier 存的是人当初给的那串原文，不是 describeInstallSource 的渲染结果：
- * 存输入，parseInstallSource 就仍然是唯一解析器，往返天然成立；存渲染结果就要
- * 再写一个反向解析器，那是第二套规则。
+ * 来源存的是结构，不是那串原文。上一版存字符串，理由是「存输入，parseInstallSource
+ * 就仍然是唯一解析器」—— 那个理由在输入总是字符串时成立。目录里的卡片递过来的是
+ * 已经解好的结构（子目录在网页地址里没有无歧义的写法，渲染成字符串就再也读不回来），
+ * 所以现在存字符串才是那个会丢信息的选择。
  */
 
 export const PLUGIN_LEDGER_VERSION = '1'
 
 export interface PluginRecord {
   readonly id: string
-  readonly specifier: string
+  readonly source: PluginInstallSource
   readonly trust: PluginTrustTier
   readonly enabled: boolean
   /** ISO-8601。解析顺序按它排，所以它必须记下来而不是每次现算。 */
@@ -38,9 +44,28 @@ export interface UndecodableLedger {
 
 export type LedgerDecoding = DecodedLedger | UndecodableLedger
 
+const RawGitHubRef = v.variant('kind', [
+  v.object({ kind: v.literal('default-branch') }),
+  v.object({ kind: v.literal('tree'), ref: v.string() }),
+  v.object({ kind: v.literal('release-tag'), tag: v.string() }),
+  v.object({ kind: v.literal('commit'), sha: v.string() }),
+])
+
+const RawSource = v.variant('kind', [
+  v.object({ kind: v.literal('directory'), path: v.string() }),
+  v.object({ kind: v.literal('archive'), url: v.string() }),
+  v.object({
+    kind: v.literal('github'),
+    owner: v.string(),
+    repo: v.string(),
+    ref: RawGitHubRef,
+    subdirectory: v.optional(v.string()),
+  }),
+])
+
 const RawRecord = v.looseObject({
   id: v.string(),
-  specifier: v.string(),
+  source: RawSource,
   trust: v.optional(v.picklist(PLUGIN_TRUST_TIERS)),
   enabled: v.optional(v.boolean()),
   installedAt: v.string(),
@@ -51,6 +76,11 @@ const RawLedger = v.looseObject({
   version: v.literal(PLUGIN_LEDGER_VERSION),
   plugins: v.array(RawRecord),
 })
+
+/* 判别联合解出来之后补齐可空字段，让它与领域类型逐字对上。 */
+function toSource(raw: v.InferOutput<typeof RawSource>): PluginInstallSource {
+  return raw.kind === 'github' ? { ...raw, subdirectory: raw.subdirectory } : raw
+}
 
 /*
  * 读不懂就整份拒收，不是当成空账本。
@@ -81,7 +111,7 @@ export function decodePluginLedger(contents: string | null): LedgerDecoding {
     kind: 'decoded',
     records: parsed.output.plugins.map((entry) => ({
       id: entry.id,
-      specifier: entry.specifier,
+      source: toSource(entry.source),
       trust: entry.trust ?? UNLISTED_TRUST,
       enabled: entry.enabled ?? true,
       installedAt: entry.installedAt,

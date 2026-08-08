@@ -1,8 +1,8 @@
 import { assertUnreachable } from '@poietica/core'
 
 /*
- * 信任级别取自上游的三档徽章。它是市场目录声明的事实，不从 URL 猜 —— 猜出来
- * 的信任是最坏的一种信任。
+ * 信任级别取自上游目录里那一列 tier。它是市场目录声明的事实，不从 URL 猜 ——
+ * 猜出来的信任是最坏的一种信任。
  */
 export const PLUGIN_TRUST_TIERS = ['kimi-official', 'curated', 'third-party'] as const
 
@@ -55,6 +55,18 @@ export interface GitHubSource {
   readonly owner: string
   readonly repo: string
   readonly ref: GitHubRef
+  /**
+   * 仓库里插件根所在的那一段路径。
+   *
+   * 一个仓库装多个插件是目录型市场的常态 —— kimi-code 的 plugins/official/ 下
+   * 就并排放着两个。没有这一段，「装 kimi-datasource」只能解成「装整个 kimi-code
+   * 仓库」，而那个仓库根本没有清单。
+   *
+   * 它只从显式来源来（目录里的相对路径、界面上的稀疏路径输入），不从网页地址里
+   * 猜：/tree/<ref>/<path> 里 ref 与路径的分界线离线判不出来，分支名本身可以带
+   * 斜杠，GitHub 自己是拿仓库的引用表在服务端试的。
+   */
+  readonly subdirectory: string | undefined
 }
 
 export type PluginInstallSource = ArchiveSource | DirectorySource | GitHubSource
@@ -133,17 +145,28 @@ export function parseInstallSource(specifier: string): PluginInstallSource {
     owner,
     repo: repo.replace(/\.git$/, ''),
     ref: parseGitHubRef(segments.slice(2)),
+    subdirectory: undefined,
   }
 }
 
+/*
+ * 给人看的一行字，同时也是「两个来源是不是同一个」的判据。
+ *
+ * 它不承诺能被 parseInstallSource 读回去 —— 子目录在网页地址里没有无歧义的写法，
+ * 硬造一个可逆字符串就等于把上面那条「不猜」的纪律绕过去。要还原来源的地方（账本、
+ * 卡片）一律传结构，不传字符串。
+ */
 export function describeInstallSource(source: PluginInstallSource): string {
   switch (source.kind) {
     case 'archive':
       return source.url
     case 'directory':
       return source.path
-    case 'github':
-      return `github.com/${source.owner}/${source.repo}`
+    case 'github': {
+      const repository = `github.com/${source.owner}/${source.repo}`
+
+      return source.subdirectory === undefined ? repository : `${repository}/${source.subdirectory}`
+    }
     default:
       return assertUnreachable(source)
   }

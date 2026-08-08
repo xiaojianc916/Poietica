@@ -1380,14 +1380,18 @@ export type PluginCommitRequest = { stagingId: string;
 /**
  * 渲染层解码清单之后判定的标识符。这里只验它能不能当目录名。
  */
-pluginId: string }
+pluginId: string; 
+/**
+ * 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
+ */
+subdirectory: string | null }
 /**
  * 一次取用从哪里拿字节。
  * 
  * GitHub 不在这里出现：把仓库地址变成归档 URL 是领域侧的判断，由 packages/plugins
  * 的 planFetch 做，判不出来的（默认分支）当场就说判不出来。
  */
-export type PluginFetch = { kind: "directory"; path: string } | { kind: "archive"; url: string }
+export type PluginFetch = { kind: "directory"; path: string } | { kind: "archive"; url: string; subdirectory: string | null }
 export type PluginFileRequest = { pluginId: string; 
 /**
  * 相对插件根的路径，例如 systemPromptPath 指到的那份提示词。

@@ -54,31 +54,46 @@ pub fn manifest_in(root: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// 解出来的那一堆东西里，插件的根在哪。
+/// 归档解开之后套着的那一层壳。
 ///
 /// GitHub 的源码归档把全部内容套在 <repo>-<ref>/ 一层里，本地目录通常没有这一层。
-/// 先看顶层，顶层没有清单再往唯一的那个子目录里看一层 —— 只看一层，且只在顶层
-/// 确实没有清单时才看，插件自己带一个子目录不会被误判成根。
-pub fn locate_root(extracted: &Path) -> Result<PathBuf> {
+/// 顶层有清单就是顶层；没有而恰好只有一个子目录，那一层就是壳。只脱一层。
+fn unwrap_single_directory(extracted: &Path) -> PathBuf {
     if manifest_in(extracted).is_some() {
-        return Ok(extracted.to_path_buf());
+        return extracted.to_path_buf();
     }
 
-    let mut children = Vec::new();
-
-    for entry in std::fs::read_dir(extracted)? {
-        children.push(entry?.path());
-    }
-
-    let [only] = children.as_slice() else {
-        return Err(HostError::ManifestMissing);
+    let Ok(entries) = std::fs::read_dir(extracted) else {
+        return extracted.to_path_buf();
     };
 
-    if only.is_dir() && manifest_in(only).is_some() {
-        return Ok(only.clone());
-    }
+    let children: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
 
-    Err(HostError::ManifestMissing)
+    match children.as_slice() {
+        [only] if only.is_dir() => only.clone(),
+        _ => extracted.to_path_buf(),
+    }
+}
+
+/// 解出来的那一堆东西里，插件的根在哪。
+///
+/// subdirectory 是仓库里的一段路径。一个仓库装多个插件是目录型市场的常态 ——
+/// kimi-code 的 plugins/official/ 下并排放着两个 —— 不指名就只能猜，而猜错时
+/// 装进来的是另一个插件。它相对的是脱壳之后那一层：<repo>-<ref>/ 那层壳的名字
+/// 里带着 ref，调用方写不出来也不该知道。
+pub fn locate_root(extracted: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
+    let unwrapped = unwrap_single_directory(extracted);
+
+    let root = match subdirectory {
+        Some(relative) => resolve_inside(&unwrapped, relative)?,
+        None => unwrapped,
+    };
+
+    if manifest_in(&root).is_some() {
+        Ok(root)
+    } else {
+        Err(HostError::ManifestMissing)
+    }
 }
 
 #[cfg(test)]
@@ -135,7 +150,26 @@ mod tests {
         fs::create_dir_all(&nested).expect("nested directory");
         fs::write(nested.join("kimi.plugin.json"), "{}").expect("manifest");
 
-        assert_eq!(locate_root(root.path()).expect("a root"), nested);
+        assert_eq!(locate_root(root.path(), None).expect("a root"), nested);
+    }
+
+    #[test]
+    fn a_subdirectory_picks_one_plugin_out_of_a_repository() {
+        let root = TempDir::new().expect("temporary directory");
+        let wrapper = root.path().join("kimi-code-main");
+        let wanted = wrapper.join("plugins/official/kimi-datasource");
+
+        fs::create_dir_all(&wanted).expect("nested directory");
+        fs::create_dir_all(wrapper.join("plugins/official/kimi-webbridge"))
+            .expect("sibling directory");
+        fs::write(wanted.join("kimi.plugin.json"), "{}").expect("manifest");
+
+        assert_eq!(
+            locate_root(root.path(), Some("plugins/official/kimi-datasource")).expect("a root"),
+            wanted
+        );
+        assert!(locate_root(root.path(), Some("plugins/official/kimi-webbridge")).is_err());
+        assert!(locate_root(root.path(), Some("../escaped")).is_err());
     }
 
     #[test]
@@ -144,6 +178,6 @@ mod tests {
 
         fs::write(root.path().join("README.md"), "no manifest").expect("stray file");
 
-        assert!(locate_root(root.path()).is_err());
+        assert!(locate_root(root.path(), None).is_err());
     }
 }

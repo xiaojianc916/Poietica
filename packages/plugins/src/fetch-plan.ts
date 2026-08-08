@@ -7,6 +7,10 @@ import type { GitHubSource, PluginInstallSource } from './install-source'
  * 这一层刻意与原生侧的 PluginFetch 同形：结构一致意味着调用点直接把计划递过去就能
  * 通过类型检查，原生改了标签名 typecheck 当场就红。这比写一个只做搬运的适配函数更
  * 能守住契约，也没有多出一层什么都不做的包装。
+ *
+ * 同形也包括可空的写法：specta 把 Option<String> 映射成 string | null，所以这里是
+ * null 而不是 undefined。领域里那一份用 undefined，转换就发生在 planFetch 这一处 ——
+ * 它的职责本来就是「领域 → 线上」。
  */
 
 export interface DirectoryFetch {
@@ -17,6 +21,8 @@ export interface DirectoryFetch {
 export interface ArchiveFetch {
   readonly kind: 'archive'
   readonly url: string
+  /** 归档解开之后，插件根在里面的哪一层。 */
+  readonly subdirectory: string | null
 }
 
 export type PluginFetchPlan = ArchiveFetch | DirectoryFetch
@@ -74,7 +80,7 @@ function githubArchiveUrl(source: GitHubSource): string | undefined {
 export function planFetch(source: PluginInstallSource): FetchPlanning {
   switch (source.kind) {
     case 'archive':
-      return { kind: 'planned', plan: { kind: 'archive', url: source.url } }
+      return { kind: 'planned', plan: { kind: 'archive', url: source.url, subdirectory: null } }
     case 'directory':
       return { kind: 'planned', plan: { kind: 'directory', path: source.path } }
     case 'github': {
@@ -82,7 +88,10 @@ export function planFetch(source: PluginInstallSource): FetchPlanning {
 
       return url === undefined
         ? { kind: 'unplannable', reason: DEFAULT_BRANCH_UNPLANNABLE }
-        : { kind: 'planned', plan: { kind: 'archive', url } }
+        : {
+            kind: 'planned',
+            plan: { kind: 'archive', url, subdirectory: source.subdirectory ?? null },
+          }
     }
     default:
       return assertUnreachable(source)
