@@ -3,10 +3,29 @@ use crate::paths::automations_store;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
-use tauri::{AppHandle, command};
-use tauri_plugin_store::StoreExt;
+use std::sync::{Arc, Mutex, PoisonError};
+use tauri::{AppHandle, Wry, command};
+use tauri_plugin_store::{Store, StoreExt};
 
 type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
+
+/// 账本只留最近这么多次。再往前的正文仍在各自那条对话里。
+///
+/// 常量在这一侧而不在渲染进程：账本归这里所有，裁剪是它自己的不变量。放在
+/// 调用方那侧，任何一条没走那段代码的写入都会让账本无限长下去。
+const RUN_HISTORY_LIMIT: usize = 50;
+
+/*
+ * 目录文件的写入串行化。
+ *
+ * 每一条写命令都是「读—改—写」，而 tauri 的命令处理器彼此并发。两条命令交错，
+ * 后写的那条就会把先写的那条整段盖掉。这把锁只保护这个模块自己拥有的那一个
+ * 文件，不是给别人摸的全局状态。
+ *
+ * 用 std 的互斥锁而不是异步锁：临界区里没有 .await，纯文件读写，跨不了让点，
+ * 因此这些 future 仍然是 Send，也不必为一次毫秒级的写引入一整套异步锁语义。
+ */
+static LEDGER: Mutex<()> = Mutex::new(());
 
 /// 触发条件。
 ///
@@ -77,6 +96,7 @@ pub struct Automation {
     /// 无意义的磁盘差异。生成的 TypeScript 因此是 Partial<Record<..>>。
     #[serde(default)]
     pub session_config: BTreeMap<String, String>,
+    /// 运行账本。归这一侧所有 —— 见 automations_upsert。
     pub runs: Vec<AutomationRun>,
 }
 
@@ -96,6 +116,78 @@ impl Default for AutomationCatalog {
     }
 }
 
+/// 一次运行跑完之后，日程该怎么走。
+///
+/// 由发起那次运行的一侧算出来、随记账一起提交；这一侧只做比对，不重算。手动
+/// 试运行落在 Keep 上：cron、systemd timer 与 Kubernetes CronJob 的手动触发
+/// 都不改写周期计划，这里同一条规矩。
+#[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AutomationReschedule {
+    Keep,
+    #[serde(rename_all = "camelCase")]
+    Advance {
+        /// 刚刚到期的那个时刻。与盘上的 next_run_at 对不上就说明日程已经被人
+        /// 动过，这次推进作废 —— 比较并交换，不是无条件覆盖。
+        from: String,
+        to: Option<String>,
+    },
+}
+
+/// 一次运行的提交：记一笔账，并按上面的判定推进日程。
+#[derive(Debug, Deserialize, Serialize, Type, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunRecord {
+    pub id: String,
+    pub run: AutomationRun,
+    pub reschedule: AutomationReschedule,
+}
+
+fn open(app: &AppHandle) -> Result<Arc<Store<Wry>>> {
+    Ok(app.store(automations_store(app)?)?)
+}
+
+/// 读出目录。读不懂的原件先挪走，再如实报错。
+fn read_catalog(store: &Store<Wry>) -> Result<AutomationCatalog> {
+    let Some(value) = store.get("automations") else {
+        return Ok(AutomationCatalog::default());
+    };
+
+    match serde_json::from_value::<AutomationCatalog>(value.clone()) {
+        Ok(catalog) => Ok(catalog),
+        Err(cause) => {
+            /*
+             * 读不懂的目录不丢：原件挪到备份键、主键删除，然后如实报错。
+             * 下一次启动读到的是「没有」，而不是又一次解析失败；原件留底，
+             * 不会被下一次保存盖掉。VS Code 的 state 备份与 Chrome 的
+             * Preferences.bad 是同一个做法。
+             */
+            store.set("automations.corrupt", value);
+            store.delete("automations");
+            store.save()?;
+
+            Err(cause.into())
+        }
+    }
+}
+
+/// 读—改—写，全程持锁，回给写完之后的整本目录。
+///
+/// 每一条写命令都长这个样子，于是「怎么写盘」在这个模块里只有一份实现。
+fn mutate(app: &AppHandle, edit: impl FnOnce(&mut Vec<Automation>)) -> Result<AutomationCatalog> {
+    let _guard = LEDGER.lock().unwrap_or_else(PoisonError::into_inner);
+
+    let store = open(app)?;
+    let mut catalog = read_catalog(&store)?;
+
+    edit(&mut catalog.automations);
+
+    store.set("automations", serde_json::to_value(&catalog)?);
+    store.save()?;
+
+    Ok(catalog)
+}
+
 /// Reads the persisted automations.
 ///
 /// # Errors
@@ -103,39 +195,24 @@ impl Default for AutomationCatalog {
 /// Returns an error when the store cannot be opened, or when the stored
 /// catalog cannot be parsed. In that case the unreadable original is first
 /// moved to the automations.corrupt backup key: falling back to an empty
-/// catalog without keeping the original would let the next save overwrite
+/// catalog without keeping the original would let the next write overwrite
 /// the only copy of the user's automations.
 #[command]
 #[specta::specta]
 pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<AutomationCatalog> {
     (|| -> Result<AutomationCatalog> {
-        let store = app.store(automations_store(&app)?)?;
+        let store = open(&app)?;
 
-        let Some(value) = store.get("automations") else {
-            return Ok(AutomationCatalog::default());
-        };
-
-        match serde_json::from_value::<AutomationCatalog>(value.clone()) {
-            Ok(catalog) => Ok(catalog),
-            Err(cause) => {
-                /*
-                 * 读不懂的目录不丢：原件挪到备份键、主键删除，然后如实报错。
-                 * 下一次启动读到的是「没有」，而不是又一次解析失败；原件留底，
-                 * 不会被下一次保存盖掉。VS Code 的 state 备份与 Chrome 的
-                 * Preferences.bad 是同一个做法。
-                 */
-                store.set("automations.corrupt", value);
-                store.delete("automations");
-                store.save()?;
-
-                Err(cause.into())
-            }
-        }
+        read_catalog(&store)
     })()
     .map_err(IpcError::from)
 }
 
-/// Persists the automations.
+/// Creates or replaces one automation and returns the catalog as written.
+///
+/// The run ledger is not taken from the caller: it belongs to this side, so the
+/// stored runs are kept and the incoming ones ignored. A caller that forgot to
+/// send them would otherwise erase the history.
 ///
 /// # Errors
 ///
@@ -143,15 +220,93 @@ pub async fn automations_load(app: AppHandle) -> AutomationsCommandResult<Automa
 /// serialized, or when the write does not reach disk.
 #[command]
 #[specta::specta]
-pub async fn automations_save(
+pub async fn automations_upsert(
     app: AppHandle,
-    catalog: AutomationCatalog,
-) -> AutomationsCommandResult<()> {
-    (|| -> Result<()> {
-        let store = app.store(automations_store(&app)?)?;
-        store.set("automations", serde_json::to_value(&catalog)?);
-        store.save()?;
-        Ok(())
-    })()
+    automation: Automation,
+) -> AutomationsCommandResult<AutomationCatalog> {
+    mutate(&app, move |automations| {
+        let at = automations
+            .iter()
+            .position(|candidate| candidate.id == automation.id);
+        let kept = at
+            .and_then(|index| automations.get(index))
+            .map_or_else(Vec::new, |existing| existing.runs.clone());
+        let saved = Automation {
+            runs: kept,
+            ..automation
+        };
+
+        match at {
+            Some(index) => {
+                automations.remove(index);
+                automations.insert(index, saved);
+            }
+            None => automations.insert(0, saved),
+        }
+    })
+    .map_err(IpcError::from)
+}
+
+/// Removes one automation and returns the catalog as written.
+///
+/// Removing something that is already gone is a success, not an error: the
+/// caller asked for a state and that state already holds. HTTP DELETE is
+/// specified the same way.
+///
+/// # Errors
+///
+/// Returns an error when the store cannot be opened, when the catalog cannot be
+/// serialized, or when the write does not reach disk.
+#[command]
+#[specta::specta]
+pub async fn automations_remove(
+    app: AppHandle,
+    id: String,
+) -> AutomationsCommandResult<AutomationCatalog> {
+    mutate(&app, move |automations| {
+        automations.retain(|candidate| candidate.id != id);
+    })
+    .map_err(IpcError::from)
+}
+
+/// Records one run and advances the schedule, returning the catalog as written.
+///
+/// # Errors
+///
+/// Returns an error when the store cannot be opened, when the catalog cannot be
+/// serialized, or when the write does not reach disk.
+#[command]
+#[specta::specta]
+pub async fn automations_record_run(
+    app: AppHandle,
+    record: AutomationRunRecord,
+) -> AutomationsCommandResult<AutomationCatalog> {
+    let AutomationRunRecord {
+        id,
+        run,
+        reschedule,
+    } = record;
+
+    mutate(&app, move |automations| {
+        let Some(existing) = automations.iter_mut().find(|candidate| candidate.id == id) else {
+            /* 跑的过程中被删掉了。这是一个合法的时序，不是错误。 */
+            return;
+        };
+
+        existing.runs.insert(0, run);
+        existing.runs.truncate(RUN_HISTORY_LIMIT);
+
+        /*
+         * 比较并交换：只有盘上那个「下一次到期」仍然是刚刚到期的那个，才把它
+         * 推到下一格。运行期间有人改过触发条件、停用过、或者另一次运行已经推
+         * 过了，from 都对不上，这次推进作废。停用的那条 next_run_at 是 None，
+         * 同样对不上 —— 不必再单独判一次 enabled。
+         */
+        if let AutomationReschedule::Advance { from, to } = reschedule
+            && existing.next_run_at.as_deref() == Some(from.as_str())
+        {
+            existing.next_run_at = to;
+        }
+    })
     .map_err(IpcError::from)
 }

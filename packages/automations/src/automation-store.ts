@@ -1,21 +1,30 @@
 import { createAutomationId } from '@poietica/core'
-import type { Automation, AutomationCatalog, AutomationRun } from '@poietica/ipc'
-import { loadAutomations, saveAutomations } from '@poietica/ipc'
+import type {
+  Automation,
+  AutomationCatalog,
+  AutomationReschedule,
+  AutomationRun,
+} from '@poietica/ipc'
+import {
+  loadAutomations,
+  recordAutomationRun,
+  removeAutomation,
+  upsertAutomation,
+} from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
-import {
-  type AutomationDraft,
-  nextOccurrence,
-  nextRunAfter,
-  RUN_HISTORY_LIMIT,
-  sameTrigger,
-} from './automation'
+import { type AutomationDraft, nextOccurrence, nextRunAfter, sameTrigger } from './automation'
 
 /**
  * 自动化的状态与调度。
  *
  * 落盘直接走 @poietica/ipc，不套一层可选注入的端口：可选参数的那种写法里，组合根
  * 忘了注入，编译器不会提醒任何人，整条落盘链路就此静默失效。
+ *
+ * 屏幕上这份列表是盘上那份的投影，不是与它并行的第二份真相。每一次改动都发一条
+ * 按 id 寻址的命令，原生侧串行地读—改—写，再把写完之后的整本目录回给这里；这里
+ * 拿它当新的快照。于是没有「先改内存、再补写盘」的窗口，写盘失败时屏幕上也不会
+ * 留着一个盘上并不存在的状态。
  *
  * 调度只有一个心跳，真相在 nextRunAt 上：心跳只是叫醒，不是时钟。因此关机期间
  * 错过的那次会在 start() 的第一次 check 里补跑，而不是被静默跳过。
@@ -58,13 +67,14 @@ export function createAutomationStore(): AutomationStore {
   let dispatch: AutomationDispatch | null = null
 
   /*
-   * 首次加载在飞期间，人有没有动过这份列表。
+   * 回程的排序。
    *
-   * 动过，内存里这份就比盘上读回来的那份新（改动在 commit 里已经 persist
-   * 落盘）。加载完成时拿旧的盖新的，屏幕上刚建的那条当场消失，而盘上还
-   * 在 —— 屏幕与盘就此分叉，直到下一次启动才愈合。
+   * 原生侧按到达顺序串行写盘，但回程可以乱序抵达：先发的那条后回，它带回来的
+   * 就是一份更旧的目录，贴上去屏幕会倒退一格。号码单调递增，只有不比已经贴上
+   * 去的那张更旧的号才作数 —— 与浏览器里处理 fetch 竞态的做法同一条规矩。
    */
-  let touchedDuringLoad = false
+  let issued = 0
+  let applied = 0
 
   function publish(next: AutomationsViewModel): void {
     snapshot = next
@@ -74,33 +84,44 @@ export function createAutomationStore(): AutomationStore {
     }
   }
 
-  function persist(automations: readonly Automation[]): void {
-    const catalog: AutomationCatalog = { version: 1, automations: [...automations] }
+  /** 领一张号，用它接住一次回程。过期的号什么也不做。 */
+  function ticket(): (automations: readonly Automation[]) => void {
+    issued += 1
+    const mine = issued
 
-    /*
-     * 写盘失败只影响下次启动，不该把用户这次的操作打断，所以在这里终结；
-     * 但不吞掉 —— 交给可观测通道。
-     */
-    void saveAutomations(catalog).catch((cause: unknown) => {
-      warn('自动化未能写入磁盘，下次启动会回到上一次成功保存的状态', {
-        scope: 'automations',
-        cause,
+    return (automations) => {
+      if (mine < applied) {
+        return
+      }
+
+      applied = mine
+      publish({ automations, loaded: true })
+    }
+  }
+
+  /**
+   * 发一条写命令，把原生侧回来的那本目录贴到屏幕上。
+   *
+   * 失败时不动屏幕：这里没有需要回滚的乐观更新，屏幕上仍然是盘上那一份，人看到
+   * 的就是这次确实没改成。但不吞掉 —— 交给可观测通道。
+   */
+  function command(send: () => Promise<AutomationCatalog>): void {
+    const settle = ticket()
+
+    void send()
+      .then((catalog) => {
+        settle(catalog.automations)
       })
-    })
+      .catch((cause: unknown) => {
+        warn('自动化没能写入磁盘，屏幕上仍是磁盘里那一份', {
+          scope: 'automations',
+          cause,
+        })
+      })
   }
 
-  function commit(automations: readonly Automation[]): void {
-    touchedDuringLoad = true
-    publish({ automations, loaded: true })
-    persist(automations)
-  }
-
-  function replace(id: string, update: (automation: Automation) => Automation): void {
-    commit(
-      snapshot.automations.map((automation) =>
-        automation.id === id ? update(automation) : automation,
-      ),
-    )
+  function lookup(id: string): Automation | undefined {
+    return snapshot.automations.find((candidate) => candidate.id === id)
   }
 
   /**
@@ -141,17 +162,12 @@ export function createAutomationStore(): AutomationStore {
     }
 
     /*
-     * 先具名，再放进数组。
+     * 先具名，再提交。标注让三元里的 'failed' | 'succeeded' 收在 AutomationRun
+     * 的联合上，而不是被拓宽成 string。
      *
-     * 数组字面量后面挂着 .slice()，runs 那个属性的期望类型就到不了字面量内部：
-     * TS 先独立推导数组，三元的 'failed' | 'succeeded' 被拓宽成 string，然后才
-     * 拿去跟 AutomationRun[] 比 —— tsc 报错指在 runs: 上而不是 outcome: 上，
-     * 说的正是这件事。标注恢复了 contextual typing，字面量收得住；而且这条
-     * 记录本来就该有个名字。
-     *
-     * 结局记的是「这次运行有没有开起来」：对话开出来、指令经唯一的发送管线
-     * 提交，就是 succeeded。指令那一轮本身的成败由那条对话自己回答 —— 运行
-     * 就是一条对话，账本不存第二份运行状态。
+     * 结局记的是「这次运行有没有开起来」：对话开出来、指令经唯一的发送管线提交，
+     * 就是 succeeded。指令那一轮本身的成败由那条对话自己回答 —— 运行就是一条
+     * 对话，账本不存第二份运行状态。
      */
     const run: AutomationRun = {
       threadId,
@@ -159,30 +175,24 @@ export function createAutomationStore(): AutomationStore {
       outcome: threadId === null ? 'failed' : 'succeeded',
     }
 
-    replace(automation.id, (current) => {
-      const anchor = current.nextRunAt
+    /*
+     * 锚点是刚刚到期的那个时刻，不是跑完的这一刻 —— 固定速率，相位不随执行时长
+     * 漂移。
+     *
+     * 「运行期间日程有没有被人动过」这一问不在这里回答：这里手上只有一份可能已经
+     * 过时的副本，拿副本比副本等于没比。from 送过去，由持有真相的那一侧比对。
+     */
+    const anchor = automation.nextRunAt
+    const reschedule: AutomationReschedule =
+      origin === 'schedule' && anchor !== null
+        ? {
+            kind: 'advance',
+            from: anchor,
+            to: nextOccurrence(automation.trigger, Date.parse(anchor), Date.now()),
+          }
+        : { kind: 'keep' }
 
-      /*
-       * 重排只有在这里才成立：日程点的火、这条仍然启用、且运行期间日程没被
-       * 人动过（改过触发条件或重新启用过的人，nextRunAt 已经是新的答案）。
-       * 锚点是刚刚到期的那个时刻，不是跑完的这一刻 —— 固定速率，相位不随
-       * 执行时长漂移。手动试运行落在另一支：日程原样留着。
-       */
-      if (
-        origin === 'schedule' &&
-        current.enabled &&
-        anchor !== null &&
-        anchor === automation.nextRunAt
-      ) {
-        return {
-          ...current,
-          nextRunAt: nextOccurrence(current.trigger, Date.parse(anchor), Date.now()),
-          runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT),
-        }
-      }
-
-      return { ...current, runs: [run, ...current.runs].slice(0, RUN_HISTORY_LIMIT) }
-    })
+    command(() => recordAutomationRun({ id: automation.id, run, reschedule }))
   }
 
   /** 到期判定。启动时也走这一段，于是关机期间错过的那次就是「已经到期」。 */
@@ -214,8 +224,8 @@ export function createAutomationStore(): AutomationStore {
     create(draft) {
       const now = Date.now()
 
-      commit([
-        {
+      command(() =>
+        upsertAutomation({
           id: createAutomationId(),
           title: draft.title,
           prompt: draft.prompt,
@@ -225,49 +235,65 @@ export function createAutomationStore(): AutomationStore {
           createdAt: new Date(now).toISOString(),
           nextRunAt: nextRunAfter(draft.trigger, now),
           runs: [],
-        },
-        ...snapshot.automations,
-      ])
+        }),
+      )
     },
 
     update(id, draft) {
-      replace(id, (automation) => ({
-        ...automation,
-        title: draft.title,
-        prompt: draft.prompt,
-        trigger: draft.trigger,
+      const current = lookup(id)
 
-        /*
-         * 只有触发条件真的变了才重排。否则改一个错别字，interval 那条的下一次
-         * 运行就被推后一整个周期 —— 人动的是提示词，不是日程。
-         *
-         * 停用状态下 nextRunAt 本来就是 null（见 setEnabled），照原样留着即可。
-         */
-        nextRunAt:
-          automation.enabled && !sameTrigger(automation.trigger, draft.trigger)
-            ? nextRunAfter(draft.trigger, Date.now())
-            : automation.nextRunAt,
-      }))
+      if (current === undefined) {
+        return
+      }
+
+      command(() =>
+        upsertAutomation({
+          ...current,
+          title: draft.title,
+          prompt: draft.prompt,
+          trigger: draft.trigger,
+          sessionConfig: { ...draft.sessionConfig },
+
+          /*
+           * 只有触发条件真的变了才重排。否则改一个错别字，interval 那条的下一次
+           * 运行就被推后一整个周期 —— 人动的是提示词，不是日程。
+           *
+           * 停用状态下 nextRunAt 本来就是 null（见 setEnabled），照原样留着即可。
+           */
+          nextRunAt:
+            current.enabled && !sameTrigger(current.trigger, draft.trigger)
+              ? nextRunAfter(draft.trigger, Date.now())
+              : current.nextRunAt,
+        }),
+      )
     },
 
     remove(id) {
-      commit(snapshot.automations.filter((automation) => automation.id !== id))
+      command(() => removeAutomation(id))
     },
 
     setEnabled(id, enabled) {
+      const current = lookup(id)
+
+      if (current === undefined) {
+        return
+      }
+
       /*
        * 重新启用时下一次到期从此刻重新起算，不是接着那个早已过期的时刻 ——
        * 否则一停一开，人立刻挨一次补跑，那不是他按下开关时想要的。
        */
-      replace(id, (automation) => ({
-        ...automation,
-        enabled,
-        nextRunAt: enabled ? nextRunAfter(automation.trigger, Date.now()) : null,
-      }))
+      command(() =>
+        upsertAutomation({
+          ...current,
+          enabled,
+          nextRunAt: enabled ? nextRunAfter(current.trigger, Date.now()) : null,
+        }),
+      )
     },
 
     runNow(id) {
-      const automation = snapshot.automations.find((candidate) => candidate.id === id)
+      const automation = lookup(id)
 
       if (automation !== undefined) {
         void fire(automation, 'manual')
@@ -276,20 +302,17 @@ export function createAutomationStore(): AutomationStore {
 
     start(next) {
       dispatch = next
-      touchedDuringLoad = false
+
+      const settle = ticket()
 
       void loadAutomations()
         .then((catalog) => {
-          /* 加载在飞期间人动过列表：内存这份更新，旧的那份不能盖上来。 */
-          if (!touchedDuringLoad) {
-            publish({ automations: catalog.automations, loaded: true })
-          }
-
+          settle(catalog.automations)
           check()
         })
         .catch((cause: unknown) => {
           warn('自动化列表读取失败', { scope: 'automations', cause })
-          publish({ automations: [], loaded: true })
+          settle([])
         })
 
       const timer = setInterval(check, TICK)

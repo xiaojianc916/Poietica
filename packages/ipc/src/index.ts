@@ -43,11 +43,15 @@ export {
 export {
   type Automation,
   type AutomationCatalog,
+  type AutomationReschedule,
   type AutomationRun,
   type AutomationRunOutcome,
+  type AutomationRunRecord,
   type AutomationTrigger,
   loadAutomations,
-  saveAutomations,
+  recordAutomationRun,
+  removeAutomation,
+  upsertAutomation,
 } from './automations'
 export {
   type IpcError,

@@ -30,7 +30,10 @@ use crate::commands::{
         AssetFormat, AssetImportRequest, AssetRemoveRequest, AssetSessionCloseRequest,
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
-    automations::{Automation, AutomationCatalog, AutomationRun, AutomationTrigger},
+    automations::{
+        Automation, AutomationCatalog, AutomationReschedule, AutomationRun, AutomationRunRecord,
+        AutomationTrigger,
+    },
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
 };
@@ -62,7 +65,9 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::asset::asset_remove,
             crate::commands::asset::asset_session_close,
             crate::commands::automations::automations_load,
-            crate::commands::automations::automations_save,
+            crate::commands::automations::automations_upsert,
+            crate::commands::automations::automations_remove,
+            crate::commands::automations::automations_record_run,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
             crate::commands::window::window_open_devtools,
             crate::commands::window::window_open_external_url,
@@ -108,6 +113,8 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationRun>()
         .typ::<Automation>()
         .typ::<AutomationCatalog>()
+        .typ::<AutomationReschedule>()
+        .typ::<AutomationRunRecord>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

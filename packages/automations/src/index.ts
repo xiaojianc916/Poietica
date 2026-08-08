@@ -10,7 +10,6 @@ export {
   describeTrigger,
   latestRun,
   nextRunAfter,
-  RUN_HISTORY_LIMIT,
   sessionConfigOf,
   summarize,
 } from './automation'

@@ -13,9 +13,6 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 const SUMMARY_WINDOW = 7 * DAY
 
-/** 账本只留最近这么多次。再往前的正文仍在各自那条对话里。 */
-export const RUN_HISTORY_LIMIT = 50
-
 /**
  * 从 from 起，这条自动化下一次该在什么时候跑。
  *

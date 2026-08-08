@@ -9,33 +9,39 @@ import { commands } from './generated/ipc-bindings'
  * 编译器一个字也不会说。
  *
  * 读不到不是错误：原生侧读不动会退回空目录，所以这里没有 null 分支。
+ *
+ * 每一次写都按 id 寻址，并回给写完之后的整本目录：调用方不必先在本地拼一份新
+ * 目录再整本发回去，也就不存在「我以为的全量」与「盘上的全量」两份真相。REST
+ * 的 PUT/DELETE 与 SQL 的 UPDATE ... WHERE id = ? 都是这个形状。
  */
 
 export type {
   Automation,
   AutomationCatalog,
+  AutomationReschedule,
   AutomationRun,
   AutomationRunOutcome,
+  AutomationRunRecord,
   AutomationTrigger,
 } from './generated/ipc-bindings'
 
-import type { AutomationCatalog } from './generated/ipc-bindings'
+import type { Automation, AutomationCatalog, AutomationRunRecord } from './generated/ipc-bindings'
 
 export function loadAutomations(): Promise<AutomationCatalog> {
   return throughIpc(() => commands.automationsLoad())
 }
 
-/**
- * 写回整本目录。写成功没有值可给。
- *
- * await 放在 throughIpc 的回调里面，不是外面：原生这条命令在 Rust 那侧是
- * Result<(), IpcError>，而 specta 把 () 编码成 null —— 那是传输层的编码，
- * 不是这一层的语义，让它漏出去等于要求每个调用方都知道「保存成功会拿到一个
- * null」。同包 asset.ts 的 removeAsset / closeAssetSession 就是这么写的，
- * 这里照抄那个形状，不为同一件事发明第二种写法。
- */
-export function saveAutomations(catalog: AutomationCatalog): Promise<void> {
-  return throughIpc(async () => {
-    await commands.automationsSave(catalog)
-  })
+/** 新建或改写一条。账本归原生侧保管，这里送的是定义。 */
+export function upsertAutomation(automation: Automation): Promise<AutomationCatalog> {
+  return throughIpc(() => commands.automationsUpsert(automation))
+}
+
+/** 删掉一条。已经不在的也算删成功 —— 与 HTTP DELETE 同一条语义。 */
+export function removeAutomation(id: string): Promise<AutomationCatalog> {
+  return throughIpc(() => commands.automationsRemove(id))
+}
+
+/** 记一次运行，并按 reschedule 推进日程。 */
+export function recordAutomationRun(record: AutomationRunRecord): Promise<AutomationCatalog> {
+  return throughIpc(() => commands.automationsRecordRun(record))
 }

@@ -300,22 +300,52 @@ async assetSessionClose(request: AssetSessionCloseRequest) : Promise<null> {
  * Returns an error when the store cannot be opened, or when the stored
  * catalog cannot be parsed. In that case the unreadable original is first
  * moved to the automations.corrupt backup key: falling back to an empty
- * catalog without keeping the original would let the next save overwrite
+ * catalog without keeping the original would let the next write overwrite
  * the only copy of the user's automations.
  */
 async automationsLoad() : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_load");
 },
 /**
- * Persists the automations.
+ * Creates or replaces one automation and returns the catalog as written.
+ * 
+ * The run ledger is not taken from the caller: it belongs to this side, so the
+ * stored runs are kept and the incoming ones ignored. A caller that forgot to
+ * send them would otherwise erase the history.
  * 
  * # Errors
  * 
  * Returns an error when the store cannot be opened, when the catalog cannot be
  * serialized, or when the write does not reach disk.
  */
-async automationsSave(catalog: AutomationCatalog) : Promise<null> {
-    return await TAURI_INVOKE("automations_save", { catalog });
+async automationsUpsert(automation: Automation) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_upsert", { automation });
+},
+/**
+ * Removes one automation and returns the catalog as written.
+ * 
+ * Removing something that is already gone is a success, not an error: the
+ * caller asked for a state and that state already holds. HTTP DELETE is
+ * specified the same way.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened, when the catalog cannot be
+ * serialized, or when the write does not reach disk.
+ */
+async automationsRemove(id: string) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_remove", { id });
+},
+/**
+ * Records one run and advances the schedule, returning the catalog as written.
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened, when the catalog cannot be
+ * serialized, or when the write does not reach disk.
+ */
+async automationsRecordRun(record: AutomationRunRecord) : Promise<AutomationCatalog> {
+    return await TAURI_INVOKE("automations_record_run", { record });
 },
 /**
  * Returns and consumes the previous native process crash report.
@@ -1226,8 +1256,20 @@ nextRunAt: string | null;
  * BTreeMap 而非 HashMap：写进 JSON 的键序要稳定，否则每次保存都是一次
  * 无意义的磁盘差异。生成的 TypeScript 因此是 Partial<Record<..>>。
  */
-sessionConfig?: Partial<{ [key in string]: string }>; runs: AutomationRun[] }
+sessionConfig?: Partial<{ [key in string]: string }>; 
+/**
+ * 运行账本。归这一侧所有 —— 见 automations_upsert。
+ */
+runs: AutomationRun[] }
 export type AutomationCatalog = { version: number; automations: Automation[] }
+/**
+ * 一次运行跑完之后，日程该怎么走。
+ * 
+ * 由发起那次运行的一侧算出来、随记账一起提交；这一侧只做比对，不重算。手动
+ * 试运行落在 Keep 上：cron、systemd timer 与 Kubernetes CronJob 的手动触发
+ * 都不改写周期计划，这里同一条规矩。
+ */
+export type AutomationReschedule = { kind: "keep" } | { kind: "advance"; from: string; to: string | null }
 /**
  * 一次运行的账目。
  * 
@@ -1244,6 +1286,10 @@ threadId: string | null;
  */
 startedAt: string; outcome: AutomationRunOutcome }
 export type AutomationRunOutcome = "succeeded" | "failed"
+/**
+ * 一次运行的提交：记一笔账，并按上面的判定推进日程。
+ */
+export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
 /**
  * 触发条件。
  * 
