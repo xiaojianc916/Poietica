@@ -4,8 +4,12 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, PoisonError};
-use tauri::{AppHandle, Wry, command};
+use std::time::Duration;
+use tauri::{AppHandle, Wry, async_runtime, command};
 use tauri_plugin_store::{Store, StoreExt};
+use tauri_specta::Event;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tokio::time::{Instant, MissedTickBehavior, interval_at};
 
 type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -14,6 +18,13 @@ type AutomationsCommandResult<T> = std::result::Result<T, IpcError>;
 /// 常量在这一侧而不在渲染进程：账本归这里所有，裁剪是它自己的不变量。放在
 /// 调用方那侧，任何一条没走那段代码的写入都会让账本无限长下去。
 const RUN_HISTORY_LIMIT: usize = 50;
+
+/// 多久看一眼日程。
+///
+/// 心跳只决定「多久看一眼」，不决定「到没到期」—— 后者由墙钟时间戳比对回答
+/// （见 due_at）。所以定时器漂了、机器睡过去了，都不会让某一次到期丢掉，只会
+/// 让它晚一点被发现。cron 守护进程也是这个形状：醒来，自己不记时间。
+const TICK: Duration = Duration::from_secs(30);
 
 /*
  * 目录文件的写入串行化。
@@ -309,4 +320,123 @@ pub async fn automations_record_run(
         }
     })
     .map_err(IpcError::from)
+}
+
+/// 一条自动化到期了。原生侧敲的那一下钟。
+///
+/// 递过去的是整行，不是一个 id：到期与否由这一侧判定，被判定的那一行也该由这
+/// 一侧交出去。让渲染层拿 id 回自己的副本里查，等于把判据和被判据的对象拆到两
+/// 个进程里各存一份，而那份副本可能已经旧了。
+///
+/// 范式同 updates.rs 的 UpdateProgress：事件名与 payload 类型由 collect_events!
+/// 一并导出，渲染层不手抄任何一个。Event 派生要求 Deserialize，它只服务于这条
+/// 生成通道。
+#[derive(Clone, Debug, Deserialize, Event, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationDue {
+    pub automation: Automation,
+}
+
+/// 这一行现在该跑了吗。
+fn due_at(automation: &Automation, now: OffsetDateTime) -> bool {
+    if !automation.enabled {
+        return false;
+    }
+
+    let Some(next) = automation.next_run_at.as_deref() else {
+        return false;
+    };
+
+    match OffsetDateTime::parse(next, &Rfc3339) {
+        Ok(at) => at <= now,
+        Err(cause) => {
+            /*
+             * 读不懂的时刻不当成「到期了」：那会让这一行在每个心跳上被点一次火。
+             * 但也不静默 —— 它只可能来自被外部改坏的目录文件。
+             */
+            let id = &automation.id;
+
+            log::warn!("automation {id} has an unreadable next run time: {cause}");
+
+            false
+        }
+    }
+}
+
+/// 眼下已经到期的那些行。
+fn due_now(app: &AppHandle) -> Result<Vec<Automation>> {
+    let store = open(app)?;
+    let catalog = read_catalog(&store)?;
+    let now = OffsetDateTime::now_utc();
+
+    Ok(catalog
+        .automations
+        .into_iter()
+        .filter(|automation| due_at(automation, now))
+        .collect())
+}
+
+/// 敲钟：把已经到期的每一行递给渲染层。
+///
+/// 至少一次，不是恰好一次。日程要到渲染层把这次运行记上账
+/// （automations_record_run）才推进，在那之前每个心跳都会再敲一次同一行，由接收
+/// 侧按 id 去重（automation-store.ts 的 inFlight）。反过来做才是错的：先推进日程
+/// 再投递，投递失败的那一次就永远地丢了。
+fn ring(app: &AppHandle) -> Result<()> {
+    for automation in due_now(app)? {
+        if let Err(error) = (AutomationDue { automation }).emit(app) {
+            /*
+             * 投不出去只影响这一行，而且下一个心跳还会再来一次。为它中断整轮扫描，
+             * 等于让一行的故障拖住其余每一行。
+             */
+            log::warn!("could not announce a due automation: {error}");
+        }
+    }
+
+    Ok(())
+}
+
+/// 起表。进程级，与应用同寿。
+///
+/// 表在这一侧走，不在 webview 里。渲染进程的定时器在页面隐藏时会被平台降频，而
+/// 这个应用本来就带托盘、隐藏到托盘是常态 —— 把闹钟放在会被降频的那一侧，等于让
+/// 「后台自动跑」在最需要它的时候最不准。
+///
+/// 第一下等满一个心跳：启动那一刻的补跑由 automations_sweep 负责，它在渲染层挂好
+/// 监听之后才发，所以不会敲空。
+pub fn watch(app: &AppHandle) {
+    let app = app.clone();
+
+    async_runtime::spawn(async move {
+        let mut ticks = interval_at(Instant::now() + TICK, TICK);
+
+        /*
+         * 默认是 Burst：机器睡两小时再醒来，tokio 会把错过的那些下连着补完。这里
+         * 一下就够 —— 到期与否看的是墙钟，不是敲了几下。
+         */
+        ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+        loop {
+            ticks.tick().await;
+
+            if let Err(cause) = ring(&app) {
+                log::warn!("could not read the automation catalog: {cause}");
+            }
+        }
+    });
+}
+
+/// Announces every automation whose next run time has already passed.
+///
+/// 渲染层挂好监听之后调它一次：心跳的下一下最远在 TICK 之后，而关机期间错过的那
+/// 次不该等那么久。它与心跳走同一段 ring，不是第二套到期判定。
+///
+/// # Errors
+///
+/// Returns an error when the store cannot be opened, or when the stored catalog
+/// cannot be parsed.
+#[command]
+#[specta::specta]
+pub async fn automations_sweep(app: AppHandle) -> AutomationsCommandResult<()> {
+    ring(&app).map_err(IpcError::from)
 }

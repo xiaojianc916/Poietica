@@ -347,6 +347,20 @@ async automationsRemove(id: string) : Promise<AutomationCatalog> {
 async automationsRecordRun(record: AutomationRunRecord) : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_record_run", { record });
 },
+/**
+ * Announces every automation whose next run time has already passed.
+ * 
+ * 渲染层挂好监听之后调它一次：心跳的下一下最远在 TICK 之后，而关机期间错过的那
+ * 次不该等那么久。它与心跳走同一段 ring，不是第二套到期判定。
+ * 
+ * # Errors
+ * 
+ * Returns an error when the store cannot be opened, or when the stored catalog
+ * cannot be parsed.
+ */
+async automationsSweep() : Promise<null> {
+    return await TAURI_INVOKE("automations_sweep");
+},
 async pluginsCatalogRead() : Promise<string | null> {
     return await TAURI_INVOKE("plugins_catalog_read");
 },
@@ -725,8 +739,10 @@ async workspacePickRoot() : Promise<string | null> {
 
 
 export const events = __makeEvents__<{
+automationDue: AutomationDue,
 updateProgress: UpdateProgress
 }>({
+automationDue: "automation-due",
 updateProgress: "update-progress"
 })
 
@@ -1304,6 +1320,18 @@ sessionConfig?: Partial<{ [key in string]: string }>;
  */
 runs: AutomationRun[] }
 export type AutomationCatalog = { version: number; automations: Automation[] }
+/**
+ * 一条自动化到期了。原生侧敲的那一下钟。
+ * 
+ * 递过去的是整行，不是一个 id：到期与否由这一侧判定，被判定的那一行也该由这
+ * 一侧交出去。让渲染层拿 id 回自己的副本里查，等于把判据和被判据的对象拆到两
+ * 个进程里各存一份，而那份副本可能已经旧了。
+ * 
+ * 范式同 updates.rs 的 UpdateProgress：事件名与 payload 类型由 collect_events!
+ * 一并导出，渲染层不手抄任何一个。Event 派生要求 Deserialize，它只服务于这条
+ * 生成通道。
+ */
+export type AutomationDue = { automation: Automation }
 /**
  * 一次运行跑完之后，日程该怎么走。
  * 

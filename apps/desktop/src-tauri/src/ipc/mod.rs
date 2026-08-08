@@ -31,8 +31,8 @@ use crate::commands::{
         AssetSessionResult, AssetUploadRequest, AssetUploadResult,
     },
     automations::{
-        Automation, AutomationCatalog, AutomationReschedule, AutomationRun, AutomationRunRecord,
-        AutomationTrigger,
+        Automation, AutomationCatalog, AutomationDue, AutomationReschedule, AutomationRun,
+        AutomationRunRecord, AutomationTrigger,
     },
     plugins::{PluginCommitRequest, PluginFetch, PluginFileRequest, PluginPayload, PluginStaged},
     settings::{AppSettings, PrivacySettings},
@@ -69,6 +69,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_upsert,
             crate::commands::automations::automations_remove,
             crate::commands::automations::automations_record_run,
+            crate::commands::automations::automations_sweep,
             crate::commands::plugins::plugins_catalog_read,
             crate::commands::plugins::plugins_catalog_refresh,
             crate::commands::plugins::plugins_commit,
@@ -101,7 +102,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::storage::storage_data_directory,
             crate::commands::workspace::workspace_pick_root,
         ])
-        .events(tauri_specta::collect_events![UpdateProgress])
+        .events(tauri_specta::collect_events![AutomationDue, UpdateProgress])
         .typ::<AgentPromptRequest>()
         .typ::<AgentPromptResult>()
         .typ::<AgentResolvePermissionRequest>()

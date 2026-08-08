@@ -35,7 +35,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-time = { workspace = true, features = ["formatting"] }
+time = { workspace = true, features = ["formatting", "parsing"] }
 toml_edit.workspace = true
 uuid.workspace = true
 poietica-agent-runtime-native = { path = "../../../crates/agent-runtime" }

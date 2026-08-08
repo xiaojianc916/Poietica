@@ -17,7 +17,7 @@ import {
   subscribeAgent,
 } from '../assistant/agent-session'
 import { ThreadsProvider } from '../assistant/threads-provider'
-import { AutomationScheduler } from '../automations/automation-runtime'
+import { AutomationDispatcher } from '../automations/automation-runtime'
 import { useWindowChrome } from '../chrome/use-window-chrome'
 import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
@@ -289,10 +289,11 @@ export function AppShell({ runtime }: AppShellProps) {
     <AgentDialectContext value={dialect}>
       <ThreadsProvider>
         {/*
-         * 无渲染产出，只是让自动化的心跳与应用同寿。放在 ThreadsProvider 之内是
-         * 硬要求：一次运行要开出一条对话，而开对话的动作出自这个 provider。
+         * 无渲染产出，只是让「到期时做什么」与应用同寿；表本身在原生侧走。放在
+         * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
+         * 自这个 provider。
          */}
-        <AutomationScheduler session={runtime.agentSession} />
+        <AutomationDispatcher session={runtime.agentSession} />
 
         {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是

@@ -10,6 +10,7 @@ import {
   recordAutomationRun,
   removeAutomation,
   upsertAutomation,
+  watchAutomations,
 } from '@poietica/ipc'
 import { warn } from '@poietica/observability'
 
@@ -26,11 +27,11 @@ import { type AutomationDraft, nextOccurrence, nextRunAfter, sameTrigger } from 
  * 拿它当新的快照。于是没有「先改内存、再补写盘」的窗口，写盘失败时屏幕上也不会
  * 留着一个盘上并不存在的状态。
  *
- * 调度只有一个心跳，真相在 nextRunAt 上：心跳只是叫醒，不是时钟。因此关机期间
- * 错过的那次会在 start() 的第一次 check 里补跑，而不是被静默跳过。
+ * 表不在这里。到期与否由原生侧判定（src-tauri 的 commands/automations.rs），到
+ * 期的那一行整条递过来 —— 这里不再拿手上那份可能已经旧了的副本去比时间，也不再养
+ * 一个会被平台降频的 setInterval。这一层剩下的只有两件事：把那一行交给 dispatch，
+ * 然后把这次运行记上账。
  */
-
-const TICK = 30_000
 
 /**
  * 到期时怎么跑。由组合根注入 —— 这一层不认识 agent，也不认识工作台。
@@ -195,21 +196,6 @@ export function createAutomationStore(): AutomationStore {
     command(() => recordAutomationRun({ id: automation.id, run, reschedule }))
   }
 
-  /** 到期判定。启动时也走这一段，于是关机期间错过的那次就是「已经到期」。 */
-  function check(): void {
-    const now = Date.now()
-
-    for (const automation of snapshot.automations) {
-      if (!automation.enabled || automation.nextRunAt === null) {
-        continue
-      }
-
-      if (Date.parse(automation.nextRunAt) <= now) {
-        void fire(automation, 'schedule')
-      }
-    }
-  }
-
   return {
     getSnapshot: () => snapshot,
 
@@ -305,20 +291,40 @@ export function createAutomationStore(): AutomationStore {
 
       const settle = ticket()
 
+      /*
+       * 这一次读取只为画列表，与「什么时候跑」无关：到期的那一行由原生侧递过来，
+       * 不从这份快照里查。所以读失败只是列表空着，日程照走。
+       */
       void loadAutomations()
         .then((catalog) => {
           settle(catalog.automations)
-          check()
         })
         .catch((cause: unknown) => {
           warn('自动化列表读取失败', { scope: 'automations', cause })
           settle([])
         })
 
-      const timer = setInterval(check, TICK)
+      let stop: (() => void) | null = null
+      let stopped = false
+
+      void watchAutomations((automation) => {
+        void fire(automation, 'schedule')
+      })
+        .then((off) => {
+          stop = off
+
+          /* 兑现可能落在清理之后：就地摘表，别留一个悬空的监听。 */
+          if (stopped) {
+            off()
+          }
+        })
+        .catch((cause: unknown) => {
+          warn('自动化调度没能启动', { scope: 'automations', cause })
+        })
 
       return () => {
-        clearInterval(timer)
+        stopped = true
+        stop?.()
         dispatch = null
       }
     },

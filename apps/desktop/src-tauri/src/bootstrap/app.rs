@@ -115,6 +115,12 @@ pub fn build() -> tauri::Builder<Wry> {
             app.store(paths::settings_store(handle)?)?;
             app.store(paths::agents_store(handle)?)?;
             app.store(paths::automations_store(handle)?)?;
+
+            /*
+             * 自动化的表在这里起，进程级：闹钟不该活在会被隐藏、会被整页重载的那
+             * 一侧。谁创建谁负责 —— 这里创建，随进程结束。
+             */
+            commands::automations::watch(handle);
             let _managed = app.manage(commands::agent::runtime::AgentRuntime::new(app.handle())?);
             crate::diagnostics::install(app.handle())?;
             tray::install(app.handle())?;

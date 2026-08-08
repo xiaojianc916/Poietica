@@ -13,23 +13,25 @@ import { useThreadsActions } from '../assistant/threads-context'
  */
 export const automationStore = createAutomationStore()
 
-export interface AutomationSchedulerProps {
+export interface AutomationDispatcherProps {
   readonly session: AgentSessionPort
 }
 
 /**
- * 调度器的挂载点。
+ * 「到期时做什么」的挂载点。
  *
- * 无渲染产出，只负责「让心跳活着」。它必须挂在 ThreadsProvider 之内、而且与
- * 应用同寿：挂在自动化那一格里的话，人切走标签页自动化就停摆了 —— 那正好是
- * 自动化唯一的意义所在。
+ * 它不调度 —— 表在原生侧走（src-tauri 的 commands/automations.rs）。这里只做一件
+ * 事：把 dispatch 交给 store，并让那条订阅与应用同寿。挂在自动化那一格里的话，人
+ * 切走标签页就没人接到期了 —— 而那正好是自动化唯一的意义所在。
  *
- * 「到期时做什么」在这里注入，不在 @poietica/automations 里：那一层不认识
- * agent，也不认识工作台。一次运行就是开出一条普通对话、把指令说进去 —— 说话
- * 与人按下发送键走的是同一条管线（TranscriptStore.send），自动化不另立一套
- * 执行器，也不另存一份运行日志。
+ * 必须挂在 ThreadsProvider 之内：一次运行要开出一条对话，而开对话的动作出自那个
+ * provider。
+ *
+ * 注入在这里，不在 @poietica/automations 里：那一层不认识 agent，也不认识工作台。
+ * 一次运行就是开出一条普通对话、把指令说进去 —— 说话与人按下发送键走的是同一条
+ * 管线（TranscriptStore.send），自动化不另立一套执行器，也不另存一份运行日志。
  */
-export function AutomationScheduler({ session }: AutomationSchedulerProps) {
+export function AutomationDispatcher({ session }: AutomationDispatcherProps) {
   const threads = useThreadsActions()
   const transcripts = useTranscripts()
 

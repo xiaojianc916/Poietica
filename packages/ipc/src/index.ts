@@ -52,6 +52,7 @@ export {
   recordAutomationRun,
   removeAutomation,
   upsertAutomation,
+  watchAutomations,
 } from './automations'
 export {
   type IpcError,
