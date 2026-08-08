@@ -135,18 +135,18 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.8)
+      '@poietica/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@poietica/agent-catalog':
+        specifier: workspace:*
+        version: link:../../packages/agent-catalog
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../../packages/agent-contract
-      '@poietica/agent-session':
-        specifier: workspace:*
-        version: link:../../packages/agent-session
       '@poietica/agent-ui':
         specifier: workspace:*
         version: link:../../packages/agent-ui
-      '@poietica/agents':
-        specifier: workspace:*
-        version: link:../../packages/agents
       '@poietica/automations':
         specifier: workspace:*
         version: link:../../packages/automations
@@ -212,30 +212,14 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/agent-contract:
+  packages/agent:
     dependencies:
-      '@agentclientprotocol/sdk':
-        specifier: 1.3.0
-        version: 1.3.0(zod@4.4.3)
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
-
-  packages/agent-session:
-    dependencies:
+      '@poietica/agent-catalog':
+        specifier: workspace:*
+        version: link:../agent-catalog
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract
-      '@poietica/agent-timeline':
-        specifier: workspace:*
-        version: link:../agent-timeline
-      '@poietica/agents':
-        specifier: workspace:*
-        version: link:../agents
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
@@ -256,11 +240,27 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/agent-timeline:
+  packages/agent-catalog:
     dependencies:
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@7.0.2)
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/agent-contract:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 1.3.0
+        version: 1.3.0(zod@4.4.3)
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -274,15 +274,12 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.8)
+      '@poietica/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract
-      '@poietica/agent-session':
-        specifier: workspace:*
-        version: link:../agent-session
-      '@poietica/agent-timeline':
-        specifier: workspace:*
-        version: link:../agent-timeline
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
@@ -345,30 +342,14 @@ importers:
         specifier: 'catalog:'
         version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/agents:
-    dependencies:
-      '@poietica/agent-contract':
-        specifier: workspace:*
-        version: link:../agent-contract
-      valibot:
-        specifier: 'catalog:'
-        version: 1.4.2(typescript@7.0.2)
-    devDependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@26.1.2)(vite@8.2.1(@types/node@26.1.2)(jiti@2.7.0)(yaml@2.9.0))
-
   packages/automations:
     dependencies:
+      '@poietica/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract
-      '@poietica/agent-session':
-        specifier: workspace:*
-        version: link:../agent-session
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
@@ -416,12 +397,12 @@ importers:
 
   packages/desktop-adapters:
     dependencies:
+      '@poietica/agent-catalog':
+        specifier: workspace:*
+        version: link:../agent-catalog
       '@poietica/agent-ui':
         specifier: workspace:*
         version: link:../agent-ui
-      '@poietica/agents':
-        specifier: workspace:*
-        version: link:../agents
       '@poietica/ipc':
         specifier: workspace:*
         version: link:../ipc
@@ -500,12 +481,12 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.8)
-      '@poietica/agent-timeline':
+      '@poietica/agent':
         specifier: workspace:*
-        version: link:../agent-timeline
-      '@poietica/agents':
+        version: link:../agent
+      '@poietica/agent-catalog':
         specifier: workspace:*
-        version: link:../agents
+        version: link:../agent-catalog
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
@@ -586,12 +567,12 @@ importers:
       '@mynaui/icons-react':
         specifier: 'catalog:'
         version: 0.4.11(react@19.2.8)
+      '@poietica/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@poietica/agent-contract':
         specifier: workspace:*
         version: link:../agent-contract
-      '@poietica/agent-session':
-        specifier: workspace:*
-        version: link:../agent-session
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
