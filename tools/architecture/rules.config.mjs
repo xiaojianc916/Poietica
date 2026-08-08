@@ -68,8 +68,8 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
  * 「谁可以依赖谁」，抄出来的是第二个真相。
  *
  * 上一版抄了：按包名拼出十五条正则去扫源文件的 import 说明符，允许集是
- * tiers.slice(0, index + 1) —— 含自己那一层。于是 domain 层三个包、features 层
- * 五个包，同层互指一律零约束；而七层里另外四层各只有一个包，层内无从互指。
+ * tiers.slice(0, index + 1) —— 含自己那一层。于是同一层里装了几个包，它们彼此
+ * 互指就一律零约束；而只装了一个包的那些层，层内无从互指。
  * 这张表覆盖的，正是它管不着的地方。
  *
  * 现在它只回答正则回答不了的那个问题：方向。判据落在 manifest 的边上，违规位置
@@ -78,7 +78,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
 const layers = [
   { name: 'foundations', packages: ['core', 'ui'] },
   { name: 'protocol', packages: ['agent-contract'] },
-  { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
+  { name: 'domain', packages: ['agent', 'agent-catalog'] },
   { name: 'transport', packages: ['ipc'] },
   {
     name: 'features',
@@ -90,16 +90,11 @@ const layers = [
 
 /*
  * 同层依赖默认禁止。同层的包彼此平级，一旦互指，「层」就退化成一个标签 —— 层内
- * 的方向再没有任何东西约束。仅有的两条列在这里并各自附理由；对应的 manifest 边
- * 一旦消失，这里的条目就成了过期豁免，规则会反过来把它报出来。
+ * 的方向再没有任何东西约束。仅有的一条列在这里并附理由；对应的 manifest 边一旦
+ * 消失，这里的条目就成了过期豁免，规则会反过来把它报出来。
  */
 const sameLayerDependencies = [
-  {
-    from: 'agent-session',
-    to: 'agent-timeline',
-    reason: '会话状态与 ACP 事件投影是同一条管线的两段，同层同域',
-  },
-  { from: 'agent-session', to: 'agents', reason: '线程按 agentId 定址，名单与线程状态同层同域' },
+  { from: 'agent', to: 'agent-catalog', reason: '线程按 agentId 定址，名单与线程状态同层同域' },
 ]
 
 /* 只有这三个包可以直连原生宿主。判据落在 manifest：没声明的包在 pnpm 下解析不到。 */
@@ -421,7 +416,7 @@ const manifestOrchestrationDefects = (file, scripts) =>
 
 /* pnpm-workspace.yaml 声明了 saveExact，版本只能来自 catalog: 或精确号。 */
 const manifestVersionDefects = (file, manifest) =>
-  ['dependencies', 'devDependencies'].flatMap((block) =>
+  DEPENDENCY_BLOCKS.flatMap((block) =>
     Object.entries(manifest[block] ?? {})
       .filter(([, range]) => /^[\^~]/.test(range))
       .map(([dep, range]) => ({
@@ -624,10 +619,11 @@ const manifestScriptsResolve = async (inventory) => {
 }
 
 /*
- * 工作区依赖图。
+ * 一个 manifest 上算数的依赖块，全仓一份 —— 依赖图与版本判据读的是同一张表。
  *
  * dependencies 与 devDependencies 都算 —— pnpm 与 turbo 都把两者当工作区边，
- * 一条 devDependency 造出来的环同样会卡死 turbo 的 task 图。
+ * 一条 devDependency 造出来的环同样会卡死 turbo 的 task 图。peerDependencies
+ * 同样算：它声明的是宿主必须装上的东西，写成范围就绕开了 saveExact。
  */
 const DEPENDENCY_BLOCKS = ['dependencies', 'devDependencies', 'peerDependencies']
 
@@ -878,9 +874,25 @@ const PREFERENCE_PIPELINE = 'packages/core/src/preference.ts'
 const AGENT_IDENTITY = 'apps/desktop/src/assistant/agent-session.ts'
 const COMPOSITION_ROOT = 'apps/desktop/src/shell/app-shell.tsx'
 
-/* 进程里那一份 agent 选择的产地，和这个包的出口。 */
-const AGENT_CHOICES = 'packages/agent-session/src/agent-capability-store.ts'
-const AGENT_SESSION_ENTRY = 'packages/agent-session/src/index.ts'
+/*
+ * 进程里那一份 agent 选择的产地，和它出包要经过的两道门：session 那一侧的内部桶，
+ * 以及整个包的公共入口。两道门都得让路，否则出口自己会被规则报出来。
+ */
+const AGENT_CHOICES = 'packages/agent/src/session/agent-capability-store.ts'
+const AGENT_ENTRIES = new Set([
+  'packages/agent/src/index.ts',
+  'packages/agent/src/session/index.ts',
+])
+
+/*
+ * 投影那一半不认识 React。
+ *
+ * 合并进同一个包之前，「纯」是靠 manifest 守的：agent-timeline 的依赖表里没有
+ * react，写了在 pnpm 的隔离式 node_modules 下根本解析不到。合并之后 manifest 只
+ * 剩一份，那道墙必须由这里接着立 —— 否则第一个图省事的 useMemo 就会把一段能在
+ * Node 里直接单测的纯投影绑死在渲染器上。测试文件一并算数：纯度是整棵子树的事。
+ */
+const TIMELINE_CORE = 'packages/agent/src/timeline/'
 
 export const rules = [
   {
@@ -937,8 +949,8 @@ export const rules = [
    *
    * SessionControlsStore 的另外四个依赖（端口、配置、转录、通知）本来就是构造时
    * 交进来的，唯独「人选中了哪个模型」曾是 import 进来的两个自由函数。同一个类里
-   * 两套依赖获取方式，后一套让它没法脱离进程单例被构造 —— 这个包最大的两个 store
-   * 因此一行测试都没有，而同目录的 transcript-store 有。
+   * 两套依赖获取方式，后一套让它没法脱离进程单例被构造 —— 依赖是 import 进来的，
+   * 测试就没有地方把替身交进去。
    *
    * 规则守的是方向：产地可以造它，包的出口可以转手，中间的领域代码只能收下别人
    * 交进来的那一份。
@@ -947,9 +959,9 @@ export const rules = [
     id: 'agent-choices-are-injected',
     appliesTo: (file) =>
       isProductionSource(file) &&
-      file.startsWith('packages/agent-session/src/') &&
+      file.startsWith('packages/agent/src/session/') &&
       file !== AGENT_CHOICES &&
-      file !== AGENT_SESSION_ENTRY,
+      !AGENT_ENTRIES.has(file),
     pattern: /\bagentChoices\b/g,
     message: 'agent 选择要构造时交进来，不要 import 进来',
   },
@@ -969,10 +981,16 @@ export const rules = [
     appliesTo: (file) =>
       isProductionSource(file) &&
       file !== AGENT_CHOICES &&
-      file !== AGENT_SESSION_ENTRY &&
+      !AGENT_ENTRIES.has(file) &&
       file !== COMPOSITION_ROOT,
     pattern: /\binstallAgentCapabilityPort\b/g,
     message: 'agent 能力表只在组合根接一次线，不要在渲染层装',
+  },
+  {
+    id: 'timeline-projection-stays-pure',
+    appliesTo: (file) => file.startsWith(TIMELINE_CORE),
+    pattern: /(?<=(?:from|import)\s*\(?\s*['"])react(?:-dom)?(?=['"/])/g,
+    message: 'timeline/ 是纯投影：React 只允许出现在 session/ 与 UI 包',
   },
   ...entryOwnershipRules,
   {

@@ -33,11 +33,35 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 留在用得到它的包的 `__fixtures__/sample-run.ts` 里，而读它的替身已经从公共入口撤下 ——
 一个测试替身挂在主入口上、还把夹具当缺省参数，是产品代码通往 78KB 录像的一条边。
 
-`agents` 是 `agent-registry` 与 `agent-providers` 合并来的。那条边按历史切，
+`agent` 是 `agent-timeline` 与 `agent-session` 合并来的。这条边按历史切：
+`timeline/` 把 ACP 事件投影成可渲染的时间线，`session/` 在它上面管线程、转录与
+可调项 —— 同一条管线的前后两段，前一段的类型就是后一段的输入。分成两个包唯一的
+产物是分层表里的一条同层豁免，而那条豁免的理由逐字写着「同一条管线的两段」：
+豁免本身就是「这道边界表达不了这条关系」的自白。工作区只有一个应用，它本来就同时
+依赖两侧，所以这道包边界从未决定过任何产物的字节数，只决定过谁能 import 谁。
+
+两侧的目录边界留在包内，而且比原来更硬：`timeline/` 至今一行 React 都没有。这件事
+此前靠一份没写 react 的 manifest 守着，现在由 `timeline-projection-stays-pure` 守着 ——
+后者连测试文件一起管，而 manifest 管不到 devDependencies 里已经装了 react 的包。Zed 的
+`acp_thread` 与 codex-rs 的 `thread-store` 是同一种摆法：投影与状态同住一处，纯的那
+一半靠目录隔开。
+
+`agent-catalog` 是 `agent-registry` 与 `agent-providers` 合并来的。那条边按历史切，
 不按职责：两边都以 agentId 定址、都开了同名的每家子目录、注释互相引用对方的
 分法。合并后包内按 agentId 分文件；agent 名单与 provider 解析同处一包，而解析
 那一侧仍然不认识任何一家 —— 它只认调用方递进来的字面量，那道护栏由
 `kimi/__tests__/descriptor.test.ts` 与 `__tests__/provider-state.test.ts` 两边对钉。
+它此前叫 `agents`：复数名词声明的是「这里面有不止一个」，不是这个包负责什么，而同层
+另一个包也在处理 agent。
+
+这个包里没有 model catalog，也没有 provider profile —— 这是结论，不是遗漏。
+`model-provider-profile` 描述的是「启动 agent 时把 base URL、密钥、默认模型注入环境
+变量」：kimi-code 的 providers.md 写明它取凭据时不回落 shell 环境变量，那条路本来就
+不通；那份实现还把 provider 方言枚举成两种、把模型 id 硬编码，而上游的
+`ProviderTypeSchema` 是 `z.string()`，刻意不在解析期枚举 vendor 身份。
+`model-catalog` 则自己去拉 models.dev，而 agent 内部拉的是同一份、写入又必须过它的
+CLI 校验 —— 两份可能不同步的副本里只有一份说得上话。候选模型问 agent 的
+provider catalog list。
 
 ## 强制约束
 
