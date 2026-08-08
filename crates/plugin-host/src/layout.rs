@@ -1,0 +1,149 @@
+use std::path::{Component, Path, PathBuf};
+
+use crate::error::{HostError, Result};
+
+/// 清单的两个位置，前者优先 —— 与上游一致。
+///
+/// 第二条带斜杠：Rust 的 Path 在 Windows 上同样把 '/' 当分隔符，不需要写第二份。
+pub const MANIFEST_FILENAMES: [&str; 2] = ["kimi.plugin.json", ".kimi-plugin/plugin.json"];
+
+/// Windows 的保留字符加两个分隔符。Path::join 不拒绝它们，要到创建文件那一刻
+/// 才失败，而那时暂存区已经写了一半。
+const RESERVED_CHARACTERS: [char; 9] = ['<', '>', ':', '"', '|', '?', '*', '/', '\\'];
+
+const MAX_SEGMENT_LENGTH: usize = 64;
+
+/// 这个字符串能不能当一个目录名用。
+///
+/// 判的是文件系统的事，不是清单的事：清单里 name 合不合法由 packages/plugins 的
+/// 解码器说了算。点开头一律拒绝 —— 这一条同时挡掉 "."、".." 与暂存目录
+/// ".staging"，所以列举托管副本时不需要再写一个特例把它跳过去。
+pub fn is_safe_segment(value: &str) -> bool {
+    if value.is_empty() || value.len() > MAX_SEGMENT_LENGTH || value.starts_with('.') {
+        return false;
+    }
+
+    !value
+        .chars()
+        .any(|character| character.is_control() || RESERVED_CHARACTERS.contains(&character))
+}
+
+/// 把一条相对路径接在根上，并保证结果仍在根里面。
+///
+/// 判据是「每一段都必须是普通名字」：".." 往上跳，而绝对路径与 Windows 盘符前缀
+/// 会让 Path::join 丢掉左边整段 —— join("C:\\x") 返回的是 C:\x。这是 std 写明的行为。
+pub fn resolve_inside(root: &Path, relative: &str) -> Result<PathBuf> {
+    let candidate = Path::new(relative);
+
+    let normal = candidate
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)));
+
+    if relative.is_empty() || !normal {
+        return Err(HostError::UnsafeSegment);
+    }
+
+    Ok(root.join(candidate))
+}
+
+/// 这个目录里的清单在哪。两个位置按上游的优先级依次试。
+pub fn manifest_in(root: &Path) -> Option<PathBuf> {
+    MANIFEST_FILENAMES
+        .iter()
+        .map(|name| root.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
+/// 解出来的那一堆东西里，插件的根在哪。
+///
+/// GitHub 的源码归档把全部内容套在 <repo>-<ref>/ 一层里，本地目录通常没有这一层。
+/// 先看顶层，顶层没有清单再往唯一的那个子目录里看一层 —— 只看一层，且只在顶层
+/// 确实没有清单时才看，插件自己带一个子目录不会被误判成根。
+pub fn locate_root(extracted: &Path) -> Result<PathBuf> {
+    if manifest_in(extracted).is_some() {
+        return Ok(extracted.to_path_buf());
+    }
+
+    let mut children = Vec::new();
+
+    for entry in std::fs::read_dir(extracted)? {
+        children.push(entry?.path());
+    }
+
+    let [only] = children.as_slice() else {
+        return Err(HostError::ManifestMissing);
+    };
+
+    if only.is_dir() && manifest_in(only).is_some() {
+        return Ok(only.clone());
+    }
+
+    Err(HostError::ManifestMissing)
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        reason = "a broken fixture assumption must fail the test loudly"
+    )]
+
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::{is_safe_segment, locate_root, manifest_in, resolve_inside};
+
+    #[test]
+    fn the_staging_directory_is_never_a_plugin_identifier() {
+        assert!(!is_safe_segment(".staging"));
+        assert!(!is_safe_segment(".."));
+        assert!(!is_safe_segment("a/b"));
+        assert!(!is_safe_segment("a\\b"));
+        assert!(is_safe_segment("kimi-datasource"));
+    }
+
+    #[test]
+    fn parent_traversal_never_resolves() {
+        let root = TempDir::new().expect("temporary directory");
+
+        assert!(resolve_inside(root.path(), "../escaped.md").is_err());
+        assert!(resolve_inside(root.path(), "").is_err());
+        assert!(resolve_inside(root.path(), "prompts/system.md").is_ok());
+    }
+
+    #[test]
+    fn the_first_manifest_location_wins() {
+        let root = TempDir::new().expect("temporary directory");
+
+        fs::create_dir_all(root.path().join(".kimi-plugin")).expect("nested directory");
+        fs::write(root.path().join(".kimi-plugin/plugin.json"), "{}").expect("nested manifest");
+        fs::write(root.path().join("kimi.plugin.json"), "{}").expect("top manifest");
+
+        assert!(
+            manifest_in(root.path())
+                .expect("a manifest")
+                .ends_with("kimi.plugin.json")
+        );
+    }
+
+    #[test]
+    fn a_single_nested_directory_is_unwrapped() {
+        let root = TempDir::new().expect("temporary directory");
+        let nested = root.path().join("kimi-code-main");
+
+        fs::create_dir_all(&nested).expect("nested directory");
+        fs::write(nested.join("kimi.plugin.json"), "{}").expect("manifest");
+
+        assert_eq!(locate_root(root.path()).expect("a root"), nested);
+    }
+
+    #[test]
+    fn a_source_without_a_manifest_is_rejected() {
+        let root = TempDir::new().expect("temporary directory");
+
+        fs::write(root.path().join("README.md"), "no manifest").expect("stray file");
+
+        assert!(locate_root(root.path()).is_err());
+    }
+}

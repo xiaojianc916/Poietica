@@ -26,7 +26,7 @@ tauri-build.workspace = true
 # 渲染层送来的图片是 base64；字节要落盘就得解出来。这是标准做法里最没有
 # 争议的一件：手写一个 base64 解码器不会比它更快，只会多一处要自己维护的
 # 边界条件（填充、换行、URL 变体）。
-base64 = "0.22"
+base64.workspace = true
 # 版本比较交给 cargo 自己用的那个实现，不手搓字符串比大小。
 semver = "1"
 hex.workspace = true
@@ -35,7 +35,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-time = { version = "0.3", features = ["formatting"] }
+time = { workspace = true, features = ["formatting"] }
 toml_edit.workspace = true
 uuid.workspace = true
 poietica-agent-runtime-native = { path = "../../../crates/agent-runtime" }
@@ -77,6 +77,7 @@ specta-typescript.workspace = true
 tauri-specta.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+poietica-plugin-host-native = { version = "0.1.6", path = "../../../crates/plugin-host" }
 
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }

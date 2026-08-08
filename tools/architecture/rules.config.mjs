@@ -271,7 +271,7 @@ const capabilityScopedDirectoryNames = (inventory) =>
  * 定义在 native crate，不在 src-tauri」判不了 —— 那需要语义分析，不是正则或
  * 清单能做的事，所以不假装它被守住了。
  */
-const nativeCrates = ['agent-runtime', 'persistence']
+const nativeCrates = ['agent-runtime', 'persistence', 'plugin-host']
 
 const nativeCratesStayHostAgnostic = async (inventory) => {
   const present = new Set(inventory.files)

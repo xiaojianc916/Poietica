@@ -4,6 +4,7 @@ pub mod asset;
 pub mod automations;
 pub mod catalog_server;
 pub mod diagnostics;
+pub mod plugins;
 pub mod process;
 pub mod settings;
 pub mod storage;
