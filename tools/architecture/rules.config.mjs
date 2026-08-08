@@ -77,7 +77,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
 const tiers = [
   { name: 'foundations', packages: ['core', 'observability', 'serialization', 'ui'] },
   { name: 'protocol', packages: ['acp'] },
-  { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
+  { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents', 'plugins'] },
   { name: 'transport', packages: ['ipc'] },
   { name: 'features', packages: ['automations', 'agent-ui', 'settings', 'workspace'] },
   { name: 'composition', packages: ['desktop-adapters'] },
