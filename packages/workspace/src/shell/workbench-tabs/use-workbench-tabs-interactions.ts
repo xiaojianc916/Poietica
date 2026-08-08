@@ -293,15 +293,18 @@ export function useWorkbenchTabsInteractions({
   }, [])
 
   /*
-   * 溢出时的边缘自动滚动。速度曲线是纯函数，这里只负责按真实帧间隔把它积分成位移——乘
-   * deltaTime 而不是每帧固定像素，否则 144Hz 上会比 60Hz 快 2.4 倍。
+   * 会话的帧循环：先按边缘自动滚动，再落一次布局。
    *
-   * 不自己夹取边界：scrollLeft 的赋值由平台夹进可滚动范围，再夹一遍就是第二份真相。
+   * 速度曲线是纯函数，这里只负责按真实帧间隔把它积分成位移——乘 deltaTime 而不是每帧固定
+   * 像素，否则 144Hz 上会比 60Hz 快 2.4 倍。不自己夹取边界：scrollLeft 的赋值由平台夹进
+   * 可滚动范围，再夹一遍就是第二份真相。
    *
-   * 滚完立刻重算布局：指针没动，但内容坐标系动了，被拖的那一格必须跟着内容走，否则它会被
-   * 滚动条从指针底下抽走。
+   * 布局每帧只落一次，且只在这里落。pointermove 的派发率由设备决定，高回报率鼠标每秒上千
+   * 次，跟着它逐事件重算，同一帧里会把整条标签条的位移算上十几遍，而屏幕只取最后一遍。
+   * 滚动同理：指针没动，但内容坐标系动了，被拖的那一格必须跟着内容走，否则它会被滚动条从
+   * 指针底下抽走。两件事同一帧发生时，也只算一遍。
    */
-  const startAutoScroll = useCallback(
+  const startSessionLoop = useCallback(
     (session: ReorderSession, scroller: HTMLDivElement) => {
       let lastTime: number | null = null
 
@@ -322,9 +325,9 @@ export function useWorkbenchTabsInteractions({
 
         if (velocity !== 0 && elapsed > 0) {
           scroller.scrollLeft += velocity * elapsed
-
-          applyLayout(session, scroller)
         }
+
+        applyLayout(session, scroller)
 
         session.frame = requestAnimationFrame(tick)
       }
@@ -467,12 +470,10 @@ export function useWorkbenchTabsInteractions({
 
         setIsReordering(true)
 
-        startAutoScroll(session, scroller)
+        startSessionLoop(session, scroller)
       }
-
-      applyLayout(session, scroller)
     },
-    [applyLayout, endSession, getTabElement, scrollerRef, startAutoScroll, tabs],
+    [endSession, getTabElement, scrollerRef, startSessionLoop, tabs],
   )
 
   const onPointerUp = useCallback(

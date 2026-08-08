@@ -128,6 +128,27 @@ export interface PluginStoreOptions {
   readonly now: () => string
 }
 
+/*
+ * 盘上那一份。
+ *
+ * 目录里有哪些插件、清单怎么写、提示词正文是什么，只在装、卸、启动这三件事发生时变。
+ * 开关、出身、装载时刻只在人拨开关时变。两者共用一条刷新路径，代价就是拨一下开关要把
+ * plugins/ 整个重扫一遍 —— 为了得知一个已经在内存里的布尔值。
+ *
+ * preferences.ts 顶上引的 VS Code、Obsidian、Zed 三家，扫描与开关本来就是分开的两套：
+ * VS Code 切 enablement 不触发 extension scan，Obsidian 的 enabledPlugins 不触发 manifest
+ * 扫描。方向那一半抄对了，刷新路径这一半没有。
+ */
+interface ScannedPlugin {
+  /** plugins/ 下的目录名。偏好按它寻址，清单里的 name 未必与它相同。 */
+  readonly pluginId: string
+  readonly manifest: PluginManifest
+  readonly systemPromptText: string | undefined
+  readonly diagnostics: readonly PluginDiagnostic[]
+  /** 清单读不出来的目录仍然装着，但它不受偏好里那个开关支配。 */
+  readonly readable: boolean
+}
+
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
 
@@ -137,6 +158,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   const origin = parseMarketplaceOrigin(options.marketplaceUrl)
 
+  let scanned: readonly ScannedPlugin[] = []
   let preferences = new Map<string, PluginPreference>()
   let snapshot: PluginsViewModel = {
     plugins: [],
@@ -162,8 +184,30 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
   }
 
-  function republish(plugins: readonly InstalledPlugin[], loaded: boolean): void {
-    publish({ plugins, contributions: resolveContributions({ plugins }), loaded })
+  /*
+   * 偏好投在扫描结果上，发布出去。
+   *
+   * 这一步没有 I/O。磁盘那一份在 scanned 里，人拨过的开关在 preferences 里，屏幕上那一份
+   * 是两者的投影，不是第三份需要各自同步的副本。走到这里就意味着盘上那一份已经读过一遍，
+   * 所以 loaded 恒真。
+   */
+  function republish(): void {
+    const plugins: readonly InstalledPlugin[] = scanned.map((entry) => {
+      const preference = preferences.get(entry.pluginId) ?? DEFAULT_PREFERENCE
+
+      return {
+        manifest: entry.manifest,
+        source: preference.source,
+        trust: preference.trust,
+        enabled: entry.readable && preference.enabled,
+        installedAt: preference.installedAt,
+        systemPromptText: entry.systemPromptText,
+        disabledMcpServers: preference.disabledMcpServers,
+        diagnostics: entry.diagnostics,
+      }
+    })
+
+    publish({ plugins, contributions: resolveContributions({ plugins }), loaded: true })
   }
 
   /*
@@ -203,35 +247,39 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return clamped.text
   }
 
-  async function materialize(pluginId: string, manifestJson: string): Promise<InstalledPlugin> {
-    const preference = preferences.get(pluginId) ?? DEFAULT_PREFERENCE
+  /*
+   * 扫一个目录：把清单解出来，把提示词读进来。只有磁盘上那一份，不含任何偏好。
+   *
+   * 这是这条路上全部的开销所在 —— 一次 JSON 解析、一次 schema 校验、每条 file 来源一趟
+   * 原生读文件。它只在装、卸、启动时发生。
+   */
+  async function scan(pluginId: string, manifestJson: string): Promise<ScannedPlugin> {
     const decoded = decodeManifestJson(pluginId, manifestJson)
 
     if (decoded.kind === 'rejected') {
       return {
+        pluginId,
         manifest: unreadableManifest(pluginId),
-        source: preference.source,
-        trust: preference.trust,
-        enabled: false,
-        installedAt: preference.installedAt,
         systemPromptText: undefined,
-        disabledMcpServers: preference.disabledMcpServers,
         diagnostics: decoded.diagnostics,
+        readable: false,
       }
     }
 
     const diagnostics = [...decoded.diagnostics]
 
     return {
+      pluginId,
       manifest: decoded.manifest,
-      source: preference.source,
-      trust: preference.trust,
-      enabled: preference.enabled,
-      installedAt: preference.installedAt,
       systemPromptText: await promptTextOf(pluginId, decoded.manifest.promptSources, diagnostics),
-      disabledMcpServers: preference.disabledMcpServers,
       diagnostics,
+      readable: true,
     }
+  }
+
+  /* 偏好是一个小文件。盘上装了什么不由它决定，所以重读它不必回头再数一遍目录。 */
+  async function readPreferences(): Promise<void> {
+    preferences = new Map(decodePluginPreferences(await readPluginState()))
   }
 
   /*
@@ -240,23 +288,34 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    * 偏好里有、磁盘上没有的那些不是「丢失的插件」，是卸载之后留下的旧记录，忽略即可。
    * 反过来才要紧：磁盘上有、偏好里没有的必须显示成装着的 —— 否则人会在目录里看到
    * 一个「安装」按钮，而那个插件明明已经在盘上了。
+   *
+   * 只有装、卸、启动会走到这里。扫描不读偏好，所以两件事可以并着做。
    */
-  async function loadInstalled(): Promise<readonly InstalledPlugin[]> {
-    const [contents, payloads] = await Promise.all([readPluginState(), listPlugins()])
+  async function rescan(): Promise<void> {
+    const [payloads] = await Promise.all([listPlugins(), readPreferences()])
 
-    preferences = new Map(decodePluginPreferences(contents))
-
-    return Promise.all(
-      payloads.map((payload) => materialize(payload.pluginId, payload.manifestJson)),
+    scanned = await Promise.all(
+      payloads.map((payload) => scan(payload.pluginId, payload.manifestJson)),
     )
   }
 
-  /** 写盘成了才发布。失败不动屏幕：人看到的仍然是盘上那一份。 */
-  function commitPreferences(next: Map<string, PluginPreference>, what: string): void {
+  /*
+   * 写盘成了才发布。失败不动屏幕：人看到的仍然是盘上那一份。
+   *
+   * refresh 说的是这次改动之后还要重新知道什么。拨开关只改偏好，plugins/ 目录一个字节
+   * 没动，重扫一遍是白扫；装与卸改的是目录本身，那才必须回盘上重新数。
+   */
+  function commitPreferences(
+    next: Map<string, PluginPreference>,
+    what: string,
+    refresh: () => Promise<void>,
+  ): void {
     queue = queue.then(async () => {
       try {
         await writePluginState(encodePluginPreferences(next))
-        republish(await loadInstalled(), true)
+        await refresh()
+
+        republish()
       } catch (cause: unknown) {
         warn(what, { scope: 'plugins', cause })
       }
@@ -271,7 +330,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     next.set(pluginId, patch(next.get(pluginId) ?? DEFAULT_PREFERENCE))
 
-    commitPreferences(next, '插件偏好没能写入磁盘，屏幕上仍是磁盘里那一份')
+    commitPreferences(next, '插件偏好没能写入磁盘，屏幕上仍是磁盘里那一份', readPreferences)
   }
 
   function loadCatalog(): void {
@@ -332,11 +391,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     start() {
       queue = queue.then(async () => {
         try {
-          republish(await loadInstalled(), true)
+          await rescan()
         } catch (cause: unknown) {
           warn('插件列表读取失败', { scope: 'plugins', cause })
-          republish([], true)
+
+          scanned = []
         }
+
+        republish()
       })
 
       loadCatalog()
@@ -393,7 +455,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         const next = new Map(preferences)
 
         next.delete(pluginId)
-        commitPreferences(next, '插件已经删掉了，偏好里那一条没抹干净')
+        commitPreferences(next, '插件已经删掉了，偏好里那一条没抹干净', rescan)
       })
     },
 
@@ -533,7 +595,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         installedAt: options.now(),
       })
 
-      commitPreferences(next, '插件装好了，偏好没写进去，下次打开会按默认档显示')
+      commitPreferences(next, '插件装好了，偏好没写进去，下次打开会按默认档显示', rescan)
     })
   }
 
