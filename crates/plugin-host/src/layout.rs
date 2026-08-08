@@ -35,9 +35,12 @@ pub fn is_safe_segment(value: &str) -> bool {
 pub fn resolve_inside(root: &Path, relative: &str) -> Result<PathBuf> {
     let candidate = Path::new(relative);
 
+    // CurDir 一并放行。清单里的路径按上游约定一律以 ./ 开头，而 Path::components 只在
+    // 路径开头保留 '.'（其余位置归一掉），于是 "./skills" 会带一个 CurDir 段进来。它
+    // 跳不出根，拒了它等于拒掉上游的写法本身。
     let normal = candidate
         .components()
-        .all(|component| matches!(component, Component::Normal(_)));
+        .all(|component| matches!(component, Component::CurDir | Component::Normal(_)));
 
     if relative.is_empty() || !normal {
         return Err(HostError::UnsafeSegment);
@@ -96,6 +99,51 @@ pub fn locate_root(extracted: &Path, subdirectory: Option<&str>) -> Result<PathB
     }
 }
 
+/// 目录树里的文件，路径相对 root，按名字排序。
+///
+/// 不跟随符号链接：DirEntry::file_type 按标准库的定义不解引用链接，于是一个链接既
+/// 不是文件也不是目录，两条分支都接不住它。上游的安全约定是「路径解析符号链接之后
+/// 仍须留在插件根内」，而一个指向根外的链接读出来仍然「在根里」—— 不跟随是唯一不用
+/// 二次校验就成立的做法，插件的技能与命令也没有理由是链接。
+///
+/// 深度设上限，是因为向下递归没有天然终点：目录硬链接与挂载点都能造出自引用结构。
+/// 技能最深是 <root>/<name>/SKILL.md，命令也只按目录铺开，八层绰绰有余。
+pub fn list_files(root: &Path) -> std::io::Result<Vec<PathBuf>> {
+    const MAX_DEPTH: usize = 8;
+
+    let mut found = Vec::new();
+    let mut pending = vec![(PathBuf::new(), 0usize)];
+
+    while let Some((relative, depth)) = pending.pop() {
+        for entry in std::fs::read_dir(root.join(&relative))? {
+            let entry = entry?;
+            let raw = entry.file_name();
+
+            let Some(name) = raw.to_str() else {
+                continue;
+            };
+
+            // 点开头的是版本控制、编辑器与打包工具的东西，不是插件内容。
+            if name.starts_with('.') {
+                continue;
+            }
+
+            let kind = entry.file_type()?;
+            let child = relative.join(name);
+
+            if kind.is_file() {
+                found.push(child);
+            } else if kind.is_dir() && depth < MAX_DEPTH {
+                pending.push((child, depth + 1));
+            }
+        }
+    }
+
+    found.sort();
+
+    Ok(found)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(
@@ -104,10 +152,11 @@ mod tests {
     )]
 
     use std::fs;
+    use std::path::PathBuf;
 
     use tempfile::TempDir;
 
-    use super::{is_safe_segment, locate_root, manifest_in, resolve_inside};
+    use super::{is_safe_segment, list_files, locate_root, manifest_in, resolve_inside};
 
     #[test]
     fn the_staging_directory_is_never_a_plugin_identifier() {
@@ -125,6 +174,8 @@ mod tests {
         assert!(resolve_inside(root.path(), "../escaped.md").is_err());
         assert!(resolve_inside(root.path(), "").is_err());
         assert!(resolve_inside(root.path(), "prompts/system.md").is_ok());
+        // 清单里的路径都长这样，拒了它就等于拒了上游写法。
+        assert!(resolve_inside(root.path(), "./skills").is_ok());
     }
 
     #[test]
@@ -170,6 +221,25 @@ mod tests {
         );
         assert!(locate_root(root.path(), Some("plugins/official/kimi-webbridge")).is_err());
         assert!(locate_root(root.path(), Some("../escaped")).is_err());
+    }
+
+    #[test]
+    fn a_listing_walks_down_and_skips_hidden_entries() {
+        let root = TempDir::new().expect("temporary directory");
+
+        fs::create_dir_all(root.path().join("skills/writing-plans")).expect("nested directory");
+        fs::create_dir_all(root.path().join(".git")).expect("hidden directory");
+        fs::write(root.path().join("skills/writing-plans/SKILL.md"), "body").expect("skill");
+        fs::write(root.path().join("skills/flat.md"), "body").expect("flat skill");
+        fs::write(root.path().join(".git/HEAD"), "ref").expect("hidden file");
+
+        assert_eq!(
+            list_files(root.path()).expect("a listing"),
+            vec![
+                PathBuf::from("skills/flat.md"),
+                PathBuf::from("skills/writing-plans/SKILL.md"),
+            ]
+        );
     }
 
     #[test]

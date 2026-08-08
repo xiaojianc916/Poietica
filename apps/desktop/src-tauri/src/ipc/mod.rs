@@ -34,7 +34,10 @@ use crate::commands::{
         Automation, AutomationCatalog, AutomationDue, AutomationReschedule, AutomationRun,
         AutomationRunRecord, AutomationTrigger,
     },
-    plugins::{PluginCommitRequest, PluginFetch, PluginFileRequest, PluginPayload, PluginStaged},
+    plugins::{
+        PluginCommitRequest, PluginFetch, PluginFileRequest, PluginFileText, PluginPayload,
+        PluginStaged, PluginTreeRequest,
+    },
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
 };
@@ -77,6 +80,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::plugins::plugins_list,
             crate::commands::plugins::plugins_prune,
             crate::commands::plugins::plugins_read_text,
+            crate::commands::plugins::plugins_read_tree,
             crate::commands::plugins::plugins_stage,
             crate::commands::plugins::plugins_state_read,
             crate::commands::plugins::plugins_state_write,
@@ -131,7 +135,9 @@ pub fn surface() -> Builder<Wry> {
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()
         .typ::<PluginFileRequest>()
+        .typ::<PluginFileText>()
         .typ::<PluginPayload>()
+        .typ::<PluginTreeRequest>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

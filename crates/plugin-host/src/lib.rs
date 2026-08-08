@@ -11,7 +11,9 @@ mod staging;
 mod text_file;
 
 pub use error::{HostError, Result};
-pub use layout::{MANIFEST_FILENAMES, is_safe_segment, locate_root, manifest_in, resolve_inside};
+pub use layout::{
+    MANIFEST_FILENAMES, is_safe_segment, list_files, locate_root, manifest_in, resolve_inside,
+};
 pub use source::{copy_tree, extract_zip};
 pub use staging::Staging;
 pub use text_file::{read_optional, write_atomic};

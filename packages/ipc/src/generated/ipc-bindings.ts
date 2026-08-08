@@ -394,6 +394,16 @@ async pluginsPrune(keep: string[]) : Promise<string[]> {
 async pluginsReadText(request: PluginFileRequest) : Promise<string> {
     return await TAURI_INVOKE("plugins_read_text", { request });
 },
+/**
+ * 一条声明路径底下的文本文件，一次读齐。
+ * 
+ * 返回 None 表示这条路径不在盘上 —— 清单声明了 ./commands 而目录没跟着发布是常事，
+ * 那是一条诊断，不是一次失败。空数组表示路径在，里面没有匹配后缀的文件。两者要分得
+ * 开，界面上一个说「没装全」，一个说「这里是空的」。
+ */
+async pluginsReadTree(request: PluginTreeRequest) : Promise<PluginFileText[] | null> {
+    return await TAURI_INVOKE("plugins_read_tree", { request });
+},
 async pluginsStage(fetch: PluginFetch) : Promise<PluginStaged> {
     return await TAURI_INVOKE("plugins_stage", { fetch });
 },
@@ -1397,6 +1407,14 @@ export type PluginFileRequest = { pluginId: string;
  * 相对插件根的路径，例如 systemPromptPath 指到的那份提示词。
  */
 relativePath: string }
+/**
+ * 插件根底下的一份文本文件。
+ */
+export type PluginFileText = { 
+/**
+ * 相对插件根，不是相对 relative_path —— 回头要重读它，还得从根算起。
+ */
+relativePath: string; contents: string }
 export type PluginPayload = { pluginId: string; manifestJson: string }
 /**
  * 已经解到暂存区、还没被认领的一份插件。
@@ -1406,6 +1424,19 @@ export type PluginStaged = { stagingId: string;
  * 清单原文。这一层不解析它。
  */
 manifestJson: string }
+/**
+ * 一次子树取用要什么。
+ */
+export type PluginTreeRequest = { pluginId: string; 
+/**
+ * 清单里声明的那条 ./ 路径。它可以指到目录，也可以直接指到一份文件。
+ */
+relativePath: string; 
+/**
+ * 只要文件名以这个结尾的。技能与命令都是 .md，但「哪个后缀算数」是清单的语义，
+ * 由渲染层给 —— 这一层不认识技能，也不认识命令。
+ */
+suffix: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
 export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict; 
 /**

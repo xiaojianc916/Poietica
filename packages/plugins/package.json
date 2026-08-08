@@ -14,7 +14,8 @@
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

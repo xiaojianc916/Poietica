@@ -3,8 +3,10 @@ import type {
   PluginCommitRequest,
   PluginFetch,
   PluginFileRequest,
+  PluginFileText,
   PluginPayload,
   PluginStaged,
+  PluginTreeRequest,
 } from './generated/ipc-bindings'
 import { commands } from './generated/ipc-bindings'
 
@@ -16,8 +18,10 @@ export type {
   PluginCommitRequest,
   PluginFetch,
   PluginFileRequest,
+  PluginFileText,
   PluginPayload,
   PluginStaged,
+  PluginTreeRequest,
 } from './generated/ipc-bindings'
 
 export function listPlugins(): Promise<PluginPayload[]> {
@@ -26,6 +30,11 @@ export function listPlugins(): Promise<PluginPayload[]> {
 
 export function readPluginText(request: PluginFileRequest): Promise<string> {
   return throughIpc(() => commands.pluginsReadText(request))
+}
+
+/* null 表示声明的路径不在盘上；空数组表示路径在，里面没有匹配后缀的文件。 */
+export function readPluginTree(request: PluginTreeRequest): Promise<PluginFileText[] | null> {
+  return throughIpc(() => commands.pluginsReadTree(request))
 }
 
 export function stagePlugin(fetch: PluginFetch): Promise<PluginStaged> {

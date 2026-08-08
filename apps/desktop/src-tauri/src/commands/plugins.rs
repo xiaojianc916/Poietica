@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use poietica_plugin_host_native as host;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,13 @@ type PluginsCommandResult<T> = std::result::Result<T, IpcError>;
 /// 一次下载最多接受这么多字节。没有上限，一个坏掉的直链就能把内存吃光；逐块累加
 /// 意味着服务器谎报 Content-Length 也没有用。
 const MAX_DOWNLOAD_BYTES: usize = 32 * 1024 * 1024;
+
+/// 一次子树读取的上限。插件是外来内容：一个铺了几千份 Markdown 的目录会把渲染层的
+/// 一次刷新变成几十兆字符串，而技能与命令的真实数量是几十条。超了报错，不截断 ——
+/// 截断意味着界面上少了几条技能，却没有任何人知道少了。
+const MAX_TREE_FILES: usize = 512;
+
+const MAX_TREE_BYTES: usize = 8 * 1024 * 1024;
 
 /// 一次取用从哪里拿字节。
 ///
@@ -68,6 +75,27 @@ pub struct PluginFileRequest {
     pub plugin_id: String,
     /// 相对插件根的路径，例如 systemPromptPath 指到的那份提示词。
     pub relative_path: String,
+}
+
+/// 一次子树取用要什么。
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginTreeRequest {
+    pub plugin_id: String,
+    /// 清单里声明的那条 ./ 路径。它可以指到目录，也可以直接指到一份文件。
+    pub relative_path: String,
+    /// 只要文件名以这个结尾的。技能与命令都是 .md，但「哪个后缀算数」是清单的语义，
+    /// 由渲染层给 —— 这一层不认识技能，也不认识命令。
+    pub suffix: String,
+}
+
+/// 插件根底下的一份文本文件。
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginFileText {
+    /// 相对插件根，不是相对 relative_path —— 回头要重读它，还得从根算起。
+    pub relative_path: String,
+    pub contents: String,
 }
 
 #[derive(Debug, Serialize, Type)]
@@ -186,6 +214,95 @@ pub async fn plugins_read_text(
             host::resolve_inside(&directory, &request.relative_path).map_err(plugin_failure)?;
 
         Ok(fs::read_to_string(target)?)
+    })()
+    .map_err(IpcError::from)
+}
+
+/// 相对插件根的那条路径，一律用 '/' 分隔。
+///
+/// Path 在 Windows 上给出的是 '\\'，而这串字符要回到渲染层、再原样传回
+/// resolve_inside；Linux 不把它当分隔符，于是同一份插件在两个平台上会得到两种读不
+/// 通的路径。
+fn join_relative(declared: &str, tail: &Path) -> String {
+    let segments: Vec<&str> = tail
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect();
+
+    if segments.is_empty() {
+        return declared.to_owned();
+    }
+
+    format!("{}/{}", declared.trim_end_matches('/'), segments.join("/"))
+}
+
+/// 一条声明路径底下的文本文件，一次读齐。
+///
+/// 返回 None 表示这条路径不在盘上 —— 清单声明了 ./commands 而目录没跟着发布是常事，
+/// 那是一条诊断，不是一次失败。空数组表示路径在，里面没有匹配后缀的文件。两者要分得
+/// 开，界面上一个说「没装全」，一个说「这里是空的」。
+#[command]
+#[specta::specta]
+pub async fn plugins_read_tree(
+    app: AppHandle,
+    request: PluginTreeRequest,
+) -> PluginsCommandResult<Option<Vec<PluginFileText>>> {
+    (|| -> Result<Option<Vec<PluginFileText>>> {
+        let root = plugin_directory(&app, &request.plugin_id)?;
+        let declared =
+            host::resolve_inside(&root, &request.relative_path).map_err(plugin_failure)?;
+
+        let Ok(metadata) = fs::metadata(&declared) else {
+            return Ok(None);
+        };
+
+        // 声明直接指到一份文件时，那份文件自己就是整棵树。
+        let tails = if metadata.is_file() {
+            vec![PathBuf::new()]
+        } else {
+            host::list_files(&declared)?
+        };
+
+        let mut found = Vec::new();
+        let mut bytes = 0usize;
+
+        for tail in tails {
+            let absolute = declared.join(&tail);
+
+            let matched = absolute
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with(&request.suffix));
+
+            if !matched {
+                continue;
+            }
+
+            if found.len() == MAX_TREE_FILES {
+                return Err(plugin_failure(format!(
+                    "{} holds more than {MAX_TREE_FILES} files",
+                    request.relative_path
+                )));
+            }
+
+            let contents = fs::read_to_string(&absolute)?;
+
+            bytes += contents.len();
+
+            if bytes > MAX_TREE_BYTES {
+                return Err(plugin_failure(format!(
+                    "{} exceeds {MAX_TREE_BYTES} bytes",
+                    request.relative_path
+                )));
+            }
+
+            found.push(PluginFileText {
+                relative_path: join_relative(&request.relative_path, &tail),
+                contents,
+            });
+        }
+
+        Ok(Some(found))
     })()
     .map_err(IpcError::from)
 }

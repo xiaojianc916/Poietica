@@ -35,12 +35,16 @@ const PLUGIN_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/
 const encoder = new TextEncoder()
 
 export type PluginDiagnosticCode =
+  | 'frontmatter-invalid'
   | 'hooks-not-executed'
   | 'manifest-invalid'
   | 'name-invalid'
+  | 'name-taken'
   | 'path-escapes-root'
+  | 'path-missing'
   | 'prompt-budget-exhausted'
   | 'prompt-too-large'
+  | 'skill-incomplete'
   | 'unsupported-field'
 
 export interface PluginDiagnostic {
