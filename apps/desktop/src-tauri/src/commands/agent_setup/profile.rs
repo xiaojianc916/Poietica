@@ -409,9 +409,25 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
 ///
 /// 没有默认 agent、档案不存在、或家目录算不出来时返回错误。
 pub fn agent_mcp_config(app: &AppHandle) -> Result<PathBuf> {
+    Ok(agent_home_directory(app)?.join(MCP_CONFIG_FILE))
+}
+
+/// 默认 agent 那个家的目录本身。
+///
+/// config.toml、mcp.json、skills/、plugins/ 都挂在它下面。插件仓库的位置因此不是
+/// 一条新的路径，是这一条的派生 —— 官方 data-locations 逐字把 plugins/installed.json
+/// 与 plugins/managed/ 列在 `$KIMI_CODE_HOME` 之下。
+///
+/// 取默认 agent，而不是「当前会话那一个」：Tool 面板不挂在任何一条会话上。等会话能
+/// 各自选 agent 时，这一格要跟着会话走。
+///
+/// # Errors
+///
+/// 没有默认 agent、档案不存在、或家目录算不出来时返回错误。
+pub fn agent_home_directory(app: &AppHandle) -> Result<PathBuf> {
     let agent_id = default_agent_id(app)?;
 
-    Ok(agent_data_home(app, &agent_id)?.join(MCP_CONFIG_FILE))
+    agent_data_home(app, &agent_id)
 }
 
 /// 现在默认用哪一个 agent。

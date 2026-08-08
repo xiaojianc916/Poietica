@@ -53,17 +53,25 @@ export function discardStagedPlugin(stagingId: string): Promise<void> {
   })
 }
 
-export function prunePlugins(keep: string[]): Promise<string[]> {
-  return throughIpc(() => commands.pluginsPrune(keep))
-}
-
-export function readPluginState(): Promise<string | null> {
-  return throughIpc(() => commands.pluginsStateRead())
-}
-
-export function writePluginState(contents: string): Promise<void> {
+export function removePlugin(pluginId: string): Promise<void> {
   return throughIpc(async () => {
-    await commands.pluginsStateWrite(contents)
+    await commands.pluginsRemove(pluginId)
+  })
+}
+
+export function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  return throughIpc(async () => {
+    await commands.pluginsSetEnabled(pluginId, enabled)
+  })
+}
+
+export function setPluginMcpEnabled(
+  pluginId: string,
+  server: string,
+  enabled: boolean,
+): Promise<void> {
+  return throughIpc(async () => {
+    await commands.pluginsSetMcpEnabled(pluginId, server, enabled)
   })
 }
 

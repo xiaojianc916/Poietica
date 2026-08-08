@@ -100,7 +100,7 @@ export function resolveContributions(input: ContributionInput): ResolvedContribu
   collectEnvironmentServers(input.environment, mcpServers)
 
   for (const plugin of resolutionOrder(input.plugins)) {
-    const origin: ContributionOrigin = { kind: 'plugin', pluginId: plugin.manifest.name }
+    const origin: ContributionOrigin = { kind: 'plugin', pluginId: plugin.pluginId }
 
     diagnostics.push(...plugin.diagnostics)
 

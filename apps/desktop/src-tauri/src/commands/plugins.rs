@@ -1,23 +1,33 @@
 //! 插件的取用、落盘与账目。
 //!
+//! 账本不是我们的。agent 自己的 CLI 按 `$KIMI_CODE_HOME/plugins/installed.json` 记着
+//! 装了哪些插件、开没开、哪台 MCP 服务器被单独关掉（官方
+//! packages/agent-core/src/plugin/store.ts 的 InstalledFile），托管副本在
+//! `plugins/managed/<id>/`，官方文档逐字「the CLI always runs from this managed copy」。
+//!
+//! 此前我们在应用数据根下另建了一套同名的目录与账本。那份账没有第二个读者：界面照着
+//! 它说「装好了」，会话里一个都不生效；反过来用户从对话里装的插件进了 agent 的家，
+//! 界面一个都看不见。同一件事有两个真相，两个都是假的。
+//!
 //! 这个模块一个字节都不解释插件清单。唯一解析器是 packages/plugins 的
-//! decodePluginManifest：提示词预算、命令描述回落、agent 覆盖规则都在那条管线上，
-//! 原生再解析一遍就是第二套规则。installed.json 与 marketplace.json 同理 —— 原生只
-//! 保证写入是原子的。于是这里没有任何一个 DTO 与 packages/plugins 的类型重复。
+//! decodePluginManifest。账本这边只做两件事：按官方形状增删改那几格，以及原子写回。
+//!
+//! 改写走 serde_json::Value，不走一份对齐的 struct。官方记录里有 github.installedSha、
+//! updatedAt 这类我们既不产出也不理解的字段，反序列化再写回等于每拨一次开关就把它们
+//! 抹掉一次 —— 与 config.toml 那边用 toml_edit 而不是重新序列化是同一条理由。
 
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use poietica_plugin_host_native as host;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
 use specta::Type;
 use tauri::{AppHandle, command};
 
+use crate::commands::agent_setup::profile::agent_home_directory;
 use crate::error::{Error, IpcError, Result};
-use crate::paths::{
-    marketplace_catalog, plugin_directory, plugins_record, plugins_root, plugins_staging_root,
-};
+use crate::paths::marketplace_catalog;
 
 type PluginsCommandResult<T> = std::result::Result<T, IpcError>;
 
@@ -31,6 +41,14 @@ const MAX_DOWNLOAD_BYTES: usize = 32 * 1024 * 1024;
 const MAX_TREE_FILES: usize = 512;
 
 const MAX_TREE_BYTES: usize = 8 * 1024 * 1024;
+
+/// 这几个名字都出自官方 data-locations 的目录图，不是我们起的。
+const PLUGINS_DIRECTORY: &str = "plugins";
+const MANAGED_DIRECTORY: &str = "managed";
+const RECORD_FILE: &str = "installed.json";
+
+/// 点开头：`is_safe_segment` 不接受它，所以暂存区不会被当成一个插件标识符。
+const STAGING_DIRECTORY: &str = ".staging";
 
 /// 一次取用从哪里拿字节。
 ///
@@ -63,10 +81,16 @@ pub struct PluginStaged {
 #[serde(rename_all = "camelCase")]
 pub struct PluginCommitRequest {
     pub staging_id: String,
-    /// 渲染层解码清单之后判定的标识符。这里只验它能不能当目录名。
+    /// 渲染层解码清单之后判定的标识符，也就是官方记录里的 id。
     pub plugin_id: String,
     /// 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
     pub subdirectory: Option<String>,
+    /// 官方 InstalledRecord.source 的三个取值之一：local-path / zip-url / github。
+    pub source: String,
+    /// 人当初给的那一串地址。官方拿它显示来源，我们拿它回查目录里的背书。
+    pub original_source: Option<String>,
+    /// ISO-8601。时钟在领域层，不在这里 —— 原生侧没有理由持有第二个时间源。
+    pub installed_at: String,
 }
 
 #[derive(Debug, Deserialize, Type)]
@@ -98,11 +122,20 @@ pub struct PluginFileText {
     pub contents: String,
 }
 
+/// 账本里的一条，加上那条记录指向的清单原文。
+///
+/// 清单读不出来时 manifest_json 是空串，而这一条仍然交出去：一个装着却坏了的插件必须
+/// 在界面上占一行，好让人看见原因。把它滤掉，人只会看到「我明明装了它却不见了」。
 #[derive(Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginPayload {
     pub plugin_id: String,
     pub manifest_json: String,
+    pub enabled: bool,
+    pub installed_at: Option<String>,
+    pub source: String,
+    pub original_source: Option<String>,
+    pub disabled_mcp_servers: Vec<String>,
 }
 
 /// 折成 IPC 上那条插件错误，并把真正的原因留在日志里。
@@ -113,6 +146,134 @@ fn plugin_failure(cause: impl std::fmt::Display) -> Error {
     log::warn!("plugin operation failed: {cause}");
 
     Error::Plugin(cause.to_string())
+}
+
+/// agent 家里的插件仓库根。
+fn store_root(app: &AppHandle) -> Result<PathBuf> {
+    let directory = agent_home_directory(app)?.join(PLUGINS_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+fn record_file(app: &AppHandle) -> Result<PathBuf> {
+    Ok(store_root(app)?.join(RECORD_FILE))
+}
+
+/// 安装中途的暂存区。
+///
+/// 放在 plugins/ 里面而不是系统临时目录：认领那一步是一次 rename，跨卷会失败，而
+/// 系统临时目录经常在另一个卷上。
+fn staging_root(app: &AppHandle) -> Result<PathBuf> {
+    let directory = store_root(app)?.join(STAGING_DIRECTORY);
+
+    fs::create_dir_all(&directory)?;
+
+    Ok(directory)
+}
+
+/// 某一个插件的托管副本。
+///
+/// 标识符来自渲染层解码出来的清单，在拼路径的这一处验，而不是指望每个调用点自己
+/// 记得验 —— 这是唯一一个把它变成路径的地方。
+fn managed_directory(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
+    if !host::is_safe_segment(plugin_id) {
+        return Err(Error::Validation(format!(
+            "不是合法的插件标识符：{plugin_id}"
+        )));
+    }
+
+    Ok(store_root(app)?.join(MANAGED_DIRECTORY).join(plugin_id))
+}
+
+/// 读账本。文件不在就是「一个都没装」，那是常态不是错误（官方 readInstalled 对
+/// ENOENT 同样交回空表）。
+fn read_record(app: &AppHandle) -> Result<Value> {
+    let path = record_file(app)?;
+
+    let Some(text) = host::read_optional(&path).map_err(plugin_failure)? else {
+        return Ok(json!({ "version": 1, "plugins": [] }));
+    };
+
+    let parsed: Value = serde_json::from_str(&text)?;
+
+    if parsed.get("plugins").and_then(Value::as_array).is_none() {
+        return Err(plugin_failure("installed.json 里没有 plugins 数组"));
+    }
+
+    Ok(parsed)
+}
+
+/// 写账本。缩进两格、不带尾换行 —— 与官方 writeInstalled 的
+/// `JSON.stringify(data, null, 2)` 逐字节一致，免得两边轮流写同一个文件时每次都产生
+/// 一份纯格式的差异。
+fn write_record(app: &AppHandle, document: &Value) -> Result<()> {
+    let text = serde_json::to_string_pretty(document)?;
+
+    host::write_atomic(&record_file(app)?, &text).map_err(plugin_failure)
+}
+
+fn entries_mut(document: &mut Value) -> Result<&mut Vec<Value>> {
+    document
+        .get_mut("plugins")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| plugin_failure("installed.json 里没有 plugins 数组"))
+}
+
+fn index_of(entries: &[Value], plugin_id: &str) -> Option<usize> {
+    entries
+        .iter()
+        .position(|entry| entry.get("id").and_then(Value::as_str) == Some(plugin_id))
+}
+
+fn entry_at<'a>(entries: &'a mut [Value], at: usize) -> Result<&'a mut Map<String, Value>> {
+    entries[at]
+        .as_object_mut()
+        .ok_or_else(|| plugin_failure("installed.json 里的记录不是对象"))
+}
+
+/// 这条记录里被单独关掉的那几台服务器。
+///
+/// 官方存的是「每台一个 enabled」，缺席即开着；领域层要的是「关掉的有哪几台」。
+/// 转换只在这一处发生。
+fn disabled_servers(entry: &Map<String, Value>) -> Vec<String> {
+    let mut names: Vec<String> = entry
+        .get("capabilities")
+        .and_then(Value::as_object)
+        .and_then(|capabilities| capabilities.get("mcpServers"))
+        .and_then(Value::as_object)
+        .map(|servers| {
+            servers
+                .iter()
+                .filter(|(_, state)| state.get("enabled").and_then(Value::as_bool) == Some(false))
+                .map(|(name, _)| name.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    names.sort();
+
+    names
+}
+
+/// 这个插件的根在哪 —— 由账本说了算，不由目录名推。
+///
+/// 官方允许 local-path 安装之外的记录指向别处，所以「装在 managed/<id> 下」是常态而
+/// 不是不变量。按目录名硬拼，一条指向别处的记录就会读到一个不存在的路径。
+fn plugin_root(app: &AppHandle, plugin_id: &str) -> Result<PathBuf> {
+    read_record(app)?
+        .get("plugins")
+        .and_then(Value::as_array)
+        .and_then(|entries| {
+            entries
+                .iter()
+                .find(|entry| entry.get("id").and_then(Value::as_str) == Some(plugin_id))
+        })
+        .and_then(|entry| entry.get("root"))
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .ok_or_else(|| plugin_failure(format!("installed.json 里没有 {plugin_id}")))
 }
 
 async fn download(url: &str) -> Result<Vec<u8>> {
@@ -165,33 +326,64 @@ fn finish_staging(staging: host::Staging, subdirectory: Option<&str>) -> Result<
     }
 }
 
+/// 装了什么，agent 的账本说了算。
+///
+/// 不扫目录。官方卸载「only deletes the installation record; the managed copy and
+/// original source files remain on disk」，所以盘上有一个目录不代表它装着 —— 扫目录会
+/// 把刚卸载的插件重新显示成装着的，而 agent 那边不会装载它。
 #[command]
 #[specta::specta]
 pub async fn plugins_list(app: AppHandle) -> PluginsCommandResult<Vec<PluginPayload>> {
     (|| -> Result<Vec<PluginPayload>> {
+        let document = read_record(&app)?;
+
+        let entries = document
+            .get("plugins")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
         let mut found = Vec::new();
 
-        for entry in fs::read_dir(plugins_root(&app)?)? {
-            let path = entry?.path();
-
-            let Some(identifier) = path.file_name().and_then(|name| name.to_str()) else {
+        for entry in &entries {
+            let Some(object) = entry.as_object() else {
                 continue;
             };
 
-            // 点开头不是安全路径段，暂存目录就叫 .staging —— 同一条规则既挡住写入
-            // 越界，也顺带把暂存区排除在托管副本之外，不需要第二个特例。
-            if !path.is_dir() || !host::is_safe_segment(identifier) {
-                continue;
-            }
-
-            let Some(manifest) = host::manifest_in(&path) else {
-                log::warn!("managed plugin copy without a manifest: {identifier}");
+            let Some(plugin_id) = object.get("id").and_then(Value::as_str) else {
                 continue;
             };
+
+            let Some(root) = object.get("root").and_then(Value::as_str) else {
+                log::warn!("installed.json 里 {plugin_id} 没有 root");
+                continue;
+            };
+
+            let manifest_json = host::manifest_in(Path::new(root))
+                .and_then(|path| fs::read_to_string(path).ok())
+                .unwrap_or_default();
 
             found.push(PluginPayload {
-                plugin_id: identifier.to_owned(),
-                manifest_json: fs::read_to_string(manifest)?,
+                plugin_id: plugin_id.to_owned(),
+                manifest_json,
+                enabled: object
+                    .get("enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                installed_at: object
+                    .get("installedAt")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+                source: object
+                    .get("source")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                original_source: object
+                    .get("originalSource")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned),
+                disabled_mcp_servers: disabled_servers(object),
             });
         }
 
@@ -209,9 +401,8 @@ pub async fn plugins_read_text(
     request: PluginFileRequest,
 ) -> PluginsCommandResult<String> {
     (|| -> Result<String> {
-        let directory = plugin_directory(&app, &request.plugin_id)?;
-        let target =
-            host::resolve_inside(&directory, &request.relative_path).map_err(plugin_failure)?;
+        let root = plugin_root(&app, &request.plugin_id)?;
+        let target = host::resolve_inside(&root, &request.relative_path).map_err(plugin_failure)?;
 
         Ok(fs::read_to_string(target)?)
     })()
@@ -248,7 +439,7 @@ pub async fn plugins_read_tree(
     request: PluginTreeRequest,
 ) -> PluginsCommandResult<Option<Vec<PluginFileText>>> {
     (|| -> Result<Option<Vec<PluginFileText>>> {
-        let root = plugin_directory(&app, &request.plugin_id)?;
+        let root = plugin_root(&app, &request.plugin_id)?;
         let declared =
             host::resolve_inside(&root, &request.relative_path).map_err(plugin_failure)?;
 
@@ -327,8 +518,7 @@ pub async fn plugins_stage(
     };
 
     (|| -> Result<PluginStaged> {
-        let staging =
-            host::Staging::create(&plugins_staging_root(&app)?).map_err(plugin_failure)?;
+        let staging = host::Staging::create(&staging_root(&app)?).map_err(plugin_failure)?;
 
         let filled = match (&fetch, bytes.as_deref()) {
             (PluginFetch::Directory { path }, _) => {
@@ -355,6 +545,10 @@ pub async fn plugins_stage(
     .map_err(IpcError::from)
 }
 
+/// 认领：副本进 managed/<id>/，然后往账本里记一条。
+///
+/// 顺序不能反。副本在了但记录没写成，最坏是这个插件这一次没装上，重来一次即可；反过来
+/// 先写记录再搬副本，中间失败就留下一条指向空气的记录，而 agent 会照着它去装载。
 #[command]
 #[specta::specta]
 pub async fn plugins_commit(
@@ -362,15 +556,58 @@ pub async fn plugins_commit(
     request: PluginCommitRequest,
 ) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        let staging = host::Staging::open(&plugins_staging_root(&app)?, &request.staging_id)
+        let staging = host::Staging::open(&staging_root(&app)?, &request.staging_id)
             .map_err(plugin_failure)?;
 
         // 解出来的东西可能套在 <repo>-<ref>/ 一层里，认领的是清单所在的那一层。
         let root = host::locate_root(staging.path(), request.subdirectory.as_deref())
             .map_err(plugin_failure)?;
-        let destination = plugin_directory(&app, &request.plugin_id)?;
+        let destination = managed_directory(&app, &request.plugin_id)?;
 
-        staging.promote(&root, &destination).map_err(plugin_failure)
+        staging
+            .promote(&root, &destination)
+            .map_err(plugin_failure)?;
+
+        let mut document = read_record(&app)?;
+        let entries = entries_mut(&mut document)?;
+
+        let mut fresh = Map::new();
+
+        let _id = fresh.insert("id".to_owned(), json!(request.plugin_id));
+        let _root = fresh.insert(
+            "root".to_owned(),
+            json!(destination.to_string_lossy().into_owned()),
+        );
+        let _source = fresh.insert("source".to_owned(), json!(request.source));
+        let _enabled = fresh.insert("enabled".to_owned(), json!(true));
+        let _at = fresh.insert("installedAt".to_owned(), json!(request.installed_at));
+
+        if let Some(original) = request.original_source {
+            let _original = fresh.insert("originalSource".to_owned(), json!(original));
+        }
+
+        match index_of(entries, &request.plugin_id) {
+            Some(at) => {
+                // 重装保留原来的安装时刻与拨过的开关：解析顺序按 installedAt 排，升级一次
+                // 就把一个老插件甩到队尾，会悄悄改变它注入提示词的先后。
+                let existing = entry_at(entries, at)?;
+
+                if let Some(installed_at) = existing.get("installedAt").cloned() {
+                    let _kept = fresh.insert("installedAt".to_owned(), installed_at);
+                }
+
+                if let Some(capabilities) = existing.get("capabilities").cloned() {
+                    let _kept = fresh.insert("capabilities".to_owned(), capabilities);
+                }
+
+                let _updated = fresh.insert("updatedAt".to_owned(), json!(request.installed_at));
+
+                *existing = fresh;
+            }
+            None => entries.push(Value::Object(fresh)),
+        }
+
+        write_record(&app, &document)
     })()
     .map_err(IpcError::from)
 }
@@ -379,62 +616,106 @@ pub async fn plugins_commit(
 #[specta::specta]
 pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        host::Staging::open(&plugins_staging_root(&app)?, &staging_id)
+        host::Staging::open(&staging_root(&app)?, &staging_id)
             .and_then(host::Staging::discard)
             .map_err(plugin_failure)
     })()
     .map_err(IpcError::from)
 }
 
-/// 删掉不在保留清单里的托管副本，返回真的删掉了哪些。
+/// 卸载：账本里那一条去掉，托管副本一并删掉。
 ///
-/// 上游卸载只删记录、留副本，托管目录于是只增不减。保留清单由渲染层给出 ——
-/// 「哪些插件还算装着」是记录的语义，而那份记录的解码器在 TS 那边。
+/// 官方只删记录、留副本。副本没有第二个读者 —— agent 只按记录装载 —— 留着它，换一个
+/// 来源重装同一个 id 时，旧文件会混进新目录。删掉不改变 agent 观察到的任何行为。
 #[command]
 #[specta::specta]
-pub async fn plugins_prune(app: AppHandle, keep: Vec<String>) -> PluginsCommandResult<Vec<String>> {
-    (|| -> Result<Vec<String>> {
-        let kept: BTreeSet<&str> = keep.iter().map(String::as_str).collect();
-        let mut removed = Vec::new();
+pub async fn plugins_remove(app: AppHandle, plugin_id: String) -> PluginsCommandResult<()> {
+    (|| -> Result<()> {
+        let mut document = read_record(&app)?;
+        let entries = entries_mut(&mut document)?;
 
-        for entry in fs::read_dir(plugins_root(&app)?)? {
-            let path = entry?.path();
-
-            let Some(identifier) = path.file_name().and_then(|name| name.to_str()) else {
-                continue;
-            };
-
-            if !path.is_dir() || !host::is_safe_segment(identifier) || kept.contains(identifier) {
-                continue;
-            }
-
-            let removing = identifier.to_owned();
-
-            fs::remove_dir_all(&path)?;
-            removed.push(removing);
+        if let Some(at) = index_of(entries, &plugin_id) {
+            let _removed = entries.remove(at);
         }
 
-        removed.sort();
+        write_record(&app, &document)?;
 
-        Ok(removed)
+        let managed = managed_directory(&app, &plugin_id)?;
+
+        if managed.exists() {
+            fs::remove_dir_all(&managed)?;
+        }
+
+        Ok(())
     })()
     .map_err(IpcError::from)
 }
 
+/// 拨动整个插件。写的是 agent 会读的那一格，所以拨完在新会话里就是真的。
 #[command]
 #[specta::specta]
-pub async fn plugins_state_read(app: AppHandle) -> PluginsCommandResult<Option<String>> {
-    (|| -> Result<Option<String>> {
-        host::read_optional(&plugins_record(&app)?).map_err(plugin_failure)
-    })()
-    .map_err(IpcError::from)
-}
-
-#[command]
-#[specta::specta]
-pub async fn plugins_state_write(app: AppHandle, contents: String) -> PluginsCommandResult<()> {
+pub async fn plugins_set_enabled(
+    app: AppHandle,
+    plugin_id: String,
+    enabled: bool,
+) -> PluginsCommandResult<()> {
     (|| -> Result<()> {
-        host::write_atomic(&plugins_record(&app)?, &contents).map_err(plugin_failure)
+        let mut document = read_record(&app)?;
+        let entries = entries_mut(&mut document)?;
+
+        let at = index_of(entries, &plugin_id)
+            .ok_or_else(|| plugin_failure(format!("installed.json 里没有 {plugin_id}")))?;
+
+        let entry = entry_at(entries, at)?;
+        let _previous = entry.insert("enabled".to_owned(), json!(enabled));
+
+        write_record(&app, &document)
+    })()
+    .map_err(IpcError::from)
+}
+
+/// 拨动某个插件带来的一台 MCP 服务器。
+///
+/// 落点是官方的 `capabilities.mcpServers.<name>.enabled`，也就是 `/plugins mcp
+/// disable` 写的同一格。
+#[command]
+#[specta::specta]
+pub async fn plugins_set_mcp_enabled(
+    app: AppHandle,
+    plugin_id: String,
+    server: String,
+    enabled: bool,
+) -> PluginsCommandResult<()> {
+    (|| -> Result<()> {
+        let mut document = read_record(&app)?;
+        let entries = entries_mut(&mut document)?;
+
+        let at = index_of(entries, &plugin_id)
+            .ok_or_else(|| plugin_failure(format!("installed.json 里没有 {plugin_id}")))?;
+
+        let entry = entry_at(entries, at)?;
+
+        let capabilities = entry
+            .entry("capabilities")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| plugin_failure("capabilities 不是对象"))?;
+
+        let servers = capabilities
+            .entry("mcpServers")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| plugin_failure("mcpServers 不是对象"))?;
+
+        let state = servers
+            .entry(server)
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or_else(|| plugin_failure("mcpServers 里的记录不是对象"))?;
+
+        let _previous = state.insert("enabled".to_owned(), json!(enabled));
+
+        write_record(&app, &document)
     })()
     .map_err(IpcError::from)
 }

@@ -93,12 +93,4 @@ export {
   type StagedInstall,
   type StagingInstall,
 } from './plugin-store'
-export {
-  DEFAULT_PREFERENCE,
-  decodePluginPreferences,
-  encodePluginPreferences,
-  PLUGIN_PREFERENCES_VERSION,
-  type PluginPreference,
-  type PluginPreferences,
-} from './preferences'
 export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

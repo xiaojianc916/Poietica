@@ -3,15 +3,15 @@ import {
   commitPlugin,
   discardStagedPlugin,
   listPlugins,
-  prunePlugins,
   readEnvironmentMcpConfig,
   readMcpEndpoint,
   readPluginCatalog,
-  readPluginState,
   readPluginText,
   refreshPluginCatalog,
+  removePlugin,
+  setPluginEnabled,
+  setPluginMcpEnabled,
   stagePlugin,
-  writePluginState,
 } from '@poietica/ipc'
 
 import {
@@ -47,22 +47,16 @@ import {
 } from './marketplace'
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
 import type { ManagedOrigin } from './origin'
-import {
-  DEFAULT_PREFERENCE,
-  decodePluginPreferences,
-  encodePluginPreferences,
-  type PluginPreference,
-} from './preferences'
 
 /**
  * 「装了什么、开没开、市场上有什么」的唯一持有者。
  *
- * 装了什么由磁盘说了算：plugins/ 下每一个带清单的目录就是一个装着的插件。偏好
- * 文件只往上叠开关与出身，叠不上就走默认档 —— 因此偏好读不出来最坏是「开关回到
- * 默认」，绝不会变成「一个都没装」。
+ * 装了什么由 agent 自己那份 installed.json 说了算 —— 同一个文件，`/plugins` 面板读它，
+ * 会话装载读它，我们的界面也读它。屏幕上这份是它的投影：每一次改动都先写那个文件，
+ * 写成了才发布快照，所以不存在「界面已经变了、agent 那边还没变」的窗口。
  *
- * 屏幕上这份是盘上那份的投影：每一次改动都先落盘，写成了才发布快照，所以不存在
- * 「界面已经变了、盘上还没变」的窗口。
+ * 反过来的窗口是存在的，而且不由我们决定：官方文档逐字「Plugin changes apply after
+ * /reload or in new sessions」。已经开着的那条会话不会自己更新。
  */
 
 export interface PluginsViewModel {
@@ -88,7 +82,7 @@ export interface StagingInstall {
  * 已经解到暂存区、等人点头的那一份。
  *
  * 确认这一步拿到的是解码之后的清单，所以人看见的是「要装的到底是什么」，而不是
- * 一句「确定要安装吗」。不点就一直停在这一格，什么也没进 plugins/。
+ * 一句「确定要安装吗」。不点就一直停在这一格，账本上什么也没多。
  */
 export interface StagedInstall {
   readonly kind: 'staged'
@@ -113,15 +107,15 @@ export const INSTALL_IDLE: InstallFlow = { kind: 'idle' }
 export interface PluginStore {
   readonly getSnapshot: () => PluginsViewModel
   readonly subscribe: (listener: () => void) => () => void
-  /** 扫盘、叠偏好，并在从未取过目录时拉一次。返回停表函数。 */
+  /** 读账本，并在从未取过目录时拉一次。返回停表函数。 */
   readonly start: () => () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
   /**
    * 拨动一台服务器。
    *
-   * 收的是来源而不是插件号：内置那台不属于任何插件，硬塞进插件偏好就得给它编一个
-   * 假的插件号。机器上那些根本不在 ManagedOrigin 里，所以「它们改不了」由编译器说，
-   * 不靠调用方自觉。
+   * 收的是来源而不是插件号：内置那台不属于任何插件，硬塞进账本就得给它编一个假的
+   * 插件号，而那个号会出现在 agent 的 installed.json 里。机器上那些根本不在
+   * ManagedOrigin 里，所以「它们改不了」由编译器说，不靠调用方自觉。
    */
   readonly setMcpServerEnabled: (target: ManagedOrigin, server: string, enabled: boolean) => void
   readonly remove: (pluginId: string) => void
@@ -144,24 +138,25 @@ export interface PluginStoreOptions {
 }
 
 /*
- * 盘上那一份。
+ * 账本里的一条，解码之后的样子。
  *
- * 目录里有哪些插件、清单怎么写、提示词正文是什么，只在装、卸、启动这三件事发生时变。
- * 开关、出身、装载时刻只在人拨开关时变。两者共用一条刷新路径，代价就是拨一下开关要把
- * plugins/ 整个重扫一遍 —— 为了得知一个已经在内存里的布尔值。
- *
- * preferences.ts 顶上引的 VS Code、Obsidian、Zed 三家，扫描与开关本来就是分开的两套：
- * VS Code 切 enablement 不触发 extension scan，Obsidian 的 enabledPlugins 不触发 manifest
- * 扫描。方向那一半抄对了，刷新路径这一半没有。
+ * 开关与清单在同一条记录里，所以拨一个开关不需要回头重读清单：写成之后就地改这一条的
+ * enabled 再发布。上一版为了得知一个已经在内存里的布尔值要把整个 plugins/ 重扫一遍 ——
+ * VS Code 切 enablement 不触发 extension scan，Obsidian 的 enabledPlugins 不触发
+ * manifest 扫描，理由就是这个。
  */
 interface ScannedPlugin {
-  /** plugins/ 下的目录名。偏好按它寻址，清单里的 name 未必与它相同。 */
   readonly pluginId: string
   readonly manifest: PluginManifest
   readonly systemPromptText: string | undefined
   readonly diagnostics: readonly PluginDiagnostic[]
-  /** 清单读不出来的目录仍然装着，但它不受偏好里那个开关支配。 */
+  /** 清单读不出来的记录仍然装着，但它不受那个开关支配。 */
   readonly readable: boolean
+  readonly enabled: boolean
+  readonly installedAt: string | undefined
+  /** 人当初给的那一串地址；拿它回目录里查背书。 */
+  readonly originalSource: string | undefined
+  readonly disabledMcpServers: readonly string[]
 }
 
 /*
@@ -171,6 +166,20 @@ interface ScannedPlugin {
  * 同一段对话历史里的工具名就会前后对不上。
  */
 const BUILTIN_SERVER_NAME = 'poietica-automations'
+
+/* 官方 InstalledRecord.source 的三个取值。取用方式一一对应，不另立名目。 */
+function sourceKindOf(source: PluginInstallSource): string {
+  switch (source.kind) {
+    case 'directory':
+      return 'local-path'
+    case 'archive':
+      return 'zip-url'
+    case 'github':
+      return 'github'
+    default:
+      return assertUnreachable(source)
+  }
+}
 
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
@@ -184,9 +193,11 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   /*
    * 内置那台的开关。
    *
+   * 它不进 agent 的账本：那份文件的形状是「按插件号索引的一张表」，塞一个不存在的
+   * 插件进去，对方的卸载与重载会开始处理一个永远不会被卸载的东西。
+   *
    * 走 createPreference 是因为它必须在第一帧就有答案 —— 异步的设置管线会让这一行
-   * 先画成关的再跳成开的。默认开着，所以只有「关掉」需要落盘：编码交回 null 就是
-   * 删掉这个键，盘上因此不会堆一堆等于默认值的记录。
+   * 先画成关的再跳成开的。默认开着，所以只有「关掉」需要落盘。
    */
   const builtinEnabled = createPreference<boolean>({
     key: 'poietica.mcp.builtin.enabled',
@@ -199,7 +210,6 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   })
 
   let scanned: readonly ScannedPlugin[] = []
-  let preferences = new Map<string, PluginPreference>()
   /* 这个 agent 自己那份 mcp.json 里的服务器。读不出来就是空。 */
   let environment: readonly DeclaredMcpServer[] = []
   /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
@@ -215,8 +225,8 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   /*
    * 写盘串行。
    *
-   * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的偏好，第一个
-   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才算新偏好。
+   * 连着拨两个开关会开出两次读—改—写；并发跑的话后写的那次带着更旧的账本，第一个
+   * 开关就被悄悄拨回去了。链成一条队列，每次都在上一次落定之后才动。
    */
   let queue: Promise<void> = Promise.resolve()
 
@@ -229,25 +239,39 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 偏好投在扫描结果上，发布出去。
+   * 背书来自目录，不来自安装动作本身。
    *
-   * 这一步没有 I/O。磁盘那一份在 scanned 里，人拨过的开关在 preferences 里，屏幕上那一份
-   * 是两者的投影，不是第三份需要各自同步的副本。走到这里就意味着盘上那一份已经读过一遍，
-   * 所以 loaded 恒真。
+   * 比的是描述串：目录条目里的来源和账本里记下的那一串是两个结构相同、引用不同的
+   * 东西，用 === 比永远不等，所有插件都会掉进 third-party。
+   */
+  function listing(described: string | undefined) {
+    if (described === undefined) {
+      return undefined
+    }
+
+    return latestCatalog(snapshot.marketplace)?.entries.find(
+      (entry) => describeInstallSource(entry.source) === described,
+    )
+  }
+
+  /*
+   * 账本 + 清单，投成屏幕上那一份。这一步没有 I/O。
+   *
+   * 走到这里就意味着账本已经读过一遍，所以 loaded 恒真。
    */
   function republish(): void {
     const plugins: readonly InstalledPlugin[] = scanned.map((entry) => {
-      const preference = preferences.get(entry.pluginId) ?? DEFAULT_PREFERENCE
+      const listed = listing(entry.originalSource)
 
       return {
         pluginId: entry.pluginId,
         manifest: entry.manifest,
-        source: preference.source,
-        trust: preference.trust,
-        enabled: entry.readable && preference.enabled,
-        installedAt: preference.installedAt,
+        source: listed?.source,
+        trust: listed?.trust ?? UNLISTED_TRUST,
+        enabled: entry.readable && entry.enabled,
+        installedAt: entry.installedAt,
         systemPromptText: entry.systemPromptText,
-        disabledMcpServers: preference.disabledMcpServers,
+        disabledMcpServers: entry.disabledMcpServers,
         diagnostics: entry.diagnostics,
       }
     })
@@ -297,18 +321,33 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 扫一个目录：把清单解出来，把提示词读进来。只有磁盘上那一份，不含任何偏好。
+   * 解一条记录：把清单解出来，把提示词读进来。
    *
    * 这是这条路上全部的开销所在 —— 一次 JSON 解析、一次 schema 校验、每条 file 来源一趟
    * 原生读文件。它只在装、卸、启动时发生。
    */
-  async function scan(pluginId: string, manifestJson: string): Promise<ScannedPlugin> {
-    const decoded = decodeManifestJson(pluginId, manifestJson)
+  async function scan(payload: {
+    readonly pluginId: string
+    readonly manifestJson: string
+    readonly enabled: boolean
+    readonly installedAt: string | null
+    readonly originalSource: string | null
+    readonly disabledMcpServers: string[]
+  }): Promise<ScannedPlugin> {
+    const shared = {
+      pluginId: payload.pluginId,
+      enabled: payload.enabled,
+      installedAt: payload.installedAt ?? undefined,
+      originalSource: payload.originalSource ?? undefined,
+      disabledMcpServers: payload.disabledMcpServers,
+    }
+
+    const decoded = decodeManifestJson(payload.pluginId, payload.manifestJson)
 
     if (decoded.kind === 'rejected') {
       return {
-        pluginId,
-        manifest: unreadableManifest(pluginId),
+        ...shared,
+        manifest: unreadableManifest(payload.pluginId),
         systemPromptText: undefined,
         diagnostics: decoded.diagnostics,
         readable: false,
@@ -318,9 +357,13 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     const diagnostics = [...decoded.diagnostics]
 
     return {
-      pluginId,
+      ...shared,
       manifest: decoded.manifest,
-      systemPromptText: await promptTextOf(pluginId, decoded.manifest.promptSources, diagnostics),
+      systemPromptText: await promptTextOf(
+        payload.pluginId,
+        decoded.manifest.promptSources,
+        diagnostics,
+      ),
       diagnostics,
       readable: true,
     }
@@ -331,11 +374,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    *
    * 不是「这台机器上的所有 MCP」：Cursor、Claude Desktop、Windsurf 各有各的配置文件，
    * 这个 agent 一个都不读，列出来只会得到一排拨了不生效的开关。哪一份算数由原生侧
-   * 的 agent_data_home 说了算，这里不猜路径。
-   *
-   * 原生侧只交正文，形状的解释在这里做 —— 规范的解码全仓只有 mcp-config 一处。
-   * 文件不在是常态，不是错误；文件在却不是这个形状要说出来，否则人会以为自己写的
-   * 那几台凭空消失了。
+   * 的 agent_home_directory 说了算，这里不猜路径。
    */
   async function readEnvironment(): Promise<void> {
     const file = await readEnvironmentMcpConfig()
@@ -381,60 +420,34 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     return [{ name: BUILTIN_SERVER_NAME, url: builtinUrl, enabled: builtinEnabled.read() }]
   }
 
-  /* 偏好是一个小文件。盘上装了什么不由它决定，所以重读它不必回头再数一遍目录。 */
-  async function readPreferences(): Promise<void> {
-    preferences = new Map(decodePluginPreferences(await readPluginState()))
-  }
-
-  /*
-   * 装了什么，磁盘说了算。
-   *
-   * 偏好里有、磁盘上没有的那些不是「丢失的插件」，是卸载之后留下的旧记录，忽略即可。
-   * 反过来才要紧：磁盘上有、偏好里没有的必须显示成装着的 —— 否则人会在目录里看到
-   * 一个「安装」按钮，而那个插件明明已经在盘上了。
-   *
-   * 只有装、卸、启动会走到这里。扫描不读偏好，所以两件事可以并着做。
-   */
+  /* 装了什么，agent 的账本说了算。开关与清单在同一条记录里，一次读齐。 */
   async function rescan(): Promise<void> {
-    const [payloads] = await Promise.all([listPlugins(), readPreferences()])
+    const payloads = await listPlugins()
 
-    scanned = await Promise.all(
-      payloads.map((payload) => scan(payload.pluginId, payload.manifestJson)),
-    )
+    scanned = await Promise.all(payloads.map((payload) => scan(payload)))
   }
 
   /*
-   * 写盘成了才发布。失败不动屏幕：人看到的仍然是盘上那一份。
+   * 写成了才发布。失败不动屏幕：人看到的仍然是账本里那一份。
    *
-   * refresh 说的是这次改动之后还要重新知道什么。拨开关只改偏好，plugins/ 目录一个字节
-   * 没动，重扫一遍是白扫；装与卸改的是目录本身，那才必须回盘上重新数。
+   * 每一次改动都是「先写 agent 会读的那个文件，再改屏幕」，没有第三种顺序。
    */
-  function commitPreferences(
-    next: Map<string, PluginPreference>,
-    what: string,
-    refresh: () => Promise<void>,
-  ): void {
+  function commit(what: string, write: () => Promise<void>, after: () => void): void {
     queue = queue.then(async () => {
       try {
-        await writePluginState(encodePluginPreferences(next))
-        await refresh()
-
-        republish()
+        await write()
       } catch (cause: unknown) {
         warn(what, { scope: 'plugins', cause })
+
+        return
       }
+
+      after()
     })
   }
 
-  function patchPreference(
-    pluginId: string,
-    patch: (preference: PluginPreference) => PluginPreference,
-  ): void {
-    const next = new Map(preferences)
-
-    next.set(pluginId, patch(next.get(pluginId) ?? DEFAULT_PREFERENCE))
-
-    commitPreferences(next, '插件偏好没能写入磁盘，屏幕上仍是磁盘里那一份', readPreferences)
+  function trustOf(source: PluginInstallSource): PluginTrustTier {
+    return listing(describeInstallSource(source))?.trust ?? UNLISTED_TRUST
   }
 
   function loadCatalog(): void {
@@ -534,11 +547,18 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       /*
        * 只有从来没取过才自动拉一次，这条判据由 shouldFetchOnOpen 一个地方说了算。
        * 排在 loadCatalog 之后：本地那一份读完了，才知道自己算不算「从来没取过」。
+       *
+       * 目录到手之后要再投一次：背书是拿账本里的 originalSource 回目录里查出来的，
+       * 目录还没到时每一条都只能是「没有背书」。
        */
       queue = queue.then(() => {
         if (shouldFetchOnOpen(snapshot.marketplace)) {
           fetchCatalog()
         }
+      })
+
+      queue = queue.then(() => {
+        republish()
       })
 
       return () => {
@@ -547,14 +567,24 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     },
 
     setEnabled(pluginId, enabled) {
-      patchPreference(pluginId, (preference) => ({ ...preference, enabled }))
+      commit(
+        '插件开关没能写进 agent 的账本，屏幕上仍是账本里那一份',
+        () => setPluginEnabled(pluginId, enabled),
+        () => {
+          /*
+           * 就地改这一条，不回头重读账本。清单一个字节没动，重扫一遍是白扫 ——
+           * 为了得知一个已经在内存里的布尔值。
+           */
+          scanned = scanned.map((entry) =>
+            entry.pluginId === pluginId ? { ...entry, enabled } : entry,
+          )
+
+          republish()
+        },
+      )
     },
 
     setMcpServerEnabled(target, server, enabled) {
-      /*
-       * 内置那台不落在插件偏好里：那份文件的形状是「按插件号索引的一张表」，塞一个
-       * 不存在的插件进去，卸载清理那条路径就会开始处理一个永远不会被卸载的东西。
-       */
       if (target.kind === 'builtin') {
         builtinEnabled.write(enabled)
         republish()
@@ -562,45 +592,44 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
-      patchPreference(target.pluginId, (preference) => ({
-        ...preference,
-        disabledMcpServers: enabled
-          ? preference.disabledMcpServers.filter((name) => name !== server)
-          : [...preference.disabledMcpServers, server],
-      }))
+      const { pluginId } = target
+
+      commit(
+        'MCP 服务器的开关没能写进 agent 的账本，屏幕上仍是账本里那一份',
+        () => setPluginMcpEnabled(pluginId, server, enabled),
+        () => {
+          scanned = scanned.map((entry) =>
+            entry.pluginId === pluginId
+              ? {
+                  ...entry,
+                  disabledMcpServers: enabled
+                    ? entry.disabledMcpServers.filter((name) => name !== server)
+                    : [...entry.disabledMcpServers, server],
+                }
+              : entry,
+          )
+
+          republish()
+        },
+      )
     },
 
     /*
-     * 卸载 = 目录不在了。
+     * 卸载 = 账本里那一条没了。
      *
-     * 上游卸载只删记录、留着托管副本；而在这一版里「装着」的定义就是目录在，所以
-     * 只删记录等于什么都没删。先让磁盘对齐，再抹掉偏好里那一条 —— 顺序不能反：先
-     * 删偏好再删目录，中间崩一次，这个插件会以默认开着的状态重新出现。
+     * 上一版是「目录不在了才算卸载」，那是因为当时装了什么由我们自己扫目录决定。现在
+     * 装载与不装载都由那份记录说了算，删记录就是卸载本身；托管副本由原生侧顺手清掉，
+     * 那只是清垃圾，不是这件事的语义。
      */
     remove(pluginId) {
-      queue = queue.then(async () => {
-        /*
-         * prunePlugins 的语义是「留下这些目录，其余全删」，比的是目录名。此前这份
-         * 名单用清单名拼，任何目录名与清单名不同的插件都不在名单里 —— 卸载一个会
-         * 顺手把它删掉。
-         */
-        const keep = snapshot.plugins
-          .map((plugin) => plugin.pluginId)
-          .filter((id) => id !== pluginId)
-
-        try {
-          await prunePlugins(keep)
-        } catch (cause: unknown) {
-          warn('插件目录没能删掉，界面因此不动', { scope: 'plugins', cause })
-
-          return
-        }
-
-        const next = new Map(preferences)
-
-        next.delete(pluginId)
-        commitPreferences(next, '插件已经删掉了，偏好里那一条没抹干净', rescan)
-      })
+      commit(
+        '插件没能从 agent 的账本里删掉，界面因此不动',
+        async () => {
+          await removePlugin(pluginId)
+          await rescan()
+        },
+        republish,
+      )
     },
 
     beginInstall(source) {
@@ -649,7 +678,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
           /* 官方来源不拦；其余一律等人点头，这条判据只有 install-source 说了算。 */
           if (!requiresInstallConfirmation(trust)) {
-            adopt(staged.stagingId, decoded.manifest.name, source, subdirectory, trust)
+            adopt(staged.stagingId, decoded.manifest.name, source, subdirectory)
           }
         } catch (cause: unknown) {
           publish({
@@ -669,13 +698,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         return
       }
 
-      adopt(
-        install.stagingId,
-        install.manifest.name,
-        install.source,
-        install.subdirectory,
-        install.trust,
-      )
+      adopt(install.stagingId, install.manifest.name, install.source, install.subdirectory)
     },
 
     cancelInstall() {
@@ -700,22 +723,27 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 认领：把暂存目录搬进 plugins/<id>/，然后才记偏好。
+   * 认领：副本进 managed/<id>/，账本里多一条。两件事在原生侧一次做完，因为它们中间
+   * 断开就会留下一条指向空气的记录，而 agent 会照着它去装载。
    *
-   * 顺序不能反。目录在了但偏好没写成，最坏是这个插件按默认档显示（开着、来历不明）；
-   * 反过来先写偏好再搬目录，中间失败就会留下一条指向空气的记录 —— 而在这一版里
-   * 「装着」的定义是目录在，那条记录连让人看见都做不到。
+   * 时刻从 options.now() 走。原生侧没有理由持有第二个时间源。
    */
   function adopt(
     stagingId: string,
     pluginId: string,
     source: PluginInstallSource,
     subdirectory: string | null,
-    trust: PluginTrustTier,
   ): void {
     queue = queue.then(async () => {
       try {
-        await commitPlugin({ stagingId, pluginId, subdirectory })
+        await commitPlugin({
+          stagingId,
+          pluginId,
+          subdirectory,
+          source: sourceKindOf(source),
+          originalSource: describeInstallSource(source),
+          installedAt: options.now(),
+        })
       } catch (cause: unknown) {
         publish({
           install: {
@@ -729,44 +757,21 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
       publish({ install: INSTALL_IDLE })
 
-      const next = new Map(preferences)
+      try {
+        await rescan()
+      } catch (cause: unknown) {
+        warn('插件装好了，账本读不回来', { scope: 'plugins', cause })
 
-      next.set(pluginId, {
-        enabled: true,
-        disabledMcpServers: [],
-        source,
-        trust,
-        installedAt: options.now(),
-      })
+        return
+      }
 
-      commitPreferences(next, '插件装好了，偏好没写进去，下次打开会按默认档显示', rescan)
+      republish()
     })
-  }
-
-  /*
-   * 背书来自目录，不来自安装动作本身。
-   *
-   * 比的是描述串不是对象引用：目录条目里的来源和这次安装用的来源是两个结构相同、
-   * 引用不同的对象，用 === 比永远不等，所有安装都会掉进 third-party。
-   */
-  function trustOf(source: PluginInstallSource): PluginTrustTier {
-    const catalog = latestCatalog(snapshot.marketplace)
-
-    if (catalog === undefined) {
-      return UNLISTED_TRUST
-    }
-
-    const described = describeInstallSource(source)
-
-    return (
-      catalog.entries.find((entry) => describeInstallSource(entry.source) === described)?.trust ??
-      UNLISTED_TRUST
-    )
   }
 }
 
 /*
- * 清单读不出来的目录仍然是一个装着的插件：它得在界面上占一行，好让人看见原因。
+ * 清单读不出来的记录仍然是一个装着的插件：它得在界面上占一行，好让人看见原因。
  * 把它从列表里抹掉，人只会看到「我明明装了它却不见了」。
  */
 function unreadableManifest(name: string): PluginManifest {

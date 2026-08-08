@@ -34,7 +34,7 @@ use std::sync::OnceLock;
 
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 
 const SETTINGS_FILE: &str = "settings.json";
 const AGENTS_FILE: &str = "agents.json";
@@ -49,10 +49,6 @@ const THREAD_DATABASE: &str = "threads.sqlite3";
 const LOG_DIRECTORY: &str = "logs";
 const CRASH_REPORT_FILE: &str = "last-native-crash.json";
 const ATTACHMENTS_DIRECTORY: &str = "attachments";
-const PLUGINS_DIRECTORY: &str = "plugins";
-/// 点开头：列举托管副本时那条「点开头不是合法插件标识符」的规则会排除它。
-const PLUGINS_STAGING_DIRECTORY: &str = ".staging";
-const PLUGINS_RECORD_FILE: &str = "installed.json";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
 
@@ -201,48 +197,10 @@ pub fn agent_home<R: Runtime>(app: &AppHandle<R>, agent_id: &str) -> Result<Path
     Ok(directory)
 }
 
-/// 插件的托管副本都在这一层下面，一个插件一个目录。
-pub fn plugins_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let directory = root(app)?.join(PLUGINS_DIRECTORY);
-
-    fs::create_dir_all(&directory)?;
-
-    Ok(directory)
-}
-
-/// 某一个插件的托管副本。
-///
-/// 标识符来自渲染层解码出来的清单，在拼路径的这一处验，而不是指望每个调用点自己
-/// 记得验 —— 这是唯一一个把它变成路径的地方。
-pub fn plugin_directory<R: Runtime>(app: &AppHandle<R>, plugin_id: &str) -> Result<PathBuf> {
-    if !poietica_plugin_host_native::is_safe_segment(plugin_id) {
-        return Err(Error::Validation(format!(
-            "不是合法的插件标识符：{plugin_id}"
-        )));
-    }
-
-    Ok(plugins_root(app)?.join(plugin_id))
-}
-
-/// 安装中途的暂存区。
-///
-/// 放在 plugins/ 里面而不是系统临时目录：认领那一步是一次 rename，跨卷会失败，而
-/// 系统临时目录经常在另一个卷上。名字以点开头，列举托管副本时会被那条「点开头不是
-/// 合法插件标识符」的规则自然排除。
-pub fn plugins_staging_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let directory = plugins_root(app)?.join(PLUGINS_STAGING_DIRECTORY);
-
-    fs::create_dir_all(&directory)?;
-
-    Ok(directory)
-}
-
-/// 装了哪些插件、开没开、哪些 MCP 服务器被单独关掉。
-pub fn plugins_record<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    Ok(plugins_root(app)?.join(PLUGINS_RECORD_FILE))
-}
-
 /// 上一次拉到的市场目录。拉过一次就不再自动拉，刷新是用户的动作。
+///
+/// 它挂在应用自己的数据根下，不在 agent 的家里：这是我们的界面缓存，agent 从不读它。
+/// 装了什么则相反 —— 那份账本是 agent 的，位置由 agent_home_directory 说了算。
 pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    Ok(plugins_root(app)?.join(MARKETPLACE_CATALOG_FILE))
+    Ok(root(app)?.join(MARKETPLACE_CATALOG_FILE))
 }

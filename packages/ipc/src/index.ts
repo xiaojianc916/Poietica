@@ -70,12 +70,12 @@ export {
   type PluginFileRequest,
   type PluginPayload,
   type PluginStaged,
-  prunePlugins,
   readPluginCatalog,
-  readPluginState,
   readPluginText,
   refreshPluginCatalog,
+  removePlugin,
+  setPluginEnabled,
+  setPluginMcpEnabled,
   stagePlugin,
-  writePluginState,
 } from './plugins'
 export { pickWorkspaceRoot } from './workspace'

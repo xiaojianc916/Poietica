@@ -392,23 +392,27 @@ async pluginsCatalogRead() : Promise<string | null> {
 async pluginsCatalogRefresh(url: string) : Promise<string> {
     return await TAURI_INVOKE("plugins_catalog_refresh", { url });
 },
+/**
+ * 认领：副本进 managed/<id>/，然后往账本里记一条。
+ * 
+ * 顺序不能反。副本在了但记录没写成，最坏是这个插件这一次没装上，重来一次即可；反过来
+ * 先写记录再搬副本，中间失败就留下一条指向空气的记录，而 agent 会照着它去装载。
+ */
 async pluginsCommit(request: PluginCommitRequest) : Promise<null> {
     return await TAURI_INVOKE("plugins_commit", { request });
 },
 async pluginsDiscard(stagingId: string) : Promise<null> {
     return await TAURI_INVOKE("plugins_discard", { stagingId });
 },
+/**
+ * 装了什么，agent 的账本说了算。
+ * 
+ * 不扫目录。官方卸载「only deletes the installation record; the managed copy and
+ * original source files remain on disk」，所以盘上有一个目录不代表它装着 —— 扫目录会
+ * 把刚卸载的插件重新显示成装着的，而 agent 那边不会装载它。
+ */
 async pluginsList() : Promise<PluginPayload[]> {
     return await TAURI_INVOKE("plugins_list");
-},
-/**
- * 删掉不在保留清单里的托管副本，返回真的删掉了哪些。
- * 
- * 上游卸载只删记录、留副本，托管目录于是只增不减。保留清单由渲染层给出 ——
- * 「哪些插件还算装着」是记录的语义，而那份记录的解码器在 TS 那边。
- */
-async pluginsPrune(keep: string[]) : Promise<string[]> {
-    return await TAURI_INVOKE("plugins_prune", { keep });
 },
 async pluginsReadText(request: PluginFileRequest) : Promise<string> {
     return await TAURI_INVOKE("plugins_read_text", { request });
@@ -423,14 +427,32 @@ async pluginsReadText(request: PluginFileRequest) : Promise<string> {
 async pluginsReadTree(request: PluginTreeRequest) : Promise<PluginFileText[] | null> {
     return await TAURI_INVOKE("plugins_read_tree", { request });
 },
+/**
+ * 卸载：账本里那一条去掉，托管副本一并删掉。
+ * 
+ * 官方只删记录、留副本。副本没有第二个读者 —— agent 只按记录装载 —— 留着它，换一个
+ * 来源重装同一个 id 时，旧文件会混进新目录。删掉不改变 agent 观察到的任何行为。
+ */
+async pluginsRemove(pluginId: string) : Promise<null> {
+    return await TAURI_INVOKE("plugins_remove", { pluginId });
+},
+/**
+ * 拨动整个插件。写的是 agent 会读的那一格，所以拨完在新会话里就是真的。
+ */
+async pluginsSetEnabled(pluginId: string, enabled: boolean) : Promise<null> {
+    return await TAURI_INVOKE("plugins_set_enabled", { pluginId, enabled });
+},
+/**
+ * 拨动某个插件带来的一台 MCP 服务器。
+ * 
+ * 落点是官方的 `capabilities.mcpServers.<name>.enabled`，也就是 `/plugins mcp
+ * disable` 写的同一格。
+ */
+async pluginsSetMcpEnabled(pluginId: string, server: string, enabled: boolean) : Promise<null> {
+    return await TAURI_INVOKE("plugins_set_mcp_enabled", { pluginId, server, enabled });
+},
 async pluginsStage(fetch: PluginFetch) : Promise<PluginStaged> {
     return await TAURI_INVOKE("plugins_stage", { fetch });
-},
-async pluginsStateRead() : Promise<string | null> {
-    return await TAURI_INVOKE("plugins_state_read");
-},
-async pluginsStateWrite(contents: string) : Promise<null> {
-    return await TAURI_INVOKE("plugins_state_write", { contents });
 },
 /**
  * Returns and consumes the previous native process crash report.
@@ -1438,13 +1460,25 @@ export type McpEndpoint = { url: string }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 
 /**
- * 渲染层解码清单之后判定的标识符。这里只验它能不能当目录名。
+ * 渲染层解码清单之后判定的标识符，也就是官方记录里的 id。
  */
 pluginId: string; 
 /**
  * 取用时用的那一段子目录。认领的是清单所在的那一层，与取用时是同一层。
  */
-subdirectory: string | null }
+subdirectory: string | null; 
+/**
+ * 官方 InstalledRecord.source 的三个取值之一：local-path / zip-url / github。
+ */
+source: string; 
+/**
+ * 人当初给的那一串地址。官方拿它显示来源，我们拿它回查目录里的背书。
+ */
+originalSource: string | null; 
+/**
+ * ISO-8601。时钟在领域层，不在这里 —— 原生侧没有理由持有第二个时间源。
+ */
+installedAt: string }
 /**
  * 一次取用从哪里拿字节。
  * 
@@ -1465,7 +1499,13 @@ export type PluginFileText = {
  * 相对插件根，不是相对 relative_path —— 回头要重读它，还得从根算起。
  */
 relativePath: string; contents: string }
-export type PluginPayload = { pluginId: string; manifestJson: string }
+/**
+ * 账本里的一条，加上那条记录指向的清单原文。
+ * 
+ * 清单读不出来时 manifest_json 是空串，而这一条仍然交出去：一个装着却坏了的插件必须
+ * 在界面上占一行，好让人看见原因。把它滤掉，人只会看到「我明明装了它却不见了」。
+ */
+export type PluginPayload = { pluginId: string; manifestJson: string; enabled: boolean; installedAt: string | null; source: string; originalSource: string | null; disabledMcpServers: string[] }
 /**
  * 已经解到暂存区、还没被认领的一份插件。
  */
