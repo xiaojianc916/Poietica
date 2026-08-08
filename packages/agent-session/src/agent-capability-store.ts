@@ -1,7 +1,6 @@
 import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/acp'
 import { useSyncExternalStore } from 'react'
 import { ArrivalOrder } from './arrival-order'
-import { settledChange } from './settled-change'
 
 /*
  * 锚会话提供哪些可调项，以及每一项此刻生效的是什么。
@@ -109,7 +108,7 @@ export class AgentCapabilityStore {
      * purpose 读出 undefined、configId 读出 undefined —— 前者让换模型不再落盘，
      * 后者让命令在原生侧连反序列化都过不了。
      */
-    void settledChange(control.purpose, () => port.select(control, value)).then(
+    void port.select(control, value).then(
       (table) => {
         this.#adopt(port, ticket, table)
       },
@@ -117,8 +116,7 @@ export class AgentCapabilityStore {
         this.#report?.changeFailed(cause)
 
         /* 改不动就退回驱动器手上那张表：它是这条连接最近一次记下的原话（driver.rs
-        的 Command::Selectors 就地作答，不惊动 agent），所以它纠正得了一次失败的下发，
-        纠正不了 agent 自己给出的陈旧表 —— 后者由 settledChange 在下发那一侧收敛。 */
+        的 Command::Selectors 就地作答，不惊动 agent）。 */
         this.refresh()
       },
     )
@@ -143,8 +141,8 @@ export class AgentCapabilityStore {
      * 重读，而不是把推来的表直接吃下：那一声没带可判定的归属，而锚会话此刻握着什么，
      * 驱动器手上那张就是它最近一次的原话（driver.rs 的 Command::Selectors）。
      *
-     * 这一条不负责换模型时的收敛。它读的是缓存，缓存里那张与答复是同一张；档位跟着
-     * 模型换，靠的是下发那一侧的 settledChange。
+     * 缓存里那张与答复是同一张：两条路都经过 config.rs 的 controls，agent 换模型时
+     * 挂在候选集末尾的那一档在那里被摘掉，所以推送与答复不会各说各话。
      */
     this.#unsubscribe = port.subscribe(() => {
       this.refresh()

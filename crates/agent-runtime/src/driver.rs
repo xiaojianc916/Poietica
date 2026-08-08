@@ -8,8 +8,9 @@ use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::schema::v1::{
     CancelNotification, ContentBlock, DeleteSessionRequest, InitializeRequest, ListSessionsRequest,
     LoadSessionRequest, NewSessionRequest, PromptRequest, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome, SessionId,
-    SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
+    SessionConfigOption, SessionId, SessionNotification, SessionUpdate,
+    SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::{AcpAgent, AcpAgentConfig, Agent, ConnectionTo, LineDirection};
 use futures::channel::{mpsc, oneshot};
@@ -18,7 +19,7 @@ use futures::{FutureExt, StreamExt};
 use serde_json::Value;
 
 use crate::commands::{AgentClient, Command, PromptImage};
-use crate::config::{ConfigControl, controls};
+use crate::config::{ConfigControl, controls, correction};
 use crate::desk::PermissionDesk;
 use crate::error::{AcpError, Refusal, Result};
 use crate::permission::{Decision, decide};
@@ -883,7 +884,50 @@ async fn change_selector(
     value: String,
     reply: oneshot::Sender<Result<Vec<ConfigControl>>>,
 ) -> Settled {
-    let changed = connection
+    let outcome = settle_selector(connection, named, config_id, value).await;
+
+    Settled::Selected {
+        session_id,
+        outcome,
+        reply,
+    }
+}
+
+/// 一次改动，谈到两边说的是同一件事为止。
+///
+/// 换模型时 agent 把上一个模型的思考档位带过来，挂在新模型候选集的末尾（见
+/// config.rs 的 carried_over）。config::controls 摘掉那一项，屏幕上的档位于是落回
+/// 新模型自己的第一档 —— 而 agent 那侧仍然停在旧档上。少了下面这一句回告，屏幕
+/// 说的和 agent 做的就是两件事。
+///
+/// 补的这一句走的是同一条路，所以真相仍然只有一个来源：agent 的答复。本地一格都
+/// 不改写。它最多发生一次 —— 一个刚被明确选中的档位不会再被带过来。
+async fn settle_selector(
+    connection: &ConnectionTo<Agent>,
+    named: SessionId,
+    config_id: String,
+    value: String,
+) -> Result<Vec<ConfigControl>> {
+    let changed = set_option(connection, named.clone(), config_id, value).await?;
+    let settled = controls(&changed);
+
+    let Some((corrected_id, corrected_value)) = correction(&changed, &settled) else {
+        return Ok(settled);
+    };
+
+    let told = set_option(connection, named, corrected_id, corrected_value).await?;
+
+    Ok(controls(&told))
+}
+
+/// One set_config_option, with the agent's own answer carried back.
+async fn set_option(
+    connection: &ConnectionTo<Agent>,
+    named: SessionId,
+    config_id: String,
+    value: String,
+) -> Result<Vec<SessionConfigOption>> {
+    connection
         .send_request(SetSessionConfigOptionRequest::new(
             named,
             config_id,
@@ -892,20 +936,11 @@ async fn change_selector(
             value.as_str(),
         ))
         .block_task()
-        .await;
-
-    let outcome = match changed {
-        Ok(response) => Ok(controls(&response.config_options)),
-        Err(error) => Err(AcpError::Protocol {
+        .await
+        .map(|response| response.config_options)
+        .map_err(|error| AcpError::Protocol {
             message: error.to_string(),
-        }),
-    };
-
-    Settled::Selected {
-        session_id,
-        outcome,
-        reply,
-    }
+        })
 }
 
 /// Walks one turn from the prompt to its end.

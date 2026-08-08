@@ -8,7 +8,6 @@ import type {
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
-import { settledChange } from './settled-change'
 import type { TranscriptSink } from './transcript-sink'
 
 /** 打开一条对话拿回来的那一整份答复。形状由端口说了算，不另抄一遍。 */
@@ -49,8 +48,8 @@ export interface SessionControlsOptions {
  * 后一次要用前一次的答复当判据。
  *
  * 串行管不到 agent 自己说话那一条。答复与推送是两条并发的到达，先后因此由
- * ArrivalOrder 定，而不由落地顺序定 —— 否则换模型那一次，agent 先答复的那张没
- * 收敛的表会盖掉它随后补推的收敛过的表。
+ * ArrivalOrder 定，而不由落地顺序定 —— 后发的那一问才是最新的问题，先回来的那
+ * 张表答的是上一个。
  *
  * 依赖全部构造时交进来：端口、配置、转录，以及通知 —— announce 汇回 ThreadsStore
  * 那一条订阅，读谁的状态与怎么被叫醒是两件事。这台 store 因此可以在没有任何进程
@@ -221,16 +220,8 @@ export class SessionControlsStore {
       const order = this.#orderOf(threadId)
       const ticket = order.issue()
 
-      /* 换模型要多问一趟才收敛，规则在 settledChange，两台 store 共用同一份。
-      这一侧只有 controlId，档位从手上那张表里查出来。 */
-      const purpose = this.#held.selectors
-        .get(threadId)
-        ?.find((control) => control.id === controlId)?.purpose
-
       try {
-        const offered = await settledChange(purpose, () =>
-          config.select(threadId, controlId, value),
-        )
+        const offered = await config.select(threadId, controlId, value)
 
         /* 号过期了，说明这一趟在飞的时候 agent 已经自己说过话，那张表更新。 */
         if (order.isLatest(ticket)) {
