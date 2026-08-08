@@ -13,8 +13,6 @@ import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
 import { reportFatalIncident } from './failures/terminal-policy'
 
-bootstrapApplication()
-
 function bootstrapApplication(): void {
   installScrollbarSize()
   installExternalLinks()
@@ -151,3 +149,17 @@ function getApplicationRoot(): HTMLElement {
 
   return root
 }
+
+/*
+ * 引导调用留在模块末尾，不要往上挪。
+ *
+ * 函数声明在求值任何语句之前就完成初始化，const 不会 —— 它直到自己那条语句被
+ * 求值之前一直处在暂时性死区，读它抛 ReferenceError。调用一旦放到声明之上，
+ * presentWhenPainted 就会在 PRESENT_DEADLINE_MS 初始化之前读它；而这条类型检查
+ * 与 lint 都看不见：从函数体里引用后面声明的模块级 const 在编译期完全合法，要
+ * 判定它是否过早得做调用图可达性分析。
+ *
+ * 挪到末尾不花时间：整个模块体是同一次同步求值，调用在第几行都在同一个任务里
+ * 跑完，早于任何一次绘制。
+ */
+bootstrapApplication()
