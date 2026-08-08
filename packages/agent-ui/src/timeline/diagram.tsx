@@ -204,11 +204,37 @@ function darkInk(style: unknown): string | undefined {
 }
 
 /*
+ * 围栏是这份语法的入口，不是装饰。
+ *
+ * tm-grammars 里的 mermaid 是一份 Markdown 注入语法：injectionSelector 写着
+ * L:text.html.markdown、fileTypes 是空的，顶层 patterns 只有 mermaid-code-block 与
+ * mermaid-code-block-with-attributes 两条围栏规则。裸源码喂进去，顶层一条也匹配不上，每行
+ * 退化成一个默认前景色的 token —— 「高亮引擎在跑、屏幕上却一片单色」的成因就在这里，与用不
+ * 用官方代码块组件无关。
+ *
+ * 所以按它写明的入口条件喂：前后各补一行围栏，拿回 token 再把这两行摘掉。补的是这份语法
+ * 要求的上下文，不是自己写一个分词器。
+ */
+const FENCE = '```'
+
+function fence(source: string): string {
+  return `${FENCE}mermaid\n${source}\n${FENCE}`
+}
+
+/* 摘掉前后两行围栏。行数对不上就当没上色，绝不冒吃掉一行正文的险。 */
+function unfence(painted: Painted, lines: number): Painted['tokens'] | undefined {
+  if (painted.tokens.length === lines + 2) {
+    return painted.tokens.slice(1, -1)
+  }
+
+  return painted.tokens.length === lines ? painted.tokens : undefined
+}
+
+/*
  * 源码也归这块面板自己上色。
  *
- * 官方代码块组件带着一整只壳：外框、圆角、语言标签栏，以及一个 lazy + Suspense 的高亮体 ——
- * 它的兜底体把每个 token 的颜色写成 inherit、htmlStyle 写成空对象，兜底一旦停在屏幕上，代码
- * 就是一片单色。这块面板只需要它的两样东西：Shiki 的分词，和复制按钮。分词由官方插件的
+ * 官方代码块组件带着一整只壳：外框、圆角、语言标签栏；这块面板要的是与渲染区同一块纯色，
+ * 只取它的两样东西：Shiki 的分词，和复制按钮。分词由官方插件的
  * highlight 直接给（与正文里那些围栏共用同一个插件实例、同一份 token 缓存），复制按钮照旧
  * 用官方那一枚。
  *
@@ -221,7 +247,7 @@ function useSource(source: string): readonly Row[] | undefined {
     let live = true
 
     const ready = painter.highlight(
-      { code: source, language: 'mermaid', themes: painter.getThemes() },
+      { code: fence(source), language: 'mermaid', themes: painter.getThemes() },
       (result) => {
         if (live) {
           setPainted(result)
@@ -241,9 +267,15 @@ function useSource(source: string): readonly Row[] | undefined {
       return undefined
     }
 
-    const last = painted.tokens.length - 1
+    const body = unfence(painted, source.split('\n').length)
 
-    return painted.tokens.map((line, index) => ({
+    if (body === undefined) {
+      return undefined
+    }
+
+    const last = body.length - 1
+
+    return body.map((line, index) => ({
       id: `row-${index}`,
       inks: line.map((token, spot) => ({
         dark: darkInk(token.htmlStyle),
@@ -254,7 +286,7 @@ function useSource(source: string): readonly Row[] | undefined {
       /* 换行由文本自己带，不靠 display: block —— 空行才有高度。末行不带，免得多出一行。 */
       tail: index === last ? '' : '\n',
     }))
-  }, [painted])
+  }, [painted, source])
 }
 
 function Source({ source }: { readonly source: string }) {
