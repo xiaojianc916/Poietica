@@ -34,6 +34,7 @@ use crate::commands::{
         Automation, AutomationCatalog, AutomationReschedule, AutomationRun, AutomationRunRecord,
         AutomationTrigger,
     },
+    plugins::{PluginCommitRequest, PluginFetch, PluginFileRequest, PluginPayload, PluginStaged},
     settings::{AppSettings, PrivacySettings},
     updates::{UpdateProgress, UpdateRelease},
 };
@@ -68,6 +69,16 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_upsert,
             crate::commands::automations::automations_remove,
             crate::commands::automations::automations_record_run,
+            crate::commands::plugins::plugins_catalog_read,
+            crate::commands::plugins::plugins_catalog_refresh,
+            crate::commands::plugins::plugins_commit,
+            crate::commands::plugins::plugins_discard,
+            crate::commands::plugins::plugins_list,
+            crate::commands::plugins::plugins_prune,
+            crate::commands::plugins::plugins_read_text,
+            crate::commands::plugins::plugins_stage,
+            crate::commands::plugins::plugins_state_read,
+            crate::commands::plugins::plugins_state_write,
             crate::commands::diagnostics::diagnostics_take_previous_crash,
             crate::commands::window::window_open_devtools,
             crate::commands::window::window_open_external_url,
@@ -115,6 +126,11 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationCatalog>()
         .typ::<AutomationReschedule>()
         .typ::<AutomationRunRecord>()
+        .typ::<PluginFetch>()
+        .typ::<PluginStaged>()
+        .typ::<PluginCommitRequest>()
+        .typ::<PluginFileRequest>()
+        .typ::<PluginPayload>()
         .typ::<NativeCrashReport>()
         .typ::<AppSettings>()
         .typ::<PrivacySettings>()

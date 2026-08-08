@@ -59,4 +59,21 @@ export {
   isIpcError,
   throughIpc,
 } from './error'
+export {
+  commitPlugin,
+  discardStagedPlugin,
+  listPlugins,
+  type PluginCommitRequest,
+  type PluginFetch,
+  type PluginFileRequest,
+  type PluginPayload,
+  type PluginStaged,
+  prunePlugins,
+  readPluginCatalog,
+  readPluginState,
+  readPluginText,
+  refreshPluginCatalog,
+  stagePlugin,
+  writePluginState,
+} from './plugins'
 export { pickWorkspaceRoot } from './workspace'

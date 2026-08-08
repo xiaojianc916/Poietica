@@ -32,6 +32,10 @@
 | `threads.sqlite3` | 对话索引 | 对话列表清空 |
 | `attachments/` | 附件字节，内容寻址 | 历史对话里的附件打不开 |
 | `agents/<id>/home/` | 各 agent 自己的配置，含 API 密钥 | 需要重新配置 provider |
+| `plugins/<id>/` | 装进来的插件的托管副本 | 那个插件的本体消失 |
+| `plugins/installed.json` | 装了哪些插件、开没开、哪些 MCP 服务器被关掉 | 插件全部回到未安装 |
+| `plugins/marketplace.json` | 上一次拉到的市场目录 | 下次打开市场时重新拉 |
+| `plugins/.staging/` | 安装中途的解压暂存区 | 无影响：认领前的中间态 |
 | `logs/` | 运行日志与上一次原生崩溃报告 | 无影响 |
 
 安装版的目录里还有程序本体（`Poietica.exe`、`uninstall.exe`、资源），名字与上面

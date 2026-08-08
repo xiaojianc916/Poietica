@@ -347,6 +347,48 @@ async automationsRemove(id: string) : Promise<AutomationCatalog> {
 async automationsRecordRun(record: AutomationRunRecord) : Promise<AutomationCatalog> {
     return await TAURI_INVOKE("automations_record_run", { record });
 },
+async pluginsCatalogRead() : Promise<string | null> {
+    return await TAURI_INVOKE("plugins_catalog_read");
+},
+/**
+ * 拉一次市场目录，覆盖本地那一份，并把它交回去。
+ * 
+ * 这条命令不判断该不该拉 —— 那个判断是 packages/plugins 的 shouldFetchOnOpen，
+ * 属于状态机。这里只负责「拉了就覆盖」。
+ */
+async pluginsCatalogRefresh(url: string) : Promise<string> {
+    return await TAURI_INVOKE("plugins_catalog_refresh", { url });
+},
+async pluginsCommit(request: PluginCommitRequest) : Promise<null> {
+    return await TAURI_INVOKE("plugins_commit", { request });
+},
+async pluginsDiscard(stagingId: string) : Promise<null> {
+    return await TAURI_INVOKE("plugins_discard", { stagingId });
+},
+async pluginsList() : Promise<PluginPayload[]> {
+    return await TAURI_INVOKE("plugins_list");
+},
+/**
+ * 删掉不在保留清单里的托管副本，返回真的删掉了哪些。
+ * 
+ * 上游卸载只删记录、留副本，托管目录于是只增不减。保留清单由渲染层给出 ——
+ * 「哪些插件还算装着」是记录的语义，而那份记录的解码器在 TS 那边。
+ */
+async pluginsPrune(keep: string[]) : Promise<string[]> {
+    return await TAURI_INVOKE("plugins_prune", { keep });
+},
+async pluginsReadText(request: PluginFileRequest) : Promise<string> {
+    return await TAURI_INVOKE("plugins_read_text", { request });
+},
+async pluginsStage(fetch: PluginFetch) : Promise<PluginStaged> {
+    return await TAURI_INVOKE("plugins_stage", { fetch });
+},
+async pluginsStateRead() : Promise<string | null> {
+    return await TAURI_INVOKE("plugins_state_read");
+},
+async pluginsStateWrite(contents: string) : Promise<null> {
+    return await TAURI_INVOKE("plugins_state_write", { contents });
+},
 /**
  * Returns and consumes the previous native process crash report.
  * 
@@ -1306,6 +1348,32 @@ export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permi
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
+export type PluginCommitRequest = { stagingId: string; 
+/**
+ * 渲染层解码清单之后判定的标识符。这里只验它能不能当目录名。
+ */
+pluginId: string }
+/**
+ * 一次取用从哪里拿字节。
+ * 
+ * GitHub 不在这里出现：把仓库地址变成归档 URL 是领域侧的判断，由 packages/plugins
+ * 的 planFetch 做，判不出来的（默认分支）当场就说判不出来。
+ */
+export type PluginFetch = { kind: "directory"; path: string } | { kind: "archive"; url: string }
+export type PluginFileRequest = { pluginId: string; 
+/**
+ * 相对插件根的路径，例如 systemPromptPath 指到的那份提示词。
+ */
+relativePath: string }
+export type PluginPayload = { pluginId: string; manifestJson: string }
+/**
+ * 已经解到暂存区、还没被认领的一份插件。
+ */
+export type PluginStaged = { stagingId: string; 
+/**
+ * 清单原文。这一层不解析它。
+ */
+manifestJson: string }
 export type PrivacySettings = { telemetry: boolean; crashReporting: boolean; updateCheck: boolean }
 export type ProviderProbeOutcome = { verdict: ProviderProbeVerdict; 
 /**

@@ -84,7 +84,10 @@ async fn download(url: &str) -> Result<Vec<u8>> {
     let mut response = reqwest::get(url).await.map_err(plugin_failure)?;
 
     if !response.status().is_success() {
-        return Err(plugin_failure(format!("server answered {}", response.status())));
+        return Err(plugin_failure(format!(
+            "server answered {}",
+            response.status()
+        )));
     }
 
     let mut bytes = Vec::new();
@@ -195,7 +198,8 @@ pub async fn plugins_stage(
     };
 
     (|| -> Result<PluginStaged> {
-        let staging = host::Staging::create(&plugins_staging_root(&app)?).map_err(plugin_failure)?;
+        let staging =
+            host::Staging::create(&plugins_staging_root(&app)?).map_err(plugin_failure)?;
 
         let filled = match (&fetch, bytes.as_deref()) {
             (PluginFetch::Directory { path }, _) => {
@@ -258,10 +262,7 @@ pub async fn plugins_discard(app: AppHandle, staging_id: String) -> PluginsComma
 /// 「哪些插件还算装着」是记录的语义，而那份记录的解码器在 TS 那边。
 #[command]
 #[specta::specta]
-pub async fn plugins_prune(
-    app: AppHandle,
-    keep: Vec<String>,
-) -> PluginsCommandResult<Vec<String>> {
+pub async fn plugins_prune(app: AppHandle, keep: Vec<String>) -> PluginsCommandResult<Vec<String>> {
     (|| -> Result<Vec<String>> {
         let kept: BTreeSet<&str> = keep.iter().map(String::as_str).collect();
         let mut removed = Vec::new();
@@ -323,10 +324,7 @@ pub async fn plugins_catalog_read(app: AppHandle) -> PluginsCommandResult<Option
 /// 属于状态机。这里只负责「拉了就覆盖」。
 #[command]
 #[specta::specta]
-pub async fn plugins_catalog_refresh(
-    app: AppHandle,
-    url: String,
-) -> PluginsCommandResult<String> {
+pub async fn plugins_catalog_refresh(app: AppHandle, url: String) -> PluginsCommandResult<String> {
     let fetched = download(&url).await.and_then(|bytes| {
         String::from_utf8(bytes)
             .map_err(|cause| plugin_failure(format!("catalog is not utf-8: {cause}")))

@@ -216,7 +216,9 @@ pub fn plugins_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 记得验 —— 这是唯一一个把它变成路径的地方。
 pub fn plugin_directory<R: Runtime>(app: &AppHandle<R>, plugin_id: &str) -> Result<PathBuf> {
     if !poietica_plugin_host_native::is_safe_segment(plugin_id) {
-        return Err(Error::Validation(format!("不是合法的插件标识符：{plugin_id}")));
+        return Err(Error::Validation(format!(
+            "不是合法的插件标识符：{plugin_id}"
+        )));
     }
 
     Ok(plugins_root(app)?.join(plugin_id))
@@ -244,4 +246,3 @@ pub fn plugins_record<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(plugins_root(app)?.join(MARKETPLACE_CATALOG_FILE))
 }
-

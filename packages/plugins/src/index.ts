@@ -13,6 +13,16 @@ export {
   resolveContributions,
 } from './contribution'
 export {
+  type ArchiveFetch,
+  DEFAULT_BRANCH_UNPLANNABLE,
+  type DirectoryFetch,
+  type FetchPlanning,
+  type PlannedFetch,
+  type PluginFetchPlan,
+  planFetch,
+  type UnplannableFetch,
+} from './fetch-plan'
+export {
   type ArchiveSource,
   type CommitRef,
   type DefaultBranchRef,
