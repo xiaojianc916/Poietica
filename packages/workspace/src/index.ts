@@ -26,6 +26,7 @@ export {
 } from './shell/sidebar/sidebar-footer'
 export { WorkspaceSidebar } from './shell/sidebar/workspace-sidebar'
 export {
+  useIsSidebarDocked,
   useWorkspaceLayoutMode,
   type WorkspaceLayoutMode,
 } from './shell/use-workspace-layout'

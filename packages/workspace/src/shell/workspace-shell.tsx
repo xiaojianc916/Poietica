@@ -2,7 +2,7 @@ import { TooltipProvider } from '@poietica/ui'
 
 import type { WorkspaceShellProps } from '../shell-contract'
 import { SidebarRegion } from './sidebar/sidebar-region'
-import { useWorkspaceLayoutMode } from './use-workspace-layout'
+import { useIsSidebarDocked, useWorkspaceLayoutMode } from './use-workspace-layout'
 import { encodeWorkbenchTabDomId } from './workbench-tabs/workbench-tabs-model'
 import { WorkspaceFrame } from './workspace-frame'
 import { useWorkspaceLayoutState, workspaceLayoutStore } from './workspace-layout-store'
@@ -19,7 +19,8 @@ export function WorkspaceShell({ model, parts }: WorkspaceShellProps) {
   const { sidebarOpen, sidebarWidth, isResizing } = useWorkspaceLayoutState()
   const { setSidebarOpen, setSidebarWidth } = workspaceLayoutStore
 
-  const dockSidebar = mode !== 'narrow' && sidebarOpen
+  /* 判据在 useIsSidebarDocked 里，标题栏那截竖线读的是同一个。 */
+  const dockSidebar = useIsSidebarDocked()
   const activeTabDomId = encodeWorkbenchTabDomId(model.activeTabId)
 
   /*

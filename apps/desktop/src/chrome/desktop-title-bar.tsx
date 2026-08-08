@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from '@mynaui/icons-react'
 import { Button } from '@poietica/ui'
 import {
+  useIsSidebarDocked,
   useWorkspaceLayoutMode,
   useWorkspaceLayoutState,
   workspaceLayoutStore,
@@ -89,6 +90,15 @@ export function DesktopTitleBar({
    */
   const layoutMode = useWorkspaceLayoutMode()
 
+  /*
+   * 竖线在不在，与侧栏那一长段同一个判据。
+   *
+   * 此前这里读的是 sidebarOpen —— 那是用户意图，拖窄窗口自动收起时它不变（也
+   * 不该变，否则拉宽回来侧栏就回不去了）。于是那一长段的墨色已经透明，chrome
+   * 行这一截还亮着：一条线断成了两种状态。
+   */
+  const isSidebarDocked = useIsSidebarDocked()
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 items-stretch bg-chrome">
       {/*
@@ -162,7 +172,11 @@ export function DesktopTitleBar({
           </div>
         ) : null}
 
-        <span aria-hidden="true" className="desktop-title-bar__edge" data-visible={sidebarOpen} />
+        <span
+          aria-hidden="true"
+          className="desktop-title-bar__edge"
+          data-visible={isSidebarDocked}
+        />
       </div>
 
       <div className="flex min-w-0 flex-1 items-stretch" data-tauri-drag-region>

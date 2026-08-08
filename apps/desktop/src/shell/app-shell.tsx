@@ -205,6 +205,14 @@ export function AppShell({ runtime }: AppShellProps) {
     [commandContext, runtime.commands],
   )
 
+  /*
+   * 主题在这里只校正，不建立。
+   *
+   * 建立在 main.tsx —— data-theme 缺席时设计系统令牌解成浅色，所以它必须早于
+   * 第一帧。这一趟是异步的，回来时第一帧早画完了：只有存下的选择与 system 不
+   * 同的人会看到一次切换，而那是两个都成立的状态之间的切换。删掉 main.tsx 那
+   * 一处会静默把冷启动的白闪带回来。
+   */
   useEffect(() => {
     let active = true
 

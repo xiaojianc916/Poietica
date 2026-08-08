@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 import { WORKSPACE_LAYOUT } from './workspace-layout'
+import { useWorkspaceLayoutState } from './workspace-layout-store'
 
 export type WorkspaceLayoutMode = 'wide' | 'compact' | 'narrow'
 
@@ -55,4 +56,21 @@ function subscribe(listener: () => void): () => void {
 
 export function useWorkspaceLayoutMode(): WorkspaceLayoutMode {
   return useSyncExternalStore(subscribe, getSnapshot)
+}
+
+/**
+ * 侧边栏此刻是不是真的占着那一列。
+ *
+ * 「停靠」要两个条件同时成立：用户想要它开着，而视口还容得下一列。store 只拥有
+ * 前者 —— 窄视口改用抽屉是呈现降级，意图一旦被环境覆盖就再也还原不回来。
+ *
+ * 判据只在这里出现一次。外壳栅格的 data-sidebar-docked、以及标题栏里那截竖线，
+ * 读的都是它：此前后者读的是裸 sidebarOpen，于是拖窄窗口自动收起时，同一条线的
+ * 两段各走各的 —— 下面那段淡掉了，chrome 行那截还亮着。
+ */
+export function useIsSidebarDocked(): boolean {
+  const mode = useWorkspaceLayoutMode()
+  const { sidebarOpen } = useWorkspaceLayoutState()
+
+  return mode !== 'narrow' && sidebarOpen
 }

@@ -5,6 +5,8 @@ import {
   type NativeCrashReport,
   takePreviousNativeCrashReport,
 } from '@poietica/desktop-adapters'
+import { DEFAULT_APP_SETTINGS } from '@poietica/settings'
+import { applyThemePreference } from '@poietica/ui'
 import { mountReactApplication } from './bootstrap/react-root'
 import { installContextMenuGuard } from './chrome/context-menu-guard'
 import { installExternalLinks } from './chrome/external-links'
@@ -17,6 +19,20 @@ function bootstrapApplication(): void {
   installScrollbarSize()
   installExternalLinks()
   installContextMenuGuard()
+
+  /*
+   * 主题必须在第一帧之前落到文档上。
+   *
+   * 深色令牌挂在 :root[data-theme="dark"]，浅色挂在裸 :root（tokens/light.css）
+   * —— 属性缺席时整套令牌无条件解成浅色，而 index.html 那份预 React 副本跟着
+   * prefers-color-scheme 走，于是深色桌面的冷启动是「深 → 整屏白 → 深」两跳。
+   *
+   * 默认值一直写着 system，此前只是没有人在设置回来之前应用它，那段窗口里既
+   * 不是存下的选择也不是默认值。这里不引入第二份状态：设置读回来之后
+   * app-shell 再校一次，重复调用由 theme-controller 自己摘掉上一个 matchMedia
+   * 监听。
+   */
+  applyThemePreference(DEFAULT_APP_SETTINGS.theme)
 
   /*
    * 首帧不排在任何一次原生往返之后。
