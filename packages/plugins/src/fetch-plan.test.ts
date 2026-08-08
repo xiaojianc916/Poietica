@@ -15,7 +15,7 @@ describe('planFetch', () => {
     })
     expect(planOf('https://example.com/demo.zip')).toEqual({
       kind: 'planned',
-      plan: { kind: 'archive', url: 'https://example.com/demo.zip' },
+      plan: { kind: 'archive', url: 'https://example.com/demo.zip', subdirectory: null },
     })
   })
 
@@ -25,6 +25,7 @@ describe('planFetch', () => {
       plan: {
         kind: 'archive',
         url: 'https://github.com/MoonshotAI/kimi-code/archive/refs/heads/main.zip',
+        subdirectory: null,
       },
     })
   })
@@ -35,6 +36,7 @@ describe('planFetch', () => {
       plan: {
         kind: 'archive',
         url: 'https://github.com/github/codeql-cli/archive/refs/tags/codeql-cli/v2.12.0.zip',
+        subdirectory: null,
       },
     })
   })
@@ -42,7 +44,11 @@ describe('planFetch', () => {
   it('提交走裸 sha 形式', () => {
     expect(planOf('https://github.com/MoonshotAI/kimi-code/commit/0fc40c2')).toEqual({
       kind: 'planned',
-      plan: { kind: 'archive', url: 'https://github.com/MoonshotAI/kimi-code/archive/0fc40c2.zip' },
+      plan: {
+        kind: 'archive',
+        url: 'https://github.com/MoonshotAI/kimi-code/archive/0fc40c2.zip',
+        subdirectory: null,
+      },
     })
   })
 

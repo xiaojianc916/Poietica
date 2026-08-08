@@ -196,6 +196,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       const preference = preferences.get(entry.pluginId) ?? DEFAULT_PREFERENCE
 
       return {
+        pluginId: entry.pluginId,
         manifest: entry.manifest,
         source: preference.source,
         trust: preference.trust,
@@ -440,9 +441,14 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
      */
     remove(pluginId) {
       queue = queue.then(async () => {
+        /*
+         * prunePlugins 的语义是「留下这些目录，其余全删」，比的是目录名。此前这份
+         * 名单用清单名拼，任何目录名与清单名不同的插件都不在名单里 —— 卸载一个会
+         * 顺手把它删掉。
+         */
         const keep = snapshot.plugins
-          .map((plugin) => plugin.manifest.name)
-          .filter((name) => name !== pluginId)
+          .map((plugin) => plugin.pluginId)
+          .filter((id) => id !== pluginId)
 
         try {
           await prunePlugins(keep)

@@ -12,6 +12,17 @@ import type { PluginDiagnostic, PluginManifest } from './manifest'
  * 侧的事，读完落在这里，领域层因此不需要碰文件系统。
  */
 export interface InstalledPlugin {
+  /**
+   * plugins/ 下的目录名。这个插件在系统里的名字就是它。
+   *
+   * 偏好表按它寻址，prunePlugins 按它决定留哪几个目录，原生侧读提示词文件也按它
+   * 定位。清单里的 name 是插件自己声明的显示身份，两者只在「从应用里装」这条路上
+   * 恰好相同 —— adopt 拿清单名去建目录。手动放进来的目录没人保证这件事，两个目录
+   * 声明同一个清单名也没人拦。
+   *
+   * 所以身份一律用它，显示与搜索才用 manifest 里那两个名字。
+   */
+  readonly pluginId: string
   readonly manifest: PluginManifest
   readonly source: PluginInstallSource | undefined
   readonly trust: PluginTrustTier
@@ -25,10 +36,14 @@ export interface InstalledPlugin {
 }
 
 /*
- * 解析顺序：安装时间升序，同刻按名字升序，时间未知的排在最前。
+ * 解析顺序：安装时间升序，同刻按目录名升序，时间未知的排在最前。
  *
  * 预算耗尽时被丢掉的是后来者，所以这个顺序必须是全序且稳定 —— 否则同一批插件
  * 两次启动会得到两套不同的提示词。
+ *
+ * 同刻比的是目录名而不是清单名：目录名在磁盘上天然唯一，清单名不是。两个目录
+ * 声明同一个清单名时，按清单名比会交回 0，这个序就不再是全序，上面那句承诺也
+ * 就落空了。
  */
 export function resolutionOrder(plugins: readonly InstalledPlugin[]): readonly InstalledPlugin[] {
   return [...plugins].sort((left, right) => {
@@ -39,10 +54,10 @@ export function resolutionOrder(plugins: readonly InstalledPlugin[]): readonly I
       return leftAt < rightAt ? -1 : 1
     }
 
-    if (left.manifest.name === right.manifest.name) {
+    if (left.pluginId === right.pluginId) {
       return 0
     }
 
-    return left.manifest.name < right.manifest.name ? -1 : 1
+    return left.pluginId < right.pluginId ? -1 : 1
   })
 }
