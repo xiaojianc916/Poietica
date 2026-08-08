@@ -2,9 +2,11 @@ import { assertUnreachable } from '@poietica/core'
 import { Button, Switch } from '@poietica/ui'
 import { useState, useSyncExternalStore } from 'react'
 
+import { latestCatalog } from '../marketplace'
 import type { PluginStore } from '../plugin-store'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
+import { PluginDetail } from './plugin-detail'
 
 /**
  * Tool 那一格。
@@ -12,7 +14,7 @@ import { PluginBrowser } from './plugin-browser'
  * 一个 tab 的准入条件是「这东西能不能被单独装上、单独拨开」。插件能；技能能；
  * MCP 服务器能（每一台各有开关）。命令与代理不能 —— 没有人「安装一条命令」，
  * 它们是插件装上之后附带产生的能力，摆成平级的 tab 会让人以为那是另一类可管理
- * 的东西。它们出现在插件那一行的能力摘要里，那才是它们的位置。
+ * 的东西。它们出现在插件详情里，那才是它们的位置。
  *
  * 角标上的数字与列表读同一份 ResolvedContributions，因此不会出现「写着 3 台服务器、
  * 点进去列了 4 条」。
@@ -57,6 +59,18 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
   const [tab, setTab] = useState<PluginTabId>('plugins')
   const [query, setQuery] = useState('')
 
+  /*
+   * 打开的是哪一个插件，只记 id 不记那条记录本身：记下来的副本会和 store 分叉，
+   * 于是「详情页里开着的开关」和「列表里那一行的开关」可以各说各话。
+   */
+  const [openedId, setOpenedId] = useState<string | undefined>(undefined)
+
+  const openedPlugin = view.plugins.find((plugin) => plugin.manifest.name === openedId)
+  const openedEntry = latestCatalog(view.marketplace)?.entries.find(
+    (entry) => entry.id === openedId,
+  )
+  const showsDetail = openedPlugin !== undefined || openedEntry !== undefined
+
   const counts: Record<PluginTabId, number> = {
     plugins: view.plugins.length,
     skills: view.contributions.skills.length,
@@ -86,6 +100,7 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
                 key={id}
                 onClick={() => {
                   setTab(id)
+                  setOpenedId(undefined)
                 }}
                 type="button"
               >
@@ -110,26 +125,46 @@ export function PluginsSurface({ store }: PluginsSurfaceProps) {
       </div>
 
       <div className="mx-auto max-w-4xl px-8 pb-20 pt-10">
-        <h1 className="text-2xl font-semibold tracking-tight">{descriptor.title}</h1>
+        {showsDetail ? (
+          <PluginDetail
+            entry={openedEntry}
+            onBack={() => {
+              setOpenedId(undefined)
+            }}
+            plugin={openedPlugin}
+            store={store}
+          />
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold tracking-tight">{descriptor.title}</h1>
 
-        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-          {descriptor.subtitle}
-        </p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              {descriptor.subtitle}
+            </p>
 
-        <input
-          aria-label={`搜索${descriptor.label}`}
-          className="mt-6 w-full rounded-lg border border-divider bg-background px-3.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/25"
-          onChange={(event) => {
-            setQuery(event.target.value)
-          }}
-          placeholder={`搜索${descriptor.label}`}
-          type="search"
-          value={query}
-        />
+            <input
+              aria-label={`搜索${descriptor.label}`}
+              className="mt-6 w-full rounded-lg border border-divider bg-background px-3.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/25"
+              onChange={(event) => {
+                setQuery(event.target.value)
+              }}
+              placeholder={`搜索${descriptor.label}`}
+              type="search"
+              value={query}
+            />
 
-        <div className="mt-8">
-          <TabBody keep={keep} needle={needle} store={store} tab={tab} view={view} />
-        </div>
+            <div className="mt-8">
+              <TabBody
+                keep={keep}
+                needle={needle}
+                onOpen={setOpenedId}
+                store={store}
+                tab={tab}
+                view={view}
+              />
+            </div>
+          </>
+        )}
       </div>
     </section>
   )
@@ -141,9 +176,10 @@ interface TabBodyProps {
   readonly keep: (row: ContributionRow) => boolean
   readonly needle: string
   readonly store: PluginStore
+  readonly onOpen: (pluginId: string) => void
 }
 
-function TabBody({ tab, view, keep, needle, store }: TabBodyProps) {
+function TabBody({ tab, view, keep, needle, store, onOpen }: TabBodyProps) {
   switch (tab) {
     case 'plugins':
       return (
@@ -152,6 +188,7 @@ function TabBody({ tab, view, keep, needle, store }: TabBodyProps) {
           loaded={view.loaded}
           marketplace={view.marketplace}
           needle={needle}
+          onOpen={onOpen}
           plugins={view.plugins}
           store={store}
         />

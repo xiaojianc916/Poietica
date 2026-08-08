@@ -1,63 +1,19 @@
 import { Button, Switch } from '@poietica/ui'
 import { useState } from 'react'
 
-import {
-  describeInstallSource,
-  type PluginInstallSource,
-  type PluginTrustTier,
-  parseInstallSource,
-} from '../install-source'
+import { describeInstallSource, parseInstallSource } from '../install-source'
 import type { InstalledPlugin } from '../installation'
 import { latestCatalog, type MarketplaceEntry, type MarketplaceState } from '../marketplace'
 import type { InstallFlow, PluginStore } from '../plugin-store'
+import { PluginGlyph } from './plugin-glyph'
+import { TrustBadge } from './trust-badge'
 
 /**
  * 「插件」那一格：上半是装着的，下半是目录里可以装的。
  *
- * 参考图原本就是一张滚动页 —— 已装在上，能装的在下。拆成两个 tab 会让「我装了
+ * 参考产品原本就是一张滚动页 —— 已装在上，能装的在下。拆成两个 tab 会让「我装了
  * 没有」和「我能装什么」变成两次导航，而人在这一屏想回答的正是这一个问题。
  */
-
-const TRUST_LABEL: Record<PluginTrustTier, string> = {
-  'kimi-official': '官方',
-  curated: '精选',
-  'third-party': '第三方',
-}
-
-/*
- * 目录里没有图标资源，而一排灰方块认不出谁是谁。用名字派生一个稳定色相：同一个
- * 插件每次都是同一个颜色，这就够人建立「那个蓝的是它」的记忆了。
- */
-function hueOf(value: string): number {
-  let hash = 7
-
-  for (const character of value) {
-    hash = (hash * 31 + (character.codePointAt(0) ?? 0)) % 360
-  }
-
-  return hash
-}
-
-function PluginGlyph({ name, size }: { readonly name: string; readonly size: 'sm' | 'md' }) {
-  const hue = hueOf(name)
-
-  return (
-    <span
-      aria-hidden="true"
-      className={
-        size === 'md'
-          ? 'flex size-10 shrink-0 items-center justify-center rounded-[10px] text-base font-semibold'
-          : 'flex size-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold'
-      }
-      style={{
-        backgroundColor: `oklch(0.93 0.05 ${hue})`,
-        color: `oklch(0.45 0.14 ${hue})`,
-      }}
-    >
-      {[...name][0]?.toUpperCase() ?? '?'}
-    </span>
-  )
-}
 
 function capabilitySummary(plugin: InstalledPlugin): string {
   const { skills, commands, agents, mcpServers } = plugin.manifest
@@ -83,6 +39,7 @@ export interface PluginBrowserProps {
   readonly loaded: boolean
   readonly needle: string
   readonly store: PluginStore
+  readonly onOpen: (pluginId: string) => void
 }
 
 export function PluginBrowser({
@@ -92,6 +49,7 @@ export function PluginBrowser({
   loaded,
   needle,
   store,
+  onOpen,
 }: PluginBrowserProps) {
   const catalog = latestCatalog(marketplace)
   const installedIds = new Set(plugins.map((plugin) => plugin.manifest.name))
@@ -120,16 +78,26 @@ export function PluginBrowser({
           ) : (
             <ul className="divide-y divide-divider">
               {visible.map((plugin) => (
-                <li className="flex items-center gap-3 py-3" key={plugin.manifest.name}>
-                  <PluginGlyph name={plugin.manifest.displayName} size="sm" />
+                <li className="relative flex items-center gap-3 py-3" key={plugin.manifest.name}>
+                  <PluginGlyph
+                    displayName={plugin.manifest.displayName}
+                    id={plugin.manifest.name}
+                    size="sm"
+                  />
 
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      <span className="truncate">{plugin.manifest.displayName}</span>
+                      <button
+                        className="truncate rounded text-left after:absolute after:inset-0 hover:underline"
+                        onClick={() => {
+                          onOpen(plugin.manifest.name)
+                        }}
+                        type="button"
+                      >
+                        {plugin.manifest.displayName}
+                      </button>
 
-                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-                        {TRUST_LABEL[plugin.trust]}
-                      </span>
+                      <TrustBadge trust={plugin.trust} />
                     </p>
 
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -146,6 +114,7 @@ export function PluginBrowser({
                   <Switch
                     aria-label={`启用 ${plugin.manifest.displayName}`}
                     checked={plugin.enabled}
+                    className="relative"
                     onCheckedChange={(checked) => {
                       store.setEnabled(plugin.manifest.name, checked)
                     }}
@@ -153,6 +122,7 @@ export function PluginBrowser({
                   />
 
                   <Button
+                    className="relative"
                     onClick={() => {
                       store.remove(plugin.manifest.name)
                     }}
@@ -177,13 +147,13 @@ export function PluginBrowser({
 
       {featured.length > 0 ? (
         <Section title="精选">
-          <CatalogGrid entries={featured} store={store} />
+          <CatalogGrid entries={featured} onOpen={onOpen} store={store} />
         </Section>
       ) : null}
 
       {rest.length > 0 ? (
         <Section title="更多插件">
-          <CatalogGrid entries={rest} store={store} />
+          <CatalogGrid entries={rest} onOpen={onOpen} store={store} />
         </Section>
       ) : null}
 
@@ -212,24 +182,39 @@ function Section({
   )
 }
 
+/*
+ * 整卡可点，但可达的控件只有两个：名字（拉伸到整卡）与安装按钮。这是标准的
+ * stretched-link 写法 —— 把整张卡包成 button 再往里塞 button 是嵌套交互控件，
+ * 键盘与读屏都走不通。
+ */
 function CatalogGrid({
   entries,
   store,
+  onOpen,
 }: {
   readonly entries: readonly MarketplaceEntry[]
   readonly store: PluginStore
+  readonly onOpen: (pluginId: string) => void
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {entries.map((entry) => (
         <article
-          className="flex items-start gap-3 rounded-xl border border-divider bg-background p-4 transition-colors hover:border-foreground/20"
+          className="relative flex items-start gap-3 rounded-xl border border-divider bg-background p-4 transition-colors hover:border-foreground/20"
           key={entry.id}
         >
-          <PluginGlyph name={entry.displayName} size="md" />
+          <PluginGlyph displayName={entry.displayName} id={entry.id} size="md" />
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{entry.displayName}</p>
+            <button
+              className="block max-w-full truncate rounded text-left text-sm font-medium after:absolute after:inset-0"
+              onClick={() => {
+                onOpen(entry.id)
+              }}
+              type="button"
+            >
+              {entry.displayName}
+            </button>
 
             <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
               {entry.description ?? describeInstallSource(entry.source)}
@@ -237,6 +222,7 @@ function CatalogGrid({
           </div>
 
           <Button
+            className="relative"
             onClick={() => {
               store.beginInstall(entry.source)
             }}
@@ -324,7 +310,11 @@ function InstallBanner({
   return (
     <div className="rounded-xl border border-divider bg-background p-4">
       <div className="flex items-start gap-3">
-        <PluginGlyph name={install.manifest.displayName} size="md" />
+        <PluginGlyph
+          displayName={install.manifest.displayName}
+          id={install.manifest.name}
+          size="md"
+        />
 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{install.manifest.displayName}</p>
@@ -336,9 +326,7 @@ function InstallBanner({
           </p>
         </div>
 
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-          {TRUST_LABEL[install.trust]}
-        </span>
+        <TrustBadge trust={install.trust} />
       </div>
 
       {install.diagnostics.map((diagnostic) => (
@@ -359,5 +347,3 @@ function InstallBanner({
     </div>
   )
 }
-
-export type { PluginInstallSource }

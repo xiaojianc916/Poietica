@@ -131,6 +131,15 @@ const InterfaceBlock = v.looseObject({
   websiteURL: v.optional(v.string()),
 })
 
+/*
+ * skills 可以是一条目录路径，也可以是一串路径。
+ *
+ * 证据是上游官方插件本身：kimi-webbridge 的 kimi.plugin.json 写的是
+ * "skills": "./skills/"。只认数组会让这份真清单整份被判无效 —— 表现成「装得下来、
+ * 却说清单不合法」，而错的是我们收窄过头，不是它写错了。
+ */
+const SkillsEntry = v.union([v.string(), v.array(v.string())])
+
 /* 宽进严出：进来的形状由上游决定，出去的形状由我们决定。 */
 const AgentEntry = v.union([
   v.string(),
@@ -149,7 +158,7 @@ const RawManifest = v.looseObject({
   description: v.optional(v.string()),
   homepage: v.optional(v.string()),
   interface: v.optional(InterfaceBlock),
-  skills: v.optional(v.array(v.string())),
+  skills: v.optional(SkillsEntry),
   agents: v.optional(v.array(AgentEntry)),
   commands: v.optional(v.array(CommandEntry)),
   mcpServers: v.optional(v.record(v.string(), v.record(v.string(), v.unknown()))),
@@ -177,6 +186,15 @@ export function commandDescription(declared: string | undefined, body: string): 
   }
 
   return firstLine.trim().slice(0, COMMAND_DESCRIPTION_LIMIT)
+}
+
+/* 一条路径与一串路径在下游没有区别，差异在解码期就抹掉。 */
+function normalizeSkills(declared: string | string[] | undefined): readonly string[] {
+  if (declared === undefined) {
+    return []
+  }
+
+  return typeof declared === 'string' ? [declared] : declared
 }
 
 interface PromptResolution {
@@ -286,7 +304,7 @@ export function decodePluginManifest(input: unknown): ManifestDecoding {
       version: raw.version,
       developerName: raw.interface?.developerName,
       homepage: raw.homepage,
-      skills: raw.skills ?? [],
+      skills: normalizeSkills(raw.skills),
       agents: (raw.agents ?? []).map((entry) =>
         typeof entry === 'string'
           ? { name: entry, override: false }
