@@ -14,18 +14,32 @@ import * as v from 'valibot'
  * 由调用方记一条诊断 —— 静默丢弃会把「装上了却没反应」变成查不出原因的问题。
  */
 
-export interface McpServerHttpWire {
+/*
+ * 下面两个形状是 type 不是 interface，数组也不只读 —— 两处都是为了让「这是一
+ * 份 JSON」可被编译器证明，而不是只在上面那段注释里声明。
+ *
+ * 传输那一格的类型由生成绑定给出：原生侧收的是 Vec<serde_json::Value>，specta
+ * 出来就是 JsonValue。而 TypeScript 只给类型别名隐式索引签名，不给接口 —— 接口
+ * 可以被声明合并，编译器保证不了它未来还只有这几个字段
+ * （microsoft/TypeScript#15300）。JsonValue 的数组分支又是可变的，readonly 数组
+ * 永远证不进去。
+ *
+ * 这些对象在 mcpServerWireOf 里现造、随即交给传输，没有人持有、没有人改它。
+ * 那层深只读保护的是不存在的风险，换来的却是一句编译期成立的「送得出去」。
+ */
+
+export type McpServerHttpWire = {
   readonly type: 'http' | 'sse'
   readonly name: string
   readonly url: string
   readonly headers?: Readonly<Record<string, string>>
 }
 
-export interface McpServerStdioWire {
+export type McpServerStdioWire = {
   readonly name: string
   readonly command: string
-  readonly args: readonly string[]
-  readonly env: readonly { readonly name: string; readonly value: string }[]
+  readonly args: string[]
+  readonly env: { readonly name: string; readonly value: string }[]
 }
 
 export type McpServerWire = McpServerHttpWire | McpServerStdioWire
