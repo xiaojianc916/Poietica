@@ -1,7 +1,7 @@
 import { cn } from '@poietica/ui'
 import { useState } from 'react'
 
-import { describeTrigger } from '../automation'
+import { describeSchedule } from '../automation'
 import {
   AUTOMATION_CATEGORIES,
   AUTOMATION_TEMPLATES,
@@ -77,7 +77,7 @@ export function TemplateGallery({ onPick }: TemplateGalleryProps) {
                 </p>
 
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {describeTrigger(template.trigger)}
+                  {describeSchedule(template.schedule)}
                 </p>
               </div>
 

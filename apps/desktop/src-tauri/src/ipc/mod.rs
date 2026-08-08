@@ -32,7 +32,7 @@ use crate::commands::{
     },
     automations::{
         Automation, AutomationCatalog, AutomationDue, AutomationReschedule, AutomationRun,
-        AutomationRunRecord, AutomationTrigger,
+        AutomationRunRecord,
     },
     plugins::{
         PluginCommitRequest, PluginFetch, PluginFileRequest, PluginFileText, PluginPayload,
@@ -125,7 +125,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AssetUploadResult>()
         .typ::<AssetRemoveRequest>()
         .typ::<AssetSessionCloseRequest>()
-        .typ::<AutomationTrigger>()
+        .typ::<AutomationDue>()
         .typ::<AutomationRun>()
         .typ::<Automation>()
         .typ::<AutomationCatalog>()

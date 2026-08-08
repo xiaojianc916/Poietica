@@ -1018,7 +1018,16 @@ launch: AgentLaunch;
 /**
  * The working directory the session is created against.
  */
-cwd: string | null }
+cwd: string | null; 
+/**
+ * 这一次开会话要挂哪几台 MCP 服务器，ACP 的线上形状原样带过来。
+ * 
+ * 这一层不认识它的字段。协议那三个结构体（McpServer / McpServerHttp /
+ * McpServerStdio）全标了 #[non_exhaustive]，这个 crate 构造不出来，只能
+ * 反序列化 —— 所以线上形状就是契约，与 events 那一格同一个理由。翻译在
+ * 驱动器里做，那里才是协议的家。
+ */
+mcpServers: JsonValue[] }
 /**
  * A conversation that was just opened, and what its session offers.
  */
@@ -1128,7 +1137,14 @@ launch: AgentLaunch;
 /**
  * The working directory the session is created against.
  */
-cwd: string | null }
+cwd: string | null; 
+/**
+ * 这条对话还没有会话时，为它开的那一条要挂哪几台 MCP 服务器。
+ * 
+ * 已经有会话就用不上：MCP 名册是 session/new 的参数，一条已经开着的会话
+ * 不会因为这一格而改变。
+ */
+mcpServers: JsonValue[] }
 /**
  * What the interface needs to follow the turn it just started.
  */
@@ -1305,7 +1321,22 @@ export type Automation = { id: string; title: string;
 /**
  * 到期时发给 agent 的那句话。自动化的全部行为都由它决定。
  */
-prompt: string; trigger: AutomationTrigger; enabled: boolean; createdAt: string; 
+prompt: string; 
+/**
+ * 什么时候跑。crontab 表达式；None 就是「只在人按下运行时跑一次」。
+ * 
+ * 这一侧不解析它。这一侧只有一个职责：把 next_run_at 和墙钟比大小
+ * （见 due_at）。日历是领域的事，归 packages/automations，那里用 croner
+ * 求值。
+ * 
+ * 时区不在这里，也不在任何一个字段里：求值那一刻的系统时区就是答案。
+ * 存一份下来，总有一天会和人所在的地方对不上，而「每天九点」说的永远
+ * 是此刻这台机器上的九点。
+ * 
+ * Option 而不是一个带 Manual 分支的判别联合：Manual 不携带任何数据，
+ * 那个 tag 只是 None 的另一种拼法，两份表示就是两份能互相矛盾的真相。
+ */
+schedule: string | null; enabled: boolean; createdAt: string; 
 /**
  * 下一次到期的时刻，RFC 3339；manual 为 None。
  * 
@@ -1370,17 +1401,6 @@ export type AutomationRunOutcome = "succeeded" | "failed"
  * 一次运行的提交：记一笔账，并按上面的判定推进日程。
  */
 export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
-/**
- * 触发条件。
- * 
- * 判别联合，不是一段 cron 字符串。本地桌面只需要「每 N 分钟」与「每天几点」
- * 两种，而一个 cron 解析器是这两件事之外多出来的一整门语言，还带来一整类
- * 非法输入。GitHub Actions 用 cron 是因为它要表达跨时区任意周期；这里不需要。
- * 
- * 写成 Rust 枚举，生成的 TypeScript 就是一个判别联合，界面不必在每个分支上
- * 各自断言一次。
- */
-export type AutomationTrigger = { kind: "manual" } | { kind: "interval"; everyMinutes: number } | { kind: "daily"; atMinuteOfDay: number }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

@@ -16,7 +16,7 @@
     "@poietica/core": "workspace:*",
     "@poietica/ipc": "workspace:*",
     "@poietica/ui": "workspace:*",
-    "croner": "^9.0.0"
+    "croner": "10.0.1"
   },
   "devDependencies": {
     "@types/react": "catalog:",
@@ -27,7 +27,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }
