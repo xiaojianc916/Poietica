@@ -30,14 +30,13 @@ function capabilitySummary(plugin: InstalledPlugin): string {
   return parts.length === 0 ? '没有带来可调用的能力' : parts.join(' · ')
 }
 
+/*
+ * 判空交给标准库：Array.prototype.join 规定 undefined 与 null 元素渲染成空串
+ * （ECMA-262 23.1.3.18），所以逐个字段判一遍是在手搓一件已经被解决的事。
+ * 分隔符取换行而不是空串，免得相邻两个字段的拼接处凑出一个本不存在的匹配。
+ */
 function matches(needle: string, ...fields: readonly (string | undefined)[]): boolean {
-  if (needle === '') {
-    return true
-  }
-
-  const lowered = needle.toLowerCase()
-
-  return fields.some((field) => field !== undefined && field.toLowerCase().includes(lowered))
+  return needle === '' || fields.join('\n').toLowerCase().includes(needle.toLowerCase())
 }
 
 export interface PluginBrowserProps {

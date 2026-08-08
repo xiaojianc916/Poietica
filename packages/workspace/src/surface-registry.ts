@@ -61,7 +61,7 @@ export const WORKSPACE_SURFACE_REGISTRY = {
     activation: { kind: 'command', commandId: 'application.toggle-command-palette' },
   },
   tools: {
-    title: 'Tool',
+    title: 'Plugins',
     description: '插件把技能与 MCP 服务器带进对话。装上、拨开，它们就生效。',
     iconId: 'box',
     navigationOrder: 1,
