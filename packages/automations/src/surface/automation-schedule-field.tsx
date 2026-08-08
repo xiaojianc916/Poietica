@@ -132,7 +132,7 @@ export function AutomationScheduleField({ onChange, schedule }: AutomationSchedu
           ? PROBLEMS[problem]
           : next === null
             ? '不排期。只有你按下运行时才跑一次。'
-            : '下一次 ' + describeMoment(next)}
+            : `下一次 ${describeMoment(next)}`}
       </p>
     </div>
   )

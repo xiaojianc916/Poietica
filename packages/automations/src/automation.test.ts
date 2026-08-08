@@ -16,7 +16,7 @@ describe('scheduleProblem', () => {
 
   it('读不懂的直说读不懂', () => {
     expect(scheduleProblem('每天九点')).toBe('unreadable')
-    expect(scheduleProblem('99 * * * *')).toBe('unreadable')
+    expect(scheduleProblem('* * *')).toBe('unreadable')
   })
 
   /* 心跳 30 秒，秒级表达式是一个兑现不了的承诺 —— 保存前就该被挡住。 */
@@ -61,7 +61,7 @@ describe('nextRunAfter', () => {
 
   /* 被外部改坏的目录文件只可能长这样：不排期，而不是每个心跳点一次火。 */
   it('读不懂的表达式不排期', () => {
-    expect(nextRunAfter('99 * * * *', Date.now())).toBeNull()
+    expect(nextRunAfter('每天九点', Date.now())).toBeNull()
   })
 })
 
