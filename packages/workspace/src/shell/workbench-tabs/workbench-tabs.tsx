@@ -44,20 +44,19 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
     onClose,
     onMove,
     getTabElement: viewport.getTabElement,
+    stripRef: viewport.stripRef,
     focusNewTab,
   })
 
   /*
-   * 三个兄弟节点，一层嵌套。
+   * role="tablist" 只拥有标签：新建按钮不是 tab，留在里面会让屏幕阅读器把它报成标签集合的
+   * 成员。
    *
-   * role="tablist" 只拥有标签：新建按钮和拖拽填充区都不是 tab，留在里面会让
-   * 屏幕阅读器把它们报成标签集合的成员。基线不归这里画——它是 chrome 行的
-   * 边界，标签条只在激活标签的区间把它盖住，坐标由视口 hook 写成根元素上的
-   * --chrome-active-tab-left / --chrome-active-tab-right 两个自定义属性。
+   * 基线不归这里画——它是 chrome 行的边界，标签条只在激活标签的区间把它盖住；区间坐标由
+   * 视口 hook 写，拖拽期间的位移由交互 hook 写，两者各写一个自定义属性到根元素上。
    *
-   * 滚动容器按内容取宽、可压缩：标签少时新建按钮紧跟最后一个标签，标签溢出时
-   * 它自然停在右端——原先靠 position: sticky 加不透明底色模拟的效果，现在是
-   * 布局的自然结果。
+   * 滚动容器按内容取宽、可压缩：标签少时新建按钮紧跟最后一个标签，标签溢出时它自然停在
+   * 右端。
    */
   return (
     <div className="chrome-workbench-tabs" ref={viewport.stripRef}>
@@ -70,12 +69,7 @@ export function WorkbenchTabs({ tabs, onActivate, onClose, onMove, onCreate }: W
       >
         {tabs.map((tab, index) => (
           <WorkbenchTab
-            dropSide={
-              interactions.reorderState.insertion?.targetId === tab.id
-                ? interactions.reorderState.insertion.side
-                : null
-            }
-            isDragging={interactions.reorderState.draggingTabId === tab.id}
+            isDragging={interactions.draggingTabId === tab.id}
             key={tab.id}
             model={tab}
             onActivate={onActivate}

@@ -3,7 +3,7 @@ import type { WorkbenchTabId } from '../../workbench'
 import {
   encodeWorkbenchTabDomId,
   resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabInsertion,
+  resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
   type WorkbenchTabModelItem,
   type WorkbenchTabSlot,
@@ -71,40 +71,40 @@ describe('Workbench Tabs model', () => {
     expect(resolveWorkbenchTabCloseTarget([createTab('only', true)], id('only'))).toBeNull()
   })
 
-  it('inserts after the last tab when the pointer passes its midpoint', () => {
-    expect(resolveWorkbenchTabInsertion(slots, 0, 260)).toEqual({
-      targetId: id('fixed'),
-      side: 'after',
-      index: 2,
-    })
-  })
-
-  it('inserts before the first tab when the pointer moves left', () => {
-    expect(resolveWorkbenchTabInsertion(slots, 2, 40)).toEqual({
-      targetId: id('first'),
-      side: 'before',
+  it('holds every tab in place until the dragged tab clears a neighbour midpoint', () => {
+    expect(resolveWorkbenchTabDragLayout(slots, 0, 40)).toEqual({
       index: 0,
+      offsets: [40, 0, 0],
     })
   })
 
-  it('resolves a slot beyond the neighbour midpoint', () => {
-    expect(resolveWorkbenchTabInsertion(slots, 0, 160)).toEqual({
-      targetId: id('second'),
-      side: 'after',
+  it('slides the passed neighbour into the vacated slot', () => {
+    expect(resolveWorkbenchTabDragLayout(slots, 0, 110)).toEqual({
       index: 1,
+      offsets: [110, -100, 0],
     })
   })
 
-  it('ignores a pointer that stays inside its own slot', () => {
-    expect(resolveWorkbenchTabInsertion(slots, 0, 120)).toBeNull()
+  it('clamps at the strip end and settles on the last position', () => {
+    expect(resolveWorkbenchTabDragLayout(slots, 0, 400)).toEqual({
+      index: 2,
+      offsets: [200, -100, -100],
+    })
   })
 
-  it.each([-1, 3])('rejects an out-of-range source index %s', (fromIndex) => {
-    expect(resolveWorkbenchTabInsertion(slots, fromIndex, 120)).toBeNull()
+  it('clamps at the strip start and settles on the first position', () => {
+    expect(resolveWorkbenchTabDragLayout(slots, 2, -400)).toEqual({
+      index: 0,
+      offsets: [100, 100, -200],
+    })
   })
 
-  it('rejects an empty strip', () => {
-    expect(resolveWorkbenchTabInsertion([], 0, 0)).toBeNull()
+  it.each([-1, 3])('rejects an out-of-range dragged index %s', (fromIndex) => {
+    expect(resolveWorkbenchTabDragLayout(slots, fromIndex, 20)).toBeNull()
+  })
+
+  it('rejects an empty strip layout', () => {
+    expect(resolveWorkbenchTabDragLayout([], 0, 0)).toBeNull()
   })
 
   it('encodes stable DOM identifiers', () => {

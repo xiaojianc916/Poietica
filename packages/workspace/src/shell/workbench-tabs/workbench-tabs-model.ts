@@ -27,14 +27,18 @@ export interface WorkbenchTabSlot {
   readonly end: number
 }
 
-export interface WorkbenchTabInsertion {
-  /** 指示器画在哪个标签的哪一侧。 */
-  readonly targetId: WorkbenchTabId
-
-  readonly side: 'before' | 'after'
-
-  /** 结果列表中的目标位置，与 onMove 的既有契约一致。 */
+/**
+ * 一次拖拽在某一瞬间的完整布局。
+ *
+ * 这是 Chromium 标签条 ideal bounds 的最小表达：被拖的那一格由指针定位，其余每一格都有一个
+ * "此刻应该画在哪"的目标位移，收敛过程交给 CSS 过渡。
+ */
+export interface WorkbenchTabDragLayout {
+  /** 松手时提交给 onMove 的落点，即被拖标签在结果列表中的位置。 */
   readonly index: number
+
+  /** 与 slots 同序：每一格相对自己静止位置的横向位移，单位 px。 */
+  readonly offsets: readonly number[]
 }
 
 export function resolveWorkbenchTabKeyboardAction(
@@ -93,45 +97,77 @@ export function resolveWorkbenchTabCloseTarget(
 }
 
 /*
- * 指针落在哪两个标签之间，由各标签中线决定；越过最后一条中线就是排到末尾。
- * 指针不必落在某个标签上——这正是 HTML5 拖放做不到的那一点。
+ * 落点由被拖标签自己的中线决定，不是光标坐标：光标可以按在标签的任意位置，用它算会让
+ * "看起来还没盖过去"和"已经换位了"对不上。Chromium 的 TabDragController 同样用被拖视图的
+ * 边界求插入位置。
+ *
+ * 位移取自静止槽位的起点差，而不是"标签宽加间距"：让位的每一格恰好落在前一格原来的起点上，
+ * 松手后真实布局给出的就是这个位置，因此提交时不会有回跳。
  */
-export function resolveWorkbenchTabInsertion(
+export function resolveWorkbenchTabDragLayout(
   slots: readonly WorkbenchTabSlot[],
   fromIndex: number,
-  pointerX: number,
-): WorkbenchTabInsertion | null {
-  if (slots.length === 0 || fromIndex < 0 || fromIndex >= slots.length) {
+  pointerDeltaX: number,
+): WorkbenchTabDragLayout | null {
+  const source = slots[fromIndex]
+
+  const first = slots[0]
+
+  const last = slots[slots.length - 1]
+
+  if (!source || !first || !last) {
     return null
   }
 
-  let insertBefore = slots.length
+  /* 夹在首尾槽位之间：越界会让标签滑出滚动容器，凭空撑出可滚动区域。 */
+  const offset = Math.min(
+    Math.max(pointerDeltaX, first.start - source.start),
+    last.end - source.end,
+  )
 
-  for (const [index, slot] of slots.entries()) {
-    if (pointerX < (slot.start + slot.end) / 2) {
-      insertBefore = index
+  const center = (source.start + source.end) / 2 + offset
 
+  let index = fromIndex
+
+  for (let candidate = fromIndex - 1; candidate >= 0; candidate -= 1) {
+    const slot = slots[candidate]
+
+    if (!slot || center > (slot.start + slot.end) / 2) {
       break
     }
+
+    index = candidate
   }
 
-  const index = insertBefore > fromIndex ? insertBefore - 1 : insertBefore
+  for (let candidate = fromIndex + 1; candidate < slots.length; candidate += 1) {
+    const slot = slots[candidate]
 
-  if (index === fromIndex) {
-    return null
+    if (!slot || center < (slot.start + slot.end) / 2) {
+      break
+    }
+
+    index = candidate
   }
 
-  const target = slots[index]
+  const offsets = slots.map(() => 0)
 
-  if (!target) {
-    return null
+  offsets[fromIndex] = offset
+
+  const step = index > fromIndex ? 1 : -1
+
+  for (let position = fromIndex; position !== index; position += step) {
+    const vacated = slots[position]
+
+    const moved = slots[position + step]
+
+    if (!vacated || !moved) {
+      return null
+    }
+
+    offsets[position + step] = vacated.start - moved.start
   }
 
-  return {
-    targetId: target.id,
-    side: index > fromIndex ? 'after' : 'before',
-    index,
-  }
+  return { index, offsets }
 }
 
 export function encodeWorkbenchTabDomId(value: string): string {

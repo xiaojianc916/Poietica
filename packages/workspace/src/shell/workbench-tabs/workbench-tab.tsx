@@ -14,8 +14,6 @@ interface WorkbenchTabProps {
 
   readonly isDragging: boolean
 
-  readonly dropSide: 'before' | 'after' | null
-
   readonly onActivate: (tabId: WorkbenchTabId) => void
 
   readonly onRequestClose: (tabId: WorkbenchTabId) => void
@@ -30,7 +28,6 @@ export function WorkbenchTab({
   targetIndex,
   reorder,
   isDragging,
-  dropSide,
   onActivate,
   onRequestClose,
   onKeyDown,
@@ -41,15 +38,14 @@ export function WorkbenchTab({
   const encodedId = encodeWorkbenchTabDomId(model.id)
 
   /*
-   * role="presentation"：tablist 的拥有元素必须是 tab。这层容器只承载几何与
-   * 指针会话，把它从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
+   * role="presentation"：tablist 的拥有元素必须是 tab。这层容器只承载几何与指针会话，把它
+   * 从无障碍树里透明化，内层 role="tab" 才是 tablist 的子元素。
    *
-   * 指针捕获挂在这一层，所以拖动越过其它标签时事件仍然回到这里。
+   * 指针捕获挂在这一层，拖动越过其它标签时事件仍然回到这里；拖拽位移也写在这一层，因为要
+   * 移动的是整格标签，不是里面的按钮。
    *
-   * 捕获在越过拖拽阈值时才建立。原先在 pointerdown 就抢捕获，而捕获期间
-   * mousedown 与 mouseup 都被重定向到捕获元素，click 于是在这个没有 onClick 的
-   * 容器上派发，内层的激活按钮与关闭按钮双双收不到点击——此处原本有一句断言
-   * “click 不受指针捕获影响”，它是错的。
+   * 捕获在越过拖拽阈值时才建立：捕获期间 mousedown 与 mouseup 都被重定向到捕获元素，click
+   * 于是在这个没有 onClick 的容器上派发，内层的激活按钮与关闭按钮会双双收不到点击。
    */
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 这一层只承载几何与指针捕获会话，tablist 的可聚焦项必须是内层 role="tab" 按钮；给它一个交互 role 会多出一个假的 tab。
@@ -57,7 +53,6 @@ export function WorkbenchTab({
       className="chrome-workbench-tab"
       data-active={model.isActive ? 'true' : 'false'}
       {...(isDragging ? { 'data-dragging': 'true' } : {})}
-      {...(dropSide ? { 'data-drop-side': dropSide } : {})}
       onLostPointerCapture={reorder.onLostPointerCapture}
       onMouseDown={(event) => {
         if (event.button === 1 && model.canClose) {

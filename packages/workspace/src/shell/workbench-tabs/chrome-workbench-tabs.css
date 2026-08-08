@@ -105,6 +105,13 @@
   max-width: var(--chrome-tab-max-width);
   flex: 0 1 auto;
   margin-left: -4px;
+
+  /*
+   * 拖拽会话唯一的视觉输出。没有会话时没人写这个属性，缺省 0px 就是静止。
+   * transform 不参与布局，让位动画因此不引起回流，也不改变已快照的槽位几何；
+   * 它带来的层叠上下文与包含块，isolation 和 position: relative 已经各自给过了。
+   */
+  transform: translateX(var(--chrome-tab-shift, 0px));
   isolation: isolate;
   user-select: none;
 }
@@ -419,32 +426,25 @@
 }
 
 /*
- * 重排会话的两个视觉信号：被拖动的标签降透明度，插入位置用一条竖线画在目标
- * 标签的对应边。指示器用的是 ::after —— 这个伪元素上原本挂着一条把它显式关掉
- * 的死规则（它从来没有定义过），现在它有了真正的用途。
+ * 会话期间：被拖的那一格浮到最上层且不带过渡（它必须逐帧贴住指针），其余每一格用过渡滑向
+ * 自己的新位置。这就是 Chrome 标签条 —— "正在被拖动"唯一需要的信号就是它在动，不需要再把
+ * 它变淡。
+ *
+ * 过渡只在会话内声明。松手时 data-dragging 与位移变量在同一次样式计算里一起消失，按 CSS
+ * Transitions「过渡取变更后样式的 transition-* 值」的规定不会有过渡启动，位移归零与 DOM
+ * 换位因此互相抵消，不产生回跳。
+ *
+ * 其余标签在会话内退出命中测试：它们会从指针底下滑过去，逐个亮起悬停态会把"我在拖这一个"
+ * 冲掉。指针捕获期间事件本就只回到被拖的那一格，没有功能损失。
  */
 .chrome-workbench-tab[data-dragging="true"] {
-  opacity: 0.45;
+  z-index: 10;
 }
 
-.chrome-workbench-tab[data-drop-side]::after {
-  position: absolute;
-  z-index: 9;
-  top: 4px;
-  bottom: 2px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--color-primary);
-  content: "";
+.chrome-workbench-tabs__scroller:has(.chrome-workbench-tab[data-dragging="true"])
+  .chrome-workbench-tab:not([data-dragging="true"]) {
+  transition: transform var(--ui-duration-fast) var(--ui-ease-standard);
   pointer-events: none;
-}
-
-.chrome-workbench-tab[data-drop-side="before"]::after {
-  left: 2px;
-}
-
-.chrome-workbench-tab[data-drop-side="after"]::after {
-  right: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -468,6 +468,15 @@
     animation: none;
   }
 
+  /*
+   * 与定义处同一个选择器：媒体查询不提升特异性，选择器不一致就压不住上面那条会话内的过渡。
+   * 跟手位移不在此列 —— 它是功能，不是装饰。
+   */
+  .chrome-workbench-tabs__scroller:has(.chrome-workbench-tab[data-dragging="true"])
+  .chrome-workbench-tab:not([data-dragging="true"]) {
+    transition: none;
+  }
+
   .chrome-workbench-tabs__scroller {
     scroll-behavior: auto;
   }
@@ -488,6 +497,10 @@
   content: "";
   inline-size: calc(var(--chrome-active-tab-right) - var(--chrome-active-tab-left));
   inset-block-end: -1px;
-  inset-inline-start: var(--chrome-active-tab-left);
+  /*
+   * 位置 = 布局测量 + 会话位移。两个变量各有一个写入方（视口 hook 负责布局位置，
+   * 拖拽会话负责位移），缺口因此跟着激活标签一起滑走，而不是停在它原来的位置。
+   */
+  inset-inline-start: calc(var(--chrome-active-tab-left) + var(--chrome-active-tab-shift, 0px));
   pointer-events: none;
 }

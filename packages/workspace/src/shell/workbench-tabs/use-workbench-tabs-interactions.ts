@@ -1,6 +1,7 @@
 import {
   type KeyboardEvent,
   type PointerEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useRef,
@@ -9,30 +10,39 @@ import {
 import type { WorkbenchTabId, WorkbenchTabViewModel } from '../../workbench'
 import {
   resolveWorkbenchTabCloseTarget,
-  resolveWorkbenchTabInsertion,
+  resolveWorkbenchTabDragLayout,
   resolveWorkbenchTabKeyboardAction,
-  type WorkbenchTabInsertion,
+  type WorkbenchTabDragLayout,
   type WorkbenchTabSlot,
 } from './workbench-tabs-model'
 
 /*
- * 重排是一次指针会话，不是 HTML5 拖放。
+ * 重排是一次指针会话，不是 HTML5 拖放。拖放那套的缺陷不是调参能补的：落点只在标签本身
+ * 生效（拖到新建按钮或标签条空白处松手一律无事发生），Escape 无法可靠取消，拖动过程拿
+ * 不到连续坐标。
  *
- * 拖放那套的三个缺陷都不是调参能补的：落点只在标签本身生效（拖到新建按钮、
- * 尾部填充区或标签条空白处松手一律无事发生），拖动过程没有插入位置提示，
- * Escape 无法可靠取消。专业标签条一律用指针捕获 + 实时指示器。
+ * 会话产出的是一份布局，不是一个插入提示：被拖的那一格跟着指针走，让位的每一格滑到自己
+ * 的新位置。这是 Chrome 标签条的做法 —— Chromium 的 TabStrip 用 ideal bounds 加
+ * BoundsAnimator 表达同一件事，而被拖的那个 tab 由 TabDragController 直接按指针定位、
+ * 不走动画。
  *
- * 这里与侧边栏缩放同一范式：setPointerCapture 拿到整段指针序列，几何在越过
- * 阈值时快照一次，插入位置由纯函数从指针坐标算出，Escape / pointercancel /
- * lostpointercapture 三条路径统一收尾。
- *
- * 捕获在越过阈值时才建立，不在 pointerdown。捕获期间 Chromium 会把 mousedown 与
- * mouseup 一并重定向到捕获元素，click 随之在承载会话的容器上派发——它没有
- * onClick，于是标签内两个真正的按钮（激活与关闭）会双双失灵。捕获的唯一用途是
- * 让拖动越过其它标签时事件仍回到源标签，阈值之前并不需要它。这也是 VS Code 与
- * Chrome 的拖拽实现方式。
+ * 捕获在越过阈值时才建立，不在 pointerdown。捕获期间 mousedown 与 mouseup 都会被重定向到
+ * 捕获元素，click 随之在承载会话的容器上派发，而它没有 onClick，于是标签内两个真正的按钮
+ * （激活与关闭）会双双失灵。捕获的唯一用途是让拖动越过其它标签时事件仍回到源标签。
  */
 const DRAG_THRESHOLD = 4
+
+/**
+ * 拖拽期间每一格的横向位移。
+ *
+ * 写在 DOM 上而不是 React state 上：这是会话内的瞬时视觉位置，不是领域状态；领域里的顺序
+ * 只在松手时经 onMove 提交一次。逐帧过 state 会让整条标签条按帧重渲，而这个数的唯一消费者
+ * 是 CSS 的 transform。
+ */
+const TAB_SHIFT_PROPERTY = '--chrome-tab-shift'
+
+/** 激活标签的位移。基线缺口画在标签条根节点上，必须跟着激活标签一起走。 */
+const ACTIVE_SHIFT_PROPERTY = '--chrome-active-tab-shift'
 
 interface PendingCloseFocus {
   readonly closingTabId: WorkbenchTabId
@@ -53,7 +63,13 @@ interface ReorderSession {
 
   active: boolean
 
-  target: WorkbenchTabInsertion | null
+  slots: readonly WorkbenchTabSlot[]
+
+  elements: readonly HTMLElement[]
+
+  activeIndex: number
+
+  layout: WorkbenchTabDragLayout | null
 }
 
 export interface WorkbenchTabReorderBindings {
@@ -68,25 +84,14 @@ export interface WorkbenchTabReorderBindings {
   readonly onPointerUp: (event: PointerEvent<HTMLElement>) => void
 
   /**
-   * 未越过阈值时指针移出标签：此时还没有捕获，松手的 pointerup 不会回到标签，
-   * 会话必须在这里收尾，否则会残留并挡住下一次按压。
+   * 未越过阈值时指针移出标签：此时还没有捕获，松手的 pointerup 不会回到标签，会话必须在
+   * 这里收尾，否则会残留并挡住下一次按压。
    */
   readonly onPointerLeave: (event: PointerEvent<HTMLElement>) => void
 
   readonly onPointerCancel: () => void
 
   readonly onLostPointerCapture: () => void
-}
-
-export interface WorkbenchTabReorderState {
-  readonly draggingTabId: WorkbenchTabId | null
-
-  readonly insertion: WorkbenchTabInsertion | null
-}
-
-const IDLE_REORDER: WorkbenchTabReorderState = {
-  draggingTabId: null,
-  insertion: null,
 }
 
 interface UseWorkbenchTabsInteractionsOptions {
@@ -100,6 +105,8 @@ interface UseWorkbenchTabsInteractionsOptions {
 
   readonly getTabElement: (tabId: WorkbenchTabId) => HTMLButtonElement | undefined
 
+  readonly stripRef: RefObject<HTMLDivElement | null>
+
   readonly focusNewTab: () => void
 }
 
@@ -109,15 +116,14 @@ export function useWorkbenchTabsInteractions({
   onClose,
   onMove,
   getTabElement,
+  stripRef,
   focusNewTab,
 }: UseWorkbenchTabsInteractionsOptions) {
   const sessionRef = useRef<ReorderSession | null>(null)
 
-  const slotsRef = useRef<readonly WorkbenchTabSlot[]>([])
-
   const pendingCloseFocusRef = useRef<PendingCloseFocus | null>(null)
 
-  const [reorderState, setReorderState] = useState<WorkbenchTabReorderState>(IDLE_REORDER)
+  const [draggingTabId, setDraggingTabId] = useState<WorkbenchTabId | null>(null)
 
   const requestClose = useCallback(
     (tabId: WorkbenchTabId) => {
@@ -130,7 +136,6 @@ export function useWorkbenchTabsInteractions({
       if (tab.isActive) {
         pendingCloseFocusRef.current = {
           closingTabId: tabId,
-
           fallbackTabId: resolveWorkbenchTabCloseTarget(tabs, tabId),
         }
       }
@@ -140,6 +145,10 @@ export function useWorkbenchTabsInteractions({
     [onClose, tabs],
   )
 
+  /*
+   * 焦点跟随只在被关掉的标签确实消失之后才动：关闭是异步提交的，提前搬焦点会搬到一个
+   * 马上要被卸载的节点上。
+   */
   useEffect(() => {
     const pending = pendingCloseFocusRef.current
 
@@ -147,9 +156,7 @@ export function useWorkbenchTabsInteractions({
       return
     }
 
-    const closingTabStillExists = tabs.some((tab) => tab.id === pending.closingTabId)
-
-    if (closingTabStillExists) {
+    if (tabs.some((tab) => tab.id === pending.closingTabId)) {
       return
     }
 
@@ -206,16 +213,66 @@ export function useWorkbenchTabsInteractions({
   const endSession = useCallback(() => {
     const session = sessionRef.current
 
-    if (session?.element.hasPointerCapture(session.pointerId)) {
+    if (!session) {
+      return
+    }
+
+    if (session.element.hasPointerCapture(session.pointerId)) {
       session.element.releasePointerCapture(session.pointerId)
     }
 
+    for (const element of session.elements) {
+      element.style.removeProperty(TAB_SHIFT_PROPERTY)
+    }
+
+    stripRef.current?.style.removeProperty(ACTIVE_SHIFT_PROPERTY)
+
     sessionRef.current = null
 
-    slotsRef.current = []
+    setDraggingTabId(null)
+  }, [stripRef])
 
-    setReorderState(IDLE_REORDER)
-  }, [])
+  /*
+   * 收尾只有一条路径：松手、Escape、pointercancel、丢失捕获全走这里，区别只在要不要提交
+   * 顺序。落位动画从"松手瞬间的视觉位置"补到"布局给出的位置"，取消与提交共用同一段代码，
+   * 也就不会出现某条路径忘了收干净。
+   */
+  const concludeSession = useCallback(
+    (commit: boolean) => {
+      const session = sessionRef.current
+
+      if (!session) {
+        return
+      }
+
+      const { element, tabId, fromIndex, layout } = session
+
+      if (!session.active || !layout || !element.isConnected) {
+        endSession()
+
+        return
+      }
+
+      const releasedLeft = element.getBoundingClientRect().left
+
+      endSession()
+
+      if (commit && layout.index !== fromIndex) {
+        onMove(tabId, layout.index)
+      }
+
+      requestAnimationFrame(() => {
+        const settled = getTabElement(tabId)?.closest<HTMLElement>('.chrome-workbench-tab')
+
+        if (!settled) {
+          return
+        }
+
+        settleIntoPlace(settled, releasedLeft - settled.getBoundingClientRect().left)
+      })
+    },
+    [endSession, getTabElement, onMove],
+  )
 
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLElement>, tab: WorkbenchTabViewModel, index: number) => {
@@ -223,16 +280,17 @@ export function useWorkbenchTabsInteractions({
         return
       }
 
-      const element = event.currentTarget
-
       sessionRef.current = {
         pointerId: event.pointerId,
         tabId: tab.id,
         fromIndex: index,
         originX: event.clientX,
-        element,
+        element: event.currentTarget,
         active: false,
-        target: null,
+        slots: [],
+        elements: [],
+        activeIndex: -1,
+        layout: null,
       }
     },
     [],
@@ -247,62 +305,66 @@ export function useWorkbenchTabsInteractions({
       }
 
       /*
-       * 阈值以下不进入拖拽，普通点击仍然只是点击。越过阈值时快照几何：标签在
-       * 一次拖拽内不会改变尺寸，每帧重测只会白白触发布局。
+       * 阈值以下不进入拖拽，普通点击仍然只是点击。越过阈值时把几何快照一次：一次拖拽内
+       * 标签尺寸不变，逐帧重测只会白白触发同步布局。
        */
       if (!session.active) {
         if (Math.abs(event.clientX - session.originX) < DRAG_THRESHOLD) {
           return
         }
 
+        const measured = measureStrip(tabs, getTabElement)
+
+        if (!measured) {
+          endSession()
+
+          return
+        }
+
         session.active = true
+        session.slots = measured.slots
+        session.elements = measured.elements
+        session.activeIndex = tabs.findIndex((tab) => tab.isActive)
 
         session.element.setPointerCapture(session.pointerId)
 
-        slotsRef.current = measureSlots(tabs, getTabElement)
+        setDraggingTabId(session.tabId)
       }
 
-      session.target = resolveWorkbenchTabInsertion(
-        slotsRef.current,
+      const layout = resolveWorkbenchTabDragLayout(
+        session.slots,
         session.fromIndex,
-        event.clientX,
+        event.clientX - session.originX,
       )
 
-      const next: WorkbenchTabReorderState = {
-        draggingTabId: session.tabId,
-        insertion: session.target,
+      if (!layout) {
+        return
       }
 
-      setReorderState((previous) =>
-        previous.draggingTabId === next.draggingTabId &&
-        previous.insertion?.targetId === next.insertion?.targetId &&
-        previous.insertion?.side === next.insertion?.side
-          ? previous
-          : next,
-      )
+      session.layout = layout
+
+      for (const [index, offset] of layout.offsets.entries()) {
+        session.elements[index]?.style.setProperty(TAB_SHIFT_PROPERTY, `${String(offset)}px`)
+      }
+
+      const activeOffset = layout.offsets[session.activeIndex]
+
+      if (activeOffset !== undefined) {
+        stripRef.current?.style.setProperty(ACTIVE_SHIFT_PROPERTY, `${String(activeOffset)}px`)
+      }
     },
-    [getTabElement, tabs],
+    [endSession, getTabElement, stripRef, tabs],
   )
 
   const onPointerUp = useCallback(
     (event: PointerEvent<HTMLElement>) => {
-      const session = sessionRef.current
-
-      if (!session || session.pointerId !== event.pointerId) {
+      if (sessionRef.current?.pointerId !== event.pointerId) {
         return
       }
 
-      const target = session.active ? session.target : null
-
-      const tabId = session.tabId
-
-      endSession()
-
-      if (target) {
-        onMove(tabId, target.index)
-      }
+      concludeSession(true)
     },
-    [endSession, onMove],
+    [concludeSession],
   )
 
   const onPointerLeave = useCallback(
@@ -318,74 +380,104 @@ export function useWorkbenchTabsInteractions({
     [endSession],
   )
 
+  const cancelSession = useCallback(() => {
+    concludeSession(false)
+  }, [concludeSession])
+
+  /*
+   * Escape 只在会话活着时监听。键盘事件不会落到承载会话的容器上（焦点仍在内层按钮），
+   * 所以必须挂 window。
+   */
   useEffect(() => {
-    if (!reorderState.draggingTabId) {
+    if (!draggingTabId) {
       return
     }
 
-    function handleKeyDown(event: globalThis.KeyboardEvent): void {
-      if (event.key !== 'Escape') {
-        return
+    function onWindowKeyDown(event: globalThis.KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        cancelSession()
       }
-
-      const session = sessionRef.current
-
-      if (session) {
-        session.target = null
-      }
-
-      endSession()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', onWindowKeyDown)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keydown', onWindowKeyDown)
     }
-  }, [endSession, reorderState.draggingTabId])
+  }, [cancelSession, draggingTabId])
 
   const reorder: WorkbenchTabReorderBindings = {
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onPointerLeave,
-    onPointerCancel: endSession,
-    onLostPointerCapture: endSession,
+    onPointerCancel: cancelSession,
+    onLostPointerCapture: cancelSession,
   }
 
   return {
     requestClose,
     onKeyDown,
     reorder,
-    reorderState,
+    draggingTabId,
   }
 }
 
-function measureSlots(
+/*
+ * 槽位与元素一次测齐。任一标签取不到元素就整体作废：索引必须与 tabs 一一对应，缺一个就会
+ * 把位移写到别的标签上。宁可这次按压不进入拖拽，也不要错位。
+ */
+function measureStrip(
   tabs: readonly WorkbenchTabViewModel[],
   getTabElement: (tabId: WorkbenchTabId) => HTMLButtonElement | undefined,
-): readonly WorkbenchTabSlot[] {
+): { slots: readonly WorkbenchTabSlot[]; elements: readonly HTMLElement[] } | null {
   const slots: WorkbenchTabSlot[] = []
+
+  const elements: HTMLElement[] = []
 
   for (const tab of tabs) {
     const element = getTabElement(tab.id)?.closest<HTMLElement>('.chrome-workbench-tab')
 
     if (!element) {
-      continue
+      return null
     }
 
     const rect = element.getBoundingClientRect()
 
-    slots.push({
-      id: tab.id,
-      start: rect.left,
-      end: rect.right,
-    })
+    slots.push({ id: tab.id, start: rect.left, end: rect.right })
+
+    elements.push(element)
   }
 
-  /*
-   * 槽位索引必须与 tabs 索引一一对应，否则算出来的目标位置会指向别的标签。
-   * 缺任何一个就整体作废，宁可这次拖拽不生效。
-   */
-  return slots.length === tabs.length ? slots : []
+  return elements.length > 0 ? { slots, elements } : null
+}
+
+/*
+ * 松手后补一段落位：被拖的那一格从松手时的视觉位置滑到布局给它的位置，否则它会瞬移，前面
+ * 一路跟手的物理感在最后一帧全部作废。让位的标签不需要这一段 —— 它们的位移取自静止槽位
+ * 起点，松手后真实布局给出的就是它们已经在的位置。
+ *
+ * 用 Web Animations API 而不是再造一个 class 开关加 transitionend：一次性动画的起止与中断
+ * 清理由平台负责。时长与曲线读设计令牌，和相邻标签的 CSS 过渡是同一组数；令牌读不到就不放
+ * 动画，不在这里另写一个字面量当第二份真相。
+ */
+function settleIntoPlace(element: HTMLElement, delta: number): void {
+  if (delta === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return
+  }
+
+  const styles = getComputedStyle(element)
+
+  const duration = Number.parseFloat(styles.getPropertyValue('--ui-duration-fast'))
+
+  const easing = styles.getPropertyValue('--ui-ease-standard').trim()
+
+  if (!Number.isFinite(duration) || easing === '') {
+    return
+  }
+
+  element.animate(
+    [{ transform: `translateX(${String(delta)}px)` }, { transform: 'translateX(0)' }],
+    { duration, easing },
+  )
 }
