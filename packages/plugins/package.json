@@ -12,10 +12,21 @@
   },
   "dependencies": {
     "@poietica/core": "workspace:*",
+    "@poietica/ipc": "workspace:*",
+    "@poietica/observability": "workspace:*",
+    "@poietica/ui": "workspace:*",
     "valibot": "catalog:"
   },
   "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

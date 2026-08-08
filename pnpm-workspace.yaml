@@ -29,8 +29,8 @@ catalog:
   diff: 9.0.0
   katex: 0.18.1
   "motion": "13.0.0"
-  "react": "19.2.8"
-  "react-dom": "19.2.8"
+  "react": "^19.2.8"
+  "react-dom": "^19.2.8"
   "streamdown": "2.5.0"
   "tailwind-merge": "3.6.0"
   "tailwindcss": "4.3.3"

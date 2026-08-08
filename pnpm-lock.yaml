@@ -61,10 +61,10 @@ catalogs:
       specifier: 13.0.0
       version: 13.0.0
     react:
-      specifier: 19.2.8
+      specifier: ^19.2.8
       version: 19.2.8
     react-dom:
-      specifier: 19.2.8
+      specifier: ^19.2.8
       version: 19.2.8
     streamdown:
       specifier: 2.5.0
@@ -469,10 +469,31 @@ importers:
       '@poietica/core':
         specifier: workspace:*
         version: link:../core
+      '@poietica/ipc':
+        specifier: workspace:*
+        version: link:../ipc
+      '@poietica/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@poietica/ui':
+        specifier: workspace:*
+        version: link:../ui
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@7.0.2)
     devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.4(@types/react@19.2.18)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.8
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.8(react@19.2.8)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

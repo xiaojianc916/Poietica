@@ -1,0 +1,49 @@
+import type { ReactNode } from 'react'
+
+/**
+ * 四个种类共用的那张列表。
+ *
+ * 技能、命令、代理、MCP 在信息结构上是同一件事：一个名字、一句说明、来自哪个插件，
+ * 外加 MCP 多一个开关。写成四份几乎一样的列表，迟早在其中一份上改漏一处。
+ */
+
+export interface ContributionRow {
+  readonly key: string
+  readonly title: string
+  readonly detail: string
+  readonly pluginId: string
+  readonly trailing?: ReactNode
+}
+
+export interface ContributionListProps {
+  readonly rows: readonly ContributionRow[]
+  readonly empty: string
+}
+
+export function ContributionList({ rows, empty }: ContributionListProps) {
+  if (rows.length === 0) {
+    return <p className="px-8 py-10 text-xs text-muted-foreground">{empty}</p>
+  }
+
+  return (
+    <ul className="px-8">
+      {rows.map((row) => (
+        <li
+          className="flex items-center gap-4 border-b border-divider py-3 last:border-b-0"
+          key={row.key}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{row.title}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.detail}</p>
+          </div>
+
+          <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            {row.pluginId}
+          </span>
+
+          {row.trailing}
+        </li>
+      ))}
+    </ul>
+  )
+}

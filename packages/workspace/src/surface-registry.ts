@@ -62,10 +62,10 @@ export const WORKSPACE_SURFACE_REGISTRY = {
   },
   tools: {
     title: 'Tool',
-    description: '查看与管理可调用工具。',
+    description: '插件带来的技能、命令、代理与 MCP 服务器。',
     iconId: 'box',
     navigationOrder: 1,
-    activation: { kind: 'planned' },
+    activation: { kind: 'surface' },
   },
   automations: {
     title: '自动化',

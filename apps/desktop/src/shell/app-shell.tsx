@@ -23,6 +23,7 @@ import { reportFailure } from '../failures/application-policy'
 import { failureCoordinator } from '../failures/coordinator'
 import { UiFeedbackRegion } from '../feedback/ui-feedback'
 import { UpdateCapsule } from '../feedback/update-capsule'
+import { PluginLoader } from '../plugins/plugin-runtime'
 import { ConversationCommands } from '../workbench/conversation-commands'
 import { type AppCapabilities, WorkspaceContainer } from '../workbench/workspace-container'
 
@@ -293,7 +294,10 @@ export function AppShell({ runtime }: AppShellProps) {
          * ThreadsProvider 之内是硬要求：一次运行要开出一条对话，而开对话的动作出
          * 自这个 provider。
          */}
-        <AutomationDispatcher session={runtime.agentSession} />
+        <AutomationScheduler session={runtime.agentSession} />
+
+        {/* 同样无渲染产出：让插件的装载与应用同寿。 */}
+        <PluginLoader />
 
         {/*
           同样无渲染产出：把会话列表贡献进命令注册表，于是搜索框里第一组就是

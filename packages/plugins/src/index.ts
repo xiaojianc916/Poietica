@@ -84,3 +84,25 @@ export {
   shouldFetchOnOpen,
   type UndecodableCatalog,
 } from './marketplace'
+export {
+  createPluginStore,
+  type IdleInstall,
+  INSTALL_IDLE,
+  type InstallFlow,
+  type PluginStore,
+  type PluginStoreOptions,
+  type PluginsViewModel,
+  type RefusedInstall,
+  type StagedInstall,
+  type StagingInstall,
+} from './plugin-store'
+export {
+  type DecodedLedger,
+  decodePluginLedger,
+  encodePluginLedger,
+  type LedgerDecoding,
+  PLUGIN_LEDGER_VERSION,
+  type PluginRecord,
+  type UndecodableLedger,
+} from './record'
+export { PluginsSurface, type PluginsSurfaceProps } from './surface/plugins-surface'

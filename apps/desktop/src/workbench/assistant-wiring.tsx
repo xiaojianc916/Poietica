@@ -1,8 +1,10 @@
 import type { AgentSessionPort } from '@poietica/acp'
 import { AutomationsSurface } from '@poietica/automations'
+import { PluginsSurface } from '@poietica/plugins'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'
 import type { ReactNode } from 'react'
 import { automationStore } from '../automations/automation-runtime'
+import { pluginStore } from '../plugins/plugin-runtime'
 import { AssistantPane } from './assistant-pane'
 import { ConversationSurface } from './conversation-surface'
 
@@ -55,6 +57,9 @@ export function createAssistantWiring({
        * 漏掉是编译错误而不是一张空态图。
        */
       automations: () => <AutomationsSurface store={automationStore} />,
+
+      /* Tool 那一格。注册表里 tools 已经是 surface，漏掉这一条是编译错误。 */
+      tools: () => <PluginsSurface store={pluginStore} />,
     },
 
     renderConversation: (threadId) => (
