@@ -22,7 +22,6 @@ export type {
   AutomationRun,
   AutomationRunOutcome,
   AutomationRunRecord,
-  AutomationTrigger,
 } from './generated/ipc-bindings'
 
 import type { Automation, AutomationCatalog, AutomationRunRecord } from './generated/ipc-bindings'

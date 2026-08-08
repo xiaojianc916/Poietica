@@ -992,6 +992,12 @@ export const rules = [
     pattern: /(?<=(?:from|import)\s*\(?\s*['"])react(?:-dom)?(?=['"/])/g,
     message: 'timeline/ 是纯投影：React 只允许出现在 session/ 与 UI 包',
   },
+  {
+    id: 'timeline-projection-stays-pure',
+    appliesTo: (file) => file.startsWith(TIMELINE_CORE),
+    pattern: /(?<=(?:from|import)\s*\(?\s*['"])react(?:-dom)?(?=['"/])/g,
+    message: 'timeline/ 是纯投影：React 只允许出现在 session/ 与 UI 包',
+  },
   ...entryOwnershipRules,
   {
     id: 'design-system-token-authority',

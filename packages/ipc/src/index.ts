@@ -47,7 +47,6 @@ export {
   type AutomationRun,
   type AutomationRunOutcome,
   type AutomationRunRecord,
-  type AutomationTrigger,
   loadAutomations,
   recordAutomationRun,
   removeAutomation,

@@ -7,7 +7,12 @@ import type {
 } from '@poietica/agent-contract'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
-import { type AgentConfigChoice, type AgentConfigControl, commands } from './generated/ipc-bindings'
+import {
+  type AgentConfigChoice,
+  type AgentConfigControl,
+  commands,
+  type JsonValue,
+} from './generated/ipc-bindings'
 
 /**
  * The desktop implementation of the ports the feature layer declares.
@@ -100,7 +105,7 @@ export interface AgentBridgeOptions {
    * 与 launch 和 cwd 同一条规矩：交的是一次求值，不是一个值。插件随时会被装上
    * 或拨掉，而桥在启动时就建好了。
    */
-  readonly mcpServers?: () => readonly unknown[]
+  readonly mcpServers?: () => readonly JsonValue[]
 }
 
 /**
