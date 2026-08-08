@@ -362,11 +362,11 @@ async automationsSweep() : Promise<null> {
     return await TAURI_INVOKE("automations_sweep");
 },
 /**
- * 用户级 mcp.json 的位置与正文。
+ * 默认 agent 会去读的那份 mcp.json。
  * 
  * # Errors
  * 
- * 家目录解析不出来，或文件存在却读不动时返回错误。文件不存在不算错误。
+ * 没有默认 agent、档案不存在、家目录算不出来，或文件存在却读不动时返回错误。
  */
 async environmentMcpConfig() : Promise<EnvironmentFile> {
     return await TAURI_INVOKE("environment_mcp_config");
@@ -1421,21 +1421,12 @@ export type AutomationRunOutcome = "succeeded" | "failed"
  */
 export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
 /**
- * 一份属于别人的配置文件。
- */
-export type EnvironmentFile = { 
-/**
- * 它在这台机器上的位置。
+ * 一份配置文件的现状：它在哪，以及它的正文。
  * 
- * 路径原样交给界面，与错误消息那条脱敏规则不冲突：屏幕前的人就是这台机器的
- * 主人，而「它到底在读哪个文件」是他唯一能据以排查的东西。storage_data_directory
- * 出于同一个理由把数据根显示给用户。
+ * 文件不在时 contents 是 None 而不是空串：一个空文件与一个不存在的文件，界面要
+ * 说的话不一样。
  */
-location: string; 
-/**
- * 正文。文件不存在就是 None —— 那是常态，不是错误。
- */
-contents: string | null }
+export type EnvironmentFile = { location: string; contents: string | null }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"

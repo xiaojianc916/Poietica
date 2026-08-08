@@ -200,7 +200,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   let scanned: readonly ScannedPlugin[] = []
   let preferences = new Map<string, PluginPreference>()
-  /* 机器上那份 mcp.json 里的服务器。读不出来就是空 —— 它不归本应用所有。 */
+  /* 这个 agent 自己那份 mcp.json 里的服务器。读不出来就是空。 */
   let environment: readonly DeclaredMcpServer[] = []
   /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
   let builtinUrl: string | undefined
@@ -327,7 +327,11 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
   }
 
   /*
-   * 这台机器上已经配好的 MCP 服务器。
+   * 这个 agent 自己那份 mcp.json 里已经配好的服务器。
+   *
+   * 不是「这台机器上的所有 MCP」：Cursor、Claude Desktop、Windsurf 各有各的配置文件，
+   * 这个 agent 一个都不读，列出来只会得到一排拨了不生效的开关。哪一份算数由原生侧
+   * 的 agent_data_home 说了算，这里不猜路径。
    *
    * 原生侧只交正文，形状的解释在这里做 —— 规范的解码全仓只有 mcp-config 一处。
    * 文件不在是常态，不是错误；文件在却不是这个形状要说出来，否则人会以为自己写的
@@ -348,7 +352,10 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     )
 
     if (decoded.malformed) {
-      warn('本机 mcp.json 不是预期的形状', { scope: 'plugins', location: file.location })
+      warn('这个 agent 的 mcp.json 不是预期的形状', {
+        scope: 'plugins',
+        location: file.location,
+      })
     }
 
     environment = decoded.servers
@@ -502,7 +509,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         try {
           await readEnvironment()
         } catch (cause: unknown) {
-          warn('本机 mcp.json 读不出来', { scope: 'plugins', cause })
+          warn('这个 agent 的 mcp.json 读不出来', { scope: 'plugins', cause })
 
           environment = []
         }

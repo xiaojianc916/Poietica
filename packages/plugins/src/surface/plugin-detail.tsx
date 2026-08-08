@@ -3,6 +3,7 @@ import { Button, Switch } from '@poietica/ui'
 import { describeInstallSource } from '../install-source'
 import type { InstalledPlugin } from '../installation'
 import type { MarketplaceEntry } from '../marketplace'
+import type { PluginOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
 import { PluginGlyph, pluginHue } from './plugin-glyph'
 import { TrustBadge } from './trust-badge'
@@ -167,6 +168,8 @@ interface CapabilitiesProps {
 
 function Capabilities({ plugin, store }: CapabilitiesProps) {
   const disabled = new Set(plugin.disabledMcpServers)
+  /* 这一页只讲一个插件，它带来的每一台服务器都出自同一个来源。 */
+  const origin: PluginOrigin = { kind: 'plugin', pluginId: plugin.manifest.name }
 
   return (
     <>
@@ -185,9 +188,7 @@ function Capabilities({ plugin, store }: CapabilitiesProps) {
                 <Switch
                   aria-label={`启用 ${server.name}`}
                   checked={!disabled.has(server.name)}
-                  onCheckedChange={(next) =>
-                    store.setMcpServerEnabled(plugin.manifest.name, server.name, next)
-                  }
+                  onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
                   size="sm"
                 />
               </li>

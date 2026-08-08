@@ -37,6 +37,17 @@ const McpConfigDocument = v.looseObject({
 })
 
 export function decodeMcpConfig(origin: ContributionOrigin, document: unknown): McpConfigDecoding {
+  /*
+   * 数组要先挡掉。
+   *
+   * typeof [] === 'object' 是语言事实，looseObject 于是照收：["nope"] 会被当成一份
+   * 没有 mcpServers 的合法空文档，坏文档就此伪装成空文档 —— 界面上一句话都不会说，
+   * 人只会以为自己没配。判法用 Array.isArray：跨 realm 时 instanceof Array 会失手。
+   */
+  if (Array.isArray(document)) {
+    return { servers: [], malformed: true }
+  }
+
   const parsed = v.safeParse(McpConfigDocument, document)
 
   if (!parsed.success) {

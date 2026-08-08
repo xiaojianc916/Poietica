@@ -40,6 +40,10 @@ const STORE_KEY: &str = "agentConfig";
 /// 一格，不属于散落在四个函数里的四个字符串。
 const CONFIG_FILE: &str = "config.toml";
 
+/// MCP 服务器清单。与 config.toml 同一个家：官方文档给的位置是
+/// `$KIMI_CODE_HOME/mcp.json`，而那个变量的值由 `launch_env` 设定。
+const MCP_CONFIG_FILE: &str = "mcp.json";
+
 /// 渲染层工作所依据的完整配置快照。
 ///
 /// agents 是不透明 JSON，由 TS 侧的 @poietica/agent-registry 校验；Rust 侧
@@ -176,7 +180,18 @@ fn controlled_config_file(app: &AppHandle, agent_id: &str) -> Result<Option<Path
 fn own_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
     let profile = profile_of(app, agent_id)?;
 
-    let directory = own_home_of(&profile)
+    Ok(own_home(app, agent_id, &profile)?.join(CONFIG_FILE))
+}
+
+/// 用户自己那份 home —— 他在命令行上用这家 agent 时，它认的那个目录。
+///
+/// 收 profile 而不是自己再查一次：同一次调用里查两遍同一份档案，迟早查出两个答案。
+///
+/// # Errors
+///
+/// 档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
+fn own_home(app: &AppHandle, agent_id: &str, profile: &Value) -> Result<PathBuf> {
+    let directory = own_home_of(profile)
         .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的档案没有说它自己把配置放在哪")))?;
 
     let home = app
@@ -184,7 +199,29 @@ fn own_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
         .home_dir()
         .map_err(|error| Error::Internal(error.to_string()))?;
 
-    Ok(home.join(directory).join(CONFIG_FILE))
+    Ok(home.join(directory))
+}
+
+/// 这家 agent 实际会去读的那个家。
+///
+/// config.toml、mcp.json、skills/ 都挂在它下面 —— 它们是同一个进程按同一个环境变量
+/// 找到的同一个目录，所以「家在哪」在这个仓里只能有一个答案。
+///
+/// 此前只有 config.toml 有这个答案，mcp.json 另算了一条写死的 `~/.kimi-code`。受控
+/// home 一旦生效（`launch_env` 把 homeVar 设成 `agent_home`），那条路指向的文件不
+/// 参与任何一次会话，而界面照样把里面的服务器显示成「已配置」—— 与 `agent_key_tails`
+/// 上面记的那个故障是同一个。
+///
+/// # Errors
+///
+/// 档案不存在、档案没说这家把配置放在哪、或用户 home 算不出来时返回错误。
+fn agent_data_home(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
+    let profile = profile_of(app, agent_id)?;
+
+    match controlled_home(app, agent_id, &profile)? {
+        Some(home) => Ok(home.path),
+        None => own_home(app, agent_id, &profile),
+    }
 }
 
 /// 这家 agent 实际会去读的那份 config.toml。
@@ -196,10 +233,7 @@ fn own_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
 ///
 /// 两条路都算不出来时返回错误。
 fn agent_config_file(app: &AppHandle, agent_id: &str) -> Result<PathBuf> {
-    match controlled_config_file(app, agent_id)? {
-        Some(path) => Ok(path),
-        None => own_config_file(app, agent_id),
-    }
+    Ok(agent_data_home(app, agent_id)?.join(CONFIG_FILE))
 }
 
 /// 读取某个 agent 声明的 home 环境变量名。
@@ -364,6 +398,34 @@ pub fn agent_program(app: &AppHandle, agent_id: &str) -> Result<String> {
         .ok_or_else(|| Error::AgentCli(format!("{agent_id} 的接入档案里没有可执行文件")))?;
 
     Ok(program.to_owned())
+}
+
+/// 默认 agent 会去读的那份 mcp.json。
+///
+/// 取默认 agent，而不是「当前会话那一个」：Tool 面板不挂在任何一条会话上，说不出
+/// 会话是哪个。等会话能各自选 agent 时，这一格要跟着会话走。
+///
+/// # Errors
+///
+/// 没有默认 agent、档案不存在、或家目录算不出来时返回错误。
+pub fn agent_mcp_config(app: &AppHandle) -> Result<PathBuf> {
+    let agent_id = default_agent_id(app)?;
+
+    Ok(agent_data_home(app, &agent_id)?.join(MCP_CONFIG_FILE))
+}
+
+/// 现在默认用哪一个 agent。
+///
+/// 空串当作没有：agents.json 里那一格的缺省值就是空串，拿它去查档案只会得到一句
+/// 「agents.json 里没有  的接入档案」。
+fn default_agent_id(app: &AppHandle) -> Result<String> {
+    let (config, _issues) = read_config(app)?;
+
+    if config.default_agent_id.is_empty() {
+        return Err(Error::AgentCli("还没有选定默认 agent".to_owned()));
+    }
+
+    Ok(config.default_agent_id)
 }
 
 /*
