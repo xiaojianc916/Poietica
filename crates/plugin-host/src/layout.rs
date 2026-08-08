@@ -131,6 +131,10 @@ pub fn list_files(root: &Path) -> std::io::Result<Vec<PathBuf>> {
             let kind = entry.file_type()?;
             let child = relative.join(name);
 
+            #[expect(
+                clippy::filetype_is_file,
+                reason = "regular files only: !is_dir() would admit the symlinks documented above"
+            )]
             if kind.is_file() {
                 found.push(child);
             } else if kind.is_dir() && depth < MAX_DEPTH {
