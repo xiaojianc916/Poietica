@@ -56,6 +56,12 @@ const PLUGINS_RECORD_FILE: &str = "installed.json";
 const MARKETPLACE_CATALOG_FILE: &str = "marketplace.json";
 const AGENTS_DIRECTORY: &str = "agents";
 
+/// 这台机器上 Kimi CLI 的家。官方文档：用户级配置在 `$KIMI_CODE_HOME`，缺省
+/// `~/.kimi-code`。
+const KIMI_CODE_HOME_VARIABLE: &str = "KIMI_CODE_HOME";
+const KIMI_CODE_DIRECTORY: &str = ".kimi-code";
+const MCP_CONFIG_FILE: &str = "mcp.json";
+
 /// 受控 home：agent 自己的 CLI 往这里写它自己的配置文件，由它自己热重载。
 const AGENT_HOME_DIRECTORY: &str = "home";
 
@@ -245,4 +251,31 @@ pub fn plugins_record<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
 /// 上一次拉到的市场目录。拉过一次就不再自动拉，刷新是用户的动作。
 pub fn marketplace_catalog<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     Ok(plugins_root(app)?.join(MARKETPLACE_CATALOG_FILE))
+}
+
+/// 这台机器上 Kimi CLI 的用户级 MCP 配置。
+///
+/// 这是这个模块里唯一一条不在数据根之下的路径，而它不破坏顶上那条纪律：本应用
+/// 只读它，一个字节都不往里写。装进来的东西全都落在数据根下，「抹干净只需要知道
+/// 一条路径」因此仍然成立。这一条只用来回答另一个问题 —— 你这台机器上已经有什么。
+///
+/// 位置由官方文档给定：用户级 `~/.kimi-code/mcp.json`，`KIMI_CODE_HOME` 覆盖那个
+/// 前缀。项目级 `.kimi-code/mcp.json` 不在这里：它依附于某个工作目录，那是另一个
+/// 所有者的事。
+///
+/// # Errors
+///
+/// 家目录无法解析时返回错误。
+pub fn user_mcp_config<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    Ok(kimi_code_home(app)?.join(MCP_CONFIG_FILE))
+}
+
+/// 空字符串当作没设：一个空的环境变量会把绝对路径悄悄变成相对路径。
+fn kimi_code_home<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    let declared = std::env::var_os(KIMI_CODE_HOME_VARIABLE).filter(|value| !value.is_empty());
+
+    match declared {
+        Some(home) => Ok(PathBuf::from(home)),
+        None => Ok(app.path().home_dir()?.join(KIMI_CODE_DIRECTORY)),
+    }
 }

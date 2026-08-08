@@ -4,6 +4,7 @@ import {
   discardStagedPlugin,
   listPlugins,
   prunePlugins,
+  readEnvironmentMcpConfig,
   readPluginCatalog,
   readPluginState,
   readPluginText,
@@ -39,6 +40,7 @@ import {
   parseMarketplaceOrigin,
   shouldFetchOnOpen,
 } from './marketplace'
+import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
 import {
   DEFAULT_PREFERENCE,
   decodePluginPreferences,
@@ -160,9 +162,11 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
   let scanned: readonly ScannedPlugin[] = []
   let preferences = new Map<string, PluginPreference>()
+  /* 机器上那份 mcp.json 里的服务器。读不出来就是空 —— 它不归本应用所有。 */
+  let environment: readonly DeclaredMcpServer[] = []
   let snapshot: PluginsViewModel = {
     plugins: [],
-    contributions: resolveContributions({ plugins: [] }),
+    contributions: resolveContributions({ environment: [], plugins: [] }),
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     loaded: false,
@@ -208,7 +212,11 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       }
     })
 
-    publish({ plugins, contributions: resolveContributions({ plugins }), loaded: true })
+    publish({
+      plugins,
+      contributions: resolveContributions({ environment, plugins }),
+      loaded: true,
+    })
   }
 
   /*
@@ -276,6 +284,34 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       diagnostics,
       readable: true,
     }
+  }
+
+  /*
+   * 这台机器上已经配好的 MCP 服务器。
+   *
+   * 原生侧只交正文，形状的解释在这里做 —— 规范的解码全仓只有 mcp-config 一处。
+   * 文件不在是常态，不是错误；文件在却不是这个形状要说出来，否则人会以为自己写的
+   * 那几台凭空消失了。
+   */
+  async function readEnvironment(): Promise<void> {
+    const file = await readEnvironmentMcpConfig()
+
+    if (file.contents === null) {
+      environment = []
+
+      return
+    }
+
+    const decoded = decodeMcpConfig(
+      { kind: 'user', location: file.location },
+      JSON.parse(file.contents),
+    )
+
+    if (decoded.malformed) {
+      warn('本机 mcp.json 不是预期的形状', { scope: 'plugins', location: file.location })
+    }
+
+    environment = decoded.servers
   }
 
   /* 偏好是一个小文件。盘上装了什么不由它决定，所以重读它不必回头再数一遍目录。 */
@@ -397,6 +433,18 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
           warn('插件列表读取失败', { scope: 'plugins', cause })
 
           scanned = []
+        }
+
+        republish()
+      })
+
+      queue = queue.then(async () => {
+        try {
+          await readEnvironment()
+        } catch (cause: unknown) {
+          warn('本机 mcp.json 读不出来', { scope: 'plugins', cause })
+
+          environment = []
         }
 
         republish()

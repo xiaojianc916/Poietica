@@ -34,6 +34,7 @@ use crate::commands::{
         Automation, AutomationCatalog, AutomationDue, AutomationReschedule, AutomationRun,
         AutomationRunRecord,
     },
+    environment::EnvironmentFile,
     plugins::{
         PluginCommitRequest, PluginFetch, PluginFileRequest, PluginFileText, PluginPayload,
         PluginStaged, PluginTreeRequest,
@@ -73,6 +74,7 @@ pub fn surface() -> Builder<Wry> {
             crate::commands::automations::automations_remove,
             crate::commands::automations::automations_record_run,
             crate::commands::automations::automations_sweep,
+            crate::commands::environment::environment_mcp_config,
             crate::mcp::mcp_endpoint,
             crate::commands::plugins::plugins_catalog_read,
             crate::commands::plugins::plugins_catalog_refresh,
@@ -133,6 +135,7 @@ pub fn surface() -> Builder<Wry> {
         .typ::<AutomationReschedule>()
         .typ::<AutomationRunRecord>()
         .typ::<crate::mcp::McpEndpoint>()
+        .typ::<EnvironmentFile>()
         .typ::<PluginFetch>()
         .typ::<PluginStaged>()
         .typ::<PluginCommitRequest>()

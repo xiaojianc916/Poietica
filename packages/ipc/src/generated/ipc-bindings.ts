@@ -361,6 +361,25 @@ async automationsRecordRun(record: AutomationRunRecord) : Promise<AutomationCata
 async automationsSweep() : Promise<null> {
     return await TAURI_INVOKE("automations_sweep");
 },
+/**
+ * 用户级 mcp.json 的位置与正文。
+ * 
+ * # Errors
+ * 
+ * 家目录解析不出来，或文件存在却读不动时返回错误。文件不存在不算错误。
+ */
+async environmentMcpConfig() : Promise<EnvironmentFile> {
+    return await TAURI_INVOKE("environment_mcp_config");
+},
+/**
+ * Reports where the in-process MCP server is listening.
+ * 
+ * Returns None while the server failed to bind: the caller then simply has no
+ * built-in server to register, which is a state the UI can show.
+ */
+async mcpEndpoint() : Promise<McpEndpoint | null> {
+    return await TAURI_INVOKE("mcp_endpoint");
+},
 async pluginsCatalogRead() : Promise<string | null> {
     return await TAURI_INVOKE("plugins_catalog_read");
 },
@@ -1401,10 +1420,30 @@ export type AutomationRunOutcome = "succeeded" | "failed"
  * 一次运行的提交：记一笔账，并按上面的判定推进日程。
  */
 export type AutomationRunRecord = { id: string; run: AutomationRun; reschedule: AutomationReschedule }
+/**
+ * 一份属于别人的配置文件。
+ */
+export type EnvironmentFile = { 
+/**
+ * 它在这台机器上的位置。
+ * 
+ * 路径原样交给界面，与错误消息那条脱敏规则不冲突：屏幕前的人就是这台机器的
+ * 主人，而「它到底在读哪个文件」是他唯一能据以排查的东西。storage_data_directory
+ * 出于同一个理由把数据根显示给用户。
+ */
+location: string; 
+/**
+ * 正文。文件不存在就是 None —— 那是常态，不是错误。
+ */
+contents: string | null }
 export type IpcError = { code: IpcErrorCode; message: string; operation: IpcOperation; recoverable: boolean }
 export type IpcErrorCode = "validation" | "not-found" | "file-conflict" | "permission-denied" | "persistence" | "plugin" | "asset" | "import-export" | "platform"
 export type IpcOperation = "file" | "plugin" | "asset" | "import-export" | "platform"
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * 服务器的落脚地址。渲染层照着它把这台服务器登记进 MCP 那一格。
+ */
+export type McpEndpoint = { url: string }
 export type NativeCrashReport = { incidentId: string; occurredAt: string; process: string; thread: string; message: string; location: string | null; backtrace: string; appVersion: string; targetOs: string; targetArch: string }
 export type PluginCommitRequest = { stagingId: string; 
 /**

@@ -60,6 +60,11 @@ export {
   type MarketplaceState,
 } from './marketplace'
 export {
+  type DeclaredMcpServer,
+  decodeMcpConfig,
+  type McpConfigDecoding,
+} from './mcp-config'
+export {
   type McpServerHttpWire,
   type McpServerStdioWire,
   type McpServerWire,
@@ -67,6 +72,12 @@ export {
   mcpServerWireOf,
   transportIsOffered,
 } from './mcp-server'
+export {
+  type ContributionOrigin,
+  describeOrigin,
+  type PluginOrigin,
+  type UserOrigin,
+} from './origin'
 export {
   createPluginStore,
   type IdleInstall,

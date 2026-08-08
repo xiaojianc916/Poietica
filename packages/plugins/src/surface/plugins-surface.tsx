@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore } from 'react'
 import type { ResolvedMcpServer } from '../contribution'
 import type { InstalledPlugin } from '../installation'
 import { latestCatalog } from '../marketplace'
+import { describeOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -40,7 +41,7 @@ const TABS = {
   mcp: {
     label: 'MCP',
     title: 'MCP 服务器',
-    subtitle: '插件声明的外部工具服务器。每一台可以单独拨开或关掉。',
+    subtitle: '对话能用到的外部工具服务器：这台机器上已经配好的，加上插件带来的。',
   },
 } as const satisfies Record<string, PluginTab>
 
@@ -132,7 +133,7 @@ interface TabBodyProps {
 function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
   const keep = (row: ContributionRow): boolean =>
     needle === '' ||
-    `${row.title}${row.detail}${row.pluginId}`.toLowerCase().includes(needle.toLowerCase())
+    `${row.title}${row.detail}${row.badge}`.toLowerCase().includes(needle.toLowerCase())
 
   switch (tab) {
     case 'plugins':
@@ -160,7 +161,7 @@ function TabBody({ needle, onOpen, store, tab, view }: TabBodyProps) {
     case 'mcp':
       return (
         <ContributionList
-          empty="还没有插件声明 MCP 服务器。"
+          empty="这台机器上没有配置 MCP 服务器，插件也没有带来。"
           rows={view.contributions.mcpServers
             .map((server) => serverRow(server, store))
             .filter(keep)}
@@ -181,7 +182,7 @@ function skillRow(plugin: InstalledPlugin, store: PluginStore): ContributionRow 
       sessionStartSkill === undefined
         ? `技能目录 ${skillRoots.join('、')}`
         : `技能目录 ${skillRoots.join('、')} · 会话开始自动装载 ${sessionStartSkill}`,
-    pluginId: name,
+    badge: name,
     trailing: (
       <Switch
         aria-label={`启用 ${displayName} 的技能`}
@@ -194,24 +195,41 @@ function skillRow(plugin: InstalledPlugin, store: PluginStore): ContributionRow 
 }
 
 /*
- * enabled 是这一台自己的开关，active 是「会话里真的会启动」。两个都要显示：
- * 插件整体关掉时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
+ * enabled 是这一台自己的开关，active 是「本应用会在会话开始时启动它」。两个都要
+ * 显示：插件整体关掉时这一台的开关不该被悄悄拨回去，但也不能让人以为它还在跑。
+ *
+ * 机器上那份 mcp.json 里的没有开关。那份文件不归本应用所有 —— 从这里改掉它，等于
+ * 让人下次在终端里跑 CLI 时莫名其妙地换了一套服务器。它们只显示，并且明说是谁在管。
  */
 function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionRow {
+  const { origin } = server
+
+  if (origin.kind === 'user') {
+    return {
+      key: `${origin.location}/${server.name}`,
+      title: server.name,
+      detail:
+        server.wire === undefined
+          ? `${origin.location} · 传输方式无法识别`
+          : `${origin.location} · ${server.enabled ? '由这台机器上的 CLI 装载' : '已在配置里关闭'}`,
+      badge: describeOrigin(origin),
+    }
+  }
+
   return {
-    key: `${server.pluginId}/${server.name}`,
+    key: `${origin.pluginId}/${server.name}`,
     title: server.name,
     detail: server.enabled
       ? server.active
         ? '会话开始时启动'
         : '插件已关闭，这一台不会启动'
       : '已关闭',
-    pluginId: server.pluginId,
+    badge: describeOrigin(origin),
     trailing: (
       <Switch
         aria-label={`启用 ${server.name}`}
         checked={server.enabled}
-        onCheckedChange={(next) => store.setMcpServerEnabled(server.pluginId, server.name, next)}
+        onCheckedChange={(next) => store.setMcpServerEnabled(origin.pluginId, server.name, next)}
         size="sm"
       />
     ),
