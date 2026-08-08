@@ -547,7 +547,7 @@ fn usable_default_model(text: &str) -> Option<String> {
 /// 上游闸门按 provider 的 `type` 决定「密钥也可以从 env 里来」时读哪个变量名。
 ///
 /// 这张表是 `providerHasNonOAuthCredentials` 那个 switch 的逐字对照
-/// （packages/acp-adapter/src/server.ts）。认不出的 type 返回 None，由调用方退成宽松判断。
+/// （packages/agent-contract-adapter/src/server.ts）。认不出的 type 返回 None，由调用方退成宽松判断。
 fn credential_env_key(provider_type: &str) -> Option<&'static str> {
     match provider_type {
         "anthropic" => Some("ANTHROPIC_API_KEY"),
@@ -564,7 +564,7 @@ fn credential_env_key(provider_type: &str) -> Option<&'static str> {
 /// 判据不是我们定的，是上游 session/new 的闸门定的：`hasUsableConfiguredDefaultModel`
 /// 拿 `config.models[default_model]` 解析出 provider，再要求
 /// `providerHasNonOAuthCredentials` 为真，否则配置文件里的 `api_key` 整条不算数、
-/// 一律 authRequired。所以这里照抄它的三步（packages/acp-adapter/src/server.ts）：
+/// 一律 authRequired。所以这里照抄它的三步（packages/agent-contract-adapter/src/server.ts）：
 ///
 /// 1. provider 名取模型条目里的 `provider`，缺席就退到顶层 `default_provider`；
 /// 2. 那一段 `[providers.<name>]` 存在；

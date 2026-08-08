@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/agent-contract'
 import type { AgentConfigStore, SettingsStore } from '@poietica/settings'
 import {
   SettingsContentRegion,

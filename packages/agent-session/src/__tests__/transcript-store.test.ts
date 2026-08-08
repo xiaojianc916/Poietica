@@ -1,4 +1,4 @@
-import type { AgentSessionPort, RunEvent } from '@poietica/acp'
+import type { AgentSessionPort, RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 import { TranscriptStore } from '../transcript-store'
 

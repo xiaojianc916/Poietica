@@ -1,7 +1,6 @@
-import type { RunEvent } from '@poietica/acp'
+import { asRunEvents, toolTurn } from '@poietica/agent-contract/recordings'
 import type { ToolCallTimelineItem } from '@poietica/agent-timeline'
 import { replayRunEvents } from '@poietica/agent-timeline'
-import { recordedToolTurn } from '@poietica/agent-timeline/fixtures'
 import { describe, expect, it } from 'vitest'
 import { toToolContentParts } from '../semantics/tool-call-content'
 
@@ -13,9 +12,7 @@ import { toToolContentParts } from '../semantics/tool-call-content'
  * illustrate our own mapping; they prove nothing about the protocol.
  */
 
-const events: readonly RunEvent[] = recordedToolTurn.map(
-  (captured) => captured.frame as unknown as RunEvent,
-)
+const events = asRunEvents(toolTurn)
 
 const state = replayRunEvents(events)
 

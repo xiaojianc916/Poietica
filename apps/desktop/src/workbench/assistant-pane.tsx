@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/agent-contract'
 import { useCallback, useRef, useState } from 'react'
 import { useThreadsActions } from '../assistant/threads-context'
 import { ConversationSurface } from './conversation-surface'

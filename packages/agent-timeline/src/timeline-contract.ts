@@ -8,7 +8,7 @@ import type {
   AcpToolCallUpdate,
   AcpToolKind,
   RunStatus,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 
 /**
  * The timeline projection.

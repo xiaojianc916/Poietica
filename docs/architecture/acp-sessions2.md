@@ -210,7 +210,7 @@ append_note(text)          → agent 自己写给未来接手者的笔记
 
 我原本以为要从"Thread ≠ Session"这个心智模型开始讲起。翻完代码发现不用讲——你已经这么写了。
 
-`packages/acp/src/address.ts` 里 `ThreadId` 和 `AcpSessionId` 是**两个类型**，不是同一个字符串的两个别名。`session.ts` 的注释更直白：「地址是会话号，和 ACP 的 `session/update` 同一个主语……它由原生侧写在信封上」。而 `thread.ts` 里那句「**这段对话由另一个 agent 保管，当前这个打不开它**」——你不但想到了跨 agent 的场景，还给它定义了三种失败语义：
+`packages/agent-contract/src/address.ts` 里 `ThreadId` 和 `AcpSessionId` 是**两个类型**，不是同一个字符串的两个别名。`session.ts` 的注释更直白：「地址是会话号，和 ACP 的 `session/update` 同一个主语……它由原生侧写在信封上」。而 `thread.ts` 里那句「**这段对话由另一个 agent 保管，当前这个打不开它**」——你不但想到了跨 agent 的场景，还给它定义了三种失败语义：
 
 ```tsx
 type ThreadHistoryLoss = 'otherAgent' | 'notSupported' | 'forgotten'
@@ -222,7 +222,7 @@ type ThreadHistoryLoss = 'otherAgent' | 'notSupported' | 'forgotten'
 
 | 能力 | 现状 | 代码落点 | 工作量 |
 | --- | --- | --- | --- |
-| Thread 与 Session 概念分离 | 已具备 | packages/acp/src/address.ts：ThreadId 与 AcpSessionId 是两个类型 | 无 |
+| Thread 与 Session 概念分离 | 已具备 | packages/agent-contract/src/address.ts：ThreadId 与 AcpSessionId 是两个类型 | 无 |
 | 会话记名：哪个 agent 持有它 | 已具备 | crates/persistence threads.agent_id（迁移 0012，带触发器堵住「有号无主」） | 无 |
 | 换 agent 打开旧对话的失败语义 | 已具备 | ThreadHistoryLoss = otherAgent | notSupported | forgotten，带 owner | 无 |
 | 一条连接同时持有多条会话 | 已具备 | crates/agent-runtime/src/[sessions.rs](http://sessions.rs) 的 SessionBook（HashMap<sessionId, RunSlot>） | 无 |

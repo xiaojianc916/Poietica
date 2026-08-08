@@ -4,22 +4,19 @@ import type {
   AgentPromptRequest,
   AgentSessionPort,
   RunEvent,
-} from '@poietica/acp'
-import { SAMPLE_RUN_EVENTS } from './__fixtures__/index'
+} from '@poietica/agent-contract'
 
 /**
  * A session port that replays a recorded run.
  *
- * The activity feed must be buildable, reviewable and testable before any agent
- * process exists, so this adapter emits real run events on a real schedule with
- * no protocol, no subprocess and no credentials involved. Tests inject their own
- * scheduler and drive the run frame by frame.
+ * 测试替身：真契约、真时序，没有协议、没有子进程、没有凭据。事件与调度器都由调用
+ * 方交进来 —— 它自己不认识任何一份录像，所以它住在测试面里，不在生产源码里。
  */
 
 export type ReplayScheduler = (callback: () => void, delayMs: number) => () => void
 
 export interface ReplaySessionOptions {
-  readonly events?: readonly RunEvent[]
+  readonly events: readonly RunEvent[]
   readonly stepMs?: number
   readonly scheduler?: ReplayScheduler
 }
@@ -32,8 +29,8 @@ const defaultScheduler: ReplayScheduler = (callback, delayMs) => {
 /* 录像里只有一条会话：假的端口也按真的契约说话，而契约上的地址是会话号。 */
 const SESSION: AcpSessionId = 'sess_replay'
 
-export function createReplaySession(options: ReplaySessionOptions = {}): AgentSessionPort {
-  const events = options.events ?? SAMPLE_RUN_EVENTS
+export function createReplaySession(options: ReplaySessionOptions): AgentSessionPort {
+  const events = options.events
   const stepMs = options.stepMs ?? 40
   const scheduler = options.scheduler ?? defaultScheduler
 

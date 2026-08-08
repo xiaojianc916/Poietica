@@ -4,7 +4,7 @@ import type {
   SessionConfigReport,
   ThreadPort,
   ThreadRecord,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import { ArrivalOrder } from './arrival-order'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
@@ -43,7 +43,7 @@ export interface SessionControlsOptions {
  * 不受影响。因此这个文件里不存在"应用替用户改配置"的路径：set_config 只由
  * selectControl（用户点击）发出。
  *
- * 下发按对话串行。ACP 规定改一项可能增删另一项（见 @poietica/acp 的 config.ts，
+ * 下发按对话串行。ACP 规定改一项可能增删另一项（见 @poietica/agent-contract 的 config.ts，
  * 以及原生侧 commands.rs 的 select 文档），所以同一条会话上的两次改动必须分先后：
  * 后一次要用前一次的答复当判据。
  *

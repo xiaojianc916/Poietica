@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { recordedTurn as spokenTurn } from './__fixtures__/live-turn.generated'
+import { recordedTurn as spokenTurn } from '../recordings/live-turn.generated'
 
 /**
  * 一轮真实对话的录像，作为帧契约的实物证据。

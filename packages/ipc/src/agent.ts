@@ -4,7 +4,7 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   ThreadPort,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import type { AgentCommandBridge, AgentEventSource } from './acp-session'
 import { throughIpc } from './error'
 import { type AgentConfigChoice, type AgentConfigControl, commands } from './generated/ipc-bindings'

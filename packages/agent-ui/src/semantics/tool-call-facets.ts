@@ -1,4 +1,4 @@
-import type { AcpToolCallContent } from '@poietica/acp'
+import type { AcpToolCallContent } from '@poietica/agent-contract'
 
 import { readSubAgent, type SubAgentBrief } from './sub-agent'
 import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call-content'
@@ -24,7 +24,7 @@ import { type DiffStat, type ToolContentPart, toToolCallView } from './tool-call
  * 那是要落到磁盘上的字节，不是一份待展示的 JSON 文档。
  *
  * 这一层不认识 React，也不认识时间线的条目类型：入参按形状收，与 tool-call-content
- * 只依赖 @poietica/acp 是同一条边界。
+ * 只依赖 @poietica/agent-contract 是同一条边界。
  */
 
 /** 画这两个面需要的全部原料；ToolCallTimelineItem 天然满足它。 */

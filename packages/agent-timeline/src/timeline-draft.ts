@@ -9,7 +9,7 @@
  * 意思归 acp-projection；哪一趟该开草稿、什么时候开段归 timeline-reducer。
  */
 
-import type { RunStatus } from '@poietica/acp'
+import type { RunStatus } from '@poietica/agent-contract'
 import type { TimelineItem, TimelineState } from './timeline-contract'
 
 export interface Draft {

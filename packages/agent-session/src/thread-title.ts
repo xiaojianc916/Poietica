@@ -1,4 +1,4 @@
-import type { ThreadRecord } from '@poietica/acp'
+import type { ThreadRecord } from '@poietica/agent-contract'
 
 /*
  * 一条对话叫什么，只有这一份规则。

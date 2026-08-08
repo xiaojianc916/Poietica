@@ -22,7 +22,7 @@
  *     等它放开，同一套 UI 直接生效，wire format 不变。
  */
 
-import type { AcpToolCallContent } from '@poietica/acp'
+import type { AcpToolCallContent } from '@poietica/agent-contract'
 import { toToolCallView } from './tool-call-content'
 
 export const ASK_USER_QUESTION_TOOL = 'AskUserQuestion'

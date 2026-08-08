@@ -1,4 +1,4 @@
-import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/acp'
+import type { AgentSessionPort, ChatStatus, PromptAsset } from '@poietica/agent-contract'
 import type { PermissionItem, TimelineState } from '@poietica/agent-timeline'
 import { pendingPermission, pendingPermissionCount } from '@poietica/agent-timeline'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'

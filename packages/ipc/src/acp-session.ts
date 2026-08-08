@@ -4,7 +4,7 @@ import type {
   AgentPromptRequest,
   AgentSessionPort,
   RunEvent,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 
 /**
  * A session port backed by the Rust runtime.

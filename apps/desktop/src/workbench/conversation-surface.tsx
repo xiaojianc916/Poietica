@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/agent-contract'
 import { chooseAgentControl, useAgentControls } from '@poietica/agent-session'
 import { AssistantSurface, installAttachmentIntake } from '@poietica/agent-ui'
 import { createAttachmentIntake } from '@poietica/desktop-adapters'

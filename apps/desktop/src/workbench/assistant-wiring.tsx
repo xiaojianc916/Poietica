@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/agent-contract'
 import { AutomationsSurface } from '@poietica/automations'
 import { PluginsSurface } from '@poietica/plugins'
 import type { WorkspaceSurfaceRenderers } from '@poietica/workspace'

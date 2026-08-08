@@ -12,7 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@poietica/acp": "workspace:*",
+    "@poietica/agent-contract": "workspace:*",
     "@tauri-apps/api": "catalog:tauri"
   },
   "devDependencies": {

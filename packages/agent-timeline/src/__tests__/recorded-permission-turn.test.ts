@@ -1,6 +1,6 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
+import { asRunEvents, permissionTurn } from '@poietica/agent-contract/recordings'
 import { describe, expect, it } from 'vitest'
-import { recordedTurn } from '../__fixtures__/permission-turn.generated'
 import type { PermissionItem, ToolCallTimelineItem } from '../timeline-contract'
 import { replayRunEvents } from '../timeline-reducer'
 
@@ -16,13 +16,7 @@ import { replayRunEvents } from '../timeline-reducer'
  * one run would only prove that the run happened.
  */
 
-/*
- * 录像里的 frame 就是原生侧写下的那一份 wire 值。它的形状由 RunFrame 在编译期
- * 定下，这里断言的是投影结果，不是形状，所以不需要再过一遍校验器。
- */
-const events: readonly RunEvent[] = recordedTurn.map(
-  (captured) => captured.frame as unknown as RunEvent,
-)
+const events = asRunEvents(permissionTurn)
 
 const state = replayRunEvents(events)
 
@@ -57,8 +51,8 @@ describe('a recorded permission turn', () => {
   })
 
   it('replays every recorded frame, in order', () => {
-    expect(events).toHaveLength(recordedTurn.length)
-    expect(state.lastSeq).toBe(recordedTurn.length)
+    expect(events).toHaveLength(permissionTurn.length)
+    expect(state.lastSeq).toBe(permissionTurn.length)
   })
 
   it('asks once, and the question keeps the identity the agent gave it', () => {

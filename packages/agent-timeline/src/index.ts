@@ -4,8 +4,6 @@ export type { FeedRow } from './feed-rows'
 export { selectFeedRows } from './feed-rows'
 export type { ReplayedAttachment } from './message-images'
 export { attachImages, attachImagesTo } from './message-images'
-export type { ReplayScheduler, ReplaySessionOptions } from './replay-session'
-export { createReplaySession } from './replay-session'
 export type {
   AgentTextItem,
   AgentThoughtItem,

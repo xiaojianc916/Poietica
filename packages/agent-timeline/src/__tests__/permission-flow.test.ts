@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 import { pendingPermission, selectIsBusy } from '../timeline-queries'
 import { replayRunEvents } from '../timeline-reducer'

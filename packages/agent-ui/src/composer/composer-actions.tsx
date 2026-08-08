@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/acp'
+import type { SessionConfigControl } from '@poietica/agent-contract'
 import {
   DropdownMenu,
   DropdownMenuContent,

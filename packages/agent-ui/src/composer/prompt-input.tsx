@@ -1,4 +1,4 @@
-import type { ChatStatus } from '@poietica/acp'
+import type { ChatStatus } from '@poietica/agent-contract'
 import type { ComponentProps, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import {
   createContext,

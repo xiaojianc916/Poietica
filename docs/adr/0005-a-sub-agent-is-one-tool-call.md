@@ -11,7 +11,7 @@
 
 证据（`MoonshotAI/kimi-code`，head `c396873`）：
 
-- `packages/acp-server/src/session.ts` 构造函数逐字 `this.agent = this.session.agent('main')`，
+- `packages/agent-contract-server/src/session.ts` 构造函数逐字 `this.agent = this.session.agent('main')`，
   `init()` 第一行 `const events = this.agent.events`。`assistant.delta` /
   `tool.call.started` / `tool.call.delta` / `tool.progress` / `tool.result` /
   `turn.ended` 六个订阅全挂在这一个 handle 上 —— 一个 ACP 会话跟的是**主代理**。
@@ -19,7 +19,7 @@
 - 同文件 `onTerminalCreated` 的注释逐字自证：
   "Terminals with no matching call (e.g. a subagent's — this session only follows the
   main agent's events) stay unattached."
-- 旧那套 `packages/acp-adapter/src/session.ts` 是另一种写法、同一个结果：
+- 旧那套 `packages/agent-contract-adapter/src/session.ts` 是另一种写法、同一个结果：
   `if (event.agentId !== undefined && event.agentId !== MAIN_AGENT_ID) return;`
 - 而引擎层 `agent-core-v2/src/session/agentLifecycle/agentLifecycle.ts` 逐字：
   "No agent id is special: the main agent is an ordinary agent whose only distinction is

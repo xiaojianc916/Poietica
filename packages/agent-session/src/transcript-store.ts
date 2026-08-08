@@ -4,7 +4,7 @@ import type {
   RunEvent,
   ThreadAttachment,
   ThreadHistory,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import type { TimelineState } from '@poietica/agent-timeline'
 import {
   appendLocalError,

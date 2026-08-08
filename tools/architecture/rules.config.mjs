@@ -77,7 +77,7 @@ const alternation = (values) => values.map(escapeForRegExp).join('|')
  */
 const layers = [
   { name: 'foundations', packages: ['core', 'ui'] },
-  { name: 'protocol', packages: ['acp'] },
+  { name: 'protocol', packages: ['agent-contract'] },
   { name: 'domain', packages: ['agent-session', 'agent-timeline', 'agents'] },
   { name: 'transport', packages: ['ipc'] },
   {
@@ -116,7 +116,7 @@ const nativeAllowed = new Set(['desktop', 'desktop-adapters', 'ipc'])
  *
  * 现在工作区只扫一次，两个方向与包名核对合并成一份清单，一次抛全。
  */
-const workspacePackages = new Map()
+const layeredPackages = new Map()
 
 for (const root of sourceRoots) {
   for (const entry of readdirSync(path.join(repositoryRoot, root), { withFileTypes: true })) {
@@ -127,7 +127,7 @@ for (const root of sourceRoots) {
     const directory = `${root}/${entry.name}`
 
     if (existsSync(path.join(repositoryRoot, directory, 'package.json'))) {
-      workspacePackages.set(entry.name, directory)
+      layeredPackages.set(entry.name, directory)
     }
   }
 }
@@ -144,7 +144,7 @@ for (const [index, layer] of layers.entries()) {
 
     placed.set(pkg, index)
 
-    const directory = workspacePackages.get(pkg)
+    const directory = layeredPackages.get(pkg)
 
     if (directory === undefined) {
       mismatches.push(`分层表里的 "${pkg}" 在磁盘上不存在 —— 包删除或改名后必须同步这张表`)
@@ -163,18 +163,23 @@ for (const [index, layer] of layers.entries()) {
 }
 
 /* 新增一个包却没有给它定层，就在这里失败 —— 而不是安静地不受任何方向约束。 */
-for (const [pkg, directory] of workspacePackages) {
+for (const [pkg, directory] of layeredPackages) {
   if (!placed.has(pkg)) {
     mismatches.push(`${directory} 没有出现在分层表里 —— 新增包必须先声明它属于哪一层`)
   }
 }
 
 /*
- * pnpm-workspace.yaml 把 tests 列为工作区包，但分层只覆盖 sourceRoots，所以
- * 上面那条「新增包必须先定层」抓不到它。洞就是洞 —— 显式豁免比隐式遗漏可信。
+ * 分层之外的工作区成员。pnpm-workspace.yaml 把 tests 列为成员，而分层只覆盖
+ * sourceRoots，所以上面那条「新增包必须先定层」抓不到它。洞就是洞 —— 显式豁免
+ * 比隐式遗漏可信。下面这段保证这份名单与磁盘一致。
  */
-if (!existsSync(path.join(repositoryRoot, 'tests', 'package.json'))) {
-  mismatches.push('tests/package.json 不存在 —— 豁免名单必须与 pnpm-workspace.yaml 一致')
+const UNLAYERED_PACKAGES = ['tests']
+
+for (const directory of UNLAYERED_PACKAGES) {
+  if (!existsSync(path.join(repositoryRoot, directory, 'package.json'))) {
+    mismatches.push(`${directory}/package.json 不存在 —— 豁免名单必须与 pnpm-workspace.yaml 一致`)
+  }
 }
 
 if (mismatches.length > 0) {
@@ -203,7 +208,7 @@ const SPECIFIER = String.raw`(?<=(?:from|import)\s*\(?\s*['"])`
  */
 const entryOwnershipRules = [...placed.keys()].map((pkg) => ({
   id: `${pkg}-owns-its-entry`,
-  appliesTo: inDirectory(workspacePackages.get(pkg)),
+  appliesTo: inDirectory(layeredPackages.get(pkg)),
   pattern: new RegExp(`${SPECIFIER}@poietica/${escapeForRegExp(pkg)}(?=['"/])`, 'g'),
   message: `${pkg} 不能用包名引用自己：包内走相对路径，否则包入口与模块互指成环`,
 }))
@@ -343,11 +348,8 @@ const nativeCratesStayHostAgnostic = async (inventory) => {
  * 全仓所有调用路径 —— 规则做不到，于是成了硬编码断言，两轮都被证伪（一次是根
  * package.json 的同名聚合脚本，一次是未跟踪的 quality.yml.bak）。
  *
- * 双下划线目录（__fixtures__ 与 __tests__ 同族）不进公共路径名，显式豁免。
  * tests/package.json 不在 inventoryRoots 里，manifest 那几条够不着它 —— 洞就是洞。
  */
-const CONVENTION_EXEMPT_TARGET = /\/__[\w-]+__\//
-
 const ORCHESTRATED_TOOLS = ['tsc', 'vitest', 'biome']
 
 const WILDCARD_MODULE = /declare\s+module\s+['"](\*\.[\w.]+)['"]/g
@@ -366,7 +368,7 @@ const manifestExportDefects = (file, exportMap) =>
       ]
     }
 
-    if (subpath === '.' || !/\.tsx?$/.test(target) || CONVENTION_EXEMPT_TARGET.test(target)) {
+    if (subpath === '.' || !/\.tsx?$/.test(target)) {
       return []
     }
 
@@ -634,7 +636,7 @@ const LOCAL_PACKAGE = /^@poietica\/([\w-]+)$/
 const workspaceDependencyGraph = async (inventory) => {
   const graph = new Map()
 
-  for (const [pkg, directory] of workspacePackages) {
+  for (const [pkg, directory] of layeredPackages) {
     const manifest = JSON.parse(await inventory.read(`${directory}/package.json`))
     const edges = new Map()
 
@@ -642,7 +644,7 @@ const workspaceDependencyGraph = async (inventory) => {
       for (const name of Object.keys(manifest[block] ?? {})) {
         const local = LOCAL_PACKAGE.exec(name)
 
-        if (local !== null && workspacePackages.has(local[1])) {
+        if (local !== null && layeredPackages.has(local[1])) {
           edges.set(local[1], `${block}.${name}`)
         }
       }
@@ -661,7 +663,7 @@ const layeredWorkspaceDependencies = async (inventory) => {
 
   for (const [pkg, edges] of graph) {
     const from = placed.get(pkg)
-    const file = `${workspacePackages.get(pkg)}/package.json`
+    const file = `${layeredPackages.get(pkg)}/package.json`
 
     for (const [dependency, origin] of edges) {
       const to = placed.get(dependency)
@@ -738,7 +740,7 @@ const workspaceGraphIsAcyclic = async (inventory) => {
   return [...pending]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([pkg, edges]) => ({
-      file: `${workspacePackages.get(pkg)}/package.json`,
+      file: `${layeredPackages.get(pkg)}/package.json`,
       message: `依赖成环：${pkg} 仍指向 ${[...edges].sort().join('、')}，工作区依赖图必须是 DAG`,
     }))
 }
@@ -754,7 +756,7 @@ const everyPackageIsReachable = async (inventory) => {
   const reachable = new Set()
   const queue = []
 
-  for (const [pkg, directory] of workspacePackages) {
+  for (const [pkg, directory] of layeredPackages) {
     if (directory.startsWith('apps/')) {
       reachable.add(pkg)
       queue.push(pkg)
@@ -772,7 +774,7 @@ const everyPackageIsReachable = async (inventory) => {
 
   const defects = []
 
-  for (const [pkg, directory] of workspacePackages) {
+  for (const [pkg, directory] of layeredPackages) {
     if (!reachable.has(pkg)) {
       defects.push({
         file: `${directory}/package.json`,
@@ -791,7 +793,7 @@ const everyPackageIsReachable = async (inventory) => {
 const nativeHostAccessIsDeclared = async (inventory) => {
   const defects = []
 
-  for (const [pkg, directory] of workspacePackages) {
+  for (const [pkg, directory] of layeredPackages) {
     if (nativeAllowed.has(pkg)) {
       continue
     }
@@ -811,6 +813,45 @@ const nativeHostAccessIsDeclared = async (inventory) => {
   return defects
 }
 
+/*
+ * 工作区成员的包名。
+ *
+ * layeredPackages 的键是目录名，覆盖面是 sourceRoots —— 它回答的是「分层表管得着
+ * 谁」，不是「工作区里有哪些包」。上一版这两件事共用一个名字，第一个消费者当场
+ * 掉进去：名字承诺的比它交付的大一圈。名字取自各 manifest 的 name 字段，不由目录
+ * 名拼 —— 目录名与包名相等是上面那段单独在守的事，这里不重复预设它成立。
+ */
+const workspaceMembers = new Set(
+  [...layeredPackages.values(), ...UNLAYERED_PACKAGES].map(
+    (directory) =>
+      JSON.parse(readFileSync(path.join(repositoryRoot, directory, 'package.json'), 'utf8')).name,
+  ),
+)
+
+/*
+ * 文档里写的包必须真的存在。
+ *
+ * 与 documented-scripts-exist 同一类腐烂：文档抄的是别处的可执行事实，而包改名、
+ * 合并、删除时没有任何东西会喊一声。判据只依赖单个文件能证明的形状 —— 文本里出现
+ * 的 @poietica/* 字面量，与它在不在工作区里。
+ */
+const DOCUMENTED_PACKAGE = /@poietica\/[\w-]+/g
+
+const documentedPackagesExist = () => {
+  const defects = []
+
+  for (const file of documentationFiles()) {
+    const source = readFileSync(path.join(repositoryRoot, file), 'utf8')
+
+    for (const match of source.matchAll(DOCUMENTED_PACKAGE)) {
+      if (!workspaceMembers.has(match[0])) {
+        defects.push({ file, message: `文档写着 ${match[0]}，但工作区里没有这个包` })
+      }
+    }
+  }
+
+  return defects
+}
 const governanceRules = [
   { id: 'manifest-scripts-resolve', check: manifestScriptsResolve },
   { id: 'capability-scoped-directory-names', check: capabilityScopedDirectoryNames },
@@ -822,6 +863,7 @@ const governanceRules = [
   { id: 'workspace-manifest-conventions', check: workspaceManifestConventions },
   { id: 'wildcard-module-declarations', check: wildcardModuleDeclarations },
   { id: 'documented-scripts-exist', check: documentedScriptsExist },
+  { id: 'documented-packages-exist', check: documentedPackagesExist },
 ]
 
 /* 唯一允许触碰 Web Storage 的文件。规则与实现必须指着同一条路径。 */

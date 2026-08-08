@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 import { apply, surelyIgnored } from './acp-projection'
 import type { MessageImage, TimelineState } from './timeline-contract'
 import type { Draft } from './timeline-draft'
@@ -33,7 +33,7 @@ import { beginRun, draftOf, freeze, namespace, openSegment, push } from './timel
  * 知道（见 apply 开头那段注释），所以它必须留在这一层。
  *
  * 帧里那些字如何变成条目是协议的方言，归 acp-projection —— 那是唯一 import
- * @poietica/acp 的地方。本机账本里的图如何挂回它那句话与协议无关，归
+ * @poietica/agent-contract 的地方。本机账本里的图如何挂回它那句话与协议无关，归
  * message-images：此前它也在这个文件里，而一个自称 reducer 的模块不该导出
  * 一个叫 ReplayedAttachment 的类型。
  */

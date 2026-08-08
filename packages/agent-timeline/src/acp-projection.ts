@@ -17,7 +17,7 @@ import type {
   AcpToolCallUpdate,
   RunEvent,
   RunStatus,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import { isRenderable } from './renderable'
 import type {
   AgentTextItem,

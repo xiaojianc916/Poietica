@@ -6,22 +6,43 @@ violations as `file:line:column`.
 
 ## Enforced invariants
 
-Every invariant below maps to a rule id emitted by `run.mjs`. The tier table
-itself lives in `rules.config.mjs` and is reconciled against the packages on
-disk at load time; this file does not restate it.
+Every invariant below maps to a rule id emitted by `run.mjs`. The layer table
+lives in `rules.config.mjs` and is reconciled against the packages on disk at
+load time; the dependency edges are read from the workspace manifests. This
+file restates neither.
 
-- `{pkg}-depends-downward` — a package imports only its own tier and below;
-- `{pkg}-owns-its-entry` — a package is reached through its own entry point;
-- `public-package-exports` — cross-package imports use package exports, not `src/` deep paths;
-- `no-cross-boundary-relative-imports` — relative imports do not cross package boundaries;
-- `design-system-token-authority` — design-system components consume `--ui-*` tokens, not raw utility classes;
-- `no-task-scoped-guards` — no `check-*.mjs` file may exist in this directory;
-- `manifest-scripts-resolve` — a `node <file>.mjs` entry point named in a manifest exists on disk.
-- `capability-scoped-directory-names` — no directory is named after a DDD layer or a catch-all bucket;
-- `native-crates-stay-host-agnostic` — native crates depend on neither Tauri nor each other, and declare `[lints] workspace = true`;
-- `workspace-manifest-conventions` — workspace manifests share one shape: exports, subpath names, side-effect globs, script names, orchestration, and version ranges.
-- `wildcard-module-declarations` — a wildcard `declare module` is global, so the repository holds exactly one.
-- `documented-scripts-exist` — a colon-scoped `pnpm` script named in documentation exists in a manifest.
+- `public-package-exports` — cross-package imports use public package exports, not `src/` deep
+  paths.
+- `no-cross-boundary-relative-imports` — relative imports do not cross top-level package
+  boundaries.
+- `{pkg}-owns-its-entry` — a package never imports itself by package name; inside a package,
+  paths are relative.
+- `layered-workspace-dependencies` — a workspace edge points down a layer, or is a listed
+  same-layer exemption carrying a reason.
+- `workspace-graph-is-acyclic` — the workspace dependency graph is a DAG.
+- `every-package-is-reachable` — every package is reachable from an app.
+- `native-host-access-is-declared` — only `desktop`, `desktop-adapters` and `ipc` declare
+  `@tauri-apps/*`.
+- `native-crates-stay-host-agnostic` — native crates set `[lints] workspace = true`, and depend
+  on neither tauri nor each other.
+- `capability-scoped-directory-names` — a directory name states a capability; DDD layer names
+  and catch-all buckets are refused at any depth.
+- `workspace-manifest-conventions` — one public surface per manifest: `exports` without
+  `main`/`types`, bare string targets, subpath names derived from the target, exact versions.
+- `manifest-scripts-resolve` — a `node <file>.mjs` named in a script exists on disk.
+- `documented-scripts-exist` — a colon-scoped `pnpm` script named in documentation exists in a
+  manifest.
+- `documented-packages-exist` — a `@poietica/*` package named in documentation exists in the
+  workspace.
+- `wildcard-module-declarations` — a `declare module "*.ext"` pattern has exactly one owner.
+- `client-preferences-single-pipeline` — Web Storage is touched in exactly one file.
+- `agent-identity-single-subscription` — the current agent id is subscribed once, at the
+  composition root.
+- `agent-choices-are-injected` — domain code receives agent choices, it never imports them.
+- `agent-capabilities-wired-at-the-root` — the capability port is installed once, at the
+  composition root.
+- `design-system-token-authority` — design-system components consume `--ui-*` tokens instead of
+  raw utility classes.
 
 A rule carries either a `pattern` (a regular expression matched against source
 files) or a `check` (a function handed the single filesystem inventory). Both

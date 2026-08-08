@@ -1,4 +1,4 @@
-import type { AgentSessionPort } from '@poietica/acp'
+import type { AgentSessionPort } from '@poietica/agent-contract'
 import {
   type AgentConfigStore,
   type AppUpdateController,

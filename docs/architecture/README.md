@@ -19,6 +19,20 @@ tools/architecture/README.md 各存一份手抄表，四份互相矛盾（本文
 
 ## 包边界的由来
 
+`agent-contract` 曾经叫 `acp`。用协议名当包名，是把「这个包是什么」答成了「它今天
+用什么协议说话」—— 而它八个文件里只有 `protocol.ts` 真的在讲 ACP，其余七个是本仓库
+自己的会话、线程、能力与运行契约。它不并进任何一侧：名单与会话两边都要依赖它，并
+进哪边都会让工作区依赖图成环，而 `workspace-graph-is-acyclic` 会当场报出来。Zed 的
+`agent-client-protocol`、codex-rs 的 `protocol`、VS Code 的 `vscode-jsonrpc` 是同一种
+摆法：契约独立成包。
+
+三份真实录像住在 `agent-contract/src/recordings/`，由 `./recordings` 子路径公开。它们
+证明的是「协议实际发出了什么」，不止一个包要靠它们证明自己的投影忠实 —— 所以它们跟
+协议走，不跟第一个读到它们的包走。把 wire 值收窄成 `RunEvent` 的那句 cast 曾在三个
+测试文件里各抄一遍，现在是 `asRunEvents` 一处。手写样本不在其中：它是插图不是证据，
+留在用得到它的包的 `__fixtures__/sample-run.ts` 里，而读它的替身已经从公共入口撤下 ——
+一个测试替身挂在主入口上、还把夹具当缺省参数，是产品代码通往 78KB 录像的一条边。
+
 `agents` 是 `agent-registry` 与 `agent-providers` 合并来的。那条边按历史切，
 不按职责：两边都以 agentId 定址、都开了同名的每家子目录、注释互相引用对方的
 分法。合并后包内按 agentId 分文件；agent 名单与 provider 解析同处一包，而解析

@@ -1,4 +1,4 @@
-import type { AcpToolCallContent } from '@poietica/acp'
+import type { AcpToolCallContent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 
 import { withoutArgumentEcho } from '../acp-projection'

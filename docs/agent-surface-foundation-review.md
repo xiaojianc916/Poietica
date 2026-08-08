@@ -11,9 +11,9 @@
 
 ## 缺陷 1：流式通道没有地址位（根因）
 
-- `packages/acp/src/run-contract.ts`：`RunEvent` 六个变体全是 `{ kind, seq, at, ... }`,
+- `packages/agent-contract/src/run-contract.ts`：`RunEvent` 六个变体全是 `{ kind, seq, at, ... }`,
   没有 `threadId`,没有 `runId` —— 尽管同一文件就定义了 `ThreadId` 与 `RunId`。
-- `packages/acp/src/agent-session-port.ts`：
+- `packages/agent-contract/src/agent-session-port.ts`：
   `subscribe: (listener: (event: RunEvent) => void) => () => void`，订阅端不接收
   threadId,端口层面不存在"按对话订阅"这件事。
 - `packages/ipc/src/agent.ts`：信封是 `{ runId, seq, kind, frame }`,注释写着
@@ -72,7 +72,7 @@ VS Code 的 chat welcome 与 chat session）,切换是导航;退一步至少是�
 
 ## 推倒重做的范围
 
-跨 `packages/acp`、`packages/ipc`（含 Rust 广播载荷）、`packages/agent-session`、
+跨 `packages/agent-contract`、`packages/ipc`（含 Rust 广播载荷）、`packages/agent-session`、
 `packages/agent-ui`：帧带地址 → 端口按对话订阅 → 转录搬进外部归一化存储 → 入口态与会话态
 分成两个视图。
 
@@ -143,7 +143,7 @@ routing, not content），在这一行被丢弃。所以 store 的归属依据�
   `const controls = threadId === null ? NO_CONTROLS : ...` —— 入口那一格恒为空。
 - `packages/agent-session/src/threads-store.ts`：`selectorsOf(threadId)`，表按 threadId 存；
   唯一到达口是 `port.open(threadId)`（`#read` / `create`）。
-- `packages/acp/src/session-config-contract.ts` 文件头：
+- `packages/agent-contract/src/session-config-contract.ts` 文件头：
   "What the running session lets us change."
 
 后果：新建会话界面没有模型选择器；每条对话各问一遍同一张表；并且有人为绕开它，
@@ -164,7 +164,7 @@ per-session。
 
 - `packages/ipc/src/agent.ts`：`handler(event.payload.frame)` —— 信封里的
   `runId` 被一句 "the envelope is not the contract" 说服自己扔掉了。
-- `packages/acp/src/run-contract.ts`：六个帧变体全是 `{ kind, seq, at, ... }`，
+- `packages/agent-contract/src/run-contract.ts`：六个帧变体全是 `{ kind, seq, at, ... }`，
   帧本身没有地址。
 - 因此 `AgentSessionPort.subscribe` 交出的是一封没有收件人的信，接收方只能猜
   "大概是当前那一轮"；而 `seq` 按 run 计数，两轮都有 seq 3，按 seq 去重分不开。
@@ -246,7 +246,7 @@ per-session。
   `live.client.selectors(held.session_id)`。两者都要先有一个会话，而会话的归属由
   `session_for` 按 thread UUID 决定；`agent_set_config_option` 更是直接
   `ok_or(NO_CONVERSATION)`。
-- `packages/acp/src/session-config-port.ts` 的注释写明了这件事："这里没有'读'。
+- `packages/agent-contract/src/session-config-port.ts` 的注释写明了这件事："这里没有'读'。
   选择器随会话一起交回来。"
 - 于是入口界面（没有对话、没有会话）在结构上拿不到模型清单，渲染层只能靠
   localStorage 里上一次学到的表 —— 那是替一条不存在的取数路径打掩护，不是修复。

@@ -3,7 +3,7 @@ import type {
   SessionConfigControl,
   SessionConfigPort,
   SessionConfigReport,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 
 import { SessionControlsStore } from '../session-controls-store'

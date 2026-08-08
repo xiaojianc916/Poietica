@@ -3,7 +3,7 @@ import type {
   SessionConfigPort,
   ThreadPort,
   ThreadRecord,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import { describeFailure } from './describe-failure'
 import { withEntry, withoutEntry } from './immutable-map'
 import { SessionControlsStore } from './session-controls-store'

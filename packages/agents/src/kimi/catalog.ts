@@ -132,7 +132,7 @@ function importDocument(provider: AgentProviderState): string {
  * 这一家该拿哪个模型当 default_model。
  *
  * 为什么它是必填而不是偏好：ACP 的鉴权闸门第一条判的就是它 ——
- * packages/acp-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
+ * packages/agent-contract-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
  * `if (config.defaultModel === undefined) return false`。顶层没有这一行，
  * 配置文件里的 api_key 那条路整条不算数，session/new 一律 authRequired。
  * 它与 api_key 同级。

@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/acp'
+import type { SessionConfigControl } from '@poietica/agent-contract'
 import type { ThreadsStore, ThreadWorkspaceList } from '@poietica/agent-session'
 import { groupByWorkspace } from '@poietica/agent-session'
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react'

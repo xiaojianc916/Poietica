@@ -4,15 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./fixtures": "./src/__fixtures__/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@poietica/acp": "workspace:*"
+    "@poietica/agent-contract": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

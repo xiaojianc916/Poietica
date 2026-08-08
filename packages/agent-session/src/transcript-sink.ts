@@ -1,4 +1,4 @@
-import type { ThreadAttachment, ThreadHistory } from '@poietica/acp'
+import type { ThreadAttachment, ThreadHistory } from '@poietica/agent-contract'
 
 /**
  * 转录那一侧，会话这一侧要用到的全部。

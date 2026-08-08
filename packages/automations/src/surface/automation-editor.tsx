@@ -1,4 +1,4 @@
-import type { SessionConfigControl } from '@poietica/acp'
+import type { SessionConfigControl } from '@poietica/agent-contract'
 import { useAgentControls } from '@poietica/agent-session'
 import type { Automation } from '@poietica/ipc'
 import { ArrowLeftIcon, ConfirmationDialog, cn, PlayIcon } from '@poietica/ui'

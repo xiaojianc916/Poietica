@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 
 /**
  * A hand-written run: thought, text, a tool call that succeeds, a plan, and a

@@ -1,7 +1,7 @@
 import './composer-actions.css'
 import './question-panel.css'
 
-import type { ChatStatus, SessionConfigControl } from '@poietica/acp'
+import type { ChatStatus, SessionConfigControl } from '@poietica/agent-contract'
 import { memo, type Ref } from 'react'
 import { MicIcon } from '../primitives/icons'
 import type { QuestionAnswer, QuestionDeck } from '../semantics/ask-user-question'

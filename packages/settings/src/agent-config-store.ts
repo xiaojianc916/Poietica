@@ -157,7 +157,7 @@ export interface AgentConfigStore {
    * 顶层的 default_model，没有就是 null。
    *
    * 它不是偏好，是开会话的前提：ACP 的鉴权闸门第一条判的就是它在不在
-   * （packages/acp-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
+   * （packages/agent-contract-adapter/src/server.ts 的 hasUsableConfiguredDefaultModel 逐字
    * `if (config.defaultModel === undefined) return false`）。所以界面要能说出
    * 「现在是哪个」和「一个都没有」，而不是让用户从一次 Authentication required
    * 里反推。

@@ -1,6 +1,6 @@
 import './assistant.css'
 
-import type { AgentSessionPort, SessionConfigControl } from '@poietica/acp'
+import type { AgentSessionPort, SessionConfigControl } from '@poietica/agent-contract'
 import type { AssistantSubmission } from '@poietica/agent-session'
 import {
   useAssistantPending,

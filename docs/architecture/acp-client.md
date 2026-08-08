@@ -35,7 +35,7 @@ rebuildable from the log, a later version can backfill them.
 ## The frame is the interface contract
 
 The recorder does not invent a shape of its own. Every frame it writes is
-exactly the shape declared in `packages/acp/src/run.ts` and
+exactly the shape declared in `packages/agent-contract/src/run.ts` and
 validated by `packages/agent-timeline/src/acp-event-schema.ts`, and the same value
 is what goes into the log. Replaying a stored run and watching a live one
 therefore cannot drift apart, and there is no translation layer to keep in sync.

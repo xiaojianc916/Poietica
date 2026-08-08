@@ -3,7 +3,7 @@ import type {
   AgentSessionPort,
   SessionConfigPort,
   ThreadPort,
-} from '@poietica/acp'
+} from '@poietica/agent-contract'
 import type { AcpAgentDescriptor } from '@poietica/agents'
 import {
   acpAgentById,
@@ -120,7 +120,7 @@ export function desktopSessionConfig(): SessionConfigPort {
  *
  * 一张表一个产地：锚会话。模型、模式、推理档位都在它报的那张表里，而这三件事本来
  * 就互相决定 —— ACP 的 session/new 与 set_config 一律回整张表，理由逐字是 changing
- * one may add or remove another（见 @poietica/acp 的 config.ts）。
+ * one may add or remove another（见 @poietica/agent-contract 的 config.ts）。
  *
  * 此前这里把两个产地缝成一张表：模型清单来自 agent 的 CLI（provider list --json,
  * 读 config.toml 的静态目录），模式与推理档位来自锚会话。锚会话是按 default_model

@@ -1,6 +1,6 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import { SAMPLE_RUN_EVENTS } from '../__fixtures__/timeline-fixtures'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { applyRunEvent, createTimelineState, replayRunEvents } from '../timeline-reducer'
 
 describe('timeline reducer', () => {

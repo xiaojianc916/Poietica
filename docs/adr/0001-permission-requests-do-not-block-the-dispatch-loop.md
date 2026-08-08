@@ -15,13 +15,13 @@
 ## 子代理为什么必现
 
 kimi-code 的 ACP 适配把子代理设计成**对客户端不透明**：
-`packages/acp-adapter/src/session.ts` 的 `onEvent` 首行即
+`packages/agent-contract-adapter/src/session.ts` 的 `onEvent` 首行即
 `if (event.agentId !== undefined && event.agentId !== MAIN_AGENT_ID) return;`，
 子代理的全部事件都不进 ACP；`test/session-prompt.test.ts` 的
 `'ignores a subagent turn.ended and resolves on the main agent turn.ended'`
 用例固定了这一语义。
 
-而审批不在过滤范围内 —— `packages/acp-adapter/src/approval.ts` 全文没有
+而审批不在过滤范围内 —— `packages/agent-contract-adapter/src/approval.ts` 全文没有
 `agentId` 判断。于是子代理回合在 ACP 上的形状就是"长时间静默 + 必来一次
 `session/request_permission`"，一问即死。
 

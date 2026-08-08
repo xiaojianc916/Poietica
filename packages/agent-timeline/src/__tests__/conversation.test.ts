@@ -1,4 +1,4 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
 import type { TimelineState } from '../timeline-contract'
 import { appendUserMessage, applyRunEvent, createTimelineState } from '../timeline-reducer'

@@ -1,4 +1,4 @@
-import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/acp'
+import type { AgentCapabilityPort, SessionConfigControl } from '@poietica/agent-contract'
 import { useSyncExternalStore } from 'react'
 import { ArrivalOrder } from './arrival-order'
 
@@ -102,7 +102,7 @@ export class AgentCapabilityStore {
     /*
      * 交出去的是整个控件。
      *
-     * 端口的签名就是这么定的，理由也写在那里（@poietica/acp 的 capability.ts）：
+     * 端口的签名就是这么定的，理由也写在那里（@poietica/agent-contract 的 capability.ts）：
      * 桌面那一侧要靠 purpose 认出「模型那一格」才会去写 config.toml 的
      * default_model，而 id 是 agent 自己起的名字，协议没规定过。传一个字符串过去，
      * purpose 读出 undefined、configId 读出 undefined —— 前者让换模型不再落盘，

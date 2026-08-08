@@ -1,13 +1,14 @@
-import type { RunEvent } from '@poietica/acp'
+import type { RunEvent } from '@poietica/agent-contract'
 import { describe, expect, it } from 'vitest'
-import { SAMPLE_RUN_EVENTS } from '../__fixtures__/index'
+import { SAMPLE_RUN_EVENTS } from '../__fixtures__/sample-run'
 import { replayRunEvents } from '../index'
-import { createReplaySession } from '../replay-session'
+import { createReplaySession } from './replay-session'
 
 describe('replay session', () => {
   it('emits the recorded run in order under an injected scheduler', async () => {
     const queue: Array<() => void> = []
     const session = createReplaySession({
+      events: SAMPLE_RUN_EVENTS,
       scheduler: (callback) => {
         queue.push(callback)
         return () => {}

@@ -1,4 +1,4 @@
-import type { SessionConfigControl, SessionConfigPurpose } from '@poietica/acp'
+import type { SessionConfigControl, SessionConfigPurpose } from '@poietica/agent-contract'
 import { Select, type SelectOption } from '@poietica/ui'
 import { useMemo } from 'react'
 
