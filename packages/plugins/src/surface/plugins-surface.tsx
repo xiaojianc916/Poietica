@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from 'react'
 import type { ResolvedMcpServer } from '../contribution'
 import type { InstalledPlugin } from '../installation'
 import { latestCatalog } from '../marketplace'
-import { describeOrigin } from '../origin'
+import { describeOrigin, type ManagedOrigin } from '../origin'
 import type { PluginStore } from '../plugin-store'
 import { ContributionList, type ContributionRow } from './contribution-list'
 import { PluginBrowser } from './plugin-browser'
@@ -41,7 +41,7 @@ const TABS = {
   mcp: {
     label: 'MCP',
     title: 'MCP 服务器',
-    subtitle: '对话能用到的外部工具服务器：这台机器上已经配好的，加上插件带来的。',
+    subtitle: '对话能用到的外部工具服务器：本应用自带的，这台机器上已经配好的，加上插件带来的。',
   },
 } as const satisfies Record<string, PluginTab>
 
@@ -217,21 +217,35 @@ function serverRow(server: ResolvedMcpServer, store: PluginStore): ContributionR
   }
 
   return {
-    key: `${origin.pluginId}/${server.name}`,
+    key: `${describeOrigin(origin)}/${server.name}`,
     title: server.name,
-    detail: server.enabled
-      ? server.active
-        ? '会话开始时启动'
-        : '插件已关闭，这一台不会启动'
-      : '已关闭',
+    detail: detailOf(origin, server),
     badge: describeOrigin(origin),
     trailing: (
       <Switch
         aria-label={`启用 ${server.name}`}
         checked={server.enabled}
-        onCheckedChange={(next) => store.setMcpServerEnabled(origin.pluginId, server.name, next)}
+        onCheckedChange={(next) => store.setMcpServerEnabled(origin, server.name, next)}
         size="sm"
       />
     ),
   }
+}
+
+/*
+ * 开着却不会装载，两种原因完全不同：内置那台是端口没绑上，插件那台是插件整体被关掉。
+ * 合并成一句「不会启动」，人就无从下手 —— 一个该去看端口，一个该去把插件打开。
+ */
+function detailOf(origin: ManagedOrigin, server: ResolvedMcpServer): string {
+  if (!server.enabled) {
+    return '已关闭'
+  }
+
+  if (server.active) {
+    return '会话开始时装载'
+  }
+
+  return origin.kind === 'builtin'
+    ? '本机端口没能绑上，这一台不会装载'
+    : '插件已关闭，这一台不会装载'
 }

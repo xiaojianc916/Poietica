@@ -6,6 +6,7 @@
  */
 
 export {
+  type BuiltinMcpServer,
   type ContributionInput,
   type ResolvedContributions,
   type ResolvedMcpServer,
@@ -73,8 +74,10 @@ export {
   transportIsOffered,
 } from './mcp-server'
 export {
+  type BuiltinOrigin,
   type ContributionOrigin,
   describeOrigin,
+  type ManagedOrigin,
   type PluginOrigin,
   type UserOrigin,
 } from './origin'

@@ -60,6 +60,7 @@ export {
   isIpcError,
   throughIpc,
 } from './error'
+export { type McpEndpoint, readMcpEndpoint } from './mcp'
 export {
   commitPlugin,
   discardStagedPlugin,

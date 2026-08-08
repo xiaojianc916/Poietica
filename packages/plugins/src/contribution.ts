@@ -2,7 +2,7 @@ import { type InstalledPlugin, resolutionOrder } from './installation'
 import { type PluginDiagnostic, SESSION_PROMPT_BUDGET_BYTES, utf8ByteLength } from './manifest'
 import type { DeclaredMcpServer } from './mcp-config'
 import { type McpServerWire, mcpServerWireOf } from './mcp-server'
-import type { ContributionOrigin } from './origin'
+import type { BuiltinOrigin, ContributionOrigin } from './origin'
 
 /*
  * 一次遍历，两个读者。
@@ -13,9 +13,8 @@ import type { ContributionOrigin } from './origin'
  * 启用位，会话读 active 那一档（apps/desktop 的 plugins/plugin-runtime 里那个
  * activeMcpServers 就是那一档的唯一读者）。不是两条管线，是一份结果加一个显式过滤。
  *
- * 每一条都说得出自己从哪来。插件是来源之一，不是唯一 —— 这台机器上的 mcp.json 里
- * 那些服务器和插件带来的那些是同一种东西，因此走同一个列表，而不是界面上另起一格
- * 自己去合并。
+ * 每一条都说得出自己从哪来。三种来源 —— 本应用自带的、这台机器上配好的、插件带来的
+ * —— 是同一种东西，因此走同一个列表，而不是界面上另起几格自己去合并。
  *
  * 技能与代理两类在清单里仍然只是一条 ./ 路径，路径下那些文件才是真正的实体；这一层
  * 如实交出路径，不凭空造出名字来撑版面。
@@ -40,8 +39,22 @@ export interface ResolvedMcpServer {
   readonly wire: McpServerWire | undefined
   /** 这一台自己的开关。界面上那个 Switch 显示的就是它。 */
   readonly enabled: boolean
-  /** 本应用会在会话开始时启动它。 */
+  /** 本应用会把它交给会话。 */
   readonly active: boolean
+}
+
+/**
+ * 本应用自己在进程里起的那一台。
+ *
+ * 地址由原生侧在启动时绑定并登记，这一层只是收下 —— 端口是内核分配的，谁都不需要
+ * 事先约定一个数字。绑不上时 url 缺席：那一行仍然要显示，人才知道为什么它不работает，
+ * 而不是以为自己没装。
+ */
+export interface BuiltinMcpServer {
+  readonly name: string
+  readonly url: string | undefined
+  /** 人在界面上拨的那个开关。 */
+  readonly enabled: boolean
 }
 
 export interface ResolvedPrompt {
@@ -66,7 +79,11 @@ export interface ContributionInput {
   readonly plugins: readonly InstalledPlugin[]
   /** 这台机器上已经配好的那些服务器。本应用只读，不写。 */
   readonly environment: readonly DeclaredMcpServer[]
+  /** 本应用自己起的那些。 */
+  readonly builtin: readonly BuiltinMcpServer[]
 }
+
+const BUILTIN_ORIGIN: BuiltinOrigin = { kind: 'builtin' }
 
 export function resolveContributions(input: ContributionInput): ResolvedContributions {
   const skillRoots: ResolvedRoot[] = []
@@ -78,7 +95,8 @@ export function resolveContributions(input: ContributionInput): ResolvedContribu
 
   let promptBytes = 0
 
-  /* 机器上那些排在前面：它们先于任何插件存在，界面上也是这个次序。 */
+  /* 自带的排最前，机器上那些次之：它们都先于任何插件存在，界面上也是这个次序。 */
+  collectBuiltinServers(input.builtin, mcpServers)
   collectEnvironmentServers(input.environment, mcpServers)
 
   for (const plugin of resolutionOrder(input.plugins)) {
@@ -105,6 +123,32 @@ function collectRoots(
 ): void {
   for (const declared of paths) {
     into.push({ origin, path: declared, enabled })
+  }
+}
+
+/*
+ * 本应用自己起的那几台。
+ *
+ * 地址照样过 mcpServerWireOf：传输长什么样全仓只有 mcp-server 一处知道，内置这一支
+ * 自己拼一个 { type: 'http', … } 出来，就是第二份关于传输的知识，迟早与那一处漂开。
+ *
+ * 认不出或者没地址时 active 为假 —— 送不出去的东西不能在界面上说成「会装载」。
+ */
+function collectBuiltinServers(
+  servers: readonly BuiltinMcpServer[],
+  into: ResolvedMcpServer[],
+): void {
+  for (const server of servers) {
+    const wire =
+      server.url === undefined ? undefined : mcpServerWireOf(server.name, { url: server.url })
+
+    into.push({
+      origin: BUILTIN_ORIGIN,
+      name: server.name,
+      wire,
+      enabled: server.enabled,
+      active: server.enabled && wire !== undefined,
+    })
   }
 }
 

@@ -1,10 +1,11 @@
-import { assertUnreachable, warn } from '@poietica/core'
+import { assertUnreachable, createPreference, warn } from '@poietica/core'
 import {
   commitPlugin,
   discardStagedPlugin,
   listPlugins,
   prunePlugins,
   readEnvironmentMcpConfig,
+  readMcpEndpoint,
   readPluginCatalog,
   readPluginState,
   readPluginText,
@@ -13,7 +14,11 @@ import {
   writePluginState,
 } from '@poietica/ipc'
 
-import { type ResolvedContributions, resolveContributions } from './contribution'
+import {
+  type BuiltinMcpServer,
+  type ResolvedContributions,
+  resolveContributions,
+} from './contribution'
 import { planFetch } from './fetch-plan'
 import {
   describeInstallSource,
@@ -41,6 +46,7 @@ import {
   shouldFetchOnOpen,
 } from './marketplace'
 import { type DeclaredMcpServer, decodeMcpConfig } from './mcp-config'
+import type { ManagedOrigin } from './origin'
 import {
   DEFAULT_PREFERENCE,
   decodePluginPreferences,
@@ -110,7 +116,14 @@ export interface PluginStore {
   /** 扫盘、叠偏好，并在从未取过目录时拉一次。返回停表函数。 */
   readonly start: () => () => void
   readonly setEnabled: (pluginId: string, enabled: boolean) => void
-  readonly setMcpServerEnabled: (pluginId: string, server: string, enabled: boolean) => void
+  /**
+   * 拨动一台服务器。
+   *
+   * 收的是来源而不是插件号：内置那台不属于任何插件，硬塞进插件偏好就得给它编一个
+   * 假的插件号。机器上那些根本不在 ManagedOrigin 里，所以「它们改不了」由编译器说，
+   * 不靠调用方自觉。
+   */
+  readonly setMcpServerEnabled: (target: ManagedOrigin, server: string, enabled: boolean) => void
   readonly remove: (pluginId: string) => void
   /**
    * 开始一次安装：下载、解压到暂存区。
@@ -151,6 +164,14 @@ interface ScannedPlugin {
   readonly readable: boolean
 }
 
+/*
+ * 本进程自带的那台服务器叫什么。
+ *
+ * 名字要稳定且与界面语言无关：它会作为工具名的前缀出现在会话里，跟着界面语言变，
+ * 同一段对话历史里的工具名就会前后对不上。
+ */
+const BUILTIN_SERVER_NAME = 'poietica-automations'
+
 export function createPluginStore(options: PluginStoreOptions): PluginStore {
   const listeners = new Set<() => void>()
 
@@ -160,13 +181,32 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
    */
   const origin = parseMarketplaceOrigin(options.marketplaceUrl)
 
+  /*
+   * 内置那台的开关。
+   *
+   * 走 createPreference 是因为它必须在第一帧就有答案 —— 异步的设置管线会让这一行
+   * 先画成关的再跳成开的。默认开着，所以只有「关掉」需要落盘：编码交回 null 就是
+   * 删掉这个键，盘上因此不会堆一堆等于默认值的记录。
+   */
+  const builtinEnabled = createPreference<boolean>({
+    key: 'poietica.mcp.builtin.enabled',
+    fallback: true,
+    decode: (raw) => raw !== 'false',
+    encode: (value) => (value ? null : 'false'),
+    onFailure: (failure) => {
+      warn('内置 MCP 服务器的开关没能存下来', { scope: 'plugins', ...failure })
+    },
+  })
+
   let scanned: readonly ScannedPlugin[] = []
   let preferences = new Map<string, PluginPreference>()
   /* 机器上那份 mcp.json 里的服务器。读不出来就是空 —— 它不归本应用所有。 */
   let environment: readonly DeclaredMcpServer[] = []
+  /* 原生侧登记的那个地址。绑不上端口时缺席，那一行照样显示并说明原因。 */
+  let builtinUrl: string | undefined
   let snapshot: PluginsViewModel = {
     plugins: [],
-    contributions: resolveContributions({ environment: [], plugins: [] }),
+    contributions: resolveContributions({ builtin: [], environment: [], plugins: [] }),
     marketplace: MARKETPLACE_ABSENT,
     install: INSTALL_IDLE,
     loaded: false,
@@ -214,7 +254,7 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
 
     publish({
       plugins,
-      contributions: resolveContributions({ environment, plugins }),
+      contributions: resolveContributions({ builtin: builtinServers(), environment, plugins }),
       loaded: true,
     })
   }
@@ -312,6 +352,26 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
     }
 
     environment = decoded.servers
+  }
+
+  /*
+   * 原生侧那台服务器的地址。
+   *
+   * 它在应用启动时就绑好了（apps/desktop/src-tauri/src/mcp.rs 的 serve），这里只问
+   * 一次 —— 端口由内核分配，两边都不需要事先约定一个数字。绑不上时交回 null。
+   */
+  async function readBuiltinEndpoint(): Promise<void> {
+    builtinUrl = (await readMcpEndpoint())?.url
+  }
+
+  /*
+   * 内置那台永远在列表里，哪怕地址没问到。
+   *
+   * 起不来就不显示，人看到的是「它凭空消失了」；显示出来并写明原因，人才知道该去看
+   * 端口还是去看日志。与「关掉的插件照样列出来」同一条理由。
+   */
+  function builtinServers(): readonly BuiltinMcpServer[] {
+    return [{ name: BUILTIN_SERVER_NAME, url: builtinUrl, enabled: builtinEnabled.read() }]
   }
 
   /* 偏好是一个小文件。盘上装了什么不由它决定，所以重读它不必回头再数一遍目录。 */
@@ -450,6 +510,18 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
         republish()
       })
 
+      queue = queue.then(async () => {
+        try {
+          await readBuiltinEndpoint()
+        } catch (cause: unknown) {
+          warn('内置 MCP 服务器的地址问不出来', { scope: 'plugins', cause })
+
+          builtinUrl = undefined
+        }
+
+        republish()
+      })
+
       loadCatalog()
 
       /*
@@ -471,8 +543,19 @@ export function createPluginStore(options: PluginStoreOptions): PluginStore {
       patchPreference(pluginId, (preference) => ({ ...preference, enabled }))
     },
 
-    setMcpServerEnabled(pluginId, server, enabled) {
-      patchPreference(pluginId, (preference) => ({
+    setMcpServerEnabled(target, server, enabled) {
+      /*
+       * 内置那台不落在插件偏好里：那份文件的形状是「按插件号索引的一张表」，塞一个
+       * 不存在的插件进去，卸载清理那条路径就会开始处理一个永远不会被卸载的东西。
+       */
+      if (target.kind === 'builtin') {
+        builtinEnabled.write(enabled)
+        republish()
+
+        return
+      }
+
+      patchPreference(target.pluginId, (preference) => ({
         ...preference,
         disabledMcpServers: enabled
           ? preference.disabledMcpServers.filter((name) => name !== server)
