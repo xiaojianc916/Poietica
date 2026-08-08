@@ -11,24 +11,27 @@ import { installExternalLinks } from './chrome/external-links'
 import { installScrollbarSize } from './chrome/scrollbar-size'
 import { reportFatalIncident } from './failures/terminal-policy'
 
-void bootstrapApplication()
+bootstrapApplication()
 
-async function bootstrapApplication(): Promise<void> {
+function bootstrapApplication(): void {
   installScrollbarSize()
   installExternalLinks()
   installContextMenuGuard()
 
-  const previousCrash = await readPreviousNativeCrashReport()
-
-  if (previousCrash) {
-    // 呈现由 pre-react-entry 的崩溃屏负责：React 在这条路径上不会挂载。
-    reportPreviousNativeCrash(previousCrash)
-    return
-  }
-
+  /*
+   * 首帧不排在任何一次原生往返之后。
+   *
+   * 上一次崩溃的报告要走一次 IPC 和一次磁盘读，而它与"这一次能不能画"无关：
+   * 正常启动每一次都读到 null，却每一次都让挂载、布局与呈现计时一起往后挪。
+   * 所以 React 先挂，报告并发去读，读到了交给已经在跑的那条致命管线
+   * （reportFatalIncident → FatalErrorHost）——那也正是 pre-react-entry 在
+   * isReactFatalHostMounted 之后让位的对象。一件事只剩一条路径。
+   */
   const mounted = mountReactApplication(getApplicationRoot())
 
   presentWhenPainted(mounted.runtime.mainWindow)
+
+  void reportPreviousNativeCrash()
 }
 
 /*
@@ -86,7 +89,13 @@ async function readPreviousNativeCrashReport(): Promise<NativeCrashReport | null
   }
 }
 
-function reportPreviousNativeCrash(report: NativeCrashReport): void {
+async function reportPreviousNativeCrash(): Promise<void> {
+  const report = await readPreviousNativeCrashReport()
+
+  if (report === null) {
+    return
+  }
+
   const error = new Error(report.message)
 
   error.name = 'NativeProcessCrash'

@@ -191,8 +191,10 @@ pub fn controls(offered: &[SessionConfigOption]) -> Vec<ConfigControl> {
 /// agent，真相仍然由它自己的下一份答复给出。
 ///
 /// 没有分家时交回 None，那是绝大多数情况。
+/// 只给本 crate：唯一调用者是 driver.rs 的 settle_selector，而这个签名吃的是
+/// 协议原始类型 —— 公共面上只该出现 ConfigControl 那套自家形状。
 #[must_use]
-pub fn correction(
+pub(crate) fn correction(
     offered: &[SessionConfigOption],
     settled: &[ConfigControl],
 ) -> Option<(String, String)> {

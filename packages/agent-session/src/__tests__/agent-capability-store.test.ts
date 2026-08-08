@@ -85,7 +85,7 @@ describe('锚会话的那张表', () => {
   it('agent 换完模型自己收敛一次，入口那张表跟着换掉', async () => {
     const store = new AgentCapabilityStore()
 
-    /* agent 先给的是 k3 那张表（有 low），收敛之后给的是新模型那张（没有）。 */
+    /* agent 先报 ON_OFF；它自己收敛完模型之后，报的是 THREE_TIER 那张。 */
     let table: readonly SessionConfigControl[] = ON_OFF
     let announce: (() => void) | undefined
 
@@ -105,7 +105,8 @@ describe('锚会话的那张表', () => {
 
     await settled()
 
-    expect(currentOf(store.snapshot(), 'thought')).toBe('on')
+    /* 入口先看到 agent 当下那张表：ON_OFF 的档位是 off。 */
+    expect(currentOf(store.snapshot(), 'thought')).toBe('off')
 
     /* agent 补推了一次：屏幕必须跟着回到它真在用的那张表，而不是等下一次有人再问。 */
     table = THREE_TIER
